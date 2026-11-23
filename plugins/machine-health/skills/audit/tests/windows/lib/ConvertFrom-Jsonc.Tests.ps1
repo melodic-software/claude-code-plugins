@@ -98,8 +98,6 @@ Describe 'Remove-JsoncComment' -Tag 'lib' {
         It 'tolerates an unterminated block comment gracefully (strips to EOF)' {
             $in = "{ `"x`": 1 /* forgotten close"
             $out = Remove-JsoncComment -Text $in
-            # The unterminated comment consumes the rest -- parser will fail, but
-            # the function itself must not throw.
             $out | Should -Not -BeNull
         }
 

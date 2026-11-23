@@ -1425,7 +1425,8 @@ branch-cleanup:
 # faults, or a WIP cap pause it could not read), work-unblock (a listing the sweep could not read), pr-refine (a
 # fix-docs read or a changed-files read that failed, or a Refine pass that
 # failed, whose refine-failed warning is read on red runs too: pr-refine's
-# failed runs are listed and read as well, and its cap of 6 unread runs covers
+# failed runs are listed and read as well, and its own cap of 12 unread runs
+# (https://github.com/melodic-software/claude-code-plugins/issues/16656) covers
 # green and red together), intake-triage (a verdict a GitHub fault held) and
 # pr-merge (a lane token rate limit past the request's retry budget):
 # each ends green with only a notice, so a fault
@@ -1670,6 +1671,8 @@ merge:
     floor-paths:
       - glob: ".github/actions/check-trusted-trigger/**"
         class: trust
+      - glob: ".github/scripts/lib/github-client.mjs"
+        class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
       - glob: ".github/actions/check-kill-switch/**"
@@ -1689,6 +1692,8 @@ merge:
       - glob: ".github/scripts/pr-merge/merge-holds.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/enable-auto-merge.mjs"
+        class: trust
+      - glob: ".github/scripts/lib/lane-vocabulary.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/superseded.mjs"
         class: trust
@@ -1724,6 +1729,12 @@ merge:
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"
         class: gate
+      - glob: ".github/scripts/lib/lane-branch.mjs"
+        class: gate
+      - glob: ".github/scripts/lib/lane-registry.mjs"
+        class: gate
+      - glob: ".github/lane-registry.json"
+        class: gate
       # The arm path's Merge-Risk line, and the rating job's scripts that hand
       # untrusted pull request text to a credentialed model run (#13657).
       - glob: ".github/scripts/pr-merge/merge-risk-line.mjs"
@@ -1733,6 +1744,8 @@ merge:
       - glob: ".github/scripts/pr-merge-risk/write-rating.mjs"
         class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh"
         class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust
@@ -1769,6 +1782,8 @@ merge:
       - glob: ".github/scripts/pr-verify/write-verdict.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/admit.mjs"
+        class: enforcement
+      - glob: ".github/scripts/intake-triage/size-split.mjs"
         class: enforcement
       - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
         class: enforcement
@@ -1835,6 +1850,9 @@ merge:
       - glob: ".github/scripts/lib/done-evidence.mjs"
         class: trust
       - glob: ".github/scripts/pr-review-main/**"
+        class: gate
+        author-lift: false
+      - glob: ".github/scripts/diff-chunking/**"
         class: gate
         author-lift: false
       - glob: "docs/conventions/instruction-exception-register/**"

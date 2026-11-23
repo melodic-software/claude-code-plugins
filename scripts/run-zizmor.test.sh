@@ -115,9 +115,79 @@ stub 0 '' 0 ''
 run
 check 'a clean run passes with no warning' "$([[ $RC -eq 0 && "$OUT" != *'::warning'* ]] && echo yes)"
 
-# The lint-repo step runs this script, not a bare zizmor.
+repo=""
+fixture_tree::build repo --git --label run-zizmor-repo
+mkdir -p "$repo/.github"
+printf 'rules: base\n' >"$repo/.github/zizmor.yml"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m base
+base_sha=$(git_test_config "$repo" rev-parse HEAD)
+printf 'rules: head\n' >"$repo/.github/zizmor.yml"
+printf 'rules: root\n' >"$repo/zizmor.yaml"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m head
+
+bare=""
+fixture_tree::build bare --git --label run-zizmor-bare
+printf 'readme\n' >"$bare/README.md"
+git_test_config "$bare" add -A
+git_test_config "$bare" commit -q -m base
+bare_sha=$(git_test_config "$bare" rev-parse HEAD)
+mkdir -p "$bare/.github"
+printf 'rules: head\n' >"$bare/.github/zizmor.yml"
+git_test_config "$bare" add -A
+git_test_config "$bare" commit -q -m head
+
+cat >"$scratch/bin/zizmor" <<EOS
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$scratch/calls"
+for arg in "\$@"; do
+  [[ "\$arg" == --config=* ]] && cat "\${arg#--config=}" >>"$scratch/configs"
+done
+exit 0
+EOS
+cat >"$scratch/bin/gh" <<EOS
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$scratch/gh.calls"
+cat "$scratch/gh.out" || exit 1
+EOS
+chmod +x "$scratch/bin/zizmor" "$scratch/bin/gh"
+
+run_in() {
+  : >"$scratch/calls"
+  : >"$scratch/configs"
+  : >"$scratch/gh.calls"
+  OUT=$(cd "$1" && PATH="$scratch/bin:$PATH" BASE_SHA="$2" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
+}
+
+run_in "$repo" "$base_sha"
+check "a pull request is audited under the base commit's config, not the head's" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: base\nrules: base' && ! -s "$scratch/gh.calls" ]] && echo yes)"
+check 'the offline run and the online run both pass that config' \
+  "$([[ "$(grep -c -- '--config=' "$scratch/calls")" -eq 2 ]] && echo yes)"
+
+printf 'rules: standards\n' >"$scratch/gh.out"
+run_in "$bare" "$bare_sha"
+check "a base with no config falls back to standards' config, whatever the head adds" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: standards\nrules: standards' && "$(head -n 1 "$scratch/gh.calls")" == *repos/melodic-software/standards/contents/.github/zizmor.yml ]] && echo yes)"
+
+rm "$scratch/gh.out"
+run_in "$bare" "$bare_sha"
+check "an unreadable standards config fails closed before zizmor runs" \
+  "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
+
+run_in "$repo" "$(printf '0%.0s' {1..40})"
+check 'a base commit missing from the checkout fails closed' \
+  "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
+
+run_in "$repo" ""
+check 'outside a pull request zizmor gets no --config and discovers its own' \
+  "$([[ $RC -eq 0 && "$(grep -c -- '--config' "$scratch/calls")" -eq 0 && ! -s "$scratch/gh.calls" ]] && echo yes)"
+
 step=$(grep -n -A8 -- '- name: Run zizmor$' "$ROOT/.github/workflows/pr-require-checks.yml")
 check 'the lint-repo zizmor step runs scripts/run-zizmor.sh' \
   "$([[ "$step" == *'run: scripts/run-zizmor.sh'* ]] && echo yes)"
+check "the lint-repo zizmor step hands it the pull request's base commit" \
+  "$([[ "$step" == *'BASE_SHA: '*'{{ github.event.pull_request.base.sha }}'* ]] && echo yes)"
 
 test_harness::report

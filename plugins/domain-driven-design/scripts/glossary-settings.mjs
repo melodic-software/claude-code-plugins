@@ -54,14 +54,12 @@ const defaults = Object.fromEntries(KEYS.map((key) => [key, manifestConfig[key].
 const isFileName = (key, value) => typeof value === "string" && new RegExp(schema.properties[key].pattern, "u").test(value);
 const notFileName = (key, value) => `"${key}": ${JSON.stringify(value)} is not a file name; a value names a file, never a path`;
 
-/** The git root of `dir`, else `dir` itself: settings anchor at the repository root, never a subdirectory. */
 function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
 
-/** {home, error?, skipped?} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome() {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
@@ -72,8 +70,6 @@ function conventionHome() {
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
 
-/** The userConfig values from --user-config, with each value that is not a file name dropped and named.
- * `keys` tags each error as the resolver's `error_keys` does. */
 function userConfig(file) {
   if (!file) return { value: undefined, errors: [], keys: [] };
   let value;
@@ -100,7 +96,6 @@ try {
   const { home, error, skipped } = conventionHome();
   const user = userConfig(opts["user-config"]);
   const run = (homeDir) => resolve({ plugin: PLUGIN, projectRoot: project, home: homeDir, schema, defaults, userConfig: user.value, userHome: opts.home });
-  // With no usable home, an empty scratch directory stands in, so neither repository layer is read.
   const out = run(home ?? scratch);
   const layer = (name) => out.layers.find((l) => l.name === name);
   if (user.errors.length) {
@@ -109,8 +104,6 @@ try {
   }
   if (home === null) for (const name of ["team", "local"]) layer(name).path = null;
 
-  // The cascade without the personal override: the team file alone, copied only when the cascade read
-  // it (a regular file in a home inside the project), so each team value can be checked on its own.
   let withoutLocal = out;
   if (home !== null) {
     const dir = mkdtempSync(join(scratch, "team-"));

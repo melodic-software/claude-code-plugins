@@ -2,8 +2,6 @@
 # Prove the operation strings fed to validate.mjs are the adapter's own text, not a
 # paraphrase. Extracts each op from the SOURCE, whitespace-normalizes both sides, diffs.
 set -uo pipefail
-# Resolved from this script's own location so the check runs in any checkout, not just the
-# one it was written in.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 A="$(cd "$HERE/.." && pwd)"
 C="$(cd "$HERE/../../../conformance/bindings" && pwd)"
@@ -19,7 +17,6 @@ echo "--- WIT_LINEAR_ISSUE_FIELDS as extracted from common.sh ---"
 printf '%s\n' "$FIELDS"
 echo
 
-# Every single-line operation literal must appear VERBATIM (fixed-string) in its source.
 declare -a LITERALS=(
   "$A/common.sh|query { viewer { id displayName email } }"
   "$A/common.sh|mutation(\$input: CommentCreateInput!) { commentCreate(input: \$input) { success comment { id createdAt } } }"

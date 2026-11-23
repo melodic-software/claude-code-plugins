@@ -23,9 +23,6 @@ status_of() {
   printf '%s' "$?"
 }
 
-# --------------------------------------------------------------------------
-# ip_ver_ge / ip_ver_gt
-# --------------------------------------------------------------------------
 assert_eq "equal versions are >=" "0" "$(status_of ip_ver_ge 2.1.278 2.1.278)"
 assert_eq "equal versions are not >" "1" "$(status_of ip_ver_gt 2.1.278 2.1.278)"
 assert_eq "a newer third component is >" "0" "$(status_of ip_ver_gt 2.1.296 2.1.278)"
@@ -43,16 +40,10 @@ assert_eq "a non-numeric side is not strictly newer" "2" "$(status_of ip_ver_gt 
 assert_eq "a malformed later component is caught after an earlier one decided" "2" \
   "$(status_of ip_ver_ge 0.16.bad 0.15.0)"
 
-# --------------------------------------------------------------------------
-# ip_version_in
-# --------------------------------------------------------------------------
 assert_eq "reads the version off a --version line" "2.1.296" \
   "$(ip_version_in '2.1.296 (Claude Code)')"
 assert_eq "an unversioned line yields nothing" "" "$(ip_version_in 'command not found')"
 
-# --------------------------------------------------------------------------
-# ip_mechanics_measured_max
-# --------------------------------------------------------------------------
 cat >"$TMP/record.md" <<'EOF'
 | Surface | When |
 |---|---|

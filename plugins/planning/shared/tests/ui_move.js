@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// A page told the session moved (GET /api/state answers {moved} on a retired tunnel's host, server.py) in a real
-// browser, against `share.sh ensure-running` with the fake cloudflared. core.js's moveTo follows only an https address
-// on another origin, once, carrying a guest's secret as #me= (or a newcomer's invite key as #join=), and never moves
-// the owner's tab. A page holding unsent text (sessionStorage keeps it per origin) stays and shows the move in its
-// banner until the person presses Go to the new address. The answer is staged with page.route, as the retired host
-// would send it; the new address is served by a route too, so nothing leaves the machine.
-//   node plugins/planning/shared/tests/ui_move.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the security review's guards for moveTo and the secret the server issued on join.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -23,7 +14,6 @@ async function main() {
   try {
     const A = await s.start("move");
     s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);
-    /** Answer this page's polls with {moved: to} from now on; count the requests that reach NEW. */
     const stage = async (page, to, { arrive = true } = {}) => {
       const hits = [];
       await page.context().route(`${NEW}/**`, r => { hits.push(r.request().url()); return arrive ? r.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>moved</title>" }) : r.abort(); });
@@ -73,7 +63,7 @@ async function main() {
     const di = await rec.open(A.localUrl);
     await joinAs(di, "Di");
     const hits = await stage(di, NEW, { arrive: false });
-    await di.waitForTimeout(5000); // several polls, each answering {moved}
+    await di.waitForTimeout(5000);
     ok("a move is tried once, however many polls say moved", hits.length === 1, JSON.stringify(hits));
 
     const newcomer = await rec.open(`${A.localUrl}#join=k3y`);

@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-23
+
+### Changed
+
+- `/codebase-health:audit` no longer gather repository context that no step read.
+
 ## [0.16.0] - 2026-11-22
 
 ### Changed

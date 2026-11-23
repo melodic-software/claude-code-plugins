@@ -89,8 +89,6 @@ installed_cli_version() {
   ip_version_in "$raw"
 }
 
-# One line: was the loading-mechanics record measured on this CLI, or on an
-# older one? The header says why the comparison runs here.
 mechanics_line() {
   local measured cli
   measured="$(ip_mechanics_measured_max "$MECHANICS_RECORD")"

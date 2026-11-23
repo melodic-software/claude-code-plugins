@@ -461,7 +461,6 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     };
   }
 
-  /** Detection stub for a present ASR toolchain. */
   const asrDetected = async () => ({
     available: true,
     python: "python",

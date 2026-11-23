@@ -25,9 +25,6 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-# report_clean <checker-output> <ok-message>: each checker below prints either
-# CLEAN or one problem per line, so anything else becomes one failure per
-# problem rather than a single opaque one.
 report_clean() {
   if [[ "$1" == "CLEAN" ]]; then
     ok "$2"

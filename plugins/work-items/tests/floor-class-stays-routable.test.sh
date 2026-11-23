@@ -57,7 +57,6 @@ transition_gap() {
   fi
 }
 
-# --- (1) self-test: the detector discriminates -----------------------------
 fixture_dir="$(mktemp -d)"
 trap 'rm -rf "$fixture_dir"' EXIT
 
@@ -125,7 +124,6 @@ assert_accepts 'a floor-aware two-branch transition' \
   it in the same edit as the flip, or leave the human-gated role label in place so the attended
   view keeps listing the item.'
 
-# --- (2) real scan: the shipped transition satisfies the invariant ----------
 if [[ ! -f "$SKILL" ]]; then
   fail "attend-queue SKILL.md is present" "not found at $SKILL"
 else

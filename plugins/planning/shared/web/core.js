@@ -12,7 +12,6 @@
   /** A record's upload ids as the page's attachment list, and what a write sends of one (nothing for none). */
   const attOf = x => (x.attachments ? { att: x.attachments.map(id => ({ kind: "file", upload: id })) } : {});
   const withAtt = extra => (extra?.attachments?.length ? { attachments: extra.attachments } : {});
-  /** n random bytes as lowercase hex. */
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, "0")).join("");
 
   // The guest secret lives under the prototype's key ("secret"), so a guest the import carried over
@@ -94,7 +93,6 @@
   /** A pick's fields with the page's option ids turned back into the contract's. */
   const contractPick = f => ("option" in f ? { option: f.option ? optOut(f.option) : "" } : "options" in f ? { options: f.options.map(optOut) }
     : "order" in f ? { order: f.order.map(optOut) } : f);
-  /** A pick, picks or order that holds the person's own "Something else…" option. */
   const isOther = c => c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
 
   // ---------- mentions: the server stores <@pid>; the page only ever shows and sends "@Name" ----------
@@ -439,7 +437,7 @@
       a.style.setProperty("--av", Core.colorFor(personCid));
       a.dataset.who = personCid || "";
       a.style.width = a.style.height = size + "px";
-      a.style.fontSize = Math.max(9, Math.round(size * 0.4)) + "px"; // initials never below 9 px
+      a.style.fontSize = Math.max(9, Math.round(size * 0.4)) + "px";
       a.title = name;
       Core.paintAvatar(a);
       return a;
@@ -835,7 +833,6 @@
     if (!r.ok) throw { status: r.status, ...j };
     return j;
   }
-  /** GET as me. */
   async function getJson(url) { return answered(await fetch(url, { headers: ident() })); }
 
   // The owner following a link to another page of this session (pageLink): the token goes in the fragment of the

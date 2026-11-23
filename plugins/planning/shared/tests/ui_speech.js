@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// Read aloud and dictation, against `share.sh ensure-running` with the fake cloudflared, with the page's
-// speechSynthesis and SpeechRecognition replaced by recording stubs before the page loads: both switches sit in the
-// person's own settings, off by default, and are kept with their other preferences on the server; turning them on
-// moves nothing on the question; Read aloud speaks the question, then its options as shown, and nothing else (never an
-// answer the owner has not shared); a second press or Escape stops it; it is a keyboard-reachable button with a name;
-// Dictate fills its own box at the caret and sends nothing; turning Dictate on shows a one-line disclosure; where the
-// browser offers on-device recognition a press asks for it, words heard that way take the disclosure away, and a
-// device that cannot take the language falls back to the browser's service with the disclosure kept; the page never
-// calls SpeechRecognition.available(); without the API the Dictate switch and buttons never show.
-//   node plugins/planning/shared/tests/ui_speech.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the issue's acceptance list, the texts this suite writes, and the server's own "Something
-// else…" option (session.py OTHER_OPTION, the contract every choice question carries), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -25,7 +12,6 @@ const textOf = id => QS.find(x => x.id === id).text;
 const BO_ANSWER = "Bo thinks under the total";
 const DISCLOSURE = "Your browser may send what you say to its maker's speech service to turn it into text.";
 
-/** Runs in the page before its scripts: recording stand-ins for the Web Speech API, or none of it. */
 function stubSpeech(cfg) {
   const log = window.__speech = { spoken: [], cancels: 0, recs: [] };
   if (cfg.tts) {
@@ -43,13 +29,11 @@ function stubSpeech(cfg) {
       constructor() { this.started = false; this.ended = false; log.recs.push(this); }
       start() {
         this.started = true;
-        // a device without this language: the error MDN names, then the session ends
         if (cfg.local === "missing" && this.processLocally) setTimeout(() => { this.onerror?.({ error: "language-not-supported" }); this.end(); }, 0);
       }
       stop() { this.end(); }
       abort() { this.end(); }
       end() { if (!this.ended) { this.ended = true; this.onend?.(); } }
-      /** The test's voice: one final result, then the session ends, as a one-shot recognition does. */
       say(words) { this.onresult?.({ results: [Object.assign([{ transcript: words, confidence: 0.9 }], { isFinal: true })] }); this.end(); }
     }
     // processLocally exists only where the browser offers on-device recognition; available() only records a call
@@ -71,7 +55,6 @@ async function main() {
     const desk = { viewport: { width: 1440, height: 900 } };
     const owner = await rec.open(A.ownerUrl, { context: desk });
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
-    // Bo answers Q2 first; the session holds every answer for the owner's Share, so Ann never sees it.
     const bo = await rec.open(A.localUrl, { context: desk });
     await joinAs(bo, "Bo");
     await bo.locator(".vf-q", { hasText: textOf("Q2") }).first().click();
@@ -90,7 +73,6 @@ async function main() {
     const qTop = () => ann.evaluate(() => document.querySelector(".vf-qtext").getBoundingClientRect().top);
     await go("Q1");
 
-    // ---------- off by default ----------
     ok("off by default: no Read aloud and no Dictate button shows", !(await shown(".vf-readbtn")) && !(await shown(".vf-dictate")));
     await ann.click(".vf-person-me");
     const readSw = ann.locator(".vf-pcard .vf-readsw"), dictSw = ann.locator(".vf-pcard .vf-dictsw");
@@ -102,7 +84,6 @@ async function main() {
     const prefsNow = () => ann.evaluate(() => window.Core.snapshot()?.me?.prefs || {});
     ok("neither is in my server preferences yet", !("readAloud" in await prefsNow()) && !("dictate" in await prefsNow()));
 
-    // ---------- toggle on, by keyboard; kept on the server; nothing on the question moves ----------
     const topOff = await qTop();
     await readSw.focus(); await ann.keyboard.press("Enter");
     await ann.locator(".vf-pcard .vf-dictsw").focus(); await ann.keyboard.press("Space");
@@ -119,7 +100,6 @@ async function main() {
     ok("Read aloud is a button named for what it does", (await readBtn.evaluate(b => b.tagName)) === "BUTTON" && (await readBtn.getAttribute("aria-label")) === "Read the question aloud"
       && (await readBtn.getAttribute("aria-pressed")) === "false");
 
-    // ---------- read order: the question, then its options; a second press stops ----------
     const box0 = await readBtn.boundingBox();
     await readBtn.focus(); await ann.keyboard.press("Enter");
     const wantQ1 = [textOf("Q1"), "Card", "Saved method", "Something else…"];
@@ -132,7 +112,6 @@ async function main() {
     const l2 = await log();
     ok("a second press stops it", l2.cancels > l1.cancels && (await readBtn.getAttribute("aria-pressed")) === "false" && l2.spoken.length === wantQ1.length);
 
-    // ---------- Escape stops it, even from inside the answer box ----------
     await readBtn.click();
     await ann.click("#vf-answer");
     const l3 = await log();
@@ -140,7 +119,6 @@ async function main() {
     const l4 = await log();
     ok("Escape stops it from inside the answer box", l4.cancels > l3.cancels && (await readBtn.getAttribute("aria-pressed")) === "false");
 
-    // ---------- only what is on screen for me: Bo's unshared answer is never spoken ----------
     await go("Q2");
     const before = (await log()).spoken.length;
     await readBtn.click();
@@ -148,7 +126,6 @@ async function main() {
     ok("on a written question it speaks the question alone, never Bo's unshared answer", JSON.stringify(l5) === JSON.stringify([textOf("Q2")]) && !l5.some(t => t.includes(BO_ANSWER)), JSON.stringify(l5));
     await readBtn.click();
 
-    // ---------- dictation fills the box at the caret and sends nothing ----------
     await ann.fill("#vf-answer", "I'd say");
     const mic = ann.locator("#vf-answer ~ .vf-crow .vf-dictate");
     ok("Dictate is a button named for its box", (await mic.evaluate(b => b.tagName)) === "BUTTON" && (await mic.getAttribute("aria-label")) === "Dictate your answer");
@@ -168,7 +145,6 @@ async function main() {
     await mic.click();
     ok("a second press stops listening", (await mic.getAttribute("aria-pressed")) === "false" && await ann.evaluate(() => window.__speech.recs[1].ended));
 
-    // ---------- moving to another question ends dictation; a late result writes nowhere ----------
     const q2Answer = await ann.inputValue("#vf-answer"), q2Comment = await ann.inputValue(".vf-disc-ta");
     await go("Q1");
     const q1Before = await ann.inputValue("#vf-answer");
@@ -184,7 +160,6 @@ async function main() {
     ok("and writes nothing into the first question's draft either", (await ann.inputValue("#vf-answer")) === q1Before, await ann.inputValue("#vf-answer"));
     await go("Q2");
 
-    // ---------- the comment box has its own ----------
     await ann.click(".vf-disc-head");
     const cmic = ann.locator(".vf-disc-form .vf-dictate");
     await until(ann, () => !!document.querySelector(".vf-disc-form .vf-dictate")?.getClientRects().length);
@@ -194,14 +169,12 @@ async function main() {
     await ann.evaluate(() => window.__speech.recs.at(-1).say("looks good"));
     ok("dictated words fill the comment box and nothing is posted", (await ann.inputValue(".vf-disc-ta")) === "looks good" && !posts.slice(cBefore).includes("/api/discussion"));
 
-    // ---------- turning them off hides both again ----------
     await ann.click(".vf-person-me");
     await ann.locator(".vf-pcard .vf-readsw").click();
     await ann.locator(".vf-pcard .vf-dictsw").click();
     await ann.keyboard.press("Escape");
     ok("turned off, neither button shows", await until(ann, () => !document.querySelector(".vf-readbtn:not([hidden]), .vf-dictate:not([hidden])")));
 
-    // ---------- on-device offered: asked for first; words heard that way take the disclosure away ----------
     const dictateOnQ2 = async (page, name, local) => {
       await joinAs(page, name);
       await page.evaluate(() => window.Core.savePrefs({ dictate: true }));
@@ -219,7 +192,6 @@ async function main() {
     ok("words heard on the device fill the box and take the disclosure away", (await cal.inputValue("#vf-answer")) === "ship it" && (await calCard()) === "");
     ok("the page never asked SpeechRecognition.available()", await cal.evaluate(() => !window.__speech.available));
 
-    // ---------- on-device offered but this language is not on the device: falls back, disclosure kept ----------
     const eve = await rec.open(A.localUrl, { context: desk, init: { fn: stubSpeech, arg: { tts: true, sr: true, local: "missing" } } });
     const eveCard = await dictateOnQ2(eve, "Eve");
     await eve.locator("#vf-answer ~ .vf-crow .vf-dictate").click();
@@ -231,7 +203,6 @@ async function main() {
     await eve.evaluate(() => window.__speech.recs[1].say("later"));
     ok("its words fill the box and the disclosure stays", (await eve.inputValue("#vf-answer")) === "later" && (await eveCard()) === DISCLOSURE);
 
-    // ---------- no SpeechRecognition: no Dictate switch or button, even with the pref on ----------
     const dee = await rec.open(A.localUrl, { context: desk, init: { fn: stubSpeech, arg: { tts: true, sr: false } } });
     ok("the page has no SpeechRecognition", await dee.evaluate(() => !("SpeechRecognition" in window) && !("webkitSpeechRecognition" in window)));
     await joinAs(dee, "Dee");

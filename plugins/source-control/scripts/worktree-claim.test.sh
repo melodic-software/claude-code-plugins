@@ -66,8 +66,6 @@ assert_contains "report names the unlocked tree UNCLAIMED" "$OUT" "UNCLAIMED"
 assert_contains "report names the plain-add path" "$OUT" "$EXT_PHYS/wt-plain"
 assert_not_contains "the main checkout is not listed as unclaimed" "$OUT" "$REPO_PHYS"$'\t'
 
-# --- claim arms a session-distinct reason ------------------------------------
-
 run_claim claim "$EXT/wt-plain" --repo-dir "$REPO" --session-id sess-aaa
 assert_exit "claim of an unlocked tree succeeds" 0 "$?"
 assert_contains "claim reason names this script" "$OUT" "worktree-claim.sh"
@@ -125,7 +123,6 @@ assert_contains "relative-child foreign claim reaches the caller" "$ERR" "FOREIG
 OUT="$(cd "$EXT" && bash "$CLAIM" check-enter wt-s1 --repo-dir "$REPO" --session-id host-session-one 2>"$TEST_TMPDIR/err")"
 assert_exit "relative child path still allows the owning session" 0 "$?"
 
-# Unclaimed entry: create another plain tree and check-enter before claim.
 git -C "$REPO" worktree add -q "$EXT/wt-empty" -b feat/empty
 run_claim check-enter "$EXT/wt-empty" --repo-dir "$REPO" --session-id anyone
 assert_exit "check-enter on an unclaimed tree exits 3" 3 "$?"
@@ -154,8 +151,6 @@ run_claim check-enter "$EXT/wt-helper" --repo-dir "$REPO" --session-id later-ses
 assert_exit "helper lock is a foreign claim to another session" 4 "$?"
 assert_contains "helper claim text reaches the caller" "$ERR" "$HELPER_REASON"
 
-# --- --all-unclaimed locks only unlocked linked trees ------------------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-batch-a" -b feat/batch-a
 git -C "$REPO" worktree add -q "$EXT/wt-batch-b" -b feat/batch-b
 run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-sess
@@ -167,7 +162,6 @@ assert_contains "batch b is locked" "$st_b" "batch-sess"
 after_helper=$(stanza_for wt-helper)
 assert_contains "--all-unclaimed left the helper reason intact" "$after_helper" "$HELPER_REASON"
 
-# Idempotent: nothing left to claim.
 run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-sess
 assert_exit "--all-unclaimed with nothing left is exit 0" 0 "$?"
 assert_contains "no-op --all-unclaimed says so" "$ERR" "no unclaimed"
@@ -238,8 +232,6 @@ else
   fi
 fi
 
-# --- release: the inverse of claim --------------------------------------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-rel" -b feat/rel
 run_claim claim "$EXT/wt-rel" --repo-dir "$REPO" --session-id rel-own
 run_claim release "$EXT/wt-rel" --repo-dir "$REPO" --session-id rel-own
@@ -272,8 +264,6 @@ assert_exit "release of the main worktree is usage (exit 2)" 2 "$?"
 
 run_claim release "$UNRELATED" --repo-dir "$REPO" --session-id rel-own
 assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
-
-# --- handover: handoff, a new session id, then resume ---------------------------
 
 # The helper armed the lock for the session that wrote the handoff; /clear
 # then starts a new session id in the same terminal.
@@ -352,8 +342,6 @@ assert_exit "--to outside handover is usage (exit 2)" 2 "$?"
 run_claim handover "$REPO" --repo-dir "$REPO" --session-id hand-old --to hand-new
 assert_exit "handover of the main worktree is usage (exit 2)" 2 "$?"
 
-# --- session id from the environment -----------------------------------------
-
 # Claude Code exports CLAUDE_CODE_SESSION_ID to Bash; a bare call must act as
 # that session, so its own claim reads as its own.
 git -C "$REPO" worktree add -q "$EXT/wt-env" -b feat/env
@@ -394,8 +382,6 @@ git -C "$REPO" worktree add -q "$EXT/wt-env-hand" -b feat/env-hand
 run_claim claim "$EXT/wt-env-hand" --repo-dir "$REPO" --session-id env-hand-old
 CLAUDE_CODE_SESSION_ID=env-hand-old run_claim handover "$EXT/wt-env-hand" --repo-dir "$REPO" --to env-hand-new
 assert_exit "handover without --session-id is usage, whatever CLAUDE_CODE_SESSION_ID holds (exit 2)" 2 "$?"
-
-# --- stale: read-only stale-lock detector -------------------------------------
 
 CFG="$TEST_TMPDIR/harness-config"
 mkdir -p "$CFG/projects/-proj" "$CFG/sessions"
@@ -481,8 +467,6 @@ run_stale wt-st-old --idle-minutes soon
 assert_exit "stale: a non-numeric idle window is usage (exit 2)" 2 "$?"
 CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$UNRELATED" --repo-dir "$REPO"
 assert_exit "stale: a non-worktree path is environment (exit 5)" 5 "$?"
-
-# --- stale --batch: one parse and one scan, the single-path verdict per row ----
 
 run_batch() { # <repo> <path>...: the paths NUL-delimited on stdin
   local rc repo="$1"
@@ -583,8 +567,6 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 else
   skip_case "spawn budget: no working strace on this host"
 fi
-
-# --- stale: a running Claude Code process holds the session --------------------
 
 registry_entry() { # <config> <file-stem> <pid> <session> <procStart>
   printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"/x","kind":"interactive"}\n' \
@@ -759,8 +741,6 @@ else
   skip_case "live registry cases: no Linux /proc or no jq on this host"
 fi
 
-# --- usage / environment ------------------------------------------------------
-
 run_claim
 assert_exit "no verb is usage (exit 2)" 2 "$?"
 run_claim claim --repo-dir "$REPO"
@@ -803,8 +783,6 @@ assert_exit "session s1 does not own a session-s10 claim" 4 "$?"
 # foreign claim still stops instead of failing open.
 (cd "${CLAIM%/*}" && bash "${CLAIM##*/}" check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1 2>/dev/null)
 assert_exit "bare-name invocation still stops on a foreign claim" 4 "$?"
-
-# --- report --root counts unclaimed worktrees outside the worktree root --------
 
 ROOT_REPO="$(mkrepo)"
 ROOT_DIR="$TEST_TMPDIR/wt-root"

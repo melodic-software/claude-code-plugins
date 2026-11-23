@@ -48,6 +48,7 @@ marketplace-schema ci-only ci-workflows composite: check-jsonschema
 plugin-schema ci-only ci-workflows composite: check-jsonschema
 workflow-schema ci-only ci-workflows composite: check-jsonschema
 workflow-naming ci-only ci-workflows composite: standards' github-actions-conventions naming lint
+graphql-operations ci-only ci-workflows composite
 zizmor ci-only pinned third-party scanner
 runner-policy ci-only node check over the workflows, see its step in the workflow
 queued-pr ci-only merge queue only
@@ -65,6 +66,7 @@ artifact-retention ci-only whole-repo scanner, scripts/check-artifact-retention.
 code-metrics-config-reference ci-only whole-repo scanner, python3 scripts/check-code-metrics-config-reference.py
 code-metrics-skill-prose ci-only whole-repo scanner, python3 scripts/check-code-metrics-skill-prose.py
 config-cascade-semantics ci-only whole-repo scanner, python3 scripts/sync-config-cascade-semantics.py --check
+gather-block ci-only whole-repo scanner, python3 scripts/sync-gather-block.py --check
 conformance-registry ci-only whole-repo scanner, scripts/check-conformance-registry.sh --check
 contract-clause-coverage ci-only whole-repo scanner, python3 scripts/check-contract-clause-coverage.py
 convention-yaml-schema ci-only whole-repo scanner, scripts/check-convention-yaml.sh --check

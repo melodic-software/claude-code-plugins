@@ -42,7 +42,6 @@ export const DEFAULTS = Object.freeze({
   artifact_retention_days: 30,
 });
 
-/** Every key as config-cascade names it: a schema node with `properties` is a branch, any other a leaf. */
 const leavesOf = (node, prefix = []) =>
   Object.entries(node.properties ?? {}).flatMap(([k, child]) => (k === "$schema" ? [] : child.properties ? leavesOf(child, [...prefix, k]) : [[...prefix, k]]));
 const LEAVES = leavesOf(SCHEMA);
@@ -88,8 +87,6 @@ function choose(facts, { requested, shown, delta }, config, triggersOf) {
   const fired = triggersOf(facts, true);
   return fired.length ? out("build", "selected", fired) : out("skip", "under-thresholds");
 }
-
-// ------------------------------------------------------------ layers
 
 function gitOut(root, args) {
   try {
@@ -147,7 +144,6 @@ export function invalidPatterns(patterns) {
   }
 }
 
-/** Changed files between the commit the media show and the head, or null when git cannot say. */
 function deltaOf(root, from, to) {
   if (!root || !isSha(from) || !isSha(to)) return null;
   const out = gitOut(root, ["diff", "--numstat", "--no-renames", from, to]);
@@ -161,8 +157,6 @@ function deltaOf(root, from, to) {
     });
   return { files };
 }
-
-// ------------------------------------------------------------ CLI
 
 function parseArgs(argv) {
   const opts = { requested: false, producerUnavailable: false, shown: null, policy: null, blastRadius: "", settings: {} };

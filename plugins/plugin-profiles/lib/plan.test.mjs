@@ -210,3 +210,13 @@ test("enabled and disabled name only the plugins whose effective state changes, 
   assert.deepEqual(result.mcpOrLspOn, ["srv@m"]);
   assert.deepEqual(result.hookPluginsOff, ["hooky@m"]);
 });
+
+test("#18314: an added plugin and its dependencies are switched on, even when the profile excludes it or names no plugin of its marketplace, and nothing else changes", () => {
+  const inventory = installed("impl@m", "off@m", "toy@m", { id: "gadget@vendor", dependsOn: ["gizmo@vendor"] }, "gizmo@vendor", "third@vendor");
+  const build = profile("build", { plugins: ["impl@m"], exclude: ["toy@m"] });
+  const without = plan({ catalog: catalog(profile("always-on"), build), profile: "build", inventory, layers: {}, target: "session" });
+  const added = plan({ catalog: catalog(profile("always-on"), build), profile: "build", inventory, layers: {}, target: "session", add: ["gadget@vendor", "toy@m"] });
+  assert.deepEqual(without.writes, { "impl@m": true, "off@m": false, "toy@m": false });
+  assert.deepEqual(added.writes, { "impl@m": true, "off@m": false, "toy@m": true, "gadget@vendor": true, "gizmo@vendor": true });
+  assert.deepEqual(added.untouched, ["third@vendor"]);
+});

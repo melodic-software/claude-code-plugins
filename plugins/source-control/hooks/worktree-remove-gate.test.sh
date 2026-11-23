@@ -139,7 +139,6 @@ payload() {
     '{session_id: $s, transcript_path: "t", cwd: "/", hook_event_name: "WorktreeRemove", worktree_path: $p}'
 }
 
-# run_hook <payload> [VAR=value ...] — one hook run with the stub on PATH.
 RC=0
 OUT=""
 ERR=""
@@ -155,10 +154,6 @@ run_hook() {
 }
 
 on_disk() { if [[ -e "$1" ]]; then printf 'present'; else printf 'absent'; fi; }
-
-# --------------------------------------------------------------------------
-# A clean worktree: records reaped, directory and git entry removed
-# --------------------------------------------------------------------------
 
 WT="$(mkwt clean)"
 seed "$WT"
@@ -194,10 +189,6 @@ assert_eq "the rewritten worktree is gone" "absent" "$(on_disk "$WT_SETTINGS")"
 assert_not_contains "git no longer lists the rewritten worktree" "$(git -C "$REPO" worktree list)" "wt-settings"
 assert_eq "the rewritten worktree's records are reaped" "0" "$(records_for "$WT_SETTINGS")"
 
-# --------------------------------------------------------------------------
-# Uncommitted or untracked work: left on disk, nothing reaped, non-zero exit
-# --------------------------------------------------------------------------
-
 WT_DIRTY="$(mkwt dirty)"
 printf 'edit\n' >>"$WT_DIRTY/README.md"
 seed "$WT_DIRTY"
@@ -218,10 +209,6 @@ assert_exit "an untracked file refuses" 1 "$RC"
 assert_eq "the untracked file stays on disk" "present" "$(on_disk "$WT_UNTRACKED/notes.txt")"
 assert_eq "nothing is reaped for the untracked worktree" "2" "$(records_for "$WT_UNTRACKED")"
 
-# --------------------------------------------------------------------------
-# A reap failure: directory and git entry left, non-zero exit
-# --------------------------------------------------------------------------
-
 WT_NOLIST="$(mkwt nolist)"
 seed "$WT_NOLIST"
 run_hook "$(payload "$WT_NOLIST")" STUB_LIST_FAIL=1
@@ -237,10 +224,6 @@ assert_exit "a record that survives the reap refuses" 1 "$RC"
 assert_eq "the worktree stays when a record survives" "present" "$(on_disk "$WT_SURVIVOR")"
 assert_eq "the surviving records are still recorded" "2" "$(records_for "$WT_SURVIVOR")"
 assert_contains "the refusal names the reap exit" "$ERR" "the reap exited 1"
-
-# --------------------------------------------------------------------------
-# Locks: this session's lock is released; another's is refused
-# --------------------------------------------------------------------------
 
 WT_OURS="$(mkwt ours)"
 git -C "$REPO" worktree lock --reason "worktree-create.sh: lane active on h session s1 since 2026-10-26T00:00:00Z" "$WT_OURS"
@@ -314,10 +297,6 @@ run_hook "$(payload "$WT_NOREASON" s1)"
 assert_exit "a lock with no reason refuses" 1 "$RC"
 assert_eq "the reasonless-locked worktree stays" "present" "$(on_disk "$WT_NOREASON")"
 assert_eq "nothing is reaped under a reasonless lock" "2" "$(records_for "$WT_NOREASON")"
-
-# --------------------------------------------------------------------------
-# Paths the hook never acts on
-# --------------------------------------------------------------------------
 
 REPO_NATIVE="$(native_of "$REPO")"
 seed "$REPO_NATIVE"

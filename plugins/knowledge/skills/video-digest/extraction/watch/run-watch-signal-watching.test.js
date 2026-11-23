@@ -1,9 +1,3 @@
-/**
- * A signal that lands while frame extraction runs stops the watch before it writes
- * anything from the killed work: no watching manifest, and the run reports failure.
- * The signal handler is invoked in-process, with process.exit stubbed.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

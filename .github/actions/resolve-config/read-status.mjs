@@ -97,7 +97,7 @@ export function syntheticFrom(event, config) {
 // always kept, and with no `since` every one is. `fieldEvents(github,
 // repository, number)` defaults to resolve-config.mjs's. Throws on a failed read.
 export async function statusEvents({ github, repository, number, config, since = config?.["field-events-since"], fieldEvents }) {
-  const { paginate } = await import("../check-trusted-trigger/check-trusted-trigger.mjs");
+  const { paginate } = await import("../../scripts/lib/github-client.mjs");
   const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;
   const rest = await paginate(github, `/repos/${repository}/issues/${number}/events`);
   const cutoff = since ? Date.parse(since) : Number.NEGATIVE_INFINITY;
@@ -158,19 +158,21 @@ export async function fieldStatusSetter({ github, repository, number, config, tr
   }
 }
 
-// What a reader's entry point hands its run: `labels(number, names)`, the
-// issue's label names as the field decides them (statusLabels), read fresh on
-// each call, since a reader may ask again after the status changed, and at
-// most `limit` reads a run. `labels.events(number)` is statusEvents for the
-// issue, reusing the field events the newest `labels` call for it read, and
-// `labels.state(number)` the trusted state that call read (null when unset),
-// reading it only when no call has. A failed read, or one past the limit,
-// throws StatusReadError from any of them.
-// `config` and `trustedActors` default to the base config's models.issue-status
-// and the trusted-actor list (TRUSTED_ACTORS_PATH, else under BASE_PATH). An
-// unset config reads nothing: labels and REST events come back as they are; a
-// config or trusted-actor list that cannot be loaded makes every call throw. `github(method, path, body,
-// headers)` is check-trusted-trigger.mjs createGitHub's.
+/**
+ * What a reader's entry point hands its run: `labels(number, names)`, the
+ * issue's label names as the field decides them (statusLabels), read fresh on
+ * each call, since a reader may ask again after the status changed, and at
+ * most `limit` reads a run. `labels.events(number)` is statusEvents for the
+ * issue, reusing the field events the newest `labels` call for it read, and
+ * `labels.state(number)` the trusted state that call read (null when unset),
+ * reading it only when no call has. A failed read, or one past the limit,
+ * throws StatusReadError from any of them.
+ * `config` and `trustedActors` default to the base config's models.issue-status
+ * and the trusted-actor list (TRUSTED_ACTORS_PATH, else under BASE_PATH). An
+ * unset config reads nothing: labels and REST events come back as they are; a
+ * config or trusted-actor list that cannot be loaded makes every call throw.
+ * `github` is a createGitHub client.
+ */
 export function statusReader({ env = {}, github, repository, log = console.log, limit = Infinity, config, trustedActors, sleep }) {
   let setup;
   const prepare = async () => {
@@ -255,7 +257,7 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
   labels.events = async (number) => {
     const issue = Number(number);
     if ((await ready()) === null) {
-      return (await import("../check-trusted-trigger/check-trusted-trigger.mjs")).paginate(github, `/repos/${repository}/issues/${issue}/events`);
+      return (await import("../../scripts/lib/github-client.mjs")).paginate(github, `/repos/${repository}/issues/${issue}/events`);
     }
     overLimit(issue);
     try {

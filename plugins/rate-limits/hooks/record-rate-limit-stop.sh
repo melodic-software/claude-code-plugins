@@ -92,7 +92,6 @@ record+='}'
 
 hook::append_jsonl "$EVENTS" "$record"
 
-# Bound the file at ~200 records, keeping the newest 100.
 rotate_events() {
   local lines tmp
   lines=$(wc -l <"$EVENTS" 2>/dev/null) || return 0

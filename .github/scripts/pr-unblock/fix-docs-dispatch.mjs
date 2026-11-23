@@ -51,6 +51,7 @@
 // turn: it does not count and leaves the list once it is done, as a run that
 // is gone does.
 
+import { DISPATCH_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrRefineTitle } from "../lib/run-title.mjs";
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
@@ -76,7 +77,7 @@ export const DEFAULTS = Object.freeze({
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   // fix-docs's applies-when labels-absent (docs/conventions/pr-pipeline.yaml).
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: DISPATCH_HOLDS,
   // pr-refine.yml's first fix-docs call's record-broker-allow job, by its id
   // and its id before the rename; the other legs run only after it succeeded.
   allowedJobs: Object.freeze(ALLOW_JOBS.map((id) => `fix-docs / ${id}`)),

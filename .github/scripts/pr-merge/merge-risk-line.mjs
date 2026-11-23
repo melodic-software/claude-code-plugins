@@ -23,6 +23,7 @@
 // max and demote are recomputed from its rows, never taken from it.
 // write-rating.mjs runs the same checks on the skill's result before upload.
 
+import { parseLaneBranch } from "../lib/lane-branch.mjs";
 import { isMergeRiskTitle, mergeRiskTitle } from "../lib/run-title.mjs";
 import { ofOrigin } from "../pr-verify/resolve-pr.mjs";
 
@@ -121,12 +122,11 @@ export const MERGE_RISK_MARKER = "merge-risk-line";
 const LANE = "[a-z][a-z0-9-]{0,63}";
 const RUN = "[1-9][0-9]{0,19}";
 const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40})(?: lane=${LANE} run=${RUN})? -->$`);
-const LANE_BRANCH = new RegExp(`^(${LANE})/issue-[1-9][0-9]*-(${RUN})-[1-9][0-9]*$`);
 
 // The lane and run id a lane branch names, or null for any other branch.
 export function producerOf(branch) {
-  const match = LANE_BRANCH.exec(String(branch ?? ""));
-  return match ? { lane: match[1], run: match[2] } : null;
+  const match = parseLaneBranch(branch, { lanePattern: LANE, runPattern: RUN });
+  return match ? { lane: match.lane, run: match.run } : null;
 }
 
 // The record's comment body for `head`: the marker line, naming `producer`

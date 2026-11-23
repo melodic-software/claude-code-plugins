@@ -23,7 +23,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -37,8 +37,6 @@ BEGIN='<!-- BEGIN GENERATED: instruction-placement rules index -->'
 END='<!-- END GENERATED: instruction-placement rules index -->'
 
 n=0
-# new_repo [noblock]: AGENTS.md carries an index block that says "no rules";
-# the seed commit holds no rules file, so the index is current at the start.
 new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
@@ -57,12 +55,12 @@ new_repo() {
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-add_rule() { # <repo> [name]
+add_rule() {
   mkdir -p "$1/.claude/rules"
   printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# C# rule\n' >"$1/.claude/rules/${2:-csharp}.md"
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -131,8 +129,6 @@ bash "$RENDER" write --file "$REPO/AGENTS.md" --root "$REPO" >/dev/null
 git -C "$REPO" add AGENTS.md
 expect "a staged index listing a rule that is not staged fails" 1 "$(rc_of "$(check "$REPO")")"
 
-# A flat copy beside a renderer that fails without a verdict, as a broken
-# installed copy would.
 STUB="$WORK/stub"
 mkdir -p "$STUB"
 cp "$CHECK" "$STUB/index-check.sh"
@@ -162,7 +158,6 @@ new_repo
 add_rule "$REPO"
 expect "--worktree reports drift for an uncommitted, unstaged rule" 1 "$(rc_of "$(check "$REPO" --worktree)")"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"

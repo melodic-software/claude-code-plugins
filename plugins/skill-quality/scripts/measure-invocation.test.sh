@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for measure-invocation.sh.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -36,7 +35,6 @@ disable-model-invocation: false
 " >"$dir/SKILL.md"
 }
 
-# A probe set of 20 queries, both splits, both polarities.
 write_probes() {
   local skill_dir="$1"
   local competitor_dir="$2"
@@ -220,9 +218,6 @@ else
   fail "self-compare delta should be 0, got $delta ($cmp_json)"
 fi
 
-# Treatment: flip one validation miss into a hit by copying baseline and
-# forcing predicted=true on a false-trigger-negative if any, else bump rates
-# via jq so compare shows a non-zero delta.
 jq '
   .skills[0].splits.validation.trigger_rate = ((.skills[0].splits.validation.trigger_rate // 0) + 0.25)
   | .skills[0].splits.validation.false_trigger_rate = ((.skills[0].splits.validation.false_trigger_rate // 0) * 0.5)
@@ -271,15 +266,12 @@ else
   pass "emit-plugin-eval refuses a non-empty out dir"
 fi
 
-# Pin: same-plugin competitors only, so no case gains a plugins: line.
 if [[ -f "$emit_dir/fixture-target-pos-train-01/prompt.md" ]] && ! grep -rq '^plugins:' "$emit_dir"; then
   pass "emit-plugin-eval writes no plugins: line without cross-plugin competitors"
 else
   fail "emit-plugin-eval wrote a plugins: line for same-plugin competitors only"
 fi
 
-# Cross-plugin competitors: one plugins: entry per distinct rival plugin,
-# sorted, without the target's own plugin, relative to the case directory.
 write_cross_probe() {
   mkdir -p "$TMP/$1"
   printf '%s\n' "{\"skill\": \"fixture:target\", \"plugin\": \"fixture\", \"skill_dir\": \"skills/target\",
@@ -344,7 +336,6 @@ else
   fail "score with an unloadable competitor should exit non-zero and name the derived path (rc=$rc): $out"
 fi
 
-# With no competitor_dirs entry, the rival resolves from its plugin:skill id.
 make_skill "$TMP/plugins/fixture/skills/rival" \
   "Anthropic skill-authoring playbook. Use when: 'create a skill', 'how to write SKILL.md', 'skill best practices', 'authoring playbook', 'progressive disclosure'."
 mkdir -p "$TMP/derived/probes"
@@ -467,13 +458,11 @@ else
   fail "emit-plugin-eval --runs 0 should exit 2 (rc=$rc): $out"
 fi
 
-# The plugin_eval_runs setting: the team file sets the default, .local beats
-# the team file, --runs beats both, and an invalid layer warns and is dropped.
 cfg="$TMP/cfg-repo"
 mkdir -p "$cfg/docs/conventions"
 cp -R "$TMP/probes" "$TMP/skills" "$cfg/"
 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git init -q "$cfg"
-emit_runs() { # <out-name> [args...]: prints the runs line of the first case
+emit_runs() {
   local name="$1"
   shift
   MEASURE_INVOCATION_REPO_ROOT="$cfg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
@@ -508,9 +497,6 @@ else
   fail "invalid .local plugin_eval_runs should warn and write runs: 3 (got '$got'): $(cat "$TMP/runs-bad.err")"
 fi
 
-# compare carries a paired normal-approximation interval on each trigger-rate
-# delta, from per-probe outcomes matched by id, and says "within noise" when
-# the interval contains 0.
 cmp_out="$(run compare "$TMP/score.json" "$TMP/score.json" 2>"$TMP/cmp.err")"
 if jq -e '.skills[0].validation.trigger_rate_within_noise == true
     and (.skills[0].validation.trigger_rate_delta_interval | length == 2)' <<<"$cmp_out" >/dev/null &&
@@ -519,8 +505,6 @@ if jq -e '.skills[0].validation.trigger_rate_within_noise == true
 else
   fail "self-compare should report an interval and within noise: $cmp_out $(cat "$TMP/cmp.err")"
 fi
-# Rewrites the validation cases of the fixture report into $2 positive probes
-# named with prefix $3, of which the first $4 are hits. Output file: $1.
 paired_report() {
   jq --argjson n "$2" --arg prefix "$3" --argjson hits "$4" \
     '.skills[0].cases |= (map(select(.split != "validation"))
@@ -558,8 +542,6 @@ else
   fail "interval should clamp at 1 and be null for one probe: $cmp_tiny $cmp_one"
 fi
 
-# validate warns when a should-trigger probe copies 4+ consecutive words of
-# the target listing; --copy-span widens the span; should-not probes are exempt.
 mkdir -p "$TMP/leak/probes"
 jq '.queries[0].request = "before I ship, check skill before publishing for me"
     | .queries[10].request = "Skill-authoring QA. Use when you want it"' \

@@ -1,6 +1,4 @@
 async page => {
-  // The open host page after a step of the session's: note 1's status becomes __WANT__, the
-  // change is announced, and any reply is shown as text.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   try {
     await page.waitForFunction((w) => document.querySelector("#notes li .state")?.textContent === w, "__WANT__", { timeout: 10000 });

@@ -4,8 +4,6 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Read-StartupApproved.ps1'
 
-    # 2026-01-02T03:04:05Z as a FILETIME, computed by hand:
-    # (1767323045 Unix seconds + 11644473600) * 10^7.
     $script:DisabledFileTime = [long]134117966450000000
     $script:DisabledAt = [datetime]::new(2026, 1, 2, 3, 4, 5, [DateTimeKind]::Utc)
 

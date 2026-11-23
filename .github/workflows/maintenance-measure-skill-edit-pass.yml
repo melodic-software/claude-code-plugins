@@ -41,6 +41,11 @@ on:
         required: false
         type: string
         default: ""
+      cases:
+        description: Exact case names, space-separated; stages a suite copy with only these cases. Not with case.
+        required: false
+        type: string
+        default: ""
       pass:
         description: The pass's name in its artifact, unique in the run, such as a, a2 or b.
         required: true
@@ -111,7 +116,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: maintenance
@@ -123,7 +128,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -158,7 +163,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -179,7 +184,7 @@ jobs:
 
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: key
           role: maintenance
@@ -220,10 +225,21 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
+          CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
         run: |
+          read -ra cases <<<"$CASES"
+          if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+            echo "::error::case and cases cannot both be set"
+            exit 1
+          fi
           eval_dir=$(jq -r '.experimental.evals // "evals"' "$DIR/.claude-plugin/plugin.json" 2>/dev/null || echo evals)
           python3 .base/plugins/evals/skills/validate/scripts/validate-cases.py "$DIR/$eval_dir"
-          split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$DIR" evals-deterministic)
+          stage_args=()
+          if [ "${#cases[@]}" -gt 0 ]; then
+            stage_args=(--cases "$CASES")
+          fi
+          split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$DIR" evals-deterministic "${stage_args[@]}")
           echo "$split"
           if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
             echo "::error::the suite has no case with deterministic graders only"
@@ -296,7 +312,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+          ref: 8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -468,8 +484,9 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: steps.read.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/upload/
 
       - name: Upload the pass
@@ -502,8 +519,9 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
@@ -519,12 +537,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}

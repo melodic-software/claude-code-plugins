@@ -39,12 +39,6 @@
 # stays fail-open at stop time.
 
 set -uo pipefail
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -110,8 +104,6 @@ if ! gate_resolve_anchor "$_arm_root"; then
   exit 4
 fi
 
-# Managed veto: an org-scope explicit false outranks per-session arming. Checked
-# here so the refusal is visible at launch time, and re-checked by the gate.
 if v=$(gate_managed_option lane_stop_gate_enabled) && [[ "$v" == "false" ]]; then
   err "managed settings configure lane_stop_gate_enabled=false — arming is vetoed by organization policy"
   exit 5
@@ -127,18 +119,8 @@ mkdir -p -- "$DIR" 2>/dev/null || {
   exit 4
 }
 
-# Self-cleaning store: drop records past the gate's TTL so crashed lanes cannot
-# accumulate stale grants. Best-effort.
 find "$DIR" -type f -mtime +"$GATE_ARM_TTL_DAYS" -delete 2>/dev/null
 
-# A re-armed id must start UNCLAIMED. The gate's claim sidecar outlives the
-# record it names, so a claim left by the previous lane would bind this fresh
-# record to a session that no longer exists and the new lane would run ungated.
-#
-# Cleared BEFORE the record is written, never after: a crash between the two
-# then leaves the OLD record with no claim, and the next presenter claims it —
-# an extra gated stop. The other order leaves a FRESH record beside a STALE
-# claim, which refuses the new lane on every stop until the record ages out.
 CLAIM=$(gate_arm_claim_path "$ID") && rm -f -- "$CLAIM" 2>/dev/null
 
 NOW=$(date +%s 2>/dev/null) || NOW=""

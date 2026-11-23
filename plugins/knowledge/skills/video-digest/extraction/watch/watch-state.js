@@ -312,7 +312,6 @@ export async function removeRecordedTempSessionDirs(tempSession, label = "close"
   }
 }
 
-/** Sequential phase walk; `companion` is an optional side-marker and stays out of it. */
 const PHASE_ORDER = MARKABLE_PHASES.filter((phase) => phase !== "companion");
 
 /**

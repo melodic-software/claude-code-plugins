@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for cutover-check.sh (self-contained — ships with the plugin).
-#
-# Every case runs from a neutral temporary directory against fixture inputs: a
-# fixture bundle, a fixture env-vars page, fixture repositories, and a fake
-# `claude` that answers the canary without a metered turn. No case reads the
-# real fleet and no case spends a real turn.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +10,6 @@ source "$SCRIPT_DIR/../../../lib/migrate-test-helpers.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
-# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 cd "$TMP" || exit 1
@@ -33,12 +26,8 @@ make_repo() {
 
 commit_all() { (cd "$1" && git add -A && git commit -q -m "${2:-fixture}"); }
 
-# --- fixtures -------------------------------------------------------------
 
-# A bundle is binary; what the parser needs from it is the flag string, the
-# export and the declaration inside one window, surrounded by bytes that are
-# not text. `!0` is true, `!1` is false.
-make_bundle() { # <path> <!0|!1>
+make_bundle() {
   {
     printf 'noise\001\002\003'
     printf 'var ne={};Cs(ne,{isOnByDefault:()=>W,registerPlugin:()=>ze});'
@@ -73,8 +62,6 @@ cat >"$ENVVARS_DELISTED" <<'EOF'
 ### First session after an install or upgrade
 EOF
 
-# The heading arrived, the bullet had not yet. Without a completeness check
-# this reads exactly like a page that dropped the bullet, which is [MET].
 ENVVARS_TRUNCATED="$TMP/env-vars-truncated.md"
 cat >"$ENVVARS_TRUNCATED" <<'EOF'
 # Environment variables
@@ -98,18 +85,8 @@ EOF
 make_bundle "$TMP/bundle-false" '!1'
 make_bundle "$TMP/bundle-true" '!0'
 
-# A fake CLI, so the canary legs cost nothing. `met` echoes the scratch
-# directory's own AGENTS.md, which is what a loaded file looks like; `unmet`
-# answers NONE; `unreach` exits non-zero.
-#
-# Given `--tools Write`, the nested write probe's turn, each fake acts out one
-# outcome: `met` writes the file and echoes both AGENTS.md files (the nested
-# one loaded on Write); `write-noload` writes it and echoes the root file only;
-# `write-nowrite` echoes both without writing, which no Write can have
-# triggered; `write-silent` writes it and echoes nothing either file holds.
-# Every fake logs its arguments, so a case can check the turn's tool set.
 mkdir -p "$TMP/bin"
-fake_claude() { # <name> <the Write-turn body>
+fake_claude() {
   cat >"$TMP/bin/claude-$1" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TMP/claude-args.log"
@@ -130,8 +107,6 @@ chmod +x "$TMP/bin/claude-unmet" "$TMP/bin/claude-unreach"
 
 CANARY_ROOTS=(--canary-home-root "$TMP/canary-home" --canary-alt-root "$TMP/canary-alt")
 
-# A repository already at the cutover shape: a pin that clears the floor and
-# nothing locating a path by CLAUDE.md.
 CLEAN="$TMP/clean"
 make_repo "$CLEAN"
 mkdir -p "$CLEAN/.github/workflows"
@@ -141,8 +116,6 @@ printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@cfc
   >"$CLEAN/.github/workflows/claude.yml"
 commit_all "$CLEAN"
 
-# A repository that fails both repository-shaped conditions: an old pin and an
-# unacknowledged path detector.
 DIRTY="$TMP/dirty"
 make_repo "$DIRTY"
 mkdir -p "$DIRTY/.github/workflows" "$DIRTY/tools"
@@ -154,7 +127,6 @@ printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@56c
 printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$DIRTY/tools/find-root.sh"
 commit_all "$DIRTY"
 
-# --- Case 1: --help and usage errors --------------------------------------
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -176,8 +148,6 @@ ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN" --skip-canary 2>&1 >/dev/nu
 assert_eq "the same --repo twice exits 2" 2 "$rc"
 assert_contains "and says which two are the same repository" "$ERR" "are the same repository"
 
-# Two spellings of one tree are one repository, not two: the plan climbs to
-# the toplevel, so a trailing slash or a subdirectory would grade it twice.
 rc=0
 ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN/" --skip-canary 2>&1 >/dev/null) || rc=$?
 assert_eq "a trailing slash is the same repository" 2 "$rc"
@@ -189,9 +159,6 @@ rc=0
 bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/nope.md" >/dev/null 2>&1 || rc=$?
 assert_eq "a missing records file exits 2" 2 "$rc"
 
-# A named site the check cannot see is a usage error, not a clean result: an
-# unplannable repository yields no ACTION and no PATHDET rows, and both
-# conditions that read them would otherwise pass on the silence.
 mkdir -p "$TMP/norepo"
 rc=0
 ERR=$(GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" --repo "$TMP/norepo" --sources "$REAL_SOURCES" \
@@ -206,8 +173,6 @@ ERR=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/broken-sources.md" 2>&1 >/d
 assert_eq "an unparsable record exits 2 rather than skipping the check" 2 "$rc"
 assert_contains "and says which record it could not parse" "$ERR" "cannot parse"
 
-# A copy without the plugin's scripts/lib has no comparator: exit 2, never a
-# condition graded without one.
 NOLIB="$TMP/nolib/skills/migrate/scripts"
 mkdir -p "$NOLIB"
 cp "$SCRIPT" "$NOLIB/cutover-check.sh"
@@ -217,7 +182,6 @@ OUT=$(bash "$NOLIB/cutover-check.sh" --repo "$CLEAN" --sources "$REAL_SOURCES" \
 assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
 assert_not_contains "and grades nothing without a comparator" "$OUT" "[MET]"
 
-# --- Case 2: every graded condition met -----------------------------------
 
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
@@ -232,11 +196,9 @@ assert_contains "condition 2 shows the pin it resolved" "$OUT" "installs CLI 2.1
 assert_contains "condition 2 shows the CI canary run" "$OUT" "36666844023"
 assert_contains "condition 3 shows both legs" "$OUT" "second-path cwd"
 
-# A scratch directory the canary made is a directory the canary removes.
 assert_eq "the home-leg scratch directory is gone" "" "$(ls "$TMP/canary-home" 2>/dev/null)"
 assert_eq "the second-path scratch directory is gone" "" "$(ls "$TMP/canary-alt" 2>/dev/null)"
 
-# --- Case 3: one condition unmet names it and exits non-zero --------------
 
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$DIRTY" --sources "$REAL_SOURCES" \
@@ -248,9 +210,7 @@ assert_contains "condition 2 names the pin below the floor" "$OUT" "BELOW 2.1.27
 assert_contains "condition 4 names the unacknowledged row" "$OUT" "UNACKNOWLEDGED tools/find-root.sh"
 assert_contains "the verdict says nothing was removed" "$OUT" "nothing is removed"
 
-# --- Case 4: the flag probe ------------------------------------------------
 
-# Code default false while the page still lists the dependency: UNMET.
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
@@ -258,23 +218,17 @@ assert_contains "a false code default plus a listed bullet is UNMET" "$OUT" \
   "[UNMET]   code default false"
 assert_contains "and the evidence names the identifier it resolved" "$OUT" "isOnByDefault:()=>W"
 
-# The page dropping the bullet satisfies the condition on its own.
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_DELISTED" --skip-canary)
 assert_contains "a delisted bullet is MET even with a false code default" "$OUT" \
   "no longer carries the AGENTS.md bullet"
 
-# A restructured page is UNREACH, never MET: the absence of a heading cannot be
-# read as the absence of the dependency.
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_NOHEADING" --skip-canary)
 assert_contains "a missing heading reports UNREACH for condition 1" "$OUT" \
   "[UNREACH] neither probe could answer"
 assert_not_contains "and never reports it MET" "$OUT" "no longer carries the AGENTS.md bullet"
 
-# A page cut off after the heading but before the bullet is UNREACH, never
-# MET: "the bullet is gone" and "the download stopped early" are the same
-# observation until the body is known to have arrived whole.
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_TRUNCATED" --skip-canary)
 assert_contains "a truncated page is reported as truncated" "$OUT" "it is truncated or restructured"
@@ -282,8 +236,6 @@ assert_not_contains "and is never read as the bullet being gone" "$OUT" \
   "no longer carries the AGENTS.md bullet"
 assert_contains "so condition 1 is UNREACH" "$OUT" "[UNREACH] neither probe could answer"
 
-# A bullet that MOVED to another heading reads, from inside one section,
-# exactly like a bullet that was deleted. Both are UNREACH.
 ENVVARS_MOVED="$TMP/env-vars-moved.md"
 cat >"$ENVVARS_MOVED" <<'EOF'
 # Environment variables
@@ -304,8 +256,6 @@ assert_contains "a bullet that moved elsewhere is not a bullet that left" "$OUT"
   "still ties AGENTS.md to a flag elsewhere"
 assert_not_contains "and is never MET" "$OUT" "ties AGENTS.md to no flag anywhere"
 
-# A link to sub-agents.md on a line that says "flag" is not a mention of
-# AGENTS.md: the delisted page stays MET.
 ENVVARS_SUBAGENTS="$TMP/env-vars-subagents.md"
 {
   cat "$ENVVARS_DELISTED"
@@ -318,9 +268,6 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
 assert_contains "a sub-agents.md link beside a flag is not AGENTS.md" "$OUT" \
   "ties AGENTS.md to no flag anywhere"
 
-# Without --env-vars-file the page comes through the plugin's docs fetcher,
-# fixture-fed here. Each variant gets its own docs cache, so no cached copy or
-# quarantine from one reaches the next.
 FX="$TMP/fx-delisted"
 mkdir -p "$FX"
 printf -- '- [Environment variables](https://code.claude.com/docs/en/env-vars.md): x\n' >"$FX/llms.txt"
@@ -339,15 +286,11 @@ assert_contains "an unread page names the manifest's reason" "$OUT" \
   "env-vars: fetch failed (unread fixture-missing)"
 assert_contains "and condition 1 is UNREACH" "$OUT" "[UNREACH] neither probe could answer"
 
-# A bundle with no readable window is UNREACH too, not a default of true.
 printf 'tengu_agents_md_mod appears with no export beside it\n' >"$TMP/bundle-opaque"
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-opaque" --env-vars-file "$ENVVARS_NOHEADING" --skip-canary)
 assert_contains "an unreadable bundle reports UNREACH" "$OUT" "no window ties"
 
-# The identifier comes from the registration, not from the first isOnByDefault
-# in the window: a window holding two plugins would otherwise resolve this
-# flag's default from a neighbor's variable.
 {
   printf 'Cs(A,{isOnByDefault:()=>Q});var Q=!0;'
   printf 'Cs(ne,{isOnByDefault:()=>W});var W=!1;var B=()=>Gl("tengu_agents_md_mod",W);'
@@ -358,14 +301,11 @@ assert_contains "the default is read from the registered identifier" "$OUT" "var
 assert_contains "and the neighboring plugin's true default is not borrowed" "$OUT" \
   "[UNMET]   code default false"
 
-# A registration with no export tying to the same identifier answers nothing.
 printf 'var B=()=>Gl("tengu_agents_md_mod",W);var W=!1;' >"$TMP/bundle-untied"
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-untied" --env-vars-file "$ENVVARS_NOHEADING" --skip-canary)
 assert_contains "an untied registration is UNREACH" "$OUT" "no isOnByDefault export ties to it"
 
-# The same declaration is reachable from more than one offset on some builds.
-# Two occurrences that AGREE are one answer, not a disagreement.
 {
   printf 'Gl("tengu_agents_md_mod",W) mentioned once here; '
   printf 'Cs(ne,{isOnByDefault:()=>W});var W=!0;var B=()=>Gl("tengu_agents_md_mod",W);'
@@ -374,7 +314,6 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-twice" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "two agreeing occurrences are one answer" "$OUT" "code default for tengu_agents_md_mod is true"
 
-# --- Case 5: the pin map ---------------------------------------------------
 
 UNKNOWN="$TMP/unknownpin"
 make_repo "$UNKNOWN"
@@ -391,7 +330,6 @@ assert_contains "a pin outside the map whose fetch fails is UNREACH" "$OUT" "is 
 assert_contains "and the fetch failure grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and is never reported as clearing the floor" "$OUT" "[MET]     1 pin"
 
-# A file that carries no CLAUDE_CODE_VERSION assignment resolves nothing.
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
   --action-fetch 'printf "name: base\nruns:\n  using: composite\n"' \
@@ -399,8 +337,6 @@ OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
 assert_contains "a file without CLAUDE_CODE_VERSION is UNREACH" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and never clears the floor" "$OUT" "[MET]     1 pin"
 
-# A pin the map lacks is resolved live from the file at the pinned ref; the ref
-# is handed to the fetcher as $1.
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
   --action-fetch 'printf "      CLAUDE_CODE_VERSION=\"2.1.290\"\n# ref %s\n" "$1"' \
@@ -408,15 +344,12 @@ OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
 assert_contains "a live-resolved pin reports its CLI version" "$OUT" "pin 0000000000000000000000000000000000000000 installs CLI 2.1.290 (base-action/action.yml at 0000000000000000000000000000000000000000), at or above"
 assert_not_contains "and is not reported unmapped" "$OUT" "is not in the release map"
 
-# A live-resolved version below the floor is UNMET, not UNREACH.
 rc=0
 OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
   --action-fetch 'printf "CLAUDE_CODE_VERSION: 2.1.100\n"' \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
 assert_contains "a live-resolved pin below the floor is UNMET" "$OUT" "[UNMET]   1 of 1 pin(s) install a CLI below"
 
-# A same-named action under another owner is not Anthropic's: neither the
-# release map nor the live lookup speaks for it, whatever its file claims.
 FOREIGN="$TMP/foreignpin"
 make_repo "$FOREIGN"
 mkdir -p "$FOREIGN/.github/workflows"
@@ -432,8 +365,6 @@ assert_contains "a pin under another owner is not resolved" "$OUT" "is not anthr
 assert_contains "and grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
 
-# A nested path is the repository its first two segments name:
-# `evil/anthropics/claude-code-action` is `evil/anthropics`, not Anthropic's.
 NESTED="$TMP/nestedpin"
 make_repo "$NESTED"
 mkdir -p "$NESTED/.github/workflows"
@@ -448,7 +379,6 @@ OUT=$(bash "$SCRIPT" --repo "$NESTED" --sources "$REAL_SOURCES" \
 assert_contains "a nested path under another owner is not resolved" "$OUT" "is not anthropics/claude-code-action (owner 'evil')"
 assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
 
-# A tag or branch resolved live is labeled mutable; a full SHA is not.
 MUTABLE="$TMP/mutablepin"
 make_repo "$MUTABLE"
 mkdir -p "$MUTABLE/.github/workflows"
@@ -462,8 +392,6 @@ OUT=$(bash "$SCRIPT" --repo "$MUTABLE" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
 assert_contains "a live-resolved branch pin is labeled mutable" "$OUT" "(base-action/action.yml at main, a mutable ref read as of now)"
 
-# A ref the script cannot parse must not prefix-match the release map's first
-# row and borrow its CLI version.
 BADREF="$TMP/badref"
 make_repo "$BADREF"
 mkdir -p "$BADREF/.github/workflows"
@@ -478,8 +406,6 @@ OUT=$(bash "$SCRIPT" --repo "$BADREF" --sources "$REAL_SOURCES" \
 assert_contains "an unparsable pin ref is UNREACH" "$OUT" "could not parse a ref out of the pin"
 assert_not_contains "and never borrows the first release-map row" "$OUT" "installs CLI 2.1.258"
 
-# A scan that failed and a scan that found nothing are the same empty output.
-# The plan says which it was, and a plan that says neither is UNREACH.
 ERRPLAN="$TMP/errplan"
 make_repo "$ERRPLAN"
 printf '# Shared\n' >"$ERRPLAN/AGENTS.md"
@@ -491,7 +417,7 @@ printf '#!/usr/bin/env bash\nprintf "ACTION\\tERROR\\tgrep exited 2\\nPATHDET\\t
   >"$STUB_DIR/plan-migration-error.sh"
 chmod +x "$STUB_DIR/plan-migration.sh" "$STUB_DIR/plan-migration-error.sh"
 
-silent_plan_check() { # <stub name>
+silent_plan_check() {
   # The stub keeps the plugin's layout, because the script sources the shared
   # version comparator from <root>/scripts/lib, three levels above its own.
   local root="$TMP/silent-$1" stub="$TMP/silent-$1/skills/migrate"
@@ -517,9 +443,6 @@ OUT=$(silent_plan_check errored plan-migration-error.sh) || rc=$?
 assert_contains "an errored pin scan is UNREACH" "$OUT" "the pin scan failed"
 assert_contains "an errored detection scan is UNREACH" "$OUT" "the detection scan failed"
 
-# Two repositories whose paths differ only by punctuation must not share a plan
-# file: the second would overwrite the first, grading one tree twice and the
-# other not at all.
 COLLIDE_A="$TMP/repo-x"
 COLLIDE_B="$TMP/repo_x"
 make_repo "$COLLIDE_A"
@@ -537,8 +460,6 @@ OUT=$(bash "$SCRIPT" --repo "$COLLIDE_A" --repo "$COLLIDE_B" --sources "$REAL_SO
 assert_contains "the punctuation-only sibling keeps its own plan" "$OUT" "BELOW 2.1.277"
 assert_contains "and the other is still reported as pinless" "$OUT" "$COLLIDE_A: no claude-code-action pin"
 
-# A comment naming the action is not a pin, and an absent workflow directory is
-# reported as checked rather than silently skipped.
 NOPIN="$TMP/nopin"
 make_repo "$NOPIN"
 printf '# Shared\n' >"$NOPIN/AGENTS.md"
@@ -547,7 +468,6 @@ OUT=$(bash "$SCRIPT" --repo "$NOPIN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "a repository with no pin says so" "$OUT" "no claude-code-action pin"
 
-# --- Case 6: the canary ----------------------------------------------------
 
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" \
@@ -564,9 +484,6 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "--skip-canary is UNREACH, not a skip" "$OUT" "[UNREACH] --skip-canary"
 
-# The canary writes an AGENTS.md, so its scratch root must not be a working
-# tree: a repository handed here would get an instruction file it never asked
-# for, and would lose it again when the leg cleaned up.
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" \
   --claude-bin "$TMP/bin/claude-met" --canary-home-root "$CLEAN/scratch" \
@@ -575,7 +492,6 @@ assert_contains "a canary root inside a git repository is refused" "$OUT" \
   "is inside a git repository"
 assert_eq "and that repository is untouched" "" "$(cd "$CLEAN" && git status --porcelain)"
 
-# --- Case 7: the acknowledgement file --------------------------------------
 
 mkdir -p "$DIRTY/.claude"
 # shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
@@ -627,14 +543,12 @@ OUT=$(bash "$SCRIPT" --repo "$DIRTY" --sources "$REAL_SOURCES" \
 assert_contains "an acknowledgement with no reason acknowledges nothing" "$OUT" \
   "UNACKNOWLEDGED tools/find-root.sh"
 
-# A repository with no detection at all needs no file.
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "no rows and no file is MET" "$OUT" "no path detection"
 
-# --- Case 8: the nested write probe, reported and not graded ---------------
 
-write_probe_run() { # <fake name>; the clean repository, every graded condition met
+write_probe_run() {
   rc=0
   OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
     --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" \
@@ -672,7 +586,6 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "--skip-canary skips the probe too" "$OUT" "--skip-canary: the probe did not run"
 
-# --- Case 9: nothing is written -------------------------------------------
 
 assert_eq "the checked repository is untouched" "" "$(cd "$CLEAN" && git status --porcelain)"
 

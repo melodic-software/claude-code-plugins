@@ -88,9 +88,6 @@ if [[ -z "${answers//[[:space:]]/}" ]]; then
   exit 2
 fi
 
-# jq builds the whole document: it owns the escaping, and hand-rolling JSON
-# string escaping in awk is how a draft ends up carrying the very defect this
-# plugin reports elsewhere (a raw control character inside a string value).
 printf '%s\n' "$answers" | jq -Rn '
   def trim: sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "");
 

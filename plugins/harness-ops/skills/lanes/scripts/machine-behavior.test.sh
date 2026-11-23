@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Coverage:
-#   - gh identity rendered from `gh api user`; degrades to `unavailable` when gh
-#     is missing or unauthenticated
-#   - worktree inventory parsed from `git worktree list --porcelain`: count,
-#     per-worktree branch, detached HEAD, clone-path from the common git dir
-#   - plugin versions read from installed_plugins.json, filtered by --plugin,
-#     with the scope-divergent marker when a name has >1 installed version
-#   - missing / malformed installed_plugins.json degrades to `unavailable`
-#   - a --plugin naming no installed plugin is reported, not silently empty
-#   - argument + repo validation exit codes
-#   - missing jq BINARY (not just the in-script wrapper function) exits 4
-#
-# PATH-stubs `gh` and `git` and env-overrides the installed_plugins.json path so
-# no real CLI, network, or on-disk plugin state is touched.
 
 set -uo pipefail
 
@@ -29,7 +15,6 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 
-# --- Fixtures ----------------------------------------------------------------
 INSTALLED="$TMP/installed_plugins.json"
 cat >"$INSTALLED" <<'JSON'
 {
@@ -48,7 +33,6 @@ cat >"$INSTALLED" <<'JSON'
 }
 JSON
 
-# git stub: distinct output per subcommand the script calls.
 STUB_BIN="$TMP/bin"
 mkdir -p "$STUB_BIN"
 cat >"$STUB_BIN/git" <<'STUB'
@@ -79,7 +63,7 @@ esac
 STUB
 chmod +x "$STUB_BIN/git"
 
-make_gh_stub() { # $1 = login (empty → simulate auth failure)
+make_gh_stub() {
   cat >"$STUB_BIN/gh" <<STUB
 #!/usr/bin/env bash
 if [[ "\$1 \$2" == "api user" ]]; then
@@ -102,9 +86,6 @@ export PATH="$STUB_BIN:$PATH"
 
 run() { MACHINE_BEHAVIOR_INSTALLED_JSON="$INSTALLED" bash "$SCRIPT" --repo "$TMP" "$@"; }
 
-# ============================================================================
-# Happy path — identity, worktrees, filtered plugin versions
-# ============================================================================
 out="$(run --plugin harness-ops --plugin work-items 2>&1)"
 rc=$?
 assert_eq "emits successfully (exit 0)" 0 "$rc"
@@ -131,32 +112,20 @@ assert_contains "relative git-common-dir yields the absolute clone-path" "$out" 
 assert_not_contains "relative git-common-dir is not rendered as '.'" "$out" "clone-path: ."
 unset STUB_COMMON_DIR
 
-# ============================================================================
-# gh unavailable degrades (not a failure)
-# ============================================================================
-make_gh_stub "" # login empty → gh api user exits 1
+make_gh_stub ""
 out="$(run --plugin harness-ops 2>&1)"
 rc=$?
 assert_eq "gh failure still exits 0 (degraded)" 0 "$rc"
 assert_contains "gh identity degrades to unavailable" "$out" "gh-identity: unavailable"
 make_gh_stub "octocat"
 
-# ============================================================================
-# No --plugin → every installed plugin reported
-# ============================================================================
 out="$(run 2>&1)"
 assert_contains "no filter includes harness-ops" "$out" "harness-ops  0.15.4"
 assert_contains "no filter includes caveman (commit-pinned version)" "$out" "caveman  0d95a81d35a9"
 
-# ============================================================================
-# --plugin naming no installed plugin is reported explicitly
-# ============================================================================
 out="$(run --plugin nonesuch 2>&1)"
 assert_contains "unknown plugin reported, not silently empty" "$out" "none of the requested plugins are installed: nonesuch"
 
-# ============================================================================
-# Missing / malformed installed_plugins.json degrades
-# ============================================================================
 out="$(MACHINE_BEHAVIOR_INSTALLED_JSON="$TMP/nope.json" bash "$SCRIPT" --repo "$TMP" 2>&1)"
 rc=$?
 assert_eq "missing installed json still exits 0" 0 "$rc"
@@ -166,9 +135,6 @@ echo '{ not json' >"$TMP/bad.json"
 out="$(MACHINE_BEHAVIOR_INSTALLED_JSON="$TMP/bad.json" bash "$SCRIPT" --repo "$TMP" 2>&1)"
 assert_contains "malformed installed json degrades" "$out" "is not valid JSON"
 
-# ============================================================================
-# Argument + repo validation
-# ============================================================================
 out="$(run --bogus 2>&1)"
 rc=$?
 assert_eq "unknown argument exits 3" 3 "$rc"
@@ -199,9 +165,6 @@ out="$(PATH="$STUB_BIN" "$BASH_BIN" "$SCRIPT" --help 2>&1)"
 rc=$?
 assert_eq "--help answers with no jq binary" 0 "$rc"
 
-# ============================================================================
-# --max-worktrees caps the listed worktrees; the count stays the full count
-# ============================================================================
 out="$(run --max-worktrees 1)"
 assert_contains "cap keeps the full worktree count" "$out" "worktree-count: 3"
 assert_contains "cap lists the first worktree" "$out" "/repos/claude-code-plugins  [main]"
@@ -219,7 +182,6 @@ out="$(run --max-worktrees=three 2>&1)"
 rc=$?
 assert_eq "--max-worktrees rejects a non-integer" 3 "$rc"
 
-# ============================================================================
 echo
 if ((FAILED)); then
   printf 'machine-behavior.test: FAIL — %d case(s) failed\n' "$FAILED" >&2

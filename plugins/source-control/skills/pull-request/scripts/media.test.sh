@@ -147,13 +147,11 @@ jq -cn --rawfile body "$1/body" --arg who "$2" --arg id "E$n" \
   '{id: $id, editedAt: $at, editor: {login: $who}, diff: $body}' >>"$1/edits.jsonl"
 STUB_EOF
 
-# person-edit <state> <line>: a person appends a line to the PR body.
 cat >"$STUB_DIR/person-edit" <<'STUB_EOF'
 printf '%s\n' "$2" >>"$1/body"
 bash "$(dirname "$0")/record-edit" "$1" a-person
 STUB_EOF
 
-# reset <body-file> <head>: a fresh pull request #7 holding that body.
 reset() {
   rm -rf "$S"
   mkdir -p "$S/comments" "$S/authors"
@@ -177,8 +175,6 @@ media() {
   RC=$?
 }
 
-# media_dir <dir> <head> [chapter-title]: a producer output directory with a
-# video, one contact sheet, an unlisted file and manifest.json.
 media_dir() {
   mkdir -p "$1"
   printf 'video-bytes-%s' "$2" >"$1/video.mp4"
@@ -196,7 +192,6 @@ media_dir() {
 
 sums() { for f in "$@"; do cksum <"$f"; done; }
 
-# sha <file>: the file's lowercase hex SHA-256, from the system tool.
 sha() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | cut -d' ' -f1
@@ -205,16 +200,13 @@ sha() {
   fi
 }
 
-# shot_entry <dir> <image> <sidecar>: a screenshot manifest entry binding both files.
 shot_entry() {
   jq -cn --arg p "$2" --arg s "$3" --arg ps "$(sha "$1/$2")" --arg ss "$(sha "$1/$3")" \
     '{path: $p, sha256: $ps, sidecar: $s, sidecar_sha256: $ss}'
 }
 
-# block_of <body-file>: the lines from the start marker through the end marker.
 block_of() { sed -n "/^${START}\$/,/^${END}\$/p" "$1"; }
 
-# outside_of <body-file>: every line outside the marked block.
 outside_of() { sed "/^${START}\$/,/^${END}\$/d" "$1"; }
 
 body_edits() { grep -c -- '^pr edit .*--body-file' "$S/calls" || true; }
@@ -223,7 +215,6 @@ PLAIN="$TEST_TMPDIR/plain.md"
 printf '%s\n' 'Closes #12' '' '## Summary' '' 'Adds a retry.' '' '## Fix' '' 'Retries once.' \
   '' '## Verification' '' '- ran it' '' '## Related' '' '- None.' >"$PLAIN"
 
-# --- claim -------------------------------------------------------------------
 reset "$PLAIN" "$HEAD1"
 media claim 7 --run-id run-1
 assert_exit "claim on a body with no section exits 0" 0 "$RC"
@@ -278,7 +269,6 @@ echo "someone User" >"$S/authors/0"
 media claim 7 --run-id run-1
 assert_exit "a failure marker planted by another person does not stop a claim" 0 "$RC"
 
-# --- post, attaching ----------------------------------------------------------
 M1="$TEST_TMPDIR/m1"
 media_dir "$M1" "$HEAD1"
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
@@ -309,7 +299,6 @@ media post 7 --manifest "$M1/manifest.json" --run-id run-1 --label-posted false 
 assert_exit "post with labels turned off exits 0" 0 "$RC"
 assert_not_contains "labels set to false make no label call" "$(cat "$S/calls")" "-label"
 
-# --- a second run replaces only the marked block --------------------------------
 reset "$FIXTURE" "$HEAD2"
 media claim 7 --run-id run-2
 assert_exit "claim on a body that already shows media exits 0" 0 "$RC"
@@ -326,7 +315,6 @@ assert_not_contains "the old chapters are gone from the body" "$(cat "$S/body")"
 assert_eq "the body holds one start and one end marker" "1 1" \
   "$(grep -c -- "^${START}\$" "$S/body") $(grep -c -- "^${END}\$" "$S/body")"
 
-# --- claims and concurrent edits ----------------------------------------------
 reset "$TEST_TMPDIR/other-claim.md" "$HEAD1"
 media post 7 --manifest "$M1/manifest.json" --run-id run-1
 assert_exit "post under a claim held by another run aborts with exit 3" 3 "$RC"
@@ -376,7 +364,6 @@ assert_not_contains "a head that moved during the upload leaves no posted line" 
 assert_contains "the stale section keeps the uploaded video" "$(block_of "$S/body")" \
   "https://github.com/user-attachments/assets/video.mp4"
 
-# --- hosting -------------------------------------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 printf 'FLAGS\n  -b, --body string   Set the new body.\n' >"$S/help"
 media post 7 --manifest "$M1/manifest.json" --run-id run-1
@@ -408,7 +395,6 @@ media post 7 --manifest "$M1/manifest.json" --run-id run-1 \
   --artifact-url 'https://example.com/x) [click](https://evil.example'
 assert_exit "an artifact URL off github.com is a usage error" 2 "$RC"
 
-# --- leak scan and allow-list ---------------------------------------------------
 TOKEN="ghp_$(printf 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8')"
 M3="$TEST_TMPDIR/m3"
 media_dir "$M3" "$HEAD1" "Uses $TOKEN"
@@ -445,7 +431,6 @@ printf 'shot-two-bytes' >"$M5/shot-2.png"
 mkdir -p "$M5/frames"
 printf 'Settings page, Save button' >"$M5/frames/shot.txt"
 printf 'Profile page' >"$M5/frames/shot-2.txt"
-# shots <entries-json>: M5's manifest with those screenshot entries.
 shots() { jq --argjson s "$1" '.screenshots = $s' "$M5/base.json" >"$M5/manifest.json"; }
 cp "$M5/manifest.json" "$M5/base.json"
 
@@ -495,7 +480,6 @@ assert_not_contains "the unbound refusal never prints the sidecar text" "$OUT" "
 assert_silent "an unbound sidecar uploads nothing" "$(cat "$S/attached")"
 printf 'Settings page, Save button' >"$M5/frames/shot.txt"
 
-# --- every uploaded file is bound to its manifest digest --------------------------
 M7="$TEST_TMPDIR/m7"
 media_dir "$M7" "$HEAD1"
 cp "$M7/manifest.json" "$M7/base.json"
@@ -529,7 +513,6 @@ media post 7 --manifest "$M7/manifest.json" --run-id run-1 --no-attach \
 assert_exit "an artifact name outside letters, digits, dots, underscores and hyphens is a usage error" 2 "$RC"
 assert_eq "a bad artifact name makes no body edit" "0" "$(body_edits)"
 
-# --- a person's edit during the upload is kept ------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 printf 'bash "%s/person-edit" "%s" "Hold: waiting on the owner."\n' "$STUB_DIR" "$S" >"$S/write-hook-1"
 media post 7 --manifest "$M1/manifest.json" --run-id run-1
@@ -577,7 +560,6 @@ media post 7 --manifest "$M6/manifest.json" --run-id run-1
 assert_exit "a manifest whose own scan did not pass exits 5" 5 "$RC"
 assert_silent "a manifest whose scan did not pass uploads nothing" "$(cat "$S/attached")"
 
-# --- stale ----------------------------------------------------------------------
 reset "$FIXTURE" "$HEAD2"
 media stale 7 --head "$HEAD2"
 assert_exit "stale on a section for an older head exits 0" 0 "$RC"
@@ -596,7 +578,6 @@ media stale 7 --head "$HEAD2"
 assert_exit "stale on a body with no section exits 0" 0 "$RC"
 assert_eq "a body with no section is not edited" "0" "$(body_edits)"
 
-# --- shows ----------------------------------------------------------------------
 facts_of() { jq -n --rawfile body "$1" '{body: $body}' >"$TEST_TMPDIR/facts.json"; }
 facts_of "$FIXTURE"
 media shows --facts "$TEST_TMPDIR/facts.json"
@@ -617,7 +598,6 @@ echo '{}' >"$TEST_TMPDIR/facts.json"
 media shows --facts "$TEST_TMPDIR/facts.json"
 assert_exit "shows on facts with no body is a usage error" 2 "$RC"
 
-# --- fail -----------------------------------------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 grep -vxF "$REQUESTED" "$S/labels" >"$S/labels.new" && mv "$S/labels.new" "$S/labels"
 media fail 7 --run-id run-1 --reason build-failed --run-url https://github.com/acme/app/actions/runs/99
@@ -715,7 +695,6 @@ media_no_user fail 7 --run-id run-1 --reason build-failed
 assert_eq "with no identity, a bot marker comment still counts" "1" \
   "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
 
-# A run whose claim another run took over records nothing against that run's head.
 reset "$TEST_TMPDIR/other-claim.md" "$HEAD2"
 cp "$S/labels" "$TEST_TMPDIR/labels-before"
 media fail 7 --run-id run-1 --reason build-failed
@@ -728,7 +707,6 @@ assert_eq "fail under another run's claim posts no comment" "0" \
   "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
 assert_not_contains "fail under another run's claim makes no edit call" "$(cat "$S/calls")" "pr edit"
 
-# --- markers --------------------------------------------------------------------
 printf '%s\n' 'Closes #12' '' "$START" 'orphan' '' '## Summary' '' 'x' >"$TEST_TMPDIR/broken.md"
 reset "$TEST_TMPDIR/broken.md" "$HEAD1"
 media claim 7 --run-id run-1

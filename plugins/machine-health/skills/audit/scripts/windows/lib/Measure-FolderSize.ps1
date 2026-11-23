@@ -345,8 +345,6 @@ function Measure-FolderSize {
         $pending.Add($listed)
     }
 
-    # Each root's walk gets an equal share of the budget left, counting the
-    # allocated pass as one more claimant; time a root leaves unused passes on.
     for ($i = 0; $i -lt $pending.Count; $i++) {
         $p = $pending[$i]
         $elapsed = $Budget.Clock.ElapsedMilliseconds
@@ -377,7 +375,6 @@ function Measure-FolderSize {
         $p.Record.complete = $p.Complete
     }
 
-    # Allocated pass over the kept folders only, inside the same budget.
     $context.DeadlineMs = [long]::MaxValue
     $allocatedComplete = $true
     foreach ($f in $folders) {

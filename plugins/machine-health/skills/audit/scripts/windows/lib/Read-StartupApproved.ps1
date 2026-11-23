@@ -24,7 +24,6 @@ A RunOnce key has no StartupApproved counterpart, so no scope maps to it.
 
 $script:StartupApprovedRoot = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved'
 
-# Startup scope -> the hive and StartupApproved subkey that hold its entries' state.
 $script:StartupApprovedKey = @{
     'hkcu'          = 'HKCU:\{0}\Run'
     'hklm'          = 'HKLM:\{0}\Run'

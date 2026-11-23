@@ -197,12 +197,14 @@ import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryApi } from "../lib/retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
+import { laneBranchPattern, laneBranchPrefix, parseLaneBranch, WORK_RESOLVE_ISSUE } from "../lib/lane-branch.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
+import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
-export { doneEvidence };
+export { doneEvidence, REFINE_MARKER };
 
 export const HOLD_LINE = "Hold: a human merges this";
 // The label a held PR carries from its opening. The hold line is body text the
@@ -1071,9 +1073,6 @@ async function laneHold(statusOf, issueNumber, labels) {
   return hold ? `held by ${hold}` : "";
 }
 
-// intake's refinement record (admit.mjs REFINE_MARKER), restated as
-// DECISION_LINE is: a script activity runs from a copy of its own directory.
-export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The hold stops that wait on a person's answer on the issue. A security
 // stop is never among them: a person checks it first, whatever was posted.
 const ANSWERED_STOPS = new Set(["pushback", "intent-change", "design-change", "cost-risk"]);
@@ -1755,12 +1754,12 @@ function humanLabelFrom(path) {
 export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "wait", "host-run", "attended", "failed"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
-const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
+const laneBranch = (issueNumber) => laneBranchPattern(WORK_RESOLVE_ISSUE, issueNumber);
 export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
 // The issue a lane branch name is for, or null for any other name.
 export const laneBranchIssue = (name) => {
-  const issue = /^work-resolve-issue\/issue-([1-9][0-9]*)-/.exec(name ?? "")?.[1];
-  return issue && isLaneBranch(name, issue) ? Number(issue) : null;
+  const parsed = parseLaneBranch(name);
+  return parsed ? Number(parsed.issue) : null;
 };
 
 // A commit the lanes App made through the API: verified, authored by the App
@@ -2143,7 +2142,7 @@ function targetIssue(env) {
   return Number(env.ISSUE_NUMBER);
 }
 
-const botLogin = (env) => env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+const botLogin = (env) => env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
 const resolvedConfigPath = (env) => env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
 
 // Whether the lanes App already posted this run's `outcome` marker, so a rerun
@@ -2172,7 +2171,7 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const bot = botLogin(env);
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
-    const { createGitHub } = await import(new URL("../../actions/check-trusted-trigger/check-trusted-trigger.mjs", import.meta.url).href);
+    const { createGitHub } = await import(new URL("../lib/github-client.mjs", import.meta.url).href);
     const { createRateLimitLatch } = await import(new URL("../../actions/log-api-budget/rate-guard.mjs", import.meta.url).href);
     const github = createGitHub({
       token: env.GH_TOKEN,
@@ -2194,7 +2193,7 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
     const shape = laneBranch(issueNumber);
     // The trailing `-` keeps one issue's prefix from matching a longer
     // issue number that starts with the same digits.
-    const matching = await github("GET", `${repo}/git/matching-refs/heads/work-resolve-issue/issue-${issueNumber}-`);
+    const matching = await github("GET", `${repo}/git/matching-refs/heads/${laneBranchPrefix(WORK_RESOLVE_ISSUE, issueNumber)}`);
     if (!Array.isArray(matching)) {
       throw new Error("the issue's lane branches could not be read");
     }
@@ -2480,7 +2479,7 @@ async function baseStatus(env) {
     const { statusWriter } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
     const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
     const { fieldEvents, issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
-    const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
+    const { createGitHub } = await import(pathToFileURL(join(actions, "..", "scripts", "lib", "github-client.mjs")).href);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
     const { set, leaveAgentReady, restart } = await statusWriter({ env, github, repository });

@@ -47,7 +47,6 @@ run_discover() (
   cd "$1" && bash scripts/check-cross-plugin-source-drift.sh
 )
 
-# --- an identical cluster that's registered passes -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same content"
 plugin_file "$f" beta hooks/shared.sh "same content"
@@ -59,7 +58,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an identical cluster with NO registry entry fails ----------------------
 new_fixture f
 plugin_file "$f" alpha hooks/new-shared.sh "same content"
 plugin_file "$f" beta hooks/new-shared.sh "same content"
@@ -74,7 +72,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a registered cluster that has drifted (copies no longer match) fails --
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "version one"
 plugin_file "$f" beta hooks/shared.sh "version two -- drifted"
@@ -90,7 +87,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a registered cluster that dropped below 2 copies fails as stale -------
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "only one copy left"
 registry "$f" "hooks/shared.sh"
@@ -119,7 +115,6 @@ else
 fi
 rm -rf "$f"
 
-# --- files that legitimately differ per plugin are never flagged -----------
 new_fixture f
 plugin_file "$f" alpha SKILL.md "alpha's own content"
 plugin_file "$f" beta SKILL.md "beta's own, totally different"
@@ -132,7 +127,6 @@ else
 fi
 rm -rf "$f"
 
-# --- discover mode lists both IDENTICAL and DIFFERS clusters, with [registered] tag
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same"
 plugin_file "$f" beta hooks/shared.sh "same"
@@ -152,7 +146,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a single plugin carrying a file is not a cluster (no 2+ occurrence) ---
 new_fixture f
 plugin_file "$f" alpha hooks/only-here.sh "content"
 if out="$(run_check "$f" 2>&1)"; then

@@ -73,7 +73,6 @@ function Get-SnapshotField($Object, [string] $Name) {
     $prop ? $prop.Value : $null
 }
 
-# The non-null FindingKeys under each check's detail.items, by check id.
 function Get-CheckItemKey {
     [CmdletBinding()]
     [OutputType([object[]])]

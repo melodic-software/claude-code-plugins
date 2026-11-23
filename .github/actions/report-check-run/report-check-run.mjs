@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub, detailSuffix } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, detailSuffix } from "../../scripts/lib/github-client.mjs";
 import { decide } from "./decide.mjs";
 import { MARKER, validRecord } from "../../scripts/lib/lane-outcome.mjs";
 import { conflictRecord, recordLine } from "../../scripts/lib/conflict-record.mjs";

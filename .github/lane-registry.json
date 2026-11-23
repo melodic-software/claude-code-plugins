@@ -1,0 +1,111 @@
+{
+  "$comment": "Each lane workflow's jobs that a script finds at run time, by job id. name is the job's display name; earlier lists the other names a run from before a rename lists it under, its own id where it had no name; calls is the reusable workflow it calls, without a ref; status is the reusable's status job names, current first, for a review caller; lane is a review caller's lane id. .github/scripts/lib/lane-registry.mjs reads it, and lane-registry.test.mjs checks it against the workflows.",
+  "workflows": {
+    "intake-triage.yml": {
+      "jobs": {
+        "apply-verdict": { "name": "Apply Verdict" },
+        "intake-label-needs-triage": { "name": "Intake Label Needs Triage", "earlier": ["intake-label-needs-triage"], "calls": "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml" }
+      }
+    },
+    "pr-dispatch-feedback.yml": {
+      "jobs": {
+        "post-verify-notes": { "name": "Post Verify Notes", "earlier": ["post-verify-notes"] }
+      }
+    },
+    "pr-merge.yml": {
+      "jobs": {
+        "merge": { "name": "Merge" },
+        "enable-auto-merge": { "name": "Enable Auto Merge" }
+      }
+    },
+    "pr-rate-merge-risk.yml": {
+      "jobs": {
+        "rate-merge-risk": { "name": "Rate Merge Risk" },
+        "rate-merge-risk-subscription": { "name": "Rate Merge Risk Subscription" },
+        "rate-merge-risk-fallback": { "name": "Rate Merge Risk Fallback" }
+      }
+    },
+    "pr-refine.yml": {
+      "jobs": {
+        "fix-docs-head-held": { "name": "Fix Docs Head Held" },
+        "fix-docs-handoff": { "name": "Fix Docs Handoff" },
+        "fix-docs-subscription-handoff": { "name": "Fix Docs Subscription Handoff" },
+        "record-passes": { "name": "Record Passes" }
+      }
+    },
+    "pr-review-hosted.yml": {
+      "lane": "claude-review",
+      "jobs": {
+        "check-kill-switch": { "name": "Check Kill Switch", "earlier": ["Kill Switch", "kill-switch"] },
+        "pr-review": {
+          "name": "PR Review",
+          "earlier": ["pr-review"],
+          "calls": "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml",
+          "status": ["review-status", "Status", "Publish Review"]
+        }
+      }
+    },
+    "pr-review-main.yml": {
+      "jobs": {
+        "check-trigger": { "name": "Check Trigger", "earlier": ["Trigger", "trigger"] },
+        "review": { "name": "Review" },
+        "review-subscription": { "name": "Review Subscription" },
+        "review-fallback": { "name": "Review Fallback" }
+      }
+    },
+    "pr-review-security-hosted.yml": {
+      "lane": "claude-security-review",
+      "jobs": {
+        "check-kill-switch": { "name": "Check Kill Switch", "earlier": ["Kill Switch", "kill-switch"] },
+        "pr-review-security": {
+          "name": "PR Review Security",
+          "earlier": ["pr-review-security"],
+          "calls": "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml",
+          "status": ["review-status", "Status", "Publish Review"]
+        }
+      }
+    },
+    "pr-run-activity-write.yml": {
+      "jobs": {
+        "run": { "name": "Run" }
+      }
+    },
+    "pr-unblock.yml": {
+      "jobs": {
+        "apply-conflict-patch": { "name": "Apply Conflict Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-feedback-patch": { "name": "Apply Feedback Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "publish-feedback": { "name": "Publish Feedback", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "resolve-feedback-threads": { "name": "Resolve Feedback Threads", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-dependency-patch": { "name": "Apply Dependency Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-dependency-verdict": { "name": "Apply Dependency Verdict", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-dependency-pin": { "name": "Apply Dependency Pin", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-dependency-relock": { "name": "Apply Dependency Relock", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-cdn-pins-sync": { "name": "Apply CDN Pins Sync", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-patch": { "name": "Apply Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-patch-rung-up": { "name": "Apply Patch Rung Up", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-shared-copies": { "name": "Apply Shared Copies", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "report-escalation": { "name": "Report Escalation", "calls": "./.github/workflows/pr-run-activity-write.yml" }
+      }
+    },
+    "pr-verify.yml": {
+      "jobs": {
+        "check-intent": { "name": "Check Intent" },
+        "check-intent-subscription": { "name": "Check Intent Subscription" },
+        "check-intent-fallback": { "name": "Check Intent Fallback" }
+      }
+    },
+    "work-resolve-issue.yml": {
+      "jobs": {
+        "pick-slot": { "name": "Pick Slot" },
+        "report-skip": { "name": "Report Skip", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-issue-patch": { "name": "Apply Issue Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "report-outcome": { "name": "Report Outcome", "calls": "./.github/workflows/pr-run-activity-write.yml" }
+      }
+    },
+    "work-unblock.yml": {
+      "jobs": {
+        "label-unblocked": { "name": "Label Unblocked" }
+      }
+    }
+  }
+}

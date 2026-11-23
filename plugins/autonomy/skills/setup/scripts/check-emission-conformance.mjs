@@ -1,15 +1,6 @@
 #!/usr/bin/env node
 
-// Emission-conformance check for the telemetry contract: verifies produced
-// OTLP JSON-lines declare the pinned schema URL and carry the work-item join
-// attribute in normalized form. This is the contract's enforcement surface —
-// adopters and the conforming-path demo run it against their artifact output.
-//
-// Usage: node check-emission-conformance.mjs <file-or-dir> [...more]
 // Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
-//
-// OTLP JSON encoding uses lowerCamelCase field names (resourceSpans,
-// schemaUrl) — never the proto snake_case forms.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -22,7 +13,6 @@ const JOIN_ATTRIBUTE = "autonomy.work_item.url";
 const findings = [];
 let schemaUrlDeclared = 0;
 
-// Returns how many join-attribute occurrences this list carried.
 function checkAttributeList(attributes, where) {
   let hits = 0;
   for (const attribute of attributes ?? []) {
@@ -46,13 +36,6 @@ function checkSchemaUrl(declared, where) {
   }
 }
 
-// Per the contract: contract-authored emissions declare the pinned schema URL;
-// a native tool's emission is consumed as-is and may declare none. So absence
-// on an individual entry is tolerated, every declared URL (resource-entry or
-// scope level) must match the pin, and at least one emission in the whole
-// checked set must declare it. The join attribute is required per resource
-// entry — an export batch can carry several entries on one line, and a joined
-// pipeline entry must not vouch for an unjoined session entry beside it.
 function checkResourceBlocks(blocks, file, line) {
   const result = { hits: 0, entries: 0 };
   for (const [signalKey, block] of Object.entries(blocks)) {

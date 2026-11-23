@@ -204,7 +204,6 @@ if [[ -n "$HAS_PR" ]]; then
     echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
     exit 1
   fi
-  # The PR's URL names its base repository.
   read -r BRANCH HEAD_REPO PR_BASE_REPO PR_BASE_REF < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner,url,baseRefName \
     -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name + " " + (.url | split("/")[3:5] | join("/")) + " " + .baseRefName' 2>/dev/null | tr -d '\r')
   if [[ "${BRANCH:-}" == -* ]]; then
@@ -219,15 +218,12 @@ elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 
-# remote_default <remote>: the remote's default branch as `ls-remote --symref`
-# reports it, or nothing.
 remote_default() {
   local out
   out=$(git ls-remote --symref "$1" HEAD 2>/dev/null) || return 0
   sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}"
 }
 
-# worktree_of <branch>: the worktree that has <branch> checked out, or nothing.
 worktree_of() {
   local line wt=""
   while IFS= read -r line; do
@@ -387,9 +383,6 @@ FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
 
 sync_skip() { echo "push-branch.sh: sync-stale-base skipped: $1; pushing as is" >&2; }
 
-# local_default <remote>: <remote>'s default branch as this clone last fetched
-# it (the refs/remotes/<remote>/HEAD symref, else the first of main, master or
-# trunk it holds), or nothing. No network call.
 local_default() {
   local d b
   d=$(git symbolic-ref --short "refs/remotes/$1/HEAD" 2>/dev/null) && { echo "${d#"$1"/}"; return 0; }
@@ -398,8 +391,6 @@ local_default() {
   done
 }
 
-# setting_at <remote>: sync_stale_base in docs/conventions/source-control.yaml
-# on <remote>'s default branch as this clone last fetched it, or nothing.
 setting_at() {
   local d out tmp on=""
   d=$(local_default "$1")
@@ -482,7 +473,6 @@ sync_stale_base() {
   exit 1
 }
 
-# stale_media_note <pushed-sha>: the stale reviewer media step of the header.
 stale_media_note() {
   local out pr="$PR"
   [[ -n "$1" && -f "$SCRIPT_DIR/media.py" ]] || return 0
@@ -495,7 +485,6 @@ stale_media_note() {
   [[ -z "$out" ]] || echo "push-branch.sh: $out" >&2
 }
 
-# push_then_note <sha> <git push args...>: push, then the stale media step only when it succeeded.
 push_then_note() {
   local sha="$1" rc=0
   shift

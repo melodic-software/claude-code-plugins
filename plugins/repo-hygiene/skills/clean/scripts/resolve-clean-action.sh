@@ -35,9 +35,6 @@ fi
 
 joined="$(printf '%s ' "$@" | tr '[:upper:]' '[:lower:]')"
 
-# resolve_token <token>: one raw argument to its canonical action name (empty
-# when unrecognized). Folds to lower case first, because the tables below are
-# all lower-case.
 resolve_token() {
   local t
   t="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
@@ -85,9 +82,6 @@ resolve_token() {
   esac
 }
 
-# A whole-phrase fleet intent ("reset all my repos", "every repo", "ghq list").
-# Kept in one place so the token loop and the no-token fallback below agree on
-# what reads as a multi-repo reset.
 is_fleet_phrase() {
   case "$1" in
   *reset\ all* | *all\ my\ repos* | *all\ repos* | *every\ repo* | *across\ repos* | *ghq\ list*)
@@ -97,9 +91,6 @@ is_fleet_phrase() {
   esac
 }
 
-# Any multi-repo signal: a fleet phrase, or a bare fleet/batch/multi-repo word.
-# Broader than is_fleet_phrase because it also catches "across the fleet" and a
-# lone "fleet"/"batch" token co-occurring with a selective tier.
 has_fleet_indicator() {
   is_fleet_phrase "$1" && return 0
   case "$1" in
@@ -118,8 +109,6 @@ has_reset_intent() {
   esac
 }
 
-# fleet_tier <joined>: the tier a fleet phrase names, the destructive tree-batch
-# for a reset and the selective all-batch otherwise.
 fleet_tier() {
   if has_reset_intent "$1"; then printf 'tree-batch'; else printf 'all-batch'; fi
 }
@@ -152,16 +141,6 @@ fi
 canonical=""
 note=""
 
-# "Action token + advisory note" shape: a leading action token followed by free
-# text (a question or a live-session constraint), where that trailing text is NOT
-# itself a second action token and the whole input carries no fleet indicator. The
-# note must not be re-interpreted as an action — so trailing text that merely
-# mentions an action word (e.g. "…include stashes?") does not read as a conflict.
-# A genuine second action token (e.g. "scan tree", "scan all repos") is left to the
-# full-token resolution below, which reports the ambiguity as `menu`. Gate on
-# has_fleet_indicator (not just is_fleet_phrase) so a fleet request the phrase list
-# misses ("all across the fleet") routes to the batch tier below instead of being
-# preempted into a single-repo action with the fleet words demoted to a note.
 first_action="$(resolve_token "$1")"
 second_action="$(resolve_token "${2:-}")"
 if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! has_fleet_indicator "$joined"; then

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# dometrain update — drift check for Dometrain's upstream dometrain-grounding skill content.
-#
-# Modes:
-#   --check (default)     report only — diff upstream against the vendored baseline
-#   --apply               overwrite the vendor snapshot with current upstream
-#                         (maintainer-only: run in a working clone, never the installed cache)
-#
-# No CLI to install/upgrade here (unlike context7's ctx7 package) — only vendored prose to diff.
-#
 # Exit codes (the shared drift-check contract):
 #   0 — no drift, or --apply completed
 #   1 — drift: upstream differs from the vendored baseline, or the baseline is missing
@@ -24,8 +15,6 @@ case "$MODE" in
   ;;
 esac
 
-# All paths resolve relative to this script's own location, so the script works
-# both in the installed plugin cache and in a working clone of the marketplace repo.
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SNAPSHOT_DIR="$SKILL_DIR/vendor"
 GROUNDING_SKILL_MD="$SKILL_DIR/../grounding/SKILL.md"
@@ -39,7 +28,6 @@ strip_attribution() {
   sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/{N;d}' "$1"
 }
 
-# $1 names the action in the failure message: seed or refresh.
 save_baseline() {
   if ! cp "$tmpfile" "$BASELINE"; then
     echo "  ✖ Failed to $1 baseline (check permissions/disk)" >&2

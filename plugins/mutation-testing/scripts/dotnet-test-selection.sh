@@ -33,8 +33,6 @@ if (($# == 0)); then
 fi
 cwd="$(pwd -P)" || exit 2
 
-# One `<Namespace>.<Class><TAB><generic><TAB><holds a nested class>` line per
-# top-level class, the two flags 1 or 0.
 classes_of() {
   awk '
   function punct(c) {

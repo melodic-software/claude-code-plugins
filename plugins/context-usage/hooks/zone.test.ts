@@ -2,11 +2,9 @@ import { expect, test } from 'claude-code/testing'
 import cases from '../scripts/context-zone.fixtures.mjs'
 import { followWindow, resolveZone } from './zone.ts'
 
-// 2026-10-03T18:00:00Z, computed by hand: 1791050400 s.
 const NOW = 1_791_050_400
 const iso = (s: number) => new Date(s * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-// Lays out a case's file text the way context-zone.test.sh does for the bash copy.
 const text = (value: unknown): string | null => {
   if (value === null) return null
   if (typeof value === 'object' && !Array.isArray(value)) {

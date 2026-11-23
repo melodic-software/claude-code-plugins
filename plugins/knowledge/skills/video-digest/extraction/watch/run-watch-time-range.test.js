@@ -1,9 +1,3 @@
-/**
- * CLI-level proof of a ranged watch (`--from` / `--to`): acquisition gets the range,
- * watching runs in media time, and the slice stores full-video time with the range
- * and the offset's error recorded. ASR and watching are stubbed.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -156,7 +150,6 @@ describe("run-watch time range (CLI-level)", () => {
       timeRange: { fromSec: 3600, toSec: 4800 },
       skipCaptionWait: true,
     });
-    // ASR ran on the ranged media; watching gets those cues back in media time.
     expect(vi.mocked(orchestrateWatching).mock.calls[0][0].cues).toEqual([
       { startSec: 0, endSec: 4, text: "first ranged cue" },
       { startSec: 4, endSec: 9, text: "second ranged cue" },

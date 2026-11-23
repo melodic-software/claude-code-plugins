@@ -72,8 +72,6 @@ TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf -- "${TMP:?}"' EXIT
 NOT_READ=()
 
-# The grammars every printed name must fully match; anything else prints as a fixed word:
-# `<event>{redacted}` when only a hook's filter fails, else `redacted`. Nothing is dropped.
 ID_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}@[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 EVENT_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*$'
 HOOK_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*(\{[a-z][A-Za-z]*=[A-Za-z0-9._:-]{1,40}\})?$'
@@ -84,8 +82,6 @@ MODE_WORD='def mode_word: if type == "string" then
   else "unset" end;'
 
 safe_id() { [[ "$1" =~ $ID_RE ]] && printf '%s' "$1" || printf 'redacted-id'; }
-# filter_list <regex>: comma-separated names on stdin -> each name that matches, or its redacted
-# form, deduplicated in order, joined by commas; `-` when the list is empty.
 filter_list() {
   local re="$1" out="" item seen=","
   local IFS=','
@@ -119,8 +115,6 @@ row() {
   done
   ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$@")")
 }
-# after_marker <marker>: lines on stdin -> the text after the first occurrence of the marker, so a
-# module path with spaces never hides the names after it.
 after_marker() { awk -v m="$1" '{ i = index($0, m); if (i) print substr($0, i + length(m)) }'; }
 declare -A NOUN_MARKER=([add]=' adds to $: ' [withhold]=' withholds from $: ' [replace]=' replaces on $: ')
 nouns_of() {
@@ -133,16 +127,11 @@ nouns_of() {
   printf '%s' "${out:--}"
 }
 
-# --- Guard -----------------------------------------------------------------------------
-# Seated when the machine has managed settings or a managed-mcp.json, or the account is on a
-# Team or Enterprise plan (mods admin page, "Know what happens by default"). managed-mcp.json
-# sits beside managed-settings.json on each OS (managed MCP page, "Deploy managed-mcp.json").
 managed="unknown"
 base="$(mscope::base_file "$MANAGED_FILE")"
 dropin="$(mscope::dropin_dir "$MANAGED_FILE")"
 prepend_omits=0 override=0
 managed_read=0 managed_mode="unset" managed_sideload="unset"
-# An OS policy store can set prependPlugins too, and this script reads none.
 note_os_store() {
   [[ -z "$MANAGED_FILE" && -n "$(mscope::registry_keys)$(mscope::plist_domain)" ]] &&
     NOT_READ+=("guard: prependPlugins and guard options are read from the managed files only, not an OS policy store")
@@ -262,16 +251,10 @@ else
 fi
 NOT_READ+=("claude-written mods: --permission-mode, --dangerously-skip-permissions and --settings are not read; managed values come from the managed files only")
 
-# --- Installed tier --------------------------------------------------------------------
 project_real="$(cd "$PROJECT" 2>/dev/null && pwd -P)" || project_real=""
 if ! "$CLAUDE" plugin list --json >"$TMP/list.json" 2>/dev/null || ! jq -e 'type == "array"' "$TMP/list.json" >/dev/null 2>&1; then
   NOT_READ+=("installed tier: claude plugin list --json did not return a list")
 else
-  # One line per installPath: path, id, tier, enabled. An entry counts toward `enabled` when it
-  # applies to this project: user or managed scope, or a project or local entry for --project.
-  # A path no such entry names is `elsewhere`: skipped, and counted in a footer. `tier` is the
-  # first scope among those entries in the order managed, local, project, user. A missing id is
-  # `-`, never empty: IFS=$'\t' is whitespace, so read would merge an empty field into the next.
   jq -r --arg proj "$project_real" '
     [.[] | select((.installPath | type) == "string")]
     | group_by(.installPath)[]
@@ -301,7 +284,6 @@ else
       source="validate"
       if ! jq -e '.success == true' "$TMP/validate.json" >/dev/null 2>&1; then
         source="validate-errors"
-        # Errors can stop the analysis before it notes anything: no note is not "none".
         [[ "$hooks" == "-" ]] && hooks="unknown"
         [[ "$calls" == "-" ]] && calls="unknown"
         [[ "$nouns" == "-" ]] && nouns="unknown"
@@ -317,8 +299,6 @@ else
   ((elsewhere)) && NOT_READ+=("installed tier: $elsewhere install path(s) only other projects enable, skipped")
 fi
 
-# --- Built-in tier ---------------------------------------------------------------------
-# can_disable per built-in name from the overview table's last column: "You can't..." is no.
 overview_file=""
 if [[ -n "$OVERVIEW" ]]; then
   [[ -f "$OVERVIEW" ]] && overview_file="$OVERVIEW" || NOT_READ+=("can_disable: --overview file not found")
@@ -347,11 +327,6 @@ elif ! jq -e '(.builtin_plugins | type) == "object"' "$BUILTIN_JSON" >/dev/null 
   NOT_READ+=("built-in tier: --builtin-json has no builtin_plugins section")
 else
   NOT_READ+=("built-in enabled: managed settings and --settings are not read, so on/off is partial")
-  # enabled: the setting (else default_enabled) AND the gate. A gate flag's value is its cached
-  # value, or its default when the cache lacks the key; a cache not read leaves it unknown. Any
-  # false flag closes the gate. gate_flags lists only the gate's tengu_ flag terms, its other
-  # terms are runtime state the report does not list, so a gated built-in never reads on. A
-  # missing id is `-` (see the installed tier) and falls back to name@builtin.
   while IFS=$'\t' read -r name id enabled hooks; do
     [[ "$name" =~ ^cc-plugin-[a-z0-9-]+$ ]] || continue
     if [[ "$hooks" != "unknown" && "$hooks" != "-" ]]; then
@@ -384,7 +359,6 @@ else
     | @tsv' "$BUILTIN_JSON" 2>/dev/null)
 fi
 
-# --- Surface ---------------------------------------------------------------------------
 version="$("$CLAUDE" --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
 if [[ -z "$SURFACE" ]]; then
   case "${CLAUDE_CODE_ENTRYPOINT:-}" in *desktop*) SURFACE=desktop ;; *) SURFACE=terminal ;; esac

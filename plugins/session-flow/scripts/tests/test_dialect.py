@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/projects/-work-repo/*.jsonl plugins/session-flow/scripts/away.py plugins/session-flow/scripts/away_files.py plugins/session-flow/scripts/away_launch.py plugins/session-flow/scripts/handoff_chain.py plugins/session-flow/scripts/handoff_fit.py plugins/session-flow/scripts/io_streams.py plugins/session-flow/scripts/plugin_paths.py plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/shape4_chain.py
 """Contract tests for American spelling in what `fill`, `amend` and the away report write.
 
 The stub `typos` replays the JSON line shape typos-cli 1.52.2 prints for

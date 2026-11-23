@@ -1,6 +1,4 @@
 async page => {
-  // Takes one note through the notes host: variant B, state empty, worst content, on the worst set's
-  // call to action, which the switcher partly covers.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -29,7 +27,6 @@ async page => {
     await page.waitForFunction(() => /sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
     ok("the note is sent", (await page.$$("#notes li")).length === 1);
 
-    // A second note on an element whose nearest test id sits on an ancestor with the same tag.
     await page.click("#pick");
     await inFrame.locator('[data-variant="B"] [data-screen-state="empty"] .note-body').click();
     await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });

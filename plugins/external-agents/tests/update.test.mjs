@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { openBreaker, readBreaker } from "../scripts/lib/breaker.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { effortChoices, models } from "../scripts/lib/models.mjs";
-import { configKeys, update, versionSource } from "../scripts/lib/update.mjs";
+import { update, configKeys, versionSource } from "../scripts/lib/update.mjs";
+import { usage } from "../scripts/lib/usage.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
@@ -258,7 +259,7 @@ function agyWorld(answers = {}) {
 }
 
 describe("models", () => {
-  test("agy's models and the effort choices its help lists are one JSON document, with each source named", async () => {
+  test("agy's models and the effort choices its help lists are one JSON document, with harness facts, breaker and each source named", async () => {
     const got = await models(agyWorld().opts);
     assert.equal(got.code, 0);
     assert.deepEqual(JSON.parse(got.stdout), {
@@ -271,6 +272,9 @@ describe("models", () => {
       models_source: "agy models",
       efforts: ["low", "medium", "high"],
       efforts_source: "agy --help (--effort)",
+      tools: ["file", "shell", "web", "mcp", "invoke_subagent", "define_subagent", "manage_subagents", "send_message", "run_workflow", "generate_image"],
+      image: true,
+      breaker: { open: false, reason: null, reset_at: null },
       docs_index: "https://antigravity.google/docs/cli",
     });
   });
@@ -299,14 +303,41 @@ describe("models", () => {
     assert.ok(w.calls().includes("--help"));
   });
 
-  test("Codex's catalog gives each listed model its own effort levels and default, and leaves hidden models out", async () => {
-    const got = await models(world().opts);
+  test("Codex's catalog gives each listed model its own effort levels, default and optional context_window, leaves hidden models out, and reports harness facts and breaker", async () => {
+    const withWindow = JSON.stringify({
+      models: [
+        { slug: "model-a", display_name: "Model A", visibility: "list", default_reasoning_level: "low", supported_reasoning_levels: [{ effort: "low" }, { effort: "high" }], context_window: 256000 },
+        { slug: "model-b", display_name: "Model B", visibility: "list", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "medium" }] },
+        { slug: "model-hidden", display_name: "Hidden", visibility: "hide", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "medium" }], context_window: 128000 },
+      ],
+    });
+    const got = await models(world({ answers: { "debug models": { stdout: withWindow } } }).opts);
     const doc = JSON.parse(got.stdout);
     assert.equal(got.code, 0);
-    assert.deepEqual(doc.models, [{ id: "model-a", name: "Model A", efforts: ["low", "high"], default_effort: "low" }]);
+    assert.equal(doc.schema, 1);
+    assert.deepEqual(doc.models, [
+      { id: "model-a", name: "Model A", efforts: ["low", "high"], default_effort: "low", context_window: 256000 },
+      { id: "model-b", name: "Model B", efforts: ["medium"], default_effort: "medium" },
+    ]);
+    assert.equal(Object.hasOwn(doc.models[1], "context_window"), false);
     assert.equal(doc.models_source, "codex debug models");
     assert.equal(doc.cli.version, "0.168.0");
     assert.ok(!("efforts" in doc));
+    assert.deepEqual(doc.tools, ["file", "shell", "web", "mcp", "image_generation"]);
+    assert.equal(doc.image, true);
+    assert.deepEqual(doc.breaker, { open: false, reason: null, reset_at: null });
+  });
+
+  test("an open breaker is reported in models output, and an expired breaker reports closed", async () => {
+    const w = world();
+    const resetAt = "2026-11-22T15:00:00.000Z";
+    openBreaker(w.dataDir, "codex", { failureClass: "usage-limit", reason: "usage limit hit", now: noon, resetAt, cooldownHours: 24 });
+    const openDoc = JSON.parse((await models(w.opts)).stdout);
+    assert.equal(openDoc.status, "ok");
+    assert.deepEqual(openDoc.breaker, { open: true, reason: "usage limit hit", reset_at: resetAt });
+
+    const laterDoc = JSON.parse((await models({ ...w.opts, now: () => Date.parse(resetAt) + 1000 })).stdout);
+    assert.deepEqual(laterDoc.breaker, { open: false, reason: null, reset_at: null });
   });
 
   test("a missing CLI is unavailable, exit 4, still JSON, and nothing is cached", async () => {
@@ -338,5 +369,218 @@ describe("models", () => {
     const got = spawnSync(process.execPath, [join(here, "..", "bin", "external-agents"), "models", "nope"], { encoding: "utf8", cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
     assert.equal(got.status, 2);
     assert.deepEqual([JSON.parse(got.stdout).product, JSON.parse(got.stdout).status], ["nope", "refused"]);
+  });
+});
+
+describe("usage", () => {
+  const bin = join(here, "..", "bin", "external-agents");
+  const windows = process.platform === "win32";
+
+  function cliEnv(root, { product, fake, scenario }) {
+    const cwd = join(root, "cwd");
+    const home = join(cwd, "docs", "conventions");
+    const tools = join(root, "tools");
+    const dataDir = join(root, "external-agents-cli-data");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(tools, { recursive: true });
+    mkdirSync(dataDir, { recursive: true });
+    const binaryName = product === "antigravity" ? "agy" : product;
+    const wrapper = join(tools, windows ? `${binaryName}.cmd` : binaryName);
+    writeFileSync(wrapper, windows ? `@"${process.execPath}" "${fake}" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`);
+    chmodSync(wrapper, 0o755);
+    writeFileSync(join(home, "external-agents.local.yaml"), `schema: 1\n${product}:\n  binary_path: "${wrapper.replace(/\\/g, "/")}"\n`);
+    const scenarioFile = join(root, "scenario.json");
+    const callsFile = join(root, "calls.jsonl");
+    writeFileSync(scenarioFile, JSON.stringify({ record: callsFile, ...scenario }));
+    const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
+    return {
+      cwd,
+      dataDir,
+      env: { ...bare, CLAUDE_PLUGIN_DATA: dataDir, FAKE_SCENARIO: scenarioFile },
+      calls: () => (existsSync(callsFile) ? readFileSync(callsFile, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []),
+    };
+  }
+
+  test("Codex usage sends initialize, initialized and account/rateLimits/read, ignores notifications, normalizes percent used, and prints no account or plan fields", async () => {
+    const root = join(scratch, `u${(count += 1)}`);
+    const resetEpoch = 1795420800;
+    const env = cliEnv(root, {
+      product: "codex",
+      fake: join(fixtures, "fake-codex.mjs"),
+      scenario: {
+        app_server: {
+          messages: [
+            { id: 0, result: { userAgent: "fake-codex/0.1.0" } },
+            { method: "remoteControl/status/changed", params: { enabled: false } },
+            {
+              id: 1,
+              result: {
+                rateLimits: {
+                  limitId: "acct_secret_99",
+                  planType: "super-secret-plan",
+                  primary: { usedPercent: 28, windowDurationMins: 300, resetsAt: resetEpoch },
+                  secondary: null,
+                },
+                ordinaryUsageAllowed: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+    const got = spawnSync(process.execPath, [bin, "usage", "codex"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    assert.equal(got.status, 0, got.stdout + got.stderr);
+    assert.doesNotMatch(got.stdout, /acct_secret_99|super-secret-plan/);
+    assert.deepEqual(JSON.parse(got.stdout), {
+      status: "ok",
+      remaining: 0.72,
+      window: "5h",
+      resets_at: new Date(resetEpoch * 1000).toISOString(),
+      source: "codex app-server (account/rateLimits/read)",
+    });
+    const calls = env.calls();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].argv, ["app-server"]);
+    const sent = calls[0].stdin_lines.map((l) => JSON.parse(l));
+    assert.equal(sent[0].method, "initialize");
+    assert.equal(sent[1].method, "initialized");
+    assert.deepEqual(sent[2], { method: "account/rateLimits/read", id: 1 });
+  });
+
+  test("usage codex reports the secondary window when it has less left than the primary", () => {
+    const root = join(scratch, `u${(count += 1)}`);
+    const env = cliEnv(root, {
+      product: "codex",
+      fake: join(fixtures, "fake-codex.mjs"),
+      scenario: {
+        app_server: {
+          messages: [
+            { id: 0, result: { userAgent: "fake-codex/0.1.0" } },
+            {
+              id: 1,
+              result: {
+                rateLimits: {
+                  primary: { usedPercent: 10, windowDurationMins: 300, resetsAt: 1795420800 },
+                  secondary: { usedPercent: 100, windowDurationMins: 10080, resetsAt: 1795900000 },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    const got = spawnSync(process.execPath, [bin, "usage", "codex"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    assert.equal(got.status, 0, got.stdout + got.stderr);
+    const reading = JSON.parse(got.stdout);
+    assert.equal(reading.remaining, 0);
+    assert.equal(reading.window, "7d");
+    assert.equal(reading.resets_at, new Date(1795900000 * 1000).toISOString());
+    assert.deepEqual(reading.windows.map((w) => w.group), ["primary", "secondary"]);
+    assert.equal(reading.group, undefined);
+  });
+
+  test("Antigravity usage runs without --disable-slash-commands, parses tab lines, reports lowest remaining with all windows, and prints no email or plan", async () => {
+    const response = [
+      "Account: person@example.com (Secret Tier)",
+      "Group A\tFive Hour Limit Remaining\t80%\t2026-11-23T05:00:00Z",
+      "Group A\tWeekly Limit Remaining\t45%\t2026-11-28T00:00:00Z",
+      "Group B\tFive Hour Limit Remaining\t100%\t2026-11-23T05:00:00Z",
+      "Group B\tWeekly Limit Remaining\t90%\t2026-11-28T00:00:00Z",
+    ].join("\n");
+    const w = agyWorld({ "--output-format json -p=/usage": { stdout: `${JSON.stringify({ status: "SUCCESS", num_turns: 0, response })}\n` } });
+    const got = await usage(w.opts);
+    assert.equal(got.code, 0, got.stdout + got.stderr);
+    assert.doesNotMatch(got.stdout, /person@example\.com|Secret Tier/);
+    assert.deepEqual(JSON.parse(got.stdout), {
+      status: "ok",
+      remaining: 0.45,
+      window: "Weekly",
+      resets_at: "2026-11-28T00:00:00Z",
+      windows: [
+        { group: "Group A", window: "Five Hour", remaining: 0.8, resets_at: "2026-11-23T05:00:00Z" },
+        { group: "Group A", window: "Weekly", remaining: 0.45, resets_at: "2026-11-28T00:00:00Z" },
+        { group: "Group B", window: "Five Hour", remaining: 1, resets_at: "2026-11-23T05:00:00Z" },
+        { group: "Group B", window: "Weekly", remaining: 0.9, resets_at: "2026-11-28T00:00:00Z" },
+      ],
+      source: "agy --output-format json -p=/usage",
+    });
+    assert.deepEqual(w.calls(), ["--output-format json -p=/usage"]);
+  });
+
+  test("Antigravity usage works through the external-agents CLI and passes -p=/usage intact", () => {
+    const root = join(scratch, `u${(count += 1)}`);
+    const response = "Group A\tFive Hour Limit Remaining\t65%\t2026-11-23T05:00:00Z\n";
+    const env = cliEnv(root, {
+      product: "antigravity",
+      fake: join(fixtures, "fake-agy.mjs"),
+      scenario: {
+        answers: {
+          "--output-format json -p=/usage": { stdout: `${JSON.stringify({ status: "SUCCESS", num_turns: 0, response })}\n` },
+        },
+      },
+    });
+    const got = spawnSync(process.execPath, [bin, "usage", "antigravity"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    assert.equal(got.status, 0, got.stdout + got.stderr);
+    const doc = JSON.parse(got.stdout);
+    assert.equal(doc.status, "ok");
+    assert.equal(doc.remaining, 0.65);
+    assert.equal(doc.window, "Five Hour");
+    assert.equal(doc.windows.length, 1);
+    assert.deepEqual(env.calls()[0].argv, ["--output-format", "json", "-p=/usage"]);
+  });
+
+  test("Codex usage returns unavailable on timeout", async () => {
+    const w = world({ app_server: { hang_ms: 5000 } });
+    const got = await usage({ ...w.opts, timeoutMs: 250 });
+    assert.equal(got.code, 4);
+    const doc = JSON.parse(got.stdout);
+    assert.equal(doc.status, "unavailable");
+    assert.equal(doc.source, "codex app-server (account/rateLimits/read)");
+    assert.match(doc.reason, /timed out/);
+  });
+
+  test("Codex usage returns unavailable on early exit or unparsable reply", async () => {
+    const exited = await usage(world({ app_server: { exit: 1 } }).opts);
+    assert.equal(exited.code, 4);
+    assert.equal(JSON.parse(exited.stdout).status, "unavailable");
+
+    const badShape = await usage(world({ app_server: { messages: [{ id: 1, result: { rateLimits: {} } }] } }).opts);
+    assert.equal(badShape.code, 4);
+    assert.equal(JSON.parse(badShape.stdout).status, "unavailable");
+
+    const rpcErr = await usage(world({ app_server: { messages: [{ id: 1, error: { code: -32000, message: "not logged in" } }] } }).opts);
+    assert.equal(rpcErr.code, 4);
+    assert.equal(JSON.parse(rpcErr.stdout).status, "unavailable");
+  });
+
+  test("Antigravity usage returns unavailable on exit 2, unparsable output, or timeout", async () => {
+    const exit2 = await usage(agyWorld({ "--output-format json -p=/usage": { exit: 2 } }).opts);
+    assert.equal(exit2.code, 4);
+    assert.deepEqual(JSON.parse(exit2.stdout), { status: "unavailable", source: "agy --output-format json -p=/usage", reason: "exited 2" });
+
+    const notJson = await usage(agyWorld({ "--output-format json -p=/usage": { stdout: "not json at all\n" } }).opts);
+    assert.equal(notJson.code, 4);
+    assert.equal(JSON.parse(notJson.stdout).status, "unavailable");
+
+    const noLines = await usage(agyWorld({ "--output-format json -p=/usage": { stdout: `${JSON.stringify({ status: "SUCCESS", response: "nothing parsable here" })}\n` } }).opts);
+    assert.equal(noLines.code, 4);
+    assert.equal(JSON.parse(noLines.stdout).status, "unavailable");
+
+    const timedOut = await usage({ ...agyWorld({ "--output-format json -p=/usage": { sleep_ms: 5000 } }).opts, timeoutMs: 250 });
+    assert.equal(timedOut.code, 4);
+    const doc = JSON.parse(timedOut.stdout);
+    assert.equal(doc.status, "unavailable");
+    assert.match(doc.reason, /timed out/);
+  });
+
+  test("usage prints unavailable with exit 2 for an unknown product, and --help lists usage", () => {
+    const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
+    const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") };
+    const bad = spawnSync(process.execPath, [bin, "usage", "nope"], { encoding: "utf8", cwd: scratch, env });
+    assert.equal(bad.status, 2);
+    assert.equal(JSON.parse(bad.stdout).status, "unavailable");
+    const help = spawnSync(process.execPath, [bin, "--help"], { encoding: "utf8", cwd: scratch, env });
+    assert.equal(help.status, 0);
+    assert.match(help.stdout, /^\s+usage <product>/m);
   });
 });

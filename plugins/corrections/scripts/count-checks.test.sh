@@ -28,7 +28,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 N=0
 
-# new_repo: sets R to a new git repository on branch main.
 new_repo() {
   N=$((N + 1))
   R="$TEST_TMPDIR/repo$N"
@@ -38,13 +37,11 @@ new_repo() {
   git -C "$R" config user.email tester@example.invalid
   git -C "$R" config commit.gpgsign false
 }
-# commit <day> <message>: an empty commit dated at noon UTC on <day>; prints nothing.
 commit() {
   GIT_AUTHOR_DATE="$1T12:00:00Z" GIT_COMMITTER_DATE="$1T12:00:00Z" \
     git -C "$R" commit -q --allow-empty --cleanup=verbatim -F - <<<"$2"
 }
 head_sha() { git -C "$R" rev-parse HEAD; }
-# run <dir> <args...>: the counter from inside <dir>; stdout to $OUT, stderr to $ERR.
 run() {
   local dir="$1"
   shift
@@ -55,7 +52,6 @@ run() {
 }
 has_line() { grep -qxF -- "$1" <<<"$OUT"; }
 
-# 1. A history with every record shape.
 new_repo
 commit 2026-01-02 "chore: start"
 commit 2026-01-05 "feat: layer test (#101)
@@ -151,12 +147,10 @@ check "not counted: a guidance rung" grep -qF 'rung=instruction is a guidance or
 DETAIL="git status: $(git -C "$R" status --porcelain)"
 check "full history: writes no file" test -z "$(git -C "$R" status --porcelain --untracked-files=all)"
 
-# With no --since, the window opens at the first record line, a not-counted one included.
 run "$R" --until 2026-02-28
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "no --since: the window opens at the first record line" has_line "window: 2026-01-05 to 2026-02-28, bucket: month"
 
-# 2. --since: the cumulative value counts from the first record in history.
 run "$R" --since 2026-02-01 --until 2026-02-28
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "--since: the rung columns are those that occur in the window" \
@@ -168,7 +162,6 @@ check "--since: the window row" has_line '| window | 2 | 0 | 3 | 2 | 1 | 1 |'
 DETAIL="out: $OUT"
 check "--since: a record before the window is not listed" test "$(grep -c '2026-01-06' <<<"$OUT")" -eq 0
 
-# 3. --bucket week.
 run "$R" --bucket week --since 2026-01-05 --until 2026-01-18
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "--bucket week: one row per ISO week, from its Monday" has_line '| week of 2026-01-05 | 1 | 1 | 1 | 1 | 1 | 1 |'
@@ -420,7 +413,6 @@ check "unreadable origin URL: the number-only note names the URL, not a missing 
 DETAIL="out: $OUT"
 check "unreadable origin URL: the record is reverted by number" has_line "reverted, not counted: 1"
 
-# 4. An empty history prints zeros.
 new_repo
 commit 2026-03-02 "chore: nothing codified"
 run "$R" --since 2026-03-01 --until 2026-03-31
@@ -444,7 +436,6 @@ for args in "--since 2026-02-30" "--since yesterday" "--until 2026-13-01" "--buc
   check "usage ($args): exits 2 and prints nothing to stdout" test "$RC" -eq 2 -a -z "$OUT"
 done
 
-# 6. Outside a repository there is no default branch.
 run "$TEST_TMPDIR/not-a-repo"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "outside a repository: exits 1 and names the missing default branch" test "$RC" -eq 1 -a -n "$(grep 'no default branch' <<<"$ERR")"

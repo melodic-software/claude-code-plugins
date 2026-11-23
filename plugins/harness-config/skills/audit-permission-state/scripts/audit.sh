@@ -83,12 +83,9 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Flags narrow. With none, everything read-only runs.
 if [[ "$narrowed" -eq 0 ]]; then
   want_entry=1 want_lint=1 want_managed=1 want_block=1
 fi
-# --oracle and --critique each imply the stage they modify, so passing one alone
-# does what it says instead of silently doing nothing.
 [[ "$oracle" -eq 1 ]] && want_entry=1
 [[ "$critique" -eq 1 ]] && want_block=1
 
@@ -114,13 +111,6 @@ if [[ "$want_scopes" -eq 0 && "$want_entry" -eq 0 && "$want_lint" -eq 0 && "$wan
   exit "$rc"
 fi
 
-# One inventory walk, reused by every consumer below.
-#
-# The status is captured with `|| rc=$?` rather than tested with `if !`: the
-# negation resolves the command status to 0 before the body runs, so `$?` inside
-# an `if ! cmd; then` branch reports success for a command that just failed. That
-# would print "failed (exit 0)", exit 0, and hand automation a completely failed
-# audit as a passing one — the same false-clean report this skill exists to catch.
 inv_rc=0
 records="$(bash "$HERE/permission-state.sh")" || inv_rc=$?
 if [[ "$inv_rc" -ne 0 ]]; then
@@ -135,8 +125,6 @@ if [[ "$want_scopes" -eq 1 ]]; then
   exit 0
 fi
 
-# The merge is the spine for the entry diff, so it runs only when the entry diff
-# was asked for.
 if [[ "$want_entry" -eq 1 ]]; then
   if merged="$(printf '%s\n' "$records" | bash "$HERE/permission-merge.sh")"; then
     section "Effective set"
@@ -150,11 +138,6 @@ if [[ "$want_entry" -eq 1 ]]; then
 
   if [[ -n "$merged" ]]; then
     section "Auto-mode entry diff"
-    # --diff-only carries the inventory's NOTEs and the merge's CAVEATs through, so
-    # that a standalone run never hides an unreadable scope behind a summary of
-    # zeros. Here the two sections above already printed them verbatim, so drop the
-    # duplicates and keep this stage's own records. The stage keeps its honesty
-    # when invoked directly; this caller just refuses to say it all three times.
     entry_args=(--diff-only)
     [[ "$oracle" -eq 1 ]] && entry_args+=(--oracle)
     printf '%s\n' "$merged" | bash "$HERE/automode-entry-diff.sh" "${entry_args[@]}" |

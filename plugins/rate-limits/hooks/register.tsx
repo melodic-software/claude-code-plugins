@@ -11,13 +11,11 @@ const PAUSE_EDGE = 95
 const FLOOR_MS = 300_000
 const WRITE_TIMER_MS = 60_000
 const REOFFER_MS = 5_000
-// A reset time read this much earlier than the recorded one belongs to another window.
 const RESET_SLACK_MS = 60_000
 const WINDOWS = [
   { kind: 'five_hour', name: '5-hour', short: '5h' },
   { kind: 'seven_day', name: '7-day', short: '7d' },
 ] as const
-// The verdict is always in a line; these add to it.
 const DATA_ITEMS = ['verdict', 'percent', 'window', 'reset']
 const DEFAULT_DATA = DATA_ITEMS
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
@@ -32,9 +30,7 @@ type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
 // An event and the reading that produced it, so a late line states both from one reading.
 type Due = { event: Event; limit: SessionRateLimit | undefined }
-// The signed-in account in the state file: its UUID, and its email for a file with no UUID.
 type Identity = { uuid?: string; email?: string }
-// A change that voids the lines sent before it: the account, or the windows whose reset time moved earlier.
 type Voided = { cause: 'account' | 'reset'; kinds: string[] }
 type Config = {
   bad: string[]
@@ -63,16 +59,13 @@ type State = {
   levels: Map<string, { level: Level; resetsMs: number; limit: SessionRateLimit }>
   limits: readonly SessionRateLimit[]
   pending: Map<string, Due>
-  // Rises from a known level and resets not yet shown to the person.
   toastQueue: [string, Event][]
   // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
   // The row and a shown suggestion are the person's channel, so a change either reached is never toasted.
   heldToasts: [string, Event][]
   rowSeen: boolean
-  // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
   handoff: Map<string, Due>
   handoffVoided: Voided | undefined
-  // The account the latched state belongs to; a reading taken before it changed, until a new one arrives.
   account: Identity | undefined
   staleSig: string | undefined
   voided: Voided | undefined
@@ -80,7 +73,6 @@ type State = {
   appliedSeq: number
   restate: boolean
   restateIfLoud: boolean
-  // An in-process /resume or /branch ended the last session; cleared by the first decided write.
   branched: boolean
   forceAutomatic: boolean
   origin: PromptOrigin | undefined
@@ -115,7 +107,6 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     .map(s => s.trim().toLowerCase())
     .filter(s => s !== '')
   const known = items.length > 0 && items.every(s => DATA_ITEMS.includes(s))
-  // An empty value reads as the default silently, as an unset one does.
   if (raw !== undefined && String(raw).trim() !== '' && !known) {
     const shown = typeof raw === 'string' ? JSON.stringify(raw.slice(0, 40)) : `a ${typeof raw}`
     reject('rate_limit_line_data', `${shown}, not a list of ${DATA_ITEMS.join(', ')}`, DEFAULT_DATA.join(','))
@@ -138,7 +129,6 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
   }
 }
 
-// NaN when the window reports no reset time or one that does not parse.
 const resetsMsOf = (limit: SessionRateLimit) => (limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt))
 
 // The status line drops a window once its reset time has passed; so does this reading.
@@ -164,7 +154,6 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
-// The person's wording; Claude's names the threshold crossed and nothing else.
 const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
 
@@ -188,7 +177,6 @@ const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined,
   return text
 }
 
-// The person's short form: the 5-hour window resets within the day, so its time alone is enough.
 const toastBody = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
   const short = windowOf(kind)?.short ?? kind
   if (event === 'reset') return `${short} reset, below the ${edgeName(cfg)}`
@@ -239,7 +227,6 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
   return changes
 }
 
-// An account change voids every window, so it outranks a moved reset time.
 const mergeVoided = (a: Voided | undefined, b: Voided | undefined): Voided | undefined =>
   a === undefined || b === undefined
     ? (a ?? b)
@@ -249,7 +236,6 @@ const mergeVoided = (a: Voided | undefined, b: Voided | undefined): Voided | und
         ? b
         : { cause: 'reset', kinds: [...new Set([...a.kinds, ...b.kinds])] }
 
-// Drops what is latched for these windows: levels, pending and handed-off events, and queued toasts.
 const dropWindows = (st: State, kinds: readonly string[]) => {
   for (const kind of kinds) {
     st.levels.delete(kind)
@@ -260,11 +246,9 @@ const dropWindows = (st: State, kinds: readonly string[]) => {
   st.heldToasts = st.heldToasts.filter(([kind]) => !kinds.includes(kind))
 }
 
-// The windows a reading reports, so an unchanged reading compares equal.
 const windowSig = (limits: readonly SessionRateLimit[]) =>
   JSON.stringify(WINDOWS.map(({ kind }) => limits.find(l => l.kind === kind)).map(l => l && [l.percentUsed, l.resetsAt ?? null]))
 
-// The events due now, one per window, without consuming them. A window a voiding line covers is left to it.
 const dueEvents = (st: State, cfg: Config): [string, Due][] => {
   // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
   // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
@@ -279,8 +263,6 @@ const dueEvents = (st: State, cfg: Config): [string, Due][] => {
   return due.filter(([kind]) => !st.voided?.kinds.includes(kind))
 }
 
-// One line saying the account or a window changed and what Claude was told before no longer
-// applies, with the current reading; undefined when nothing was voided.
 const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } | undefined => {
   if (st.voided === undefined) return undefined
   const { cause, kinds } = st.voided
@@ -312,7 +294,6 @@ const dueLines = (st: State, cfg: Config): string[] => {
   return events.some(e => e === 'approach' || e === 'edge') ? [...lines, optionsLine(cfg)] : lines
 }
 
-// Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
   for (const line of lines) $.ui.log(line, { to: 'debug' })
   return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
@@ -333,7 +314,6 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
   return (await $.session.surfaces()).length > 0
 }
 
-// Whether two identities are one account: by UUID when both have one, else by email; undefined when neither can tell.
 const sameAccount = (a: Identity, b: Identity) =>
   a.uuid !== undefined && b.uuid !== undefined
     ? a.uuid === b.uuid
@@ -399,8 +379,6 @@ function clearNotice($: EngineInterface, st: State, kind?: Notice['kind']) {
   $.ui.invalidate('ui.render')
 }
 
-// The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
-// Lines sent to Claude supersede any notice still offering them to the person.
 async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<string[]> {
   if (!cfg.lines) {
     consume(st)
@@ -418,8 +396,6 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   return lines
 }
 
-// Ends the operator notice's hold on its changes: dropped when the person saw them, otherwise
-// queued for the next flush.
 function releaseHeld(st: State, seen: boolean) {
   if (!seen) st.toastQueue.unshift(...st.heldToasts)
   st.heldToasts = []
@@ -469,7 +445,6 @@ export const bandText = (reading: Reading | undefined) =>
     })
     .join(' | ')}`
 
-// What /rate-limits with no argument prints.
 async function statusText($: EngineInterface, st: State, cfg: Config) {
   await refresh($, st, cfg)
   const windows = WINDOWS.map(({ kind, name }) => {
@@ -527,7 +502,6 @@ async function readIdentity($: EngineInterface, st: State, home: string): Promis
   return identity
 }
 
-// An API response: its time, and the account it was for.
 async function recordResponse($: EngineInterface, st: State, cfg: Config) {
   st.lastResponseAtMs = await $.clock.now()
   st.responseEmail = undefined
@@ -535,7 +509,6 @@ async function recordResponse($: EngineInterface, st: State, cfg: Config) {
   if (cfg.writes && home) st.responseEmail = (await readIdentity($, st, home))?.email
 }
 
-// Omit rather than guess: attribute only when the account now is the one read at the last response.
 async function accountEmail($: EngineInterface, st: State, home: string) {
   if (st.responseEmail === undefined) return undefined
   const email = (await readIdentity($, st, home))?.email
@@ -569,7 +542,6 @@ const logOnce = ($: EngineInterface, st: State, key: string, text: string, to: '
   $.ui.log(`rate-limits: ${text}`, { to })
 }
 
-// A bad option is the person's to fix, so its line goes to the transcript, once per load.
 const reportOptions = ($: EngineInterface, st: State, cfg: Config) => {
   for (const line of cfg.bad) logOnce($, st, line, line, 'transcript')
 }
@@ -617,7 +589,6 @@ function queueWrite($: EngineInterface, st: State, cfg: Config, trigger: 'event'
 
 async function statusJson($: EngineInterface, st: State, cfg: Config) {
   await refresh($, st, cfg)
-  // Every window the response reported except a gateway's spend limit, which has its own entry.
   const now = await $.clock.now()
   const live = st.limits.filter(l => l.kind !== 'spend_limit' && !(resetsMsOf(l) <= now))
   const windows = Object.fromEntries(
@@ -801,7 +772,6 @@ export const register: Register = (on, options) => {
       await flushToasts($, st, cfg)
       const lines = dueLines(st, cfg)
       if (lines.length > 0) {
-        // One row, one prefix, however many windows it offers.
         st.notice = { text: `FYI, rate-limits: ${lines.map(l => l.replace(/^rate-limits: /, '')).join(' ')}`, kind: 'operator' }
         st.heldToasts.push(...st.toastQueue.splice(0))
         st.rowSeen = false

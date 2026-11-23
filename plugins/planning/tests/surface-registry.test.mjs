@@ -19,7 +19,7 @@ const made = []
 const tmp = () => made[made.push(mkdtempSync(join(tmpdir(), 'surface-registry-'))) - 1]
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })))
 const tools = (...names) => ({ has: n => names.includes(n), env: {} })
-const PAGE_ONLY = tools('python3', 'curl', 'bash') // page available, no cloudflared
+const PAGE_ONLY = tools('python3', 'curl', 'bash')
 const ALL = tools('python3', 'curl', 'bash', 'cloudflared')
 const NONE = tools()
 const emptyProject = () => {
@@ -201,7 +201,6 @@ test('AC15: a new surface entry is picked up from its own file, with no edit to 
   const chosen = await resolveSurface({ argument: 'kiosk', entries, env, context: NONE })
   assert.deepEqual([chosen.surface, chosen.read], ['kiosk', ['skills/interview/context/lane-kiosk.md']])
 
-  // The skill's selection paragraph routes through the registry: no lane table, no entry named.
   const skill = readFileSync(SKILL, 'utf8')
   const start = skill.indexOf('**Question lanes.**')
   const section = skill.slice(start, skill.indexOf('## Stance', start))

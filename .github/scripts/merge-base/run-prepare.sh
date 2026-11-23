@@ -2,8 +2,8 @@
 # run-prepare.sh: the workflow step around prepare.sh, run from the root of the
 # PR head checkout by each job of a resolve-conflicts round that merges:
 # pr-unblock.yml's resolve-conflicts-select, the read runner before the model,
-# and the write runner's apply-patch before the push. Each copies this script,
-# prepare.sh and the version-bump script out of the base with their SHA-256s.
+# and the write runner's apply-patch before the push. Each stages what it runs
+# from BIN out of the base, with their SHA-256s, through stage-bin.sh.
 #
 # 1. Checks prepare.sh and the version-bump script against their SHA-256s.
 # 2. Runs prepare.sh with workflow commands stopped, since git's output names

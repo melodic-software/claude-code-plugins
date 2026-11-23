@@ -1660,7 +1660,7 @@ test("refine invariant 4: no secret and no token beyond GITHUB_TOKEN; only the l
   const body = lines.join("\n");
   assert.doesNotMatch(body, /secrets\.|secrets\[|id-token|toJSON\(secrets\)/);
   const uses = lines.filter((line) => /^\s+(?:- )?uses: /.test(line)).map((line) => line.trim().replace(/^- /, "").replace(/\s*#.*$/, ""));
-  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:setup-pinned-node|check-kill-switch|scan-upload|log-api-budget))$/;
+  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
   for (const use of uses) {
     assert.match(use, allowed, `${use} is not an action the refine job may run`);
   }

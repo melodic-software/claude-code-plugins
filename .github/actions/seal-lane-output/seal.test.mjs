@@ -83,7 +83,6 @@ test("a present payload seals into chunks one environment variable holds; absent
   const bundle = Buffer.from(Object.keys(result.outputs).filter((k) => k !== "sealed-length").map((k) => result.outputs[k]).join(""), "base64");
   assert.equal(bundle.subarray(1, 1 + bundle[0]).toString(), "patch.diff");
   assert.equal(bundle.length, 1 + 10 + 4 + 53 + 262144 + 16);
-  // No payload present: no output at all.
   const none = runSeal(t, dir, { "public-key-file": "key.pub", payloads: "missing.txt=nope.txt", "job-id": "run" });
   assert.equal(none.status, 0);
   assert.deepEqual(none.outputs, {});

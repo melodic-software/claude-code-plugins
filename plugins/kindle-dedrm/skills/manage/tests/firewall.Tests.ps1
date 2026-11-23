@@ -41,8 +41,6 @@ BeforeAll {
     # would not resolve.
     $script:ScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts' 'firewall.ps1'
 
-    # Returns the literal `if` condition guarding the enum test inside one switch
-    # clause of firewall.ps1, as a runnable scriptblock plus its source text.
     function Get-EnabledGuard {
         param(
             [Parameter(Mandatory)] [string] $Path,

@@ -44,7 +44,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# A tracked repo whose .claude/settings.json carries the given enabledPlugins map.
 tracked_repo() {
   local repo="$1" map="$2"
   mkdir -p "$repo/.claude"
@@ -109,7 +108,6 @@ PLAN="$TEST_TMPDIR/plan.json"
 "$SCRIPT" --from "$REPORT" >"$PLAN" 2>"$TEST_TMPDIR/err"
 assert_eq "plan exits 0" "0" "$?"
 
-# field <id> <jq path under the row>
 field() {
   jq -r --arg id "$1" ".groups[].rows[] | select(.id == \$id) | $2" "$PLAN"
 }
@@ -193,7 +191,6 @@ assert_eq "no entry in the report keeps the uninstall default" "uninstall" "$(en
 assert_eq "an unreadable settings file counts as a committed enable" "update" "$(entry_plan '"unreadable"')"
 assert_eq "a report without the field counts as a committed enable" "update" "$(entry_plan '"missing"')"
 
-# Usage and shape errors.
 "$SCRIPT" --from "$TEST_TMPDIR/missing.json" >/dev/null 2>&1
 assert_eq "missing --from file exits 2" "2" "$?"
 printf '{"marketplaces":{}}' >"$TEST_TMPDIR/envelope.json"

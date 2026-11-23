@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-deployment.sh and render-deployment.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -58,7 +57,6 @@ bad="$(bash "$COLLECT" --nope 2>&1)"
 assert_equals "unknown argument exits 2" "$?" "2"
 assert_contains "unknown argument names it" "$bad" "unknown argument"
 
-# Fixture credentials expand from variables so no committed line reads as a live credential to a secret scanner.
 leak_staging="SuperSecret123"
 leak_prod="SuperSecret999"
 repo="$TEST_TMPDIR/compose"
@@ -162,9 +160,6 @@ for bad_dialect in mermaid structurizr; do
   assert_equals "--dialect $bad_dialect is a usage error" "$?" "2"
 done
 
-# Every emitted value goes through the shared redactor. Each fixture value is a
-# fake placeholder. Shapes a secret scanner flags as a literal are assembled at
-# runtime so the flagged literal never lands in the repository.
 fake="FAKE-NOT-A-SECRET-0000"
 sas_sig="s""ig"
 gh_tok() { printf 'gh''p_%s' "$(printf "$1%.0s" {1..36})"; }
@@ -234,7 +229,6 @@ assert_contains "leak diff table is present" "$leakmd" "LOG_LEVEL levelP -> leve
 assert_no_leak "diff output" "$leakmd"
 assert_no_leak "render summary" "$leaksum"
 
-# The renderer redacts on its own, for a record written by anything else.
 cat >"$TEST_TMPDIR/hostile.json" <<EOF
 {
   "schema_version": 1,
@@ -278,14 +272,12 @@ for d in likec4 c4-plantuml; do
   assert_equals "hostile $d name adds no @enduml" "$(grep -c '@enduml' "$TEST_TMPDIR/hostile-$d/deployment.md")" "$([[ $d == c4-plantuml ]] && echo 1 || echo 0)"
 done
 
-# containers catalog
 printf '{\n  "schema_version": 1,\n  "containers": [\n    {"name":"api"},\n    {"name":"batch"}\n  ]\n}\n' >"$TEST_TMPDIR/containers.json"
 bash "$COLLECT" --repo "$repo" --out "$TEST_TMPDIR/cat.json" --generated-on 2026-09-28 --containers "$TEST_TMPDIR/containers.json"
 catrec="$(cat "$TEST_TMPDIR/cat.json")"
 assert_contains "api placed" "$catrec" '"catalog":"api","placed":"yes"'
 assert_contains "batch unplaced" "$catrec" '"catalog":"batch","placed":"no"'
 
-# bicep plus compose is read, since both are shipped
 repo2="$TEST_TMPDIR/both"
 init_repo "$repo2"
 mkdir -p "$repo2/deploy"
@@ -297,7 +289,6 @@ both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "bicep beside compose is drawn" "$both" '"status": "drawn"'
 assert_contains "bicep is a shipped tool" "$both" '"name":"bicep","shipped":"yes"'
 
-# pulumi plus compose is a partial read
 printf 'name: web\nruntime: nodejs\n' >"$repo2/Pulumi.yaml"
 git -C "$repo2" rm -q main.bicep
 commit_all "$repo2"
@@ -311,7 +302,6 @@ bothmd="$(cat "$TEST_TMPDIR/both-out/deployment.md")"
 assert_not_contains "partial read draws nothing" "$bothmd" '```'
 assert_contains "partial read prose" "$bothmd" "partial read"
 
-# terraform only
 repo3="$TEST_TMPDIR/tf"
 init_repo "$repo3"
 printf 'resource "azurerm_virtual_network" "vnet" {\n  name = "vnet"\n}\n' >"$repo3/net.tf"
@@ -323,13 +313,11 @@ assert_contains "terraform is a shipped tool" "$tf" '"name":"terraform","shipped
 assert_contains "the resource type it could not map is listed" "$tf" '{"tool":"terraform","type":"azurerm_virtual_network","evidence":"net.tf"}'
 assert_not_contains "no invented node" "$tf" "vnet"
 
-# live
 bash "$COLLECT" --repo "$repo" --out "$TEST_TMPDIR/live.json" --live --generated-on 2026-09-28
 live="$(cat "$TEST_TMPDIR/live.json")"
 assert_contains "live refused" "$live" '"reason": "live-state-requested"'
 assert_not_contains "live did not read compose" "$live" "ghcr.io"
 
-# kubernetes and compose both read
 repo4="$TEST_TMPDIR/k8s"
 init_repo "$repo4"
 mkdir -p "$repo4/deploy"
@@ -411,8 +399,6 @@ assert_contains "plantuml runs the container inside its workload node" "$kp" $'"
 assert_contains "plantuml draws the Service selector as Rel" "$kp" 'Rel(n3_web_svc, c2_web, "selects app=web")'
 assert_contains "plantuml draws the Ingress backend as Rel" "$kp" 'Rel(n2_web, c2_web, "routes web.example.com")'
 
-# A workload's containers share one node, a Service needs its whole selector to match, an Ingress
-# reaches the containers behind each backend once, and nothing crosses a namespace.
 repoE="$TEST_TMPDIR/edges"
 init_repo "$repoE"
 mkdir -p "$repoE/deploy/k8s"
@@ -515,7 +501,6 @@ assert_equals "likec4: four relationships" "$(grep -c -- '^  env[0-9]*_stage\.' 
 assert_equals "plantuml: four Rel lines" "$(grep -c '^Rel(' "$TEST_TMPDIR/edges-c4-plantuml/deployment.md")" "4"
 assert_contains "plantuml: both containers sit in the workload node" "$(cat "$TEST_TMPDIR/edges-c4-plantuml/deployment.md")" $'"compute", "Deployment") {\n    Container(c1_app,'
 
-# flat record
 printf '%s\n' '{"schema_version":1}' >"$TEST_TMPDIR/flat.json"
 set +e
 bash "$RENDER" --record "$TEST_TMPDIR/flat.json" --out "$TEST_TMPDIR/flat-out" >/dev/null 2>"$TEST_TMPDIR/flat-err"
@@ -524,8 +509,6 @@ set +e
 assert_equals "flat record exits 1" "$frc" "1"
 assert_not_contains "flat writes nothing" "$(ls "$TEST_TMPDIR/flat-out" 2>/dev/null || true)" "deployment.md"
 
-# A sidecar is its own placement; standalone credential words redact; a tracked
-# symlink to an untracked file is not a source.
 repo6="$TEST_TMPDIR/sidecar"
 init_repo "$repo6"
 mkdir -p "$repo6/deploy/k8s" "$repo6/deploy/prod"
@@ -556,7 +539,6 @@ for needle in PASS6 MAPS6 JSON6; do
   assert_not_contains "sidecar: $needle is redacted in the markdown" "$(cat "$TEST_TMPDIR/sidecar-out/deployment.md")" "$needle"
 done
 
-# Structural Helm detection: a double-brace marker alone is not Helm.
 tmpl='{{.State.Health.Status}}'
 gha="$(printf '%s{{ secrets.TOKEN }}' '$')"
 repo7="$TEST_TMPDIR/tmpl"
@@ -596,7 +578,6 @@ commit_all "$repo9"
 bash "$COLLECT" --repo "$repo9" --out "$TEST_TMPDIR/tmpl-name.json" --generated-on 2026-09-28
 assert_contains "a templated manifest name is refused, not half-read" "$(cat "$TEST_TMPDIR/tmpl-name.json")" '"reason": "kubernetes-unreadable"'
 
-# A base file and its override merge into one environment named for the directory.
 leak_override="OverrideSecret555"
 repoL="$TEST_TMPDIR/layered"
 init_repo "$repoL"
@@ -657,7 +638,6 @@ bash "$RENDER" --record "$TEST_TMPDIR/layered.json" --out "$TEST_TMPDIR/layered-
 layermd="$(cat "$TEST_TMPDIR/layered-out/deployment.md")"
 assert_not_contains "a secret set only in the override is not rendered" "$layermd" "$leak_override"
 
-# A file with no declared place in the merge is refused by name, never guessed.
 refuse_layers() {
   local label="$1" want="$2" env_line="$3" f
   shift 3
@@ -680,7 +660,6 @@ refuse_layers "a second base file" "docker-compose.yml" "" compose.yaml docker-c
 refuse_layers "a COMPOSE_FILE entry that is not tracked" "compose.gone.yaml" "COMPOSE_FILE=compose.yaml:compose.gone.yaml" compose.yaml
 refuse_layers "a variant the COMPOSE_FILE list leaves out" "compose.prod.yaml" "COMPOSE_FILE=compose.yaml" compose.yaml compose.prod.yaml
 
-# Variant files a tracked .env COMPOSE_FILE lists merge in that order.
 rm -rf "$repoL"
 init_repo "$repoL"
 printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n    environment:\n      MODE: base\n' >"$repoL/compose.yaml"
@@ -694,7 +673,6 @@ assert_equals "listed variants are one environment" "$(grep -c '"environment":"'
 assert_contains "listed variants merge in the listed order" "$listedrec" '"image":"ghcr.io/acme/api:3"'
 assert_contains "a listed variant overrides an environment key" "$listedrec" '"parameter":"MODE","env":"default","tool":"compose","container":"api","value":"prod"'
 
-# A reset or override tag cannot be merged by this reader, so the file is refused by name.
 rm -rf "$repoL"
 init_repo "$repoL"
 printf 'services:\n  api:\n    image: x:1\n    ports:\n      - "80:80"\n' >"$repoL/compose.yaml"
@@ -710,7 +688,6 @@ commit_all "$repoV"
 bash "$COLLECT" --repo "$repoV" --out "$TEST_TMPDIR/variants.json" --generated-on 2026-09-28
 assert_contains "standalone variants without a base are environments" "$(cat "$TEST_TMPDIR/variants.json")" '"environment":"prod"'
 
-# Declining tools: each shape is recognized, so a two-tool repository is never half-read.
 arm_schema='https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
 declining_fixture() {
   local dir="$1" file="$2" content="$3"
@@ -749,16 +726,12 @@ bash "$COLLECT" --repo "$TEST_TMPDIR/cfn" --out "$TEST_TMPDIR/cfn.json" --genera
 assert_contains "a bare CloudFormation template is a shipped read" "$(cat "$TEST_TMPDIR/cfn.json")" '"name":"cloudformation","shipped":"yes"'
 assert_contains "a bare CloudFormation template places nothing" "$(cat "$TEST_TMPDIR/cfn.json")" '"placements": []'
 
-# --diff names are validated like --env.
 bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-bad-diff" --diff staging prdo >/dev/null
 assert_equals "--diff with an unknown environment exits 3" "$?" "3"
 assert_contains "--diff refusal lists the environments" "$(cat "$TEST_TMPDIR/dep-bad-diff/deployment.md")" "- prod"
 bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-good-diff" --diff staging prod >/dev/null
 assert_equals "--diff with known environments exits 0" "$?" "0"
 
-# Kubernetes namespaces are environments. Every difference kind is reported,
-# a parameter in one namespace only is added or removed, and a secret-shaped
-# value never prints.
 ns_pw_a="NsStagePw-4471"
 ns_pw_b="NsProdPw-9082"
 ns_pw_only="NsOnlyProdPw-5530"
@@ -832,7 +805,6 @@ for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
   assert_not_contains "k8s diff table has no secret value" "$nsmd" "$v"
 done
 
-# Compose parameter presence, and an empty diff that names what it looked for.
 repo8="$TEST_TMPDIR/compose-presence"
 init_repo "$repo8"
 mkdir -p "$repo8/deploy/a" "$repo8/deploy/b" "$repo8/deploy/c"
@@ -851,7 +823,6 @@ pmd="$(cat "$TEST_TMPDIR/presence-out/deployment.md")"
 assert_contains "an empty diff names the kinds it looked for" "$pmd" "No differences of these kinds: container added or removed, image,"
 assert_not_contains "an empty diff prints no bare none row" "$pmd" "| none |"
 
-# Two environments that differ only in networks and Ingress hosts.
 repo9="$TEST_TMPDIR/nodes-only"
 init_repo "$repo9"
 mkdir -p "$repo9/deploy/a" "$repo9/deploy/b"
@@ -909,7 +880,6 @@ assert_contains "rendered diff lists the Ingress row" "$nkmd" "prod.example.com 
 assert_contains "rendered diff lists the network row" "$nkmd" "network present only in prod"
 assert_not_contains "a node diff is not an empty diff" "$nkmd" "No differences of these kinds"
 
-# Terraform: <env>.tfvars environments over one root, .tf and .tf.json alike.
 repoT="$TEST_TMPDIR/tf-envs"
 init_repo "$repoT"
 mkdir -p "$repoT/infra"
@@ -1006,7 +976,6 @@ cat >"$repoT/infra/run.tf.json" <<'EOF'
   }
 }
 EOF
-# An auto-loaded file outranks terraform.tfvars, and neither is an environment.
 printf 'api_tag = "0.1.0"\n' >"$repoT/infra/terraform.tfvars"
 printf 'api_tag = "1.0.0"\n' >"$repoT/infra/common.auto.tfvars"
 printf 'replicas = 1\n' >"$repoT/infra/staging.tfvars"
@@ -1040,7 +1009,6 @@ assert_contains "likec4 runs the ECS container inside the cluster" "$tfmd" $'= n
 bash "$RENDER" --record "$TEST_TMPDIR/tf-envs.json" --out "$TEST_TMPDIR/tf-envs-puml" --dialect c4-plantuml >/dev/null
 assert_contains "plantuml runs the ECS container inside the cluster" "$(cat "$TEST_TMPDIR/tf-envs-puml/deployment.md")" $'"acme", "compute", "aws_ecs_cluster") {\n    Container('
 
-# Terraform: a module-only root per envs/<env>/ directory follows a local module source.
 repoM="$TEST_TMPDIR/tf-modules"
 init_repo "$repoM"
 mkdir -p "$repoM/envs/staging" "$repoM/envs/prod" "$repoM/modules/app"
@@ -1090,7 +1058,6 @@ assert_contains "a container app secret reference is a redacted parameter" "$tmr
 assert_contains "the module image differs between environments" "$tmrec" '"detail":"ghcr.io/acme/web:2 -> ghcr.io/acme/web:1"'
 assert_equals "each module resource is drawn once per environment" "$(grep -c '"container":"web","env":"[a-z]*","tool":"terraform","node"' "$TEST_TMPDIR/tf-modules.json")" "2"
 
-# Terraform: a remote module source, or a local one with no tracked files, refuses the record by name.
 repoR="$TEST_TMPDIR/tf-remote"
 tf_refusal() {
   local label="$1" reason="$2" file="$3" content="$4" rec
@@ -1119,9 +1086,6 @@ tf_refusal "an unbalanced block" "terraform-unreadable:main.tf" main.tf "$(print
 tf_refusal "an unterminated heredoc" "terraform-unreadable:main.tf" main.tf "$(printf 'resource "aws_ecs_task_definition" "x" {\n  container_definitions = <<EOF\n[]\n}\n')"
 tf_refusal "a tfvars file with no configuration" "terraform-orphan-tfvars:infra/prod.tfvars" infra/prod.tfvars 'region = "westeurope"'
 
-# Terraform no-leak: a secret in a tfvars file that a container env references, a sensitive
-# variable, a secret-named variable with no sensitive marker feeding a plainly named env var, and
-# literal secrets in container_definitions.
 repoTL="$TEST_TMPDIR/tf-leaks"
 init_repo "$repoTL"
 cat >"$repoTL/main.tf" <<EOF
@@ -1181,7 +1145,6 @@ assert_no_leak "terraform record" "$tlrec"
 tlsum="$(bash "$RENDER" --record "$TEST_TMPDIR/tf-leaks.json" --out "$TEST_TMPDIR/tf-leaks-out" --dialect c4-plantuml --diff staging prod)"
 assert_no_leak "terraform render" "$(cat "$TEST_TMPDIR/tf-leaks-out/deployment.md")$tlsum"
 
-# Bicep: .bicepparam environments over one template, a local module, and compute references.
 repoB="$TEST_TMPDIR/bicep"
 init_repo "$repoB"
 mkdir -p "$repoB/infra/modules"
@@ -1297,7 +1260,6 @@ assert_contains "bicep replicas diff" "$brec" '"change":"replicas","left":"prod"
 bash "$RENDER" --record "$TEST_TMPDIR/bicep.json" --out "$TEST_TMPDIR/bicep-l" --dialect likec4 --env prod >/dev/null
 assert_contains "likec4 runs the bicep container inside its managed environment" "$(cat "$TEST_TMPDIR/bicep-l/deployment.md")" $'= node \'prod-env\' \'compute Microsoft.App/managedEnvironments\' {\n      instanceOf'
 
-# ARM: <stem>.parameters.<env>.json and parameters.<env>.json beside the only template.
 repoA="$TEST_TMPDIR/arm"
 init_repo "$repoA"
 mkdir -p "$repoA/infra"
@@ -1392,7 +1354,6 @@ assert_contains "plantuml runs the ARM container inside its container group" "$(
 bash "$RENDER" --record "$TEST_TMPDIR/arm.json" --out "$TEST_TMPDIR/arm-l" --dialect likec4 --env prod >/dev/null
 assert_contains "likec4 runs the ARM container inside its container group" "$(cat "$TEST_TMPDIR/arm-l/deployment.md")" $'= node \'jobs\' \'compute Microsoft.ContainerInstance/containerGroups\' {\n      instanceOf'
 
-# Bicep and ARM refuse by name what they cannot read; a module source is never printed.
 tf_refusal "a Bicep registry module" "bicep-module-unread:main.bicep:module.net" main.bicep \
   "$(printf "module net 'br:acme.azurecr.io/bicep/net:%s' = {\n  name: 'net'\n}" "$(gh_tok M)")"
 assert_not_contains "a registry module source never reaches the record" "$TF_REFUSAL_REC" "$(gh_tok M)"
@@ -1420,8 +1381,6 @@ commit_all "$repoR"
 bash "$COLLECT" --repo "$repoR" --out "$TEST_TMPDIR/unpaired.json" --generated-on 2026-09-28
 assert_contains "a parameters file beside two templates is refused by name" "$(cat "$TEST_TMPDIR/unpaired.json")" '"reason": "arm-parameters-unpaired:infra/parameters.prod.json"'
 
-# Bicep no-leak: a secure parameter default, a secure parameter passed through a module into an
-# unmarked one, literal connection strings in env, a secret reference, and a bicepparam secret.
 repoBL="$TEST_TMPDIR/bicep-leaks"
 init_repo "$repoBL"
 cat >"$repoBL/main.bicep" <<EOF
@@ -1483,8 +1442,6 @@ assert_no_leak "bicep render" "$(cat "$TEST_TMPDIR/bicep-leaks-out/deployment.md
 bash "$RENDER" --record "$TEST_TMPDIR/bicep-leaks.json" --out "$TEST_TMPDIR/bicep-leaks-l" --dialect likec4 >/dev/null
 assert_no_leak "bicep likec4 render" "$(cat "$TEST_TMPDIR/bicep-leaks-l/deployment.md")"
 
-# ARM no-leak: a securestring default, a literal connection string, a container group secure
-# value, and a Key Vault reference in a parameters file.
 repoAL="$TEST_TMPDIR/arm-leaks"
 init_repo "$repoAL"
 cat >"$repoAL/app.json" <<EOF
@@ -1546,8 +1503,6 @@ assert_no_leak "arm render" "$(cat "$TEST_TMPDIR/arm-leaks-out/deployment.md")$a
 bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPDIR/arm-leaks-l" --dialect likec4 >/dev/null
 assert_no_leak "arm likec4 render" "$(cat "$TEST_TMPDIR/arm-leaks-l/deployment.md")"
 
-# CloudFormation: one template, one environment per parameter file (both file shapes), short tags,
-# a block Sub, and every intrinsic the reader does not evaluate recorded as unresolved.
 repoC="$TEST_TMPDIR/cfn-env"
 init_repo "$repoC"
 mkdir -p "$repoC/infra"
@@ -1642,8 +1597,6 @@ assert_contains "cloudformation summary" "$csum" 'status=drawn reason=none tools
 bash "$RENDER" --record "$TEST_TMPDIR/cfn-env.json" --out "$TEST_TMPDIR/cfn-env-l" --dialect likec4 >/dev/null
 assert_equals "cloudformation renders under likec4" "$?" "0"
 
-# A JSON template, one parameter file per environment in another directory, and detection by
-# Resources with AWS:: types when there is no format version.
 repoCJ="$TEST_TMPDIR/cfn-json"
 init_repo "$repoCJ"
 mkdir -p "$repoCJ/params"
@@ -1686,8 +1639,6 @@ declining_fixture "$TEST_TMPDIR/cfn-stray" params.json '[{"ParameterKey":"A","Pa
 bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-stray" --out "$TEST_TMPDIR/cfn-stray.json" --generated-on 2026-09-28
 assert_contains "a parameter file with no template is not IaC" "$(cat "$TEST_TMPDIR/cfn-stray.json")" '"reason": "no-declared-iac"'
 
-# CloudFormation no-leak: NoEcho parameters (a Default, a param-file value, through Sub, in an
-# image), dynamic references, container Secrets, and literal credentials in Environment values.
 cfn_needles=("$(gh_tok Q)" "$(gh_tok R)" "$(gh_tok C)" "${fake}-CFN" "resolve:" "secretsmanager:prod" "plainvalueXYZ")
 repoCL="$TEST_TMPDIR/cfn-leaks"
 init_repo "$repoCL"
@@ -1764,7 +1715,6 @@ for needle in "${cfn_needles[@]}"; do
   assert_not_contains "cloudformation record, renders and summary hold no ${needle:0:12}" "$cl_all" "$needle"
 done
 
-# CloudFormation refuses what it cannot read as text, by file name.
 cfn_refusal() {
   local label="$1" reason="$2" dir="$TEST_TMPDIR/cfn-refuse"
   shift 2
@@ -1795,7 +1745,6 @@ cfn_refusal "an unclosed flow collection" "cloudformation-unreadable:flow.yaml" 
 cfn_refusal "an unterminated quoted scalar" "cloudformation-unreadable:quote.yaml" quote.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n    Properties:\n      ClusterName: "a'
 cfn_refusal "a truncated JSON template" "cloudformation-unreadable:cut.json" cut.json $'{\n  "AWSTemplateFormatVersion": "2010-09-09",\n  "Resources": {'
 
-# CloudFormation beside Compose is read, and beside an unshipped tool is a partial read.
 repoCB="$TEST_TMPDIR/cfn-both"
 init_repo "$repoCB"
 printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoCB/compose.yaml"
@@ -1809,8 +1758,6 @@ commit_all "$repoCB"
 bash "$COLLECT" --repo "$repoCB" --out "$TEST_TMPDIR/cfn-both.json" --generated-on 2026-09-28
 assert_contains "cloudformation beside kustomize is a partial read" "$(cat "$TEST_TMPDIR/cfn-both.json")" '"reason": "partial-read"'
 
-# Pulumi YAML: one environment per Pulumi.<stack>.yaml, ${pulumi.stack}, config from the stack file
-# then the project default, a secure: value, and fn::secret.
 repoP="$TEST_TMPDIR/pulumi-env"
 init_repo "$repoP"
 mkdir -p "$repoP/infra"
@@ -1887,8 +1834,6 @@ psum="$(bash "$RENDER" --record "$TEST_TMPDIR/pulumi-env.json" --out "$TEST_TMPD
 assert_contains "pulumi renders one node per environment" "$(cat "$TEST_TMPDIR/pulumi-env-out/deployment.md")" 'Deployment_Node'
 assert_contains "pulumi summary" "$psum" 'status=drawn reason=none tools=pulumi-yaml environments=2'
 
-# Pulumi no-leak: a secret: true default, a secure: value that differs by stack, fn::secret,
-# a secret-shaped stack value, and literal credentials.
 pul_needles=("$(gh_tok U)" "$(gh_tok V)" "$(gh_tok C)" "${fake}-PUL" "plainvalueXYZ")
 repoPL="$TEST_TMPDIR/pulumi-leaks"
 init_repo "$repoPL"
@@ -1973,8 +1918,6 @@ for needle in "${pul_needles[@]}"; do
   assert_not_contains "pulumi record, renders and summary hold no ${needle:0:12}" "$pl_all" "$needle"
 done
 
-# Pulumi runtimes: only a program written in Pulumi.yaml is read. Every other runtime, and a
-# yaml project with a compiler or a main, is declined by the tool name with its runtime cited.
 for rt in nodejs python go dotnet java; do
   declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml "$(printf 'name: web\nruntime: %s' "$rt")"
   printf 'config:\n  aws:region: us-east-1\n' >"$TEST_TMPDIR/pulumi-rt/Pulumi.dev.yaml"
@@ -2022,7 +1965,6 @@ git -C "$TEST_TMPDIR/pulumi-bad" add -A && git -C "$TEST_TMPDIR/pulumi-bad" comm
 bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-bad" --out "$TEST_TMPDIR/pulumi-bad.json" --generated-on 2026-09-28
 assert_contains "a stack file that does not parse is refused by name" "$(cat "$TEST_TMPDIR/pulumi-bad.json")" '"reason": "pulumi-unreadable:Pulumi.prod.yaml"'
 
-# CloudFormation and Pulumi YAML in one repository are both read, each diffed only against itself.
 repoCP="$TEST_TMPDIR/cfn-pulumi"
 init_repo "$repoCP"
 mkdir -p "$repoCP/cfn" "$repoCP/pulumi"
@@ -2035,8 +1977,6 @@ assert_contains "cloudformation beside pulumi yaml is drawn" "$cprec" '"status":
 assert_contains "the cloudformation environment is its directory" "$cprec" '"environment":"cfn","tool":"cloudformation"'
 assert_contains "the pulumi environment is its directory" "$cprec" '"environment":"pulumi","tool":"pulumi-yaml"'
 
-# A read that drops resources says so, and one that places no container is refused. A repository is
-# never drawn from part of what its readers parsed without the rest being named.
 unm_check() {
   local dir="$1"
   bash "$COLLECT" --repo "$dir" --out "$dir.json" --generated-on 2026-09-28
@@ -2112,8 +2052,6 @@ assert_contains "a fully mapped root is drawn" "$unm_rec" '"status": "drawn"'
 assert_contains "a fully mapped root reports no unmapped resource" "$unm_sum" "unmapped=0"
 assert_not_contains "a fully mapped root has no unmapped section" "$unm_md" 'Unmapped resources'
 
-# A mapped resource whose containers are a dynamic block or an expression still places one
-# container, its image unresolved, so it never disappears from a drawing that names the rest.
 tf_env=$'resource "azurerm_container_app_environment" "env" {\n  name = "env"\n}'
 tf_dyn_app=$'resource "azurerm_container_app" "dyn" {\n  name                         = "dynapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    dynamic "container" {\n      for_each = var.containers\n      content {\n        name  = container.value.name\n        image = container.value.image\n      }\n    }\n  }\n}'
 tf_static_app=$'resource "azurerm_container_app" "plain" {\n  name                         = "plainapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    container {\n      name  = "plainapp"\n      image = "acme/plain:1"\n    }\n  }\n}'
@@ -2153,7 +2091,6 @@ unm_fixture tf-expr-containers main.tf $'resource "azurerm_container_app" "x" {\
 unm_check "$TEST_TMPDIR/unm-tf-expr-containers"
 assert_contains "a container list that is an expression places one container" "$unm_rec" '"container":"x","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:container"'
 
-# A resource with an empty body has no attribute rows, and is still placed or listed.
 tf_empty_bucket=$'resource "aws_s3_bucket" "b" {}'
 unm_fixture tf-empty main.tf "$tf_empty_bucket"
 unm_check "$TEST_TMPDIR/unm-tf-empty"
@@ -2212,9 +2149,6 @@ unm_check "$TEST_TMPDIR/unm-arm-storage"
 assert_contains "an ARM template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
 assert_contains "the ARM type is listed under arm" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts","evidence":"main.json"}'
 
-# A child resource nested in its parent is listed under its full type, never dropped behind the
-# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource. A
-# slot with a DOCKER| image is the exception: it is its own container, on its site's plan.
 bicep_plan=$'resource plan \'Microsoft.Web/serverfarms@2022-09-01\' = {\n  name: \'plan\'\n}'
 bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    serverFarmId: plan.id\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n        appSettings: [\n          { name: \'SLOT\', value: \'staging\' }\n        ]\n      }\n    }\n  }\n}'
 bicep_blob=$'resource sa \'Microsoft.Storage/storageAccounts@2023-01-01\' = {\n  name: \'sa\'\n  resource blob \'blobServices\' = {\n    name: \'default\'\n    resource c \'containers@2023-01-01\' = {\n      name: \'data\'\n    }\n  }\n}'
@@ -2292,27 +2226,22 @@ assert_contains "a Pulumi Helm release names helm as declined" "$unm_rec" '"name
 unm_check "$repo"
 assert_contains "a Compose record reports no unmapped resource" "$unm_sum" "unmapped=0"
 
-# A helm_release inside a Terraform block comment is not a Helm release.
 unm_fixture tf-helm-comment main.tf $'/*\nresource "helm_release" "old" {\n  name = "old"\n}\n*/\nresource "azurerm_container_app" "api" {\n  name = "api"\n  template {\n    container {\n      name  = "api"\n      image = "ghcr.io/acme/api:1"\n    }\n  }\n}'
 unm_check "$TEST_TMPDIR/unm-tf-helm-comment"
 assert_contains "a commented helm_release leaves the Terraform root drawn" "$unm_rec" '"status": "drawn"'
 assert_not_contains "a commented helm_release names no helm tool" "$unm_rec" '"name":"helm"'
 
-# COMPOSE_FILE entries spelled with a leading ./ name the tracked files.
 unm_fixture compose-dot-slash compose.yaml $'services:\n  web:\n    image: nginx:1' compose.prod.yaml $'services:\n  web:\n    image: nginx:2' .env $'COMPOSE_FILE=./compose.yaml:./compose.prod.yaml'
 unm_check "$TEST_TMPDIR/unm-compose-dot-slash"
 assert_contains "COMPOSE_FILE entries with a leading ./ merge" "$unm_rec" '"status": "drawn"'
 assert_contains "the later ./ layer overrides the image" "$unm_rec" 'nginx:2'
 
-# Two tools that name the same environment draw one environment with each container once.
 unm_fixture same-env compose.yaml $'services:\n  web:\n    image: nginx:1' main.tf $'resource "azurerm_container_app" "api" {\n  name = "api"\n  template {\n    container {\n      name  = "api"\n      image = "ghcr.io/acme/api:1"\n    }\n  }\n}'
 unm_check "$TEST_TMPDIR/unm-same-env"
 assert_contains "two tools in one environment place each container once" "$unm_sum" "placements=2"
 assert_equals "one default environment is drawn" "$(grep -c "= environment 'default'" <<<"$unm_md")" "1"
 assert_equals "each container is an instanceOf once" "$(grep -c 'instanceOf' <<<"$unm_md")" "2"
 
-# A container app, container group or ECS task definition with no containers still places one
-# container named for it, its image unresolved, so the resource is never dropped.
 unm_fixture bicep-app-none main.bicep $'resource app \'Microsoft.App/containerApps@2023-05-01\' = {\n  name: \'api\'\n  properties: {\n    template: {\n      scale: { minReplicas: 1 }\n    }\n  }\n}'
 unm_check "$TEST_TMPDIR/unm-bicep-app-none"
 assert_contains "a Bicep container app with no containers places one" "$unm_rec" '"container":"api","env":"default","tool":"bicep","node":"default","compute":"","image":"unresolved:containers"'
@@ -2335,8 +2264,6 @@ unm_fixture pulumi-td-empty Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  
 unm_check "$TEST_TMPDIR/unm-pulumi-td-empty"
 assert_contains "a Pulumi task definition with an empty list places one" "$unm_rec" '"container":"td","env":"default","tool":"pulumi-yaml","node":"default","compute":"","image":"unresolved:containerDefinitions"'
 
-# Each ECS service on a shared task definition places its containers on its own cluster with its own
-# desired count, named <container>@<service resource name> so the placements stay distinct.
 tf_shared=$'variable "two_count" {\n  default = 5\n}\nresource "aws_ecs_cluster" "a" {\n  name = "a"\n}\nresource "aws_ecs_cluster" "b" {\n  name = "b"\n}\nresource "aws_ecs_task_definition" "api" {\n  family                = "api"\n  container_definitions = jsonencode([{ name = "api", image = "acme/api:1", environment = [{ name = "MODE", value = "web" }] }, { name = "proxy", image = "acme/proxy:1" }])\n}\nresource "aws_ecs_service" "one" {\n  name            = "one"\n  cluster         = aws_ecs_cluster.a.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = 2\n}\nresource "aws_ecs_service" "two" {\n  name            = "api-two"\n  cluster         = aws_ecs_cluster.b.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = var.two_count\n}'
 unm_fixture tf-shared-td main.tf "$tf_shared" prod.tfvars 'two_count = 5' staging.tfvars 'two_count = 1'
 unm_check "$TEST_TMPDIR/unm-tf-shared-td"
@@ -2380,7 +2307,6 @@ assert_contains "the second Pulumi service places the container on its own clust
 assert_not_contains "the second Pulumi service is no longer listed" "$unm_rec" '"type":"aws:ecs:Service"'
 assert_not_contains "a Pulumi shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
 
-# .tf.json blocks written as arrays of objects read like the object form.
 unm_fixture tfjson-array main.tf.json '{"resource":[{"aws_s3_bucket":{"b":{}}}]}'
 unm_check "$TEST_TMPDIR/unm-tfjson-array"
 assert_contains "an array-form .tf.json bucket is refused as unmapped" "$unm_rec" '"reason": "no-mapped-container"'
@@ -2395,7 +2321,6 @@ unm_fixture tfjson-array-module main.tf.json '{"module":[{"net":{"source":"https
 unm_check "$TEST_TMPDIR/unm-tfjson-array-module"
 assert_contains "an array-form remote module refuses by name" "$unm_rec" '"reason": "terraform-module-unread:main.tf.json:module.net"'
 
-# Kubernetes CronJob and Job are listed as unmapped, never read.
 k8s_dep=$'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\n  namespace: prod\nspec:\n  replicas: 2\n  template:\n    spec:\n      containers:\n        - name: api\n          image: acme/api:1'
 k8s_cron=$'apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: nightly\n  namespace: prod\nspec:\n  schedule: "0 2 * * *"\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          containers:\n            - name: nightly\n              image: acme/nightly:1\n              env:\n                - name: LOG_LEVEL\n                  value: info'
 k8s_job=$'apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: migrate\n  namespace: prod\nspec:\n  template:\n    spec:\n      containers:\n        - name: migrate\n          image: acme/migrate:1'
@@ -2420,7 +2345,6 @@ unm_check "$TEST_TMPDIR/unm-k8s-batch-only"
 assert_contains "a repository of only a CronJob is refused, not drawn empty" "$unm_rec" '"reason": "no-mapped-container"'
 assert_contains "the refusal keeps the CronJob" "$unm_rec" '{"tool":"kubernetes","type":"CronJob","evidence":"k8s/cron.yaml"}'
 
-# A diff compares the compute nodes of the IaC readers between environments.
 tf_eks=$'resource "aws_eks_cluster" "extra" {\n  name = "extra"\n}'
 unm_fixture tf-compute-diff envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"
 unm_check "$TEST_TMPDIR/unm-tf-compute-diff"
@@ -2437,7 +2361,6 @@ unm_check "$TEST_TMPDIR/unm-tf-compute-name"
 assert_contains "the renamed node carries its new name" "$unm_rec" '"id":"prod/aws_ecs_cluster.c","env":"prod","tool":"terraform","kind":"compute","name":"c-prod"'
 assert_not_contains "a changed name alone is not a difference" "$unm_rec" '"change":"compute'
 
-# ARM nodes match by type and order among nodes of that type, not array position.
 arm_kube='{"type":"Microsoft.ContainerService/managedClusters","name":"kube"}'
 arm_site_plain="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\",\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}}}"
 # shellcheck disable=SC2016 # $schema is a literal JSON key
@@ -2449,7 +2372,6 @@ assert_not_contains "an ARM node at another array position is not removed" "$unm
 assert_contains "an ARM node in one environment only is added" "$unm_rec" '"change":"compute-added","left":"dev","right":"prod","tool":"arm","container":"Microsoft.ContainerService/managedClusters#1","detail":"compute present only in prod"'
 assert_equals "the extra ARM node is the only compute diff row" "$(grep -c '"change":"compute' <<<"$unm_rec")" "1"
 
-# A type change at one address is a compute row for Bicep and Pulumi; CloudFormation diffs its nodes too.
 bicep_extra() { printf "resource extra '%s@2023-01-01' = {\n  name: 'extra'\n}" "$1"; }
 unm_fixture bicep-compute-type envs/dev/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.Web/serverfarms)" envs/prod/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.ContainerService/managedClusters)"
 unm_check "$TEST_TMPDIR/unm-bicep-compute-type"

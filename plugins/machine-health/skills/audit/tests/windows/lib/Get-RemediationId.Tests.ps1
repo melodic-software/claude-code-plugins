@@ -12,7 +12,6 @@ BeforeAll {
 
 Describe 'Get-RemediationId' -Tag 'lib' {
     It 'returns the two shipped remediation ids' {
-        # The ids remediation-policy.md and approvals.schema.json document.
         Get-RemediationId | Should -Be @('clear-temp-files', 'restart-stopped-service')
     }
 

@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// The side chat in real browsers, against `share.sh ensure-running` with the fake cloudflared (triage 2 and 24): the
-// host, chat closed, sees a guest's message on the chat button's badge and in the tab title; a page frozen the way a
-// phone freezes a background tab shows all 3 messages posted meanwhile within 2 s of thawing; and a reader scrolled up
-// in the chat gets a "3 new messages" pill instead of a jump. On a 390x844 phone with 20+ messages, a reader at the
-// newest keeps it whole above the field as the keyboard opens, while typing 3 lines, when a message arrives, and as
-// the keyboard closes; scrolled up, an arrival shows the pill. The open chat is a full-height column on the right: from
-// 1100 px wide the page makes room for it, narrower it covers the page as a modal dialog, on a phone it fills the screen,
-// and at 320x568 and 960x540 nothing scrolls sideways.
-//   node plugins/planning/shared/tests/ui_chat.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the triage rows (badge, 3 messages, 2 s) and the messages this suite posts, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 // The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
@@ -47,9 +36,7 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, tight 
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
 }, [up, kb, stale, setPan, tight]);
-/** Two frames: a scroll set from script has fired its scroll event by then. */
 const frames = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-/** The chat list at rest: its scrollTop unchanged through 250 ms of frames (5 s at most). */
 const atRest = page => page.evaluate(() => new Promise(res => {
   const sc = document.querySelector(".vf-mscroll"), t0 = performance.now();
   let last = sc.scrollTop, since = t0;
@@ -74,7 +61,6 @@ async function main() {
     const gus = await rec.open(A.localUrl);
     await joinAs(gus, "Gus");
 
-    // ---------- triage 2: the host sees a guest's message ----------
     await gus.evaluate(() => window.Core.chat("Heyro?"));
     ok("the host, chat closed, sees a guest's message as a badge on the chat button", await until(owner, () => document.querySelector(".vf-fab-badge")?.textContent === "1"
       && /1 unread/.test(document.querySelector(".vf-fab").getAttribute("aria-label"))));
@@ -82,7 +68,6 @@ async function main() {
     await owner.click(".vf-fab");
     ok("opening the chat clears the badge and the title count", await until(owner, () => !document.querySelector(".vf-fab-badge").textContent && document.title === "Chat checks"));
 
-    // ---------- triage 24: a frozen page catches up within 2 s of thawing ----------
     const cdp = await owner.context().newCDPSession(owner);
     await cdp.send("Page.setWebLifecycleState", { state: "frozen" });
     const sent = [];
@@ -93,7 +78,6 @@ async function main() {
     const all3 = await until(owner, ts => ts.every(t => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(li => li.textContent.includes(t))), sent, 2000);
     ok("after the page thaws, all 3 messages posted meanwhile show within 2 s", all3, `${Date.now() - t0} ms`);
 
-    // ---------- triage 24: scrolled up, new messages wait behind a pill ----------
     for (let i = 0; i < 12; i++) await gus.evaluate(x => window.Core.chat(x), `Filler ${i} ${"so the chat scrolls ".repeat(3)}`);
     await until(owner, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 16);
     await owner.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
@@ -109,7 +93,6 @@ async function main() {
       return document.querySelector(".vf-mnew").hidden && sc.scrollHeight - sc.scrollTop - sc.clientHeight < 40;
     }));
 
-    // ---------- dogfood: reactions show only when present; add on hover or focus, React in the long-press menu ----------
     const addOf = (page, text) => page.locator(".vf-msg", { hasText: text }).locator(".vf-mreact-add");
     const shown = el => !!el && getComputedStyle(el).opacity !== "0" && el.getBoundingClientRect().height > 0;
     const rowH = (text) => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes(text)); const r = li?.querySelector(".vf-mreacts"); return r ? r.getBoundingClientRect().height : 0; };
@@ -139,7 +122,6 @@ async function main() {
     const tcdp = await pia.context().newCDPSession(pia);
     const pt = [{ x: Math.round(bb.x + bb.width / 2), y: Math.round(bb.y + bb.height / 2) }];
     await tcdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt });
-    // Held until the menu opens, as a person holds: the page opens it 500 ms in, later on a busy machine.
     await until(pia, () => { const m = document.querySelector(".vf-msgmenu"); return !!m && !m.hidden; });
     await tcdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     const reactItem = pia.locator(".vf-msgmenu [role=menuitem]", { hasText: /React$/ });
@@ -151,7 +133,6 @@ async function main() {
     }
     const chipOn = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return !!c && c.textContent === "👍1" && c.getBoundingClientRect().height > 0; });
     ok("React's quick row adds 👍, and the chip appears for the reactor and the host", await chipOn(pia) && await chipOn(owner));
-    // The WAI-ARIA APG toggle button: aria-pressed carries the state, and the label names no action that flips with it.
     const chipA11y = page => page.evaluate(() => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return c && [c.getAttribute("aria-pressed"), c.getAttribute("aria-label")]; });
     const [onP, onL] = (await chipA11y(pia)) || [], [offP, offL] = (await chipA11y(owner)) || [];
     ok("  the chip is a toggle: pressed for the reactor, not for the host, and its label names no action (APG)", onP === "true" && offP === "false"
@@ -160,14 +141,12 @@ async function main() {
     const rowGone = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const r = li?.querySelector(".vf-mreacts"); return !!li && !li.querySelector(".vf-mreact") && (!r || r.getBoundingClientRect().height === 0); });
     ok("tapping the chip takes the reaction back and the row goes away", await rowGone(pia) && await rowGone(owner));
 
-    // ---------- dogfood: at the newest message, the phone keyboard never hides it ----------
     for (let i = 0; i < 3; i++) await gus.evaluate(x => window.Core.chat(x), `More ${i} ${"so the chat scrolls ".repeat(3)}`);
     const kia = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
     await joinAs(kia, "Kia");
     await kia.evaluate(() => { document.querySelector(".vf-fab").click(); });
     const n20 = await until(kia, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 20 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("More 2"));
     const kiaStill = await settled(kia, { rects: true });
-    // The newest message whole between the list's top edge and the message field, inside the visual viewport.
     const newest = text => until(kia, t => {
       const sc = document.querySelector(".vf-mscroll").getBoundingClientRect(), form = document.querySelector(".vf-mform").getBoundingClientRect();
       const last = [...document.querySelectorAll(".vf-mlist .vf-msg")].pop(), r = last.getBoundingClientRect(), vv = visualViewport;
@@ -213,7 +192,6 @@ async function main() {
       shell.push(...(await docScroll(p)).map(x => `${name}, chat open: ${x}`));
       return [p, c];
     };
-    // The page shell never scrolls: the document is no taller or wider than the viewport, and stays at 0.
     const docScroll = p => p.evaluate(() => { const se = document.scrollingElement; return [...(se.scrollHeight > se.clientHeight || se.scrollWidth > se.clientWidth ? [`document ${se.scrollWidth}x${se.scrollHeight} in ${se.clientWidth}x${se.clientHeight}`] : []), ...(se.scrollTop || se.scrollLeft ? [`document scrolled to ${se.scrollLeft},${se.scrollTop}`] : [])]; });
     const shell = [], autoFocus = [];
     const [sia, scdp] = await chatPhone(390, 844, "Sia");
@@ -227,7 +205,7 @@ async function main() {
       await scdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y - 150 }] });
       for (let i = 1; i <= 15; i++) { await scdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 150 + i * 20 }] }); await sia.waitForTimeout(16); }
       await scdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await atRest(sia); // the fling after the drag comes to rest
+      await atRest(sia);
       const st1 = await sia.evaluate(() => document.querySelector(".vf-mscroll").scrollTop);
       // iOS keeps firing visualViewport scroll and resize while a page is touched; the list must stay where it was put.
       await sia.evaluate(async () => { for (let i = 0; i < 10; i++) { visualViewport.dispatchEvent(new Event("scroll")); visualViewport.dispatchEvent(new Event("resize")); await new Promise(r => setTimeout(r, 100)); } });
@@ -259,7 +237,6 @@ async function main() {
     ok("touch phones: opening the chat leaves the message box unfocused, so the keyboard waits for a tap", autoFocus.length === 0, autoFocus.join("; "));
     ok("phones: the document never scrolls, in the default view, with the chat open, and with the keyboard up", shell.length === 0, shell.join("; "));
 
-    // ---------- triage 46: a mention points at the person, so a rename shows in it, and Copy gives "@Name" ----------
     const mau = await rec.open(A.localUrl);
     await joinAs(mau, "Maude");
     await until(gus, () => Object.values(window.Core.state.people).some(p => p.name === "Maude"));
@@ -318,7 +295,6 @@ async function main() {
     ok("the panel's x closes it, and focus returns to the chat button, shown again", await until(dock, () => document.querySelector(".vf-chat").hidden
       && document.activeElement === document.querySelector(".vf-fab") && getComputedStyle(document.activeElement).display !== "none"));
 
-    // ---------- below 1100 px the chat is a modal over the page: every chat feature still works in it ----------
     await dock.click(".vf-fab");
     await until(dock, () => !document.querySelector(".vf-chat").hidden);
     await dock.locator(".vf-q").first().focus();
@@ -362,7 +338,6 @@ async function main() {
       && !document.querySelector(".vf-drawer").hidden && document.querySelector(".vf-drawer").contains(document.activeElement) && !document.querySelector(".vf-body").inert));
     await dock.keyboard.press("Escape");
 
-    // ---------- 1024, modal: a popover opened over the chat keeps Tab inside itself, not the chat ----------
     const tabWalk = async sel => {
       const seen = new Set(); let left = null;
       for (let i = 0; i < 14; i++) {
@@ -391,7 +366,6 @@ async function main() {
     ok("1024, modal: Tab in the message menu over the chat stays in it, reaching its second item and the last", !mm.left && mm.seen.includes(items[1]) && mm.seen.includes(items.at(-1)), JSON.stringify({ items, ...mm }));
     await dock.keyboard.press("Escape");
 
-    // ---------- 1024, modal: the host turning chat off frees the page it covered ----------
     await until(dock, () => !document.querySelector(".vf-chat").hidden);
     await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
     const freed = await until(dock, () => document.querySelector(".vf-chat").hidden);

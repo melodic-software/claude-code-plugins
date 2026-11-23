@@ -195,10 +195,6 @@ CANARY_HOME_ROOT="${CANARY_HOME_ROOT:-${HOME:-/tmp}/.cache}"
   echo "cutover-check: at least one --repo is required" >&2
   exit 2
 }
-# A repeated --repo grades the same tree twice and inflates every count, which
-# reads as broader coverage than the run had. The comparison is on the
-# repository each path RESOLVES to, not on the string: `X` and `X/` and
-# `X/sub` are one tree, and the plan climbs to the toplevel anyway.
 REPO_KEYS=()
 for i in "${!REPOS[@]}"; do
   key="$(cd "${REPOS[$i]}" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
@@ -229,11 +225,6 @@ trim() {
   printf '%s' "${s%"${s##*[![:space:]]}"}"
 }
 
-# A source line may carry a literal tab, and the acknowledgement file is
-# tab-separated, so such a row could never be written down. Both sides see the
-# tab as a space: a tab-versus-space difference is not a code change worth
-# re-reviewing, and a row nobody can acknowledge is a row that fails closed
-# forever.
 normalize_text() { printf '%s' "$(trim "$1")" | tr '\t' ' '; }
 
 # The body of one `## ` section of the records file. Line endings are stripped
@@ -243,7 +234,6 @@ section() {
   tr -d '\r' <"$SOURCES_MD" | awk -v h="$1" '$0 == h { f = 1; next } f && /^## / { exit } f'
 }
 
-# A record this script cannot read is a fact it must not skip verifying.
 require() {
   [[ -n "$2" ]] || {
     echo "cutover-check: cannot parse $1 from $SOURCES_MD" >&2
@@ -252,7 +242,6 @@ require() {
   printf '%s' "$2"
 }
 
-# --- the records ----------------------------------------------------------
 CLI_FLOOR="$(require "the CLI floor" \
   "$(section '## The minimum CLI version' | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 | tr -d 'v')")"
 # shellcheck disable=SC2016 # the backticks are markdown in the record, not a command substitution
@@ -273,9 +262,6 @@ section '## `claude-code-action` release to installed CLI version' |
 
 PLAN_OUT="$(mktemp -d)"
 
-# Scratch directories the canary creates, so an interrupted leg leaves none
-# behind. Only paths this script made are ever in here, and only ones whose
-# name it chose: an empty entry is skipped rather than removed.
 CANARY_DIRS=()
 clean_canary_dirs() {
   local d
@@ -294,16 +280,8 @@ trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 # shellcheck source=../../../scripts/lib/version.sh
 . "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
-# --- one plan per repository, reused by conditions 2 and 4 ----------------
-# Keyed by POSITION, not by the path. A name normalized for the filesystem
-# collides (`/repos/foo-bar` and `/repos/foo_bar` normalize the same), and the
-# second plan then overwrites the first, so one repository is graded twice and
-# the other not at all.
 repo_plan() { printf '%s/%s.plan' "$PLAN_OUT" "$1"; }
 
-# A repository that cannot be planned yields no ACTION and no PATHDET rows, and
-# both conditions that read them would pass on the silence. A named site the
-# check cannot see is a usage error, not a clean result.
 for i in "${!REPOS[@]}"; do
   bash "$PLAN_MIGRATION" --root "${REPOS[$i]}" >"$(repo_plan "$i")" 2>/dev/null || {
     echo "cutover-check: cannot plan ${REPOS[$i]}: not a git repository, or unreadable" >&2
@@ -370,9 +348,6 @@ condition_1() {
 
   local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 state=""
   if [[ -z "$ev" ]]; then
-    # The bullet's absence is a [MET] verdict, so the page must be fresh and
-    # whole: --max-age 0 asks the server every time and a failed fetch is
-    # unread, never a stale cached copy. The fetcher keeps no partial body.
     FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --cache --max-age 0 --out "$PLAN_OUT/docs" \
       "$ENV_VARS_SLUG" >/dev/null 2>&1
     state="$(jq -r '.pages[0] | "\(.state) \(.reason // "")"' "$PLAN_OUT/docs/manifest.json" 2>/dev/null)"
@@ -382,12 +357,8 @@ condition_1() {
       note "env-vars: fetch failed (${state:-no manifest})"
     fi
   fi
-  # A page that does not reach a section known to sit AFTER the one being read
-  # is a page that may have been cut off mid-list. Absence of the bullet is
-  # only evidence when the whole list arrived.
   if [[ -n "$ev" && -s "$ev" ]] && ! grep -qF "$ENV_VARS_TAIL_MARKER" "$ev"; then
     note "env-vars: the body never reaches '$ENV_VARS_TAIL_MARKER'; it is truncated or restructured"
-    # A cut-off page is also an unread one: both notes print, as they always have.
     note "env-vars: page not read (fetch failed or file empty)"
   elif [[ -n "$ev" && -s "$ev" ]]; then
     body="$(awk -v h="$ENV_VARS_HEADING" '$0 == h { f = 1; next } f && /^## / { exit } f' "$ev" | tr -d '\r')"
@@ -425,7 +396,6 @@ condition_1() {
   return 2
 }
 
-# --- Condition 2 ----------------------------------------------------------
 action_cli_version() {
   local ref="$1" tag commit ver
   # An empty ref would prefix-match the map's first row and borrow its version.
@@ -440,11 +410,6 @@ action_cli_version() {
   return 1
 }
 
-# The map is an offline cache, not the only source. A pin it does not carry is
-# resolved through the derivation sources.md records: `base-action/action.yml`
-# at the pinned ref, and the `CLAUDE_CODE_VERSION` it assigns. A fetch failure,
-# or a file with no such assignment, resolves nothing, so the caller reports
-# [UNREACH] and never a pass.
 action_cli_version_live() {
   local ref="$1" body ver
   [[ "$ref" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
@@ -463,9 +428,6 @@ condition_2() {
   for i in "${!REPOS[@]}"; do
     repo="${REPOS[$i]}"
     plan="$(repo_plan "$i")"
-    # A plan with no ACTION row at all is a plan that did not run this scan.
-    # "Checked, and there is none" arrives as an explicit NONE row, so silence
-    # is a defect and never an absence of pins.
     rows="$(awk -F'\t' '$1 == "ACTION"' "$plan")"
     if [[ -z "$rows" ]]; then
       note "$repo: the plan carries no ACTION row; the pin scan did not report"
@@ -496,9 +458,6 @@ condition_2() {
       name="${action#*/}"
       name="${name%%/*}"
       pins=$((pins + 1))
-      # An empty ref is a `uses:` line this script could not parse, and an
-      # empty needle prefix-matches the first row of the release map, so it
-      # would silently borrow that row's CLI version.
       if [[ -z "$ref" ]]; then
         unknown=$((unknown + 1))
         note "$repo: could not parse a ref out of the pin ($row)"
@@ -517,7 +476,6 @@ condition_2() {
       if ! ver="$(action_cli_version "$ref")"; then
         if ver="$(action_cli_version_live "$ref")"; then
           src="base-action/action.yml at $ref"
-          # A tag or branch can move after this read; only a full SHA cannot.
           [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || src="$src, a mutable ref read as of now"
         else
           ver=""
@@ -554,10 +512,6 @@ condition_2() {
   return 0
 }
 
-# canary_dir <root> <note prefix> <what the probe writes> makes a scratch
-# directory under <root>, outside any working tree, into CANARY_DIR. It is
-# registered before any file is written, so an interrupt between the two leaves
-# nothing behind either way.
 canary_dir() {
   local root="$1" prefix="$2"
   mkdir -p "$root" 2>/dev/null || {
@@ -575,25 +529,6 @@ canary_dir() {
   CANARY_DIRS+=("$CANARY_DIR")
 }
 
-# --- Condition 3 ----------------------------------------------------------
-# A token canary, not verify-load.sh: that script detects a load through an
-# InstructionsLoaded hook, which does not fire for an AGENTS.md Claude reads
-# directly, which is exactly the surface this condition measures. The record is
-# in reference/sources.md, "What the loss means for measuring the cutover".
-#
-# The token is in the prompt, so a reply echoing it proves nothing. The rest of
-# the canary line is not, so the whole line coming back is the evidence.
-#
-# The turn runs with NO TOOLS (`--tools ""`). A canary that let the model read
-# the file proves only that the file is readable: with `--allowedTools Read` and
-# an AGENTS.md in the working directory, a reply quoting it is consistent with a
-# Read the model made for itself. A root AGENTS.md is project instructions at
-# session start, so nothing needs to be read for it to be quotable, and a reply
-# from a session that COULD not read anything is evidence of a load. Proven
-# 2026-09-20 on 2.1.278 before adoption: the token line came back from a scratch
-# directory holding one AGENTS.md and nothing else, and a directory with no
-# AGENTS.md answered NONE. The run is logged in the migration slice's Phase 6
-# proof.
 canary_leg() {
   local root="$1" label="$2" dir token line reply rc=0
   canary_dir "$root" "$label: " "a canary writes an AGENTS.md" || return 2
@@ -650,19 +585,6 @@ condition_3() {
   return 0
 }
 
-# --- The nested write probe (reported, not graded) -------------------------
-# Whether a subdirectory's AGENTS.md, read directly with no CLAUDE.md shim,
-# loads when Claude WRITES a file there. Shim-droppable.md condition G turns on
-# it: where it does not, a nested `@AGENTS.md` shim is what carries the nested
-# instructions into a session that only writes in that directory. The upstream
-# pointers are in reference/sources.md, "The nested write trigger".
-#
-# The turn may use the Write tool and nothing else, the no-tools canary's rule
-# carried over: a session that cannot Read cannot have opened sub/AGENTS.md for
-# itself, so the nested line coming back is a load, not a lookup. The written
-# file has to exist afterwards, or no write happened and nothing was measured.
-# The root line has to come back on a NO-LOAD, or the session loaded nothing
-# and a missing nested line says nothing about the trigger.
 WRITE_PROBE_FILE="sub/canary.txt"
 write_probe_leg() {
   local root="$1" dir token root_line sub_line reply rc=0 wrote=0
@@ -730,13 +652,6 @@ write_probe() {
 }
 WRITE_PROBE_RESULT="UNREACH"
 
-# --- Condition 4 ----------------------------------------------------------
-# The grep cannot tell "reads CLAUDE.md as an instruction file" from "locates a
-# path by its existence", and that distinction is the condition. So the
-# judgment lives in a reviewed per-repository file and the default fails
-# closed: a row nobody acknowledged is [UNMET] and is named. No path
-# convention exempts anything, test trees included — the one real blocker in
-# this fleet lives under `tests/`.
 ACK_REASON=""
 ack_lookup() {
   local ack="$1" path="$2" text="$3" p t r
@@ -747,8 +662,6 @@ ack_lookup() {
     [[ -z "$p" || "$p" == \#* ]] && continue
     [[ "$p" == "$path" && "$(normalize_text "${t:-}")" == "$text" ]] || continue
     ACK_REASON="$(trim "${r:-}")"
-    # A row with no reason acknowledges nothing. The reason IS the review; a
-    # path and a copy of the line are only the match key.
     [[ -n "$ACK_REASON" ]] || return 1
     return 0
   done <"$ack"
@@ -785,8 +698,6 @@ condition_4() {
       path="${row%%:*}"
       rest="${row#*:}"
       text="$(normalize_text "${rest#*:}")"
-      # Matching drops the line number so a row that moves still matches;
-      # reporting keeps it, so an operator has somewhere to jump to.
       if ack_lookup "$ack" "$path" "$text"; then
         acked=$((acked + 1))
         note "$repo: acknowledged $path:${rest%%:*}: $ACK_REASON"
@@ -802,8 +713,6 @@ condition_4() {
     return 2
   fi
   if ((unacked > 0)); then
-    # With the denominator: "4 unacknowledged" alone does not tell a reader
-    # whether that is 4 of 8 or 4 of 60.
     unmet "$unacked of $((acked + unacked)) path-detection row(s) have no reviewed acknowledgement"
     return 1
   fi
@@ -811,7 +720,6 @@ condition_4() {
   return 0
 }
 
-# --- report ---------------------------------------------------------------
 echo "=== AGENTS.md cutover check ==="
 echo
 echo "Repositories: ${REPOS[*]}"
@@ -820,7 +728,7 @@ echo
 
 FAILED=0
 UNMET_LIST=""
-grade() { # <condition number> <its exit status>
+grade() {
   if (($2 != 0)); then
     FAILED=$((FAILED + 1))
     UNMET_LIST="${UNMET_LIST}${UNMET_LIST:+, }$1"

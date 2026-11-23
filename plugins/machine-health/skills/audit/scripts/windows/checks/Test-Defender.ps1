@@ -28,7 +28,6 @@ $commands = @(
     "Get-WinEvent -FilterHashtable @{ LogName = '$script:DefenderEventLogName'; Id = $($script:DefenderEventIds -join ', ') }"
 )
 
-# The recent window for detections and exclusion additions; rubric in check-catalog.md section 5.
 $recentDays = 30
 
 $FailureSummary = 'Defender check failed.'
@@ -43,7 +42,6 @@ $CheckBody = {
     } else {
         $status = Get-MpComputerStatus -ErrorAction Stop
 
-        # Passive-mode values: check-catalog.md section 5, Notes.
         $passiveMode = $status.AMRunningMode -in 'Passive Mode', 'SxS Passive Mode'
 
         $history = Get-DefenderEventHistory

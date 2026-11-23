@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained regression tests for update.sh (no external test lib — ships
-# with the plugin; network-free: exercises help, arg handling, and the sourced
-# helper functions against local fixtures only).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -97,7 +94,6 @@ EOF
 up_ver=$(upstream_version_from_file "$FIXTURE_UP")
 assert_eq "extracts top-level version from upstream frontmatter" "1.2.0" "$up_ver"
 
-# Body-only file (no frontmatter) yields empty.
 FIXTURE_NOFM="$TEST_TMPDIR/nofm.md"
 printf '# Just a body\nversion: 9.9.9 in prose should not match\n' >"$FIXTURE_NOFM"
 nofm_ver=$(upstream_version_from_file "$FIXTURE_NOFM")

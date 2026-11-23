@@ -16,7 +16,6 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'New-FindingItem.ps1'
     $script:MutesSchemaPath = Join-Path $script:SkillRoot 'catalog\schemas\mutes.schema.json'
 
-    # A key is only useful if it can be stored: validate it inside a mutes.json.
     function Test-MuteKeyAgainstSchema([string] $Key) {
         $json = [ordered]@{
             schema_version = '1.0'
@@ -223,8 +222,6 @@ Describe 'Format-MachineText' -Tag 'lib' {
     }
 
     It 'caps text at 300 characters, ending it with an ellipsis' {
-        # 300 is the judgment cap the New-FindingItem.ps1 header comment for
-        # machine text documents; this literal is that decision, not a read of the code.
         $out = Format-MachineText ('x' * 350)
         $out.Length | Should -Be 300
         $out | Should -Be (('x' * 297) + '...')

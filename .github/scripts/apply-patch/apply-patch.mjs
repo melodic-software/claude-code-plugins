@@ -74,6 +74,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
+import { laneBranch, laneBranchPattern } from "../lib/lane-branch.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "./cdn-paths.mjs";
@@ -587,8 +588,6 @@ export function loadRules(baseDir) {
   return JSON.parse(readFileSync(join(baseDir, RULES_PATH), "utf8"));
 }
 
-const laneBranch = (lane, issue) => new RegExp(`^${lane}/issue-${issue}-[1-9][0-9]*-[1-9][0-9]*$`);
-
 const movedFrom = (head, tip) => `the PR branch moved from ${head} to ${tip}; the patch is superseded`;
 
 // Where a target's commit goes. `row` names the row it reads; `number` the
@@ -630,7 +629,7 @@ export const TARGETS = {
     number: "issue",
     env: ["ISSUE_NUMBER", "REQUIRED_LABELS", "PATCH_BASE_SHA"],
     movedHead: false,
-    checkRef: (ref, { lane, issue }) => (laneBranch(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${lane}/issue-${issue}-<run id>-<attempt> branch`),
+    checkRef: (ref, { lane, issue }) => (laneBranchPattern(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${laneBranch(lane, issue, "<run id>", "<attempt>")} branch`),
     // A hold label added, or a required label (agent-ready) removed, while
     // the model worked stops the commit.
     async held(api, number, { holds, required }) {

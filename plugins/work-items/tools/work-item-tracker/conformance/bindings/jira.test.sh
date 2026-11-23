@@ -23,7 +23,6 @@ for fn in cb_setup cb_teardown; do
 done
 assert_eq "consume-only binding leaves CB_REPO empty" "" "$CB_REPO"
 
-# Full suite, exit 0.
 bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0" "0" "$?"
 

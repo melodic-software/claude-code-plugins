@@ -42,7 +42,6 @@ case "$0" in
 esac
 resolver="$here/resolve-convention-pattern.sh"
 [ -f "$resolver" ] || resolver="$here/../hooks/resolve-convention-pattern.sh"
-# Resolver gone: no enforcement, never a blind block.
 [ -f "$resolver" ] || exit 0
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
@@ -54,8 +53,6 @@ if [ "$rc" -ne 0 ]; then
   err="${err#"${err%%[![:space:]]*}"}"
   err="${err%"${err##*[![:space:]]}"}"
   [ "$errf" = /dev/null ] || rm -f "$errf"
-  # Exit 1 with empty stderr is "no convention tracked": quiet. Any other
-  # failure means this check did not run; it still lets the commit through.
   if [ -n "$err" ] || [ "$rc" -ne 1 ]; then
     [ -n "$err" ] || err="exit status $rc, no message"
     printf 'guardrails: the commit-msg convention check did not run, so this subject was not checked. The convention resolver reported "%.300s".\n' "$err" >&2
@@ -110,7 +107,6 @@ esac
 grep -Eq -- "$subject_ere" <<EOF && exit 0
 $subject
 EOF
-# The file that holds the pattern, asked for only now that the subject failed.
 layer="$(sh "$resolver" --layer "$repo_root" subject_pattern 2>/dev/null)" || layer=""
 case "$layer" in
 docs/conventions/source-control.local.yaml)

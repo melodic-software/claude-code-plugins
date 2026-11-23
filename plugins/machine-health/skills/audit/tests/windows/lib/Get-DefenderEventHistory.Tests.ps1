@@ -185,7 +185,6 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         $earlier = $d | Where-Object DetectionId -EQ '{00000000-0000-0000-0000-000000000001}'
         $earlier.DetectedAt | Should -Be $first.AddSeconds(1)
         $earlier.ActionSucceeded | Should -BeTrue
-        # The only 1117 answers the earlier detection: the threat came back and nothing acted on it.
         ($d | Where-Object DetectionId -EQ '{00000000-0000-0000-0000-000000000002}').ActionSucceeded | Should -BeNullOrEmpty
     }
 

@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// The question screen's one-column layout (layout A), against `share.sh ensure-running` with the fake cloudflared:
-// no Answers | Claude tabs or split exist; "Claude on this question" sits below the answers, folded to its head by
-// default, and opens by itself for the person whose request Claude just answered (not for someone with nothing new);
-// a Claude card reads "<Name> asked", the ask, a 1px line, "Claude", the answer, with ask and answer at one font size,
-// and a running request shows its progress line under "Claude"; in a row of option cards with 1- and 2-line labels and
-// 0 or 1 picks every "Choose" button's top is equal within 1 px at 1440 and 1024 wide; a question's stored context shows
-// right under its text, and a question without one shows none (F:30).
-//   node plugins/planning/shared/tests/ui_question_layout.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (.work spec-question-screen.md: layout A, soft-rule cards, item 12 option
-// alignment, 1 px tolerance) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
@@ -21,7 +10,6 @@ const OPTS = [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "A wallet su
   { id: "opt-3", label: "Bank transfer" }, { id: "opt-4", label: "Pay later in three parts, with no interest for the first month" }];
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 
-/** The Choose buttons grouped by their card's grid row: the largest spread of button tops within any one row. */
 const chooseSpread = page => page.evaluate(() => {
   const rows = new Map();
   for (const li of document.querySelectorAll(".vf-opts > .vf-opt")) {
@@ -53,7 +41,6 @@ async function main() {
     await joinAs(bo, "Bo");
     const go = async (page, text) => { await page.locator(".vf-q", { hasText: text }).first().click(); return until(page, t => document.querySelector(".vf-qtext")?.textContent === t, text); };
 
-    // ---------- (a) no Answers | Claude tabs or split, at any width ----------
     for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]]) {
       await ann.setViewportSize({ width: w, height: h });
       const n = await ann.evaluate(() => document.querySelectorAll(".vf-splittabs, .vf-split, .vf-thpane, [role=tablist][aria-label='Answers or Claude']").length);
@@ -61,7 +48,6 @@ async function main() {
     }
     await ann.setViewportSize({ width: 1440, height: 900 });
 
-    // ---------- F:30: the question's stored context, under its text ----------
     const ctxOf = page => page.evaluate(() => {
       const c = document.querySelector(".vf-qctx"), t = document.querySelector(".vf-qtext");
       return { shown: !!c && !c.hidden && c.getClientRects().length > 0, text: c?.textContent.trim() || "",
@@ -74,7 +60,6 @@ async function main() {
     const c1 = await ctxOf(ann);
     ok("  and a question without one shows none", !c1.shown, JSON.stringify(c1));
 
-    // ---------- (c) option cards: every Choose button in a row at one height ----------
     await go(ann, CHOICE);
     await go(bo, CHOICE);
     await bo.locator(".vf-opt", { hasText: "Bank transfer" }).locator(".vf-optchoose").click();
@@ -99,7 +84,6 @@ async function main() {
     ok("390 wide: options stay one per row", phoneStill && new Set(phone).size === 1 && phone.length === OPTS.length + 1, JSON.stringify({ still: phoneStill, phone }));
     await ann.setViewportSize({ width: 1440, height: 900 });
 
-    // ---------- (b) the Claude section: folded by default, opens by itself on an unread result ----------
     await go(ann, TEXT);
     await go(bo, TEXT);
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK);
@@ -114,7 +98,7 @@ async function main() {
     }, ASK);
     await owner.evaluate(id => window.Core.requestAct(id, "run"), reqId);
     await until(owner, id => window.Core.snapshot().requests.find(r => r.id === id)?.status.kind === "running", reqId);
-    s.apply(A.dir, [{ op: "result", qid: "Q2", request: reqId, kind: "ask", summary: ANSWER, sources: [], report: "", used: [{ name: "discovery:research", type: "skill" }], why: "Outside comparison." }]); // asked for everyone: shared when it arrives
+    s.apply(A.dir, [{ op: "result", qid: "Q2", request: reqId, kind: "ask", summary: ANSWER, sources: [], report: "", used: [{ name: "discovery:research", type: "skill" }], why: "Outside comparison." }]);
     ok("once the host shares Claude's answer to Ann's request, her section opens by itself", await until(ann, () => document.querySelector(".vf-cltoggle").getAttribute("aria-expanded") === "true"
       && !document.querySelector(".vf-clbody").hidden && /1 new/.test(document.querySelector(".vf-clnew").textContent), null, 10000), JSON.stringify(await state(ann)));
     ok("  the answers and the composer still show above it", await ann.evaluate(() => !!document.querySelector(".vf-anspane").offsetParent && !!document.querySelector(".vf-composer").offsetParent
@@ -128,11 +112,10 @@ async function main() {
     ok("a fresh Ask Claude form starts on Ask: Ask pressed, Research not, the label \"What should Claude answer?\"",
       kinds.pressed.Ask === "true" && kinds.pressed.Research === "false" && kinds.label === "What should Claude answer?", JSON.stringify(kinds));
 
-    // ---------- (d) the soft-rule card ----------
     const card = await ann.evaluate(() => {
       const li = [...document.querySelectorAll(".vf-res")].pop(), askBox = li.querySelector(".vf-qa-ask"), ansBox = li.querySelector(".vf-qa-ans");
       const fs = el => getComputedStyle(el.querySelector(".vf-rich")).fontSize;
-      const label = box => [...box.querySelector(".vf-qa-lbl").children].pop().textContent; // the words after the avatar
+      const label = box => [...box.querySelector(".vf-qa-lbl").children].pop().textContent;
       return { askLbl: label(askBox), ansLbl: label(ansBox),
         askFs: fs(askBox.querySelector(".vf-cbox")), ansFs: fs(ansBox.querySelector(".vf-cbox")),
         rule: getComputedStyle(askBox).borderBottomWidth, order: askBox.compareDocumentPosition(ansBox) === Node.DOCUMENT_POSITION_FOLLOWING };
@@ -156,7 +139,6 @@ async function main() {
     ok("its head folds it again", await until(ann, () => document.querySelector(".vf-clbody").hidden));
     ok("and opens it again", await openClaude(ann));
 
-    // ---------- the chat button never covers the end of the page ----------
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await ann.setViewportSize({ width: w, height: h });
       const still = await settled(ann, { rects: true });
@@ -168,7 +150,6 @@ async function main() {
       });
       ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, still && hit.length === 0, JSON.stringify({ still, hit }));
     }
-    // ---------- the composer's placeholder before a pick fits a phone's one line (it works before a pick: the owner's call) ----------
     const cy = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(cy, "Cy");
     await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, CHOICE);
@@ -179,7 +160,6 @@ async function main() {
     });
     ok("390: the composer's placeholder before a pick fits its line", !fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
 
-    // ---------- a lock and a last suggestion that go clear on another page without a reload ----------
     await ann.setViewportSize({ width: 1440, height: 900 });
     await go(ann, LOCKQ);
     await ann.evaluate(() => window.Core.answerCiting("Q3", "Put it on the right.", []));

@@ -68,7 +68,6 @@ function Format-ByteSize {
 
 $id = 'storage-top-n'
 $category = 'storage'
-# The scan's three limits, held here once and passed to Measure-FolderSize.
 $budgetMs = 60000
 $topN = 15
 $allocatedFileCap = 10000
@@ -86,7 +85,6 @@ $CheckBody = {
     } else {
         @(Get-StorageRoot)
     }
-    # Keyed by the exact string passed in, which every record returns as `input`.
     $hintByInput = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
     foreach ($r in $rootList) { $hintByInput[$r.Path] = $r.Hint }
 
