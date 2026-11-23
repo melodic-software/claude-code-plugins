@@ -66,6 +66,7 @@ import { GitHubError, createGitHub, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { callers, listedJob } from "../lib/lane-registry.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
@@ -96,24 +97,7 @@ const LANES = Object.freeze({
       ".github/workflows/pr-unblock-dispatch.yml",
       ".github/workflows/pr-dispatch-feedback.yml",
     ],
-    // The jobs that call the write runner, as [display name, job id], whose
-    // `run` job alone requests the lane token; the jobs API names each
-    // `<display name> / Run`, or `<job id> / run` on a head tested before the
-    // rename.
-    writeCallers: [
-      ["Apply Conflict Patch", "apply-conflict-patch"],
-      ["Apply Feedback Patch", "apply-feedback-patch"],
-      ["Publish Feedback", "publish-feedback"],
-      ["Resolve Feedback Threads", "resolve-feedback-threads"],
-      ["Apply Dependency Patch", "apply-dependency-patch"],
-      ["Apply Dependency Verdict", "apply-dependency-verdict"],
-      ["Apply Dependency Pin", "apply-dependency-pin"],
-      ["Apply Dependency Relock", "apply-dependency-relock"],
-      ["Apply Patch", "apply-patch"],
-      ["Apply Patch Rung Up", "apply-patch-rung-up"],
-      ["Apply Shared Copies", "apply-shared-copies"],
-      ["Report Escalation", "report-escalation"],
-    ],
+    writeCallers: callers("pr-unblock.yml", `./${WRITE_RUNNER}`).map((id) => listedJob("pr-unblock.yml", id, "run")),
     // The activities the pr-unblock-dispatch tick does not dispatch: it
     // dispatches resolve-conflicts, review-dependency, fix-ci and
     // sync-shared-copies itself
@@ -291,7 +275,7 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
     // Only a write runner job requests the token. The jobs API can list a
     // completed job's steps empty or cut short: such a job whose list lacks
     // the token step is judged by its annotations.
-    const writer = lane.writeCallers.some(([name, id]) => job.name === `${name} / Run` || job.name === `${id} / run`);
+    const writer = lane.writeCallers.some(({ id, name }) => job.name === name || job.name === id);
     const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
     const failedAtToken = writer && job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {

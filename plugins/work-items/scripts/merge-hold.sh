@@ -67,7 +67,6 @@ command -v gh >/dev/null 2>&1 || {
   exit 8
 }
 
-# Logins of every comment that carries the line, one per line.
 if ! authors="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
   --jq ".[] | select((.body // \"\") | contains(\"$HOLD_LINE\")) | (.user.login // \"\")")"; then
   err "comment read failed for $REPO#$ISSUE"
