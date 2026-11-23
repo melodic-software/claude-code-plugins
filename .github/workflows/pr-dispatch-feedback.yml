@@ -147,7 +147,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch tip
@@ -158,7 +158,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -265,8 +265,9 @@ jobs:
         id: scan-upload
         if: >-
           steps.deferred.outputs.name != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-deferred.txt
 
       - name: Record the deferred verdict
@@ -355,7 +356,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch tip
@@ -365,13 +366,13 @@ jobs:
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -482,8 +483,9 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched.json
 
       - name: Record the dispatched run
@@ -516,8 +518,9 @@ jobs:
         id: scan-upload-2
         if: >-
           always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
 
       - name: Record dispatched run 2
@@ -550,8 +553,9 @@ jobs:
         id: scan-upload-3
         if: >-
           always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
 
       - name: Record dispatched run 3
@@ -584,8 +588,9 @@ jobs:
         id: scan-upload-4
         if: >-
           always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
 
       - name: Record dispatched run 4
@@ -618,8 +623,9 @@ jobs:
         id: scan-upload-5
         if: >-
           always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
 
       - name: Record dispatched run 5
@@ -636,8 +642,9 @@ jobs:
         id: scan-lane-records
         if: always() && steps.dispatch.outputs.lane-records == 'true'
         continue-on-error: true
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/feedback-lane-records.json
 
       - name: Carry the lane record cache
@@ -741,7 +748,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       # From the default branch, never the PR head: the trusted-actors list
@@ -763,9 +770,8 @@ jobs:
             /.github/standards/trusted-actors/
             /.github/actions/log-api-budget/
             /.github/actions/check-trusted-trigger/
+            /.github/scripts/lib/github-client.mjs
             /.github/actions/check-kill-switch/
-            /.github/actions/setup-pinned-node/
-            /.github/actions/scan-upload/
             /lib/publish-gate.mjs
             /.node-version
           sparse-checkout-cone-mode: false
@@ -774,7 +780,7 @@ jobs:
       # reconciler's review re-runs unrecorded, as a failed checkout does.
       - name: Set up Node
         continue-on-error: true
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1136,8 +1142,9 @@ jobs:
         if: >-
           steps.find.outputs.record != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/rerun-ci-status-record.json
 
       - name: Record the re-run

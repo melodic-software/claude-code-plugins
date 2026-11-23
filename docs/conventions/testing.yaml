@@ -3,16 +3,12 @@
 # Resolution: plugins/testing/scripts/resolve-config.sh (scan keys and its e2e and map modes).
 e2e_driver: auto
 reuse_running_instance: auto
-# A /testing:run-e2e map pass takes each feature part (here, mostly one skill) as an entry,
-# judges only its first entry point, reports the rest not checked, and files no findings.
 map_unit: part
 map_entry_points: first
 file_findings: none
-# The planning session tests' refused and refused_ops helpers assert the refusal code.
 extend:
   py-pytest:
     assertion:
       calls: ['self\.refused(_ops)?[[:space:]]*\(']
-  # The knowledge plugin's gate tests hand their assertions to gate_test::run_suite.
   bash-harness:
     delegation: ['gate_test::run_suite']

@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Build the bounded-context analysis view for `--discover-bcs`: one row per
-// context with its key events, primary personas, and heuristic evidence.
-//
-// Every interpolated field goes through escapeHtml from the synced helper.
-// The page is self-contained: inline style, no script, no image, no link.
-// stampPage adds the generator marker. validateRenderedPage refuses a page
-// this builder would not accept, including its own output if a template edit
-// breaks the allowlist.
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";

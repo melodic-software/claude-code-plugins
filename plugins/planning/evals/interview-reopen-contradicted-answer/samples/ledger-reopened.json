@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What problem? | bursts\n- Q3 | open | round 2 | Where are the rate-limit counters stored? | reopened:: round 3\n- Q4 | answered | round 2 | What limit? | 1,000 per minute\n- Q5 | answered | round 2 | How are requests counted? | a Redis counter per key per minute window; depends:: Q3; recheck:: Q3\n\n## Reopened answers\n\n- Q3 | round 3 | was: in the existing shared Redis 7 instance | fact: docs/platform/redis.md allows sessions only\n",
+      "why": "reopened, recheck flagged, old answer kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What problem? | bursts\n- Q3 | open | round 2 | Where are the rate-limit counters stored? | reopened:: round 3\n- Q4 | answered | round 2 | What limit? | 1,000 per minute\n- Q5 | answered | round 2 | How are requests counted? | a Redis counter per key per minute window; depends:: Q3\n\n## Reopened answers\n\n- Q3 | round 3 | was: in the existing shared Redis 7 instance | fact: docs/platform/redis.md allows sessions only\n",
+      "why": "Q5 not flagged"
+    },
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What problem? | bursts\n- Q3 | open | round 2 | Where are the rate-limit counters stored? | reopened:: round 3\n- Q4 | answered | round 2 | What limit? | 1,000 per minute\n- Q5 | answered | round 2 | How are requests counted? | a Redis counter per key per minute window; depends:: Q3; recheck:: Q3\n\n",
+      "why": "the old answer is dropped"
+    },
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What problem? | bursts\n- Q3 | answered | round 2 | Where are the rate-limit counters stored? | a dedicated Redis instance\n- Q4 | answered | round 2 | What limit? | 1,000 per minute\n- Q5 | answered | round 2 | How are requests counted? | a Redis counter per key per minute window; depends:: Q3; recheck:: Q3\n\n## Reopened answers\n\n- Q3 | round 3 | was: in the existing shared Redis 7 instance | fact: docs/platform/redis.md allows sessions only\n",
+      "why": "Q3's answer was changed in place"
+    }
+  ]
+}

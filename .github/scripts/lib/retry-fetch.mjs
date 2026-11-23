@@ -1,7 +1,3 @@
-// A fetch that sends a request again after a transient failure, for scripts
-// that run from a copy of their own directory (collect-base-activity) and so
-// cannot import the shared client in actions/check-trusted-trigger.
-//
 // A request that fails on the network (undici's "fetch failed", or a cause
 // code such as ECONNRESET or UND_ERR_SOCKET) or that GitHub answers 5xx is
 // sent again, at most 3 attempts in all, after a full-jitter wait: a random

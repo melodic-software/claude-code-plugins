@@ -22,26 +22,21 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 N=0
 
-# new_repo: sets R to a new empty git repository.
 new_repo() {
   N=$((N + 1))
   R="$TEST_TMPDIR/repo$N"
   mkdir -p "$R/docs/conventions"
   git -C "$R" init -q
 }
-# setting <file> <value>: writes recurrence.min_occurrences into <file>.
 setting() { printf 'recurrence:\n  min_occurrences: %s\n' "$2" >"$1"; }
-# run <repo>: the reader from inside <repo>; stdout to $OUT, stderr to $ERR.
 run() {
   (cd "$1" && node "$READER") >"$TEST_TMPDIR/out" 2>"$TEST_TMPDIR/err"
   RC=$?
   OUT="$(cat "$TEST_TMPDIR/out")"
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
-# got <jq-filter>: the filter applied to $OUT.
 got() { jq -r "$1" <<<"$OUT" 2>/dev/null; }
 
-# 1. No settings file: the default 2 from the defaults layer.
 new_repo
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
@@ -49,20 +44,17 @@ check "no file: exits 0" test "$RC" -eq 0
 check "no file: default 2 from defaults" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "2 defaults null"
 check "no file: stderr is empty" test -z "$ERR"
 
-# 2. The team file sets the value.
 new_repo
 setting "$R/docs/conventions/corrections.yaml" 3
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "team: 3 from the team file" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "3 team docs/conventions/corrections.yaml"
 
-# 3. The personal override wins over the team file.
 setting "$R/docs/conventions/corrections.local.yaml" 5
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "personal override: 5 from the personal override over the team 3" test "$(got '"\(.min_occurrences) \(.layer) \(.path)"')" == "5 local docs/conventions/corrections.local.yaml"
 
-# 4. An invalid personal override value leaves the team value standing and says why on stderr.
 setting "$R/docs/conventions/corrections.local.yaml" 0
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
@@ -70,7 +62,6 @@ check "invalid personal override: exits 0" test "$RC" -eq 0
 check "invalid personal override: the team 3 stands" test "$(got '"\(.min_occurrences) \(.layer)"')" == "3 team"
 check "invalid personal override: stderr names the key and the personal override" grep -q 'local (.*corrections.local.yaml).*recurrence.min_occurrences' <<<"$ERR"
 
-# 5. An invalid team value falls to the default and says why on stderr.
 new_repo
 setting "$R/docs/conventions/corrections.yaml" '"three"'
 run "$R"
@@ -79,7 +70,6 @@ check "invalid team: exits 0" test "$RC" -eq 0
 check "invalid team: default 2 from defaults" test "$(got '"\(.min_occurrences) \(.layer)"')" == "2 defaults"
 check "invalid team: stderr names the key and the team file" grep -q 'team (.*corrections.yaml).*recurrence.min_occurrences' <<<"$ERR"
 
-# 6. A team value above the maximum falls to the default and says why on stderr.
 new_repo
 setting "$R/docs/conventions/corrections.yaml" 1001
 run "$R"
@@ -91,7 +81,6 @@ run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "at the maximum: 1000 from the team file" test "$(got '"\(.min_occurrences) \(.layer)"')" == "1000 team"
 
-# 7. A layer's errors print the first five, then a count of the rest; five or fewer print in full.
 new_repo
 {
   for i in $(seq 1 1200); do printf 'unknown_%d: x\n' "$i"; done
@@ -162,7 +151,6 @@ run_user "$R" "${USER_OFF[@]}"
 DETAIL="out: $OUT; stderr: $ERR"
 check "team review_mining_prs over the maximum: the default, not the user 40" test "$(triple review_mining_prs)" == "20 defaults null"
 
-# 9. A pointer line moves the convention home.
 new_repo
 mkdir -p "$R/conventions"
 cat >"$R/AGENTS.md" <<'EOF'

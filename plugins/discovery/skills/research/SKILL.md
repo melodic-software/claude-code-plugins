@@ -253,16 +253,17 @@ A leading `breadth=low` or `breadth=medium` token is not part of the topic: stri
 
 ## Repository context. Gather first
 
-**Only when no topic argument was supplied** (the line under `## Topic` above renders no topic), collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+**Only when no topic argument was supplied** (the line under `## Topic` above renders no topic)
+gather this. The branch is only a topic fallback: the topic comes from an explicit argument first
+and the branch last, so a run with a topic argument makes no `git branch` call.
+
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
-
-The branch is only a topic fallback: the topic comes from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, one command per call, so each git read
-reaches the shell on its own. How the harness runs a skill's injected commands is
-[skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
-to say.
 
 ## Purpose
 

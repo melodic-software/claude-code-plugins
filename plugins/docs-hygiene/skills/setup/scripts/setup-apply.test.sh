@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for setup-apply.mjs, the writer behind /docs-hygiene:setup apply.
-#
-# Self-contained and cwd-independent; it changes only its own mktemp dir.
-# Expected values come from the key contract in plugins/docs-hygiene/reference/config.md:
-# compress_articles takes keep or cut, compress_revert_below_pct a whole number
-# from 0 to 100 with default 3, and the file is
-# docs/conventions/docs-hygiene.yaml at the repository root.
 # test-scope: plugins/docs-hygiene/lib/resolve-convention-home.sh plugins/docs-hygiene/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -13,8 +6,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -31,7 +22,7 @@ bad() {
   printf 'FAIL - %s\n' "$1" >&2
   fails=$((fails + 1))
 }
-expect() { # expect <label> <condition...>
+expect() {
   local label="$1"
   shift
   if "$@"; then ok "$label"; else bad "$label"; fi
@@ -46,7 +37,7 @@ repo_new() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local r="$1"
   shift
   OUT="$(node "$SUT" --root "$r" "$@" 2>&1)"
@@ -54,7 +45,6 @@ run() { # run <repo> [args...]
 }
 one_line() { [[ "$(printf '%s\n' "$OUT" | wc -l)" -eq 1 && "$OUT" != *"    at "* ]]; }
 
-# A new file holds only the requested key and reads back through the reader.
 repo="$(repo_new)"
 f="$repo/$REL"
 run "$repo" compress_articles=cut
@@ -64,13 +54,11 @@ expect 'the new file holds one key line and the schema comment' test "$(settings
 expect 'no other file is created' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 expect 'no temp file is left behind' test -z "$(find "$repo/docs" -name '.*.tmp')"
 
-# The same value again changes nothing.
 before="$(cat "$f")"
 run "$repo" compress_articles=cut
 expect 'an unchanged value reports already configured' test "$CODE" -eq 0 -a "$(cat "$f")" = "$before"
 [[ "$OUT" == *"already configured"* ]] || bad 'already configured message'
 
-# An existing file that would change: diff without --yes, write with it.
 repo="$(repo_new)"
 f="$repo/$REL"
 mkdir -p "$repo/docs/conventions"
@@ -82,14 +70,12 @@ expect 'the file is untouched without --yes' test "$(cat "$f")" = $'# chosen by 
 run "$repo" --yes compress_articles=cut
 expect 'with --yes the change is written and the comment kept' test "$CODE" -eq 0 -a "$(settings "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
 
-# A key given twice on the command line, with the file present: one line, file unchanged.
 before="$(cat "$f")"
 run "$repo" --yes compress_articles=keep compress_articles=cut
 expect 'a key given twice with the file present exits 1' test "$CODE" -eq 1
 if one_line; then ok 'that refusal is one line'; else bad 'that refusal is one line'; fi
 expect 'the file is unchanged after that refusal' test "$(cat "$f")" = "$before"
 
-# Bad input with no file: value outside the list, empty value, unknown key, a key twice.
 repo="$(repo_new)"
 run "$repo" compress_articles=drop
 expect 'a value outside keep and cut exits 1' test "$CODE" -eq 1
@@ -103,11 +89,7 @@ expect 'a key given twice with no file exits 1' test "$CODE" -eq 1
 if one_line; then ok 'the no-file twice refusal is one line'; else bad 'the no-file twice refusal is one line'; fi
 expect 'none of the refusals created docs/' test ! -e "$repo/docs"
 
-# Document shapes a schema validator rejects. --check warns on each; apply
-# replaces a bare empty or null value line or a value outside the list, and
-# refuses every other shape, since replacing one line would not settle what the
-# file was meant to say.
-shape() { # shape <label> <refuse|replace> <content>
+shape() {
   local label="$1" want="$2" content="$3" r file before
   r="$(repo_new)"
   file="$r/$REL"
@@ -145,8 +127,6 @@ shape 'a value outside the list' replace $'compress_articles: drop\n'
 shape 'an unknown key set twice' refuse $'compress_articles: keep\nverbosity: high\nverbosity: low\n'
 shape 'an unknown key holding a list' refuse $'compress_articles: keep\nstray: [a]\n'
 
-# A key outside the schema, with a value or empty, is named in one warning and
-# ignored: apply writes the asked-for key and keeps that line byte for byte.
 for extra in 'verbosity: high' 'stray:'; do
   repo="$(repo_new)"
   mkdir -p "$repo/docs/conventions"
@@ -156,12 +136,7 @@ for extra in 'verbosity: high' 'stray:'; do
   expect "apply beside '$extra' warns once" test "$(grep -c 'WARN.*is not in the schema' <<<"$OUT")" -eq 1
 done
 
-# --check names the effective repository value per key (ADR 0064 Decision 7):
-# an invalid value drops this layer for its key, which then resolves to the
-# schema default, keep, never to the lower userConfig layer; a key the schema
-# does not list is reported and leaves the valid key in force, as
-# articles-setting.sh reads it.
-check_case() { # check_case <label> <content> <expected key line>
+check_case() {
   local label="$1" content="$2" want="$3" r
   r="$(repo_new)"
   mkdir -p "$r/docs/conventions"
@@ -176,7 +151,6 @@ check_case 'a parse error on another line' $'compress_articles: cut\nother: "ope
 check_case 'an unknown key beside a valid value' $'compress_articles: cut\nverbosity: high\n' 'PASS compress_articles: cut'
 check_case 'an unknown key beside a valid value' $'compress_articles: cut\nverbosity: high\n' 'WARN docs/conventions/docs-hygiene.yaml: key verbosity is not in the schema'
 
-# compress_revert_below_pct: a whole number from 0 to 100, default 3.
 repo="$(repo_new)"
 run "$repo" compress_revert_below_pct=5
 expect 'the revert threshold is written and reads back as 5' test "$CODE" -eq 0 -a "$(bash "$READER" "$repo/$REL" compress_revert_below_pct)" = 5
@@ -188,8 +162,6 @@ for v in 101 -1 2.5 three; do
 done
 check_case 'a revert threshold above 100' $'compress_revert_below_pct: 101\n' 'WARN compress_revert_below_pct: dropped from docs/conventions/docs-hygiene.yaml; resolves to its default, 3, not to userConfig'
 
-# CRLF line endings are kept and the key is updated in place; a file that mixes
-# CRLF and LF is refused in one line and left as it was.
 repo="$(repo_new)"
 f="$repo/$REL"
 mkdir -p "$repo/docs/conventions"
@@ -208,7 +180,6 @@ expect 'a file mixing CRLF and LF is refused' test "$CODE" -eq 1
 if one_line; then ok 'the mixed line-ending refusal is one line'; else bad 'the mixed line-ending refusal is one line'; fi
 expect 'the mixed file is unchanged' cmp -s "$f" "$TMP/mixed-before"
 
-# Path guards: symlinks, a hard link, and the wrong kind of file in the way.
 repo="$(repo_new)"
 outside="$(mktemp -d "$TMP/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -239,8 +210,6 @@ run "$repo" --yes compress_articles=cut
 expect 'a hard-linked target is refused and the other link is untouched' test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'compress_articles: keep'
 if [[ "$OUT" == *"hard link"* ]]; then ok 'the hard-link refusal says so'; else bad 'the hard-link refusal says so'; fi
 
-# A link planted at the temp path: the O_EXCL open refuses it, nothing is
-# written through it, and a file this run did not create is not removed.
 repo="$(repo_new)"
 outside="$(mktemp -d "$TMP/outside.XXXXXX")"
 mkdir -p "$repo/docs/conventions"
@@ -266,7 +235,6 @@ run "$repo" compress_articles=cut
 expect 'docs as a file is refused and left as it was' test "$CODE" -eq 1 -a "$(cat "$repo/docs")" = 'a file'
 if one_line; then ok 'the docs-as-file refusal is one line'; else bad 'the docs-as-file refusal is one line'; fi
 
-# A root at $HOME or above it: compress would never read the file, so apply refuses.
 repo="$(repo_new)"
 OUT="$(HOME="$repo" node "$SUT" --root "$repo" compress_articles=cut 2>&1)"
 CODE=$?
@@ -278,7 +246,6 @@ OUT="$(HOME="${repo}x" node "$SUT" --root "$repo" compress_articles=cut 2>&1)"
 CODE=$?
 expect "a sibling path sharing a prefix with \$HOME is not refused" test "$CODE" -eq 0 -a -f "$repo/$REL"
 
-# --check on an absent and a valid file.
 repo="$(repo_new)"
 run "$repo" --check
 expect '--check on a missing file exits 0' test "$CODE" -eq 0
@@ -290,7 +257,6 @@ expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0
 expect '--check on a file with no record prints one INFO line' test "$(grep -c '^INFO .*no provenance recorded' <<<"$OUT")" -eq 1
 expect '--check writes nothing' test "$(cat "$repo/$REL")" = 'compress_articles: keep'
 
-# Usage errors.
 run "$repo"
 expect 'no <key>=<value> exits 2' test "$CODE" -eq 2
 run "$repo" --check compress_articles=cut
@@ -299,7 +265,6 @@ OUT="$(cd "$TMP" && GIT_CEILING_DIRECTORIES="$TMP" node "$SUT" compress_articles
 CODE=$?
 expect 'outside a git working tree without --root exits 2' test "$CODE" -eq 2
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$HERE/../../../.claude-plugin/plugin.json")"
 repo="$(repo_new)"
 run "$repo" compress_articles=cut

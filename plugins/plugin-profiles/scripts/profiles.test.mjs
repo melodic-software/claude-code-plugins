@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -706,6 +706,62 @@ test("AC26: a plugin it switches on with a missing required prerequisite stops a
 
 const SHIPPED = join(HERE, "..", "profiles");
 
+async function runCheck(w, args, env = {}) {
+  const out = [], err = [];
+  const status = await main(["check", ...args], { ...w.env, ...env }, w.project, {
+    out: (line) => out.push(line),
+    err: (line) => err.push(line),
+  });
+  return { status, stdout: out.join("\n"), stderr: err.join("\n") };
+}
+
+test("check --skills and --changed report changed skills first and summarize the remaining tree", async () => {
+  const w = world();
+  const first = "plugins/implementation/skills/first/SKILL.md";
+  const changed = "plugins/implementation/skills/second/SKILL.md";
+  writeTree(w.root, {
+    ".claude-plugin/marketplace.json": { name: M, plugins: ["implementation", "songwriting", "planning"].map((name) => ({ name })) },
+    "plugins/plugin-profiles/profiles/build.yaml": `description: Build.\nplugins: [implementation@${M}]\n`,
+    [first]: "## Next\n/songwriting:co-write\n",
+    [changed]: "## Next\n/gone:missing\n## Related\n/songwriting:co-write\n",
+    "plugins/songwriting/skills/co-write/SKILL.md": "",
+    "changed.txt": `${changed}\n`,
+    "summary.md": "Earlier summary\n",
+    "home/.claude/plugins/installed_plugins.json": "unreadable",
+  });
+  const summary = join(w.root, "summary.md");
+  const r = await runCheck(w, ["--skills", join(w.root, "plugins"), "--changed", join(w.root, "changed.txt")], { GITHUB_STEP_SUMMARY: summary });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const reports = r.stdout.split("\n").filter((line) => line.startsWith("Report:"));
+  assert.equal(reports.length, 5);
+  assert.match(reports[0], /links\.unresolved: .*second.*gone:missing/);
+  assert.match(reports[1], /links\.related: .*second.*songwriting:co-write/);
+  assert.match(reports[2], /links\.next: .*first.*songwriting:co-write/);
+  assert.match(reports[3], /Catalog plugin no shipped profile names: planning@/);
+  assert.match(reports[4], /Catalog plugin no shipped profile names: songwriting@/);
+  assert.match(readFileSync(summary, "utf8"), /^Earlier summary[\s\S]*Changed skills and profiles[\s\S]*links\.related:[\s\S]*<details><summary>Tree-wide reports<\/summary>[\s\S]*links\.next:[\s\S]*<\/details>/);
+});
+
+test("check reads installed skill roots and applies user profile membership", async () => {
+  const w = world();
+  writeTree(w.root, {
+    "installs/widget/skills/test/SKILL.md": "## Next\n/songwriting:co-write\n",
+    "installs/songwriting/skills/co-write/SKILL.md": "",
+    "home/.claude/plugin-profiles/custom.yaml": "plugins: [widget@vendor]\n",
+    "home/.claude/plugins/installed_plugins.json": {
+      version: 2,
+      plugins: {
+        "widget@vendor": [{ scope: "user", installPath: join(w.root, "installs", "widget") }],
+        [`songwriting@${M}`]: [{ scope: "user", installPath: join(w.root, "installs", "songwriting") }],
+      },
+    },
+  });
+  const r = await runCheck(w, []);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /links\.next: .*test.*\/songwriting:co-write is off in profile custom/);
+  assert.match(r.stdout, /Installed, and no profile names it .*songwriting@/);
+});
+
 test("AC5: check passes on the shipped profiles against the repository catalog and starts no claude", () => {
   const w = world();
   const r = w.run(["check"]);
@@ -1035,6 +1091,19 @@ test("save adds to the lists of an existing file and keeps its description", () 
   const r = w.run(["save", "notes", "--level", "user", "--plugins", `review@${M}`, "--yes"]);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "review@${M}"\n  - "songwriting@${M}"\n`);
+});
+
+test("#18318: save --plugins drops the id from that file's remove and exclude, and says when another file still keeps it off", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/build.yaml": `remove:\n  - songwriting@${M}\nexclude:\n  - songwriting@${M}\n  - review@${M}\n` });
+  const r = w.run(["save", "build", "--level", "user", "--plugins", `songwriting@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /Stays off/);
+  assert.equal(readFileSync(userProfile(w, "build"), "utf8"), `plugins:\n  - "songwriting@${M}"\nexclude:\n  - "review@${M}"\n`);
+  assert.doesNotMatch(w.run(["apply", "build", "--for", "folder", "--dry-run"]).stdout, /Switches off \(\d+\):[^\n]*songwriting/);
+  assert.equal(w.run(["save", "build", "--level", "repository", "--exclude", `tdd@${M}`, "--yes"]).status, 0);
+  const off = w.run(["save", "build", "--level", "user", "--plugins", `tdd@${M}`, "--dry-run"]);
+  assert.match(off.stdout, /Stays off: another file of profile build removes or excludes tdd@melodic-software\./);
 });
 
 test("save writes and previews every list in alphabetical order, whatever order the ids came in", () => {
@@ -1803,6 +1872,122 @@ test("#16914: -c passes through unchanged, so it continues the conversation plai
   assert.deepEqual(given.argv, ["claude", "--settings", given.file, "-c"]);
 });
 
+const byFolderDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions", "by-folder");
+const folderRecordOf = (w) => JSON.parse(readFileSync(join(byFolderDir(w), `${createHash("sha256").update(realpathSync(w.project)).digest("hex")}.json`), "utf8"));
+
+test("#18319 AC6: -c after a profiled session starts in that profile with the exact line; after an unprofiled one it starts plain", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const rec = folderRecordOf(w);
+  assert.deepEqual({ ...rec, at: undefined }, { sessionId: "abc-1", profile: "build", at: undefined }, "the record sits under sha256 of the folder's real path");
+  assert.ok(!Number.isNaN(Date.parse(rec.at)));
+  const s = argsJson(w, ["-c"]);
+  assert.equal(s.profile, "build");
+  assert.deepEqual(s.argv, ["claude", "--settings", file, "-c"], "claude still picks the conversation from -c");
+  assert.match(s.stderr, /^Continuing this folder's last conversation in profile build\.$/m);
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.deepEqual(folderRecordOf(w).profile, null, "an unprofiled session is recorded too");
+  const plain = argsJson(w, ["-c"]);
+  assert.equal(plain.profile, null);
+  assert.deepEqual(plain.argv, ["claude", "-c"]);
+  assert.doesNotMatch(plain.stderr, /Continuing this folder's last conversation in profile/);
+  assert.equal(readdirSync(byFolderDir(w)).length, 1, "one record per folder");
+});
+
+test("#18319 AC6: a named --profile wins over the folder's last profile for -c", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const given = argsJson(w, ["-c", "--profile", "review"]);
+  assert.equal(given.profile, "review");
+  assert.deepEqual(given.argv, ["claude", "--settings", given.file, "-c"]);
+  assert.doesNotMatch(given.stderr, /Continuing this folder's last conversation/);
+  assert.equal(startJson(w, ["review", "-c"]).profile, "review", "as start's first word too");
+});
+
+test("#18319 AC6 D10: -c after an exception session starts in its profile with the profile-only file, without the added plugins", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(exception, "utf8")).env);
+  const s = argsJson(w, ["-c"]);
+  assert.deepEqual(s.argv, ["claude", "--settings", recorded, "-c"]);
+  assert.deepEqual(s.added, []);
+  const started = reopen(w, ["-c"]);
+  assert.equal(started.file, recorded);
+  assert.equal(pluginsIn(started.file)[SONG], false, "build keeps songwriting off");
+  assert.ok(existsSync(exception), "the exception file stays with its conversation");
+});
+
+test("#18319 AC6: a resumed session's start notice names a profile change both ways: from another recorded profile, and from none", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const reviewEnv = JSON.parse(readFileSync(launchJson(w, ["review"]).file, "utf8")).env;
+  assert.match(hookStart(w, { session_id: "abc-1", source: "resume" }, reviewEnv), /^This session ran in profile build and now runs in review, so a later claude --resume abc-1 restores review\.$/m);
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.match(hookStart(w, { session_id: "plain-2", source: "resume" }, reviewEnv), /^This session ran without a profile and now runs in review, so a later claude --resume plain-2 restores review\.$/m);
+  assert.doesNotMatch(hookStart(w, { session_id: "plain-2", source: "resume" }, reviewEnv), /now runs in/, "once recorded in review, the same profile says nothing");
+  assert.doesNotMatch(hookStart(w, { session_id: "new-3", source: "startup" }, reviewEnv), /now runs in/, "a fresh start says nothing");
+});
+
+test("#18319: -c whose recorded profile no longer exists starts with the folder's settings and names the missing profile", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const rec = folderRecordOf(w);
+  const recordFile = join(byFolderDir(w), readdirSync(byFolderDir(w))[0]);
+  writeFileSync(recordFile, JSON.stringify({ ...rec, profile: "gone" }));
+  const s = argsJson(w, ["-c"]);
+  assert.equal(s.profile, null);
+  assert.deepEqual(s.argv, ["claude", "-c"]);
+  assert.match(s.stderr, /^The folder's last session ran in profile gone, which no longer exists; continuing with this folder's settings\.$/m);
+});
+
+test("#18319: a claude -p or Agent SDK session start leaves the folder's record unchanged, since claude -c skips those sessions", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const before = folderRecordOf(w);
+  for (const entrypoint of ["sdk-cli", "sdk-ts", "sdk-py"]) hookStart(w, { session_id: `headless-${entrypoint}`, source: "startup" }, { CLAUDE_CODE_ENTRYPOINT: entrypoint });
+  assert.deepEqual(folderRecordOf(w), before);
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "--settings", file, "-c"]);
+  hookStart(w, { session_id: "plain-3", source: "startup" });
+  assert.equal(folderRecordOf(w).sessionId, "plain-3", "an interactive CLI session still replaces it");
+});
+
+test("#18319: -c starts plain once the folder's last session was resumed without its profile", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const elsewhere = join(w.root, "elsewhere");
+  mkdirSync(elsewhere);
+  hookStart(w, { session_id: "abc-1", source: "resume" }, { CLAUDE_PROJECT_DIR: elsewhere });
+  assert.equal(argsJson(w, ["-c"]).profile, null);
+});
+
+test("#18319 AC6: a folder reached through a symbolic link finds the same per-folder record", { skip: process.platform === "win32" }, () => {
+  const w = world();
+  const link = join(w.root, "link");
+  symlinkSync(w.project, link, "dir");
+  installOnDisk(w);
+  const file = launchJson(w, ["build"]).file;
+  hookStart(w, { session_id: "abc-1", source: "startup" }, { ...JSON.parse(readFileSync(file, "utf8")).env, CLAUDE_PROJECT_DIR: link });
+  assert.equal(argsJson(w, ["-c"]).profile, "build", "recorded through the link, found from the real path");
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.equal(argsJson(w, ["-c"], { CLAUDE_PROJECT_DIR: link }).profile, null, "recorded from the real path, found through the link");
+  assert.equal(readdirSync(byFolderDir(w)).length, 1);
+});
+
+test("#18319: a session start sweeps per-folder records no session has written for 30 days", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const [name] = readdirSync(byFolderDir(w));
+  const stale = join(byFolderDir(w), name);
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  utimesSync(stale, old, old);
+  const elsewhere = join(w.root, "elsewhere");
+  mkdirSync(elsewhere);
+  hookStart(w, { session_id: "other-2", source: "startup" }, { CLAUDE_PROJECT_DIR: elsewhere });
+  assert.equal(existsSync(stale), false);
+  assert.equal(readdirSync(byFolderDir(w)).length, 1, "the new folder's record stays");
+});
+
 test("#16893 launch sweeps session records no session has written for 30 days", () => {
   const w = world();
   sessionInBuild(w, "abc-1");
@@ -1950,14 +2135,14 @@ test("#16893 start --claude-args with no profile and no resume runs claude with 
   assert.deepEqual(started.argv, ["--model", "opus", "a b"]);
 });
 
-test("#16893 start --claude-args resumes --resume in the profile the session ran in and passes -c through", () => {
+test("#16893 start --claude-args resumes --resume in the profile the session ran in, and #18319 -c in the folder's last profile", () => {
   const w = world();
   const file = sessionInBuild(w, "abc-1");
   const resumed = argsJson(w, ["--resume", "abc-1", "--model", "opus"]);
   assert.equal(resumed.profile, "build");
   assert.deepEqual(resumed.argv, ["claude", "--settings", file, "--resume", "abc-1", "--model", "opus"]);
   const continued = argsJson(w, ["-c"]);
-  assert.deepEqual(continued.argv, ["claude", "-c"]);
+  assert.deepEqual(continued.argv, ["claude", "--settings", file, "-c"]);
   assert.equal(argsJson(w, ["--resume", "abc-1", "--profile", "review"]).profile, "review", "a given profile wins");
 });
 
@@ -3741,4 +3926,232 @@ test("#17354: the reset preview recommends one answer per question with a one-se
     unasked: { answer: "no", reason: "Nobody asked for a reset, so a no keeps every profile as it is." },
   });
   assert.equal(resetJson(KINDS.noRecord().w).questionRecommend, null, "no question, no recommendation for it");
+});
+
+/** Adds an installed plugin to the stub's list and the on-disk registry, with its dependencies and skills. */
+function addInstalled(w, id, { dependencies = [], skills = [] } = {}) {
+  const dir = join(w.root, "installs", id.replace("@", "-at-"));
+  writeTree(dir, { ".claude-plugin/plugin.json": { name: id.split("@")[0], dependencies }, ...Object.fromEntries(skills.map((s) => [`skills/${s}/SKILL.md`, `# ${s}\n`])) });
+  const list = JSON.parse(readFileSync(w.env.PP_STUB_LIST, "utf8"));
+  writeFileSync(w.env.PP_STUB_LIST, JSON.stringify([...list, { id, version: "1.0.0", scope: "user", enabled: true, installPath: dir }]));
+  installOnDisk(w);
+}
+const pluginsIn = (file) => JSON.parse(readFileSync(file, "utf8")).enabledPlugins;
+/** Runs start as the dotfiles claude function does, letting the stub claude exit 0; returns the --settings file claude got and its argv. */
+function reopen(w, args, extra = {}) {
+  const envFile = join(w.root, `env-${Date.now()}-${Math.random()}.jsonl`);
+  const r = w.run(["start", "--claude-args", ...args], { PP_STUB_ENV: envFile, PP_STUB_EXIT: "0", ...extra });
+  assert.equal(r.status, 0, r.stderr);
+  const started = readFileSync(envFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((c) => c.argv[0] === "--settings");
+  return { file: started.argv[1], argv: started.argv, stderr: r.stderr };
+}
+/** The SessionStart hook's whole JSON output, or null when it printed nothing. */
+const hookJson = (w, input, extra = {}) => {
+  const r = runWith(w, ["status", "--session-start"], JSON.stringify(input), { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project, ...extra });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout ? JSON.parse(r.stdout) : null;
+};
+const SONG = `songwriting@${M}`;
+
+test("#18318 AC5: only a reopen that starts claude logs the requested plugins, never a dry run or a refused one", () => {
+  const w = world();
+  addInstalled(w, "gizmo@vendor");
+  addInstalled(w, "gadget@vendor", { dependencies: ["gizmo"] });
+  sessionInBuild(w, "abc-1");
+  const file = join(dirname(dirname(byIdDir(w))), "exceptions.jsonl");
+  const args = ["--resume", "abc-1", "--profile-add", "gadget"];
+  startJson(w, args);
+  assert.equal(w.run(["start", ...args, "--unattended", "--profile-add", "absent@vendor"]).status, 2);
+  assert.equal(existsSync(file), false);
+  const reopened = reopen(w, args);
+  const lines = () => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
+  const [entry] = lines();
+  assert.deepEqual(lines(), [{ kind: "exception", profile: "build", plugin: "gadget@vendor", sessionId: "abc-1", folder: w.project, at: new Date(entry.at).toISOString() }]);
+  hookJson(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(reopened.file, "utf8")).env);
+  reopen(w, ["--resume", "abc-1"]);
+  launchJson(w, ["build"]);
+  assert.deepEqual(lines(), [entry]);
+  reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]);
+  reopen(w, ["--resume", "abc-1", "--profile-add", SONG]);
+  assert.deepEqual(lines().map(({ plugin }) => plugin), ["gadget@vendor", SONG, SONG]);
+  const rows = JSON.parse(w.run(["exceptions", "--json"]).stdout);
+  assert.deepEqual(rows, [
+    { profile: "build", plugin: "gadget@vendor", count: 1, sessions: ["abc-1"], lastAt: entry.at },
+    { profile: "build", plugin: SONG, count: 1, sessions: ["abc-1"], lastAt: lines().at(-1).at },
+  ]);
+});
+
+test("#18318 AC5: the start notice nudges the profile in force after three sessions until reviewed", () => {
+  const w = world();
+  const setup = /\/plugin-profiles:profile setup/;
+  const open = (id) => {
+    const file = sessionInBuild(w, id);
+    reopen(w, ["--resume", id, "--profile-add", SONG]);
+    return JSON.parse(readFileSync(file, "utf8")).env;
+  };
+  const notice = (env) => hookJson(w, { source: "startup" }, env);
+  const build = open("abc-1");
+  open("abc-2");
+  assert.doesNotMatch(notice(build).systemMessage, setup);
+  open("abc-3");
+  const nudged = notice(build);
+  assert.match(nudged.systemMessage, /Profile build was reopened with songwriting@melodic-software in 3 sessions since its last review/);
+  assert.match(nudged.systemMessage, setup);
+  assert.doesNotMatch(nudged.hookSpecificOutput.additionalContext, setup);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.match(notice().systemMessage, setup);
+  const review = JSON.parse(readFileSync(launchJson(w, ["review"]).file, "utf8")).env;
+  assert.doesNotMatch(notice(review).systemMessage, setup);
+  const result = w.run(["exceptions", "--reviewed", "build", "--plugin", SONG]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(w.run(["exceptions", "--json"]).stdout),
+    [{ profile: "build", plugin: SONG, count: 0, sessions: [], lastAt: null }]);
+  assert.doesNotMatch(notice(build).systemMessage, setup);
+});
+
+test("#18318 AC5: exceptions rejects invalid arguments without writing the log", () => {
+  const w = world();
+  for (const args of [["--reviewed"], ["--reviewed", "Build", "--plugin", SONG],
+    ["--reviewed", "build", "--plugin", "songwriting"], ["--reviewed", "build", "--plugin", "a@b@c"],
+    ["--plugin", SONG], ["--json", "--reviewed", "build", "--plugin", SONG]]) {
+    const result = w.run(["exceptions", ...args]);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /exceptions takes/);
+  }
+  assert.deepEqual(JSON.parse(w.run(["exceptions", "--json"]).stdout), []);
+  assert.equal(existsSync(join(dirname(dirname(byIdDir(w))), "exceptions.jsonl")), false);
+});
+
+test("#18314 AC3/AC4: start --claude-args --resume X --profile-add Y reopens X in its profile with only Y added, claude never gets --profile-add, and the recorded file stays", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting", "--model", "opus"]);
+  assert.deepEqual(r.argv, ["--settings", r.file, "--resume", "abc-1", "--model", "opus"]);
+  assert.notEqual(r.file, recorded, "an exception never reuses the recorded file");
+  assert.ok(existsSync(recorded), "the recorded file is still there");
+  assert.equal(pluginsIn(recorded)[SONG], false, "build switches songwriting off");
+  assert.deepEqual(pluginsIn(r.file), { ...pluginsIn(recorded), [SONG]: true }, "the profile is unchanged apart from the added plugin");
+  assert.match(r.stderr, /Reopening abc-1 in profile build with songwriting@melodic-software on, for this conversation only\./);
+  const plain = startJson(w, ["--resume", "abc-1", "--profile-add=songwriting"]);
+  assert.deepEqual(plain.argv, ["claude", "--settings", r.file, "--resume", "abc-1"], "without --claude-args too, and in its --profile-add=<name> form");
+  assert.deepEqual(plain.added, [SONG]);
+});
+
+test("#18314: an added plugin brings its dependencies, from a marketplace the profile does not name, and leaves that marketplace's other plugins alone", () => {
+  const w = world();
+  addInstalled(w, "gizmo@vendor");
+  addInstalled(w, "gadget@vendor", { dependencies: ["gizmo"], skills: ["gadget-skill"] });
+  const recorded = sessionInBuild(w, "abc-1");
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "gadget-skill"]);
+  assert.deepEqual(pluginsIn(r.file), { ...pluginsIn(recorded), "gadget@vendor": true, "gizmo@vendor": true });
+  assert.equal("widget@vendor" in pluginsIn(r.file), false, "widget, from the same marketplace, is left alone");
+});
+
+test("#18314: --profile-add refuses an ambiguous name with the candidates, a plugin that is not installed with its install line, and settings text, before claude starts", () => {
+  const w = world();
+  addInstalled(w, "songwriting@vendor");
+  sessionInBuild(w, "abc-1");
+  const refused = (token) => {
+    const r = w.run(["start", "--claude-args", "--resume", "abc-1", "--profile-add", token]);
+    assert.equal(r.status, 2, `${token}: ${r.stderr}`);
+    return r.stderr;
+  };
+  assert.match(refused("songwriting"), /give one of: songwriting@melodic-software, songwriting@vendor/);
+  assert.match(refused("debugging"), /Install it with: claude plugin install debugging@melodic-software/, "a profile names debugging@melodic-software");
+  assert.match(refused('{"enabledPlugins":{"widget@vendor":true}}'), /never settings text or a path/);
+  assert.match(refused(join(w.root, "list.json")), /never settings text or a path/);
+  assert.doesNotMatch(w.calls(), /--resume/, "claude never started");
+});
+
+test("#18314: --profile-add needs --resume <id> and a profile to reopen in", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  for (const args of [["build", "--profile-add", "songwriting"], ["-c", "--profile-add", "songwriting"], ["--resume", "--profile-add", "songwriting"], ["--profile-add", "songwriting"]]) {
+    const r = w.run(["start", ...args, "--dry-run"]);
+    assert.equal(r.status, 2, `${args.join(" ")}: ${r.stderr}`);
+    assert.match(r.stderr, /--profile-add reopens one conversation: give it with --resume <session id>/);
+  }
+  const none = w.run(["start", "--resume", "zzz", "--profile-add", "songwriting", "--dry-run"]);
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /no profile is recorded for session zzz/);
+  assert.equal(startJson(w, ["review", "--resume", "zzz", "--profile-add", "songwriting"]).profile, "review", "a given profile settles it");
+  assert.match(w.run(["start", "--resume", "abc-1", "--profile-add"]).stderr, /--profile-add needs a plugin/);
+  assert.deepEqual(argsJson(w, ["--", "--profile-add", "x"]).argv, ["claude", "--", "--profile-add", "x"], "after a bare -- the word stays claude's");
+});
+
+test("#18314 D10: the exception stays with its conversation: a later resume keeps it, a new session, -c and a launch from inside it do not", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  const env = JSON.parse(readFileSync(exception, "utf8")).env;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, env);
+  assert.deepEqual(JSON.parse(readFileSync(join(byIdDir(w), "abc-1.json"), "utf8")).added, [SONG], "the by-id record names the added plugin");
+  assert.deepEqual(startJson(w, ["--resume", "abc-1"]).argv, ["claude", "--settings", exception, "--resume", "abc-1"], "a later resume keeps the exception");
+  rmSync(exception);
+  const rebuilt = reopen(w, ["--resume", "abc-1"]);
+  assert.equal(pluginsIn(rebuilt.file)[SONG], true, "a swept exception file is rebuilt with the added plugin");
+  const fresh = startJson(w, ["build"]);
+  assert.equal(fresh.file, recorded);
+  assert.deepEqual(fresh.added, []);
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "--settings", recorded, "-c"], "-c starts in the profile without the exception");
+  const launched = launchJson(w, [], env);
+  assert.equal(launched.file, recorded, "launch from the exception session writes the profile's own file");
+  assert.equal(launched.enabledPlugins[SONG], false);
+  const relaunched = JSON.parse(readFileSync(launched.file, "utf8")).env;
+  assert.deepEqual(JSON.parse(w.run(["status", "--json"], relaunched).stdout).session.added, [], "a session from that launch has nothing added");
+});
+
+test("#18314 D5: a profile session's start hook tells the model the reopen line, also after compaction; status and the notice name what was added", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const plain = JSON.parse(readFileSync(recorded, "utf8")).env;
+  const start = hookJson(w, { session_id: "abc-1", source: "startup" }, plain);
+  const context = start.hookSpecificOutput.additionalContext;
+  assert.equal(start.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(context, /claude --resume abc-1 --profile-add <plugin or plugin:skill>/);
+  assert.match(context, /claude plugin install/);
+  assert.ok(context.split(/\s+/).length < 80, `${context.split(/\s+/).length} words`);
+  assert.match(start.systemMessage, /This session runs in profile build\./);
+  const compact = hookJson(w, { session_id: "abc-1", source: "compact" }, plain);
+  assert.deepEqual(Object.keys(compact), ["hookSpecificOutput"], "after compaction only the context");
+  assert.equal(compact.hookSpecificOutput.additionalContext, context);
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  const env = JSON.parse(readFileSync(exception, "utf8")).env;
+  const resumed = hookJson(w, { session_id: "abc-1", source: "resume" }, env);
+  assert.match(resumed.systemMessage, /^Added for this conversation only: songwriting@melodic-software$/m);
+  assert.match(resumed.hookSpecificOutput.additionalContext, /Added for this conversation only: songwriting@melodic-software\./);
+  const status = w.run(["status"], env);
+  assert.match(status.stdout, /^Added for this conversation only: songwriting@melodic-software$/m);
+  assert.deepEqual(JSON.parse(w.run(["status", "--json"], env).stdout).session.added, [SONG]);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const folder = hookJson(w, { session_id: "plain-2", source: "startup" });
+  assert.equal(folder.hookSpecificOutput, undefined, "a folder profile without a one-session profile gets no reopen line");
+  assert.equal(hookJson(w, { session_id: "plain-2", source: "compact" }), null, "nor after compaction");
+});
+
+test("#18314: a reopen keeps the settings a launcher recorded with --with, and adds only the plugin", () => {
+  const w = world();
+  installOnDisk(w);
+  const recorded = launchJson(w, ["build", "--with", '{"model":"recorded-model","hooks":{"Stop":[{"hooks":[{"type":"command","command":"true"}]}]}}']).file;
+  hookStart(w, { session_id: "abc-1", source: "startup" }, JSON.parse(readFileSync(recorded, "utf8")).env);
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]);
+  const doc = JSON.parse(readFileSync(r.file, "utf8"));
+  assert.equal(doc.model, "recorded-model");
+  assert.deepEqual(doc.hooks, JSON.parse(readFileSync(recorded, "utf8")).hooks);
+  assert.deepEqual(doc.enabledPlugins, { ...pluginsIn(recorded), [SONG]: true });
+});
+
+test("#18314: an unattended resume of a reopened conversation checks the added plugin's required prerequisites too", () => {
+  const w = world();
+  addInstalled(w, "gadget@vendor");
+  writeTree(join(w.root, "installs", "gadget-at-vendor"), {
+    "prerequisites.json": { requires: [{ id: "pp-absent-tool", kind: "cli", need: "required", for: ["plugin"], detect: { any: ["pp-absent-tool-zz9"] }, degrade: "Without it gadget does nothing.", install: { docs: "https://example.com/pp-absent-tool" } }] },
+  });
+  sessionInBuild(w, "abc-1");
+  assert.equal(w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]).status, 0, "build alone has every required tool");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "gadget"]).file;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(exception, "utf8")).env);
+  const refused = w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.match(refused.stderr, /not resumed: profile build switches on a plugin missing a required prerequisite/);
 });

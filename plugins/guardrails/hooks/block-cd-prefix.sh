@@ -1,43 +1,9 @@
 #!/usr/bin/env bash
-# PreToolUse hook: deny a Bash command that opens with `cd <path>` and then runs
-# git or writes to a relative path.
-#
-# `cd <dir> && git ...` matches no permission allow rule, so each one prompts or
-# is refused, while `git -C <abs dir> ...` with absolute paths can match one.
-# This guard denies the shape with that rewrite as the reason (a relative write
-# with no git gets the absolute-path rewrite instead); it widens no allow.
-#
-# MATCHED: the command text opens with `cd <word>` (bare, or one single- or
-# double-quoted word) followed by `&&`, `;` or a newline, and a later top-level
-# segment has git as its command word (after any NAME=value prefixes, by
-# basename, `.exe` dropped) or writes (`>`, `>>`, `<>`, `>&`) to a relative
-# path. Segments come from hook::bash_parse_segments, so a quoted `>` or `git`
-# is not a match.
-#
-# NOT MATCHED: `cd .`, `cd ./`, and a `cd` to the payload's `cwd`; `cd` with no
-# operand or with options; a `cd` that is not the first segment; a redirect
-# target that is absolute, starts with `~`, `$` or `\`, is a drive path, or is
-# an fd dup (`2>&1`); the PowerShell tool. Known gaps: a `&>` or `>|` write,
-# which the parser splits at the `&` or `|`, and git behind a wrapper word
-# (`command git`, `sudo git`, `env git`).
-#
-# Posture: fail-open. Missing jq, a payload that is not JSON and a NUL byte all
-# allow, because this guard advises on a command shape and the row's
-# fail-closed guards already deny those payloads.
-#
-# Kill switch: block_cd_prefix_enabled userConfig option.
-#
-# BLOCKING: exits 2 on a match.
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. scripts/check-killswitch-hoist.sh
-# pins this line.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CD_PREFIX_ENABLED:-true}" == "true" ]] || exit 0
 
-# Parameter expansion, not `dirname`: a command substitution forks, and on
-# Windows Git Bash a fork is a process.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
@@ -48,8 +14,6 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq-free pre-filter: a payload with no `cd` then a space or a JSON-escaped tab
-# cannot match.
 [[ "$INPUT" == *'cd '* || "$INPUT" == *'cd\t'* ]] || exit 0
 
 hook::require jq "PreToolUse" guardrails "$INPUT"
@@ -66,9 +30,6 @@ CDP_NL=$'\n'
 CDP_PREFIX_RE="^[[:space:]]*cd[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:];&|<>()\"']+)[[:space:]]*(&&|;|${CDP_NL})"
 [[ "$CDP_COMMAND" =~ $CDP_PREFIX_RE ]] || exit 0
 
-# cdp::norm_to <var> <path>: `\` as `/`, trailing slashes dropped, and on
-# Windows lowercased with `/c/...` read as `c:/...`, so a `cd` operand compares
-# with the payload `cwd`.
 cdp::norm_to() {
   local __p="${2//\\//}"
   while [[ "$__p" == */ && "$__p" != / ]]; do __p="${__p%/}"; done
@@ -105,8 +66,6 @@ cdp::segment() {
     (($# == 2)) && [[ "$1" == cd ]] && CDP_DIR="$2"
     return 0
   fi
-  # A git hit is final; a redirect hit keeps checking, so a later git segment
-  # upgrades it to the git reason.
   [[ -n "$CDP_DIR" && "$CDP_HIT" != git ]] || return 0
   local w i
   for w in "$@"; do
@@ -122,7 +81,6 @@ cdp::segment() {
     *) continue ;;
     esac
     [[ "${HOOK_SEG_REDIR_OPAQUE[i]-0}" == 1 ]] && continue
-    # A git segment keeps its git hit: the git reason covers its write too.
     cdp::relative_target "${HOOK_SEG_REDIR_OP[i]}" "${HOOK_SEG_REDIR_TARGET[i]-}" && CDP_HIT="${CDP_HIT:-redirect}"
   done
   return 0

@@ -34,8 +34,6 @@ handback_of() { printf '{"type":"tool_use","name":"SubagentHandback","input":{"m
 bash_of() { printf '{"type":"tool_use","name":"Bash","input":{"command":"%s"}}' "$1"; }
 text_of() { printf '{"type":"text","text":"%s"}' "$1"; }
 
-# expect <label> <transcript> <grep-pattern>...
-# Passes when the report matches every pattern.
 expect() {
   local label="$1" transcript="$2" out p
   shift 2

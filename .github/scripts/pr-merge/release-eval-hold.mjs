@@ -35,7 +35,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { bodyHolds, fromRest, LANES_APP_LOGIN, vetoers } from "./merge-holds.mjs";
 
 export const LABEL = "do-not-merge";

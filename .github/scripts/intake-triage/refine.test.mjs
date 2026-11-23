@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
 import { applySizeDecline, applySizeSplit, baseHolds, namedUnits, partitionProblem, quotedNames, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";

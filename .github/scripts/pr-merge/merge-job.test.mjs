@@ -16,6 +16,7 @@ import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { ifOf, stepsOf, workflowText } from "../lib/workflow-text.mjs";
+import { ALERT_FAILED } from "../post-merge-demotion-alert/red-main.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -332,7 +333,7 @@ const assertScanned = (name, predicate, list = steps) => {
   const id = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(scan.text)?.[1];
   assert.ok(id, `the scan before ${name} has an id`);
   assert.ok(scan.text.includes(`\n        if: >-\n          ${predicate}\n`), `the scan before ${name} runs on its condition`);
-  assert.ok(scan.text.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), `the scan before ${name}`);
+  assert.match(scan.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+\n {8}with:\n {10}gate-path: \.base\/lib\/publish-gate\.mjs\n/, `the scan before ${name}`);
   const upload = list[at].text;
   assert.ok(upload.includes(`\n        if: >-\n          (${predicate}) && steps.${id}.outputs.clean == 'true'\n`), `${name} waits on ${id}`);
   assert.ok(pathOf(upload), `${name} has a path`);
@@ -2074,7 +2075,8 @@ test("a red full run is sent to post-merge-file-demotion-issues.yml once, by its
 // babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
 // demotion counts as red: a cancel once the jobs started is red too.
 test("every red conclusion of a full run is sent", () => {
-  for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
+  assert.ok(ALERT_FAILED.length > 0);
+  for (const conclusion of ALERT_FAILED) {
     const run = runAlert({ runs: [{ id: 41, conclusion }] });
     assert.equal(run.status, 0, `${conclusion}: ${run.out}`);
     assert.deepEqual(run.sends, [alertSend(41)], conclusion);

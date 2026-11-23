@@ -7,6 +7,13 @@
       "kind": "planner",
       "invoke": "/html-plan",
       "helps": "writes the plan as one interactive HTML page"
+    },
+    {
+      "name": "domain-driven-design",
+      "marketplace": "melodic-software",
+      "repo": "melodic-software/claude-code-plugins",
+      "kind": "glossary",
+      "helps": "keeps the project glossary these questions use"
     }
   ]
 }

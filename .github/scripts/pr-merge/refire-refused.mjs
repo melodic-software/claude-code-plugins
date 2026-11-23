@@ -62,7 +62,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError, createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";

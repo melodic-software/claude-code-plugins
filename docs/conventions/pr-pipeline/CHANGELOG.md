@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [12.4.1] - 2026-11-23
+
+### Fixed
+
+- The monitoring lane reads up to 12 unread pr-refine runs per pass, up from the default of 6. Signal 13 now reads all but pr-refine's busiest hour in one pass, so its incident can clear ([#16656](https://github.com/melodic-software/claude-code-plugins/issues/16656)).
+
+## [12.4.0] - 2026-11-23
+
+### Added
+
+- pr-verify takes a done-when item whose text starts with `Person check:` as a check a person runs, listed in the spec entry's `person_checks` beside the items intake's split refinement records, so an acceptance item only a run outside the diff can prove no longer fails the verdict. The mark counts only in an issue body a trusted person wrote and last edited; both judge prompts say an item so marked that `person_checks` does not list is judged like any other.
+
 ## [12.3.0] - 2026-11-23
 
 ### Added

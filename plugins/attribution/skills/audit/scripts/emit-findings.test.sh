@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Two load-bearing groups here. First, the relay boundary: only
-# fingerprint-confirmed copies, the two deterministic stamp rules, and a restated
-# fact carrying a declared unanimous-and-refutation-survived outcome may reach
-# the findings file, and a judgment verdict that leaks into it would break the
-# boundary the Brief draws. Second, cell escaping: the fix action parses the
-# table, so a pipe in a quoted excerpt splits a row into phantom columns.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -28,8 +22,6 @@ fi
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 SKIPPED=0
 
-# A case whose subject this host cannot build is neither a pass nor a failure:
-# it never routes through pass(), so the summary cannot count it as run.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -43,7 +35,6 @@ assert_file() {
 assert_no_file() {
   if [[ -e "$2" ]]; then fail "$1" "absent: $2" "exists"; else pass "$1"; fi
 }
-# assert_fails <label> <command...>: the command must exit non-zero.
 assert_fails() {
   local label="$1"
   shift
@@ -53,8 +44,6 @@ assert_fails() {
     pass "$label"
   fi
 }
-
-# --- Fixture repository ----------------------------------------------------------
 
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO/docs"
@@ -125,8 +114,6 @@ write_report unparsed.json '{"findings": [{"file": "docs/page.md", "line": 3, "n
 
 run() { (cd "$REPO" && bash "$EMIT" "$@"); }
 
-# --- Usage -----------------------------------------------------------------------
-
 OUT="$(bash "$EMIT" --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
 assert_contains "--help names the script" "$OUT" "emit-findings.sh"
@@ -149,8 +136,6 @@ assert_exit "an unparsable report exits 3" "$?" "3"
 run --nope --report "$REPORTS/full.json" --out "$OUTDIR/x.md" >/dev/null 2>&1
 assert_exit "an unknown argument exits 2" "$?" "2"
 
-# --- The composed file -----------------------------------------------------------
-
 TARGET="$OUTDIR/20260828T120000Z-attribution.md"
 run --report "$REPORTS/full.json" --out "$TARGET" >/dev/null 2>&1
 assert_exit "a clean run exits 0" "$?" "0"
@@ -166,8 +151,6 @@ assert_contains "the Findings section is present" "$BODY" "## Findings"
 assert_contains "the table header is the contract's columns" "$BODY" \
   "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"
 
-# --- Relay eligibility -----------------------------------------------------------
-
 ROWS="$(grep -c '^| [0-9]' "$TARGET")"
 assert_eq "only the three relay-eligible findings become rows" "$ROWS" "3"
 assert_contains "the fingerprint-confirmed copy is a row" "$BODY" "rule-verbatim-copy"
@@ -176,18 +159,6 @@ assert_contains "the trigger-less stamp is a row" "$BODY" "rule-trigger-less-sta
 assert_not_contains "an llm-suspected verdict never reaches the relay" "$BODY" "llm-suspected"
 assert_not_contains "a source-fetched-similar verdict never reaches the relay" "$BODY" "source-fetched-similar"
 assert_contains "withheld judgment findings are counted, not dropped" "$BODY" "2 judgment"
-
-# --- The not-found searched-surfaces schema check --------------------------------
-#
-# A `not-found` outcome names every surface it checked. The sidecar carries that
-# listing as a `searched` array and this producer refuses input without one, on the
-# same input-refusal exit code as a sidecar with no findings key: refusing beats
-# composing from a sidecar whose neutral outcome concludes nothing about anything.
-#
-# The refusal validates the SIDECAR, never an emitted row. `not-found` is a
-# judgment verdict the relay boundary withholds, so a well-formed one is accepted
-# and still emits nothing — and the `searched` surfaces it named must not reach the
-# findings file either.
 
 NF_SEARCHED='["https://code.claude.com/docs/llms.txt","site search: nf-surface.example"]'
 
@@ -252,12 +223,8 @@ assert_not_contains "a searched surface never reaches the relay" "$NF_BODY" \
   "nf-surface.example"
 assert_contains "the withheld not-found finding is counted" "$NF_BODY" "1 judgment"
 
-# The check is scoped to not-found. A relay-eligible finding carries no searched
-# array and must not be refused for the lack of one.
 run --report "$REPORTS/full.json" --out "$OUTDIR/nf-unrelated.md" >/dev/null 2>&1
 assert_exit "a sidecar with no not-found finding is unaffected" "$?" "0"
-
-# --- Producer-owned fields -------------------------------------------------------
 
 COPY_ROW="$(grep 'rule-verbatim-copy' "$TARGET" | head -1)"
 assert_contains "Tier is looked up from the crosswalk" "$COPY_ROW" "| IMPORTANT |"
@@ -276,8 +243,6 @@ assert_contains "the stamp row is not auto-applicable" "$STAMP_ROW" "re-deriv"
 
 assert_eq "ranks run 1..N in order" \
   "$(grep -o '^| [0-9]* |' "$TARGET" | tr -dc '0-9' | tr -d '\n')" "123"
-
-# --- Cell escaping ---------------------------------------------------------------
 
 write_report pipes.json '{
   "findings": [
@@ -298,12 +263,9 @@ PIPE_ROW="$(grep 'rule-verbatim-copy' "$PIPE_OUT" | head -1)"
 assert_eq "the escaped row still has exactly the contract's columns" \
   "$(printf '%s' "$PIPE_ROW" | sed 's/\\|//g' | tr -cd '|' | wc -c | tr -d ' ')" "8"
 assert_contains "a bare pipe is escaped" "$PIPE_ROW" '\|'
-# The needle is the DOUBLE-ESCAPED form a naive gsub produces: three characters,
-# backslash backslash pipe.
 assert_not_contains "an already-escaped pipe is not double-escaped" "$PIPE_ROW" '\\|'
 assert_not_contains "a newline inside a cell is replaced" "$PIPE_ROW" $'\n'
 
-# Location carries input too: an unescaped pipe in a path splits the row.
 write_report pipe-path.json '{
   "findings": [
     {"rule": "attribution/audit/rule-stamp-expired", "file": "a|b.md", "line": 1,
@@ -317,22 +279,11 @@ assert_eq "a pipe in a path keeps the row at the contract's columns" \
   "$(printf '%s' "$PIPE_PATH_ROW" | sed 's/\\|//g' | tr -cd '|' | wc -c | tr -d ' ')" "8"
 assert_contains "and the path is escaped in place" "$PIPE_PATH_ROW" 'a\|b.md:1'
 
-# --- Unparsed and coverage -------------------------------------------------------
-
 UNP="$OUTDIR/unparsed.md"
 run --report "$REPORTS/unparsed.json" --out "$UNP" >/dev/null 2>&1
 assert_exit "a finding with no rule id still exits 0" "$?" "0"
 assert_contains "an unrecognized finding lands in Unparsed" "$(cat "$UNP")" "## Unparsed"
 assert_contains "the unparsed finding keeps its raw text" "$(cat "$UNP")" "no rule id"
-
-# --- The relay boundary holds without a rule id ----------------------------------
-#
-# A judgment verdict carrying no rule id escapes a rule-first boundary: nothing
-# classifies it, so it falls through to `## Unparsed` and is dumped verbatim — tier
-# name and payload included — into the very file the boundary keeps it out of.
-# Withholding is decided by the DECLARED TIER, ahead of any rule lookup, so no
-# verdict re-enters through the appendix. The finding is still counted in
-# `## Surfaces`: counting is not a silent drop.
 
 write_report withheld-nf.json '{
   "counts": {"files": 2},
@@ -374,8 +325,6 @@ for wcase in "nf:not-found:LEAKCANARY.example" \
   assert_contains "a rule-less $wtier finding is counted, not dropped" "$WBODY" "1 judgment"
 done
 
-# Paired with a copy rule id, a vendored-snapshot verdict is still a judgment
-# verdict: it is counted as one, not as a copy declaring no relayable tier.
 write_report withheld-vs-rule.json '{
   "counts": {"files": 2},
   "findings": [
@@ -399,7 +348,6 @@ assert_contains "a rule-paired vendored-snapshot finding is counted as judgment"
 assert_not_contains "a rule-paired vendored-snapshot finding is not counted as ineligible" \
   "$VSR_BODY" "Not relay-eligible"
 
-# Casing is not a way around the boundary: the tier is matched case-folded.
 write_report withheld-cased.json '{
   "counts": {"files": 2},
   "findings": [
@@ -415,7 +363,6 @@ assert_not_contains "a differently-cased judgment payload is still withheld" \
   "$CASED_BODY" "LEAKCANARY-CASED"
 assert_contains "a differently-cased judgment finding is counted" "$CASED_BODY" "1 judgment"
 
-# A tier declared below the top level is still a declared tier.
 write_report withheld-nested.json '{
   "counts": {"files": 2},
   "findings": [
@@ -430,17 +377,10 @@ assert_not_contains "a nested judgment tier is still withheld" "$NEST_BODY" "llm
 assert_not_contains "a nested judgment payload is still withheld" "$NEST_BODY" "LEAKCANARY-NEST"
 assert_contains "a nested judgment finding is counted" "$NEST_BODY" "1 judgment"
 
-# A tier field is read generously, because every sloppiness here is a leak and
-# none is a false relay row. Each of these declares a withheld verdict in a shape
-# an exact top-level string match would have missed.
 write_report withheld-padded.json '{
   "findings": [{"tier": "  not-found  ", "file": "a.md", "note": "PADCANARY",
                 "searched": ["https://x.example/"]}]
 }'
-# These two declare `not-found` and so must name their searched surfaces like any
-# other not-found finding — the gate reads the same declared tier the boundary
-# does, so an evasive spelling buys no pass through it. The listing is input the
-# gate consumes and never emits, so it gets a canary of its own.
 write_report withheld-arraytier.json '{
   "findings": [{"tier": ["not-found"], "file": "a.md", "note": "ARRCANARY",
                 "searched": ["https://ARRSURFACE.example/u"]}]
@@ -470,9 +410,6 @@ assert_not_contains "an array-tier searched surface never reaches the file" \
 assert_not_contains "a capitalized-key searched surface never reaches the file" \
   "$(cat "$OUTDIR/withheld-capkey.md")" "CAPSURFACE.example"
 
-# The scope is the DECLARED tier. A verdict name spelled in some other field is
-# opaque payload, not a verdict, and does not withhold the record — asserted so
-# the limit stays a stated one rather than an accident.
 write_report unparsed-prose-tier.json '{
   "findings": [{"file": "a.md", "note": "PROSECANARY mentions llm-suspected in prose"}]
 }'
@@ -484,7 +421,6 @@ assert_contains "a verdict name in free text is not a tier declaration" \
 assert_contains "such a record is reported as unmapped, not withheld" \
   "$PROSE_BODY" "Unmapped: 1"
 
-# A valid rule id does not readmit a withheld verdict: the tier decides first.
 write_report withheld-with-rule.json '{
   "counts": {"files": 2},
   "findings": [
@@ -501,15 +437,6 @@ assert_not_contains "a judgment tier on a stamp rule is still withheld" \
 assert_eq "a judgment tier on a stamp rule emits no relay row" \
   "$(grep -c '^| [0-9]' "$WRULE")" "0"
 assert_contains "a judgment tier on a stamp rule is counted" "$RULE_BODY" "1 judgment"
-
-# --- The gate and the boundary read ONE declared tier ------------------------------
-#
-# A gate comparing `.tier` to "not-found" exactly, at the top level, is laxer than a
-# boundary that recognizes four more shapes. A sidecar declaring the verdict in any
-# of those shapes then skips the refusal and is counted as withheld instead — the
-# schema check silently not running is worse than it failing. Both read the same
-# declared tier, so every shape the boundary withholds is a shape the gate demands a
-# `searched` listing for.
 
 write_report gate-capkey.json '{
   "findings": [{"Tier": "not-found", "file": "a.md", "note": "GATECAP"}]
@@ -532,8 +459,6 @@ for gname in capkey arraytier padded verdict; do
   assert_no_file "the refused $gname sidecar writes nothing" "$GOUT"
 done
 
-# The gate is scoped to not-found, like the boundary is scoped to three names. A
-# nested tier that is NOT a declaration must not start demanding a searched array.
 write_report gate-unrelated.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -545,11 +470,6 @@ write_report gate-unrelated.json '{
 GUN="$OUTDIR/gate-unrelated.md"
 run --report "$REPORTS/gate-unrelated.json" --out "$GUN" >/dev/null 2>&1
 assert_exit "a not-found named outside the declared tier is not gated" "$?" "0"
-
-# --- A `verdict` key is a declaration WHOLE, not only its `tier` child -------------
-#
-# A bare string, a list, and a `tier` one level further down say what
-# `verdict.tier` says, so the whole `verdict` value is the declared tier.
 
 write_report verdict-string.json '{
   "counts": {"files": 2},
@@ -565,8 +485,6 @@ write_report verdict-deep.json '{
   "findings": [{"verdict": {"result": {"tier": "llm-suspected"}}, "file": "vd.md",
                 "excerpt": "VDEEPCANARY"}]
 }'
-# The KEY casing is what this case tests, so the VALUE is spelled the way the needle
-# below is, or a case-sensitive glob would keep this assertion from failing.
 write_report verdict-cased.json '{
   "counts": {"files": 2},
   "findings": [{"Verdict": "llm-suspected", "file": "vc.md", "excerpt": "VCASECANARY"}]
@@ -598,14 +516,6 @@ for vc in "string:not-found:VSTRCANARY" "array:llm-suspected:VARRCANARY" \
   fi
 done
 
-# --- The drop direction of the whole-`verdict` read --------------------------------
-#
-# The `verdict` fallback applies ONLY to a record that declares no `tier`. A record
-# that declares one has declared its tier: the tier is set by fixed rule from the
-# evidence and a `verdict` is the judges output, different fields by design, so
-# reading the verdict beside a declared tier is the over-capture drop one container
-# in. Taking the WHOLE verdict makes that worse, because every sibling key inside it
-# becomes a tier declaration.
 write_report verdict-beside-confirmed.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -624,9 +534,6 @@ assert_eq "a declared fingerprint-confirmed tier wins over a verdict beside it" 
 assert_not_contains "and the copy is not counted as a judgment finding" \
   "$(cat "$VBC")" "judgment findings"
 
-# The same rule keeps a confirmed copy out of the whole-sidecar refusal: a `verdict`
-# is not consulted at all when a `tier` is declared, so a superseded outcome named
-# beside it demands no searched listing.
 write_report verdict-superseded.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -643,8 +550,6 @@ assert_exit "a superseded outcome beside a declared tier refuses nothing" "$?" "
 assert_eq "and the confirmed copy still reaches the relay" \
   "$(grep -c '^| [0-9]' "$VSUP")" "1"
 
-# The fallback turns on a tier NAMED, not on a `tier` key present, so one unusable
-# value cannot disarm the whole boundary.
 write_report tier-unusable-null.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-future", "tier": null,
@@ -675,10 +580,6 @@ for uu in "null:not-found:UNUSABLENULL" "empty:source-fetched-similar:UNUSABLEEM
   assert_contains "an unusable tier is counted, not dropped ($un)" "$UB" "1 judgment"
 done
 
-# The SAME rule applies one step in. Let an unusable `verdict.tier` make the whole
-# verdict unread and the outcome beside it prints verbatim into `## Unparsed` while
-# the gate never runs — the identical hazard at the identical position, one container
-# down.
 write_report verdict-tier-unusable-word.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-nomination", "file": "vu.md",
@@ -718,8 +619,6 @@ for vu in "word:not-found:VUWORDCANARY" "null:llm-suspected:VUNULLCANARY" \
   assert_contains "an unusable verdict.tier is counted ($vun)" "$VUB" "1 judgment"
 done
 
-# It does not let a not-found skip the gate either, and it does not relay a stamp rule
-# carrying the smuggled outcome.
 write_report verdict-tier-unusable-gate.json '{
   "counts": {"files": 2},
   "findings": [{"verdict": {"tier": "pending", "result": "not-found"}, "file": "vg.md"}]
@@ -741,7 +640,6 @@ assert_eq "a stamp rule carrying a smuggled outcome emits no relay row" \
   "$(grep -c '^| [0-9]' "$VUS")" "0"
 assert_contains "and it is counted as withheld" "$(cat "$VUS")" "1 judgment"
 
-# And the same shape without a searched listing is refused, not quietly appended.
 write_report tier-unusable-ungated.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-future", "tier": "pending",
@@ -751,8 +649,6 @@ run --report "$REPORTS/tier-unusable-ungated.json" \
   --out "$OUTDIR/tier-unusable-ungated.md" >/dev/null 2>&1
 assert_exit "an unusable tier does not let a not-found skip the searched gate" "$?" "3"
 
-# With no top-level tier, the verdict IS the declaration, and its `tier` child is the
-# tier when it has one — a sibling key inside the verdict is not.
 write_report verdict-child-confirmed.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -770,14 +666,6 @@ assert_eq "and its copy reaches the relay" "$(grep -c '^| [0-9]' "$VCH")" "1"
 assert_not_contains "and it is not counted as withheld" \
   "$(cat "$VCH")" "judgment findings"
 
-# --- A record that is not an object carries no verdict into the appendix -----------
-#
-# The malformed-record route runs BEFORE any tier is read, so one array layer around
-# a verdict declaration would bypass the boundary and the searched gate alike, and
-# print the tier name and the payload verbatim into `## Unparsed`. A record with no
-# declared tier to respect is therefore withheld when a verdict name appears anywhere
-# inside it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong
-# wrapper.
 write_report record-wrapped-object.json '{
   "counts": {"files": 2},
   "findings": [[{"tier": "not-found", "excerpt": "WRAPOBJCANARY"}]]
@@ -804,8 +692,6 @@ for rw in "wrapped-object:not-found:WRAPOBJCANARY" "bare-string:not-found:none" 
   fi
 done
 
-# A malformed record naming no verdict keeps the appendix path, and never costs the
-# well-formed findings beside it.
 write_report record-wrapped-benign.json '{
   "counts": {"files": 2},
   "findings": [
@@ -821,11 +707,6 @@ assert_contains "a benign wrapped record still lands in Unparsed" \
   "$RWB_BODY" "BENIGNWRAPCANARY"
 assert_contains "and the well-formed finding beside it still relays" "$RWB_BODY" "ok.md:4"
 
-# --- The searched listing is read wherever the outcome is declared ----------------
-#
-# The gate reads the declared tier through slots that are case-folded and generous
-# about wrappers; it must read `searched` through the same ones, or it refuses a
-# sidecar that satisfies the very requirement it enforces.
 write_report gate-verdict-searched.json '{
   "counts": {"files": 2},
   "findings": [{"verdict": {"tier": "not-found", "searched": ["https://gv.example/u"]},
@@ -857,12 +738,6 @@ for gs in verdict-searched verdict-cased-searched tier-object-searched \
     "$(cat "$GO")" "1 judgment"
 done
 
-# --- The neutral outcome under the retired spelling -------------------------------
-#
-# `source-not-identified` is a retired spelling of `not-found` the reader still
-# recognizes: a sidecar is model-authored against whatever description was in
-# context. One name too many can only withhold a record; one too few walks a
-# judgment verdict onto a relay row. This tolerance is permanent.
 write_report neutral-published-name.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-stamp-expired", "file": "sn.md",
@@ -889,10 +764,6 @@ run --report "$REPORTS/neutral-published-ungated.json" \
 assert_exit "the published neutral tier names its surfaces like the other spelling" \
   "$?" "3"
 
-# --- A sidecar that does not parse says so ----------------------------------------
-#
-# `has("findings")` fails on unparsable input too, which would blame a missing
-# findings key, a cause the input does not have.
 write_report truncated.json '{"findings": [{"rule": "x"'
 TRUNC_ERR="$(run --report "$REPORTS/truncated.json" --out "$OUTDIR/truncated.md" 2>&1)"
 assert_exit "a truncated sidecar exits 3" "$?" "3"
@@ -903,21 +774,12 @@ GARB_ERR="$(run --report "$REPORTS/garbage.json" --out "$OUTDIR/garbage2.md" 2>&
 assert_contains "non-JSON input says it is not a JSON object" \
   "$GARB_ERR" "not a JSON object"
 
-# --- A findings key that is not a list is named for what it is --------------------
-#
-# Left to the not-found gate, it fails inside that gate and is refused under that
-# gate's message, reporting a cause the input does not have.
 write_report findings-scalar.json '{"findings": "none"}'
 FSC="$OUTDIR/findings-scalar.md"
 FSC_ERR="$(run --report "$REPORTS/findings-scalar.json" --out "$FSC" 2>&1)"
 assert_exit "a non-list findings key exits 3" "$?" "3"
 assert_contains "and says the findings key is not a list" "$FSC_ERR" "not a list"
 assert_not_contains "and does not blame the not-found check" "$FSC_ERR" "not-found finding"
-
-# --- A verdict name is matched EXACTLY, never as a prefix -------------------------
-#
-# A candidate name has to EQUAL a verdict after trimming and case-folding, so an
-# extended name such as `not-found-v2` reaches `## Unparsed` instead of a silent drop.
 
 write_report tier-extended.json '{
   "counts": {"files": 2},
@@ -945,8 +807,6 @@ assert_contains "a suffixed llm tier name stays visible in Unparsed" \
 assert_contains "a suffixed llm tier name is reported as unmapped" \
   "$EXTL_BODY" "Unmapped: 1"
 
-# Exact naming does not readmit the wrapper shapes: the WRAPPER is read generously
-# and the NAME exactly, so a verdict buried two containers deep is still a verdict.
 write_report tier-deep-wrapper.json '{
   "findings": [{"tier": {"history": [{"name": "  LLM-Suspected  "}]}, "file": "x.md",
                 "note": "DEEPWRAPCANARY"}]
@@ -959,9 +819,6 @@ assert_not_contains "a verdict wrapped two containers deep is still withheld" \
 assert_not_contains "a deeply wrapped verdict leaks no payload" "$DW_BODY" "DEEPWRAPCANARY"
 assert_contains "a deeply wrapped verdict is counted" "$DW_BODY" "1 judgment"
 
-# Trimming covers every invisible character, by Unicode CLASS rather than by a list
-# of the ones someone thought of: a tier that RENDERS as a verdict name in the
-# written file is a verdict name in the written file.
 write_report tier-invisible-zwsp.json '{
   "findings": [{"tier": "​not-found﻿", "file": "x.md", "note": "INVIS-ZWSP",
                 "searched": ["https://z.example/u"]}]
@@ -988,8 +845,6 @@ write_report tier-invisible-nbsp.json '{
   "findings": [{"tier": " not-found ", "file": "x.md", "note": "INVIS-NBSP",
                 "searched": ["https://z.example/u"]}]
 }'
-# A format character reads as nothing INSIDE the name too, so it is stripped there,
-# not only at the ends.
 write_report tier-invisible-interior.json '{
   "findings": [{"tier": "not-‍found", "file": "x.md", "note": "INVIS-INTERIOR",
                 "searched": ["https://z.example/u"]}]
@@ -998,8 +853,6 @@ write_report tier-invisible-interior2.json '{
   "findings": [{"verdict": {"tier": "source-fetched-​similar"}, "file": "x.md",
                 "note": "INVIS-INTERIOR2"}]
 }'
-# A variation selector and a combining grapheme joiner render as nothing too, and are
-# category Mn rather than Cf, so stripping `Cf` alone does not cover them.
 write_report tier-invisible-vs16.json '{
   "findings": [{"tier": "not-found️", "file": "x.md", "note": "INVIS-VS16",
                 "searched": ["https://z.example/u"]}]
@@ -1026,8 +879,6 @@ for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   assert_contains "an invisibly padded verdict is counted ($ivn)" "$IVB" "1 judgment"
 done
 
-# A hyphen homoglyph renders exactly like the verdict it spells, and every one of
-# these names is hyphenated. Folded by the DASH class, not by a list.
 write_report tier-dash-u2010.json '{
   "findings": [{"tier": "not‐found", "file": "x.md", "note": "DASH2010CANARY",
                 "searched": ["https://z.example/u"]}]
@@ -1051,7 +902,6 @@ for dc in "u2010:not-found:DASH2010CANARY" "u2011:llm-suspected:DASH2011CANARY" 
   assert_contains "a hyphen homoglyph is counted ($dcn)" "$DCB" "1 judgment"
 done
 
-# A verdict name spelled as a KEY says what the same name spelled as a value says.
 write_report tier-key-name.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-unknown", "file": "k.md", "line": 1,
@@ -1082,8 +932,6 @@ for kc in "tier-key-name:not-found:KEYNAMECANARY" \
   assert_contains "a verdict spelled as a key is counted ($kcn)" "$KCB" "1 judgment"
 done
 
-# A wrapped record carrying an invisibly spelled verdict is withheld by the same
-# reader: the malformed-record route normalizes before it compares.
 write_report record-invisible-wrapped.json '{
   "counts": {"files": 2},
   "findings": [["llm-suspected️", "WRAPINVISCANARY"]]
@@ -1096,10 +944,6 @@ assert_not_contains "an invisibly spelled verdict in a wrapped record is withhel
 assert_not_contains "and it leaks no payload" "$RIW_BODY" "WRAPINVISCANARY"
 assert_contains "and it is counted" "$RIW_BODY" "1 judgment"
 
-# What RENDERS is what counts, in both directions. A separator and a combining mark
-# both render, so neither is stripped: `not found` and `not-fóund` are different names
-# and keep the appendix path an unknown tier gets, rather than being guessed into a
-# verdict this producer never withheld.
 write_report tier-visible-space.json '{
   "counts": {"files": 2},
   "findings": [{"tier": "not found", "file": "x.md", "note": "VISIBLESPACECANARY"}]
@@ -1117,10 +961,6 @@ for vz in "space:VISIBLESPACECANARY" "accent:VISIBLEACCENTCANARY"; do
     "$(cat "$VZO")" "$vzk"
 done
 
-# FREE TEXT in a tier field names no tier, which is the same answer this producer
-# already gives a verdict name spelled in a `note`. It has to be: withholding a
-# fingerprint-confirmed copy because a `verdict.tier` review note mentions a verdict
-# is the over-capture drop wearing an allowlisted key.
 write_report tier-freetext.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1142,9 +982,6 @@ assert_contains "the surviving copy is counted as relay-eligible" \
 assert_not_contains "the surviving copy is not counted as a judgment finding" \
   "$FT_BODY" "judgment findings"
 
-# The same shape naming `not-found` must not escalate into a whole-sidecar refusal:
-# a review note is not a not-found outcome, so there are no searched surfaces to
-# demand and nothing to refuse.
 write_report tier-freetext-nf.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1161,10 +998,6 @@ assert_exit "a review note naming not-found is not a not-found finding" "$?" "0"
 assert_eq "and the copy it annotates still reaches the relay" \
   "$(grep -c '^| [0-9]' "$FTN")" "1"
 
-# --- One reader answers the eligibility question too -------------------------------
-#
-# Eligibility reads the declared tier through the same reader withholding does, so a
-# copy declaring fingerprint-confirmed at an allowlisted position is not dropped.
 write_report eligible-capkey.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1195,10 +1028,6 @@ for ecase in "capkey:ec.md:41" "verdict:ev.md:42"; do
     "$EBODY" "Not relay-eligible"
 done
 
-# --- One malformed record never takes the run with it ------------------------------
-#
-# jq aborts the whole program on a type error. Refusing a sidecar is for what the
-# input-refusal gates examine deliberately; a single bad record goes to `## Unparsed`.
 write_report malformed-mixed.json '{
   "counts": {"files": 2},
   "findings": [
@@ -1225,13 +1054,6 @@ assert_contains "a non-object record lands in Unparsed" "$MAL_BODY" "MALFORMEDAR
 assert_contains "a scalar record lands in Unparsed" "$MAL_BODY" "MALFORMEDSTRING"
 assert_contains "a mistyped rule id lands in Unparsed" "$MAL_BODY" "MALFORMEDRULE"
 assert_contains "a mistyped span still emits its copy row" "$MAL_BODY" "| s.md |"
-
-# --- The other direction: relay-eligible findings SURVIVE --------------------------
-#
-# Every assertion above is a withhold assertion, and a boundary asserted only in one
-# direction is satisfied by withholding everything. These records declare
-# `fingerprint-confirmed` or a stamp rule at the top level and carry an unrelated
-# nested `tier`; the sidecar is model-authored against no schema, so none is contrived.
 
 write_report survive-nested-history.json '{
   "counts": {"files": 2},
@@ -1317,10 +1139,6 @@ for vcase in "nested-history:rule-verbatim-copy:s1.md:11" \
     "$VBODY" "## Unparsed"
 done
 
-# The stated limit of the value half, asserted so it stays a stated one. A DECLARED
-# tier whose value names a judgment verdict is withheld even when it names
-# fingerprint-confirmed too: nothing here can tell that history array from the
-# `["not-found"]` evasion above, and withholding is the side that stays visible.
 write_report survive-ambiguous.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1337,11 +1155,6 @@ assert_eq "a tier naming both a verdict and a relay tier emits no row" \
   "$(grep -c '^| [0-9]' "$AMB")" "0"
 assert_contains "such a record is counted, never dropped" "$AMB_BODY" "1 judgment"
 
-# --- Each Surfaces count says what its records ARE --------------------------------
-#
-# A copy rule declaring neither fingerprint-confirmed nor a judgment verdict is not
-# relay-eligible, but it is not a judgment finding on the human report either.
-# Counting it as one sends a reader looking for it where it is not.
 write_report ineligible-copy.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1357,12 +1170,6 @@ assert_eq "a copy declaring no fingerprint-confirmed tier emits no row" \
   "$(grep -c '^| [0-9]' "$INEL")" "0"
 assert_contains "it is counted as not relay-eligible" "$INEL_BODY" "Not relay-eligible: 1"
 
-# A STAMP rule fires on date arithmetic that owes the tier nothing, so it relays
-# whatever the record does or does not declare — except when its own `tier` field
-# names a tier this reader cannot read. `"nоt-found"` with a Cyrillic o is a homoglyph
-# past the dash class, and the stated limit says such a record takes the ordinary path
-# rather than the relay: relaying on it hands the apply relay a record whose own
-# verdict this producer cannot read.
 write_report stamp-unreadable-tier.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-stamp-expired", "file": "su.md",
@@ -1377,9 +1184,6 @@ assert_eq "a stamp rule declaring an unreadable tier emits no relay row" \
 assert_contains "and it is counted as not relay-eligible" \
   "$SUT_BODY" "Not relay-eligible: 1"
 
-# The exception is scoped to the record's OWN tier field. A stamp finding carrying a
-# benign `verdict` has declared no tier and must still relay: withholding it would be
-# the over-capture the whole boundary exists to avoid.
 write_report stamp-benign-verdict.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-stamp-expired", "file": "sb.md",
@@ -1393,12 +1197,6 @@ assert_eq "a stamp rule with a benign verdict still relays" \
 assert_not_contains "and is not counted as ineligible" \
   "$(cat "$SBV")" "Not relay-eligible"
 
-# The OTHER condition that stops a stamp record short of the relay, and the one
-# evaluated FIRST. A stamp record with no `tier` field at all, whose `verdict` names a
-# judgment verdict, is withheld on the judgment-verdict check before the unreadable-
-# tier predicate is ever consulted. It is counted as WITHHELD, not as not-relay-
-# eligible, which is how the two conditions are told apart from the outside. The
-# behavior is correct and load-bearing: the record declared a judgment verdict.
 write_report stamp-verdict-names-judgment.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-stamp-expired", "file": "svj.md",
@@ -1417,7 +1215,6 @@ assert_not_contains "and it takes the withheld path, not the unreadable-tier pat
   "$SVJ_BODY" "Not relay-eligible"
 assert_not_contains "and it leaks no payload" "$SVJ_BODY" "SVJCANARY"
 
-# A stamp rule declaring no tier at all is the common case and relays.
 write_report stamp-no-tier.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "attribution/audit/rule-trigger-less-stamp", "file": "sn3.md",
@@ -1427,10 +1224,6 @@ run --report "$REPORTS/stamp-no-tier.json" --out "$OUTDIR/stamp-no-tier.md" >/de
 assert_eq "a stamp rule declaring no tier relays" \
   "$(grep -c '^| [0-9]' "$OUTDIR/stamp-no-tier.md")" "1"
 
-# --- The searched key is case-folded like every other key the reader matches -------
-#
-# The boundary case-folds `tier` and `verdict`, so the gate case-folds `searched`
-# too, or a sidecar that DOES name its surfaces is refused whole.
 write_report gate-searched-cased.json '{
   "counts": {"files": 2},
   "findings": [
@@ -1454,8 +1247,6 @@ assert_not_contains "it is not miscounted as a judgment finding" \
 assert_not_contains "an ineligible copy still leaks no payload" \
   "$INEL_BODY" "INELIGIBLECANARY"
 
-# The genuine `## Unparsed` path is untouched. Unmappable for any reason OTHER than
-# a withheld verdict — an unknown rule id, an unknown tier — still lands verbatim.
 write_report unparsed-unknown-rule.json '{
   "counts": {"files": 2},
   "findings": [
@@ -1490,14 +1281,6 @@ assert_file "a zero-finding run still writes the file" "$EMPTY"
 assert_contains "coverage is reported even with no findings" "$(cat "$EMPTY")" "## Surfaces"
 assert_contains "the surfaces line names the corpus size" "$(cat "$EMPTY")" "10"
 
-# --- The restated-fact lane relays on a declared outcome, never on a tier -----------
-#
-# rule-restated-upstream-fact is the one judged rule that reaches the relay. A
-# restated-fact finding maps to a judgment tier by fixed rule and is never
-# fingerprint-confirmed, so no tier test can decide it: the relay reads the class,
-# the rule id, and a declared outcome (a unanimous STANDS that the refutation pass
-# could not refute). Every restated-fact record lacking that outcome stays withheld
-# and counted, and no tier name or grade ever reaches the file.
 RS_BASE='{
   "rule": "attribution/audit/rule-restated-upstream-fact",
   "file": "rs.md", "line": 7, "class": "restated-fact", "tier": "llm-suspected",
@@ -1507,8 +1290,6 @@ RS_BASE='{
   "review": {"agents": 1, "verdict": "SURVIVES", "evidence": "RSREVIEWCANARY"}
 }'
 
-# rs_case <name> <jq filter applied to the base record>: writes the sidecar, runs the
-# emitter, and leaves RS_OUT, RS_BODY and RS_ROWS for the assertions.
 rs_case() {
   jq -c "$2" <<<"$RS_BASE" | jq -s '{counts: {files: 2}, findings: .}' >"$REPORTS/$1.json"
   RS_OUT="$OUTDIR/$1.md"
@@ -1517,8 +1298,6 @@ rs_case() {
   RS_BODY="$(cat "$RS_OUT" 2>/dev/null)"
   RS_ROWS="$(grep -c '^| [0-9]' "$RS_OUT" 2>/dev/null)"
 }
-# rs_withheld <label> <name> <filter>: the record emits no row, is counted as
-# withheld, never opens `## Unparsed`, and leaks neither a grade nor a tier name.
 rs_withheld() {
   rs_case "$2" "$3"
   assert_exit "$1: the run still exits 0" "$RS_EXIT" "0"
@@ -1529,7 +1308,6 @@ rs_withheld() {
   assert_not_contains "$1: no review leaks" "$RS_BODY" "RSREVIEWCANARY"
 }
 
-# Relays: unanimous, survived, at every tier the class can carry, and at none.
 rs_case rs-relay '.'
 assert_eq "a unanimous survived restated fact is one row" "$RS_ROWS" "1"
 assert_contains "the row leads with the qualified rule id" "$RS_BODY" \
@@ -1555,8 +1333,6 @@ rs_case rs-relay-notfound '.tier = "not-found" | .searched = ["RSSEARCHED-1", "R
 assert_eq "a survived restated fact whose source search ended not-found relays" "$RS_ROWS" "1"
 assert_not_contains "and the searched surfaces stay out of the file" "$RS_BODY" "RSSEARCHED"
 
-# The searched-surfaces gate is the tier reader's, and it is unchanged: a not-found
-# outcome naming no surfaces concludes nothing, for this class as for any other.
 rs_case rs-notfound-unlisted '.tier = "not-found"'
 assert_exit "a not-found restated fact naming no surfaces is still refused" "$RS_EXIT" "3"
 
@@ -1565,8 +1341,6 @@ assert_eq "the declared tier plays no part: a record declaring none relays" "$RS
 rs_case rs-relay-folded '.rubric.verdict = "  stands " | .review.verdict = "Survives"'
 assert_eq "a verdict spelled in another case still reads as the name it shows" "$RS_ROWS" "1"
 
-# The cell prints only values of the expected type, so a stray object where a number,
-# a URL or an excerpt belongs cannot carry a tier name into the file.
 rs_case rs-relay-odd-values \
   '.rubric.samples = {"x": "llm-suspected"} | .source = {"url": {"tier": "not-found"}} | .excerpt = {"tier": "source-fetched-similar"}'
 assert_eq "a record whose cell values are the wrong type still relays" "$RS_ROWS" "1"
@@ -1575,7 +1349,6 @@ for leaked in llm-suspected source-fetched-similar not-found; do
   assert_not_contains "a wrong-typed value never carries $leaked into the file" "$RS_BODY" "$leaked"
 done
 
-# Withheld: each is a restated-fact finding on the human report.
 rs_withheld "a split panel" rs-split '.rubric.unanimous = false'
 rs_withheld "a panel verdict other than STANDS" rs-not-stands '.rubric.verdict = "MIXED"'
 rs_withheld "a refuted finding" rs-vetoed '.review.verdict = "REFUTED"'
@@ -1596,16 +1369,11 @@ rs_withheld "a foreign plugin's rule id" rs-foreign-rule '.rule = "other/audit/r
 rs_withheld "a foreign plugin's rule id, another class and no tier" rs-foreign-rule-class \
   '.rule = "other/audit/rule-restated-upstream-fact" | .class = "paraphrase" | del(.tier)'
 
-# A restated-fact class never becomes a copy row. The copy row's Action names the fix
-# flow, and this class is never eligible for it, so the class routes the record even
-# when the rule id and the tier both say copy.
 rs_withheld "the copy rule id under a fingerprint-confirmed tier" rs-copy-confirmed \
   '.rule = "attribution/audit/rule-verbatim-copy" | .tier = "fingerprint-confirmed"'
 rs_withheld "the copy rule id and no tier" rs-copy-untiered \
   '.rule = "attribution/audit/rule-verbatim-copy" | del(.tier)'
 
-# The other direction: a COPY record carrying the same outcome relays nothing new.
-# The outcome is read for the restated rule alone.
 write_report rs-copy-with-outcome.json "{
   \"counts\": {\"files\": 2},
   \"findings\": [{
@@ -1621,9 +1389,6 @@ assert_eq "a copy finding carrying a survived outcome is still withheld" \
 assert_contains "and is counted as withheld" "$(cat "$OUTDIR/rs-copy-with-outcome.md")" \
   "Withheld from the relay: 1 judgment"
 
-# Beside the other rules: the existing counts stay exact, the new row ranks last, and
-# the remedy is pinned to the scope it fires in. The copy row names the fix flow; the
-# restated row names the two dispositions and never the fix flow, in either direction.
 jq --argjson rs "$RS_BASE" '.findings += [$rs]' "$REPORTS/full.json" >"$REPORTS/rs-mixed.json"
 run --report "$REPORTS/rs-mixed.json" --out "$OUTDIR/rs-mixed.md" >/dev/null 2>&1
 RS_MIXED="$(cat "$OUTDIR/rs-mixed.md")"
@@ -1644,16 +1409,12 @@ assert_not_contains "nor a remediating invocation of any kind" "$RS_ROW" "remedi
 assert_not_contains "and the stamp rows do not carry the restated remedy" \
   "$(grep '^| [0-9].*rule-stamp-expired' "$OUTDIR/rs-mixed.md")" "pointer at the point of use"
 
-# --- Non-overwrite naming --------------------------------------------------------
-
 DUP="$OUTDIR/dup.md"
 run --report "$REPORTS/full.json" --out "$DUP" >/dev/null 2>&1
 run --report "$REPORTS/full.json" --out "$DUP" >/dev/null 2>&1
 assert_file "a second write takes the -2 suffix" "$OUTDIR/dup-2.md"
 run --report "$REPORTS/full.json" --out "$DUP" >/dev/null 2>&1
 assert_file "a third write takes the -3 suffix" "$OUTDIR/dup-3.md"
-
-# --- Branch handling -------------------------------------------------------------
 
 BR="$OUTDIR/branch.md"
 run --report "$REPORTS/full.json" --out "$BR" --branch 'no' >/dev/null 2>&1
@@ -1662,8 +1423,6 @@ assert_contains "a YAML-implicit-typed branch name is quoted" "$(cat "$BR")" 'br
 BR2="$OUTDIR/branch2.md"
 run --report "$REPORTS/full.json" --out "$BR2" --branch '#hash' >/dev/null 2>&1
 assert_contains "a branch starting with a YAML indicator is quoted" "$(cat "$BR2")" 'branch: "#hash"'
-
-# --- Absolute paths --------------------------------------------------------------
 
 write_report abs.json "{
   \"findings\": [
@@ -1680,12 +1439,6 @@ write_report abs.json "{
 ABS="$OUTDIR/abs.md"
 run --report "$REPORTS/abs.json" --out "$ABS" >/dev/null 2>&1
 
-# The producer relativizes against two spellings of the root: git's toplevel, and
-# `cd`-then-`pwd` of it. `mktemp -d` here answers a THIRD, a mount alias git
-# never reports, so the finding path in this fixture matches neither anchor and
-# the row is declined as outside the root -- the producer working as designed on
-# a path it was never handed. Probe for that third spelling rather than skipping
-# on the OS name: where either anchor names the fixture, the case runs.
 attribution_root_spelling_reaches_an_anchor() {
   local top alt
   top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -1706,13 +1459,6 @@ else
     'the fixture root has a third spelling git never reports, so no anchor names it'
 fi
 
-# --- Write failures --------------------------------------------------------------
-#
-# The worst outcome for a persistence step is reporting success having written
-# nothing: the audit says the findings are relayed, and the consumer never scans
-# a file that does not exist. `set -e` is deliberately not on in this script, so
-# the two writing commands are checked explicitly.
-
 assert_fails "an uncreatable destination directory exits non-zero" \
   bash "$EMIT" --report "$REPORTS/full.json" --out /proc/nope/deeper/x.md
 
@@ -1731,8 +1477,6 @@ else
     'this user ignores mode bits, so the destination stays writable'
 fi
 chmod u+w "$UNWRITABLE"
-
-# --- Determinism -----------------------------------------------------------------
 
 D1="$OUTDIR/det1.md"
 D2="$OUTDIR/det2.md"

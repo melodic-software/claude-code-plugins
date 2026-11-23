@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# splice-assets.sh: splice the workspace assets library into one HTML lesson, in place.
-#
-# A shipped script, so the splice is one tested command rather than an inline write-then-`mv`
-# recipe. The build itself is the sibling `splice-assets.awk`.
-#
-# Marker contract:
-#   A line containing `/* SPLICE:STYLE */` is replaced by the content of `<assets-dir>/lesson.css`.
-#   A line containing `/* SPLICE:QUIZ */`  is replaced by the content of `<assets-dir>/quiz.js`.
-#   Markers sit on their own lines inside otherwise-empty `<style>` and `<script>` pairs. A marker
-#   line is replaced whole, so a marker line must consist of the marker alone: leading and
-#   trailing whitespace is allowed and nothing else is, and a marker sharing its line with tags,
-#   prose, or the other marker is refused rather than half-applied, as is a marker that occurs
-#   more than once anywhere in the lesson. A lesson
-#   that does not need an asset omits its marker together with the tag pair, and then makes no
-#   demand on that asset file. Only the markers actually present are replaced; every other line
-#   passes through unchanged. Detection is fixed-string, because the marker text is not a valid
-#   regular expression.
-#
 # Exit table:
 #   0  every marker present in the lesson was replaced; the lesson is overwritten from a fully
 #      built sibling temp file.
@@ -30,27 +12,6 @@
 #   2  the argument count is not 2, `<lesson.html>` is not a readable and writable regular file,
 #      or `<assets-dir>` is not a directory. Usage goes to stderr and the lesson is untouched.
 #   `--help`, or `-h`, prints usage to stdout and exits 0.
-#
-# Every validation runs before any write, so a refusal never leaves a half-built lesson.
-#
-# Newlines: each spliced asset lands with a final newline guaranteed, because awk's `print`
-# supplies one, and a lesson that had no final newline gains one. Everything else is byte
-# preserved, carriage returns included, so a CRLF lesson keeps its line endings on unspliced
-# lines.
-#
-# Overwrite, not rename: the temp file is built completely and then copied over the lesson with a
-# redirect. A rename would be atomic, but it fails on Windows while a browser holds the lesson
-# open, which is the documented delivery path (`context/lessons.md`, open-lesson affordance), and
-# it would carry the temp file's 0600 mode onto the lesson. The copy keeps the lesson's inode and
-# its mode.
-#
-# Why the assets directory travels in the environment and why `BINMODE=3` is passed: see the
-# header of `splice-assets.awk`, which is the program those two choices are for.
-#
-# Usage:
-#   splice-assets.sh <lesson.html> <assets-dir>
-#   splice-assets.sh --help
-
 set -uo pipefail
 
 usage() {
@@ -96,12 +57,6 @@ assets="$2"
   usage_error "<lesson.html> is not a readable, writable regular file: $lesson"
 [[ -d "$assets" ]] || usage_error "<assets-dir> is not a directory: $assets"
 
-# Validate every present marker and its asset BEFORE the first write, so a refusal never
-# touches the lesson. Occurrences are counted, not matching lines: `grep -c` would read two
-# markers on one line as one hit, pass validation, and then let awk replace the line once and
-# silently drop the second asset. `grep -o` prints one line per occurrence instead, and its
-# exit 1 on an absent marker is an ordinary outcome here rather than an error. The arithmetic
-# re-read normalizes the padding a BSD `wc` puts in front of the count.
 markers=('/* SPLICE:STYLE */' '/* SPLICE:QUIZ */')
 asset_names=('lesson.css' 'quiz.js')
 
@@ -113,13 +68,6 @@ for i in 0 1; do
     exit 1
   fi
   if [[ "$count" -eq 1 ]]; then
-    # A marker line is replaced whole, so anything else on it is silently dropped by a splice
-    # that succeeds. Refused here instead: the marker's line must be the marker alone. The
-    # comparison strips ALL whitespace from both sides, which allows indentation and also strips
-    # a trailing carriage return, so a CRLF lesson passes. The CR cannot be trimmed by grep or
-    # sed on the way here: Git Bash's grep opens a file in text mode, so no CR ever reaches this
-    # variable on the host where it matters, and stripping it in bash covers the hosts where one
-    # does.
     line=$(grep -F -- "$marker" "$lesson")
     if [[ "${line//[[:space:]]/}" != "${marker//[[:space:]]/}" ]]; then
       echo "splice-assets.sh: marker $marker shares its line in $lesson with other text; a marker line must hold the marker alone. The line is: $line" >&2
@@ -139,8 +87,6 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd) || {
   exit 1
 }
 
-# The temp file is a sibling of the lesson so the final copy never crosses a filesystem, and
-# the template form is the portable spelling of that placement.
 tmp=""
 trap 'if [[ -n "$tmp" ]]; then rm -f -- "$tmp"; fi' EXIT
 

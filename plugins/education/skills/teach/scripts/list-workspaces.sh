@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# list-workspaces.sh — probe listing the calling project's teach workspaces across roots.
-#
-# Exists because a worktree-isolated agent refused a pre-compute line carrying genuine
-# `$`-expansion (`$local`, command substitution, `${VAR:-default}`), so the derivation
-# inline made the whole skill fail to load there (the probe is in SKILL.md's
-# "Pre-computed Context" section). The invoking
-# line in SKILL.md passes plugin variables only; the `$`-bearing logic lives here, where a
-# shell reads it as an ordinary script. `${user_config.*}` tokens must NEVER reach the
-# pre-compute line either: we do not rely on one being substituted, and a surviving
-# literal is a bash `bad substitution` that kills the whole call. So the skill body
-# resolves the workspace-root ladder and re-invokes this script with the resolved roots
-# as ordinary arguments. Where each token is substituted: SKILL.md's "Pre-computed
-# Context" pointer record.
-#
-# The project-slug derivation below is an IMPLEMENTATION, not the specification: SKILL.md's
-# "Workspace layout" section is normative for it (canonicalize the project path first —
-# hoisting a linked git worktree to its main repository via `git rev-parse
-# --git-common-dir` — then basename-slug plus `-` and the first 8 hex chars of that
-# canonical path's sha256). Change the spec there first, then mirror it here.
-#
-# Usage:
-#   list-workspaces.sh <project-dir> <root>...
-#   list-workspaces.sh --default-root
-#   list-workspaces.sh --help
 
 set -uo pipefail
 
@@ -57,13 +33,6 @@ EOF
 fi
 
 canonicalize() {
-  # `cd` plus `pwd -P` leads because it is the one spelling a host collapses every
-  # alias of a directory into. Git for Windows hands the same directory out in at
-  # least three forms — `C:/repo` from `git rev-parse`, `/tmp/x` through a mount
-  # alias, `/c/repo` from the shell — and `realpath` passes each straight through,
-  # so the same repository would hash to a different slug per caller. On Linux
-  # `pwd -P` and `realpath` agree: both report the symlink-free physical path. The
-  # tail keeps the derivation total for a path that cannot be entered.
   (cd "$1" 2>/dev/null && pwd -P) ||
     realpath "$1" 2>/dev/null || readlink -f "$1" 2>/dev/null ||
     printf '%s' "$1"
@@ -88,8 +57,6 @@ if [[ "${1:-}" == "--default-root" ]]; then
   esac
   [[ -n "$docs" && -d "$docs" ]] || exit 1
   docs_canonical="$(canonicalize "$docs")"
-  # The ≠ $HOME guard: an unconfigured/headless box answers the Documents query with $HOME
-  # itself; treating that as Documents would scatter workspaces across the home directory.
   [[ "$docs_canonical" != "$(canonicalize "$HOME")" ]] || exit 1
   printf '%s/Claude Learning\n' "$docs_canonical"
   exit 0
@@ -103,8 +70,6 @@ fi
 project_dir="$1"
 shift
 
-# Filter the roots: a surviving `${user_config...}` literal means that key is unset, and an
-# empty string is an unset harness variable — both are skipped, not treated as paths.
 roots=()
 for r in "$@"; do
   [[ -n "$r" && "$r" != *\$\{* ]] && roots+=("$r")
@@ -114,24 +79,12 @@ if [[ "${#roots[@]}" -eq 0 ]]; then
   exit 2
 fi
 
-# Canonicalize BEFORE deriving either half of the slug, so a project reached through a
-# symlink and through its real path resolve to one workspace rather than two. The
-# `printf` tail keeps the derivation total when neither canonicalizer exists.
 canonical_path="$(canonicalize "$project_dir")"
 
-# A linked git worktree hoists to its MAIN repository, so every worktree of one repo shares
-# one workspace. `--git-common-dir` names the main repo's `.git`; when that differs from the
-# worktree's own `.git`, the directory holding it is the canonical project. Anything odd
-# (no git, bare repo, common dir not named `.git`) falls back to the plain canonical path.
 legacy_canonical=""
 if command -v git >/dev/null 2>&1; then
   common="$(git -C "$canonical_path" rev-parse --git-common-dir 2>/dev/null)" || common=""
   if [[ -n "$common" ]]; then
-    # `--git-common-dir` answers relative to the worktree OR absolute, and on Git
-    # for Windows an absolute answer is drive-letter form (`C:/repo/.git`), which
-    # a `/*` test alone reads as relative and joins onto the worktree path — a
-    # path that exists nowhere, whose basename is still `.git`, so the hoist would
-    # "succeed" into nonsense and every worktree of a repo would get its own slug.
     [[ "$common" == /* || "$common" == [A-Za-z]:[/\\]* ]] ||
       common="$canonical_path/$common"
     common="$(canonicalize "$common")"
@@ -158,15 +111,6 @@ slug="$(derive_slug "$canonical_path")"
 legacy_slug=""
 [[ -n "$legacy_canonical" ]] && legacy_slug="$(derive_slug "$legacy_canonical")"
 
-# The `<mode>/<topic>/` pair is one glob rather than an `ls` parse: the trailing slash
-# already restricts matches to directories, and an array survives a path containing
-# whitespace that a line-oriented pipeline would split. `nullglob` makes a non-match an
-# empty array instead of the literal pattern. Roots are scanned in the order given —
-# callers pass them ladder-highest first, so the cap keeps the highest-precedence hits.
-#
-# A closed mission is a `Status: closed` line in MISSION.md (context/mission.md "Closing and
-# reopening"); `[[:space:]]*$` also absorbs a CRLF line ending. The `if` keeps the helper's
-# exit status 0 for an active workspace, so the `lines+=` assignment that calls it never fails.
 closed_mark() {
   if [[ -f "$1MISSION.md" ]] &&
     grep -qE '^Status:[[:space:]]*closed[[:space:]]*$' "$1MISSION.md" 2>/dev/null; then

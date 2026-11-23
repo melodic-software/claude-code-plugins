@@ -66,8 +66,6 @@ function sayErrors(layers) {
   }
 }
 
-// ---------- adapter ----------
-
 /** {home} or {home: null, why} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome(project) {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
@@ -140,7 +138,6 @@ function userBinding(project, scratch) {
     return { why: error.message };
   }
   const userConfig = Object.fromEntries(Object.entries(options).map(([key, { value }]) => [key, value]));
-  // The scratch home holds no file, so only the userConfig layer can set a value.
   const out = resolve({ plugin: PLUGIN, projectRoot: project, home: scratch, schema: USER_SCHEMA, defaults: {}, userConfig, userHome: scratch });
   sayErrors(out.layers);
   const { adapter_repository: repository, adapter_path: path } = out.values.findings_buffer ?? {};
@@ -222,8 +219,6 @@ function fileBinding(project, scratch) {
   return checked.dir;
 }
 
-// ---------- prepare ----------
-
 /** RFC 8785 canonical JSON: keys sorted by UTF-16 code units, leaves as JSON.stringify writes them. */
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -238,7 +233,6 @@ function canonical(value) {
 
 /** Every [holder, key] under `value`, depth first in sorted key order, whose value matches `pick`. */
 function slots(value, pick, out = []) {
-  // Sorted, as in `canonical`, so a reordered row trims the same field and keeps its obs_id.
   for (const key of Object.keys(value).sort()) {
     const v = value[key];
     if (pick(v)) out.push([value, key]);
@@ -262,13 +256,11 @@ function largest(list) {
 function cap(content) {
   if (bytes(content) <= BUDGET) return content;
   content.truncated = true;
-  // 1. Trim the longest strings, never below FLOOR code points.
   for (;;) {
     const excess = bytes(content) - BUDGET;
     if (excess <= 0) return content;
     const slot = largest(slots(content, (v) => typeof v === "string" && [...v].length > FLOOR));
     if (!slot) break;
-    // Keep the longest whole-code-point prefix whose encoding fits, and at least FLOOR code points.
     const chars = [...slot[0][slot[1]]];
     let room = bytes(slot[0][slot[1]]) - 2 - excess;
     let keep = 0;
@@ -279,14 +271,12 @@ function cap(content) {
     }
     slot[0][slot[1]] = chars.slice(0, keep).join("");
   }
-  // 2. Replace the largest nested arrays and objects with a size note.
   for (;;) {
     if (bytes(content) <= BUDGET) return content;
     const slot = largest(slots(content, (v) => isContainer(v) && bytes(v) > 32));
     if (!slot) break;
     slot[0][slot[1]] = `[omitted: ${bytes(slot[0][slot[1]])} bytes]`;
   }
-  // 3. Drop the largest top-level fields.
   while (bytes(content) > BUDGET) {
     const key = Object.keys(content)
       .sort()
@@ -319,8 +309,6 @@ function prepare(text) {
   }
   return out;
 }
-
-// ---------- dedupe ----------
 
 function dedupe(text) {
   const seen = new Set();

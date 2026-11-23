@@ -37,7 +37,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, REPOSITORY, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
+import { loadTrustedList, REPOSITORY, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,15}$/;
 // github-actions[bot]'s account id (GET /users/github-actions%5Bbot%5D).

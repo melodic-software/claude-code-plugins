@@ -10,7 +10,11 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect each with its own Bash call:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Default branch, `git symbolic-ref --short refs/remotes/origin/HEAD` (unset: ask, unless the

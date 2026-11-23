@@ -1,0 +1,102 @@
+{
+  "markers": [
+    { "name": "a red scheduled full run's demotion record", "kind": "babysit-merge-demotion", "sha": "0123456789abcdef0123456789abcdef01234567", "signal": "schedule", "line": "<!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef01234567 signal=schedule -->" },
+    { "name": "a red dispatched full run's demotion record", "kind": "babysit-merge-demotion", "sha": "89abcdef0123456789abcdef0123456789abcdef", "signal": "dispatch", "line": "<!-- babysit-merge-demotion sha=89abcdef0123456789abcdef0123456789abcdef signal=dispatch -->" },
+    { "name": "a silent revert's canary demotion record", "kind": "babysit-merge-demotion", "sha": "ffffffffffffffffffffffffffffffffffffffff", "signal": "canary", "line": "<!-- babysit-merge-demotion sha=ffffffffffffffffffffffffffffffffffffffff signal=canary -->" },
+    { "name": "a lane revert's demotion record", "kind": "babysit-merge-demotion", "sha": "1111111111111111111111111111111111111111", "signal": "revert", "line": "<!-- babysit-merge-demotion sha=1111111111111111111111111111111111111111 signal=revert -->" },
+    { "name": "a pin read-back's demotion record", "kind": "babysit-merge-demotion", "sha": "2222222222222222222222222222222222222222", "signal": "read-back", "line": "<!-- babysit-merge-demotion sha=2222222222222222222222222222222222222222 signal=read-back -->" },
+    { "name": "a person's merge's post-merge-failure record of a red scheduled run", "kind": "post-merge-failure", "sha": "3333333333333333333333333333333333333333", "signal": "schedule", "line": "<!-- post-merge-failure sha=3333333333333333333333333333333333333333 signal=schedule -->" },
+    { "name": "a person's merge's post-merge-failure record of a red dispatched run", "kind": "post-merge-failure", "sha": "4444444444444444444444444444444444444444", "signal": "dispatch", "line": "<!-- post-merge-failure sha=4444444444444444444444444444444444444444 signal=dispatch -->" },
+    { "name": "a person's merge's post-merge-failure canary record", "kind": "post-merge-failure", "sha": "5555555555555555555555555555555555555555", "signal": "canary", "line": "<!-- post-merge-failure sha=5555555555555555555555555555555555555555 signal=canary -->" }
+  ],
+  "not_markers": [
+    { "name": "an unknown signal", "line": "<!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef01234567 signal=nonsense -->" },
+    { "name": "another marker kind", "line": "<!-- post-merge-fix sha=0123456789abcdef0123456789abcdef01234567 signal=schedule -->" },
+    { "name": "a 39-digit SHA", "line": "<!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef0123456 signal=schedule -->" },
+    { "name": "an upper-case SHA", "line": "<!-- babysit-merge-demotion sha=0123456789ABCDEF0123456789ABCDEF01234567 signal=schedule -->" },
+    { "name": "no signal", "line": "<!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef01234567 -->" },
+    { "name": "text before the marker", "line": "quoted <!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef01234567 signal=schedule -->" },
+    { "name": "text after the marker", "line": "<!-- babysit-merge-demotion sha=0123456789abcdef0123456789abcdef01234567 signal=revert --> later" },
+    { "name": "a trailing newline", "line": "<!-- post-merge-failure sha=0123456789abcdef0123456789abcdef01234567 signal=canary -->\n" },
+    { "name": "two spaces before the SHA", "line": "<!-- babysit-merge-demotion  sha=0123456789abcdef0123456789abcdef01234567 signal=schedule -->" }
+  ],
+  "failing_checks": [
+    {
+      "name": "a failed job with no gate annotation is one check",
+      "jobs": [{ "id": 1, "name": "Test Bash", "conclusion": "failure", "steps": [{ "name": "Run the bash tests", "conclusion": "failure" }] }],
+      "annotations": {},
+      "expect": ["Test Bash"]
+    },
+    {
+      "name": "a job counts for each red conclusion and for no other",
+      "jobs": [
+        { "id": 1, "name": "Job failure", "conclusion": "failure", "steps": [] },
+        { "id": 2, "name": "Job timed_out", "conclusion": "timed_out", "steps": [] },
+        { "id": 3, "name": "Job cancelled", "conclusion": "cancelled", "steps": [] },
+        { "id": 4, "name": "Job startup_failure", "conclusion": "startup_failure", "steps": [] },
+        { "id": 5, "name": "Job action_required", "conclusion": "action_required", "steps": [] },
+        { "id": 6, "name": "Job success", "conclusion": "success", "steps": [] },
+        { "id": 7, "name": "Job skipped", "conclusion": "skipped", "steps": [] },
+        { "id": 8, "name": "Job neutral", "conclusion": "neutral", "steps": [] }
+      ],
+      "annotations": {},
+      "expect": ["Job action_required", "Job cancelled", "Job failure", "Job startup_failure", "Job timed_out"]
+    },
+    {
+      "name": "a red run with no failed job is one check of its own",
+      "jobs": [{ "id": 1, "name": "Test Bash", "conclusion": "success", "steps": [] }],
+      "annotations": {},
+      "expect": ["pr-require-checks.yml: no failed jobs"]
+    },
+    {
+      "name": "CI Status and its ci-status alias beside another failed job add nothing",
+      "jobs": [
+        { "id": 1, "name": "CI Status", "conclusion": "failure", "steps": [] },
+        { "id": 2, "name": "ci-status", "conclusion": "failure", "steps": [] },
+        { "id": 3, "name": "Test Node", "conclusion": "failure", "steps": [] }
+      ],
+      "annotations": {},
+      "expect": ["Test Node"]
+    },
+    {
+      "name": "CI Status with only its alias failed is one check, CI Status",
+      "jobs": [
+        { "id": 1, "name": "ci-status", "conclusion": "failure", "steps": [] },
+        { "id": 2, "name": "CI Status", "conclusion": "failure", "steps": [] }
+      ],
+      "annotations": {},
+      "expect": ["CI Status"]
+    },
+    {
+      "name": "the aggregator step's titled failure annotations are checks and the aggregator step alone adds no job check",
+      "jobs": [{ "id": 7, "name": "Lint Repo", "conclusion": "failure", "steps": [{ "name": "Lint", "conclusion": "success" }, { "name": "Aggregate hygiene results", "conclusion": "failure" }] }],
+      "annotations": {
+        "7": [
+          { "annotation_level": "failure", "title": "shellcheck failed" },
+          { "annotation_level": "warning", "title": "markdownlint failed" },
+          { "annotation_level": "failure", "title": "" }
+        ]
+      },
+      "expect": ["Lint Repo: shellcheck failed"]
+    },
+    {
+      "name": "a failed step besides the aggregator counts the job as well as its gates",
+      "jobs": [{ "id": 7, "name": "Lint Repo", "conclusion": "failure", "steps": [{ "name": "Lint", "conclusion": "failure" }, { "name": "Aggregate hygiene results", "conclusion": "failure" }] }],
+      "annotations": { "7": [{ "annotation_level": "failure", "title": "shellcheck failed" }] },
+      "expect": ["Lint Repo", "Lint Repo: shellcheck failed"]
+    },
+    {
+      "name": "the gitleaks gate counts against no merge",
+      "jobs": [{ "id": 7, "name": "Lint Repo", "conclusion": "failure", "steps": [{ "name": "Aggregate hygiene results", "conclusion": "failure" }] }],
+      "annotations": { "7": [{ "annotation_level": "failure", "title": "gitleaks failed" }, { "annotation_level": "failure", "title": "shellcheck failed" }] },
+      "expect": ["Lint Repo: shellcheck failed"]
+    },
+    {
+      "name": "a gated job listing no failed step counts whole, but not as a baseline",
+      "jobs": [{ "id": 7, "name": "Lint Repo", "conclusion": "failure", "steps": [] }],
+      "annotations": { "7": [{ "annotation_level": "failure", "title": "shellcheck failed" }] },
+      "expect": ["Lint Repo", "Lint Repo: shellcheck failed"],
+      "expect_baseline": ["Lint Repo: shellcheck failed"]
+    }
+  ]
+}

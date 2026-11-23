@@ -24,7 +24,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- stdin, argv, and a blocking exit code pass through ----------------------
 record="$TEST_TMPDIR/record.txt"
 script="$TEST_TMPDIR/record.sh"
 cat >"$script" <<'EOF'
@@ -45,17 +44,14 @@ printf '%s' "$payload" | node "$ENTRY" "$script" "$record" "kept-arg" >/dev/null
 got=$(cat "$record")
 grep -q 'token=kept-arg' <<<"$got" || fail "script arg missing: $got"
 grep -q "$payload" <<<"$got" || fail "stdin missing: $got"
-# The launcher takes the first bash on PATH (a Homebrew bash included), else /bin/bash or /usr/bin/bash.
 grep -F -x -q -e "bash=$(command -v bash)" -e 'bash=/bin/bash' -e 'bash=/usr/bin/bash' <<<"$got" ||
   fail "bash was not the PATH bash or a fallback path: $got"
 
-# --- usage -------------------------------------------------------------------
 rc=0
 err=$(node "$ENTRY" 2>&1 >/dev/null) || rc=$?
 [[ "$rc" -eq 1 ]] || fail "missing script should exit 1 (got $rc)"
 grep -q 'usage:' <<<"$err" || fail "missing script should name usage: $err"
 
-# --- --fail-closed: only exit 0 and exit 2 pass; any other outcome denies ------
 segv="$TEST_TMPDIR/segv.sh"
 printf '#!/bin/bash\nkill -SEGV $$\n' >"$segv"
 rc=0
@@ -100,7 +96,6 @@ console.log([[2816, "win32", true], [2816, "win32", false], [2816, "linux", true
 ' decode "$ENTRY")
 [[ "$decoded" == "SIGSEGV null null null null null null" ]] || fail "msysSignal decoded wrongly: $decoded"
 
-# A closed option gate still exits 0 without running anything.
 rc=0
 CLAUDE_PLUGIN_OPTION_FC_GATE=false node "$ENTRY" --fail-closed --require-true FC_GATE "$segv" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "--fail-closed must not change a closed gate (got $rc)"
@@ -138,7 +133,6 @@ marker_path=$(cat "$seen_marker")
 [[ -n "$marker_path" ]] || fail "--require-verdict did not hand the script a marker path"
 [[ ! -e "$marker_path" && ! -e "${marker_path%/*}" ]] || fail "the marker directory outlived the launch: $marker_path"
 
-# Exit 2 still blocks with no marker, and --fail-closed still decides the rest.
 printf '#!/bin/bash\nexit 2\n' >"$TEST_TMPDIR/exit.sh"
 rc=0
 node "$ENTRY" --require-verdict "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
@@ -148,8 +142,6 @@ err=$(node "$ENTRY" --fail-closed --require-verdict "$segv" 2>&1 >/dev/null) || 
 [[ "$rc" -eq 2 ]] || fail "--require-verdict must keep the --fail-closed signal deny (got $rc)"
 grep -q 'SIGSEGV' <<<"$err" || fail "--require-verdict must keep the --fail-closed signal line: $err"
 
-# A row without the flag behaves as before: exit 0 is an allow and the script
-# gets no marker variable.
 cat >"$TEST_TMPDIR/novar.sh" <<'EOF'
 #!/bin/bash
 [[ -z "${EXEC_BASH_VERDICT_FILE+x}" ]] || exit 9
@@ -159,15 +151,10 @@ rc=0
 node "$ENTRY" --fail-closed "$TEST_TMPDIR/novar.sh" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "a row without --require-verdict should allow exit 0 with no marker variable (got $rc)"
 
-# A closed option gate is the launcher's own answer, so it needs no marker.
 rc=0
 CLAUDE_PLUGIN_OPTION_RV_GATE=false node "$ENTRY" --require-verdict --require-true RV_GATE "$silent" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "--require-verdict must not change a closed gate (got $rc)"
 
-# The shipped dispatcher writes the marker, so through the launcher a clean run
-# allows. A dispatcher that ends with exit 0 before its own exit, the way a
-# crashed Git Bash reads, writes none and is denied: the stub drops the
-# dispatcher's EXIT trap, which would otherwise finish the chain.
 printf '#!/bin/bash\n:\n' >"$TEST_TMPDIR/rv-allow.sh"
 printf '#!/bin/bash\ntrap - EXIT\nbuiltin exit 0\n' >"$TEST_TMPDIR/rv-crash.sh"
 rv_payload='{"tool_name":"Bash","tool_input":{"command":"git status"}}'
@@ -181,10 +168,8 @@ rc=0
 printf '%s' "$rv_payload" | node "$ENTRY" --fail-closed --require-verdict "$HOOK_DIR/run-guards.sh" "$TEST_TMPDIR/rv-crash.sh" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 2 ]] || fail "a dispatcher that exits 0 with no verdict should be denied (got $rc)"
 
-# --- Windows resolver: Git Bash, never the WSL relay -------------------------
 node "$HOOK_DIR/exec-bash.resolver.test.mjs" || fail "Windows resolver rejected Git Bash or accepted the relay"
 
-# --- hooks.json: every row except SessionStart is node exec form --------------------------------
 rows=$(jq -c '.hooks | del(.SessionStart) | to_entries[] | .key as $e | .value[] | .matcher as $m
   | .hooks[] | . + {_event: $e, _matcher: $m}' "$HOOKS_JSON")
 dispatcher=0
@@ -214,8 +199,6 @@ while IFS= read -r row; do
     [[ "$second" == "--fail-closed" ]] || fail "guard row does not pass --fail-closed: $second"
     third=$(jq -r '.args[2]' <<<"$row")
     [[ "$third" == "--require-verdict" ]] || fail "guard row does not pass --require-verdict: $third"
-    # --bps-seed LIB may sit between the switches and the script; the
-    # script must then pass --bps-seeded, the only cue it trusts the seed by.
     at=3
     [[ "$(jq -r '.args[3]' <<<"$row")" == "--bps-seed" ]] && at=5
     fourth=$(jq -r ".args[$at]" <<<"$row")
@@ -230,15 +213,10 @@ while IFS= read -r row; do
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
-# Write|Edit, the three MCP rows and Bash|PowerShell, each through the dispatcher.
 [[ "$dispatcher" -eq 5 ]] || fail "expected the five dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 [[ "$node_guards" -eq 2 ]] || fail "expected the settings-write-ask and connected-page-gate node rows, found $node_guards"
 
-# --- no launcher skip flag on a blocking row ----------------------------------
-# A --skip-* launcher flag decides in node, before any guard runs, that a row
-# has nothing to do. On a PreToolUse row, or a row that runs a block-* guard,
-# that would let a launcher edit switch a blocking guard off.
 skips_on_blocking() { # <hooks.json> -> one line per offending row
   jq -r '.hooks | to_entries[] | .key as $event | .value[] | .hooks[]
     | select(.args != null)
@@ -270,12 +248,6 @@ grep -q '^PreToolUse: .*block-no-verify\.sh$' <<<"$caught" || fail "PreToolUse s
 grep -q '^PostToolUse: .*block-credential-read\.sh$' <<<"$caught" || fail "block-* skip row not caught: $caught"
 grep -q 'cli-flag-verify' <<<"$caught" && fail "an advisory verify row was flagged: $caught"
 
-# --- One SessionStart row: the cloud shfmt install -------------------------------
-# harness-ops reports a missing node and runs this plugin's prerequisites probe
-# (scripts/node-notice-rows.test.sh pins both), so guardrails registers no
-# SessionStart row of that kind. Its one row installs shfmt in a cloud session
-# (cloud-shfmt.sh), which the Bash guards cannot run without, through the
-# node-or-skip stubs so a session with no node skips it silently.
 ss_rows=$(jq -r '[.hooks.SessionStart[]?.hooks[]? | .command] | join("|")' "$HOOKS_JSON")
 # shellcheck disable=SC2016  # the literal hooks.json text
 ss_want='sh "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs" "${CLAUDE_PLUGIN_ROOT}/hooks/cloud-shfmt.sh"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1" "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs" "${CLAUDE_PLUGIN_ROOT}/hooks/cloud-shfmt.sh"'

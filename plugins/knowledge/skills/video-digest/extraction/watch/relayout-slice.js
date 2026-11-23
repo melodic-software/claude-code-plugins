@@ -286,7 +286,6 @@ export async function relayoutSlice({
   let rewrites = 0;
   /** @type {{ file: string, ref: string }[]} */
   const unresolved = [];
-  /** Make room for one staged file, count it, and return its path. */
   const stage = (/** @type {string} */ to) => {
     const dest = path.join(staging, to);
     fs.mkdirSync(path.dirname(dest), { recursive: true });

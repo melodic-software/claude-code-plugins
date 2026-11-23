@@ -15,11 +15,9 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(HOME);
 
-// The defaults the issue fixes: one GLOSSARY.md per context, one GLOSSARY-MAP.md at the root.
 const DEFAULTS = { glossary_file: "GLOSSARY.md", glossary_map_file: "GLOSSARY-MAP.md" };
 let count = 0;
 
-/** A scratch git repository holding `files` (path to text), so the convention home applies. */
 function repo(files = {}, { git = true } = {}) {
   const dir = join(scratch, `repo-${++count}`);
   mkdirSync(dir);
@@ -59,7 +57,6 @@ test("userConfig wins over the default, and an unrendered placeholder counts as 
   assert.deepEqual(out.provenance, { glossary_file: "userConfig", glossary_map_file: "default" });
 });
 
-/** The resolver run with `stdin` as the `--user-config -` input. */
 function settingsFromStdin(stdin) {
   const r = spawnSync(process.execPath, [SCRIPT, "--home", HOME, "--project", repo(), "--user-config", "-"], { encoding: "utf8", input: stdin });
   assert.equal(r.status, 0, r.stderr);

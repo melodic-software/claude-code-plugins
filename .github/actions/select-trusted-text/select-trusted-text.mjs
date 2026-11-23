@@ -8,9 +8,11 @@ import { pathToFileURL } from "node:url";
 
 import {
   createGitHub,
+  paginate,
+} from "../../scripts/lib/github-client.mjs";
+import {
   isListed,
   loadTrustedActors,
-  paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;

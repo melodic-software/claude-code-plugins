@@ -1,53 +1,17 @@
 #!/usr/bin/env bash
-# PreToolUse hook: advisory burst-resilience check for the Workflow tool.
-# Triggered on Workflow tool calls (inline `script:` or saved `scriptPath`).
-#
-# NON-BLOCKING (advisory): exits 0 always. Emits additionalContext with the
-# resilience checklist when the script fans out (parallel()/pipeline()) WITHOUT
-# any wave-cap throttle (inWaves/inWavesPipeline) or retry wrapper (agentRetry).
-# A bare fan-out launches up to the agent cap at once; sustained wide Opus
-# fan-out trips server-side 529 (a 27-item Opus pipeline lost 22/27 agents this
-# way). Closes the inline-authoring gap that no file glob can reach.
-#
-# Opt-in switch: workflow_resilience_check_enabled userConfig option.
-# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
-# is a behavioral-class context injector — two greps and a fixed checklist that
-# asserts nothing the model cannot derive — and plugin-philosophy.md's
-# instruction-economy evidence gate ablates that class config-off first (the
-# script stays; a consumer opts back in by setting the option to true).
 
 set -uo pipefail
 
-# Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
-# an unset switch must read as the plugin.json default, which is false.
-#
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. This one was already inlined, so
-# the hoist only moves it; scripts/check-killswitch-hoist.sh keeps it here.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED:-false}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 is the only status this advisory, opt-in check chooses.
-# Nothing is enforced here, so the loss on an abort is the advisory itself.
 guard::abort_boundary workflow-resilience-check PreToolUse open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
@@ -71,19 +35,11 @@ hook::jq_fields "$INPUT" '.tool_input.script' '.tool_input.scriptPath' || exit 0
 SCRIPT="${HOOK_JQ_FIELDS[0]}"
 SCRIPT_PATH="${HOOK_JQ_FIELDS[1]}"
 
-# Saved-engine / resume path passes scriptPath (no inline script) — read the
-# file so the same check covers saved scripts too. Absent both → nothing to
-# check (pure inapplicability, not a meaningful outcome) → no telemetry.
 if [[ -z "$SCRIPT" && -n "$SCRIPT_PATH" && -f "$SCRIPT_PATH" ]]; then
   SCRIPT=$(tr -d '\r' <"$SCRIPT_PATH" 2>/dev/null)
 fi
 [[ -n "$SCRIPT" ]] || exit 0
 
-# Telemetry for a meaningful outcome (a check ran and returned a result) —
-# gated on a wired sink so the unwired default path spawns no telemetry-only
-# subprocess. Status is always "ok": this hook is advisory and never blocks;
-# the outcome (no-fan-out / already-resilient / advisory-finding) rides in
-# data.findings, matching cli-flag-verify's sibling shape.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -94,31 +50,12 @@ emit_tel() {
   hook::emit_telemetry "workflow-resilience-check" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# No fan-out (no burst risk), or a fan-out that already applies a throttle
-# helper or a retry wrapper → checked, clean.
-#
-# Both greps below take $SCRIPT through PROCESS SUBSTITUTION, never `<<<`. An
-# inline Workflow `script:` (or a scriptPath file read above) is unbounded
-# agent-authored content, and a here-string of 65536-65663 bytes deadlocks bash
-# outright — see lib/path-detection/hardcoded-path-patterns.sh for the mechanism.
-# This hook is advisory and never blocks, so the cost is not a lost verdict, but
-# a hang still wedges the Workflow call until the harness cancels at the hook
-# timeout. `printf | grep -q` is not the alternative: `grep -q` early-exits and
-# SIGPIPEs printf, and under the `set -uo pipefail` above the pipeline reports
-# 141 — which the `!` here would read as "no fan-out".
 if ! grep -qE 'parallel\(|pipeline\(' < <(printf '%s' "$SCRIPT") ||
   grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); then
   emit_tel '[]'
   exit 0
 fi
 
-# Fan-out with zero resilience primitives → advisory (never blocks the run).
-# The overloaded-retry backoff variable is named, never its default or range:
-# pointer https://code.claude.com/docs/en/errors#tune-retry-behavior, as of
-# 2026-10-25; recheck when that table drops or renames the variable, or when a
-# docs page or #6756 settles whether workflow subagents honor it. As of
-# 2026-10-25 neither that section nor the env-vars page says, so the text
-# offers it beside the caps and retries, not in place of them.
 FINDING="This Workflow script fans out with parallel()/pipeline() with no wave cap or retry wrapper (none of inWaves, inWavesPipeline, agentRetry); a wide fan-out can hit 529 overload errors. The workflow-authoring skill covers caps and retries. Claude Code's own 529 retry backoff ceiling is set by CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS; use it beside caps and retries, not in place of them. Its default and range are at https://code.claude.com/docs/en/errors#tune-retry-behavior"
 hook::emit_channels PreToolUse "$FINDING" ""
 FINDINGS_JSON=$(jq -n --arg f "$FINDING" '[$f]' 2>/dev/null) || FINDINGS_JSON='[]'

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for generate-identity-prerequisites.mjs. Cases are named in the
-# co-located manifest; this harness builds throwaway trees where needed and
-# drives generate / --check / drift / leaf↔emission parity.
 # test-scope: plugins/autonomy/reference/routines/*.md
 set -uo pipefail
 
@@ -31,7 +28,6 @@ if [[ ! -f "$MANIFEST" ]]; then
   exit 1
 fi
 
-# --- case: generate_and_check_clean -----------------------------------------
 OUT="$(node "$GENERATOR" --check 2>&1)"
 CODE=$?
 if [[ $CODE -eq 0 ]]; then
@@ -40,11 +36,9 @@ else
   fail "generate_and_check_clean: --check failed ($CODE): $OUT"
 fi
 
-# --- case: drift_fixture ----------------------------------------------------
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/reference/routines" "$tmp/generated" "$tmp/skills/setup/scripts"
-# Minimal leaf pair so the generator can run under --root.
 cat >"$tmp/reference/routines/alpha.md" <<'EOF'
 # alpha
 
@@ -62,11 +56,9 @@ Single-posture identity: `alpha` (bare class token).
 | Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml` + adapter `capabilities.json`); absent is `unsupported` |
 EOF
 
-# Seed a correct emission, then hand-edit it.
 if ! node "$GENERATOR" --root "$tmp" >/dev/null 2>"$tmp/gen.err"; then
   fail "drift_fixture: initial generate failed: $(cat "$tmp/gen.err")"
 else
-  # Hand-edit: drop a need so the emission drifts from the leaf.
   node -e '
     const fs = require("node:fs");
     const p = process.argv[1];
@@ -79,7 +71,6 @@ else
   else
     ok "drift_fixture: --check exits non-zero on hand-edited emission"
   fi
-  # Regenerating restores sync.
   node "$GENERATOR" --root "$tmp" >/dev/null
   if node "$GENERATOR" --root "$tmp" --check >/dev/null 2>"$tmp/check2.err"; then
     ok "drift_fixture: regenerated emission passes --check"
@@ -88,7 +79,6 @@ else
   fi
 fi
 
-# --- case: leaf_emission_parity ---------------------------------------------
 # shellcheck disable=SC2016 # intentional: JS regex anchors/$ stay literal in single-quoted -e
 parity_out="$(node -e '
 const fs = require("node:fs");
@@ -128,7 +118,6 @@ else
   fail "leaf_emission_parity: $(cat "$tmp/parity.err")"
 fi
 
-# --- case: posture_divergence -----------------------------------------------
 # shellcheck disable=SC2016 # intentional: JS identifiers in single-quoted -e
 div="$(node -e '
 const e = require(process.argv[1]);
@@ -158,7 +147,6 @@ else
   fail "posture_divergence: $(cat "$tmp/div.err")"
 fi
 
-# Manifest case names must stay honest — every named case ran above.
 expected_cases="$(node -e 'const m=require(process.argv[1]); console.log(m.cases.join("\n"))' "$MANIFEST")"
 for case_name in $expected_cases; do
   case "$case_name" in

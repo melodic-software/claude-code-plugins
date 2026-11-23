@@ -1,5 +1,3 @@
-// Section grouping and HTML fragment generation for single-file HTML deck.
-
 import { formatUrlDisplay } from "./lib/url-display.js";
 import { isAllowedUrlScheme } from "./lib/url-policy.js";
 
@@ -11,7 +9,7 @@ export const escape = (s) =>
     .replaceAll('"', "&quot;");
 
 const SECTION_LABELS = {
-  hero: "Cover",                  // chip label only; section id stays "hero"
+  hero: "Cover",
   open: "Open Share",
   agenda: "Agenda",
   welcome: "Welcome",
@@ -41,11 +39,8 @@ const SECTION_LABELS = {
 };
 const labelFor = (key) => SECTION_LABELS[key] || key;
 
-// Linear primary nav order. "news" is a virtual chip — no section element with id="news";
-// it represents the parent grouping of all `parentSection: "news"` sections.
 const PRIMARY_NAV_ORDER = ["hero", "agenda", "welcome", "levels", "news", "tools", "tips", "problems", "taskforce", "qa"];
 
-// Group consecutive slides sharing the same section.
 function groupSections(allSlides) {
   const groups = [];
   let current = null;

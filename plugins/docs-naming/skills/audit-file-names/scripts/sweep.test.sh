@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for sweep.sh, driven against the committed fixture tree
-# in fixtures/tree via fixtures/build-fixture.sh.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
@@ -30,7 +25,6 @@ pairs_for() {
   bash "$INVENTORY" --root "$1" | awk -F'\t' '$1=="OFFENDER" {print $2 "\t" $3}'
 }
 
-# A `file:form:tier:action` view of the sweep, one line per site.
 view() {
   awk -F'\t' '$1=="REF" {print $3 ":" $5 ":" $6 ":" $7}'
 }
@@ -40,15 +34,11 @@ pairs_for "$root" >"$TEST_TMPDIR/pairs.tsv"
 out="$(bash "$SUT" --root "$root" --pairs "$TEST_TMPDIR/pairs.tsv")"
 sites="$(printf '%s\n' "$out" | view)"
 
-# --- the form ladder ---------------------------------------------------------
-
 assert_contains "a markdown link is classified as one" "$sites" "README.md:md-link:current:edit"
 assert_contains "a code span is classified as a backtick path" "$sites" "README.md:backtick-path:current:edit"
 assert_contains "a raw URL is classified ahead of the other URL forms" "$sites" "README.md:raw-url:current:edit"
 assert_contains "a forge URL is classified" "$sites" "README.md:github-url:current:edit"
 assert_contains "a table cell is classified" "$sites" "README.md:table-or-key:current:edit"
-
-# --- tiers decide the action -------------------------------------------------
 
 assert_contains "a historical link is still repointed" "$sites" "docs/adr/0001-historical.md:md-link:historical:edit"
 assert_contains "a historical backtick path is still repointed" "$sites" "docs/adr/0001-historical.md:backtick-path:historical:edit"
@@ -57,39 +47,23 @@ assert_contains "a released link is reported, never rewritten" "$sites" "CHANGEL
 assert_contains "a released backtick path is reported too" "$sites" "CHANGELOG.md:backtick-path:released:report"
 assert_eq "no released site is ever an edit" "0" "$(printf '%s\n' "$sites" | grep -c '^CHANGELOG.md:.*:released:edit' || true)"
 
-# --- bare stems --------------------------------------------------------------
-
 assert_contains "a hyphenated stem is unambiguous and edited" "$sites" "README.md:bare-stem:current:edit"
 assert_contains "a one-word stem is ambiguous and reviewed" "$sites" "README.md:bare-stem:current:review"
 assert_eq "the ambiguous stem is reviewed rather than edited at every current site" "0" "$(
   printf '%s\n' "$out" | awk -F'\t' '$1=="REF" && $2=="docs/BETA.md" && $5=="bare-stem" && $6=="current" && $7=="edit"' | grep -c . || true
 )"
 
-# --- generated records are never text-edited ---------------------------------
-
 assert_contains "a generated record is marked for regeneration" "$sites" "build/out.json:plain:current:regenerate"
 assert_eq "no generated site is ever an edit" "0" "$(printf '%s\n' "$sites" | grep -c '^build/out.json:.*:edit' || true)"
 
-# --- sweep exclusions --------------------------------------------------------
-
 assert_lacks "an excluded path is never read or reported" "$sites" "docs/frozen/t/NOTES.md"
 
-# --- the substring hazard ----------------------------------------------------
-#
-# `Alpha` must never match inside `Alpha-One`: an anchored stem is what keeps a
-# rename from turning a hyphenated sibling into a link to nothing.
 root2="$(new_fixture)"
 printf 'docs/Alpha.md\tdocs/alpha.md\n' >"$TEST_TMPDIR/hazard.tsv"
 haz_raw="$(bash "$SUT" --root "$root2" --pairs "$TEST_TMPDIR/hazard.tsv")"
 haz="$(printf '%s\n' "$haz_raw" | view)"
-# `Alpha` still matches the WORD Alpha in "Alpha One" prose, which is exactly
-# why a one-word stem is only ever reviewed. What must never happen is an edit,
-# because rewriting it would turn `Alpha-One` into a link to nothing.
 assert_eq "a shorter stem is never edited on the strength of a text match" "0" "$(printf '%s\n' "$haz" | grep -c ':bare-stem:.*:edit' || true)"
 assert_contains "a shorter stem is surfaced for review instead" "$haz" ":bare-stem:current:review"
-# The decisive case: a tree where the stem appears ONLY inside a hyphenated
-# compound. A word-boundary match would report it; the anchored pattern reports
-# nothing at all.
 root4="$(new_fixture)"
 printf 'The compound Zeta-Two appears here, and the bare word never does.\n' >"$root4/docs/note.md"
 git -C "$root4" add docs/note.md >/dev/null
@@ -99,13 +73,6 @@ compound="$(bash "$SUT" --root "$root4" --pairs "$TEST_TMPDIR/compound.tsv")"
 assert_eq "a stem that appears only inside a hyphenated compound matches nothing" "0" "$(
   printf '%s\n' "$compound" | grep -c '^REF' || true
 )"
-
-# --- a stem carrying regex metacharacters -------------------------------------
-#
-# The stem goes into an ERE. Unescaped, the dots in `v1.2.schema` match any
-# character, so `v1x2yschema` would be reported as a reference to a file that
-# has nothing to do with it. The decisive fixture carries the near-miss and NOT
-# the real stem, so an escaped pattern reports nothing at all.
 
 root7="$(new_fixture)"
 printf 'A near miss that is not the file: v1x2yschema appears here.\n' \
@@ -118,8 +85,6 @@ meta="$(bash "$SUT" --root "$root7" --pairs "$TEST_TMPDIR/meta.tsv")"
 assert_eq "a dot in a stem does not match an arbitrary character" "0" \
   "$(printf '%s\n' "$meta" | grep -c 'near-miss.md' || true)"
 
-# And the real thing is still found, so the escaping did not simply break the
-# pattern.
 root8="$(new_fixture)"
 printf 'The real one: v1.2.schema is cited here.\n' >"$root8/docs/real-hit.md"
 git -C "$root8" add docs/real-hit.md >/dev/null
@@ -127,14 +92,6 @@ git -C "$root8" commit -qm "real hit" >/dev/null
 hit="$(bash "$SUT" --root "$root8" --pairs "$TEST_TMPDIR/meta.tsv")"
 
 assert_contains "the literal stem is still matched" "$hit" "docs/real-hit.md"
-
-# --- one line, two forms -----------------------------------------------------
-#
-# A markdown link whose LABEL is the old name and whose target is the old path
-# is two sites, not one. Reporting only the first leaves the label reading the
-# old name after the rename, which the current tier says must change. The
-# adjacent case is the discriminating half: a line whose only stem occurrence
-# IS the basename adds nothing and must still be reported once.
 
 root5="$(new_fixture)"
 # shellcheck disable=SC2016  # backticks are literal markdown in the seeded line
@@ -161,14 +118,6 @@ assert_eq "a line whose only stem occurrence is the basename is one site" "1" \
   "$(printf '%s\n' "$plain" | grep -c . || true)"
 assert_eq "and that site is not a bare stem" "0" "$(printf '%s\n' "$plain" | grep -c 'bare-stem' || true)"
 
-# --- the policy floor, held per file ------------------------------------------
-#
-# A personal tier may classify a file no authoritative tier claims, and may
-# never re-classify one that an authoritative tier did. Both halves are asserted
-# because either alone is satisfiable by the wrong implementation: ignoring
-# personal tiers entirely passes the first, and ranking on specificity alone
-# passes the second.
-
 root9="$(new_fixture)"
 mkdir -p "$root9/docs/adr/deep" "$root9/notes"
 printf '# Deep\n\nCites [Alpha One](../../Alpha-One.md) and the narrative stem Alpha-One.\n' \
@@ -184,7 +133,6 @@ jq9="$TEST_TMPDIR/jq-bin"
 mkdir -p "$jq9"
 ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq9/jq"
 
-# A personal tier out-specifying the team's `docs/adr/**` with a looser form.
 jq -n '{schema: 1, file_names: {tiers: [
   {name: "personal-loose", paths: ["docs/adr/deep/**"], forms: "all"}]}}' \
   >"$home9/.claude/docs-naming.json"
@@ -197,7 +145,6 @@ assert_eq "and a personal tier cannot loosen its frozen forms" "0" \
 assert_eq "the narrative stem there is still reported, never edited" "0" \
   "$(printf '%s\n' "$floor" | grep -c '^docs/adr/deep/0003-deep.md:bare-stem:.*:edit' || true)"
 
-# The adding half: a subtree no authoritative tier claims.
 jq -n '{schema: 1, file_names: {tiers: [
   {name: "personal-frozen", paths: ["notes/**"], forms: "none"}]}}' \
   >"$home9/.claude/docs-naming.json"
@@ -216,25 +163,17 @@ opt="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TES
 assert_eq "a --user-config tier cannot loosen a team tier" "0" \
   "$(printf '%s\n' "$opt" | grep -c '^docs/adr/deep/0003-deep.md:.*:option-loose:' || true)"
 
-# --- per-site exclusions -----------------------------------------------------
-
 root3="$(new_fixture)"
 bash "$EDIT_CONFIG" "$root3" '.file_names.sweep_exclude_sites = ["README.md:forge URL"]'
 excl="$(bash "$SUT" --root "$root3" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 assert_contains "a per-site exclusion is reported as skipped" "$excl" "README.md:github-url:current:skip"
 assert_contains "its neighbors on other lines are unaffected" "$excl" "README.md:md-link:current:edit"
 
-# --- tier reporting and totals -----------------------------------------------
-
 assert_contains "each declared tier reports how many files it claimed" "$out" "TIER	historical	links-and-paths	1"
 assert_contains "the released tier is reported too" "$out" "TIER	released	none	1"
 assert_contains "the site total is reported" "$out" "SITES	"
 
-# --- read-only ---------------------------------------------------------------
-
 assert_eq "the tree is byte-identical after a sweep" "" "$(git -C "$root" status --porcelain)"
-
-# --- stdin and usage ---------------------------------------------------------
 
 stdin_out="$(bash "$SUT" --root "$root" --pairs - <"$TEST_TMPDIR/pairs.tsv" | view)"
 assert_contains "pairs can arrive on standard input" "$stdin_out" "README.md:md-link:current:edit"

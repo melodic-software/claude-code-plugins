@@ -14,6 +14,10 @@ interrogation, and **"neither applies" is a valid answer** that closes it for th
 whatever the acceptance-criteria format resolves to, and with no convention file present at all;
 it is a coverage check, not a format.
 
+Ask it in the first round that is not an intake round ([`lookups.md`](lookups.md) "The intake
+round") once any criterion is known, from the request or an answer. It needs no fact from the code
+or a lookup, so a round that holds or defers every other question still asks it.
+
 It is **not** a `Q<N>` decision. Never write it into the open-question register, never mark it
 `blocked`, and never route it to `### Deferred questions`. The register gates the contract, and a
 coverage check parked there would hold a lock hostage to a question that carries no decision. It
@@ -49,9 +53,13 @@ state-driven coverage went unexamined"; tell the user so in the wrap-up.
 
 A run with nobody to answer, a dispatched worker, a forked subagent, a headless invocation, or any
 caller that declared the run unattended, **SKIPS** the ask instead of blocking on it, and the
-session's returned summary states that **unwanted-behavior and state-driven coverage went
-unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
-summary. A prompt nobody can answer must not stall the run and must not silently vanish.
+session's returned summary carries this line word for word, never a paraphrase of it:
+
+```text
+Unwanted-behavior and state-driven coverage went unexamined.
+```
+
+Write the same line into the Brief's `### Captured assumptions` so it outlives the summary. A prompt nobody can answer must not stall the run and must not silently vanish.
 
 **The prompt is exempt from the unattended ladder** ([`loop.md`](loop.md) "Unattended path"): never
 a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the

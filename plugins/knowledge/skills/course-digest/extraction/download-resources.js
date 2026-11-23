@@ -1,12 +1,3 @@
-/**
- * Download all referenced resources from resources.json files.
- *
- * Scans all modules/lessons for resources.json, extracts download URLs
- * and PDF links, fetches each file, and saves to the course data directory.
- *
- * Usage: node download-resources.js --course-dir <path> [--dry-run]
- */
-
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";

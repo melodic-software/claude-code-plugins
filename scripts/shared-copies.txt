@@ -1046,3 +1046,10 @@ lib/mod-load-check.sh plugins/context-usage/lib/mod-load-check.sh
 lib/mod-load-check.sh plugins/rate-limits/lib/mod-load-check.sh
 lib/hook-registration-check.sh plugins/discovery/lib/hook-registration-check.sh
 lib/hook-registration-check.sh plugins/multi-agent/lib/hook-registration-check.sh
+lib/opt-value.sh plugins/ai-slop/skills/audit/scripts/lib/opt-value.sh
+lib/opt-value.sh plugins/docs-hygiene/skills/audit-noise/scripts/lib/opt-value.sh
+lib/opt-value.sh plugins/attribution/lib/opt-value.sh
+lib/opt-value.sh plugins/code-tidying/lib/opt-value.sh
+lib/opt-value.sh plugins/discovery/lib/opt-value.sh
+lib/opt-value.sh plugins/harness-config/lib/opt-value.sh
+lib/opt-value.sh plugins/harness-ops/lib/opt-value.sh

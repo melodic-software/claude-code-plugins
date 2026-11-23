@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.4] - 2026-11-23
+
+### Changed
+
+- measure-delivery: `merge-risk-failures.mjs` reads a record's first line through an exported `parseRecordMarker`, which runs the shared post-merge record vectors. No behavior changes.
+
 ## [15.14.3] - 2026-11-22
 
 ### Fixed

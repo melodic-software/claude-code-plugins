@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Open-question register\n\n- Q7 | answered | round 2 | Do receivers deduplicate? | yes\n- Q8 | open | round 3 | Who is alerted when one endpoint keeps failing? |\n",
+      "why": "Q8 is registered open in round 3"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Open-question register\n\n- Q7 | answered | round 2 | Do receivers deduplicate? | yes\n",
+      "why": "no new row"
+    },
+    {
+      "answer": "- Q600 | open | round 3 | Who is alerted? |\n",
+      "why": "a jumped id"
+    }
+  ]
+}
