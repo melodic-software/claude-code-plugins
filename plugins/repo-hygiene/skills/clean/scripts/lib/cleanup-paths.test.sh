@@ -48,7 +48,6 @@ assert_set_contains() {
   assert_exit "$label" 0 "$found"
 }
 
-# Key cache explicit paths from markdown
 assert_set_contains "cache .pytest_cache" ".pytest_cache" "${CLEAN_CACHE_EXPLICIT[@]}"
 assert_set_contains "cache .codex/logs" ".codex/logs" "${CLEAN_CACHE_EXPLICIT[@]}"
 assert_set_contains "cache __pycache__ find name" "__pycache__" "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"
@@ -60,7 +59,6 @@ assert_set_contains "git gc op" "git gc --auto --quiet" "${GIT_PRUNE_OPS[@]}"
 
 assert_set_contains "protected branch main" "main" "${CLEAN_PROTECTED_BRANCH_EXACT[@]}"
 
-# tree preserve SSOT — secrets/deps/skilldata arrays carry the protected classes
 assert_set_contains "tree preserve .env*" ".env*" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
 assert_set_contains "tree preserve *.local.json" "*.local.json" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
 assert_set_contains "tree preserve *.local.jsonc" "*.local.jsonc" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
@@ -70,9 +68,6 @@ assert_set_contains "tree preserve .venv" ".venv/" "${CLEAN_TREE_PRESERVE_DEPS[@
 assert_set_contains "tree preserve vendor" "vendor/" "${CLEAN_TREE_PRESERVE_DEPS[@]}"
 assert_set_contains "tree preserve skill data" ".claude/skills/*/data/" "${CLEAN_TREE_PRESERVE_SKILLDATA[@]}"
 
-# Drift: every "Secrets / config" + "Runtime dependencies" bullet that maps to a
-# gitignore pattern appears in the tree-preserve arrays (keeps SSOT aligned with
-# the doc's Protected-paths classes).
 ALL_TREE_PRESERVE=(
   "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
   "${CLEAN_TREE_PRESERVE_SKILLDATA[@]}"
@@ -82,7 +77,6 @@ for needle in ".env*" "*.local.json" "*.local.jsonc" ".vscode/" ".aws/" "node_mo
   assert_set_contains "tree-preserve covers $needle" "$needle" "${ALL_TREE_PRESERVE[@]}"
 done
 
-# Drift: every git prune bullet in config appears in GIT_PRUNE_OPS (report-only ops excluded)
 while IFS= read -r bullet; do
   [[ -z "$bullet" ]] && continue
   [[ "$bullet" == *"branch --merged"* ]] && continue

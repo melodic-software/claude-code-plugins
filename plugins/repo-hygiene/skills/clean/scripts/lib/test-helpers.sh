@@ -28,7 +28,6 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 
-# _fail_with <label> <detail>: record a failing case with a preformatted detail.
 _fail_with() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s — %s\n' "$CASE_NUM" "$1" "$2" >&2

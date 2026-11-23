@@ -51,8 +51,6 @@ case "${1:-}" in
 *) ;;
 esac
 
-# RECENT_BUILD scans the given roots (clean-batch passes its target repos), else
-# the invoking repository.
 if (($# > 0)); then
   ROOTS=("$@")
 else
@@ -67,7 +65,6 @@ for r in "${ROOTS[@]}"; do
   abs="$(cd "$r" 2>/dev/null && pwd -P)" && RESOLVED_ROOTS+=("${abs%/}")
 done
 
-# Longest ROOT that $1 (a cwd or command line) is at or under; empty when none.
 owner_root() {
   local text="$1" best="" r esc
   for r in "${RESOLVED_ROOTS[@]}"; do

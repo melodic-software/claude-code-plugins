@@ -163,9 +163,6 @@ done
 
 [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
 
-# Resolve every input to its canonical toplevel and dedupe by comparison key.
-# An input that is not a directory or not a git working tree is reported as a
-# blocked outcome rather than silently dropped.
 REPO_TOPS=()
 REPO_KEYS=()
 INVALID_INPUTS=()
@@ -196,19 +193,15 @@ for input in ${REPO_INPUTS[@]+"${REPO_INPUTS[@]}"}; do
   REPO_KEYS+=("$key")
 done
 
-# Per-skip match tracking so a skip that protects nothing is surfaced loudly.
 batch_reset_skip_hits
 
 repo_dirty_reason() {
-  # Echo a dirty reason (uncommitted/untracked or unpushed) or nothing if clean.
   local top="$1" porcelain ahead
   porcelain="$(git -C "$top" status --porcelain 2>/dev/null)"
   if [[ -n "$porcelain" ]]; then
     printf 'dirty (uncommitted or untracked changes)'
     return 0
   fi
-  # Unpushed only counts when an upstream actually resolves; a repo with no
-  # upstream is not "unpushed" (the child reports no-upstream when it runs).
   if git -C "$top" rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
     ahead="$(git -C "$top" rev-list --count '@{u}..HEAD' 2>/dev/null | tr -d ' ' || echo 0)"
     if [[ "${ahead:-0}" -gt 0 ]]; then
@@ -217,23 +210,15 @@ repo_dirty_reason() {
   fi
 }
 
-# child_label <child-output> <label> — the first `<label>: <value>` value in the
-# single-repo child's output, or nothing when the label is absent (callers default
-# to 0). One spelling for every documented child label the batch reads back.
 child_label() { sed -n "s/^$2: //p" <<<"$1" | head -1; }
 
-# The child's mode is fixed for the whole batch, so resolve it once here rather
-# than re-deriving it per repo inside the loop.
 CHILD_MODE=--dry-run
 [[ "$DRY_RUN" -eq 1 ]] || CHILD_MODE=--apply
 
-# Flags passed through to the single-repo child for every repo that runs.
 CHILD_PASS=()
 [[ "$FORCE_DEFAULT" -eq 1 ]] && CHILD_PASS+=(--force-default-branch)
 [[ "$INCLUDE_DEPS" -eq 1 ]] && CHILD_PASS+=(--include-deps)
 [[ "$INCLUDE_SECRETS" -eq 1 ]] && CHILD_PASS+=(--include-secrets)
-# --include-dirty accepts discarding unpushed commits too, so unblock the child's
-# unpushed gate; a no-op when a repo is not ahead of its upstream.
 [[ "$INCLUDE_DIRTY" -eq 1 ]] && CHILD_PASS+=(--allow-unpushed)
 
 COUNT_RESET=0
@@ -241,8 +226,6 @@ COUNT_SKIPPED=0
 COUNT_BLOCKED=0
 COUNT_FAILED=0
 
-# record <repo> <outcome> <reason>: emit the per-repo block and count its outcome
-# (would-reset and done both count as reset).
 record() {
   batch_emit "$1" "$2" "$3"
   case "$2" in
@@ -253,7 +236,6 @@ record() {
   esac
 }
 
-# add_reason <note>: append a note to $reason, replacing the `none` placeholder.
 add_reason() {
   if [[ "$reason" == none ]]; then reason="$1"; else reason="$reason; $1"; fi
 }
@@ -268,13 +250,11 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   top="${REPO_TOPS[$i]}"
   key="${REPO_KEYS[$i]}"
 
-  # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then
     record "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
     continue
   fi
 
-  # 2. Dirty guard (skip unless --include-dirty).
   if [[ "$INCLUDE_DIRTY" -eq 0 ]]; then
     dirty="$(repo_dirty_reason "$top")"
     if [[ -n "$dirty" ]]; then
@@ -283,7 +263,6 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     fi
   fi
 
-  # 3. Delegate to the unchanged single-repo tree reset.
   rc=0
   out="$(cd "$top" && bash "$TREE_RESET" "$CHILD_MODE" ${CHILD_PASS[@]+"${CHILD_PASS[@]}"} 2>&1)" || rc=$?
   case "$rc" in
@@ -343,13 +322,10 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   esac
 done
 
-# Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#INVALID_INPUTS[@]}; i++)); do
   record "${INVALID_INPUTS[$i]}" blocked "${INVALID_REASONS[$i]}"
 done
 
-# Surface skip entries that matched nothing — the silent-skip-failure that caused
-# the original data loss now becomes a visible warning.
 batch_report_unmatched_skips
 
 printf 'Summary: repos=%s reset=%s skipped=%s blocked=%s failed=%s\n' \
