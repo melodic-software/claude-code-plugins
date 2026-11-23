@@ -247,8 +247,6 @@ jobs:
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DIFF_FILE"
           node .base/.github/scripts/pr-merge-risk/input.mjs
 
-      # The rater's model, effort and turns, and the checker's model: the
-      # merge-risk route of the base config's models block.
       - name: Resolve the rater's model
         id: models
         if: steps.data.outcome == 'success'
