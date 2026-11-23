@@ -349,9 +349,20 @@ function cleanNotes(raw) {
   return out
 }
 
+const UNREAD_FIX = {
+  'no-content': "the page loaded without the row's expect marker: check the marker against the page before any status change",
+  'redirected-off-path': 'the page moved: update the row link to where it redirects',
+  'redirected-off-origin': 'the page moved to another host: update the row link and the registry-fetcher hosts',
+  'http-403': 'the host blocked the fetch: set the docs-cache renderer to firecrawl',
+  'http-429': 'the host rate-limited the fetch: rerun later',
+  'fetch-failed': 'the fetch failed: rerun later',
+}
+
 const judged = await inWaves(rows.map(row => async () => {
   const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', unchecked: true, reason: 'missing fetch result' }
-  const partial = Boolean(slice.unchecked) || (slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large'))
+  const gone = slice.state === 'unread' && !slice.unchecked && /^http-(404|410)$/.test(slice.reason || '')
+  const partial = Boolean(slice.unchecked) || (slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large')) ||
+    (slice.state === 'unread' && !gone)
   if (slice.state !== 'read' || partial) {
     return {
       source_id: row.id,
@@ -368,8 +379,9 @@ const judged = await inWaves(rows.map(row => async () => {
       tests_current_models: 'unclear',
       notes: cleanNotes([
         slice.unchecked ? slice.reason + '; no change proposed'
-          : partial ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
-            : slice.reason || 'unread',
+          : slice.state === 'read' ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
+            : gone ? slice.reason
+              : (slice.reason || 'unread') + '; ' + (UNREAD_FIX[slice.reason] || 'recheck the row link') + '; no change proposed',
       ]),
     }
   }

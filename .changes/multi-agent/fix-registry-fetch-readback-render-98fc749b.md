@@ -15,3 +15,10 @@ bump: patch
   The registry fetcher may pass `--render`: `docs-raw.sh` checks the row's `expect` marker and,
   with the docs-cache `renderer` set to `firecrawl`, renders the page through the Firecrawl CLI.
   The Terminal-Bench row now points at the site root, where its current leaderboard moved.
+
+- demote a benchmark row only on definitive evidence
+
+  A registry recheck proposes a status change for an unread page only when the host reports it
+  gone (404 or 410). Every other unread reason (a missing expect marker, a block, a rate limit,
+  a moved page, a failed fetch) leaves the row partial with the fix to try and no proposal, so a
+  page-format change or a transient fault never demotes a board.

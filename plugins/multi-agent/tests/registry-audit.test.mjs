@@ -175,12 +175,27 @@ test('shipped rows ask the fetcher for --render; team rows do not', async () => 
   assert.equal(flag(team.link), 'no')
 })
 
-test('a docs-raw header that says state=unread still counts as unreachable', async () => {
-  const { result } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
-    reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: url=' + data(p, 'url') + ' state=unread reason=http-404' } : d(p, o)),
-  })
-  assert.equal(result.rows[0].partial, false)
-  assert.equal(result.proposedChanges[0].to, 'support-only')
+test('a page the host reports gone (404 or 410) counts as unreachable', async () => {
+  for (const reason of ['http-404', 'http-410']) {
+    const { result } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+      reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: url=' + data(p, 'url') + ' state=unread reason=' + reason } : d(p, o)),
+    })
+    assert.equal(result.rows[0].partial, false, reason)
+    assert.equal(result.proposedChanges[0].to, 'support-only', reason)
+  }
+})
+
+test('any other unread reason leaves the row partial, names the fix and proposes no change', async () => {
+  for (const [reason, fix] of [['no-content', /expect marker/], ['redirected-off-path', /update the row link/],
+    ['http-403', /renderer/], ['http-429', /rerun later/], ['fetch-failed', /rerun later/], ['private-address', /recheck the row link/]]) {
+    const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+      reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: url=' + data(p, 'url') + ' state=unread reason=' + reason } : d(p, o)),
+    })
+    assert.equal(by(calls, 'judge:').length, 0, reason)
+    assert.equal(result.rows[0].partial, true, reason)
+    assert.match(result.rows[0].notes.join(' '), fix, reason)
+    assert.deepEqual(result.proposedChanges, [], reason)
+  }
 })
 
 const MAP = [
