@@ -48,8 +48,6 @@ expect() {
   ok "$label"
 }
 
-# --- fixture builders -------------------------------------------------------
-
 # A minimal but structurally faithful workflow: two lanes, an aggregate, and a
 # body shaped like the real file (comments, block scalars, nested `if:` keys).
 write_workflow() {
@@ -166,8 +164,6 @@ feed_of() {
   for id in "$@"; do printf '            %s=${{ steps.%s.outcome }}\n' "$id" "$id"; done
 }
 
-# --- usage / input errors ---------------------------------------------------
-
 expect "bare invocation exits 2 with usage" 2 "usage:"
 expect "unknown mode exits 2 with usage" 2 "usage:" --verify
 expect "missing workflow exits 2" 2 "workflow not found" --check "$scratch/nope.yml"
@@ -180,8 +176,6 @@ expect "missing step opt-out list exits 2" 2 "step opt-out list not found" \
 printf 'name: ci\non:\n  pull_request:\n' >"$scratch/nojobs.yml"
 expect "workflow with no jobs mapping exits 2" 2 "no jobs: mapping found" \
   --check "$scratch/nojobs.yml" ci-status "$NONE"
-
-# --- the defect this gate exists to catch, at JOB level ---------------------
 
 write_workflow "$scratch/ungated.yml" "" "$(needs_of alpha)"
 expect "job absent from needs fails and names the job" 1 "UNGATED LANE: job 'beta'" \
@@ -227,8 +221,6 @@ write_workflow "$scratch/sharded-static.yml" "  gamma:
 expect "a literal matrix block parses too" 0 "all 3 lane(s) reachable" \
   --check "$scratch/sharded-static.yml" ci-status "$NONE"
 
-# --- the job opt-out path ---------------------------------------------------
-
 write_workflow "$scratch/optout.yml" "" "$(needs_of alpha)"
 # Annotate `beta` via the contiguous comment block immediately above its key.
 annotate_above() {
@@ -267,8 +259,6 @@ awk '
   mv "$scratch/detached-optout.yml.tmp" "$scratch/detached-optout.yml"
 expect "non-contiguous annotation does not exempt the job" 1 "UNGATED LANE: job 'beta'" \
   --check "$scratch/detached-optout.yml" ci-status "$NONE"
-
-# --- dangling needs ---------------------------------------------------------
 
 write_workflow "$scratch/dangling.yml" "" "$(needs_of alpha beta gamma)"
 expect "needs entry with no defined job fails" 1 "DANGLING NEED" \
@@ -358,8 +348,6 @@ write_step_workflow "$scratch/steps-annotated-job.yml" \
 expect "an unfed gate step in an annotated job is exempt" 0 "all 1 gate step(s) fed" \
   --check "$scratch/steps-annotated-job.yml" ci-status "$NONE"
 
-# --- STEP level: shapes this gate refuses to guess at -----------------------
-
 write_step_workflow "$scratch/steps-expr-flag.yml" \
   "      - name: Run the shellcheck gate
         id: shellcheck
@@ -380,8 +368,6 @@ write_step_workflow "$scratch/steps-two-in-a-row.yml" \
   "            both=\${{ steps.shellcheck.outcome || steps.typos.outcome }}"
 expect "a feed row naming two steps exits 2" 2 "reads more than one step" \
   --check "$scratch/steps-two-in-a-row.yml" ci-status "$NONE"
-
-# --- STEP level: the opt-out list, checked in both directions ---------------
 
 optout_list() {
   local path="$1"
