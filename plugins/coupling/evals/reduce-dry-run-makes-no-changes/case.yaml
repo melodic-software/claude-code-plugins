@@ -13,14 +13,14 @@ graders:
   - name: 'no-write-outside-ledger'
     type: 'tool_used'
     tool: 'Write'
-    input_match: '"file_path":"[^"]*/docs/'
+    input_match: '"file_path":"(?![^"]*/(?:\.work|tmp)/)'
     min: 0
     max: 0
     arm: 'both'
   - name: 'no-branch-or-push'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '\bgit\b[^"]*\b(?:checkout\s+-b|switch\s+-c|push)\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\[nrt]))git\b(?:[^"\\]|\\.)*?\b(?:checkout\s+-b|switch\s+-c|push)\b'
     min: 0
     max: 0
     arm: 'both'

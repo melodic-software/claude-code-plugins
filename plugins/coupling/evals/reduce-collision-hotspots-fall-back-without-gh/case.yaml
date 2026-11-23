@@ -3,10 +3,16 @@ name: 'reduce-collision-hotspots-fall-back-without-gh'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'falls-back-to-co-change'
+  - name: 'attempts-collision-hotspots'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '\bgit\b(?:[^"\\]|\\.)*\b(?:log|diff-tree|show)\b(?:[^"\\]|\\.)*--(?:name-only|name-status|numstat|stat)\b'
+    input_match: 'collision-hotspots\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: 'mines-co-change'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '(?:\b|(?<=\\[nrt]))git\b(?:[^"\\]|\\.)*\b(?:log|diff-tree|show)\b(?:[^"\\]|\\.)*--(?:name-only|name-status|numstat|stat)\b'
     min: 1
     arm: 'with-only'
   - name: 'completes-dry-run-without-edits'
@@ -16,3 +22,7 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'gap-line-names-missing-gh'
+    type: 'llm'
+    criteria: 'Records a gap: line naming the missing gh as the reason collision hotspots were not measured'
+    focus: 'trace'

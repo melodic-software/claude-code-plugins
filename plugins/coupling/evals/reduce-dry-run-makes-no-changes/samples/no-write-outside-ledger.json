@@ -37,6 +37,18 @@
         }
       ],
       "why": "writes a new doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/config/ports.json",
+            "content": "{\"port\":8443}"
+          }
+        }
+      ],
+      "why": "writes a config file"
     }
   ]
 }

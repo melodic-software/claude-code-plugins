@@ -20,13 +20,13 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/w/db/schema.sql",
-            "old_string": "a",
-            "new_string": "b"
+            "file_path": "/w/services/storefront/update-order.sql",
+            "old_string": "status = :status",
+            "new_string": "status = :status /* owned */"
           }
         }
       ],
-      "why": "edits the shared database"
+      "why": "edits only the shared-database file"
     },
     {
       "answer": [

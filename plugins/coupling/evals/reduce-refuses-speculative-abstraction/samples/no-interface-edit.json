@@ -12,6 +12,19 @@
         }
       ],
       "why": "a contained rename"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "old_string": "## Open",
+            "new_string": "## Open\n- Rejected: Mediator for one-to-one flow"
+          }
+        }
+      ],
+      "why": "ledger update"
     }
   ],
   "fail": [

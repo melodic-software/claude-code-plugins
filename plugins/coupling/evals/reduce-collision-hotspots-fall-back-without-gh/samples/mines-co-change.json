@@ -27,6 +27,17 @@
         }
       ],
       "why": "quoted date argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\ngit log --name-only --format=%H"
+          }
+        }
+      ],
+      "why": "multi-line command"
     }
   ],
   "fail": [

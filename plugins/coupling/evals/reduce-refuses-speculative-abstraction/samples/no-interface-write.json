@@ -11,6 +11,18 @@
         }
       ],
       "why": "ledger only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Ledger\n- Rejected: introducing EventBus for one-to-one calls; interface IClock over a stable dependency\n"
+          }
+        }
+      ],
+      "why": "ledger records the rejected abstractions"
     }
   ],
   "fail": [
@@ -37,6 +49,18 @@
         }
       ],
       "why": "adds an event bus"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/clock.ts",
+            "content": "// clock\ninterface IClock { now(): Date }"
+          }
+        }
+      ],
+      "why": "interface after a newline"
     }
   ]
 }
