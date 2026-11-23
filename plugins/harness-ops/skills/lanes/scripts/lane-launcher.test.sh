@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
-# Coverage:
-#   - config resolution + validation (missing / malformed / empty-lanes)
-#   - status renders per-lane running/stopped state from an --agents-json fixture
-#   - start (dry-run): launches only lanes not already running; mirrors
-#     model/effort onto the command; keeps the prompt body out of the echo
-#   - start refresh step: pull + marketplace update lines; --no-pull / --no-update
-#   - restart (dry-run): stop-then-start for a running lane
-#   - stop (real dispatch, PATH-stub claude): stops only running configured lanes
-#   - stop / restart of an unknown lane name is rejected (exit 3)
-#   - missing / empty prompt file and invalid effort are skipped, not launched
-#   - a lane with no effort is refused while its siblings launch
-#   - CLAUDE_CODE_EFFORT_LEVEL in the environment warns once per run
-#   - run-once: one `claude -p` pass in auto mode, the version-gated
-#     --permission-prompts, the effort refusal, the per-lane mkdir lock, the
-#     running-lane skip and the execution-target host
-#   - print-schedule: entries only for scheduled lanes, the generated script,
-#     the schedule range check and the 262-character Windows /TR limit
-#
-# Uses a per-suite fixture repo (config + prompt files) and PATH-stub `claude`
-# and `git` so no real CLI or network is touched.
 
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -29,9 +9,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/lane-launcher.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# A case that passes no --data-dir writes its launch-commit marker to the inherited
-# data dir. Pin that to the sandbox, named for the plugin so the launcher accepts it,
-# so no case writes into the caller's real plugin data.
 export CLAUDE_PLUGIN_DATA="$TMP/harness-ops-test-data"
 
 # shellcheck source=../../../lib/test-helpers.sh
@@ -43,7 +20,6 @@ fail() {
 }
 assert_not_eq() { if [[ "$3" != "$2" ]]; then pass "$1"; else fail "$1" "anything but: $2" "$3"; fi; }
 
-# --- Fixture repo -------------------------------------------------------------
 REPO="$TMP/repo"
 mkdir -p "$REPO/.work/lanes"
 cat >"$REPO/.work/lanes/lanes.json" <<'JSON'
@@ -63,7 +39,6 @@ printf 'You are the decide lane.\n' >"$REPO/.work/lanes/decide.md"
 
 CONFIG="$REPO/.work/lanes/lanes.json"
 
-# agents --json fixture: "work" running as a background session, others absent.
 AGENTS_RUNNING="$TMP/agents-running.json"
 cat >"$AGENTS_RUNNING" <<'JSON'
 [
@@ -76,8 +51,6 @@ JSON
 AGENTS_EMPTY="$TMP/agents-empty.json"
 echo '[]' >"$AGENTS_EMPTY"
 
-# An INTERACTIVE session that happens to share a lane name ("work") must never be
-# treated as the lane — it is not a `--bg` lane session.
 AGENTS_INTERACTIVE_WORK="$TMP/agents-interactive-work.json"
 cat >"$AGENTS_INTERACTIVE_WORK" <<'JSON'
 [
@@ -86,7 +59,6 @@ cat >"$AGENTS_INTERACTIVE_WORK" <<'JSON'
 ]
 JSON
 
-# --- PATH-stub claude + git (log every invocation) ----------------------------
 STUB_BIN="$TMP/bin"
 mkdir -p "$STUB_BIN"
 CLAUDE_LOG="$TMP/claude.log"
@@ -164,12 +136,6 @@ esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
-# --- Gate-arm stub (#1784) ----------------------------------------------------
-# Stands in for the autonomy plugin's hooks/lane-stop-gate-arm.sh: logs its argv
-# and succeeds (or fails via STUB_ARM_RC) so the suite can pin the launcher's
-# fail-closed arming without a staged autonomy install. run_launcher passes it
-# via --gate-arm-script; a case that wants the no-helper path calls the script
-# directly.
 ARM_LOG="$TMP/arm.log"
 ARM_STUB="$TMP/arm-stub.sh"
 cat >"$ARM_STUB" <<STUB
@@ -179,33 +145,15 @@ exit "\${STUB_ARM_RC:-0}"
 STUB
 chmod +x "$ARM_STUB"
 
-# Hermetic: the suite must not depend on an ambient `claude` (CI runners have
-# none). Every case resolves `claude`/`git` to the logging stubs; cases that
-# inspect the log reset it first. Real git is never needed — repos are passed
-# via --repo, so resolve_repo never shells out.
 SUITE_BASE_PATH="$PATH"
 export PATH="$STUB_BIN:$PATH"
-# An ambient value would add the override warning to every start/restart below.
 unset CLAUDE_CODE_EFFORT_LEVEL
 
-# Launch-commit markers are namespaced by repo (#792): the data dir is
-# plugin-wide, but `work` is a conventional lane name in every repo. Mirrors the
-# launcher's own repo_marker_key — a digest of the canonical repo path, not a
-# character fold, so two paths differing only in a folded character keep
-# distinct keys.
-# Mirrors the launcher's `-C` scoping too: `git hash-object` keys on the object
-# format of the repository it resolves, so the digest must be taken in the
-# TARGET repo rather than wherever the suite happens to run. $2 is that anchor
-# (default: the fixture repo) and $1 is the path being hashed — the two differ
-# whenever git canonicalizes a symlinked --repo.
 marker_repo_key() { printf '%s' "$1" | git -C "${2:-$REPO}" hash-object --stdin; }
 REPO_KEY="$(marker_repo_key "$REPO")"
 
 run_launcher() { bash "$SCRIPT" --gate-arm-script "$ARM_STUB" "$@"; }
 
-# ============================================================================
-# Config resolution + validation
-# ============================================================================
 out="$(run_launcher status --repo "$REPO" --config "$TMP/nope.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
 assert_eq "missing config exits 4" 4 "$rc"
@@ -247,7 +195,6 @@ for bad_name in 'group/../work' 'back\slash' '.' '..'; do
   assert_contains "lane name '$bad_name' is named in the message" "$out" "$bad_name"
 done
 
-# …but a name with any other punctuation stays free-form and is accepted.
 cat >"$TMP/ok-name.json" <<'JSON'
 { "lanes": [ { "name": "work.2 (alt)", "prompt": "work.md", "effort": "high" } ] }
 JSON
@@ -255,10 +202,6 @@ out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-j
 rc=$?
 assert_eq "a free-form lane name without path separators is accepted" 0 "$rc"
 
-# A non-string scalar is a config error, not an absent field. `lane_field` reads
-# these with jq's `//` alternative, which fires on every FALSY value, so a
-# mistyped `"effort": false` collapsed to the same "" an unset field produces
-# and the lane launched with no effort at all — silently (#1784).
 for mistyped_field in name model effort prompt; do
   jq -n --arg k "$mistyped_field" \
     '{lanes: [({name: "work", prompt: "work.md"} | .[$k] = false)]}' >"$TMP/mistyped.json"
@@ -268,10 +211,6 @@ for mistyped_field in name model effort prompt; do
   assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
 done
 
-# Defense-in-depth: a failed validation jq query must reject the config, not
-# pass vacuously on empty output when jq errors (#2088). Each resolve_config
-# validation query gets its own stub match so copy-pasted guards cannot regress
-# independently.
 REAL_JQ="$(command -v jq)"
 mkdir -p "$TMP/jqbin"
 cat >"$TMP/valid-for-jq-fail.json" <<'JSON'
@@ -308,16 +247,12 @@ rc=$?
 assert_eq "a failed lane field typing validation query exits 3" 3 "$rc"
 assert_contains "a failed lane field typing validation query is named in the message" "$out" "validation query failed (lane field typing)"
 
-# `null` remains the JSON spelling of "no value" and stays equivalent to absent.
 jq -n '{lanes: [{name: "work", prompt: "work.md", model: null, effort: "high"}]}' >"$TMP/nullmodel.json"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 rc=$?
 assert_eq "a null scalar field is treated as absent" 0 "$rc"
 assert_not_contains "a null model passes no --model flag" "$out" "--model"
 
-# ============================================================================
-# status
-# ============================================================================
 out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
 assert_contains "status: work is running" "$out" "work"
 assert_contains "status: work shows sessionId" "$out" "sid-work-1"
@@ -326,9 +261,6 @@ assert_contains "status: decide present" "$out" "decide"
 assert_contains "status: decide stopped" "$out" "stopped"
 assert_not_contains "status ignores non-lane sessions" "$out" "sid-other"
 
-# ============================================================================
-# start (dry-run) — launch only lanes not already running
-# ============================================================================
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
 assert_contains "start skips running lane" "$out" "skip work — already running"
 assert_contains "start launches babysit" "$out" "claude --bg -n babysit"
@@ -343,7 +275,6 @@ assert_contains "start passes babysit settings inline" "$out" "--settings"
 assert_contains "start settings carry the lane config object" "$out" "lane_stop_gate_enabled"
 assert_not_contains "work has no settings flag" "$out" "-n work --settings"
 
-# per-lane settings must be a JSON object — a non-object skips that lane only
 cat >"$TMP/badsettings.json" <<'JSON'
 {
   "prompt_dir": ".work/lanes",
@@ -360,10 +291,6 @@ assert_not_contains "non-object settings lane not launched" "$outbad" "claude --
 assert_contains "other lanes still launch past a bad-settings lane" "$outbad" "claude --bg -n decide"
 assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
 
-# …and a JSON `false` is a VALUE, not an absent field. `//` is jq's alternative
-# operator, so `false` yielded `empty` and reached bash as "" — the type check
-# above is guarded on a non-empty value, so it never ran and the lane launched
-# with `--settings` silently omitted (#1784).
 cat >"$TMP/falsesettings.json" <<'JSON'
 {
   "prompt_dir": ".work/lanes",
@@ -380,8 +307,6 @@ assert_not_contains "settings:false lane not launched" "$outfalse" "claude --bg 
 assert_contains "other lanes still launch past a false-settings lane" "$outfalse" "claude --bg -n decide"
 assert_eq "settings:false surfaces a non-zero exit" 1 "$rcfalse"
 
-# `null` stays the JSON spelling of "no value": the lane launches, without
-# --settings, rather than being skipped as mistyped.
 cat >"$TMP/nullsettings.json" <<'JSON'
 { "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high", "settings": null } ] }
 JSON
@@ -398,17 +323,11 @@ assert_contains "--no-pull skips pull" "$out2" "skip git pull"
 assert_contains "--no-update skips update" "$out2" "skip plugin marketplace update"
 assert_contains "empty agents → all lanes start" "$out2" "claude --bg -n work"
 
-# ============================================================================
-# restart (dry-run) — stop then start a running lane
-# ============================================================================
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
 assert_contains "restart stops running work" "$out" "stop work (sid-work-1)"
 assert_contains "restart relaunches work" "$out" "claude --bg -n work"
 assert_not_contains "restart scoped to work" "$out" "claude --bg -n babysit"
 
-# ============================================================================
-# stop (real dispatch via PATH-stub claude)
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
 log="$(cat "$CLAUDE_LOG")"
@@ -416,11 +335,6 @@ assert_contains "stop dispatches claude stop for running lane" "$log" "stop sid-
 assert_contains "stop reports non-running lanes" "$out" "babysit — not running"
 assert_not_contains "stop never targets a non-lane session" "$log" "sid-other"
 
-# ============================================================================
-# start (REAL dispatch via PATH-stub claude + git) — proves the launch path
-# actually shells out: pull, marketplace update, and `claude --bg` seeded with
-# the prompt-file BODY as a single trailing argument (not --dry-run).
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 log="$(cat "$CLAUDE_LOG")"
@@ -430,17 +344,11 @@ assert_contains "start really launches work with model+effort" "$log" "--bg -n w
 assert_contains "start seeds the prompt-file body as the trailing arg" "$log" "--effort high You are the work lane."
 assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --model opus --effort medium"
 
-# ============================================================================
-# unknown lane rejected
-# ============================================================================
 out="$(run_launcher stop bogus --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
 assert_eq "stop unknown lane exits 3" 3 "$rc"
 assert_contains "stop unknown lane message" "$out" "unknown lane 'bogus'"
 
-# ============================================================================
-# missing / empty prompt + invalid effort are skipped, not launched
-# ============================================================================
 cat >"$TMP/badprompt.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [
@@ -459,10 +367,6 @@ assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
 assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --permission-mode auto --effort ultracode"
 
-# ============================================================================
-# a lane with no effort is refused, never launched at the default; its siblings
-# still launch, and restart refuses it before stopping the running session
-# ============================================================================
 cat >"$TMP/noeffort.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [
@@ -491,9 +395,6 @@ out="$(run_launcher restart work --repo "$REPO" --config "$TMP/noeffort.json" --
 assert_contains "no-effort lane: restart refuses it" "$out" "lane 'work': no effort set"
 assert_not_contains "no-effort lane: restart leaves the running session up" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
-# ============================================================================
-# CLAUDE_CODE_EFFORT_LEVEL may override every lane's --effort: one warning per run
-# ============================================================================
 out="$(CLAUDE_CODE_EFFORT_LEVEL=low run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 assert_eq "CLAUDE_CODE_EFFORT_LEVEL: start warns once across three lanes" 1 "$(grep -c 'CLAUDE_CODE_EFFORT_LEVEL=low is set' <<<"$out")"
 assert_contains "CLAUDE_CODE_EFFORT_LEVEL: the warning says lane levels and agent pins may not hold" "$out" "may override lane --effort values and agent effort pins"
@@ -503,10 +404,6 @@ assert_eq "CLAUDE_CODE_EFFORT_LEVEL: restart warns once" 1 "$(grep -c 'CLAUDE_CO
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 assert_not_contains "CLAUDE_CODE_EFFORT_LEVEL: no warning when the variable is unset" "$out" "CLAUDE_CODE_EFFORT_LEVEL"
 
-# ============================================================================
-# ultracode version gate — below the floor the lane is skipped, and a restart
-# preflights it BEFORE stopping so a healthy running lane stays up
-# ============================================================================
 cat >"$TMP/ultra.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "ultracode" } ] }
@@ -519,17 +416,11 @@ assert_not_contains "no launch below the floor" "$out" "claude --bg -n work"
 out="$(STUB_CLAUDE_VERSION=2.1.203 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 assert_contains "ultracode at the floor launches" "$out" "claude --bg -n work"
 
-# The running lane must survive a restart the version gate refuses. NOT --dry-run:
-# `run` short-circuits under it, so the stop could never reach the stub and the
-# assertion below would hold no matter when the launcher stopped the lane.
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher restart --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_RUNNING" 2>&1)"
 assert_contains "restart refused below the floor" "$out" "needs Claude Code >= 2.1.203"
 assert_not_contains "healthy lane not stopped by a refused restart" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
 
-# Every lane in a run shares ONE `claude --version` probe. Callers read the cache
-# global directly; a `$(cli_version)` substitution would fill it in a subshell and
-# re-probe once per lane, so this counts the probes rather than trusting the shape.
 cat >"$TMP/ultra3.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "u1", "prompt": "work.md", "effort": "ultracode" },
@@ -541,18 +432,12 @@ out="$(run_launcher start --repo "$REPO" --config "$TMP/ultra3.json" --agents-js
 assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --permission-mode auto --effort ultracode"
 assert_eq "version probe memoized across lanes" 1 "$(grep -c -- '--version' "$CLAUDE_LOG")"
 
-# --permission-prompts none keeps auto mode and denies only what would have
-# prompted. The default stub is 2.1.220, below the 2.1.259 floor, so existing
-# launch lines stay without the flag. These two cases pin both sides.
 out="$(STUB_CLAUDE_VERSION=2.1.258 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 assert_contains "below 2.1.259 the launch stays auto" "$out" "claude --bg -n work --permission-mode auto --model opus"
 assert_not_contains "below 2.1.259 the flag is omitted" "$out" "--permission-prompts none"
 out="$(STUB_CLAUDE_VERSION=2.1.259 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 assert_contains "at 2.1.259 the flag follows auto" "$out" "claude --bg -n work --permission-mode auto --permission-prompts none --model opus"
 
-# A dry run must preview with no `claude` installed — the exemption require_claude
-# documents. The ultracode gate has no binary to probe there, so it reports the gate
-# unevaluated and still previews the lane instead of refusing it.
 NOCLAUDE_BIN="$TMP/bin-noclaude"
 mkdir -p "$NOCLAUDE_BIN"
 cp "$STUB_BIN/git" "$NOCLAUDE_BIN/git"
@@ -567,9 +452,6 @@ out="$(
 assert_contains "no-CLI dry run reports the gate unevaluated" "$out" "version gate not evaluated"
 assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --permission-mode auto --effort ultracode"
 
-# ============================================================================
-# Medium 1 — an option must not swallow the next flag as its value
-# ============================================================================
 out="$(run_launcher status --config --dry-run --repo "$REPO" 2>&1)"
 rc=$?
 assert_eq "--config --dry-run rejected (exit 3)" 3 "$rc"
@@ -581,9 +463,6 @@ out="$(run_launcher status --agents-json --config "$CONFIG" --repo "$REPO" 2>&1)
 rc=$?
 assert_eq "--agents-json followed by a flag rejected (exit 3)" 3 "$rc"
 
-# ============================================================================
-# Medium 3 — partial failure surfaces in the exit status (sweep still completes)
-# ============================================================================
 out="$(run_launcher start --repo "$REPO" --config "$TMP/badprompt.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
 assert_eq "partial launch failure exits non-zero" 1 "$rc"
@@ -591,9 +470,6 @@ out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGEN
 rc=$?
 assert_eq "all-lanes-ok start exits 0" 0 "$rc"
 
-# ============================================================================
-# Medium 3 / stop exit code — a failed `claude stop` must not relaunch, exits non-zero
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_STOP_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
 rc=$?
@@ -606,12 +482,6 @@ rc=$?
 assert_eq "stop with failed claude stop exits non-zero" 1 "$rc"
 assert_contains "stop failure reported" "$out" "work — stop failed"
 
-# ============================================================================
-# Codex P1 — restart must preflight launch inputs BEFORE stopping a running
-# lane: a recoverable prompt/effort error must not take the healthy session
-# down. `work` is running (sid-work-1) but its prompt file is missing, so the
-# stop must never fire and the session must stay up.
-# ============================================================================
 cat >"$TMP/restart-badprompt.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "missing.md" } ] }
@@ -624,24 +494,15 @@ assert_eq "restart with a bad prompt exits non-zero" 1 "$rc"
 assert_contains "restart bad-prompt error surfaced" "$out" "prompt file not found"
 assert_not_contains "restart does not stop the healthy running lane" "$log" "stop sid-work-1"
 
-# ============================================================================
-# Low-priority carry-forwards — uncovered flag paths
-# ============================================================================
 out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$TMP/no-such-agents.json" 2>&1)"
 rc=$?
 assert_eq "--agents-json missing file exits 4" 4 "$rc"
 assert_contains "--agents-json missing file message" "$out" "agents-json file not found"
-# `--` ends option parsing: tokens after it are lane names (options must precede it).
 out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" -- babysit 2>&1)"
 rc=$?
 assert_eq "-- passthrough: known lane after -- is accepted (exit 0)" 0 "$rc"
 assert_contains "-- passthrough targets the named lane" "$out" "babysit — not running"
 
-# ============================================================================
-# Codex P1 — an interactive session sharing a lane name is not the lane
-# (kind must be background). `start` launches the lane, `status` shows stopped,
-# `stop` never targets the interactive session.
-# ============================================================================
 out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_INTERACTIVE_WORK" 2>&1)"
 assert_contains "interactive same-name is not a running lane" "$out" "stopped"
 assert_not_contains "interactive same-name sessionId not shown" "$out" "sid-int-work"
@@ -654,11 +515,6 @@ log="$(cat "$CLAUDE_LOG")"
 assert_contains "stop treats interactive namesake as not running" "$out" "work — not running"
 assert_not_contains "stop never targets the interactive namesake" "$log" "sid-int-work"
 
-# ============================================================================
-# Codex P1 — a failed live `claude agents --json` must abort a mutating action,
-# never fabricate an empty list (which would relaunch still-live lanes). These
-# omit --agents-json so the live listing path is exercised via the stub.
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" 2>&1)"
 rc=$?
@@ -667,22 +523,13 @@ assert_eq "failed live session list aborts start (exit 4)" 4 "$rc"
 assert_contains "failed session list is reported" "$out" "could not list sessions"
 assert_not_contains "no lane is launched when the session list failed" "$log" "--bg -n"
 
-# A successful live list drives the same decisions as a fixture: empty → launch.
 out="$(STUB_CLAUDE_AGENTS_JSON='[]' run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
 assert_contains "live empty session list → lanes launch" "$out" "claude --bg -n work"
 
-# --dry-run mutates nothing, so a failed live list is tolerated (preview, exit 0)
-# — preserving the documented offline-dry-run behavior.
 out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
 rc=$?
 assert_eq "dry-run tolerates a failed live list (exit 0)" 0 "$rc"
 
-# ============================================================================
-# A failed pre-launch refresh ABORTS the launch: no lane is started/stopped and
-# the action exits non-zero with an actionable message. The refresh is a
-# documented launch prerequisite, so stale repo/plugin state must never seed
-# background lanes.
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(STUB_GIT_PULL_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
@@ -707,29 +554,16 @@ assert_eq "restart aborts when git pull fails (exit 1)" 1 "$rc"
 assert_not_contains "restart does not stop a lane after a failed pull" "$log" "stop sid-work-1"
 assert_not_contains "restart does not relaunch after a failed pull" "$log" "--bg -n"
 
-# The intentional-bypass path (--no-pull/--no-update) is NOT a refresh failure:
-# the skipped-step status stays 0, so lanes still launch even with the failure
-# env set (proves the abort keys on real failure, not on skipping).
 out="$(STUB_GIT_PULL_RC=1 STUB_CLAUDE_UPDATE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --no-pull --no-update --dry-run 2>&1)"
 rc=$?
 assert_eq "refresh bypass still launches despite failure env (exit 0)" 0 "$rc"
 assert_contains "refresh bypass launches lanes" "$out" "claude --bg -n work"
 
-# The same intentional-bypass invariant holds for restart, which refreshes via a
-# different callback path (_restart_one): --no-pull/--no-update keeps the refresh
-# status 0, so a targeted dry-run restart still previews the relaunch despite the
-# failure env being set.
 out="$(STUB_GIT_PULL_RC=1 STUB_CLAUDE_UPDATE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --no-pull --no-update --dry-run 2>&1)"
 rc=$?
 assert_eq "restart refresh bypass still relaunches despite failure env (exit 0)" 0 "$rc"
 assert_contains "restart refresh bypass previews the lane relaunch" "$out" "claude --bg -n work"
 
-# ============================================================================
-# An unknown restart target is rejected BEFORE the refresh mutates anything
-# (matches stop's fail-first behavior): the log shows no git pull and no
-# marketplace update. Regression guard against the old order that pulled +
-# updated only to reject the misspelled target afterward.
-# ============================================================================
 : >"$CLAUDE_LOG"
 out="$(run_launcher restart does-not-exist --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
 rc=$?
@@ -739,11 +573,6 @@ assert_contains "restart unknown lane message" "$out" "unknown lane 'does-not-ex
 assert_not_contains "restart unknown lane does not pull" "$log" "pull --ff-only"
 assert_not_contains "restart unknown lane does not update the marketplace" "$log" "plugin marketplace update"
 
-# ============================================================================
-# #792 — launch-commit marker: start (real dispatch) writes
-# <data-dir>/lanes/<repo-key>/<name>-launch-commit for every lane it actually launches,
-# holding the captured `git rev-parse HEAD` SHA.
-# ============================================================================
 DATA_DIR="$TMP/data"
 : >"$CLAUDE_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR" 2>&1)"
@@ -754,8 +583,6 @@ assert_eq "marker: work marker holds the stubbed HEAD sha" "deadbeefcafefeedface
 marker="$(cat "$DATA_DIR/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
 assert_eq "marker: babysit marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# A lane `start` SKIPS (already running) must not get a fresh/overwritten
-# marker — only lanes actually (re)launched this run are recorded.
 DATA_DIR2="$TMP/data2"
 mkdir -p "$DATA_DIR2/lanes/$REPO_KEY"
 printf 'pre-existing-sha\n' >"$DATA_DIR2/lanes/$REPO_KEY/work-launch-commit"
@@ -770,16 +597,12 @@ out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json
 marker="$(cat "$DATA_DIR3/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: restart records the marker for the relaunched lane" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# --dry-run mutates nothing: no marker file is written, but the preview names
-# the would-be marker path and the resolved HEAD.
 DATA_DIR4="$TMP/data4"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR4" --dry-run 2>&1)"
 assert_contains "marker: dry-run previews the marker write" "$out" "DRY-RUN: write launch-commit marker $DATA_DIR4/lanes/$REPO_KEY/work-launch-commit <- deadbeefcafefeedfacefeeddeadbeefcafefeed"
 if [[ -e "$DATA_DIR4/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
 assert_eq "marker: dry-run writes no file" 0 "$notwritten"
 
-# An unresolvable HEAD (git rev-parse fails) skips the write with a warning on
-# stderr but must NOT fail the lane launch itself (best-effort).
 DATA_DIR5="$TMP/data5"
 out="$(STUB_GIT_REVPARSE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR5" 2>&1)"
 rc=$?
@@ -788,9 +611,6 @@ assert_contains "marker: unresolvable HEAD warns on skip" "$out" "launch-commit 
 if [[ -e "$DATA_DIR5/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
 assert_eq "marker: unresolvable HEAD writes no file" 0 "$notwritten"
 
-# …and when a PREVIOUS launch left a marker, an unrecordable relaunch must
-# remove it rather than let the probe read that older commit as this session's
-# launch point.
 DATA_DIR5B="$TMP/data5b"
 mkdir -p "$DATA_DIR5B/lanes/$REPO_KEY"
 printf 'previouslaunchsha\n' >"$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit"
@@ -801,8 +621,6 @@ if [[ -e "$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit" ]]; then stale=1; else
 assert_eq "marker: unrecordable relaunch invalidates the previous launch's marker" 0 "$stale"
 assert_contains "marker: invalidation is announced on stderr" "$out" "removed the previous launch's marker"
 
-# A write failure (marker path occupied by a directory) is the other
-# unrecordable path: same invalidation, same best-effort exit.
 DATA_DIR5C="$TMP/data5c"
 mkdir -p "$DATA_DIR5C/lanes/$REPO_KEY/work-launch-commit"
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5C" 2>&1)"
@@ -810,8 +628,6 @@ rc=$?
 assert_eq "marker: failed write still exits 0 (best-effort)" 0 "$rc"
 assert_contains "marker: failed write warns" "$out" "launch-commit marker write failed"
 
-# --dry-run must never touch an existing marker, even when HEAD is unresolvable:
-# it returns before the marker write/invalidate path entirely.
 DATA_DIR5D="$TMP/data5d"
 mkdir -p "$DATA_DIR5D/lanes/$REPO_KEY"
 printf 'previouslaunchsha\n' >"$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit"
@@ -824,16 +640,12 @@ out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --confi
 marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# Another plugin's SessionStart hook can export its own data dir into every Bash
-# call as CLAUDE_PLUGIN_DATA; the marker must never land there.
 FOREIGN7="$TMP/codex-openai-codex"
 out="$(HOME="$TMP/home7" CLAUDE_PLUGIN_DATA="$FOREIGN7" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA gets no marker" "absent" "$([[ -e "$FOREIGN7" ]] && echo present || echo absent)"
 marker="$(cat "$TMP/home7/.claude/plugins/data/harness-ops/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# The data dir is plugin-wide, so a second repo running the same conventional
-# lane name must not overwrite the first repo's marker.
 REPO_B="$TMP/repo-b"
 mkdir -p "$REPO_B/.work/lanes"
 cp "$REPO/.work/lanes/lanes.json" "$REPO_B/.work/lanes/lanes.json"
@@ -848,18 +660,11 @@ assert_eq "marker: launching 'work' in another repo leaves repo A's marker intac
 marker="$(cat "$DATA_DIR7/lanes/$REPO_B_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: the other repo gets its own namespaced marker" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# The repo key must be injective. A character fold (`tr -c 'A-Za-z0-9_-' '-'`)
-# collapses these two real, distinct checkout paths onto one key — the exact
-# collision the repo namespace exists to prevent.
 fold_key_a="$(printf '%s' "$TMP/repos/foo-bar" | git hash-object --stdin)"
 fold_key_b="$(printf '%s' "$TMP/repos/foo/bar" | git hash-object --stdin)"
 assert_not_eq "marker: repo key does not collide across fold-equivalent paths" \
   "$fold_key_a" "$fold_key_b"
 
-# The key must come from git's canonical toplevel, not the --repo argument
-# verbatim: when --repo names a symlink, git resolves it and the documented
-# probe (which asks git directly) would otherwise look under a different key.
-# STUB_GIT_TOPLEVEL stands in for that resolution.
 DATA_DIR8="$TMP/data8"
 CANONICAL="$TMP/canonical-repo"
 out="$(STUB_GIT_TOPLEVEL="$CANONICAL" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR8" 2>&1)"
@@ -868,17 +673,6 @@ assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "d
 if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
 assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
 
-# `git hash-object` digests with the object format of the repository it
-# RESOLVES. Unscoped, it resolved the caller's — so a launcher run from a SHA-1
-# cwd against a SHA-256 --repo wrote a 40-hex key, while context/refresh.md's
-# probe, which runs inside that checkout, computed the 64-hex one and read a
-# directory the launcher never wrote: staleness detection silently off. The
-# digest must be taken IN the target repo. Skipped where git cannot create a
-# SHA-256 repository (the format is not universally compiled in).
-# $REAL_GIT, not the PATH stub: the stub answers only pull / rev-parse /
-# hash-object and exits 0 for anything else, so a stubbed `git init` would
-# report success while creating no repository at all — and the fixture would
-# then compare two SHA-1 keys and discriminate nothing.
 SHA256_REPO="$TMP/sha256-repo"
 if "$REAL_GIT" init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
   mkdir -p "$SHA256_REPO/.work/lanes"
@@ -889,13 +683,10 @@ JSON
   DATA_DIR9="$TMP/data9"
   out="$(run_launcher start --repo "$SHA256_REPO" --config "$SHA256_REPO/.work/lanes/lanes.json" \
     --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR9" --no-pull --no-update 2>&1)"
-  # The key the target repo's own object format yields — 64 hex for SHA-256.
   sha256_key="$(marker_repo_key "$SHA256_REPO" "$SHA256_REPO")"
   assert_eq "marker: a SHA-256 repo yields a 64-character key" 64 "${#sha256_key}"
   marker="$(cat "$DATA_DIR9/lanes/$sha256_key/work-launch-commit" 2>/dev/null)"
   assert_eq "marker: written under the TARGET repo's object-format key" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
-  # A key derived from the CALLER's object format (SHA-1 here) must hold
-  # nothing — only the target repo's object-format key is valid.
   sha1_key="$(printf '%s' "$SHA256_REPO" | git -C "$REPO" hash-object --stdin)"
   if [[ -e "$DATA_DIR9/lanes/$sha1_key/work-launch-commit" ]]; then wrongfmt=1; else wrongfmt=0; fi
   assert_eq "marker: nothing is written under the caller-format key" 0 "$wrongfmt"
@@ -903,14 +694,6 @@ else
   printf 'SKIP: git cannot create a SHA-256 repository here — object-format keying unverified\n' >&2
 fi
 
-# ============================================================================
-# #1784 — lane-stop gate arming: a lane whose settings request the gate is
-# armed at launch (arm id injected into --settings), and one that cannot be
-# armed is skipped — fail closed, never silently ungated.
-# ============================================================================
-# Real dispatch: the babysit lane requests the gate → the arm stub runs with
-# --id/--cwd, and the launched --settings carry the SAME id under
-# lane_stop_gate_arm_id.
 : >"$CLAUDE_LOG"
 : >"$ARM_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
@@ -926,11 +709,9 @@ settings_id="$(printf '%s\n' "$log" | grep -o 'lane_stop_gate_arm_id[^,}]*' | se
 assert_eq "arm: the id the helper armed is the id the session receives" "$armed_id" "$settings_id"
 assert_not_eq "arm: the id is non-empty" "" "$armed_id"
 
-# The non-gate lanes (work, decide: no gate request in settings) never arm.
 gate_calls="$(grep -c -- '--id' "$ARM_LOG" 2>/dev/null || true)"
 assert_eq "arm: only the gate-requesting lane arms (one helper call)" 1 "$gate_calls"
 
-# The lane's sentinel/marker settings ride into the arm call.
 cat >"$TMP/gateopts.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
@@ -945,17 +726,6 @@ armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: the lane's sentinel reaches the helper" "$armlog" "--sentinel DONE-X"
 assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker .lane-complete"
 
-# An EXPLICIT empty marker disables the marker channel for this session, which
-# is a different verdict from leaving the option unset: an arm record with no
-# marker key at all lets the gate fall through to the user-level marker, where a
-# leftover global marker file can authorize a stop the lane never signaled. The
-# empty value must therefore reach the helper, not be read as absence.
-#
-# The sentinel is deliberately NOT symmetric, and this fixture sets both to pin
-# the asymmetry: lane-stop-gate.sh substitutes the default token for an empty
-# sentinel, so emptiness is not a configured value there. Recording one would
-# buy no behavior while suppressing the record's fall-through to the user-level
-# sentinel — so an empty sentinel is still treated as absent.
 cat >"$TMP/gate-empty-marker.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
@@ -970,9 +740,6 @@ armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: an explicitly empty marker still reaches the helper" "$armlog" "--marker"
 assert_not_contains "arm: an explicitly empty sentinel is still treated as absent" "$armlog" "--sentinel"
 
-# …while an option the lane never set stays absent from the arm call, so the
-# gate's own resolution order (managed ▷ arm record ▷ user settings) still
-# reaches user settings for it.
 cat >"$TMP/gate-no-opts.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
@@ -985,18 +752,6 @@ armlog="$(cat "$ARM_LOG")"
 assert_not_contains "arm: an unset marker passes no --marker" "$armlog" "--marker"
 assert_not_contains "arm: an unset sentinel passes no --sentinel" "$armlog" "--sentinel"
 
-# Settings may name several autonomy installs. The arm id must reach ONLY the
-# entries that asked. The gate does not read this channel as a trusted verdict
-# either way, so an arm id on `autonomy@a` is not overriding its `false`; what
-# it does do is mark an install the lane never asked to arm, so the settings
-# handed to `claude` misdescribe the request. Options likewise come only from
-# the requesting entry — the non-requesting sibling's marker must not leak into
-# the arm call, which is the one place the any-quantifier could change behavior.
-#
-# The non-requesting entry is deliberately LAST: option extraction takes the
-# last match, so a fixture that puts it first would read the requesting entry's
-# marker whether or not the filter scopes to requesting entries, and would pin
-# nothing.
 cat >"$TMP/gate-multi.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
@@ -1015,16 +770,11 @@ log="$(cat "$CLAUDE_LOG")"
 armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: options come from the requesting entry" "$armlog" "--marker REQUESTING-MARKER"
 assert_not_contains "arm: a disabled sibling's marker never reaches the helper" "$armlog" "DISABLED-SIBLING-MARKER"
-# The launched --settings must carry the arm id under autonomy@a only. Isolate
-# each entry's object from the echoed command rather than matching the whole
-# line, which contains both.
 entry_a="$(printf '%s\n' "$log" | grep -o '"autonomy@a":{[^}]*}[^}]*}' | head -n 1)"
 entry_b="$(printf '%s\n' "$log" | grep -o '"autonomy@b":{[^}]*}[^}]*}' | head -n 1)"
 assert_contains "arm: the requesting entry receives the arm id" "$entry_a" "lane_stop_gate_arm_id"
 assert_not_contains "arm: the explicitly-disabled entry receives no arm id" "$entry_b" "lane_stop_gate_arm_id"
 
-# Arming failure → that lane is skipped with an error (fail closed), the other
-# lanes still launch, and the sweep exits non-zero.
 : >"$CLAUDE_LOG"
 out="$(STUB_ARM_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
@@ -1034,9 +784,6 @@ assert_contains "arm: arming failure names the lane and skips it" "$out" "lane-s
 assert_not_contains "arm: a lane that could not be armed is NOT launched" "$log" "--bg -n babysit"
 assert_contains "arm: other lanes still launch past an arm failure" "$log" "--bg -n work"
 
-# No helper found (no override, unanchored checkout) → same fail-closed skip
-# with an actionable message. Invoked directly, without run_launcher's
-# --gate-arm-script.
 : >"$CLAUDE_LOG"
 out="$(bash "$SCRIPT" start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
@@ -1045,17 +792,12 @@ assert_eq "arm: missing helper surfaces a non-zero exit" 1 "$rc"
 assert_contains "arm: missing helper message is actionable" "$out" "no autonomy gate-arm helper was found"
 assert_not_contains "arm: no launch without a helper for a gate-requesting lane" "$log" "--bg -n babysit"
 
-# --dry-run mutates nothing: the arming is previewed, the helper is not run.
 : >"$ARM_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 assert_contains "arm: dry-run previews the arming" "$out" "DRY-RUN: arm lane-stop gate for babysit"
 if [[ -s "$ARM_LOG" ]]; then armran=1; else armran=0; fi
 assert_eq "arm: dry-run does not run the helper" 0 "$armran"
 
-# A missing helper is caught in validate_launch_inputs, so restart preflights it
-# BEFORE stopping a healthy running lane (same doctrine as the prompt/effort
-# checks). `work` is running; a gate-requesting config with no helper must not
-# take the session down. No --gate-arm-script → no helper discoverable.
 cat >"$TMP/gate-work.json" <<'JSON'
 { "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "high",
@@ -1070,12 +812,6 @@ assert_eq "arm: restart with an unarmable gate lane exits non-zero" 1 "$rc"
 assert_contains "arm: restart preflights the missing helper" "$out" "no autonomy gate-arm helper was found"
 assert_not_contains "arm: restart does not stop the healthy lane over a missing helper" "$log" "stop sid-work-1"
 
-# EVERY discovered helper must arm. Each autonomy install writes into its own
-# install-derived store and the launcher cannot tell which one the session will
-# load, so accepting a partial arm would launch a lane carrying an id its own
-# gate resolves to nothing — ungated, with only a stale-arm notice. Exercised
-# through REAL discovery (no --gate-arm-script): the launcher is staged inside a
-# synthetic plugins/cache tree carrying two marketplaces' autonomy installs.
 STAGE="$TMP/stage"
 LAUNCHER_STAGED="$STAGE/plugins/cache/mkt-a/harness-ops/1.0.0/skills/lanes/scripts/lane-launcher.sh"
 mkdir -p "$(dirname "$LAUNCHER_STAGED")"
@@ -1084,8 +820,6 @@ MULTI_ARM_LOG="$TMP/arm-multi.log"
 for mkt in mkt-a mkt-b; do
   helper="$STAGE/plugins/cache/$mkt/autonomy/1.0.0/hooks/lane-stop-gate-arm.sh"
   mkdir -p "$(dirname "$helper")"
-  # mkt-b's helper fails; mkt-a's succeeds. Under the old any-success rule the
-  # lane would launch.
   cat >"$helper" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "$mkt" >>"$MULTI_ARM_LOG"
@@ -1105,13 +839,6 @@ assert_eq "arm: one helper failing fails the whole arming" 1 "$rc"
 assert_contains "arm: a partial arm names the lane and skips it" "$out" "lane-stop gate arming failed"
 assert_not_contains "arm: a partially-armed lane is NOT launched" "$log" "--bg -n work"
 
-# --- Default config home + pre-move compatibility -----------------------------
-# Every case above passes --config explicitly, so nothing there exercises the
-# DEFAULT resolution — which is exactly what moved. These drive it with no
-# --config at all.
-#
-# The `lanes/` concern home: config and prompts both inside it, and no
-# `prompt_dir` in the config, so the default has to be the one doing the work.
 HOME_REPO="$TMP/home-repo"
 mkdir -p "$HOME_REPO/.work/lanes"
 cat >"$HOME_REPO/.work/lanes/lanes.json" <<'JSON'
@@ -1124,9 +851,6 @@ assert_contains "default config resolves to .work/lanes/lanes.json" "$out" "DRY-
 assert_contains "default prompt_dir resolves to .work/lanes" "$out" "$HOME_REPO/.work/lanes/work.md"
 assert_not_contains "the lanes/ home emits no deprecation warning" "$out" "pre-move lane config"
 
-# A checkout that predates the move: config and prompts still at the memory
-# root, and the config never named a prompt_dir. Both must keep resolving, with
-# the migration said out loud.
 OLD_REPO="$TMP/old-repo"
 mkdir -p "$OLD_REPO/.work"
 cat >"$OLD_REPO/.work/lanes.json" <<'JSON'
@@ -1139,7 +863,6 @@ assert_contains "pre-move config warns about the move" "$out" "reading the pre-m
 assert_contains "the warning names the destination" "$out" "$OLD_REPO/.work/lanes/"
 assert_contains "a pre-move config keeps the pre-move prompt_dir default" "$out" "$OLD_REPO/.work/work.md"
 
-# Both present: the `lanes/` home wins outright and nothing warns.
 BOTH_REPO="$TMP/both-repo"
 mkdir -p "$BOTH_REPO/.work/lanes"
 cat >"$BOTH_REPO/.work/lanes.json" <<'JSON'
@@ -1155,24 +878,15 @@ assert_contains "with both present the lanes/ home wins" "$out" "DRY-RUN: env -u
 assert_not_contains "the leftover pre-move config is not read" "$out" "-n stale"
 assert_not_contains "no warning when the lanes/ home exists" "$out" "pre-move lane config"
 
-# $HARNESS_OPS_LANES_CONFIG stays the escape hatch: used verbatim, never
-# suffixed and never fallen back from, so a config kept outside the memory root
-# fails loudly rather than silently resolving to a pre-move file.
 out="$(HARNESS_OPS_LANES_CONFIG="$TMP/nowhere.json" run_launcher status --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" 2>&1)"
 rc=$?
 assert_eq "the env override is not fallen back from" 4 "$rc"
 assert_contains "the env override is used verbatim" "$out" "lane config not found: $TMP/nowhere.json"
 
-# An explicit --config at the pre-move path is honored verbatim (no warning),
-# and still gets the pre-move prompt_dir default — the default is keyed on
-# WHERE the config resolved, not on how.
 out="$(run_launcher start --repo "$OLD_REPO" --config "$OLD_REPO/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-explicit" --dry-run 2>&1)"
 assert_not_contains "an explicit pre-move --config does not warn" "$out" "reading the pre-move lane config"
 assert_contains "an explicit pre-move --config keeps the pre-move prompt_dir" "$out" "$OLD_REPO/.work/work.md"
 
-# ============================================================================
-# Mods state (#6157): one `mods:` line per lane at start, restart and status
-# ============================================================================
 MODS_CONFIG="$TMP/mods.json"
 cat >"$MODS_CONFIG" <<'JSON'
 { "prompt_dir": ".work/lanes",
@@ -1183,36 +897,29 @@ JSON
 CAN_LOAD="mods: can load (nothing the launcher sees stops them; causes only the session sees are unchecked)"
 mods_run() { run_launcher "$1" --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1; }
 
-# Cause: a CLI below the mods floor. No `plugin test` call is made for it.
 : >"$CLAUDE_LOG"
 out="$(STUB_CLAUDE_VERSION=2.1.286 mods_run start)"
 assert_contains "below 2.1.287 start reports mods off with the version" "$out" "mods: off (Claude Code 2.1.286 is older than 2.1.287, the mods floor)"
 assert_not_contains "below the floor no plugin test runs" "$(cat "$CLAUDE_LOG")" "plugin-test"
 
-# Cause: disableAllHooks in the lane's own --settings, whatever the machine says.
 out="$(STUB_CLAUDE_VERSION=2.1.287 mods_run start)"
 assert_contains "lane overlay disableAllHooks reports off for that lane" "$out" "mods: off (disableAllHooks in the lane's --settings)"
 assert_eq "at the floor with a can-load machine, the two other lanes can load" 2 "$(grep -cF -- "$CAN_LOAD" <<<"$out")"
 
-# The probe runs once per run, from the repo, against an empty directory.
 : >"$CLAUDE_LOG"
 STUB_CLAUDE_VERSION=2.1.296 mods_run status >/dev/null
 assert_eq "the machine probe runs once across three lanes" 1 "$(grep -c 'plugin-test' "$CLAUDE_LOG")"
 assert_contains "the probe runs from the lanes' launch directory against an empty dir" "$(cat "$CLAUDE_LOG")" "plugin-test cwd=$REPO dir-empty=yes"
 
-# Cause: a settings scope or policy, as claude plugin test reports it.
 out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off here' mods_run restart)"
 assert_contains "restart reports a settings or policy cause" "$out" "mods: off (a setting or policy turns them off: disableAllHooks in a settings file, or the organization's policy"
 assert_not_contains "the settings cause names no setting upstream does not" "$out" "allowManaged"
 assert_contains "an overlay false under a settings cause reads unknown, never on" "$out" "mods: unknown (the lane's --settings sets disableAllHooks to false"
 
-# Cause: the rollout switch served off.
 out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch served off' mods_run status)"
 assert_contains "status reports the rollout switch" "$out" "mods: off (Anthropic's rollout switch served off"
 assert_not_contains "a rollout-off machine reports no lane as can load" "$out" "mods: can load"
 
-# Unknown: a rollout value an earlier session saved, an unrecognized message, an
-# unreadable version, and no CLI at all. None of them reads as can load.
 out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch was saved off by an earlier session' mods_run status)"
 assert_contains "a saved-off rollout value reads unknown" "$out" "mods: unknown (claude plugin test read a rollout switch an earlier session saved off"
 out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='something new' mods_run status)"
@@ -1223,12 +930,7 @@ assert_contains "an unreadable version reads unknown" "$out" "mods: unknown (cla
 out="$(PATH="$NOCLAUDE_PATH" mods_run status)"
 assert_contains "no CLI reads unknown" "$out" "mods: unknown (no claude CLI to probe)"
 
-# A hung probe is bounded: start and status --dry-run finish, and the lane reads
-# unknown with the bound. Run through GNU timeout when present and through the
-# pure-Bash watchdog (the macOS path) either way.
-# Each case shortens only the bound of the probe it hangs (<bound var>), so the
-# other probe keeps its production bound and a slow runner cannot time it out.
-hang_run() { # <action> <force-bash 0|1> <hang var> <bound var>
+hang_run() {
   local start_s end_s
   start_s=$SECONDS
   out="$(
@@ -1250,25 +952,15 @@ for force in 0 1; do
   assert_eq "a hung claude --version is bounded (force-bash=$force)" 1 "$((elapsed < 15))"
 done
 
-# The probe runs before the first lane launches, not between launches.
 : >"$CLAUDE_LOG"
 STUB_CLAUDE_VERSION=2.1.296 run_launcher start --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --no-pull --no-update >/dev/null 2>&1
 probe_line="$(grep -n 'plugin-test' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
 launch_line="$(grep -n -- '--bg' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
 assert_eq "the mods probe precedes the first launch" 1 "$((${probe_line:-999} < ${launch_line:-0}))"
 
-# A launch the launcher refuses prints no mods line for that lane.
 out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1 | grep -c 'mods:' || true)"
 assert_eq "a refused ultracode lane below its floor prints no mods line" 0 "$out"
 
-# ============================================================================
-# Execution target: host per lane from docs/conventions/execution-target.yaml
-# ============================================================================
-# These cases need real git (a bare origin and a clone), so they run with the
-# logging `claude` stub and a `gh` stub but WITHOUT the git stub. The fixture
-# path holds a literal `$(...)`, and every case runs under BASH_COMPAT=51, where
-# bash expands some array subscripts twice: a launcher that evaluated a path,
-# a value from the file or a telemetry body would create the PWNED file.
 ET_BIN="$TMP/et-bin"
 mkdir -p "$ET_BIN"
 ln -s "$STUB_BIN/claude" "$ET_BIN/claude"
@@ -1297,7 +989,6 @@ esac
 STUB
 chmod +x "$ET_BIN/gh"
 ET_PATH="$ET_BIN:$SUITE_BASE_PATH"
-# The rest of the suite builds and reads real repositories.
 PATH="$ET_PATH"
 ET_SANDBOX="$TMP/et \$(touch PWNED) sandbox"
 mkdir -p "$ET_SANDBOX"
@@ -1306,10 +997,6 @@ ET_REPO="$ET_SANDBOX/repo"
 fx_git() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
 git init -q --bare -b main "$ET_ORIGIN"
 git clone -q "$ET_ORIGIN" "$ET_REPO" 2>/dev/null
-# origin is the local bare repository by path. For the cloud-launch cases it is
-# configured as github.com/acme/widgets (the slug the launcher derives), with
-# git reaching the bare repository through insteadOf; the shipped launcher
-# refuses that rewrite, so only the trusted-stage copy below runs under it.
 et_origin_github() {
   git -C "$ET_REPO" remote set-url origin https://github.com/acme/widgets.git
   git -C "$ET_REPO" config "url.$ET_ORIGIN.insteadOf" https://github.com/acme/widgets.git
@@ -1324,11 +1011,6 @@ printf 'You are the work lane.\n' >"$ET_REPO/.work/lanes/work.md"
 ET_TELEMETRY_NONE="$TMP/et-telemetry-none.json"
 printf '{}\n' >"$ET_TELEMETRY_NONE"
 
-# Every local-lane stage may read untrusted input, so the shipped launcher never
-# reaches its cloud launch. The cloud-launch cases run a copy with two changes:
-# its trusted-stage list names one fixture stage, and its origin-rewrite check
-# is off so the fixture's insteadOf can stand in for github.com. Everything
-# else in the copy is the shipped code.
 TRUSTED_DIR="$TMP/trusted-launcher"
 mkdir -p "$TRUSTED_DIR"
 cp -R "$SCRIPT_DIR/lib" "$TRUSTED_DIR/lib"
@@ -1340,7 +1022,6 @@ assert_contains "the trusted-stage copy names the fixture stage" "$(cat "$TRUSTE
 assert_contains "the trusted-stage copy turns off the origin-rewrite check" "$(cat "$TRUSTED_DIR/lane-launcher.sh")" 'origin_url_rewritten() { return 1; }'
 TRUSTED_SCRIPT="$TRUSTED_DIR/lane-launcher.sh"
 
-# Commit <yaml> (or delete the file when <yaml> is empty) on origin's main.
 et_publish() {
   if [[ -n "$1" ]]; then
     printf '%s\n' "$1" >"$ET_REPO/docs/conventions/execution-target.yaml"
@@ -1353,14 +1034,14 @@ et_publish() {
   git -C "$ET_REPO" remote set-head origin main >/dev/null 2>&1
   ET_SHA_NOW="$(git -C "$ET_REPO" rev-parse HEAD)"
 }
-et_lanes() { # <stage or ""> [extra lane JSON members]
+et_lanes() {
   jq -n --arg s "$1" --argjson x "${2:-{\}}" \
     '{lanes: [({name: "work", prompt: "work.md", effort: "high"} + (if $s == "" then {} else {stage: $s} end) + $x)]}' \
     >"$ET_REPO/.work/lanes/lanes.json"
 }
 ET_TELEMETRY_BINDING='{"telemetry":{"issue":5}}'
 et_cloud_lane() { et_lanes fixture:trusted "$ET_TELEMETRY_BINDING"; }
-et_run_with() { # <script> <action> [args...]
+et_run_with() {
   PATH="$ET_PATH" BASH_COMPAT=51 bash "$1" --gate-arm-script "$ARM_STUB" "$2" --repo "$ET_REPO" \
     --agents-json "$AGENTS_EMPTY" --no-pull --no-update --telemetry-json "$ET_TELEMETRY_NONE" "${@:3}"
 }
@@ -1378,10 +1059,6 @@ ET_DATA="$TMP/et-data"
 ET_KEY="$(printf '%s' "$(git -C "$ET_REPO" rev-parse --show-toplevel)" | git -C "$ET_REPO" hash-object --stdin)"
 ET_WT="$ET_DATA/lanes/$ET_KEY/worktrees/work"
 
-# --- Policy read and key resolution ------------------------------------------
-# The skill key, read as the dotted key skill.fixture.trusted, sends the lane
-# to a cloud session: fetched first, SHA printed, launched from a linked
-# worktree at that SHA with the probe preamble.
 et_publish $'default: local-worktree\nskill:\n  fixture:\n    trusted: cloud-session'
 et_cloud_lane
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1395,21 +1072,17 @@ assert_contains "a cloud-session lane prints a claude --cloud line" "$out" "DRY-
 assert_contains "the cloud prompt opens with the stage-start probe" "$out" 'stage-start\ probe\ preamble'
 assert_not_contains "a cloud-session lane does not also launch locally" "$out" "claude --bg"
 
-# The two-level skill map is read as skill.<plugin>.<skill>.
 et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
 et_lanes work-items:work-loop
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "skill.work-items.work-loop supplies the value" "$out" "execution target local-background (skill.work-items.work-loop)"
 
-# local-background: claude --bg with auto mode from the lane's linked worktree.
 et_publish 'default: local-background'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "default supplies local-background" "$out" "execution target local-background (default)"
 assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
 assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 assert_contains "a local-background lane reads mods unknown, naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
-# status reads the policy the local origin/HEAD names, without fetching, and an
-# already-running lane skipped by start resolves its own target too.
 out="$(et_run status 2>&1)"
 assert_contains "status names a local-background lane's host in its mods line" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
 assert_not_contains "status does not fetch the policy" "$out" "git fetch origin"
@@ -1418,14 +1091,11 @@ cat >"$TMP/et-agents-work-running.json" <<'JSON'
 JSON
 out="$(et_run start --agents-json "$TMP/et-agents-work-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a running local-background lane skipped by start names its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
-# The lane's own disableAllHooks holds on any host.
 et_lanes work-items:work-loop '{"settings":{"disableAllHooks":true}}'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an overlay disableAllHooks reads off on a non-local host" "$out" "mods: off (disableAllHooks in the lane's --settings)"
 et_lanes work-items:work-loop
 
-# cloud-routine and cloud-project print setup steps and launch nothing, for a
-# stage whose input is never untrusted (the trusted-stage copy).
 et_cloud_lane
 for v in cloud-routine cloud-project; do
   et_publish "default: $v"
@@ -1437,7 +1107,6 @@ for v in cloud-routine cloud-project; do
   assert_not_contains "$v launches no cloud session" "$out" "claude --cloud"
   assert_contains "$v prints a mods line naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on $v)"
 done
-# restart leaves a running lane up when its host is one the launcher does not start.
 cat >"$TMP/et-agents-running.json" <<'JSON'
 [ { "pid": 1, "cwd": "/r", "kind": "background", "startedAt": 1, "sessionId": "sid-et", "name": "work", "status": "idle" } ]
 JSON
@@ -1445,7 +1114,6 @@ out="$(et_run_trusted restart --agents-json "$TMP/et-agents-running.json" --data
 assert_contains "restart to cloud-project prints its setup steps" "$out" "cloud-project is set by default"
 assert_not_contains "restart to cloud-project does not stop the running lane" "$out" "claude stop"
 
-# --- [N1] routines and projects are cloud hosts: untrusted stages get none ----
 et_publish $'default: cloud-project\nclass:\n  untrusted-provenance: cloud-routine'
 for lane in work-items:triage ""; do
   et_lanes "$lane"
@@ -1464,7 +1132,6 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[N1] a lane with no stage resolved a project first" "$out" "cloud-project refused"
 out="$(et_run restart --agents-json "$TMP/et-agents-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_not_contains "[N1] restart of a skipped lane does not stop the running session" "$out" "claude stop"
-# A cloud-session placement is refused before restart stops the running lane.
 et_publish 'default: cloud-session'
 et_lanes work-items:triage
 out="$(et_run restart --agents-json "$TMP/et-agents-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1472,7 +1139,6 @@ assert_contains "[P4] restart of an untrusted cloud-session lane is skipped" "$o
 assert_not_contains "[P4] restart of an untrusted cloud-session lane does not stop the running session" "$out" "claude stop"
 et_lanes work-items:work-loop
 
-# No file on the default branch, or an unknown value, keeps today's launch.
 et_publish ""
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an absent file is reported with the SHA read" "$out" "docs/conventions/execution-target.yaml absent at origin/main $ET_SHA_NOW"
@@ -1489,14 +1155,12 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a file the parser rejects is reported" "$out" "does not parse"
 assert_contains "a file the parser rejects keeps today's launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 
-# Only the default branch counts: an uncommitted working-tree edit moves nothing.
 et_publish 'default: local-worktree'
 printf 'default: cloud-session\n' >"$ET_REPO/docs/conventions/execution-target.yaml"
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a working-tree edit is not read" "$out" "execution target local-worktree (default)"
 git -C "$ET_REPO" checkout -q -- docs/conventions/execution-target.yaml
 
-# class.untrusted-provenance applies to a stage whose input is always untrusted.
 et_publish $'default: local-worktree\nclass:\n  untrusted-provenance: cloud-session'
 et_lanes work-items:triage
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1506,7 +1170,6 @@ assert_eq "a triage lane placed in the cloud exits 1" 1 "$rc"
 assert_contains "the skip names the escalation route and files nothing" "$out" "Nothing was filed; escalate it through /work-items:attend-queue"
 assert_not_contains "a triage lane placed in the cloud does not launch locally" "$out" "claude --bg"
 assert_not_contains "the skip message carries no em dash" "$out" $'\xe2\x80\x94'
-# The skill key wins over the class key and the default.
 et_publish $'default: local-background\nclass:\n  untrusted-provenance: cloud-routine\nskill:\n  work-items:\n    triage: local-worktree'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "the skill key wins over the class key" "$out" "execution target local-worktree (skill.work-items.triage)"
@@ -1514,9 +1177,6 @@ et_lanes work-items:work-loop
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "the class key does not apply to a stage with trusted input" "$out" "execution target local-background (default)"
 
-# --- [fix 1] the launcher enforces the untrusted-input guard -------------------
-# work-loop, work, babysit-loop and babysit-prs read untrusted input on some
-# runs; with no deterministic connector and egress check, none goes to the cloud.
 et_publish 'default: cloud-session'
 for st in work-items:work-loop work-items:work source-control:babysit-loop source-control:babysit-prs; do
   et_lanes "$st" "$ET_TELEMETRY_BINDING"
@@ -1528,7 +1188,6 @@ for st in work-items:work-loop work-items:work source-control:babysit-loop sourc
   assert_not_contains "[fix 1] $st does not fall back to a local launch" "$out" "claude --bg"
 done
 
-# --- [fix 2] a lane with no stage is untrusted; telemetry.repo is pinned ------
 et_lanes "" "$ET_TELEMETRY_BINDING"
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 rc=$?
@@ -1540,7 +1199,6 @@ out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[fix 2] a telemetry.repo naming another repository is refused" "$out" "telemetry.repo names a repository other than origin"
 assert_not_contains "[fix 2] the foreign telemetry.repo lane gets no claude --cloud line" "$out" "claude --cloud"
 
-# --- [fix 3] fallback comments count only from authorized authors --------------
 ET_TELEMETRY_FB="$TMP/et-telemetry-fallback.json"
 ET_TELEMETRY_SPOOF="$TMP/et-telemetry-spoof.json"
 # shellcheck disable=SC2016 # the literal $(...) is the fixture.
@@ -1561,9 +1219,7 @@ assert_contains "[fix 3] a cloud lane without telemetry.issue is refused" "$out"
 assert_not_contains "[fix 3] the lane without telemetry.issue gets no claude --cloud line" "$out" "claude --cloud"
 et_cloud_lane
 
-# --- [fix 4] the policy branch is origin's HEAD, not the local symref ---------
 et_publish 'default: local-worktree'
-# A branch `evil` on origin carrying a cloud policy; origin's HEAD stays main.
 fx_git -C "$ET_REPO" checkout -q -b evil
 printf 'default: cloud-session\n' >"$ET_REPO/docs/conventions/execution-target.yaml"
 fx_git -C "$ET_REPO" commit -q -am evil
@@ -1584,7 +1240,6 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[fix 4] other lanes launch local-worktree when the policy read is refused" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
 git -C "$ET_REPO" remote set-head origin main >/dev/null 2>&1
 
-# --- [fix 5] the App check uses origin's slug, not gh's default repository ----
 et_publish 'default: cloud-session'
 et_cloud_lane
 out="$(STUB_GH_SLUG=upstream/widgets \
@@ -1593,7 +1248,6 @@ out="$(STUB_GH_SLUG=upstream/widgets \
 assert_contains "[fix 5] an App covering gh's default repository does not cover origin" "$out" "cloud-session refused (no Claude GitHub App"
 assert_not_contains "[fix 5] that lane gets no claude --cloud line" "$out" "claude --cloud"
 
-# --- [N2] a rewritten or ambiguous origin URL refuses the policy read --------
 et_publish 'default: local-background'
 et_lanes work-items:work-loop
 et_origin_github
@@ -1610,7 +1264,6 @@ git -C "$ET_REPO" config remote.origin.url "$ET_ORIGIN"
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[N2] a plain origin reads the policy again" "$out" "execution target local-background (default)"
 
-# --- [N4] the shared github-actions[bot] is not a telemetry author -----------
 et_publish 'default: cloud-session'
 et_lanes fixture:trusted '{"telemetry":{"issue":5,"author":"github-actions[bot]"}}'
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1621,12 +1274,10 @@ out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[P4] any [bot] login as telemetry.author is refused" "$out" "telemetry.author dependabot[bot] is a bot account, which is not allowed"
 assert_not_contains "[P4] that lane gets no claude --cloud line" "$out" "claude --cloud"
 
-# --- [N5] a telemetry fixture read says so -----------------------------------
 et_cloud_lane
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "[N5] --telemetry-json warns that the read is a local file" "$out" "(--telemetry-json, a test aid), not from GitHub"
 
-# --- Cloud launch rule, on the trusted-stage copy -----------------------------
 out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"other-app","repository_selection":"all","account":{"login":"acme"}}]}' \
   et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "no Claude GitHub App refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App installation"
@@ -1646,13 +1297,11 @@ et_cloud_lane
 out="$(STUB_GH_INSTALL_RC=1 et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a failed installations read refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App"
 
-# A lane requesting the lane-stop gate cannot be armed in the cloud.
 et_lanes fixture:trusted '{"telemetry":{"issue":5},"settings":{"pluginConfigs":{"autonomy@m":{"options":{"lane_stop_gate_enabled":true}}}}}'
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a gate-requesting lane is refused the cloud" "$out" "lane-stop gate, which cannot be armed in a cloud session"
 et_cloud_lane
 
-# A cloud launch needs a clean linked worktree.
 mkdir -p "$(dirname "$ET_WT")"
 git -C "$ET_REPO" worktree add -q --detach "$ET_WT" HEAD
 printf 'scratch\n' >"$ET_WT/untracked.txt"
@@ -1663,7 +1312,6 @@ rm -f "$ET_WT/untracked.txt"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a clean existing linked worktree is moved to the fetched SHA" "$out" "checkout --quiet --detach $ET_SHA_NOW"
 
-# A fallback marker from an authorized author moves exactly one launch local.
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
 assert_contains "a telemetry fallback marker launches local-worktree" "$out" "telemetry carries an execution-target fallback; this launch runs local-worktree"
 assert_contains "the fallback launch is today's local launch" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --bg -n work --permission-mode auto"
@@ -1675,8 +1323,6 @@ assert_contains "the next launch after an honored fallback probes the cloud agai
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$TMP/missing-telemetry.json" 2>&1)"
 assert_contains "unreadable telemetry refuses the cloud launch" "$out" "lane telemetry could not be read"
 
-# `claude agents --json` does not list cloud sessions: start does not send a
-# second one while the launch record stands; restart does.
 mkdir -p "$ET_DATA/lanes/$ET_KEY"
 printf '2026-10-04T00:00:00Z at %s\n' "$ET_SHA_NOW" >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
 out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1688,8 +1334,6 @@ assert_contains "[P5] the record's printable text still prints" "$out" "already 
 printf '2026-10-04T00:00:00Z at %s\n' "$ET_SHA_NOW" >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
 out="$(et_run_trusted restart --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "restart sends a new cloud session" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude --cloud"
-# A real cloud launch: the stub logs one line per argv, so the probe preamble
-# and the lane prompt both reach the single prompt argument.
 : >"$CLAUDE_LOG"
 out="$(et_run_trusted restart --data-dir "$ET_DATA" 2>&1)"
 rc=$?
@@ -1699,8 +1343,6 @@ assert_contains "the cloud prompt names the plugins the stage needs" "$(cat "$CL
 assert_contains "the cloud prompt ends with the lane prompt" "$(cat "$CLAUDE_LOG")" "You are the work lane."
 assert_contains "the launch record names the SHA" "$(cat "$ET_DATA/lanes/$ET_KEY/work-cloud-launch")" "at $ET_SHA_NOW"
 
-# A stage that is not a <plugin>:<skill> string is warned about (file, lane,
-# key, value) and dropped: the lane runs as one with no stage.
 et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
 for bad in '"Work Items"' 5; do
   et_lanes "" "{\"stage\":$bad}"
@@ -1712,7 +1354,6 @@ for bad in '"Work Items"' 5; do
   assert_contains "stage $bad is dropped, so the lane resolves the default" "$out" "execution target local-worktree (default)"
   assert_not_contains "stage $bad selects no skill key" "$out" "(skill."
 done
-# The dropped stage is gone downstream too: a cloud skip names no stage.
 et_publish 'default: cloud-session'
 et_lanes "" '{"stage":5,"telemetry":{"issue":5}}'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1720,11 +1361,6 @@ assert_contains "a dropped stage reaches the cloud skip as unset" "$out" "stage 
 et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
 et_lanes work-items:work-loop
 
-# ============================================================================
-# run-once: one headless `claude -p` pass of a lane, for a scheduler
-# ============================================================================
-# Same fixture repository (its path holds a literal `$(...)`), real git, the
-# logging claude stub. No policy file, so the lane runs local-worktree.
 et_publish ''
 RO_LOCK="$ET_DATA/lanes/$ET_KEY/work-run-once.lock"
 claude_runs() { grep -c -- '^-p ' "$CLAUDE_LOG"; }
@@ -1749,13 +1385,11 @@ out="$(STUB_CLAUDE_VERSION=2.1.258 et_run run-once work --data-dir "$ET_DATA" 2>
 assert_contains "below 2.1.259 run-once still runs in auto mode" "$(cat "$CLAUDE_LOG")" "-p --permission-mode auto --effort high"
 assert_not_contains "below 2.1.259 run-once omits --permission-prompts" "$(cat "$CLAUDE_LOG")" "--permission-prompts"
 
-# A model, when set, is passed the same way start passes it.
 et_lanes work-items:work-loop '{"model":"opus"}'
 : >"$CLAUDE_LOG"
 out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
 assert_contains "run-once passes the lane's model" "$(cat "$CLAUDE_LOG")" "--model opus --effort high"
 
-# No effort: refused, nothing runs.
 jq -n '{lanes: [{name: "work", prompt: "work.md", stage: "work-items:work-loop"}]}' >"$ET_REPO/.work/lanes/lanes.json"
 : >"$CLAUDE_LOG"
 out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
@@ -1765,7 +1399,6 @@ assert_contains "the refusal names lanes[].effort" "$out" "add lanes[].effort"
 assert_eq "a lane with no effort runs no pass" 0 "$(claude_runs)"
 et_lanes work-items:work-loop
 
-# A held lock: a second run exits 0 quietly, runs nothing and leaves the lock.
 mkdir -p "$RO_LOCK"
 printf '%s\n' "$$" >"$RO_LOCK/pid"
 : >"$CLAUDE_LOG"
@@ -1776,7 +1409,6 @@ assert_contains "run-once with the lock held says so" "$out" "another run-once h
 assert_eq "run-once with the lock held runs no pass" 0 "$(claude_runs)"
 assert_eq "the loser leaves the holder's lock in place" "$$" "$(cat "$RO_LOCK/pid" 2>/dev/null)"
 
-# A lock whose recorded owner has exited is reclaimed.
 bash -c 'exit 0' &
 dead_pid=$!
 wait "$dead_pid"
@@ -1788,8 +1420,6 @@ assert_eq "run-once reclaims a lock whose owner exited" 0 "$rc"
 assert_eq "the reclaiming run runs its pass" 1 "$(claude_runs)"
 assert_eq "the reclaiming run releases the lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
 
-# After a reboot the recorded pid may belong to an unrelated live process: a
-# lock recorded on another boot is reclaimed even though that pid answers.
 mkdir -p "$RO_LOCK"
 printf 'boot-before\n' >"$RO_LOCK/boot-id"
 printf '%s\n' "$$" >"$RO_LOCK/pid"
@@ -1797,7 +1427,6 @@ printf '%s\n' "$$" >"$RO_LOCK/pid"
 out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-after et_run run-once work --data-dir "$ET_DATA" 2>&1)"
 assert_eq "a lock from an earlier boot is reclaimed despite a live pid" 1 "$(claude_runs)"
 assert_eq "the reclaiming run releases the earlier boot's lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
-# The same boot and a live pid: still held.
 mkdir -p "$RO_LOCK"
 printf 'boot-now\n' >"$RO_LOCK/boot-id"
 printf '%s\n' "$$" >"$RO_LOCK/pid"
@@ -1807,9 +1436,6 @@ assert_eq "a live owner on this boot keeps the lock" 0 "$(claude_runs)"
 assert_contains "a live owner on this boot is reported as holding it" "$out" "another run-once holds"
 rm -rf "$RO_LOCK"
 
-# A run that died between mkdir and its pid write leaves a lock with no pid.
-# A fresh one may be a run still starting, so it is held; one older than the
-# grace period is dead and reclaimed.
 mkdir -p "$RO_LOCK"
 : >"$RO_LOCK/pid"
 : >"$CLAUDE_LOG"
@@ -1827,7 +1453,6 @@ out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
 assert_eq "a missing-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
 rm -rf "$RO_LOCK"
 
-# A lane already running as a background session is not run a second time.
 AGENTS_WORK_BG="$TMP/agents-work-bg.json"
 printf '%s\n' '[{"pid":1,"cwd":"/r","kind":"background","startedAt":1,"sessionId":"sid-bg","name":"work","status":"idle"}]' >"$AGENTS_WORK_BG"
 : >"$CLAUDE_LOG"
@@ -1837,8 +1462,6 @@ assert_eq "run-once of a running lane exits 0" 0 "$rc"
 assert_contains "run-once of a running lane names the session" "$out" "sid-bg"
 assert_eq "run-once of a running lane runs no pass" 0 "$(claude_runs)"
 
-# The execution target decides the host: local-background runs from the lane's
-# linked worktree; a cloud host runs nothing here.
 et_publish 'default: local-background'
 out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "run-once reads the execution target" "$out" "execution target local-background (default)"
@@ -1850,9 +1473,6 @@ out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
 assert_eq "run-once runs no local pass for a cloud host" 0 "$(claude_runs)"
 et_publish ''
 
-# ============================================================================
-# print-schedule: OS scheduler entries that call a generated per-lane script
-# ============================================================================
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
 SCHED_DIR="$ET_DATA/lanes/$ET_KEY/scheduled"
 SCHED_SCRIPT="$SCHED_DIR/work.sh"
@@ -1874,16 +1494,12 @@ assert_eq "the generated script is executable" "yes" "$([[ -x "$SCHED_SCRIPT" ]]
 bash -n "$SCHED_SCRIPT" 2>/dev/null
 assert_eq "the generated script parses" 0 "$?"
 assert_contains "the generated script calls run-once for the lane" "$(cat "$SCHED_SCRIPT")" "run-once work"
-# Running it does one pass, and the `$(...)` in the repository path stays text.
 : >"$CLAUDE_LOG"
 PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
 rc=$?
 assert_eq "the generated script exits 0" 0 "$rc"
 assert_eq "the generated script runs one pass" 1 "$(claude_runs)"
 
-# The script and its config snapshot sit under the data directory, outside the
-# lane-writable checkout, and a scheduled run reads the snapshot: a lane that
-# rewrites lanes.json in the checkout changes nothing the scheduler runs.
 assert_eq "nothing is written under the checkout's .work/lanes/scheduled" "absent" "$([[ -e "$ET_REPO/.work/lanes/scheduled" ]] && echo present || echo absent)"
 assert_eq "a config snapshot is written beside the script" "yes" "$([[ -f "$SCHED_SNAPSHOT" ]] && echo yes || echo no)"
 jq -n '{lanes: [{name: "other", prompt: "work.md", effort: "high"}]}' >"$ET_REPO/.work/lanes/lanes.json"
@@ -1893,7 +1509,6 @@ assert_eq "a scheduled run ignores a rewritten in-checkout config" 0 "$?"
 assert_eq "a scheduled run after the in-checkout rewrite still runs the snapshot's lane" 1 "$(claude_runs)"
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
 
-# A snapshot changed after it was written fails its sha256 check: no pass runs.
 cp "$SCHED_SNAPSHOT" "$TMP/snapshot.orig"
 jq '.lanes[0].effort = "low"' "$TMP/snapshot.orig" >"$SCHED_SNAPSHOT"
 : >"$CLAUDE_LOG"
@@ -1908,7 +1523,6 @@ assert_eq "a missing snapshot makes the scheduled script exit 1" 1 "$?"
 assert_eq "a missing snapshot runs no pass" 0 "$(claude_runs)"
 cp "$TMP/snapshot.orig" "$SCHED_SNAPSHOT"
 
-# Only lanes with a schedule object get entries.
 et_lanes work-items:work-loop
 out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 assert_not_contains "a lane with no schedule gets no schtasks entry" "$out" "schtasks /Create"
@@ -1923,8 +1537,6 @@ out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 assert_not_contains "7 minutes has no cron line" "$out" "*/7 "
 assert_contains "7 minutes points at a systemd timer instead" "$out" "OnUnitActiveSec=7min"
 
-# every_minutes is a whole number from 1 to 999. Any other value is warned
-# about (file, lane, key, value) and dropped: the lane runs unscheduled.
 ET_CONFIG="$ET_REPO/.work/lanes/lanes.json"
 for bad in '{"every_minutes":0}' '{"every_minutes":1000}' '{"every_minutes":"15"}' '{"every_minutes":1.5}' '{}' '5'; do
   et_lanes work-items:work-loop "{\"schedule\":$bad}"
@@ -1936,7 +1548,6 @@ for bad in '{"every_minutes":0}' '{"every_minutes":1000}' '{"every_minutes":"15"
   assert_not_contains "schedule $bad gets no cron line" "$out" "* * * "
   assert_contains "schedule $bad leaves the lane unscheduled" "$out" "work: no schedule"
 done
-# A bad schedule on one lane leaves the other lanes' entries and other actions alone.
 jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 0}},
   {name: "other", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_CONFIG"
 out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
@@ -1948,15 +1559,12 @@ out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_eq "run-once proceeds past a bad schedule" 0 "$?"
 assert_contains "run-once previews its pass despite a bad schedule" "$out" "DRY-RUN: env -u PLUGIN_PROFILES_SESSION -u PLUGIN_PROFILES_SESSION_FILE -u SESSION_SETTINGS_FILE claude -p"
 
-# An integral number written with a fraction (20.0) is the whole number 20.
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":20.0}}'
 out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 assert_eq "every_minutes 20.0 exits 0" 0 "$?"
 assert_contains "every_minutes 20.0 registers every 20 minutes" "$out" 'schtasks /Create /TN "HarnessOps Lane work" /SC MINUTE /MO 20 '
 assert_contains "every_minutes 20.0 gets the 20-minute cron form" "$out" "*/20 * * * * "
 
-# A scheduled lane's name becomes a file name and a task name, so it is held
-# to letters, digits, '.', '_' and '-'.
 jq -n '{lanes: [{name: "w$(touch PWNED_SCHED)", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_REPO/.work/lanes/lanes.json"
 out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
 rc=$?
@@ -1981,15 +1589,14 @@ case "$p" in
 esac
 STUB
 chmod +x "$WIN_BIN/cygpath"
-tr_payload() { # the /TR value of the first schtasks /Create line, unescaped
+tr_payload() {
   grep -m1 '^schtasks /Create' <<<"$1" | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
 }
-long_path() { # <base> <length of the Windows form> -> a path whose C:-prefixed form has that length
+long_path() {
   local base="$1" pad
   pad=$(($2 - 2 - ${#base} - 1))
   printf '%s/%s' "$base" "$(printf '%*s' "$pad" '' | tr ' ' 'r')"
 }
-# The script lives under the data directory, so its length sets the payload's.
 LR="$TMP/lr"
 mkdir -p "$LR/.work/lanes"
 printf 'You are the work lane.\n' >"$LR/.work/lanes/work.md"
@@ -2016,16 +1623,6 @@ assert_not_contains "no schtasks entry is printed over the limit" "$out" "schtas
 pwned="$(find "$TMP" "$PWD" -maxdepth 3 -name 'PWNED*' -print 2>/dev/null | head -n 1)"
 assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 
-# ============================================================================
-# Plugin profile: a lane's `profile` starts it through profiles.mjs launch
-# ============================================================================
-# Stands in for plugin-profiles' profiles.mjs launch: logs its argv, writes the
-# --with JSON into the session file it names unless --dry-run, and reports enabledPlugins as
-# the session will start with them: autonomy@m on, or per STUB_PROFILES_AUTONOMY off (no layer
-# enables it), project (the session file leaves it out, the project's settings enable it),
-# othermarket (only autonomy@other on), bare (only a bare autonomy key on) or nofield (an older
-# profiles.mjs that reports no enabledPlugins). It refuses with exit 1 when
-# STUB_PROFILES_RC=1, as a missing required prerequisite does.
 PP_ROOT="$TMP/pp"
 PP_LOG="$TMP/pp.log"
 PP_FILE="$TMP/pp-session.json"
@@ -2129,8 +1726,6 @@ assert_contains "cloud lane: restart resolves the cloud target" "$out" "cloud-se
 assert_eq "cloud lane: a profile the local launch would refuse does not stop its restart" 0 "$rc"
 assert_contains "cloud lane: restart sends a new cloud session" "$(cat "$CLAUDE_LOG")" "--cloud"
 
-# A lane that arms the lane-stop gate under a profile: the merged settings must
-# leave autonomy on, or the lane is not launched.
 PP_GATE_CONFIG="$REPO/.work/lanes/profile-gate-lanes.json"
 cat >"$PP_GATE_CONFIG" <<'JSON'
 { "prompt_dir": ".work/lanes",
@@ -2166,7 +1761,6 @@ assert_contains "gate keyed under autonomy@m with only autonomy@other on: the er
   "the lane arms the lane-stop gate under autonomy@m but profile 'focus' leaves it off"
 assert_not_contains "gate keyed under autonomy@m with only autonomy@other on: the lane is not launched" "$(cat "$CLAUDE_LOG")" "--bg -n work"
 
-# A gate request keyed under a bare `autonomy` matches only a bare `autonomy` entry.
 PP_BARE_CONFIG="$REPO/.work/lanes/profile-bare-gate-lanes.json"
 cat >"$PP_BARE_CONFIG" <<'JSON'
 { "prompt_dir": ".work/lanes",
@@ -2210,7 +1804,6 @@ printf '{"lanes":[{"name":"work","prompt":"work.md","effort":"high","profile":5}
 out="$(run_launcher status --repo "$REPO" --config "$TMP/pp-bad.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
 assert_eq "a non-string profile is a config error (exit 3)" 3 "$?"
 
-# ============================================================================
 echo
 if ((FAILED)); then
   printf 'lane-launcher.test: FAIL — %d case(s) failed\n' "$FAILED" >&2

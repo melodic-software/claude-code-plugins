@@ -137,7 +137,6 @@ describe("expandVisualGaps", () => {
   });
 
   it("keeps window order and rounds the region label to the nearest minute", () => {
-    // 90s rounds to 2m, not 1m: the label is Math.round, not a floor.
     const result = expandVisualGaps(
       seedSlice(
         [
@@ -154,8 +153,6 @@ describe("expandVisualGaps", () => {
   });
 
   it("counts a window covered by a promoted frame's exact time, not its minute label", () => {
-    // The frame sits at 318s; its visual-frames label floors to ~5m (300s),
-    // which is outside the 312-324s window.
     const sliceDir = seedSlice([{ startSec: 312, endSec: 324, reason: "slide" }], [5]);
     seedExactPromotions(sliceDir, [
       { promotedFile: "at-5m18s-scene_0007.png", sourceFile: "scene_0007.png", timestampSec: 318 },
@@ -165,7 +162,6 @@ describe("expandVisualGaps", () => {
   });
 
   it("ignores minute labels when exact promoted times exist", () => {
-    // The ~5m label would cover 300-310s; the frame's exact time, 318s, does not.
     const sliceDir = seedSlice([{ startSec: 300, endSec: 310, reason: "slide" }], [5]);
     seedExactPromotions(sliceDir, [
       { promotedFile: "at-5m18s-scene_0007.png", sourceFile: "scene_0007.png", timestampSec: 318 },

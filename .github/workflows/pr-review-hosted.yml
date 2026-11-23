@@ -205,6 +205,7 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
+            /.github/scripts/lib/github-client.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
             /.node-version
@@ -333,6 +334,7 @@ jobs:
         **/AGENTS.md
         REVIEW.md
         .github/actions/check-trusted-trigger/**
+        .github/scripts/lib/github-client.mjs
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
@@ -360,6 +362,7 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/lib/run-title.mjs
+        .github/scripts/lib/lane-branch.mjs
         .github/scripts/lib/lane-registry.mjs
         .github/lane-registry.json
         .github/scripts/pr-merge/merge-risk-line.mjs
@@ -417,6 +420,7 @@ jobs:
         .github/scripts/lib/admission-record.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
+        .github/scripts/diff-chunking/**
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**

@@ -1,6 +1,3 @@
-// The pasted "Copy choices as prompt" block: page-input.mjs takes only PageInput entries whose ids
-// are on the open record's template, rejects a block naming a choice or option the record lacks or
-// another record kind, and returns a verdict=approve lock as a lock, never as approval.
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";

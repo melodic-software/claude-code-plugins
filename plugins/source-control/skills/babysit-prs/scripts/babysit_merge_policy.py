@@ -159,7 +159,14 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
-DEMOTION_MARKER = "<!-- babysit-merge-demotion"
+DEMOTION_KIND = "babysit-merge-demotion"
+FAILURE_KIND = "post-merge-failure"
+RECORD_SIGNALS = ("schedule", "dispatch", "canary", "revert", "read-back")
+_RECORD_LINE = re.compile(
+    rf"<!-- ({DEMOTION_KIND}|{FAILURE_KIND}) sha=([0-9a-f]{{40}}) "
+    rf"signal=({'|'.join(RECORD_SIGNALS)}) -->"
+)
+DEMOTION_MARKER = f"<!-- {DEMOTION_KIND}"
 DEMOTION_FILER = "github-actions[bot]"
 LEASE_MARKER = "<!-- work-item-lease v1 "
 
@@ -1934,12 +1941,28 @@ DEMOTION_RECORD = (
 )
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
-# A record of a red full run on main, the one kind a later green clears
-# (`_recovered_at`). Canary, revert and read-back records lift on their own
-# evidence (`_lift`).
-RED_MAIN_RECORD = re.compile(
-    r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
-)
+
+
+def record_marker(kind: str, sha: str, signal: str) -> str:
+    return f"<!-- {kind} sha={sha} signal={signal} -->"
+
+
+def parse_record_marker(line: str) -> tuple[str, str, str] | None:
+    """A record line's kind, SHA and signal; None for any other line."""
+    match = _RECORD_LINE.fullmatch(line)
+    return None if match is None else (match[1], match[2], match[3])
+
+
+def red_main_record(line: str) -> str | None:
+    """The SHA of a record of a red full run on main, the one kind a later
+    green clears (`_recovered_at`). Canary, revert and read-back records lift
+    on their own evidence (`_lift`)."""
+    record = parse_record_marker(line)
+    if record is None or record[0] != DEMOTION_KIND or record[2] not in ("schedule", "dispatch"):
+        return None
+    return record[1]
+
+
 # The holds a red-main record's later green, or a revert or read-back
 # record's lift, clears: how it was closed, never what its edit history or a
 # failed read says.
@@ -1970,13 +1993,18 @@ LISTED_MARGIN = timedelta(minutes=1)
 _RECOVERY_KEY = re.compile(
     r"[1-9][0-9]{0,15}\|[0-9TZ:-]{20}\|(?:OPEN|CLOSED)\|(?:[0-9TZ:-]{20})?\|[0-9a-f]{40}"
 )
-# A canary, revert or read-back record, which `_lift` lifts. A canary record
-# may be a post-merge-failure one, which holds nothing but is closed the same
-# way (babysit_lift.py close).
-LIFTABLE_RECORD = re.compile(
-    r"<!-- (babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) "
-    r"signal=(canary|revert|read-back) -->"
-)
+
+
+def liftable_record(line: str) -> tuple[str, str] | None:
+    """The SHA and signal of a canary, revert or read-back record, which
+    `_lift` lifts. A canary record may be a post-merge-failure one, which
+    holds nothing but is closed the same way (babysit_lift.py close)."""
+    record = parse_record_marker(line)
+    if record is None or record[2] not in ("canary", "revert", "read-back"):
+        return None
+    return record[1], record[2]
+
+
 # The content a canary or revert record's lift checks on main: per path, the
 # hash and count of each line the merge deleted (`lift_block`), on one line of
 # the record's body, or of an unedited comment by a filer on a canary record
@@ -2370,11 +2398,11 @@ def _recovered_at(
     non-human edited (the SHA comes from its body), or no such run; a failed
     read raises."""
     first = str(issue.get("body") or "").lstrip().split("\n", 1)[0].rstrip()
-    marker = RED_MAIN_RECORD.fullmatch(first)
-    if marker is None or _edits_refusal(issue, human):
+    sha = red_main_record(first)
+    if sha is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
-    key = _recovery_key(issue, created, marker[1])
+    key = _recovery_key(issue, created, sha)
     if key in green.carried:
         green.proven[key] = green.carried[key]
         return _time(green.carried[key])
@@ -2382,7 +2410,7 @@ def _recovered_at(
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])
-        if green.ahead(marker[1], head) and green.on_main(head):
+        if green.ahead(sha, head) and green.on_main(head):
             recovered = _time(run.get("created_at"))
             if (
                 key
@@ -2650,10 +2678,10 @@ def _lift(
     body or a filer's unedited comment, or no such evidence; a failed read, or
     more than 100 references, raises."""
     body = str(issue.get("body") or "").lstrip()
-    marker = LIFTABLE_RECORD.fullmatch(body.split("\n", 1)[0].rstrip())
+    marker = liftable_record(body.split("\n", 1)[0].rstrip())
     if marker is None or _edits_refusal(issue, human):
         return None
-    sha, signal = marker[2], marker[3]
+    sha, signal = marker
     owner, name = green.owner, green.name
     number = None
     if signal == "read-back":

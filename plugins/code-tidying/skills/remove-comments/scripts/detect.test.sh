@@ -69,8 +69,6 @@ host_can_name() {
   return "$rc"
 }
 
-# --- Fixtures (built inline; no shipped fixture files) ---------------------------
-
 ALL_SHAPES="$TEST_TMPDIR/all-shapes.py"
 cat >"$ALL_SHAPES" <<'EOF'
 # used to buffer writes; now flushes immediately
@@ -112,8 +110,6 @@ flush()  # Task 9 in the plan replaces the old flush
 value = 1  # per your request  # comment-residue-ignore
 EOF
 
-# --- 1. --help / unknown-arg contract ---------------------------------------------
-
 help_exit=0
 bash "$DETECT" --help >/dev/null 2>&1 || help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
@@ -122,8 +118,6 @@ unknown_exit=0
 bash "$DETECT" --bogus >/dev/null 2>&1 || unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 
-# --- 2. All residue shapes detected, with tiers ------------------------------------
-
 out="$(bash "$DETECT" "$ALL_SHAPES")"
 assert_contains "history-narration finding" "$out" "Finding shape: history-narration"
 assert_contains "conversational-antecedent finding" "$out" "Finding shape: conversational-antecedent"
@@ -131,8 +125,6 @@ assert_contains "plan-reference finding" "$out" "Finding shape: plan-reference"
 assert_contains "ticket-pr-residue finding" "$out" "Finding shape: ticket-pr-residue"
 assert_contains "ticket-pr-residue is tier 2" "$out" "Finding tier: 2"
 assert_contains "file summary present" "$out" "Summary file: $ALL_SHAPES"
-
-# --- 3. Clean fixture: code words, hex, encodings, sanctioned TODO not flagged ------
 
 clean_out="$(bash "$DETECT" "$CLEAN")"
 assert_contains "clean summary present" "$clean_out" "Summary total:"
@@ -159,8 +151,6 @@ assert_contains "control residue still detected" "$opt_out" "Finding shape: plan
 assert_not_contains "opt-out history suppressed" "$opt_out" "used to do x"
 assert_not_contains "opt-out inline-line suppressed" "$opt_out" "Finding shape: conversational-antecedent"
 
-# --- 5. Markdown target skipped (audit-noise's territory) -----------------------------
-
 MD_FIXTURE="$TEST_TMPDIR/notes.md"
 cat >"$MD_FIXTURE" <<'EOF'
 used to do X, now does Y — per your request.
@@ -168,16 +158,12 @@ EOF
 md_out="$(bash "$DETECT" "$MD_FIXTURE")"
 assert_contains "markdown target yields no code files" "$md_out" "files=0"
 
-# --- 6. Directory target expands to its code files ----------------------------------
-
 DIR_FIXTURE="$TEST_TMPDIR/dir-target/nested"
 mkdir -p "$DIR_FIXTURE"
 cp "$ALL_SHAPES" "$DIR_FIXTURE/inner.py"
 dir_out="$(bash "$DETECT" "$TEST_TMPDIR/dir-target")"
 assert_contains "directory target audits nested code file" "$dir_out" "Summary file: $DIR_FIXTURE/inner.py"
 assert_contains "directory target finds shapes" "$dir_out" "Finding shape: history-narration"
-
-# --- 7. --paths-file input ----------------------------------------------------------
 
 PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$CLEAN" >"$PATHS"
@@ -401,8 +387,6 @@ else
 fi
 assert_not_contains "escaped paths are not reported as files=0" "$escaped_out" "files=0"
 assert_not_contains "no C-style octal escape leaks into a target path" "$escaped_out" '\303'
-
-# --- 12. origin-note shape ------------------------------------------------------------
 
 ORIGIN="$SCRIPT_DIR/../evals/fixtures/origin-notes.sh"
 origin_out="$(bash "$DETECT" "$ORIGIN")"
@@ -784,7 +768,6 @@ EOF
 assert_contains "wrapped cue over block-comment lines" "$wrap_out" "Finding shape: history-narration-weak"
 assert_contains "block-comment finding sits on the first line" "$wrap_out" "Finding line: 2"
 
-# A phrase on one line is reported once even when a comment line follows it.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture once <<'EOF'
 # keeps the order as before
 # for every caller
@@ -792,7 +775,6 @@ EOF
 )")"
 assert_eq "a single-line finding is not reported again when joined" "1" "$(wrap_count "$wrap_out")"
 
-# Findings on both lines keep line order and each shape is reported once.
 wrap_out="$(bash "$DETECT" "$(wrap_fixture both <<'EOF'
 # as before, see PR #45
 # and the old shared group
@@ -1044,8 +1026,6 @@ if [[ "$cost_added" =~ ^[0-9]+$ ]] && ((cost_added <= 10)); then
 else
   fail "--added-since detection calls track the added lines, not the file length" "at most 10" "$cost_added"
 fi
-
-# --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed, %d host skip(s).\n' "$CASE_NUM" "$SKIPPED"

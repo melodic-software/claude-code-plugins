@@ -38,6 +38,7 @@ if command -v cygpath >/dev/null 2>&1; then
 else
   TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
 fi
+native_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m -l "$1"; else printf '%s' "$1"; fi; }
 
 # DATA_DIR / DATA_ROOT_FILE — the unconfigured-root default comes from the plugin
 # data directory the caller hands over via --data-root-file, mirroring how the skill
@@ -1816,13 +1817,13 @@ first=$(bash "$HELPER" --name feat/x --root "$root" --session-id s-x --repo-dir 
 code=0
 err=$(bash "$HELPER" --name feature/x --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
 assert_exit "a derived branch held by another worktree refuses (exit 4)" 4 "$code"
-assert_contains "the refusal names the worktree holding the branch" "$err" "$first"
+assert_contains "the refusal names the worktree holding the branch" "$err" "$(native_path "$first")"
 assert_file_absent "the second name's directory is not created" "$root/acme-widget-feature-x/README.md"
 git -C "$repo" switch -q -c fix/main-held >/dev/null 2>&1
 code=0
 err=$(bash "$HELPER" --name fix/main-held --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
 assert_exit "a branch checked out in the main worktree refuses (exit 4)" 4 "$code"
-assert_contains "the refusal names the main worktree" "$err" "$repo"
+assert_contains "the refusal names the main worktree" "$err" "$(native_path "$repo")"
 code=0
 bash "$HELPER" --name fix/main-held --existing-branch --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
 assert_exit "--existing-branch on a branch held elsewhere refuses (exit 4)" 4 "$code"

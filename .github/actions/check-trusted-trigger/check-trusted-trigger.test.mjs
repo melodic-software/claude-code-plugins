@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { appCloseKind, commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
+import { appCloseKind, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2471,7 +2472,7 @@ test("a read answered retry-after 0 mid-second waits out the 60 s fallback, as o
 // with main's code, with no error annotation.
 test("a read that rides out a short rate limit leaves the process green", () => {
   const script = `
-    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    import { createGitHub } from "./.github/scripts/lib/github-client.mjs";
     const answers = [
       new Response('{"message":"You have exceeded a secondary rate limit."}', { status: 403, headers: { "retry-after": "1" } }),
       new Response('[{"number":7}]', { status: 200 }),

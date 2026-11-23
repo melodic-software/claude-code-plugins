@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// A personal link ("Use on another device", #me=<secret>) in a real browser, against `share.sh ensure-running` with
-// the fake cloudflared. In a browser that already holds a different person's secret, the link never signs it in as
-// that person silently: it asks "This link signs you in as someone else on this device. Switch?", with Keep focused,
-// Keep and Escape leave the stored secret as it was, and only Switch replaces it. With no secret stored, the link is
-// adopted at once, as before; a link holding the browser's own secret asks nothing.
-//   node plugins/planning/shared/tests/ui_personal_link.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the review finding (session fixation through #me; Keep is the default), the secrets the
-// server issued on join and the names this suite types, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -32,7 +23,6 @@ async function main() {
     const stored = page => page.evaluate(() => localStorage.getItem("secret"));
     const asking = page => until(page, () => !!document.querySelector("dialog.core-switch[open]"));
 
-    // ---------- Bo's link in Ann's browser: asked, and Keep leaves Ann ----------
     const tab = await rec.openIn(ann.context(), `${A.localUrl}#me=${boSecret}`);
     ok("Bo's personal link in Ann's browser asks before switching", await asking(tab));
     ok("  with the finding's question", (await tab.evaluate(() => document.querySelector("dialog.core-switch h2")?.textContent)) === ASK,
@@ -47,17 +37,15 @@ async function main() {
     const tab2 = await rec.openIn(ann.context(), `${A.localUrl}#me=${boSecret}`);
     await asking(tab2);
     await tab2.click("dialog.core-switch button:text-is('Keep')");
-    await tab2.waitForTimeout(2000); // a poll and a beat
+    await tab2.waitForTimeout(2000);
     ok("Keep keeps Ann", (await stored(tab2)) === annSecret && (await tab2.evaluate(() => window.Core.snapshot()?.me?.pid)) === annPid);
 
-    // ---------- Switch: only then the browser becomes Bo ----------
     const tab3 = await rec.openIn(ann.context(), `${A.localUrl}#me=${boSecret}`);
     await asking(tab3);
     await tab3.click("dialog.core-switch button:text-is('Switch')");
     ok("Switch stores Bo's secret", await until(tab3, s => localStorage.getItem("secret") === s, boSecret));
     ok("  and the page signs in as Bo", await until(tab3, p => window.Core?.snapshot()?.me?.pid === p && window.Core.me.name === "Bo", boPid, 10000));
 
-    // ---------- no secret stored: adopted at once; the browser's own secret: nothing to ask ----------
     const fresh = await rec.open(`${A.localUrl}#me=${annSecret}`);
     ok("in a browser with no secret, a personal link signs in at once", await until(fresh, p => window.Core.snapshot()?.me?.pid === p, annPid, 10000));
     ok("  without asking", !(await fresh.evaluate(() => !!document.querySelector("dialog.core-switch"))));
@@ -65,7 +53,6 @@ async function main() {
     await own.waitForTimeout(1500);
     ok("a link holding the browser's own secret asks nothing", !(await own.evaluate(() => !!document.querySelector("dialog.core-switch"))) && (await stored(own)) === annSecret);
 
-    // ---------- the host signs in on another device with a one-time code; the owner link stays where it was ----------
     const ownerTok = new URL(A.ownerUrl).hash.slice("#owner=".length);
     const host = await rec.open(A.ownerUrl);
     await until(host, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
@@ -81,21 +68,19 @@ async function main() {
     const code1 = (await shownCode()).replace("-", "");
     const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
     const phone = await rec.open(`${A.localUrl}#join=${A.guestKey}&pair=${code1}`, { context: PHONE });
-    // Redeeming a code reloads the page, and a wait polls on into the new one before core.js has set window.Core: the
-    // waits after a redeem read it with ?. so they keep waiting, where a throw would end the wait and count as a page error.
     ok("the code in the QR code's link signs a fresh phone in as the host", await until(phone, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000));
     const phoneCred = await phone.evaluate(() => localStorage.getItem("ownerDevice"));
     ok("  with its own credential, not the owner link's token, and no code left in the address", !!phoneCred && phoneCred !== ownerTok && !(await phone.evaluate(() => location.hash.includes("pair"))));
     ok("  the host's list shows the phone", await until(host, () => [...document.querySelectorAll(".vf-pairlist .vf-pair-dev")].map(li => li.textContent).join().startsWith("Phone")));
 
-    await host.waitForTimeout(1100); // the server makes one code a second
+    await host.waitForTimeout(1100);
     await host.click(".vf-pairpop button:text-is('New code')");
     ok("New code makes another", await until(host, c => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || "") && document.querySelector(".vf-pair-code").textContent.replace("-", "") !== c, code1));
     const code2 = (await shownCode()).replace("-", "");
     const laptop = await rec.open(A.localUrl);
     await until(laptop, () => !!document.querySelector("dialog.core-name[open] .core-host-code"));
     await laptop.click("dialog.core-name .core-host-code");
-    await laptop.waitForTimeout(1100); // one try a second from one address, and every page here is the same address
+    await laptop.waitForTimeout(1100);
     await laptop.fill("#core-code", "2222-2222");
     await laptop.click("dialog.core-name button:text-is('Sign in')");
     ok("the join dialog's code entry says when a code is wrong", await until(laptop, () => /wrong or has expired/.test(document.getElementById("core-code-err")?.textContent || "")));
@@ -111,7 +96,6 @@ async function main() {
       && !localStorage.getItem("ownerDevice"), null, 10000));
     ok("  and the other device stays the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner") && await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
 
-    // ---------- a browser that keeps no site data, and a device holding a signed-out credential (review findings) ----------
     const C = await s.start("pair-edges");
     const hostC = await rec.open(C.ownerUrl);
     await until(hostC, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
@@ -121,23 +105,20 @@ async function main() {
     const codeC = () => until(hostC, () => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || ""))
       .then(() => hostC.evaluate(() => document.querySelector(".vf-pair-code").textContent.replace("-", "")));
     const code3 = await codeC();
-    // every storage write throws, as in a browser that blocks site data: core.js falls back to a map in the page
     const BLOCKED = { fn: () => { Storage.prototype.setItem = () => { throw new DOMException("blocked", "QuotaExceededError"); }; } };
     const noStore = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`, { init: BLOCKED });
     ok("a browser that keeps no site data is told it cannot stay signed in as the host", await until(noStore, () => /site data/.test(document.querySelector("dialog.core-name[open]")?.textContent || ""), null, 10000),
       await noStore.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
-    await noStore.waitForTimeout(1100); // one try a second from one address
+    await noStore.waitForTimeout(1100);
     const kept = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`);
     ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000));
     ok("  and the host's list shows only that one device", await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
 
-    // The kept device is signed out while closed, so its stored credential is stale; then it scans a new code. The
-    // redeem's answer is held until the stale credential's poll has had its 401, the order that lost the new one.
     const stale = await kept.evaluate(() => ({ token: localStorage.getItem("ownerDevice"), id: localStorage.getItem("ownerDeviceId") }));
     await kept.close();
     await hostC.locator(".vf-pairlist .vf-pair-dev button").click();
     await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 0);
-    await hostC.waitForTimeout(1100); // the server makes one code a second
+    await hostC.waitForTimeout(1100);
     await hostC.click(".vf-pairpop button:text-is('New code')");
     const code4 = await until(hostC, c => (document.querySelector(".vf-pair-code")?.textContent || "").replace("-", "") !== c, code3).then(codeC);
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, storageState: { cookies: [], origins: [{ origin: new URL(C.localUrl).origin,
@@ -148,7 +129,7 @@ async function main() {
     await ctx.route("**/api/owner/pair/redeem", async route => {
       const answer = await route.fetch();
       await had401;
-      await new Promise(r => setTimeout(r, 500)); // the page handles the 401
+      await new Promise(r => setTimeout(r, 500));
       try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
     });
     const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
@@ -157,7 +138,6 @@ async function main() {
     const fresh2 = await rescan.evaluate(() => localStorage.getItem("ownerDevice"));
     ok("  and keeps the new credential, not the old one", !!fresh2 && fresh2 !== stale.token);
 
-    // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
     const B = await s.start("shared-name");
     s.apply(B.dir, [{ op: "set-title", title: "Names" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);
     const owner = await rec.open(B.ownerUrl);

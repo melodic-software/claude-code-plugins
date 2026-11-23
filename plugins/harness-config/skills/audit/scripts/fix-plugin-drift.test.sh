@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for fix-plugin-drift.sh (self-contained, ships with the plugin).
-# Uses --input <findings.json> to bypass the internal check invocation.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,8 +10,6 @@ TMP_BASE="${TMPDIR:-/tmp}"
 if command -v cygpath >/dev/null 2>&1; then
   TMP_BASE=$(cygpath -u "$TMP_BASE") || TMP_BASE="${TMPDIR:-/tmp}"
 fi
-# Guarded before the trap: a failed or empty mktemp must never reach a fixture
-# write or the recursive delete below.
 TEST_TMPDIR=$(mktemp -d "$TMP_BASE/fix-plugin-drift-test-XXXXXX") || TEST_TMPDIR=""
 if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "ERROR: cannot create a temp directory under $TMP_BASE" >&2
@@ -22,21 +18,12 @@ fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 mkdir -p "$TEST_TMPDIR/tmp" "$TEST_TMPDIR/home/.claude"
 export TMPDIR="$TEST_TMPDIR/tmp"
-# Every case runs against a fixture user scope, never this machine's. Nothing
-# writes a settings.json here: a case that needs a user file sets its own
-# CLAUDE_CONFIG_DIR, so no case inherits another's `true`.
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
-# Nothing the caller exported reaches a case: every other settings-path
-# variable is cleared, and CLAUDE_SETTINGS_FILE names a fixture path no case
-# creates. A case that needs the project-root ladder unsets it on its own run.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
 unset CLAUDE_PROJECT_DIR
 export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
 
-# guard_apply <settings-path> - abort the whole suite (exit 2) unless the file
-# an --yes run would write lies under the suite temp dir. Called before every
-# --yes run; it signals the suite shell, so it aborts from inside $(...) too.
 SUITE_PID=$$
 trap 'exit 2' TERM
 guard_apply() {
@@ -61,8 +48,6 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
 }
-# assert_jq <label> <file> <jq-predicate> - JSON is judged inside jq, never by
-# a bash string compare.
 assert_jq() {
   if jq -e "$3" "$2" >/dev/null 2>&1; then pass "$1"; else fail "$1" "jq predicate false: $3"; fi
 }
@@ -85,9 +70,6 @@ assert_not_contains() {
   esac
 }
 
-# skip <case> <reason> - report a case the host cannot exercise. Deliberately
-# does NOT call pass: a check that never ran is not a check that passed, and the
-# tail's count is the number actually exercised.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP: %s\n  reason: %s\n' "$1" "$2" >&2
@@ -107,8 +89,6 @@ count_lf() {
   echo "$((n))"
 }
 
-# backup_count <dir> - how many settings.json.bak.<stamp>.<random> siblings
-# exist. nullglob so an unmatched pattern counts 0 rather than 1 literal word.
 backup_count() {
   local matches
   shopt -s nullglob
@@ -117,7 +97,6 @@ backup_count() {
   echo "${#matches[@]}"
 }
 
-# backup_path <dir> - the single backup sibling, or the empty string.
 backup_path() {
   local matches
   shopt -s nullglob
@@ -126,7 +105,6 @@ backup_path() {
   echo "${matches[0]:-}"
 }
 
-# backup_shaped <path> - "yes" when the name is settings.json.bak.<UTC stamp>.<6 random>.
 backup_shaped() {
   local re='^settings\.json\.bak\.[0-9]{8}T[0-9]{6}Z\.[A-Za-z0-9]{6}$'
   [[ "$(basename "$1")" =~ $re ]] && echo yes || echo no
@@ -158,9 +136,6 @@ run_fix_apply() {
     bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
 }
 
-# run_fix_internal <case-dir> [args...] - no --input, so the script runs
-# check-plugin-drift.sh itself. The settings file is still pinned, so the check
-# reads the fixture and never the machine's own configuration.
 run_fix_internal() {
   local case_dir="$1"
   shift
@@ -170,7 +145,6 @@ run_fix_internal() {
     bash "$SCRIPT" "$@" 2>&1
 }
 
-# --- Case 1: no drift → no-op ---------------------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -183,7 +157,6 @@ out=$(run_fix_dry "$case_dir") || exit_code=$?
 assert_exit "case-1: no-op exit 0" 0 "$exit_code"
 assert_contains "case-1: nothing-to-do msg" "$out" "No drift detected"
 
-# --- Case 2: dry-run lists removals and report-only NEW without writing -----------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -220,7 +193,6 @@ assert_contains "case-2: a pending removal names what was not checked" "$out" \
 unchanged=$(jq -e '.enabledPlugins["removed@market1"] == false' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-2: settings.json unchanged" "yes" "$unchanged"
 
-# --- Case 3: --yes applies the removal and never adds NEW -------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -257,7 +229,6 @@ assert_jq "case-3: NEW is never added" "$case_dir/settings.json" '.enabledPlugin
 assert_eq "case-3: existing entry preserved" "yes" "$alpha_preserved"
 assert_contains "case-3: summary counts removals only" "$out" "Applied: 1 removals to $case_dir/settings.json"
 
-# --- Case 4: true-orphan surfaced but NOT auto-removed ----------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -287,7 +258,6 @@ assert_contains "case-4: lists the broken plugin" "$out" "broken-but-enabled@mar
 preserved=$(jq -e '.enabledPlugins["broken-but-enabled@market1"] == true' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-4: true-orphan preserved (not auto-removed)" "yes" "$preserved"
 
-# --- Case 5: rename surfaced as advisory -------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -314,21 +284,17 @@ out=$(run_fix_dry "$case_dir") || true
 assert_contains "case-5: RENAME advisory" "$out" "RENAME?"
 assert_contains "case-5: pair shown" "$out" "old-name -> old-name-renamed"
 
-# --- Case 6: dry-run with empty findings is a safe no-op --------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
 echo '[]' >"$case_dir/findings.json"
 echo 'not valid json' >"$case_dir/settings.json"
 
-# fix-plugin-drift.sh does not validate settings.json on the dry-run path (no edit).
-# The apply path validates. Dry-run reads findings.json only.
 exit_code=0
 out=$(run_fix_dry "$case_dir" 2>&1) || exit_code=$?
 
 assert_exit "case-6: dry-run with empty findings exits 0" 0 "$exit_code"
 
-# --- Case 7: jq-metacharacter plugin name is treated as data, not filter code ------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -352,7 +318,6 @@ alpha_preserved=$(jq -e '.enabledPlugins["alpha@market1"] == true' "$case_dir/se
 assert_eq "case-7: hostile-name entry removed literally" "yes" "$evil_absent"
 assert_eq "case-7: other entries untouched (no filter injection)" "yes" "$alpha_preserved"
 
-# --- Case 8: bare --input (no value) is a usage error, not a set -u crash ---------
 
 CASE_NUM=$((CASE_NUM + 1))
 
@@ -362,7 +327,6 @@ out=$(bash "$SCRIPT" --input 2>&1) || exit_code=$?
 assert_exit "case-8: bare --input exits 2" 2 "$exit_code"
 assert_contains "case-8: usage error message" "$out" "Missing value for --input"
 
-# --- Case 9: a fatal internal check stops the run ---------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -375,7 +339,6 @@ assert_exit "case-9: fatal check exits 2" 2 "$exit_code"
 assert_contains "case-9: names the check and its status" "$out" "check-plugin-drift.sh failed with status 2"
 assert_not_contains "case-9: never reports a clean bill of health" "$out" "No drift detected"
 
-# --- Case 10: an apply leaves a backup of the pre-apply bytes ---------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -421,14 +384,12 @@ assert_contains "case-10: summary names the backup" "$out" "(backup: $bak)"
   umask 077
   : >"$case_dir/mode.probe"
 )
-# find -perm with a bare mode matches that exact mode.
 if [[ -z "$(find "$case_dir/mode.probe" -perm 600)" ]]; then
   skip "case-10: backup is 0600" "this host does not honor mode bits"
 else
   assert_eq "case-10: backup is 0600" "$bak" "$(find "$bak" -perm 600)"
 fi
 
-# --- Case 11: the ladder resolving to the user settings file is refused -----------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -453,10 +414,6 @@ cat >"$case_dir/.claude/settings.json" <<'EOF'
 EOF
 cp "$case_dir/.claude/settings.json" "$case_dir/settings.pre"
 
-# No CLAUDE_SETTINGS_FILE, so the ladder resolves the path. GIT_DIR points at
-# nothing, so `git rev-parse` fails and the ladder falls through to
-# CLAUDE_PROJECT_DIR; CLAUDE_CONFIG_DIR makes that same directory the user
-# scope, which is the collision the guard exists to refuse.
 exit_code=0
 guard_apply "$case_dir/.claude/settings.json"
 out=$(NO_COLOR=1 env -u CLAUDE_SETTINGS_FILE \
@@ -477,7 +434,6 @@ fi
 assert_eq "case-11: settings file byte-identical" "yes" "$untouched"
 assert_eq "case-11: no backup created" "0" "$(backup_count "$case_dir/.claude")"
 
-# --- Case 12b: a check with no declared marketplace is still a pass ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -487,12 +443,9 @@ exit_code=0
 out=$(run_fix_internal "$case_dir") || exit_code=$?
 
 assert_exit "case-12b: no declared marketplaces exits 0" 0 "$exit_code"
-# The pass is only safe because the run says what it did: the stdout line must
-# NOT borrow the wording of a completed audit.
 assert_contains "case-12b: stdout says nothing was audited" "$out" "No marketplace was audited"
 assert_not_contains "case-12b: never claims a clean audit" "$out" "No drift detected"
 
-# --- Case 12: an apply preserves the original's line-ending style -----------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -514,17 +467,11 @@ printf '{\n  "enabledPlugins": {\n    "alpha@market1": true,\n    "removed@marke
   >"$case_dir/lf/settings.json"
 printf '{\r\n  "enabledPlugins": {\r\n    "alpha@market1": true,\r\n    "removed@market1": false\r\n  }\r\n}\r\n' \
   >"$case_dir/crlf/settings.json"
-# One stray CR as inter-token JSON whitespace in an otherwise LF file: cr is
-# above 0 but below lf, so the file must stay on the LF branch.
 printf '{\n  "enabledPlugins": {\r "alpha@market1": true,\n    "removed@market1": false\n  }\n}\n' \
   >"$case_dir/stray/settings.json"
 
 cp "$case_dir/crlf/settings.json" "$case_dir/crlf/settings.pre"
 
-# The exit code and the edit itself are asserted per variant. Without them the
-# LF and CRLF line-ending assertions would also hold for an apply that aborted
-# before writing anything, since those fixtures already carry the style they are
-# checked for.
 for variant in lf crlf stray; do
   variant_exit=0
   run_fix_apply "$case_dir/$variant" >/dev/null 2>&1 || variant_exit=$?
@@ -556,7 +503,6 @@ else
 fi
 assert_eq "case-12: CRLF backup holds the untouched original" "yes" "$crlf_bak"
 
-# --- Case 13: an explicit path at the user settings file warns but applies --------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -580,9 +526,6 @@ cat >"$case_dir/.claude/settings.json" <<'EOF'
 }
 EOF
 
-# CLAUDE_SETTINGS_FILE names the same file CLAUDE_CONFIG_DIR makes the user
-# scope. The guard is waived because the path was given explicitly, so the run
-# must apply, but it must say out loud that it waived it.
 exit_code=0
 guard_apply "$case_dir/.claude/settings.json"
 out=$(NO_COLOR=1 \
@@ -595,7 +538,6 @@ assert_contains "case-13: warns that the guard was waived" "$out" "CLAUDE_SETTIN
 applied=$(jq -e '.enabledPlugins | has("removed@market1") | not' "$case_dir/.claude/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-13: the edit landed" "yes" "$applied"
 
-# --- drift fixture shared by cases 14 to 16 --------------------------------------
 
 DRIFT_FINDINGS='[{
   "key": "market1",
@@ -612,7 +554,6 @@ SETTINGS_FIXTURE='{
   }
 }'
 
-# --- Case 14: a read-only settings file is applied, never falsely reported --------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -620,10 +561,6 @@ printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
 printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
 cp "$case_dir/settings.json" "$case_dir/settings.pre"
 
-# Is a read-only mode enforced here at all? On Windows `chmod 444` sets the
-# read-only attribute and Git Bash does deny the write, but a share or a mount
-# option can make mode bits advisory, and an assertion that cannot fail is
-# worse than an absent one.
 chmod 444 "$case_dir/settings.json"
 if (printf 'x\n' >"$case_dir/settings.json") 2>/dev/null; then
   chmod 644 "$case_dir/settings.json"
@@ -633,8 +570,6 @@ else
   exit_code=0
   out=$(run_fix_apply "$case_dir") || exit_code=$?
 
-  # The hazard is a run that reports an edit it did not make. Either outcome is
-  # acceptable on its own; the pairing is what must hold.
   if [[ "$exit_code" -eq 0 ]]; then
     applied=$(cmp -s "$case_dir/settings.pre" "$case_dir/settings.json" && echo no || echo yes)
     assert_eq "case-14: exit 0 means the file really changed" "yes" "$applied"
@@ -651,13 +586,7 @@ else
   chmod 644 "$case_dir/settings.json" 2>/dev/null
 fi
 
-# --- Cases 15 and 16: a signal ends the run, it does not just delete the temps ----
 
-# signal_shim <dir> <signal> - a jq wrapper that signals the script the first
-# time the post-edit validation runs, then execs the real jq. That validation is
-# the first step after the stage exists, which is where an interrupted run used
-# to carry on with its temporaries deleted and a stage still holding the
-# original bytes.
 signal_shim() {
   local dir="$1" sig="$2" real
   real=$(command -v jq)
@@ -735,14 +664,12 @@ for sig_case in "15 TERM 143" "16 INT 130"; do
   fi
 done
 
-# unchanged_since <case-dir> - "yes" when settings.json still equals settings.pre.
 unchanged_since() {
   cmp -s "$1/settings.pre" "$1/settings.json" && echo yes || echo no
 }
 
 SKIPPED_BLOCK='{"key":"market2","status":"skipped","skip_reason":"fetch failed","orphans":[],"new_upstream":[],"renames":[]}'
 
-# --- Case 17: every block skipped is reported as nothing audited ------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -764,7 +691,6 @@ for mode in dry apply; do
   assert_eq "case-17: $mode no backup" "0" "$(backup_count "$case_dir")"
 done
 
-# --- Case 18: a partly skipped run lists the skipped block beside the result ------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -786,7 +712,6 @@ assert_contains "case-18: drift run renders the plan" "$out" "AUTO-REMOVE"
 before_plan="${out%%AUTO-REMOVE*}"
 assert_contains "case-18: SKIPPED section sits above the plan" "$before_plan" "  - market2 (fetch failed)"
 
-# --- Case 19: a plan the file already satisfies has nothing to apply --------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -810,7 +735,6 @@ out=$(run_fix_dry "$case_dir") || true
 assert_contains "case-19: dry run says nothing to apply" "$out" "Nothing to apply (no pending removal)."
 assert_not_contains "case-19: dry run never asks for --yes" "$out" "Re-run with"
 
-# --- Case 20: a remove whose key is now true goes to manual review ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -830,7 +754,6 @@ assert_contains "case-20: nothing left to apply" "$out" "Nothing to apply (no pe
 assert_not_contains "case-20: never reports an apply" "$out" "Applied"
 assert_eq "case-20: settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
 
-# --- Case 21: a findings list jq cannot read is fatal ----------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -849,7 +772,6 @@ for bad in "orphans:orphan removals" "renames:renames"; do
   assert_eq "case-21: bad $field no backup" "0" "$(backup_count "$case_dir")"
 done
 
-# --- Case 22: findings that are not an array of blocks are refused ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -871,10 +793,7 @@ for shape in object string empty element multi; do
   assert_eq "case-22: $shape settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
 done
 
-# --- Case 23: a settings file changed under the run is refused -------------------
 
-# concurrent_shim <dir> - a jq wrapper that, the first time the post-edit
-# validation runs, overwrites the settings file with another writer's bytes.
 concurrent_shim() {
   local dir="$1" real
   real=$(command -v jq)
@@ -924,7 +843,6 @@ else
   assert_eq "case-23: no backup" "0" "$(backup_count "$case_dir")"
 fi
 
-# --- Case 24: a missing enabledPlugins filters as empty; a non-object is fatal ----
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -938,7 +856,6 @@ assert_exit "case-24: no enabledPlugins exits 0" 0 "$exit_code"
 assert_contains "case-24: the absent removal is filtered" "$out" "FILTERED 1 plan entries no longer match the settings file"
 assert_eq "case-24: no enabledPlugins settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
 
-# A pending removal is what reaches the filter, so the fatal path is exercised.
 mkdir -p "$case_dir/nonobj"
 cp "$case_dir/findings.json" "$case_dir/nonobj/findings.json"
 printf '{"enabledPlugins":["not","an","object"]}\n' >"$case_dir/nonobj/settings.json"
@@ -951,7 +868,6 @@ for mode in dry apply; do
 done
 assert_eq "case-24: non-object no backup" "0" "$(backup_count "$case_dir/nonobj")"
 
-# --- Case 25: an unreadable settings file with a pending plan is fatal on dry run -
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -964,7 +880,6 @@ assert_exit "case-25: dry run exits 2" 2 "$exit_code"
 assert_contains "case-25: names the settings file" "$out" "ERROR: cannot read $case_dir/settings.json to filter the plan against it"
 assert_not_contains "case-25: never asks for --yes" "$out" "Re-run with"
 
-# --- Case 26: NEW alone is report only, even with --yes ---------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -984,7 +899,6 @@ for mode in dry apply; do
   assert_eq "case-26: $mode no backup" "0" "$(backup_count "$case_dir")"
 done
 
-# --- Case 27: control characters in a displayed entry never reach the terminal ---
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1009,7 +923,6 @@ assert_exit "case-27: apply exits 0" 0 "$exit_code"
 assert_jq "case-27: the edit removed the raw key and nothing else" "$case_dir/settings.json" \
   '.enabledPlugins == {"alpha@market1": true}'
 
-# --- Case 28: a skipped block with no reason says so ------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1019,11 +932,7 @@ printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
 out=$(run_fix_dry "$case_dir") || true
 assert_contains "case-28: missing reason is named" "$out" "  - market4 (no reason given)"
 
-# --- Cases 29 and 30: a path at the old backup name is never written or removed ---
 
-# date_shim <dir> - a clock that always reads one stamp, so the backup name is
-# known in advance. With SHIM_SETTINGS set it also plays another writer and
-# rewrites that file when the clock is read, which is after the plan is fixed.
 date_shim() {
   local dir="$1"
   mkdir -p "$dir"
@@ -1044,9 +953,6 @@ link_to_null() {
   MSYS=winsymlinks:nativestrict ln -s /dev/null "$1" 2>/dev/null || ln -s /dev/null "$1" 2>/dev/null || true
 }
 
-# old_backup_intact <kind> <path> <reference> - "yes" when the pre-existing
-# path is still the same kind of thing: a regular file with its bytes, a
-# directory, or a symlink.
 old_backup_intact() {
   case "$1" in
   file) [[ -f "$2" && ! -L "$2" ]] && cmp -s "$3" "$2" && echo yes || echo no ;;
@@ -1067,7 +973,6 @@ for backup_case in "29 quiet" "30 concurrent"; do
     printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
     printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
     date_shim "$case_dir/shim"
-    # The name the previous release wrote for the shimmed stamp.
     old_bak="$case_dir/settings.json.20260925T000000Z.bak"
     printf 'decoy\n' >"$case_dir/decoy.ref"
     case "$kind" in
@@ -1111,7 +1016,6 @@ for backup_case in "29 quiet" "30 concurrent"; do
   done
 done
 
-# --- Case 31: a carriage return inside a plugin name is part of the key ----------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1132,7 +1036,6 @@ assert_contains "case-31: the removal applied" "$out" "Applied: 1 removals"
 assert_jq "case-31: only the exact CR-bearing key is removed, nothing is added" "$case_dir/settings.json" \
   '.enabledPlugins == {"crname@market1": false, "alpha@market1": true}'
 
-# --- Case 32: CR-bearing marketplace and plugin keys, check then fix, end to end --
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1163,7 +1066,6 @@ assert_contains "case-32: both CR-bearing orphans removed" "$out" "Applied: 2 re
 assert_jq "case-32: exactly the CR-bearing orphan keys are gone" "$case_dir/.claude/settings.json" \
   '(.enabledPlugins | keys) == (["alpha@mk\r", "dup@mk\r", "gone@mk"] | sort)'
 
-# --- Case 33: a key holding = and / is removed exactly, end to end ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1181,7 +1083,6 @@ assert_contains "case-33: one removal" "$out" "Applied: 1 removals"
 assert_jq "case-33: only the = and / key is removed" "$case_dir/settings.json" \
   '.enabledPlugins == {"k@market1": false, "alpha@market1": true}'
 
-# --- Case 34: a true in the user settings file holds the removal -----------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1204,7 +1105,6 @@ for mode in dry apply; do
   assert_eq "case-34: $mode no backup" "0" "$(backup_count "$case_dir")"
 done
 
-# --- Case 35: a true in settings.local.json does not hold a project removal ------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1224,7 +1124,6 @@ assert_contains "case-35: says what it did not check" "$out" \
   "Not checked: other developers' user scopes and managed settings."
 assert_jq "case-35: the orphan is gone" "$case_dir/settings.json" '.enabledPlugins | has("removed@market1") | not'
 
-# --- Case 36: a user file that cannot be checked fails closed --------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 for variant in invalid nonobject directory; do
@@ -1250,7 +1149,6 @@ for variant in invalid nonobject directory; do
   done
 done
 
-# --- Case 37: an audited settings.local.json is held by its sibling's true -------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1270,7 +1168,6 @@ assert_contains "case-37: the sibling's true holds the removal" "$out" \
 local_same=$(cmp -s "$case_dir/local.pre" "$case_dir/settings.local.json" && echo yes || echo no)
 assert_eq "case-37: settings.local.json byte-identical" "yes" "$local_same"
 
-# Without the sibling's true, the same local file's removal applies.
 cp "$case_dir/findings.json" "$case_dir/free/findings.json"
 printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/free/settings.local.json"
 printf '{"enabledPlugins":{"removed@market1":false}}\n' >"$case_dir/free/settings.json"
@@ -1282,7 +1179,6 @@ assert_exit "case-37: free local apply exits 0" 0 "$exit_code"
 assert_jq "case-37: the free local removal landed" "$case_dir/free/settings.local.json" \
   '.enabledPlugins | has("removed@market1") | not'
 
-# --- Case 38: only an orphan whose value is exactly false is removed, end to end --
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1312,7 +1208,6 @@ assert_contains "case-38: one removal applied" "$out" "Applied: 1 removals"
 assert_jq "case-38: only the false orphan is gone" "$case_dir/settings.json" \
   '.enabledPlugins == {"t@market1": true, "p@market1": "yes", "q@market1": {"x": 1}, "n@market1": null}'
 
-# --- Case 39: a planned removal whose key now holds a non-boolean is held ---------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1330,7 +1225,6 @@ assert_contains "case-39: listed under MANUAL REVIEW" "$manual_section" \
   "removed@market1 (now neither true nor false in this file)"
 assert_eq "case-39: settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
 
-# --- Case 40: a user directory behind an unsearchable parent fails closed ---------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1353,12 +1247,7 @@ fi
 # Restored so the harness's recursive delete can enter it.
 chmod u+rwx "$case_dir/locked"
 
-# --- Case 41: a link planted at the generated backup name is never written through --
 
-# mktemp_shim <dir> - an mktemp that plants a link at the backup name it
-# generates, playing a writer in the settings directory that raced the name.
-# Every other call goes to the real mktemp. SHIM_LINK picks the link: a hard
-# link or a symlink to the decoy, or a dangling symlink.
 mktemp_shim() {
   mkdir -p "$1"
   cat >"$1/mktemp" <<'EOF'
@@ -1425,9 +1314,6 @@ for link in hard sym dangling; do
   assert_eq "$label is the only backup-shaped name" "1" "$(backup_count "$case_dir")"
 done
 
-# --- Guard: an --yes target outside the suite temp dir aborts the suite -----------
-# guard_probe <settings-path> - the suite's guard_apply in a child shell, so its
-# abort ends the child and never this suite. No apply runs and no path is created.
 guard_probe() {
   bash -c "$(declare -f guard_apply)"'
     TEST_TMPDIR=$1 SUITE_PID=$$
@@ -1446,9 +1332,6 @@ exit_code=0
 out=$(guard_probe "$TEST_TMPDIR/case-x/settings.json") || exit_code=$?
 assert_eq "guard: a path under the suite temp dir passes" "0 reached" "$exit_code $out"
 
-# --- Catalog renames and removed rows are report-only ---------------------------
-# A false orphan is still removed. A rename row, catalog or heuristic, is not
-# written, and a removed row is not turned into a rename to null or deleted.
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -1489,12 +1372,9 @@ assert_contains "renames-map: removed key shown" "$out" "gone@mkt"
 kept=$(jq -c '.enabledPlugins | {old: .["old-name@mkt"], heur: .["heuristic-old@mkt"], gone: .["gone@mkt"], stale: .["stale@mkt"]}' "$case_dir/settings.json")
 assert_eq "renames-map: only the false orphan is removed" \
   '{"old":true,"heur":true,"gone":false,"stale":null}' "$kept"
-# The settings file changed because stale was an orphan false. The rename and
-# removed keys are the ones that must survive; compare them rather than the whole file.
 assert_eq "renames-map: the file was eligible to change" "changed" \
   "$([[ "$before" == "$after" ]] && echo same || echo changed)"
 
-# --- Final ------------------------------------------------------------------
 
 printf '\nPASS %d, FAIL %d, SKIP %d\n' "$PASSED" "$FAILED" "$SKIPPED"
 if [[ "$FAILED" -eq 0 ]]; then

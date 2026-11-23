@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for check-plugin-drift.sh (self-contained, ships with the plugin).
-# Uses SETTINGS_AUDIT_FIXTURE_DIR to short-circuit network calls.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,8 +10,6 @@ TMP_BASE="${TMPDIR:-/tmp}"
 if command -v cygpath >/dev/null 2>&1; then
   TMP_BASE=$(cygpath -u "$TMP_BASE") || TMP_BASE="${TMPDIR:-/tmp}"
 fi
-# Guarded before the trap: a failed or empty mktemp must never reach a fixture
-# write or the recursive delete below.
 TEST_TMPDIR=$(mktemp -d "$TMP_BASE/check-plugin-drift-test-XXXXXX") || TEST_TMPDIR=""
 if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "ERROR: cannot create a temp directory under $TMP_BASE" >&2
@@ -22,12 +18,8 @@ fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 mkdir -p "$TEST_TMPDIR/tmp" "$TEST_TMPDIR/home/.claude"
 export TMPDIR="$TEST_TMPDIR/tmp"
-# Every case runs against a fixture user scope, never this machine's.
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
-# Nothing the caller exported reaches a case: every other settings-path
-# variable is cleared, and CLAUDE_SETTINGS_FILE names a fixture path no case
-# creates. Each case pins the settings file it reads.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
 unset CLAUDE_PROJECT_DIR
 export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
@@ -46,8 +38,6 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
 }
-# assert_jq <label> <file> <jq-predicate> - JSON is judged inside jq, never by
-# a bash string compare.
 assert_jq() {
   if jq -e "$3" "$2" >/dev/null 2>&1; then pass "$1"; else fail "$1" "jq predicate false: $3"; fi
 }
@@ -78,7 +68,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture builders ----------------------------------------------------------
 
 make_fixture_dir() {
   local case_dir="$TEST_TMPDIR/case-$CASE_NUM"
@@ -104,8 +93,6 @@ run_check() {
     bash "$SCRIPT" 2>&1
 }
 
-# Directory-source cases need a project root that owns a `.claude/` directory,
-# because a relative `source.path` resolves against dirname(dirname(settings)).
 make_project_dir() {
   local case_dir="$1"
   mkdir -p "$case_dir/project/.claude"
@@ -118,7 +105,6 @@ write_directory_catalog() {
   echo "$catalog_json" >"$catalog_dir/.claude-plugin/marketplace.json"
 }
 
-# No SETTINGS_AUDIT_FIXTURE_DIR: a directory source reads its catalog from disk.
 run_check_dir() {
   local project_dir="$1"
   NO_COLOR=1 \
@@ -126,7 +112,6 @@ run_check_dir() {
     bash "$SCRIPT" 2>&1
 }
 
-# --- Case 1: no drift -----------------------------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -154,7 +139,6 @@ assert_not_contains "case-1: no orphan reported" "$out" "ORPHAN"
 assert_not_contains "case-1: no new reported" "$out" "NEW     "
 assert_contains "case-1: states the declared marketplace count" "$out" "Marketplaces declared in the audited file: 1"
 
-# --- Case 2: orphan (false) detected ---------------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -181,7 +165,6 @@ assert_contains "case-2: orphan listed" "$out" "removed-plugin@market1"
 assert_contains "case-2: marked as a removal candidate" "$out" "(false, removal candidate)"
 assert_contains "case-2: summary names the fix script for an orphan" "$out" "run fix-plugin-drift.sh"
 
-# --- Case 3: orphan (true) flagged for manual review -----------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -204,7 +187,6 @@ out=$(run_check "$case_dir") || true
 assert_contains "case-3: true-orphan listed" "$out" "user-enabled-but-removed@market1"
 assert_contains "case-3: marked manual review" "$out" "manual review required"
 
-# --- Case 4: new upstream plugin detected ----------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -232,7 +214,6 @@ assert_contains "case-4: another-new listed" "$out" "another-new@market1"
 assert_not_contains "case-4: summary names no fix script without an orphan" "$out" "fix-plugin-drift.sh"
 assert_not_contains "case-4: no OK line beside NEW" "$out" "OK    no drift"
 
-# --- Case 5: marketplace fetch failure → SKIP ------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -254,7 +235,6 @@ assert_contains "case-5: SKIP shown" "$out" "SKIP"
 assert_contains "case-5: fetch reason" "$out" "upstream fetch failed"
 assert_exit "case-5: skip alone does not fail (exit 0)" 0 "$exit_code"
 
-# --- Case 6: rename heuristic flag -----------------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -277,7 +257,6 @@ out=$(run_check "$case_dir") || true
 assert_contains "case-6: RENAME heading present" "$out" "RENAME?"
 assert_contains "case-6: rename pair shown" "$out" "frontend-design -> frontend-designer"
 
-# --- Case 7: empty extraKnownMarketplaces ----------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -295,12 +274,10 @@ assert_contains "case-7: states a zero marketplace count" "$out" "Marketplaces d
 assert_contains "case-7: coverage line with nothing undeclared" "$out" \
   "Not diffed: 0 enabledPlugins keys name a marketplace this file does not declare"
 
-# --- Case 7c: the coverage line prints on the no-marketplace path ----------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
 
-# \u001b is ESC, which must print as `?`.
 write_settings "$case_dir/settings.json" '{
   "enabledPlugins": {"alpha@elsewhere": true, "esc\u001bname@other": false}
 }'
@@ -314,7 +291,6 @@ assert_contains "case-7c: coverage names count and keys, control char as ?" "$ou
 if [[ "$out" == *$'\e'* ]]; then raw_esc=yes; else raw_esc=no; fi
 assert_eq "case-7c: no raw ESC byte in the output" "no" "$raw_esc"
 
-# --- Case 7b: extraKnownMarketplaces that is not an object is fatal ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -331,7 +307,6 @@ assert_exit "case-7b: array extraKnownMarketplaces exits 2" 2 "$exit_code"
 assert_contains "case-7b: names the unreadable key" "$out" "cannot read extraKnownMarketplaces"
 assert_not_contains "case-7b: never counts array indices as marketplaces" "$out" "Marketplaces declared in the audited file: 2"
 
-# --- Case 8: SETTINGS_AUDIT_OUTPUT_JSON writes structured findings ----------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -362,7 +337,6 @@ new_name=$(jq -r '.[0].new_upstream[0].name // ""' "$OUTPUT_JSON_PATH")
 assert_eq "case-8: JSON orphan name" "removed" "$orphan_name"
 assert_eq "case-8: JSON new name" "newcomer" "$new_name"
 
-# --- Case 9: directory source (./) with NEW and ORPHAN ---------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -393,7 +367,6 @@ assert_contains "case-9: ORPHAN header present" "$out" "ORPHAN"
 assert_contains "case-9: gone listed as orphan" "$out" "gone@local-market"
 assert_not_contains "case-9: no SKIP" "$out" "SKIP"
 
-# --- Case 10: directory source with no drift -------------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -420,7 +393,6 @@ assert_exit "case-10: directory no drift exits 0" 0 "$exit_code"
 assert_contains "case-10: shows OK" "$out" "OK    no drift"
 assert_contains "case-10: header names directory source" "$out" "directory:"
 
-# --- Case 11: directory catalog absent → SKIP naming the path --------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -444,7 +416,6 @@ assert_contains "case-11: reason names resolved path" "$out" \
   "directory catalog not found at $project_dir/missing/.claude-plugin/marketplace.json"
 assert_exit "case-11: skip alone does not fail (exit 0)" 0 "$exit_code"
 
-# --- Case 12: directory catalog invalid JSON → SKIP -------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -467,7 +438,6 @@ assert_contains "case-12: SKIP shown" "$out" "SKIP"
 assert_contains "case-12: invalid JSON reason" "$out" "directory catalog is not valid JSON"
 assert_exit "case-12: skip alone does not fail (exit 0)" 0 "$exit_code"
 
-# --- Case 13: JSON output carries source per marketplace ---------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -509,7 +479,6 @@ assert_eq "case-13: repo block source" "repo" "$remote_source"
 assert_eq "case-13: directory block new name" "fresh" "$local_new"
 assert_eq "case-13: repo block still takes fixture route" "ok" "$remote_status"
 
-# --- Case 14: directory wins over repo; fixture seam not consulted ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -527,7 +496,6 @@ write_directory_catalog "$project_dir" '{
   "name": "dual-market",
   "plugins": [{"name": "alpha"}, {"name": "on-disk-only"}]
 }'
-# A decoy fixture for the same key: a directory source must never read it.
 write_fixture "$case_dir/fixtures" "dual-market" '{
   "name": "dual-market",
   "plugins": [{"name": "alpha"}, {"name": "decoy-from-fixture"}]
@@ -545,7 +513,6 @@ assert_not_contains "case-14: header does not name repo" "$out" "owner/dual"
 assert_contains "case-14: on-disk plugin listed" "$out" "on-disk-only@dual-market"
 assert_not_contains "case-14: fixture decoy not consulted" "$out" "decoy-from-fixture"
 
-# --- Case 15: relative subpath with backslashes and trailing slash ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -573,7 +540,6 @@ assert_exit "case-15: normalized subpath resolves (exit 0)" 0 "$exit_code"
 assert_contains "case-15: header shows normalized path" "$out" "directory:$project_dir/catalogs/sub)"
 assert_contains "case-15: shows OK" "$out" "OK    no drift"
 
-# --- Case 16: absolute directory path used as is --------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -600,7 +566,6 @@ assert_exit "case-16: absolute path resolves (exit 0)" 0 "$exit_code"
 assert_contains "case-16: header shows absolute path" "$out" "directory:$external_dir)"
 assert_contains "case-16: shows OK" "$out" "OK    no drift"
 
-# --- Case 17: directory type without path and without repo → SKIP ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -622,7 +587,6 @@ assert_contains "case-17: SKIP shown" "$out" "SKIP"
 assert_contains "case-17: falls back to no-repo reason" "$out" "no source.repo declared"
 assert_exit "case-17: exit 0" 0 "$exit_code"
 
-# --- Case 18: carriage returns in marketplace and plugin keys reach the JSON ------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -667,7 +631,6 @@ assert_jq "case-18: JSON orphans are the exact CR-bearing names" "$OUTPUT_JSON_P
 assert_jq "case-18: nothing new, no rename" "$OUTPUT_JSON_PATH" \
   '.[0].new_upstream == [] and .[0].renames == []'
 
-# --- Case 19: a key holding = and / is carried exactly ----------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -697,7 +660,6 @@ assert_jq "case-19: orphan name is exact" "$OUTPUT_JSON_PATH" \
 assert_jq "case-19: new name is exact" "$OUTPUT_JSON_PATH" \
   '.[0].new_upstream == [{name: "c=/d", marketplace: "market1"}]'
 
-# --- Case 20: a rename pair carries the exact names -------------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -724,10 +686,6 @@ assert_contains "case-20: displayed pair shows the CR as ?" "$out" "frontend-des
 assert_jq "case-20: JSON pair keeps the CR and is labeled heuristic" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [{from: "frontend-design\r", to: "frontend-designer", marketplace: "mk", source: "heuristic"}]'
 
-# --- Case 21: the shared jq definitions bind every variable they use ---------
-# jq 1.6 refuses to compile a program whose def names an unbound $variable, even
-# a def the program never calls, so a call site without `--argjson i` would fail.
-# Checked on the text because newer jq builds accept the unbound form.
 
 CASE_NUM=$((CASE_NUM + 1))
 defs=$(sed -n "/^JQ_DEFS='/,/'\$/p" "$SCRIPT")
@@ -740,7 +698,6 @@ while IFS= read -r var; do
 done < <(grep -oE '\$[A-Za-z_]+' <<<"$defs" | sort -u)
 assert_eq "case-21: JQ_DEFS names no unbound variable" "" "$unbound"
 
-# --- Case 22: no declared marketplace still writes an empty findings array ----
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -750,7 +707,6 @@ out=$(SETTINGS_AUDIT_OUTPUT_JSON="$case_dir/findings.json" run_check "$case_dir"
 assert_exit "case-22: exits 0" 0 "$exit_code"
 assert_jq "case-22: the findings file holds []" "$case_dir/findings.json" '. == []'
 
-# --- Case 23: a source.repo that is not owner/name is skipped, never fetched ----
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -772,7 +728,6 @@ assert_jq "case-23: every invalid repo is a skip with its reason" "$case_dir/fin
   '(map(select(.status == "skipped" and .skip_reason == "invalid source.repo")) | length) == 3'
 assert_contains "case-23: the SKIP line says why" "$out" "source.repo is not owner/name"
 
-# --- Case 24: only an exact false orphan is a removal candidate ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -792,7 +747,6 @@ assert_eq "case-24: only one removal candidate" "1" "$(grep -c 'removal candidat
 assert_contains "case-24: a string value is manual review" "$out" '("yes", manual review required)'
 assert_contains "case-24: null is manual review" "$out" '(null, manual review required)'
 
-# --- Case 25: a renames-map pair names the final plugin, similarity or not ------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -800,8 +754,6 @@ write_settings "$case_dir/settings.json" '{
   "enabledPlugins": {"old-name@mkt": false},
   "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
 }'
-# old-name-extra shares a prefix with old-name, so the heuristic would pair them.
-# The map names unrelated, which shares neither a prefix nor a suffix.
 write_fixture "$case_dir/fixtures" mkt '{
   "name": "mkt",
   "plugins": [{"name": "unrelated"}, {"name": "old-name-extra"}],
@@ -823,7 +775,6 @@ assert_contains "case-25: settings-file remediation" "$out" \
   "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
 assert_not_contains "case-25: the similar name is not the reported target" "$out" "old-name -> old-name-extra"
 
-# --- Case 26: a renames chain is followed to its end ----------------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -848,7 +799,6 @@ assert_jq "case-26: the rename names the final name c" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [{from: "a", to: "c", marketplace: "mkt", source: "renames"}]'
 assert_not_contains "case-26: the intermediate name is not the target" "$out" "a -> b"
 
-# --- Case 27: a null renames entry is removed, not a bare orphan ----------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -856,7 +806,6 @@ write_settings "$case_dir/settings.json" '{
   "enabledPlugins": {"gone@mkt": true, "mid@mkt": false},
   "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
 }'
-# gone-plugin is similar to gone. A null entry must not fall through to that pair.
 write_fixture "$case_dir/fixtures" mkt '{
   "name": "mkt",
   "plugins": [{"name": "gone-plugin"}],
@@ -880,7 +829,6 @@ assert_contains "case-27: REMOVED heading" "$out" "REMOVED"
 assert_not_contains "case-27: no ORPHAN heading" "$out" "ORPHAN"
 assert_not_contains "case-27: no rename to null" "$out" "-> null"
 
-# --- Case 28: a cyclic renames map finishes and invents no final name -----------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -905,7 +853,6 @@ assert_jq "case-28: no rename row and no removed row" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [] and .[0].removed == []'
 assert_contains "case-28: the cycle reason is printed" "$out" "renames chain cycles"
 
-# --- Case 29: a local clone is used when the network fetch cannot run -----------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -940,7 +887,6 @@ assert_eq "case-29: the clone file is unchanged" "$before" "$after"
 assert_eq "case-29: no known_marketplaces.json was created" "no" \
   "$([[ -e "$TEST_TMPDIR/home/.claude/plugins/known_marketplaces.json" ]] && echo yes || echo no)"
 
-# --- Case 30: installLocation is the local clone when the conventional path is absent
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -971,7 +917,6 @@ assert_jq "case-30: the recorded clone supplied the new plugin" "$OUTPUT_JSON_PA
 assert_not_contains "case-30: curl was not run" "$out" "curl-was-called"
 assert_eq "case-30: known_marketplaces.json is unchanged" "$known_before" "$known_after"
 
-# --- Case 31: the fixture directory wins over a local clone ----------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -1000,7 +945,6 @@ assert_jq "case-31: the fixture plugin is the one reported" "$OUTPUT_JSON_PATH" 
   '.[0].new_upstream == [{name: "from-fixture", marketplace: "prec"}]'
 assert_not_contains "case-31: the local clone was not read" "$out" "from-clone"
 
-# --- Case 32: managed settings get the managed remediation -----------------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -1022,7 +966,6 @@ assert_exit "case-32: managed rename exits 1" 1 "$exit_code"
 assert_contains "case-32: managed remediation" "$out" "update managed enabledPlugins"
 assert_not_contains "case-32: no settings-file rewrite sentence" "$out" "replace the key in this file"
 
-# --- Case 33: a directory catalog's renames map is read the same way ------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
@@ -1047,7 +990,6 @@ assert_eq "case-33: directory source stays directory" "directory" "$(jq -r '.[0]
 assert_jq "case-33: the directory catalog named unrelated" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [{from: "old-name", to: "unrelated", marketplace: "local-market", source: "renames"}]'
 
-# --- Final ------------------------------------------------------------------
 
 printf '\nPASS %d, FAIL %d\n' "$PASSED" "$FAILED"
 if [[ "$FAILED" -eq 0 ]]; then

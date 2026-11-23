@@ -225,7 +225,6 @@ ROWS_PROGRAM='
     | . + {needsCheck: (.scope == "project" and .userHolds and .present and (.isHome | not))};
 '
 
-# Pass 1: the distinct paths whose tracked settings must be read.
 paths_needed=""
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 if ! jq_to paths_needed -r "$ROWS_PROGRAM"'

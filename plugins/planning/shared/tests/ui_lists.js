@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// Long lists in a real browser (triage 48), against `share.sh ensure-running` with the fake cloudflared and 30 guests:
-// answer cards show 12, then Show all (30); the Host view's people list shows 25 of 32 with Show more, presence
-// chips (All, Active, Away, Offline, each person under exactly one of the last three) and the owner's Removed chip with their counts, and a name search; past 12
-// people each row is one line about half the full row's height, whose menu button opens the person's card (#8698); the queue shows
-// its oldest 20; the proposals panel 20, Later 10 and a locked question's suggestions 10, each with Show more; the
-// bell 20 with Show more and Unread only; and on a 320 px phone the people chips wrap inside the screen.
-//   node plugins/planning/shared/tests/ui_lists.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from triage row 48 (the defaults and filters) and the people, answers and proposals this suite
-// makes, never from the page; the bell's totals come from the server's snapshot.
 "use strict";
 const { loadPlaywright, suite, recorder, until } = require("./browser_harness");
 
@@ -39,15 +29,12 @@ async function main() {
     }
     const { id: hello } = await api("/api/chat", { text: "Hello all" }, owner);
     await Promise.all(guests.map((g, i) => api("/api/answer", { qid: "Q1", text: `Answer from Guest ${i + 1}`, device: "computer", view: "focus" }, g.h)));
-    // In order, one at a time: the checks below read proposals and replies oldest first.
     for (const [i, g] of guests.entries()) {
       await api("/api/propose", { text: `Proposal from Guest ${i + 1}` }, g.h);
       if (i < 25) await api("/api/chat", { text: `Reply ${i + 1}`, replyTo: hello }, g.h);
     }
     const gone = await api("/api/join", { name: "Gone", device: "computer", key: A.guestKey }, { "CF-Connecting-IP": "198.51.100.99" });
     await api("/api/person/remove", { pid: gone.pid, on: true }, owner);
-    // Presence lives in memory: a restart leaves everyone offline until they beat. Guests 1-10 are here and active,
-    // 11-15 here with their tab hidden (Away); the rest stay offline.
     const port = new URL(base).port;
     s.share(A.dir, "stop");
     s.share(A.dir, "ensure-running", "--guest-port", port);
@@ -58,14 +45,12 @@ async function main() {
     const host = await rec.open(A.ownerUrl);
     await until(host, () => window.Core.snapshot()?.me?.role === "owner");
 
-    // ---------- answer cards ----------
     await until(host, () => document.querySelectorAll(".vf-alist > li").length > 0);
     ok("a question shows 12 answer cards, then Show all (30)", await until(host, () => document.querySelectorAll(".vf-alist > li").length === 12
       && [...document.querySelectorAll(".vf-more-foot:not([hidden]) button")].some(b => b.textContent === "Show all (30)")), String(await rows(host, ".vf-alist > li")));
     await host.locator(".vf-more-foot button", { hasText: "Show all (30)" }).click();
     ok("Show all shows all 30", await until(host, () => document.querySelectorAll(".vf-alist > li").length === 30));
 
-    // ---------- the Host view's people ----------
     const viewSeg = async label => {
       const b = host.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = host.locator(".vf-viewopts");
       if (!(await b.isVisible()) && (await more.isVisible())) await more.click();
@@ -73,7 +58,6 @@ async function main() {
     };
     await viewSeg("Host");
     const chipText = () => host.evaluate(() => [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" "));
-    // Active: the 10 beating guests and the owner; Away: the 5 with a hidden tab; Offline: the 15 who never beat.
     ok("the people chips count All 32, Active 11, Away 5, Offline 15 and the owner's Removed 1", await until(host, () =>
       [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" ") === "All32 Active11 Away5 Offline15 Removed1"), await chipText());
     ok("the people list shows 25 of 32", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 25
@@ -81,7 +65,6 @@ async function main() {
     await host.locator(".vf-hpeople + .vf-more-foot button").click();
     ok("Show more shows all 32 and moves focus to the 26th", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 32
       && document.querySelectorAll(".vf-hpeople > li")[25].contains(document.activeElement)));
-    // #8698: past 12 people each row is one line, about half the two-line row's height, and its menu still opens
     const row = await host.evaluate(() => {
       const L = document.querySelector(".vf-hpeople"), li = [...L.children].find(x => x.querySelector(".vf-hp-more:not([hidden])"));
       if (!li) return null;
@@ -105,7 +88,6 @@ async function main() {
     }), String(await rows(host, ".vf-hpeople > li")));
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "Removed" }).click();
     ok("Removed shows the removed guest", await until(host, () => [...document.querySelectorAll(".vf-hpeople > li")].map(x => x.querySelector(".vf-hp-name").textContent).join() === "Gone"));
-    // Each of the 31 people not removed shows under exactly one of Active, Away and Offline, in that state.
     const under = {};
     for (const chip of ["Active", "Away", "Offline"]) {
       await host.locator(".vf-pfilters .vf-fchip", { hasText: chip }).click();
@@ -121,7 +103,6 @@ async function main() {
     ok("searching Guest 1 finds Guest 1 and Guest 10 to 19", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 11), String(await rows(host, ".vf-hpeople > li")));
     await host.fill(".vf-pfind", "");
 
-    // ---------- the queue ----------
     ok("the queue shows its oldest 20 of 30 proposals", await until(host, () => {
       const li = [...document.querySelectorAll(".vf-queue > li")];
       return li.length === 20 && li[0].textContent.includes("Proposal from Guest 1") && !li.some(x => /Proposal from Guest (2[1-9]|30)\b/.test(x.textContent));
@@ -129,7 +110,6 @@ async function main() {
     await host.locator(".vf-queue + .vf-more-foot button").click();
     ok("Show more shows the other 10", await until(host, () => document.querySelectorAll(".vf-queue > li").length === 30));
 
-    // ---------- the bell ----------
     const notes = await host.evaluate(() => window.Core.snapshot().me.notifications);
     const firstN = Math.min(20, notes.length);
     await host.click(".vf-bell");
@@ -146,7 +126,6 @@ async function main() {
       && !document.querySelector(".vf-nlist .vf-nitem:not(.vf-nunread)") && document.querySelector(".vf-bptools button").getAttribute("aria-pressed") === "true", unread));
     await host.keyboard.press("Escape");
 
-    // ---------- the proposals panel and Later ----------
     await host.locator(".vf-proprow", { hasText: "Proposed" }).click();
     ok("the proposals panel shows 20 of 30 new", await until(host, () => document.querySelectorAll(".vf-panel:not([hidden]) .vf-plist > li").length === 20));
     await host.locator(".vf-panel:not([hidden]) .vf-more-foot button").click();
@@ -158,7 +137,6 @@ async function main() {
     await host.locator(".vf-laterlist + .vf-more-foot button").click();
     ok("Show more there shows all 12", await until(host, () => document.querySelectorAll(".vf-laterlist > li").length === 12));
 
-    // ---------- a locked question's suggestions ----------
     await api("/api/lock", { qid: "Q1", card: `p:${guests[0].pid}` }, owner);
     await Promise.all(guests.slice(0, 12).map((g, i) => api("/api/suggest", { qid: "Q1", text: `Suggestion ${i + 1}` }, g.h)));
     await viewSeg("Focus");
@@ -166,7 +144,6 @@ async function main() {
     await host.locator(".vf-slist + .vf-more-foot button").click();
     ok("Show more there shows all 12", await until(host, () => document.querySelectorAll(".vf-slist > li").length === 12));
 
-    // ---------- the people chips on a 320 px phone ----------
     const phone = await rec.open(A.ownerUrl, { context: PHONE });
     await until(phone, () => window.Core.snapshot()?.me?.role === "owner");
     await phone.locator(".vf-tab", { hasText: "More" }).click();

@@ -49,7 +49,6 @@ run() {
   fi
 }
 
-# expect_out <label> <want>: the last run's stdout equals <want>.
 expect_out() {
   local out
   out="$(cat "$WORK/stdout")"
@@ -95,8 +94,6 @@ FLAGGED="$(claim M1 'HIGH (single source)')"
 MEDIUM="$(claim CI-02 MEDIUM)"
 PLAIN="$(claim K9 HIGH)"
 
-# --- the fixture pair -------------------------------------------------------
-
 run 1 "unlabeled fixture fails" --err 'RESEARCH.md:13: M1 (HIGH (single source)) appears without its label' \
   "$FIXTURES/unlabeled"
 for want in 'RESEARCH.md:17: M1 (HIGH (single source))' 'RESEARCH.md:27: CI-02 (MEDIUM)' \
@@ -129,8 +126,6 @@ fi
 run 0 "corrected fixture passes" "$FIXTURES/corrected"
 expect_out "corrected fixture summary line" 'status=pass ids=3 labeled=2 mentions=7 quoted=4'
 
-# --- labels -----------------------------------------------------------------
-
 run 0 "labeled mentions pass" \
   "$(mkslice labeled "$FLAGGED
 $MEDIUM" 'See M1 (HIGH (single source)) and CI-02 (MEDIUM).')"
@@ -147,8 +142,6 @@ run 0 "a plain HIGH claim needs no label" "$(mkslice plain "$PLAIN" 'K9 is settl
 run 0 "a claim without an id is not looked for" \
   "$(mkslice no-id "$(claim - MEDIUM)" 'Nothing names it.')"
 expect_out "a slice with no ids passes with ids=0" 'status=pass ids=0 labeled=0 mentions=0 quoted=0'
-
-# --- matching ---------------------------------------------------------------
 
 run 0 "M1 is not found in M10" "$(mkslice m10 "$FLAGGED" 'M10 is another claim.')"
 run 0 "S2 is not found in S2a" "$(mkslice s2a "$(claim S2 MEDIUM)" 'S2a is another claim.')"
@@ -296,8 +289,6 @@ run 0 "another bullet with the abstract's prefix does not fail an exact copy" \
 - s: open question, see Gaps.')"
 run 0 "a sidecar whose claims carry no id needs no abstract quote" \
   "$(mkslice abstract-no-ids "$(claim - MEDIUM)" 'Index.')"
-
-# --- ungradeable ------------------------------------------------------------
 
 run 2 "missing slice" "$WORK/does-not-exist"
 no_index="$(mkslice no-index "$FLAGGED" 'x')"

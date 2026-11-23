@@ -77,7 +77,6 @@ Describe 'Get-DefenderExclusionState' -Tag 'lib' {
         Mock Test-IsElevated { $true }
         Mock Get-CimInstance {
             [pscustomobject]@{
-                # Synthetic: no non-English capture exists; it stands in for a localized placeholder.
                 ExclusionPath      = @('N/D: Se requieren permisos de administrador')
                 ExclusionExtension = $null
                 ExclusionProcess   = $null

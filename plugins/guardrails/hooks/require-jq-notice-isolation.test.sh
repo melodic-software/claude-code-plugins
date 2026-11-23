@@ -14,8 +14,6 @@
 # LOOKUP of jq fails, PATH is untouched.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 set -uo pipefail
-# block-credential-read ships off (plugin.json default
-# false); these cases exercise it, so turn it on.
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,9 +25,6 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 PLUGIN_NAME=$(jq -r .name "$HOOK_DIR/../.claude-plugin/plugin.json")
 
-# Every hook whose source CALLS the FAIL-OPEN hook::require jq, discovered, not
-# hand-enumerated. The anchor skips hook::require_jq_blocking, the fail-closed
-# gate, which denies every call and has no latch (require-jq-posture.test.sh).
 mapfile -t JQ_HOOKS < <(
   for f in "$HOOK_DIR"/*.sh; do
     base="${f##*/}"
@@ -44,7 +39,6 @@ if ((${#JQ_HOOKS[@]} < 2)); then
   bad "expected at least 2 guardrails hooks calling the fail-open hook::require jq, found ${#JQ_HOOKS[@]}"
 fi
 
-# --- Every hook passes the plugin name as the label --------------------------
 for h in "${JQ_HOOKS[@]}"; do
   label=""
   while IFS= read -r line; do
@@ -56,14 +50,12 @@ for h in "${JQ_HOOKS[@]}"; do
   assert_eq "${h##*/}: hook::require jq labels the notice with the plugin name" "$PLUGIN_NAME" "$label"
 done
 
-# --- Runtime: one notice per session across guards --------------------------
 HIDE_JQ="$TEST_TMPDIR/hide-jq.sh"
 # shellcheck disable=SC2016  # the shim's own expansions run in the hook's shell
 printf '%s\n' \
   'command() { local a; for a in "$@"; do [[ "$a" == jq ]] && return 1; done; builtin command "$@"; }' \
   'jq() { return 127; }' >"$HIDE_JQ"
 
-# run_hidden <data-dir> <hook> <payload> -> stdout of the hook with jq hidden.
 run_hidden() {
   BASH_ENV="$HIDE_JQ" CLAUDE_PLUGIN_DATA="$1" CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.." \
     bash "$HOOK_DIR/$2" <<<"$3" 2>/dev/null
@@ -79,7 +71,6 @@ assert_contains "first guard: the model is told" \
 out=$(run_hidden "$DATA" block-noncanonical-commit.sh "$BASH_PAYLOAD")
 assert_silent "second guard in the same session and agent: stays quiet" "$out"
 
-# The SessionStart probe already told the user: the first skip tells the model only.
 DATA2="$TEST_TMPDIR/data-probed"
 mkdir -p "$DATA2/skip-notices"
 : >"$DATA2/skip-notices/${PLUGIN_NAME}-jq.latch-s1.user"

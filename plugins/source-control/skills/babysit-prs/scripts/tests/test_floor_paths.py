@@ -48,6 +48,7 @@ SHARED = {
 }
 REVIEW_SURFACE = (
     ".github/scripts/pr-review-main/**",
+    ".github/scripts/diff-chunking/**",
     "docs/conventions/instruction-exception-register/**",
     "docs/conventions/untrusted-content/**",
     "docs/standards/**",
@@ -95,21 +96,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 155)
+        self.assertEqual(len(FLOOR.classes), 158)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "f7a00eaeb81f169e8559cd3d04fb903f9f47c650f20fcd62a1eedc15bc6ebf28",
+            "f444d85650ec77b7a495388a4b3a4c489e92d2af88912a377acd6d5fe951ffd1",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "9aaccf4e16ce9346a36a4d86c7ba220390eaa8d22f8c3fbc7219bd08ea9ca59c",
+            FLOOR.high: "6ebf2320028c835cdacb846bd2754edd9a98ba5327c3f9eb5addda35f0656006",
             FLOOR.review: "3a4f09674325df7c18de2011f4933c02da302be76d69f38154de325c408374f1",
-            FLOOR.author_review: "1cd8531f63eab2d45a59f900b00c8d4dcbf4ade435239e83252278dff9299f06",
+            FLOOR.author_review: "090ef035a26c19c3b1b9d2288ac0dd319ae24cff7befebb6807ce90f855efe59",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (91, 64, 21),
+            (94, 64, 22),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -175,7 +176,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 155 - 32)
+        self.assertEqual(len(ROWS), 158 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
@@ -214,6 +215,7 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
             REVIEW_SURFACE + PROMPT_TEXT,
             (
                 ".github/scripts/pr-review-main/record.mjs",
+                ".github/scripts/diff-chunking/diff_chunking.py",
                 "docs/conventions/instruction-exception-register/README.md",
                 "docs/conventions/untrusted-content/README.md",
                 "docs/standards/REVIEW.md",

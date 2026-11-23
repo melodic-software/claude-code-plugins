@@ -36,10 +36,10 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 
 NAME='Require both review lanes on this head'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}"* ]]; then
-  ok "step runs on every ready pull_request run, contract-only ones included"
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft == false || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
+  ok "step runs on every ready pull_request run, contract-only ones included, and on a draft run's re-run once the pull request is ready"
 else
-  fail "step lost its ready pull_request condition"
+  fail "step lost its ready pull_request condition or its draft re-run widening"
 fi
 # The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
 # request by PR_NUMBER, so the step's env must set it from the event.
@@ -47,6 +47,11 @@ if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number 
   ok "step env sets PR_NUMBER from the pull_request event"
 else
   fail "step env does not set PR_NUMBER from github.event.pull_request.number"
+fi
+if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}"* ]]; then
+  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 480 s"
+else
+  fail "REVIEW_WAIT_SECONDS lost its contract-only zero or gives a ready draft re-run no wait"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
@@ -60,6 +65,53 @@ if [[ -n "${lanes_line:-}" && "$job_line" -lt "$agg_line" && "$agg_line" -lt "$l
 else
   fail "step is not inside ci-status after the aggregate (lines: $order)"
 fi
+
+RERUN_NAME="Read whether a re-run draft run's pull request is ready"
+rerun_step="$(ci_step::read "$WORKFLOW" "$RERUN_NAME" "$TMP_ROOT/draft-rerun.sh")" || ci_step::abort "$WORKFLOW" "$RERUN_NAME"
+# shellcheck disable=SC2016
+for line in $'\n        id: draft_rerun\n' \
+  "if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.run_attempt != '1' }}" \
+  'PR_NUMBER: ${{ github.event.pull_request.number }}' 'RUN_ATTEMPT: ${{ github.run_attempt }}'; do
+  if [[ "$rerun_step" == *"$line"* ]]; then ok "draft_rerun carries '${line//$'\n'/}'"; else fail "draft_rerun lost '${line//$'\n'/}'"; fi
+done
+if [[ "$rerun_step" == *"continue-on-error"* ]]; then
+  fail "draft_rerun must not continue on error: a failed read must not hide the lane step"
+else
+  ok "draft_rerun carries no continue-on-error"
+fi
+order="$(grep -nE "^      - name: ($RERUN_NAME|Clear a cost-only review hold the owner decided|Fail a pull request carrying the human-gated label|Fail a lanes App pull request on kill switch, hold path, verifier or veto|$NAME)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
+read -r rerun_line cost_line gated_line app_line lanes_line <<<"$order"
+if [[ -n "${lanes_line:-}" && "$rerun_line" -lt "$cost_line" && "$cost_line" -lt "$gated_line" && "$gated_line" -lt "$app_line" && "$app_line" -lt "$lanes_line" ]]; then
+  ok "draft_rerun sits before the hold steps and this step"
+else
+  fail "draft_rerun is not before every step that reads it (lines: $order)"
+fi
+mkdir -p "$TMP_ROOT/rerun-bin"
+cat >"$TMP_ROOT/rerun-bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_LOG"
+[[ -z "${STUB_PULL_FAIL:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+printf '%s\n' "$STUB_PULL"
+EOF
+chmod +x "$TMP_ROOT/rerun-bin/gh"
+rerun_case() {
+  ci_gh_read::reset "$TMP_ROOT" "$(($(date +%s) + 600))"
+  : >"$TMP_ROOT/rerun.out"
+  : >"$TMP_ROOT/rerun.log"
+  local out rc
+  out="$(PATH="$TMP_ROOT/rerun-bin:$PATH" STUB_LOG="$TMP_ROOT/rerun.log" STUB_PULL="$3" STUB_PULL_FAIL="${4:-}" \
+    GITHUB_OUTPUT="$TMP_ROOT/rerun.out" GITHUB_REPOSITORY=melodic-software/claude-code-plugins PR_NUMBER=18358 RUN_ATTEMPT=2 \
+    bash -e "$TMP_ROOT/draft-rerun.sh" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" == 0 && "$(cat "$TMP_ROOT/rerun.out")" == "ready=$2" && "$(grep -c 'pulls/18358' "$TMP_ROOT/rerun.log")" == 1 ]]; then
+    ok "$1"
+  else
+    fail "$1 (rc $rc, output '$(cat "$TMP_ROOT/rerun.out")', log '$(cat "$TMP_ROOT/rerun.log")', out '$out')"
+  fi
+}
+rerun_case "a re-run draft run whose pull request is now ready runs the lane and hold steps" true '{"number":18358,"draft":false}'
+rerun_case "a re-run draft run whose pull request is still a draft stays a draft run" false '{"number":18358,"draft":true}'
+rerun_case "an unreadable pull request counts as ready" true '' fail
+rerun_case "an answer with no draft field counts as ready" true '{"number":18358}'
 
 # The exempt ids are the trusted-actor list's Dependabot, release App and
 # standards-sync App.

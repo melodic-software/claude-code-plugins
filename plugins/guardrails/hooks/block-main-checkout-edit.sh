@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse guard on Write, Edit and NotebookEdit: what it denies, what passes and its limits are
-# in https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/guardrails/README.md#the-guards
-# (block-main-checkout-edit); every check before `git check-ignore` uses bash builtins only, per
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-budget/README.md
-
-# git runs only in a repository whose git dir, config and work tree this user owns, and with every
-# command-running key check-ignore can reach turned off on the command line, which outranks the
-# repository's config and its includes: https://git-scm.com/docs/git#Documentation/git.txt--cltnamegtltvaluegt
-# (core.fsmonitor runs when the index is read: https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor).
 
 set -uo pipefail
 

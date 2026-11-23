@@ -26,7 +26,6 @@ commit_all() {
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
 }
 
-# Build a fixture repo with a known tracked-file set.
 fixture_repo() {
   local dir
   dir="$(mktemp -d "$TMP/x.XXXX")"
@@ -55,9 +54,6 @@ over_budget_rows() {
   printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
 }
 
-# --------------------------------------------------------------------------
-# Usage and argument handling
-# --------------------------------------------------------------------------
 out="$(run --help)"
 assert_contains "--help prints usage" "$out" "glob-tools.sh"
 
@@ -76,16 +72,11 @@ assert_eq "unusable --root is a usage error" "2" "$?"
 run validate --glob 'x' --breadth-max abc >/dev/null 2>&1
 assert_eq "non-integer --breadth-max is a usage error" "2" "$?"
 
-# --------------------------------------------------------------------------
-# Core matching semantics
-# --------------------------------------------------------------------------
 repo="$(fixture_repo "a.ts" "src/b.ts" "src/deep/c.ts" "src/notes.md" "README.md")"
 
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "**/*.ts matches root and nested TypeScript" "3" "$(row_field "$out" '**/*.ts' 5)"
 
-# Expected values from the path-specific-rules table on the memory page: `*.md`
-# is anywhere under the base directory, `/*.md` directly in it.
 out="$(run validate --root "$repo" --glob '*.md')"
 assert_eq "*.md matches at any depth under the base" "2" "$(row_field "$out" '*.md' 5)"
 
@@ -95,8 +86,6 @@ assert_eq "/*.md matches only directly in the base" "1" "$(row_field "$out" '/*.
 out="$(run validate --root "$repo" --glob '/src/*.ts')"
 assert_eq "a leading slash anchors a pattern that has a directory too" "1" "$(row_field "$out" '/src/*.ts' 5)"
 
-# Each brace expansion is its own pattern, so one group can mix the two forms:
-# README.md for the first alternative, the three .ts files for the second.
 out="$(run validate --root "$repo" --glob '{/*.md,*.ts}')"
 assert_eq "a brace group's alternatives take their own form" "4" "$(row_field "$out" '{/*.md,*.ts}' 5)"
 
@@ -119,9 +108,6 @@ repo_dot="$(fixture_repo "axts" "a.ts")"
 out="$(run validate --root "$repo_dot" --glob '*.ts')"
 assert_eq "a dot in a glob is literal, not a regex wildcard" "1" "$(row_field "$out" '*.ts' 5)"
 
-# --------------------------------------------------------------------------
-# Brace expansion
-# --------------------------------------------------------------------------
 repo_brace="$(fixture_repo "src/a.ts" "src/b.tsx" "src/c.js")"
 
 out="$(run validate --root "$repo_brace" --glob 'src/*.{ts,tsx}')"
@@ -143,9 +129,6 @@ assert_eq "over-budget exits 1" "1" "$?"
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "a brace-free pattern expands to exactly one" "1" "$(row_field "$out" '**/*.ts' 4)"
 
-# --------------------------------------------------------------------------
-# Bracket expressions
-# --------------------------------------------------------------------------
 repo_br="$(fixture_repo "a1.ts" "a2.ts" "a9.ts" "photos [2024/x.png")"
 
 out="$(run validate --root "$repo_br" --glob 'a[12].ts')"
@@ -162,8 +145,6 @@ assert_eq "bad-bracket exits 1" "1" "$?"
 out="$(run validate --root "$repo_br" --glob 'photos \[2024/**')"
 assert_eq "an escaped bracket is treated as a literal" "1" "$(row_field "$out" 'photos \[2024/**' 5)"
 
-# The validity check and the regex builder have to agree on where the expression
-# closes, or a pattern that validates produces a regex matching the wrong set.
 repo_esc="$(fixture_repo "a1.ts" "ax.ts")"
 out="$(run validate --root "$repo_esc" --glob 'a[1\]].ts')"
 esc_status="$(row_field "$out" 'a[1\]].ts' 6)"
@@ -173,9 +154,6 @@ else
   pass "an escaped ] inside a bracket expression does not close it"
 fi
 
-# --------------------------------------------------------------------------
-# Zero-match and breadth
-# --------------------------------------------------------------------------
 out="$(run validate --root "$repo" --glob 'nowhere/**/*.rs')"
 assert_eq "a glob matching nothing is zero-match" "zero-match" "$(row_field "$out" 'nowhere/**/*.rs' 6)"
 run validate --root "$repo" --glob 'nowhere/**/*.rs' >/dev/null 2>&1
@@ -191,17 +169,11 @@ assert_eq "a low breadth ceiling reclassifies a narrow glob" "over-broad" "$(row
 out="$(run validate --root "$repo" --glob '**/*.ts' --breadth-max 99)"
 assert_eq "a high breadth ceiling leaves it ok" "ok" "$(row_field "$out" '**/*.ts' 6)"
 
-# --------------------------------------------------------------------------
-# Untracked files are outside the match universe
-# --------------------------------------------------------------------------
 printf 'x\n' >"$repo/untracked.ts"
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "untracked files do not count as matches" "3" "$(row_field "$out" '**/*.ts' 5)"
 rm -f "$repo/untracked.ts"
 
-# --------------------------------------------------------------------------
-# The rules subcommand — frontmatter extraction
-# --------------------------------------------------------------------------
 rules_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "docs/x.md")"
 mkdir -p "$rules_repo/.claude/rules/nested"
 
@@ -258,9 +230,6 @@ fi
 run rules --root "$rules_repo" >/dev/null 2>&1
 assert_eq "rules exits 1 when any rule glob is invalid" "1" "$?"
 
-# --------------------------------------------------------------------------
-# A brace comma inside an inline flow entry is not a list separator
-# --------------------------------------------------------------------------
 flow_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "src/c.js")"
 mkdir -p "$flow_repo/.claude/rules"
 cat >"$flow_repo/.claude/rules/flow.md" <<'EOF'
@@ -279,7 +248,6 @@ assert_eq "and it expands and matches correctly" "2" "$(row_field "$out" 'src/*.
 run rules --root "$flow_repo" >/dev/null 2>&1
 assert_eq "a correct braced flow rule exits 0" "0" "$?"
 
-# The memory page's frontmatter reference accepts a comma-separated string too.
 comma_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "docs/x.md" "other/y.js")"
 mkdir -p "$comma_repo/.claude/rules"
 printf -- '---\npaths: "src/*.{ts,tsx}, docs/**"\n---\n\n# Comma string\n' >"$comma_repo/.claude/rules/comma.md"
@@ -292,10 +260,6 @@ assert_eq "and its second pattern matches on its own" "1" "$(row_field "$out" 'd
 run rules --root "$comma_repo" >/dev/null 2>&1
 assert_eq "a correct comma-separated rule exits 0" "0" "$?"
 
-# --------------------------------------------------------------------------
-# A rule's patterns match from its base: the directory holding its .claude folder
-# --------------------------------------------------------------------------
-# <glob> <file>...: a repository with one rule at packages/foo, prints its output.
 nested_rule_run() {
   local glob="$1" dir
   shift
@@ -321,7 +285,6 @@ assert_eq "and a same-named path at the repository root does not satisfy it" "ze
 out="$(nested_rule_run '**/*' packages/foo/a.ts packages/foo/b.ts o/1 o/2 o/3 o/4 o/5 o/6 o/7 o/8)"
 assert_eq "a nested rule's breadth is measured against its base, not the repository" "over-broad" "$(row_field "$out" '**/*' 6)"
 
-# A base directory is a literal path, so its name holds no regex or glob meaning.
 meta_repo="$(fixture_repo "pkg+[1]/a.ts" "pkgg1/b.ts")"
 mkdir -p "$meta_repo/pkg+[1]/.claude/rules"
 printf -- '---\npaths:\n  - "*.ts"\n---\n\n# Meta\n' >"$meta_repo/pkg+[1]/.claude/rules/r.md"
@@ -329,7 +292,6 @@ commit_all "$meta_repo" meta
 out="$(run rules --root "$meta_repo")"
 assert_eq "a base directory's name is matched literally" "1" "$(row_field "$out" '*.ts' 5)"
 
-# Two rules in one run: each keeps its own base.
 two_repo="$(fixture_repo "a.ts" "packages/foo/b.md")"
 mkdir -p "$two_repo/.claude/rules" "$two_repo/packages/foo/.claude/rules"
 printf -- '---\npaths:\n  - "/*.ts"\n---\n\n# Root\n' >"$two_repo/.claude/rules/root.md"
@@ -339,9 +301,6 @@ out="$(run rules --root "$two_repo")"
 assert_eq "a root rule matches from the repository root" "1" "$(row_field "$out" '/*.ts' 5)"
 assert_eq "beside it, a nested rule matches from its own base" "1" "$(row_field "$out" '/*.md' 5)"
 
-# --------------------------------------------------------------------------
-# The brace budget is shared by a rule's whole paths list
-# --------------------------------------------------------------------------
 budget_repo="$(fixture_repo "a.ts")"
 mkdir -p "$budget_repo/.claude/rules"
 nine='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}'
@@ -374,15 +333,11 @@ out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts"
 over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate --glob flags" "0" "$over"
 
-# The real ceiling still fires, so separation cannot mean never reporting it.
 eleven="src/{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}"
 out="$(run validate --root "$split_repo" --glob "$eleven.ts")"
 assert_eq "a single glob over the ceiling is still over-budget" \
   "over-budget" "$(row_field "$out" "$eleven.ts" 6)"
 
-# --------------------------------------------------------------------------
-# Declared userConfig reaches the script
-# --------------------------------------------------------------------------
 out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=10 bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
 assert_eq "a configured breadth ceiling is honored" "over-broad" "$(row_field "$out" '**/*.ts' 6)"
 out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=99 bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
@@ -398,8 +353,6 @@ assert_contains "a repo with no rules tree summarizes zero patterns" "$out" "SUM
 run rules --root "$clean_repo" >/dev/null 2>&1
 assert_eq "a repo with no rules tree exits 0" "0" "$?"
 
-# An eval fixture tree imitates a consuming repository as test input; its rule
-# globs name the fixture's files, not this repository's, so they are not checked.
 fx_repo="$(fixture_repo "src/a.ts")"
 mkdir -p "$fx_repo/.claude/rules" "$fx_repo/plugins/demo/evals/fixtures/consumer/.claude/rules"
 printf -- '---\npaths:\n  - "src/**/*.ts"\n---\n\n# Real\n' >"$fx_repo/.claude/rules/real.md"
@@ -416,10 +369,7 @@ assert_eq "the rule outside the fixture tree is still checked" "ok" "$(row_field
 run rules --root "$fx_repo" >/dev/null 2>&1
 assert_eq "a zero-match glob inside an eval fixture does not fail the gate" "0" "$?"
 
-# --------------------------------------------------------------------------
-# Frontmatter readability: unparsable YAML makes Claude Code load the rule unscoped
-# --------------------------------------------------------------------------
-fm_rule() { # <repo> <name> <printf-format>
+fm_rule() {
   mkdir -p "$1/.claude/rules"
   # shellcheck disable=SC2059
   printf -- "$3" >"$1/.claude/rules/$2.md"
@@ -431,7 +381,6 @@ fm_rule "$fm_repo" colon '---\ndescription: Use when: editing\npaths:\n  - "src/
 fm_rule "$fm_repo" tab '---\npaths:\n\t- "src/**/*.ts"\n---\n\n# D\n'
 fm_rule "$fm_repo" reserved '---\ndescription: @owner rules\npaths:\n  - "src/**/*.ts"\n---\n\n# E\n'
 fm_rule "$fm_repo" trailcolon '---\ndescription: Use when:\npaths:\n  - "src/**/*.ts"\n---\n\n# F\n'
-# A `#` inside a closed quoted value is text, not a comment, so the screen keeps reading.
 fm_rule "$fm_repo" hashquote '---\ndescription: "Rules for #tags"\npaths: **/*.ts\n---\n\n# G\n'
 commit_all "$fm_repo" fm
 out="$(run rules --root "$fm_repo")"
@@ -456,9 +405,6 @@ assert_eq "readable frontmatter raises no row" "0" \
 run rules --root "$ok_repo" >/dev/null 2>&1
 assert_eq "readable frontmatter passes the gate" "0" "$?"
 
-# --------------------------------------------------------------------------
-# Determinism and safety
-# --------------------------------------------------------------------------
 a="$(run rules --root "$rules_repo")"
 b="$(run rules --root "$rules_repo")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
@@ -481,16 +427,12 @@ else
   pass "a crafted paths value does not execute"
 fi
 
-# --------------------------------------------------------------------------
-# Non-git roots still answer
-# --------------------------------------------------------------------------
 plain="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$plain/src"
 printf 'x\n' >"$plain/src/a.ts"
 out="$(run validate --root "$plain" --glob '**/*.ts')"
 assert_eq "a non-git root falls back to a file walk" "1" "$(row_field "$out" '**/*.ts' 5)"
 
-# --------------------------------------------------------------------------
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

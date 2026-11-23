@@ -14,9 +14,6 @@ PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 MANIFEST="$HOOK_DIR/coverage.json"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 README="$PLUGIN_ROOT/README.md"
-# The baseline lives in a sibling plugin. It is present in the marketplace
-# checkout and absent when guardrails is installed alone, so the pattern
-# assertion below skips visibly instead of failing on a missing file.
 BASELINE="$PLUGIN_ROOT/../harness-config/skills/audit/reference/required-permissions.md"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -29,7 +26,6 @@ fi
 
 FAMILIES="sensitive-file-deny destructive-bash-deny ask-rules"
 
-# --- the file itself ----------------------------------------------------------
 if jq -e . "$MANIFEST" >/dev/null 2>&1; then
   ok "coverage.json is valid JSON"
 else
@@ -41,11 +37,9 @@ assert_eq "schemaVersion is 1" "1" "$(jq -r '.schemaVersion' "$MANIFEST")"
 assert_eq "coverage is a non-empty array" "true" \
   "$(jq -r '(.coverage | type == "array") and (.coverage | length > 0)' "$MANIFEST")"
 
-# --- what hooks.json declares -------------------------------------------------
 declared_events=$(jq -r '.hooks | keys[]' "$HOOKS_JSON")
 declared_commands=$(jq -r '.hooks[][] | .hooks[] | .command + " " + ((.args // []) | map(tostring) | join(" "))' "$HOOKS_JSON")
 
-# --- per entry ----------------------------------------------------------------
 count=$(jq -r '.coverage | length' "$MANIFEST")
 i=0
 while ((i < count)); do
@@ -54,7 +48,6 @@ while ((i < count)); do
   event=$(jq -r '.event' <<<"$entry")
   label="entry $i ($hook)"
 
-  # hook path exists relative to the plugin root and is registered
   if [[ -f "$PLUGIN_ROOT/$hook" ]]; then
     ok "$label: hook file exists"
   else
@@ -63,14 +56,12 @@ while ((i < count)); do
   assert_contains "$label: hook basename is in a hooks.json command" \
     "$declared_commands" "${hook##*/}"
 
-  # event is one hooks.json declares
   if grep -qx -- "$event" <<<"$declared_events"; then
     ok "$label: event $event is declared in hooks.json"
   else
     bad "$label: event $event is not declared in hooks.json"
   fi
 
-  # every family is one of the three baseline names
   while IFS= read -r family; do
     [[ -n "$family" ]] || continue
     if grep -qw -- "$family" <<<"$FAMILIES"; then
@@ -80,7 +71,6 @@ while ((i < count)); do
     fi
   done < <(jq -r '.families[]' <<<"$entry")
 
-  # every pattern is literally present (backticked) in the baseline
   while IFS= read -r pattern; do
     [[ -n "$pattern" ]] || continue
     if [[ ! -f "$BASELINE" ]]; then
@@ -94,7 +84,6 @@ while ((i < count)); do
     fi
   done < <(jq -r '.patterns[]' <<<"$entry")
 
-  # every lever name appears in the README options table
   while IFS= read -r lever; do
     [[ -n "$lever" ]] || continue
     if grep -qF -- "| \`$lever\` |" "$README"; then

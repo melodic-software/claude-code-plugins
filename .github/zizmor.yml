@@ -3,11 +3,16 @@ rules:
   dependabot-cooldown:
     config:
       days: 3
-  # First-party reusable workflows float on `main`; first-party actions are
-  # SHA-pinned by org policy, which ref-pin also admits. Third-party refs stay
-  # SHA-pinned.
   unpinned-uses:
     config:
       policies:
         "melodic-software/*": ref-pin
+        "actions/*": ref-pin
+        "github/*": ref-pin
+        "dependabot/*": ref-pin
+        "microsoft/*": ref-pin
+        "azure/*": ref-pin
+        "Azure/*": ref-pin
+        "anthropics/*": ref-pin
+        "openai/*": ref-pin
         "*": hash-pin

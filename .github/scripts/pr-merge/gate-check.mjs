@@ -50,7 +50,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 
 export const CHECK_NAME = "pr-merge / gate";
 const ACTIONS_APP_ID = 15368;

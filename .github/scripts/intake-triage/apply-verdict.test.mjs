@@ -10,7 +10,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { parseReason } from "../lib/stop-reason.mjs";
 import {
   checkActors,

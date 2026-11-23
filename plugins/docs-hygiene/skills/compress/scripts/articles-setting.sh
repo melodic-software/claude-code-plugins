@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Read compress_articles from the repository layer, docs/conventions/docs-hygiene.yaml.
-#
-# Usage: articles-setting.sh [<dir>]
-#
-#   <dir>  a directory inside the repository; default: the current directory.
-#
 # Prints one line, tab-separated, and exits 0:
 #   keep | cut                 the file sets a valid value
 #   unset<TAB><reason>         the layer does not apply: no git working tree, a root
@@ -42,12 +36,10 @@ if [[ ! -f "$file" ]]; then
   exit 0
 fi
 
-# Root-level lines naming the key, quoted or not, with any spacing before the colon.
 key_re="^[\"']?${KEY}[\"']?[[:space:]]*:"
 key_lines="$(grep -E "$key_re" "$file")"
 count="$(grep -cE "$key_re" "$file")"
 
-# The strict reader also rejects a duplicate key; name the duplicate first.
 if ((count > 1)); then
   printf 'invalid\tset %s times\n' "$count"
   exit 0
@@ -70,7 +62,6 @@ keep | cut)
 *) ;;
 esac
 
-# Present without a valid value: report what the line holds after the colon.
 raw="${key_lines#*:}"
 raw="$(printf '%s' "$raw" | sed -E 's/(^|[[:space:]])#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//')"
 printf 'invalid\t%s\n' "${raw:-(no value)}"

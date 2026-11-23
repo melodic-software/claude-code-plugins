@@ -501,7 +501,7 @@ function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
 // filer opened, updated inside the window, whose body or any revision carries the marker, or
 // whose edit history is not whole. Each yields its creation and every repeat-failure comment a
 // filer posted; anyone can comment on a public record, and the alert workflow reads only its own.
-const DEMOTION_MARKER = "<!-- babysit-merge-demotion";
+export const DEMOTION_MARKER = "<!-- babysit-merge-demotion";
 const DEMOTION_FILER = "github-actions[bot]";
 const DEMOTION_AGAIN = "The post-merge check found this failure again: ";
 const DEMOTION_QUERY =
@@ -1035,7 +1035,6 @@ function publishedEvents(outDir) {
   }
 }
 
-// The previous sidecar's generated_at, or null when there is none to read.
 function publishedGeneratedAt(outDir) {
   try {
     const at = JSON.parse(readIfPresent(join(outDir, "evidence.meta.json")) ?? "null")?.generated_at;

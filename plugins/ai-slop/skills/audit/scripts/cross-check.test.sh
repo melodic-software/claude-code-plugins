@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for cross-check.sh: fixtures are built inline in a
-# tmpdir, with the same git and config isolation as detect.test.sh.
 # Fixture text holds literal backticks inside single-quoted printf formats.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -19,7 +17,6 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
-# PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
 EXPECTED_CASES=26
 
 EM=$'\xe2\x80\x94'
@@ -36,11 +33,7 @@ printf -- '- item\n- ```sh\n  echo a %s b\n  ```\n\nText %s here.\n' "$EM" "$EM"
   printf 'Mention `<!-- ai-slop-ignore -->` and %s dash.\n' "$EM"
 } >"$F/markers.md"
 printf 'Before %s the marker.\n<!-- ai-slop-ignore-file -->\nAfter %s it.\n' "$EM" "$EM" >"$F/filemark.md"
-# An unclosed fence in a list item ends when a non-blank line dedents past the
-# item's content column.
 printf -- '- ```sh\n  echo a %s b\nDedented %s line.\n' "$EM" "$EM" >"$F/dedent.md"
-# None of these lines opens a fence under the detector rules: a four-space
-# indent, a tab indent, five spaces after a list marker, a ten-digit ordinal.
 {
   printf '    ```\nA %s one.\n\n' "$EM"
   printf '\t```\nA %s two.\n\n' "$EM"
@@ -93,7 +86,6 @@ assert_contains "disagree: a wrong detector count names the extra line" "$out" \
   "Disagree: file=plain.md detector=3 cross_check=2 detector_only=4 cross_check_only=-"
 assert_contains "disagree: the total counts it" "$out" "CrossCheck total: files=3 disagreements=1"
 
-# Equal counts over different lines still disagree.
 D2="$TEST_TMPDIR/detector-lines.txt"
 printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=%d fired=zero-tolerance excerpt=x\n' 3 4 >"$D2"
 printf 'plain.md\t%s\n' "$F/plain.md" >"$TEST_TMPDIR/plain.tsv"
@@ -103,7 +95,6 @@ assert_exit "disagree: a line-set mismatch still exits 0" 0 "$rc"
 assert_contains "disagree: equal counts over different lines name both sides" "$out" \
   "Disagree: file=plain.md detector=2 cross_check=2 detector_only=4 cross_check_only=5"
 
-# The line number comes from the leftmost ` line=N fired=`, not from an excerpt.
 D3="$TEST_TMPDIR/detector-excerpt.txt"
 {
   printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=3 fired=zero-tolerance excerpt=a line=9 fired=b\n'
@@ -113,15 +104,12 @@ out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D3" 2>&1)"
 assert_contains "disagree: an excerpt holding line= does not move the parsed line" "$out" \
   "CrossCheck total: files=1 disagreements=0"
 
-# A line reported twice differs by count alone.
 D4="$TEST_TMPDIR/detector-dup.txt"
 printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=%d fired=zero-tolerance excerpt=x\n' 3 3 5 >"$D4"
 out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D4" 2>&1)"
 assert_contains "disagree: a line reported twice differs by count only" "$out" \
   "Disagree: file=plain.md detector=3 cross_check=2 detector_only=- cross_check_only=-"
 
-# A file marker resets the lines already counted, so a detector finding before
-# the marker is the detector's alone.
 D5="$TEST_TMPDIR/detector-filemark.txt"
 printf 'Finding: rule=ai-slop/audit/rule-em-dash file=filemark.md line=1 fired=zero-tolerance excerpt=x\n' >"$D5"
 printf 'filemark.md\t%s\n' "$F/filemark.md" >"$TEST_TMPDIR/filemark.tsv"
@@ -156,9 +144,6 @@ bash "$DETECT" --paths-file "$RT" >"$RD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$RT" --detector "$RD" 2>&1)"
 assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=5 disagreements=0"
 
-# A generated region belongs to the script that writes it: neither side counts
-# it, so an em dash inside one raises no Disagree row. A backticked marker
-# mention opens nothing.
 G="$TEST_TMPDIR/gen"
 mkdir -p "$G"
 {

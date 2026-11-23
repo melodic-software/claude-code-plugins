@@ -83,7 +83,6 @@ export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
 export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });
 export const deleteRecord = (path) => removeFile(path);
 
-/** Where reset notes a file it restored, beside where a record of that file would sit in the same home. */
 const restoredPath = (home, settingsFile) => join(home, "restored", basename(recordPath(home, settingsFile)));
 
 /** The hash of the bytes reset left in settingsFile, from the first of homes holding a note of it; null with none. */

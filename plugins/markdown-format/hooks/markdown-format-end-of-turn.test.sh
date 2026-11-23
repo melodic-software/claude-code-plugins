@@ -35,7 +35,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -45,7 +45,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# The Stop row's args from hooks.json, with the plugin root substituted.
 mapfile -t ARGS < <(jq -r '.hooks.Stop[0].hooks[0].args[]' "$PLUGIN/hooks/hooks.json" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN#g")
 expect "the Stop row launches node with the end-of-turn gate" \
   "node --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED --run-if-unset-or-true MARKDOWN_FORMAT_END_OF_TURN --end-of-turn" \
@@ -60,7 +59,7 @@ printf '# Seed\n' >"$R/a.md"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
 
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
+stop() {
   local active="$1" err rc
   shift
   err="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$active" "$R" |
@@ -69,8 +68,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# report [env...]: one fire with stop_hook_active false, keeping stdout apart
-# from stderr; sets REPORT_RC, REPORT_OUT and REPORT_ERR.
 report() {
   REPORT_OUT="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":false,"cwd":"%s"}' "$R" |
     env "$@" node "${ARGS[@]}" 2>"$WORK/report.err")"

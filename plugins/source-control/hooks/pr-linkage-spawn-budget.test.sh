@@ -103,7 +103,6 @@ else
   exit 0
 fi
 
-# --- Fixture ------------------------------------------------------------------
 REPO="$WORK/repo"
 mkdir -p "$REPO/.github/workflows"
 git -C "$REPO" init -q 2>/dev/null
@@ -151,7 +150,6 @@ mcp_payload mcp__github__create_pull_request "$BAD_BODY" >"$WORK/p-mcp-block.jso
 export HOOK_TELEMETRY_SINK=""
 export CLAUDE_PROJECT_DIR="$REPO"
 
-# run_hook <hook> <payload-file> — trace one hook invocation.
 run_hook() {
   local h="$1" p="$2" saved
   exec {saved}<&0
@@ -159,7 +157,6 @@ run_hook() {
   exec 0<&"$saved" {saved}<&-
 }
 
-# budget <label> <hook> <payload> <clone-ceiling> <exec-ceiling>
 budget() {
   local label="$1" h="$2" p="$3" cmax="$4" emax="$5"
   run_hook "$h" "$p"
@@ -189,7 +186,7 @@ budget "bash gate / non-PR gh call" "$BASH_GATE" "$WORK/p-nonpr.json" 7 2
 # hook::_bps_shfmt_to): 7 processes and 2 execs (shfmt, jq). Those rows are
 # exact: the parse forks the same processes on every run, so any change is one
 # to argue for (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/README.md#measured-cost).
-exact() { # <label> <hook> <payload> <clones> <execs>
+exact() {
   run_hook "$2" "$3"
   if ((CLONES == $4 && EXECS == $5)); then
     ok "$1: exactly $CLONES clone-family calls and $EXECS execve"

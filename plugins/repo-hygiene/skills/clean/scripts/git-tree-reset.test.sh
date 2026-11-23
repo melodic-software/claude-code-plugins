@@ -27,8 +27,6 @@ git -C "$R" branch -u main >/dev/null 2>&1
 
 run_reset() { bash -c "cd '$R' && bash '$RESET' $*"; }
 
-# mk_feat_repo <dir> <branch> — a committed repo on feature <branch> tracking
-# local main: the shared starting shape for the shim/failure cases below.
 mk_feat_repo() {
   local dir="$1" branch="$2"
   git init "$dir" >/dev/null 2>&1
@@ -42,9 +40,6 @@ mk_feat_repo() {
   git -C "$dir" branch -u main >/dev/null 2>&1
 }
 
-# mk_git_shim <dir> — install an executable PATH shim at <dir>/git from the
-# script body supplied on stdin (a heredoc at the call site). Each shim below
-# intercepts one git subcommand and delegates every other one to the real git.
 mk_git_shim() {
   mkdir -p "$1"
   cat >"$1/git"
@@ -63,12 +58,10 @@ make_reparse() {
   fi
 }
 
-# --- 1. --help ---
 rc=0
 bash "$RESET" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-# --- 2. dry-run surfaces new labels ---
 out="$(run_reset 2>&1)" || true
 assert_contains "dry-run lists upstream" "$out" "Upstream:"
 assert_contains "dry-run plans clean" "$out" "PlannedClean: git clean -fdx"
@@ -76,7 +69,6 @@ assert_contains "dry-run preserves secrets by default" "$out" "PreserveSecrets: 
 assert_contains "dry-run preserves deps by default" "$out" "PreserveDeps: yes"
 assert_not_contains "dry-run PRESERVE_ARGS expansion does not unbound-variable abort" "$out" "unbound variable"
 
-# --- 3. default apply preserves secrets + deps, removes plain untracked ---
 echo ignored >"$R/.env"
 echo direnv >"$R/.envrc"
 mkdir -p "$R/node_modules"
@@ -102,7 +94,6 @@ else
   assert_file_exists "tracked file survives reparse traversal (default)" "$R/shared/keep.txt"
   assert_contains "restore guard reports zero on default path" "$out" "RestoredTracked: 0"
 
-  # --- 5. --include-deps traverses node_modules; restore guard recovers ---
   rm -rf "$R/pkg"
   mkdir -p "$R/pkg/node_modules"
   make_reparse "$R/pkg/node_modules/link" "$R/shared" >/dev/null
@@ -111,12 +102,10 @@ else
   assert_file_absent "include-deps removes node_modules" "$R/node_modules/x.js"
 fi
 
-# --- 6. --include-secrets removes .env ---
 echo ignored >"$R/.env"
 run_reset --apply --include-secrets >/dev/null 2>&1 || true
 assert_file_absent "include-secrets removes .env" "$R/.env"
 
-# --- 7. unpushed commit blocks apply (exit 4) unless --allow-unpushed ---
 echo ahead >"$R/ahead.txt"
 git -C "$R" add ahead.txt
 git -C "$R" commit -m "ahead" >/dev/null
@@ -128,7 +117,6 @@ rc=0
 run_reset --apply --allow-unpushed >/dev/null 2>&1 || rc=$?
 assert_exit "allow-unpushed proceeds" 0 "$rc"
 
-# --- 8. default branch blocked (exit 3) ---
 git -C "$R" checkout main >/dev/null 2>&1
 git -C "$R" config branch.main.remote .
 git -C "$R" config branch.main.merge refs/heads/main
@@ -137,11 +125,6 @@ out="$(run_reset 2>&1)" || rc=$?
 assert_exit "blocks default branch" 3 "$rc"
 assert_contains "blocked reason" "$out" "default-branch"
 
-# --- 9. reset --hard failure aborts before clean (no partial destructive op) ---
-# Force git reset --hard to fail via a PATH shim that intercepts only `reset`
-# and delegates every other subcommand to the real git. A failed reset must not
-# fall through to git clean -fdx, so an untracked file clean would have removed
-# must survive, and no AppliedClean success line may be emitted.
 REAL_GIT="$(command -v git)"
 R2="$TEST_TMPDIR/repo-reset-fail"
 mk_feat_repo "$R2" feat/reset-fail
@@ -191,15 +174,12 @@ git -C "$R3" push origin --delete feat/gone >/dev/null 2>&1
 git -C "$R3" fetch --prune origin >/dev/null 2>&1
 echo untracked >"$R3/scratch.txt"
 
-# Dry-run gates too (before it would print a misleading PlannedReset to @{u}).
 rc=0
 out="$(bash -c "cd '$R3' && bash '$RESET' --dry-run" 2>&1)" || rc=$?
 assert_exit "unresolvable upstream dry-run exits 6" 6 "$rc"
 assert_contains "unresolvable upstream dry-run reports block" "$out" "Blocked: upstream-unresolved (origin/feat/gone)"
 assert_not_contains "unresolvable upstream dry-run plans no reset to literal @{u}" "$out" "reset --hard @{u}"
 
-# Apply path runs NO destructive command: exit 6, block message, planned none,
-# no AppliedReset/AppliedClean lines, and the untracked file survives.
 rc=0
 out="$(bash -c "cd '$R3' && bash '$RESET' --apply" 2>&1)" || rc=$?
 assert_exit "unresolvable upstream apply exits 6" 6 "$rc"
@@ -210,13 +190,6 @@ assert_not_contains "unresolvable upstream runs no reset --hard" "$out" "reset -
 assert_not_contains "unresolvable upstream runs no clean" "$out" "AppliedClean"
 assert_file_exists "unresolvable upstream skips clean (untracked survives)" "$R3/scratch.txt"
 
-# --- 11. clean failure after a successful reset is not reported as success (exit 7) ---
-# A genuine git clean failure (non-zero exit NOT caused by locked/in-use files) must
-# not print an AppliedClean success line. Force it via a PATH shim intercepting only
-# `clean`, delegating every other subcommand — crucially `reset` — to the real git,
-# so reset genuinely succeeds and its truthful AppliedReset line must still appear
-# alongside AppliedClean: failed. The faked clean never runs, so an untracked file a
-# real clean would have removed must survive (proving no silent success).
 R4="$TEST_TMPDIR/repo-clean-fail"
 mk_feat_repo "$R4" feat/clean-fail
 echo untracked >"$R4/scratch.txt"

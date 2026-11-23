@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the bounded-context view builder: hostile board text
-# (sticky content, persona names, evidence) renders as inert text, and the page
-# passes the shared validator.
-#
-#   bash plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 # test-scope: plugins/event-storming/skills/simulation/SKILL.md
 set -euo pipefail

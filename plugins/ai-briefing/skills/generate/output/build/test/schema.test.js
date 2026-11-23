@@ -21,8 +21,6 @@ const titleSlide = {
 	type: "title", eyebrow: "e", title: "t", subtitle: "s", footer: "f",
 };
 
-// A valid 10-slide deck whose single news bullet carries `url`. The Url refine is
-// the only thing under test, so everything else is held constant and valid.
 function makeDeck(url) {
 	const newsSlide = {
 		type: "news",

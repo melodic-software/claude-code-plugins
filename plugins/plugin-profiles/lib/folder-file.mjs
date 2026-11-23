@@ -54,7 +54,6 @@ export function folderLevel(projectDir, { platform = process.platform, home = de
   return { file: join(repo.root, ...LOCAL), ...repo, recordInGit: true, worktrees: hasLinkedWorktrees(repo) };
 }
 
-/** Whether the root's file is read by more than one worktree: a main checkout whose repository has linked worktrees. */
 function hasLinkedWorktrees({ root, commonDir }) {
   if (realPath(commonDir) !== realPath(join(root, ".git"))) return false;
   try {

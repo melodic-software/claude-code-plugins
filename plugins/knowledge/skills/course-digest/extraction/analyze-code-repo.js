@@ -1,19 +1,3 @@
-/**
- * Course code repository analysis tool.
- *
- * Clones the course's companion GitHub repo (shallow), analyzes its structure,
- * detects frameworks, and generates analysis metadata for the course digest.
- *
- * Usage:
- *   node analyze-code-repo.js --course-dir <path> [--verbose] [--quiet] [--skip-clone]
- *
- * Options:
- *   --course-dir    Path to directory containing course.json (required)
- *   --skip-clone    Skip cloning, analyze existing code/ directory
- *   --verbose       Show debug output
- *   --quiet         Show only warnings and errors
- */
-
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
@@ -59,7 +43,6 @@ function checkRepoSize(parsed) {
     return;
   }
 
-  // parseInt skips the surrounding whitespace gh prints.
   const sizeKB = Number.parseInt(sizeResult.stdout, 10);
   const sizeMB = Math.round(sizeKB / 1024);
   log.info(`  Repo size: ~${sizeMB} MB`);

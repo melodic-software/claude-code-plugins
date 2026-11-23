@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for restatement-scan.py (assertions from test-helpers.sh
-# beside this file; both ship with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +33,6 @@ fi
 
 scan() { python3 "$SCRIPT" "$@"; }
 
-# --- help / empty ------------------------------------------------------------
 rc=0
 OUT=$(scan --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -46,7 +43,6 @@ OUT=$(scan --count) || rc=$?
 assert_exit "no files --count exits 0" 0 "$rc"
 assert_eq "no files --count is 0" "0" "$OUT"
 
-# --- description-restatement (I29-a) ----------------------------------------
 DESC="$FIXTURES/description-restatement.md"
 rc=0
 OUT=$(scan "$DESC") || rc=$?
@@ -55,28 +51,20 @@ assert_contains "Purpose that restates the description is I29-a" "$(slashes "$OU
 assert_not_contains "Usage with unique content is not flagged" "$OUT" ":11:I29"
 assert_eq "exactly one candidate on the description fixture" "1" "$(scan --count "$DESC")"
 
-# --- sibling-section-restatement (I29-b) ------------------------------------
 SIB="$FIXTURES/sibling-restatement.md"
 OUT=$(scan "$SIB")
 assert_contains "NOT-do that restates Cross-references is I29-b" "$(slashes "$OUT")" "$SIB:13:I29-b"
 assert_not_contains "Cross-references itself is never a finding" "$OUT" ":5:I29"
 assert_eq "exactly one candidate on the sibling fixture" "1" "$(scan --count "$SIB")"
 
-# --- partial overlap must not flag ------------------------------------------
 PART="$FIXTURES/partial-overlap.md"
 assert_eq "a Purpose that echoes then adds load-bearing content is silent" \
   "0" "$(scan --count "$PART")"
 
-# --- inline fencing is not a standalone heading -----------------------------
 INLINE="$FIXTURES/inline-fence-not-section.md"
 assert_eq "a bolded What-is-NOT sub-block inside Purpose is silent" \
   "0" "$(scan --count "$INLINE")"
 
-# --- short orientation is below the mechanical floor ------------------------
-# #3186 parks "deliberate short restatement in a genuinely short skill" as a
-# judgment call belonging in the model-graded lane. The scanner's length and
-# token floors keep that case out of the deterministic set so a three-word
-# Purpose used as orientation is not a finding.
 SHORT="$TEST_TMPDIR/short.md"
 cat >"$SHORT" <<'EOF'
 ---
@@ -90,7 +78,6 @@ EOF
 assert_eq "a three-word Purpose used as orientation is silent" \
   "0" "$(scan --count "$SHORT")"
 
-# --- body-scope: a restating description line is never a row ----------------
 FM="$TEST_TMPDIR/frontmatter-only.md"
 cat >"$FM" <<'EOF'
 ---
@@ -99,13 +86,11 @@ description: "Classify markdown noise. Use when: 'audit noise'."
 EOF
 assert_eq "frontmatter-only file produces no row" "0" "$(scan --count "$FM")"
 
-# --- missing file is skipped, not an error ----------------------------------
 rc=0
 OUT=$(scan "$TEST_TMPDIR/no-such.md") || rc=$?
 assert_exit "missing file exits 0" 0 "$rc"
 assert_eq "missing file --count is 0" "0" "$(scan --count "$TEST_TMPDIR/no-such.md")"
 
-# --- --body-only is accepted and is a no-op ---------------------------------
 assert_eq "--body-only does not change the description fixture count" \
   "1" "$(scan --count --body-only "$DESC")"
 

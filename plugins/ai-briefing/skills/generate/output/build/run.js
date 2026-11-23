@@ -1,13 +1,3 @@
-// Single entrypoint orchestrator: emit → build pptx → build html → build pdf → validate.
-//
-// Usage:
-//   node run.js                     # full chain
-//   node run.js --skip-emit         # rebuild from existing slides-data.js
-//   node run.js --skip-validate     # skip quality gates (e.g. for fast preview)
-//   node run.js --meeting-n 21      # forwarded to emit-slides-data.js
-//   node run.js --briefing path     # forwarded to emit-slides-data.js
-//   node run.js --date 2026-05-08   # forwarded to emit-slides-data.js
-//
 // Exit codes: 0 = all green, 1 = validation failed, 2 = build error.
 import { spawnSync } from "node:child_process";
 import path from "node:path";

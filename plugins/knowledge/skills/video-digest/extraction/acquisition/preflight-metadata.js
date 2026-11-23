@@ -58,7 +58,6 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(live_status)s",
 ].join(PREFLIGHT_FIELD_SEP);
 
-/** Index of `live_status` in a {@link PREFLIGHT_PRINT_TEMPLATE} line. */
 const LIVE_STATUS_FIELD = 8;
 
 /** `live_status` values whose captions may still be in post-stream processing. */
@@ -441,7 +440,6 @@ export async function preflightVideos(urls, deps = {}, options = {}) {
   return results;
 }
 
-/** Flags that take a value; the value is not a URL. */
 const RANGE_FLAGS = new Set(["--from", "--to"]);
 
 /**

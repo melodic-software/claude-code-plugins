@@ -43,13 +43,6 @@ PLAN_MIGRATION="$SCRIPT_DIR/plan-migration.sh"
 CUTOVER_CHECK="$SCRIPT_DIR/cutover-check.sh"
 SOURCES_MD="$SCRIPT_DIR/../reference/sources.md"
 
-# The releases that corrected the shim doctrine, from each plugin's own
-# CHANGELOG `## [<version>]` heading: harness-memory 0.12.9 corrected its fix
-# path, and instruction-placement 0.15.0 is where the last of the old doctrine
-# went (`realign/context/apply-recipes.md` and `context/routing-rubric.md` both
-# still sent Claude-specific text to the CLAUDE.md below the import at 0.14.0).
-# An installed build below either one advises a de-shimmed repository back to
-# the old shape.
 FLOOR_INSTRUCTION_PLACEMENT="0.15.0"
 FLOOR_HARNESS_MEMORY="0.12.9"
 
@@ -143,13 +136,10 @@ refuse() {
   exit 1
 }
 
-# The repository-relative directory "." or "a/b" as an absolute path.
 dir_path() {
   if [[ "$1" == "." ]]; then printf '%s' "$REPO"; else printf '%s/%s' "$REPO" "$1"; fi
 }
 
-# Every AGENTS.md on disk under the repository, tracked or not, symlinks
-# included, pruning .git and node_modules. Returns find's own exit code.
 agents_walk() {
   find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
     -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null
@@ -158,14 +148,10 @@ agents_walk() {
 # shellcheck source=../../../scripts/lib/version.sh
 . "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
-# --- 1. the price ---------------------------------------------------------
 echo "=== remove-shims: $REPO ==="
 echo
 echo "What removing the shims costs (reference/sources.md, 'What shim removal costs'):"
 if [[ -f "$SOURCES_MD" ]]; then
-  # The record's decision is the paragraph directly above its Pointer line, so
-  # the price is that paragraph and the pointer bullet with its indented
-  # continuation lines; the next bullet, blank line or heading ends it.
   tr -d '\r' <"$SOURCES_MD" |
     awk '/^## What shim removal costs/ { f = 1; next }
          !f { next }
@@ -179,24 +165,16 @@ else
 fi
 echo
 
-# A nested AGENTS.md is where removal can cost more than the record above
-# prices: a load trigger only its shim carries (shim-droppable.md condition G,
-# measured by cutover-check's nested write probe). Counted from disk, tracked
-# or not, so a file the plan would not list still prices the run. Same walk
-# as the line index below, and a failed walk refuses: an undercount would
-# leave the loss out of the price and skip the probe.
 nested_rc=0
 nested_out="$(agents_walk)" || nested_rc=$?
 ((nested_rc == 0)) || refuse "the AGENTS.md walk failed (find exited $nested_rc) while counting nested files; an undercount would leave the nested write-trigger loss unpriced."
-# Only a nested AGENTS.md beside a CLAUDE.md has a shim this run can remove;
-# one already without a shim loses nothing here.
 NESTED_AGENTS=0
 while IFS= read -r f; do
   [[ -n "$f" && "$f" != "$REPO/AGENTS.md" ]] || continue
   [[ -e "${f%/AGENTS.md}/CLAUDE.md" || -L "${f%/AGENTS.md}/CLAUDE.md" ]] || continue
   NESTED_AGENTS=$((NESTED_AGENTS + 1))
 done <<<"$nested_out"
-nested_loss() { # <the probe's result, or "not yet run">
+nested_loss() {
   echo "  Nested AGENTS.md files: $NESTED_AGENTS. The nested write probe says: $1. Unless it says"
   echo "  LOADS, removing their shims also drops the nested load a Write or Edit there triggers"
   echo "  through the shim (reference/sources.md, 'The nested write trigger'; shim-droppable.md,"
@@ -207,7 +185,6 @@ if ((NESTED_AGENTS > 0)); then
   echo
 fi
 
-# --- 2. the confirmation --------------------------------------------------
 if ((CONFIRM == 0)); then
   echo "Not confirmed. Re-run with --confirm to remove the shims in this repository."
   echo "One repository per run; there is no all-repositories mode."
@@ -220,14 +197,13 @@ fi
 # one: a user-scope 0.15.0 beside a project-scope 0.13.11 would otherwise
 # report 0.15.0 and let the stale copy give the old advice in the very
 # repository being de-shimmed.
-installed_version() { # <plugin name>
+installed_version() {
   command -v jq >/dev/null 2>&1 || return 1
   [[ -f "$INSTALLED_PLUGINS" ]] || return 1
   local worst="" v
   while IFS= read -r v; do
     v="${v%$'\r'}"
     [[ -n "$v" ]] || continue
-    # One copy whose version cannot be read could be the stale one.
     [[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
     if [[ -z "$worst" ]] || ip_ver_ge "$worst" "$v"; then worst="$v"; fi
   done < <(jq -r --arg p "$1@" '.plugins | to_entries[]
@@ -250,7 +226,6 @@ for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "harness-memory
 done
 echo
 
-# --- 4. the cutover conditions --------------------------------------------
 echo "Running the cutover check against $REPO:"
 echo
 # With no nested AGENTS.md the write probe has nothing to price, so it is
@@ -258,7 +233,6 @@ echo
 PROBE_ARGS=()
 ((NESTED_AGENTS > 0)) || PROBE_ARGS=(--skip-write-probe)
 CHECK_OUT="$(mktemp)"
-# Until on_exit takes over below, this trap removes the capture on any exit.
 trap 'rm -f "$CHECK_OUT"' EXIT
 trap 'exit 1' INT TERM HUP
 bash "$CUTOVER_CHECK" --repo "$REPO" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} \
@@ -274,14 +248,8 @@ if ((NESTED_AGENTS > 0)) && [[ "$PROBE_RESULT" != "LOADS" ]]; then
   echo
 fi
 
-# --- 5. the target shape --------------------------------------------------
 PLAN="$(mktemp)"
 
-# One EXIT trap carries the restore, rather than a list of signals that has to
-# stay complete. Naming INT and TERM left HUP and PIPE out, and a run killed by
-# either left the repository de-shimmed and unverified: `remove-shims | head`
-# is enough to reach that state. The signal traps below only exit; EXIT is what
-# restores, so an exit this script never anticipated restores too.
 CLEANUP_STARTED=0
 # shellcheck disable=SC2329 # invoked by the EXIT trap set below
 on_exit() {
@@ -329,9 +297,6 @@ while IFS=$'\t' read -r kind dir state cb ab; do
   esac
 done <"$PLAN"
 
-# A plan with no DIR row at all is a plan that did not run: a repository always
-# has at least the row for its own root. Reading that as "nothing to remove"
-# turned a broken discovery into a clean exit 0.
 ((DIR_ROWS)) || refuse "the plan carries no DIR row; discovery did not report and this repository was never described."
 
 [[ ${#SHIM_DIRS[@]} -gt 0 ]] || {
@@ -339,28 +304,11 @@ done <"$PLAN"
   exit 0
 }
 
-# --- 6. canary inputs, resolved before anything is removed ----------------
-# The canary runs against the repository's OWN text: no token is written into a
-# real repository. The probe is the head of a distinctive existing line and the
-# proof is the whole line, so a reply that merely echoes the prompt is not
-# mistaken for a load.
-# A session in a nested directory loads that directory's AGENTS.md AND every
-# ancestor's, measured 2026-09-20 on 2.1.278 with no tools available: running
-# from the nested directory is itself the trigger, so no Read is needed, and
-# both files came back. That is also why the line has to be UNIQUE. A line the
-# nested file shares with the root file is answered by the root file, and the
-# nested surface would pass its canary while loading nothing of its own.
 AGENTS_LINES="$(mktemp)"
 
-# Pruned from the in-repo walk, and printed with the index so a reader knows
-# what was not looked at. Kept to two: a pruned directory is a place an
-# AGENTS.md cannot be seen, and an unseen one is how a shared line scores
-# unique. `.git` holds no instruction file a session reads, and
-# `node_modules` is a vendored tree nobody edits instructions into.
 INDEX_PRUNED=".git node_modules"
 
-# One "<file>\t<line>" row per non-blank line of an AGENTS.md, trimmed.
-index_file() { # <AGENTS.md path>
+index_file() {
   F="$1" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
     "$1" >>"$AGENTS_LINES"
 }
@@ -380,10 +328,6 @@ build_line_index() {
   # walk could not see is a line that scores unique. Directory symlinks are
   # not followed (no `-L`), so the walk cannot loop.
   find_out="$(agents_walk)" || find_rc=$?
-  # A walk that failed and a repository with one AGENTS.md are the same empty
-  # output, and on the empty reading every line scores unique. `find` shadowed
-  # by Windows' own `find.exe`, a partly unreadable tree, or no `find` at all
-  # all land here.
   ((find_rc == 0)) || {
     refuse "the AGENTS.md walk failed (find exited $find_rc); without it every canary line scores unique and the check is worthless."
   }
@@ -404,20 +348,10 @@ build_line_index() {
   done
 }
 
-# The longest line of this directory's AGENTS.md that is plain prose, long
-# enough to be distinctive, and CONTAINED IN no line of any other AGENTS.md
-# that loads beside it.
-#
-# Containment, not equality. The canary passes when the reply contains the
-# line, so an ancestor line that merely CONTAINS this one (the same sentence
-# plus a clause) answers the probe just as well as an identical one would, and
-# the nested surface passes while loading nothing of its own. Equality closed
-# the identical case and left that one open.
-canary_line() { # <dir>
+canary_line() {
   local file self line best="" seen
   file="$(dir_path "$1")/AGENTS.md"
   [[ -f "$file" ]] || return 1
-  # The index key for THIS file, so a line only ever competes with other files.
   self="$file"
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
@@ -447,10 +381,6 @@ canary_line() { # <dir>
 build_line_index
 echo "  canary index: every AGENTS.md under $REPO and above it, pruning ${INDEX_PRUNED// /, }"
 
-# The walk can exit 0 and still have seen nothing useful. If a directory being
-# de-shimmed is not in the index built to judge it, the judgment is vacuous:
-# its own lines would compete against an empty set and every one would score
-# unique.
 for dir in "${SHIM_DIRS[@]}"; do
   KEY="$(dir_path "$dir")/AGENTS.md" awk -F'\t' '$1 == ENVIRON["KEY"] { found = 1 }
     END { exit found ? 0 : 1 }' "$AGENTS_LINES" || {
@@ -465,20 +395,12 @@ for dir in "${SHIM_DIRS[@]}"; do
   fi
 done
 
-# --- 7. removal, root and nested together ---------------------------------
-# Past this point the repository is half-shaped until the canaries pass, and
-# the EXIT trap above is what puts it back: a failed removal, any signal, a
-# canary that did not return its line, and an exit nobody wrote all restore.
 SHIM_LINE='@AGENTS.md'
 
 shim_path() {
   if [[ "$1" == "." ]]; then printf 'CLAUDE.md'; else printf '%s/CLAUDE.md' "$1"; fi
 }
 
-# Gate 5 proved every one of these files is EXACTLY the import line, so the
-# restore writes that line rather than asking git for the index copy, which a
-# staged edit would have replaced. The write is verified byte for byte, and a
-# restore that did not land says so and takes the exit code with it.
 restore_all() {
   local d path target failed=0 got size
   for d in ${REMOVED[@]+"${REMOVED[@]}"}; do
@@ -518,10 +440,6 @@ for dir in "${SHIM_DIRS[@]}"; do
 done
 echo
 
-# --- 8. one canary per de-shimmed directory -------------------------------
-# NO TOOLS (`--tools ""`). A canary that let the model read the file would
-# prove only that the file is readable; instructions load at session start, so
-# a reply from a session that could not read anything is evidence of a load.
 echo "Canaries (the repository's own text, no token written, no tools available):"
 MISS=0
 for dir in "${SHIM_DIRS[@]}"; do

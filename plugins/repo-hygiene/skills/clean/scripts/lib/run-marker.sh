@@ -9,7 +9,6 @@
 [[ -n "${_CLEAN_RUN_MARKER_LOADED:-}" ]] && return 0
 readonly _CLEAN_RUN_MARKER_LOADED=1
 
-# One hour without a guarded tool call clears a marker nobody closed.
 RUN_MARKER_IDLE_SECONDS=3600
 
 # run_marker_data_dir_ours <dir>: 0 when the last path segment of <dir> names

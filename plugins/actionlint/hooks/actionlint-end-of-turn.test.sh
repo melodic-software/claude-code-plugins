@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/actionlint/hooks/exec-bash.mjs
-# Contract tests for the opt-in Stop row (actionlint_end_of_turn), launched
-# exactly as hooks.json registers it: off by default; on, an uncommitted finding
-# exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
-# twice in one turn; the plugin kill switch wins; a missing actionlint passes
-# silently. The spawn budget case fences the cost every user pays per turn with
-# the option off: the node launcher only.
-# Expected values are actionlint's documented output (docs/checks.md): an
-# undefined property in an expression, reported on line 7 of the fixture.
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/hooks/actionlint-check.sh plugins/actionlint/git-hooks/lint.sh plugins/actionlint/git-hooks/adapters.sh plugins/actionlint/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED
@@ -28,7 +20,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -38,7 +30,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# The Stop row's args from hooks.json, with the plugin root substituted.
 mapfile -t ARGS < <(jq -r '.hooks.Stop[0].hooks[0].args[]' "$PLUGIN/hooks/hooks.json" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN#g")
 expect "the Stop row launches node with the end-of-turn gate" \
   "node --run-if-unset-or-true ACTIONLINT_ENABLED --require-true ACTIONLINT_END_OF_TURN --end-of-turn" \
@@ -57,7 +48,7 @@ printf '%s' "$CLEAN" >"$R/.github/workflows/ci.yml"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
 
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
+stop() {
   local active="$1" err rc
   shift
   err="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$active" "$R" |
@@ -66,8 +57,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING='.github/workflows/ci.yml:7: property "missing" is not defined in object type {} [expression]'
 printf '%s' "$BAD" >"$R/.github/workflows/ci.yml"
@@ -78,9 +67,6 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=false)"
-# Without actionlint the check script fails an agent (git-hooks test); the row
-# turns that one failure into a silent pass, since the SessionStart probe
-# already reports the missing tool.
 NOTOOL="$WORK/no-actionlint"
 mkdir -p "$NOTOOL"
 for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for setup-apply.mjs, the writer behind /education:setup apply.
-#
-# Self-contained and cwd-independent; it changes only its own mktemp dir.
-# Expected values come from the key contract in plugins/education/reference/config.md:
-# explain_starting_rung takes plain or peer, and the file is
-# docs/conventions/education.yaml at the repository root.
 # test-scope: plugins/education/lib/resolve-convention-home.sh plugins/education/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -12,8 +6,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -30,7 +22,7 @@ bad() {
   printf 'FAIL - %s\n' "$1" >&2
   fails=$((fails + 1))
 }
-expect() { # expect <label> <condition...>
+expect() {
   local label="$1"
   shift
   if "$@"; then ok "$label"; else bad "$label"; fi
@@ -45,7 +37,7 @@ repo_new() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local r="$1"
   shift
   OUT="$(node "$SUT" --root "$r" "$@" 2>&1)"
@@ -53,7 +45,6 @@ run() { # run <repo> [args...]
 }
 one_line() { [[ "$(printf '%s\n' "$OUT" | wc -l)" -eq 1 && "$OUT" != *"    at "* ]]; }
 
-# A new file holds only the requested key and reads back through the reader.
 repo="$(repo_new)"
 f="$repo/$REL"
 run "$repo" explain_starting_rung=peer
@@ -63,13 +54,11 @@ expect 'the new file holds one key line and the schema comment' test "$(settings
 expect 'no other file is created' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 expect 'no temp file is left behind' test -z "$(find "$repo/docs" -name '.*.tmp')"
 
-# The same value again changes nothing.
 before="$(cat "$f")"
 run "$repo" explain_starting_rung=peer
 expect 'an unchanged value reports already configured' test "$CODE" -eq 0 -a "$(cat "$f")" = "$before"
 [[ "$OUT" == *"already configured"* ]] || bad 'already configured message'
 
-# An existing file that would change: diff without --yes, write with it.
 repo="$(repo_new)"
 f="$repo/$REL"
 mkdir -p "$repo/docs/conventions"
@@ -81,7 +70,6 @@ expect 'the file is untouched without --yes' test "$(cat "$f")" = $'# chosen by 
 run "$repo" --yes explain_starting_rung=peer
 expect 'with --yes the change is written and the comment kept' test "$CODE" -eq 0 -a "$(settings "$f")" = $'# chosen by the team\nexplain_starting_rung: peer'
 
-# Bad input: value outside the list, unknown key, a key given twice.
 repo="$(repo_new)"
 run "$repo" explain_starting_rung=expert
 expect 'a value outside plain and peer exits 1' test "$CODE" -eq 1
@@ -94,10 +82,7 @@ run "$repo" explain_starting_rung=plain explain_starting_rung=peer
 expect 'a key given twice on the command line exits 1' test "$CODE" -eq 1
 expect 'none of the refusals created docs/' test ! -e "$repo/docs"
 
-# Document shapes a schema validator rejects. --check warns on each; apply
-# replaces a bare empty or null value line, and refuses every other shape,
-# since replacing one line would not settle what the file was meant to say.
-shape() { # shape <label> <refuse|replace> <content>
+shape() {
   local label="$1" want="$2" content="$3" r file before
   r="$(repo_new)"
   file="$r/$REL"
@@ -131,8 +116,6 @@ shape 'a value outside the list' replace $'explain_starting_rung: expert\n'
 shape 'an unknown key set twice' refuse $'explain_starting_rung: plain\nverbosity: high\nverbosity: low\n'
 shape 'an unknown key holding a map' refuse $'explain_starting_rung: plain\nverbosity: {a: b}\n'
 
-# A key outside the schema is named in one warning and ignored: --check still
-# prints the valid key and exits 1, and apply keeps its line byte for byte.
 repo="$(repo_new)"
 mkdir -p "$repo/docs/conventions"
 printf 'explain_starting_rung: plain\nverbosity: high\n' >"$repo/$REL"
@@ -144,7 +127,6 @@ run "$repo" --yes explain_starting_rung=peer
 expect 'apply beside an unknown key exits 0 and keeps its line' test "$CODE" -eq 0 -a "$(settings "$repo/$REL")" = $'explain_starting_rung: peer\nverbosity: high'
 expect 'apply names the unknown key in one warning' test "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1
 
-# Path guards: symlinks, a hard link, and the wrong kind of file in the way.
 repo="$(repo_new)"
 outside="$(mktemp -d "$TMP/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -169,8 +151,6 @@ run "$repo" --yes explain_starting_rung=peer
 expect 'a hard-linked target is refused and the other link is untouched' test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'explain_starting_rung: plain'
 if [[ "$OUT" == *"hard link"* ]]; then ok 'the hard-link refusal says so'; else bad 'the hard-link refusal says so'; fi
 
-# A link planted at the temp path: the O_EXCL open refuses it, nothing is
-# written through it, and a file this run did not create is not removed.
 repo="$(repo_new)"
 outside="$(mktemp -d "$TMP/outside.XXXXXX")"
 mkdir -p "$repo/docs/conventions"
@@ -196,7 +176,6 @@ run "$repo" explain_starting_rung=peer
 expect 'docs as a file is refused and left as it was' test "$CODE" -eq 1 -a "$(cat "$repo/docs")" = 'a file'
 if one_line; then ok 'the docs-as-file refusal is one line'; else bad 'the docs-as-file refusal is one line'; fi
 
-# --check on an absent and a valid file.
 repo="$(repo_new)"
 run "$repo" --check
 expect '--check on a missing file exits 0' test "$CODE" -eq 0
@@ -208,7 +187,6 @@ expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0
 expect '--check on a file with no record prints one INFO line' test "$(grep -c '^INFO .*no provenance recorded' <<<"$OUT")" -eq 1
 expect '--check writes nothing' test "$(cat "$repo/$REL")" = 'explain_starting_rung: peer'
 
-# Usage errors.
 run "$repo"
 expect 'no <key>=<value> exits 2' test "$CODE" -eq 2
 run "$repo" --check explain_starting_rung=peer
@@ -217,7 +195,6 @@ OUT="$(cd "$TMP" && GIT_CEILING_DIRECTORIES="$TMP" node "$SUT" explain_starting_
 CODE=$?
 expect 'outside a git working tree without --root exits 2' test "$CODE" -eq 2
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$HERE/../../../.claude-plugin/plugin.json")"
 repo="$(repo_new)"
 run "$repo" explain_starting_rung=peer

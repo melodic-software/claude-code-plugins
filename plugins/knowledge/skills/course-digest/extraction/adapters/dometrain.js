@@ -267,7 +267,6 @@ async function fetchJsonLd(page) {
             if (course) return course;
           }
         } catch {
-          /* ignore parse errors */
         }
       }
       return null;

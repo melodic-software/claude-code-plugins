@@ -175,7 +175,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate, retryServerErrors } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {

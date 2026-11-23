@@ -112,9 +112,6 @@
 #   prune_grace_seconds       DOCS_CACHE_PRUNE_GRACE_SECONDS       --grace               300
 #   max_page_bytes            DOCS_CACHE_MAX_PAGE_BYTES            fetch-docs --max-page-bytes  10485760
 #   cache_enabled             DOCS_CACHE_ENABLED                   none                  true
-# cache_dir is a non-empty string, cache_enabled true or false, max_page_bytes a
-# positive integer, every other key a non-negative integer; an integer with a
-# leading zero is refused, since curl reads 010 as ten and bash as eight.
 # ttl_seconds is fetch-docs.sh's --max-age when the caller passes none;
 # max_page_bytes is the largest body fetch-docs.sh downloads (10 MiB, ten times
 # the largest real docs page known, the Claude Code CHANGELOG, at under 1 MB),
@@ -130,17 +127,17 @@
 # shellcheck disable=SC2016
 DC_STORE_VERSION=2
 
-DC_CONFIG_KEYS=(cache_dir ttl_seconds whole_page_bytes escalate_section_percent escalate_bytes size_cap_bytes prune_grace_seconds max_page_bytes cache_enabled)
+DC_CONFIG_KEYS=(cache_dir ttl_seconds whole_page_bytes escalate_section_percent escalate_bytes size_cap_bytes prune_grace_seconds max_page_bytes cache_enabled renderer)
 # Bundled defaults (cache_dir's is computed by dc_config); a caller that sources
 # this file without calling dc_config runs on them.
 # shellcheck disable=SC2034 # read by name (dc_config_print) and by fetch-docs.sh
 {
   DC_CFG_cache_dir="" DC_CFG_ttl_seconds=86400 DC_CFG_whole_page_bytes=51200 DC_CFG_escalate_section_percent=25
   DC_CFG_escalate_bytes=61440 DC_CFG_size_cap_bytes=209715200 DC_CFG_prune_grace_seconds=300
-  DC_CFG_max_page_bytes=10485760 DC_CFG_cache_enabled=true
+  DC_CFG_max_page_bytes=10485760 DC_CFG_cache_enabled=true DC_CFG_renderer=none
   DC_LAYER_cache_dir=default DC_LAYER_ttl_seconds=default DC_LAYER_whole_page_bytes=default
   DC_LAYER_escalate_section_percent=default DC_LAYER_escalate_bytes=default DC_LAYER_size_cap_bytes=default
-  DC_LAYER_prune_grace_seconds=default DC_LAYER_max_page_bytes=default DC_LAYER_cache_enabled=default
+  DC_LAYER_prune_grace_seconds=default DC_LAYER_max_page_bytes=default DC_LAYER_cache_enabled=default DC_LAYER_renderer=default
 }
 DC_DEFAULTS=()
 for DC_KV in "${DC_CONFIG_KEYS[@]:1}"; do
@@ -158,6 +155,7 @@ dc_config_valid() {
   max_page_bytes) re='^[1-9][0-9]{0,17}$' DC_WANT="a positive integer with no leading zero" ;;
   cache_dir) type=string re='.' DC_WANT="a non-empty string" ;;
   cache_enabled) type=boolean re='^(true|false)$' DC_WANT="true or false" ;;
+  renderer) type=string re='^(none|firecrawl)$' DC_WANT="none or firecrawl" ;;
   *) ;;
   esac
   [[ ("$2" == text || "$2" == "$type") && "$3" =~ $re && "$3" != *[[:cntrl:]]* ]]

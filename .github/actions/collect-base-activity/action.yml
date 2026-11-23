@@ -858,7 +858,7 @@ runs:
                 # directory.
                 [[ $DOCS_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the docs script copy has a name a rule cannot carry"
                 mkdir -p "$DOCS_DIR"
-                cp "$BASE_PATH"/plugins/discovery/scripts/{fetch-docs.sh,docs-cache.sh,html2md.py} "$DOCS_DIR/"
+                cp "$BASE_PATH"/plugins/discovery/scripts/{fetch-docs.sh,fetch-docs-generic.sh,docs-cache.sh,html2md.py} "$DOCS_DIR/"
                 chmod -R a-w "$DOCS_DIR"
                 # A Bash rule matches the words before its `*` as written, so
                 # each script gets a rule for the bare path and one for the

@@ -47,7 +47,6 @@ function Get-Field($Object, [string] $Name) {
     if ($p) { $p.Value } else { $null }
 }
 
-# A history run_id arrives as a DateTime or a string; either way, its instant in UTC ticks.
 function Get-Instant($Value) {
     try {
         if ($Value -is [datetime]) { return ([DateTimeOffset]$Value).UtcTicks }

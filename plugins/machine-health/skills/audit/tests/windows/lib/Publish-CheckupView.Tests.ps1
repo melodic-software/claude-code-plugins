@@ -22,7 +22,6 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
         $script:StateBase = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $script:Views = Join-Path $script:StateBase 'views'
         New-Item -ItemType Directory -Path $script:Views -Force | Out-Null
-        # Runs 1..14 complete, run 14 the current one: a prune deletes runs 1 and 2.
         foreach ($n in 1..14) {
             foreach ($suffix in '.html', '.json', '.ids.json') {
                 Set-Content -LiteralPath (Join-Path $script:Views "checkup-$(Get-Stamp $n)$suffix") -Value 'x'

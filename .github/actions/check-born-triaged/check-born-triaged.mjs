@@ -16,7 +16,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
