@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Decide whether a feature-map refresh pass has work to do, and record a clean
-# pass. Runs git only.
 set -euo pipefail
 
 usage() {
@@ -104,7 +102,6 @@ now="$(date +%s)"
 n="${since%?}"
 unit=3600
 [[ "$since" == *d ]] && unit=86400
-# A count past nine digits is a window wider than any commit's age.
 if ((${#n} <= 9 && now - committed > n * unit)); then
   printf 'skip no commit within %s and no state on this host\n' "$since"
 else

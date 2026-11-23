@@ -24,7 +24,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - Only for a new case; a grader, prompt, fixture or scaffold change to a case; or a cut. Nothing
   else requires one (Q4).
-- No run for a description-only case edit, an additive skill edit, a restated upstream fact swapped
+- A skill `description` or `when_to_use` edit, additive included, runs that plugin's triggering
+  and no-fire cases (Q7). An additive-only one merges before that run, which follows on the
+  default branch as below; a reworded one is a cut and runs before merge (Q11).
+- No run for a description-only case edit, an additive skill edit (added instructions can still
+  lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
   re-points a renamed reference that `/evals:validate` proves resolves (C2, Q6).
 - A model release triggers nothing. When a decision rests on a new model, the cases that decision
@@ -37,7 +41,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The affected cases of the changed skills, in any plugin, and no others (Q8, Q30). For a cut to
   an agent body, the affected cases of each skill that dispatches that agent (Q61).
-- Never a whole suite (C1). A suite run always sets `case` or `tag`. The label run runs every
+- `/evals:plugin-eval select <diff-base>` names them, with the agent-run count; its `cases:` line
+  is the eval workflows' `cases` input, so one dispatch runs exactly that set (Q5). No known
+  mapping drops an affected case. A plugin-wide file (`hooks/`, `.mcp.json`, `plugin.json`,
+  settings) starts no run; `select` lists it for the author to judge (Q9).
+- Never a whole suite (C1). A suite run always sets `case`, `cases` or `tag`. The label run runs every
   suite a PR touches, so do not add the `eval: run` label until it runs only the affected cases
   (Q42).
 - A legacy `evals.json` set is not evidence. A cut whose skill has only one converts it to
@@ -69,7 +77,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   spends; prices themselves are the [pricing page](https://platform.claude.com/docs/en/about-claude/pricing)'s.
 - One dispatch per affected plugin per head, within the per-run ceiling the workflow's
   `cost-cap-usd` and `max-cost-usd` inputs enforce (Q11).
-- Split an affected set that exceeds one run's ceiling into several dispatches by case glob; never
+- Split an affected set that exceeds one run's ceiling into several dispatches by `cases` list; never
   drop affected cases to fit (Q36). Each passing dispatch posts a record that would release the
   eval hold, so a split PR's hold also carries a `reason=eval-split` line, which the release step
   does not lift ([loop-lane hold convention](../contracts/loop-lane/README.md)); the dispatching

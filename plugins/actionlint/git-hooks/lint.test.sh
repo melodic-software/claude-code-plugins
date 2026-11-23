@@ -1,22 +1,7 @@
 #!/usr/bin/env bash
-# Contract tests for the actionlint lint entry (git-hooks/lint.sh): the
-# actionlint adapter lints every GitHub Actions workflow file, with the root's
-# optional actionlint config (https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file); a
-# finding blocks only on a line the commit adds; a finding about a whole
-# workflow is attributed to the line actionlint names; a partly staged file is
-# checked as staged; nothing is ever rewritten; only workflow files are linted;
-# --worktree reports uncommitted changes; actionlint failing with no parseable
-# finding fails closed; a .claude/ecosystems/ record never runs; a missing
-# actionlint follows the skip-key rule; and the plugin's own vendored installer
-# wires the entry, carrying over a decline of the entry it replaced.
-# Expected values are actionlint's documented output (docs/checks.md): an
-# undefined property in an expression, a job without runs-on, and a YAML parse
-# error; the line numbers are counted by hand from the fixtures below. Config
-# discovery (docs/config.md: actionlint.yaml or actionlint.yml in .github) was
-# measured against actionlint 1.17.0: it reads the repository root's .github
-# config only, and -stdin-filename keeps the config's paths: rules for stdin.
 # test-scope: plugins/actionlint/git-hooks/entries.json plugins/actionlint/git-hooks/adapters.sh
 # test-scope: plugins/actionlint/lib/git-hooks/check-lib.sh plugins/actionlint/lib/git-hooks/resolve-tool.sh plugins/actionlint/lib/git-hooks/install.mjs
+# test-scope: plugins/actionlint/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
@@ -34,7 +19,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -79,7 +64,7 @@ exit 1
 EOF
 chmod +x "$BIN/stublint"
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && PATH="$BIN:$PATH" bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -89,7 +74,6 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
 
 HINT='actionlint: fix the findings actionlint reported above.'
 CLEAN=$'name: ok\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n'
-# Line 7 reads an undefined property: actionlint [expression] "property ... is not defined".
 # shellcheck disable=SC2016 # literal workflow YAML: ${{ }} must stay unexpanded
 BAD=$'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n'
 MSG='property "missing" is not defined in object type {} [expression]'
@@ -120,7 +104,6 @@ expect "a clean staged workflow passes with no output" "0||" "$(check "$REPO")"
 expect "--resolve reports the adapter, its config and that actionlint is found" "actionlint	lint	adapter:actionlint	actionlint	yes	config .github/actionlint.yaml; binary actionlint on PATH" \
   "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 
-# actionlint reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 printf 'self-hosted-runner:\n  labels: [x]\n' >"$REPO/.github/actionlint.yaml"
 expect "an actionlint config edited after staging refuses the commit, naming it" "1||.github/actionlint.yaml: $DRIFT" "$(check "$REPO")"
@@ -152,8 +135,6 @@ printf '%s' "${BAD/name: bad/name: renamed}" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 expect "a finding on a line the commit did not add does not block" "0||" "$(check "$REPO")"
 
-# A finding about a whole workflow (a job with no runs-on) is attributed to the
-# line actionlint names for it, which is line 4, the job's key.
 NORUNS=$'name: w\non: push\njobs:\n  build:\n    steps:\n      - run: echo ok\n'
 new_repo
 printf '%s' "$NORUNS" >"$REPO/$WF/ci.yml"
@@ -175,8 +156,6 @@ git -C "$REPO" add "$WF/ci.yml"
 expect "a YAML parse error is reported at its line" "1||$WF/ci.yml:3: could not parse as YAML: did not find expected ',' or ']' [syntax-check]
 $HINT" "$(check "$REPO")"
 
-# The embedded ShellCheck run is off: SC2045 (iterating over ls output) is a
-# ShellCheck-only finding that actionlint reports when the integration is on.
 # shellcheck disable=SC2016 # literal workflow YAML: $(ls) must stay unexpanded
 SHELLISH=$'name: s\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          for f in $(ls); do echo "$f"; done\n'
 new_repo
@@ -244,7 +223,6 @@ git -C "$REPO" add -f sub/.githooks/.github/workflows/ci.yml
 expect "a workflow under a nested .githooks/ is linted" "1||sub/.githooks/.github/workflows/ci.yml:7: $MSG
 $HINT" "$(check "$REPO")"
 
-# Partly staged: the index is what is committed, so the index is what is linted.
 new_repo
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
@@ -320,7 +298,6 @@ expect "--resolve names the record and where it runs" "actionlint	lint	adapter:a
   "$(cd "$REPO" && HOME="$WORK/home" bash "$CHECK" --resolve)"
 expect "the record's linter never ran" no "$([[ -e "$WORK/stublint-ran" ]] && echo yes || echo no)"
 
-# A PATH with the tools the script runs, git and no actionlint.
 NOLINT="$WORK/nolint"
 mkdir -p "$NOLINT"
 for t in git bash sed awk cat mktemp rm dirname grep tr; do
@@ -352,7 +329,6 @@ git -C "$REPO" add notes.txt
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" 2>&1)"
 expect "missing actionlint and no workflow file staged: nothing is asked of the host" "0|" "$?|$out"
 
-# End to end through the plugin's vendored installer and real commits.
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 new_repo
 git -C "$REPO" config checks.actionlint.actionlint-check.declined true

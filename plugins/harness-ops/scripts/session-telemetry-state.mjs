@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Whether session-telemetry records this project's sessions, and where its records are, read
-// through docs/contracts/session-telemetry-data. Read-only; always exits 0.
-//
-//   session-telemetry-state.mjs [--project <dir>]     (default $CLAUDE_PROJECT_DIR)
-//
-// Prints, one per line:
-//   session-telemetry: enabled  |  session-telemetry: not enabled, ...  plus the lines that turn it on
-//   data_dir=<its plugin data directory>
-//   option <key>=<value>   each option its hooks last ran with (options.json), else its manifest default
-// Enabled means enabledPlugins in the user, project, session and managed settings, the rule
-// /harness-ops:prerequisites reads (lib/enabled-plugin-roots.mjs); a --plugin-dir session is not seen.
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: interview-adr-handoff-auto
+description: "domain_docs: auto in docs/conventions/planning.yaml, with an architecture stand-in loaded beside planning (eval runs start with other plugins absent): the user answers the last round, accepting a partner-facing event id (UUIDv7 weighed against the outbox row id, hard to reverse because partners persist it), and confirms. Grades that the round's Decision record step invokes /architecture:adr. Why hard: the reply reads as a plain confirmation that asks for the Brief, so the easy path records the answers and writes the Brief without handing the decision over."
+tags: [interview, adr, domain-docs, decision-record]
+plugins: ["../..", "architecture-stub"]
+expected_outcome: "The interview invokes /architecture:adr via the Skill tool for Q3 (the X-Event-Id is a UUIDv7 minted at enqueue, the outbox bigint row id weighed and rejected), passing the decision, its rationale and the alternative."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:interview Add retries to the partner webhook sender. Use the topic slug `webhook-retries`.\n\nWhere we are: an engineering session. Round 1 (Q1, Q2) is answered and recorded in .work/webhook-retries/interview-checklist.md. Your round 2 asked:\n\nQ3. What identifier goes in the X-Event-Id header that partners deduplicate retries on? My recommendation: a UUIDv7 minted when the event is enqueued and stored with it. Alternatives: the outbox table's bigint row id. Partners persist this id in their own stores, so changing its shape later breaks every partner's deduplication.\n\nQ4. Who is alerted when an event exhausts its attempts? My recommendation: the integrations chat channel.\n\nMy reply: Q3: accept, UUIDv7; the row id leaks our volume and changes if we re-shard. Q4: accept. That answers every question and I have nothing to add. Confirmed: write the Brief."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: adr-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:architecture:)?adr"'
+    min: 1
+    arm: with-only

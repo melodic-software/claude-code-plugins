@@ -1,5 +1,4 @@
 # GitHub Actions workflows in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
-# Lint-only: /toolchain:lint runs it, /toolchain:check does not.
 globs: [".github/**/*.yml", ".github/**/*.yaml"]
 build-cmd: null
 test-cmd: null

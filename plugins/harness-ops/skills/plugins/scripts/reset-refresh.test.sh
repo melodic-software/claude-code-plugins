@@ -141,7 +141,6 @@ new_case() {
   echo "$dir"
 }
 
-# Sets ENV_CMD to the case's environment: its HOME, the stubs first on PATH, EXTRA_ENV.
 env_cmd() {
   ENV_CMD=(env -u CLAUDE_CODE_REMOTE -u RESET_REFRESH_RUN_DIR -u STUB_PGREP_PID -u STUB_DROP_AUTOUPDATE
     -u STUB_UNAME -u STUB_TASKLIST_PID -u STUB_REORDER_SETTINGS -u STUB_ACCEPT_ID

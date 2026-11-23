@@ -8,13 +8,22 @@ if (logFile !== -1 && scenario.log !== undefined) writeFileSync(argv[logFile + 1
 
 const answer = scenario.answers?.[argv.join(" ")];
 if (answer) {
-  process.stdout.write(answer.stdout ?? "");
-  process.exit(answer.exit ?? 0);
-}
-if (argv[0] === "--version") {
+  const finish = () => {
+    if (answer.stdout) process.stdout.write(answer.stdout);
+    if (answer.stderr) process.stderr.write(answer.stderr);
+    process.exit(answer.exit ?? 0);
+  };
+  if (answer.sleep_ms) setTimeout(finish, answer.sleep_ms);
+  else finish();
+} else if (argv[0] === "--version") {
   process.stdout.write("1.0.0\n");
   process.exit(0);
+} else {
+  const finish = () => {
+    process.stdout.write(`${JSON.stringify(scenario.envelope)}\n`);
+    if (scenario.stderr) process.stderr.write(scenario.stderr);
+    process.exit(scenario.exit ?? 0);
+  };
+  if (scenario.sleep_ms) setTimeout(finish, scenario.sleep_ms);
+  else finish();
 }
-process.stdout.write(`${JSON.stringify(scenario.envelope)}\n`);
-if (scenario.stderr) process.stderr.write(scenario.stderr);
-process.exit(scenario.exit ?? 0);

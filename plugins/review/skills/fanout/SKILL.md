@@ -88,7 +88,9 @@ means unset; `<memory_dir>` and `<branch-slug>` as
 file with the Write tool, its content exactly `${user_config.loosened_check_patterns}`, so the
 free-form value never passes through a shell. Add `--spec-issue <number>` for the issue the change
 resolves; hand its text to the leaves as the spec only when the `loosened_check_spec:` line says
-`counts` (a trusted person wrote it), otherwise hand no spec. The repository-only
+`counts` (a trusted person wrote it), otherwise hand no spec. When the change has a pull request,
+also hand the leaves the `## Loosened checks` section of its body, which gives a reason for an
+ordinary check only; never the rest of the body. The repository-only
 `loosened_check_decision_record:` line has no user option and goes to the leaves with the other
 value lines.
 When the run fails and the patterns option is not empty, run it once more without

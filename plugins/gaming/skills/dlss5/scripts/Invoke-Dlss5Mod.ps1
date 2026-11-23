@@ -1717,7 +1717,6 @@ function Do-Selftest {
         $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
         try { $vf = Find-Games } finally { $vlock.Dispose() }
         Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
-        # pwsh on the runner has no FileOptions.BackupSemantics, so open the directory with CreateFileW.
         $LockDir = {
             param([string]$LiteralPath)
             if (-not ('Dlss5DirHandle' -as [type])) {

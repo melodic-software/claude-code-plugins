@@ -6,10 +6,8 @@ const M = '[hidden]'
 const EMAIL = 'kyle@example.com'
 const ON_SCREEN = { first: 0, last: 2, of: 3 }
 const ORIGIN = { kind: 'composer' } as RenderPropsOf['UserMessage']['origin']
-// The engine stamps origin and presentation on a run.
 const run = (args: string) => ({ command: 'display-redaction', args }) as CommandRunInput
 
-// The test's hook stands for the engine: it records the props the plugin passed down.
 const capture = (on: On, component: RenderComponent) => {
   const seen: { props?: unknown } = {}
   on('ui.render', { component } as { component: 'AssistantMessage' }, ($, e) => {
@@ -19,27 +17,20 @@ const capture = (on: On, component: RenderComponent) => {
   return seen
 }
 
-// The prop-rewrite style: each match drawn as the mask text.
 const TEXT_MODE = { options: { mask_style: 'text' } }
 
-// The hide-email mod in Anthropic's "Mods in Claude Code" video: a bar the color of its own text,
-// readable while hovered.
 const VIDEO_MASKED = { backgroundColor: '#3B4252', color: '#3B4252' }
 const VIDEO_SHOWN = { backgroundColor: '#4C566A', color: '#ECEFF4', bold: true }
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
-// The theme keys the engine's types list (ThemeKey); a raw color is any other string.
 const THEME_KEYS = [
   'text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged',
   'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved',
   'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord',
 ]
-// A terminal that advertises full color sets COLORTERM to one of these.
 const FULL_COLOR = ['truecolor', '24bit']
 
 type Node = { type?: string; props?: Record<string, unknown>; hover?: unknown; children?: unknown[] }
 
-// Every Text in a drawn tree that shows an at-sign, with its hover and whether its parent Box is
-// keyed (a hover outside a keyed Box is refused).
 const barsIn = (node: unknown, keyed = false): { text: string; props: unknown; hover: unknown; keyed: boolean }[] => {
   if (typeof node !== 'object' || node === null) return []
   const { type, props, hover, children = [] } = node as Node
@@ -57,7 +48,6 @@ test('block mode draws each match as a bar the color of its text, readable while
       component: 'AssistantMessage',
       props: { text: `Hello **there**.\n\nWrite to ${EMAIL} today.`, isFirstOfReply: true },
     })
-    // The real value is the bar's hidden content and appears nowhere else in the drawing.
     expect(barsIn(await ui.drawn())).toEqual([{ text: ` ${EMAIL} `, props: VIDEO_MASKED, hover: VIDEO_SHOWN, keyed: true }])
     expect(JSON.stringify(await ui.drawn()).split(EMAIL).length).toBe(2)
     const markdown = await ui.findAll({ type: 'Markdown' })
@@ -112,7 +102,6 @@ const drawBar = async ($: Engine) => {
   return barsIn(await ui.drawn())
 }
 
-// Without full color the terminal approximates a hex color, so the bar uses the person's theme.
 const expectThemeBar = (bars: ReturnType<typeof barsIn>) => {
   expect(bars.length).toBe(1)
   const { text, props, hover } = bars[0] as { text: string; props: Record<string, unknown>; hover: Record<string, unknown> }
@@ -374,7 +363,6 @@ const ASKED = [twoAddresses('a@example.com', 'b@example.com', 'To'), twoAddresse
 type Drawn = { question: string; header: string; options: { label: string; description: string }[] }
 const isDistinct = (list: readonly string[]) => new Set(list).size === list.length
 
-// What the schema enforces holds, nothing original shows, and the other fields are as asked.
 const expectDistinctMasked = (questions: unknown) => {
   const drawn = questions as Drawn[]
   expect(drawn.length).toBe(2)
@@ -437,7 +425,6 @@ test('keeps masked questions distinct in an AskUserQuestion result', async ($, o
 
 test('masks the error text an errored tool result draws', async ($, on) => {
   const seen = capture(on, 'ToolResult')
-  // An errored call's output is the error text the model read.
   await $.ui.render({
     surface: 'terminal',
     component: 'ToolResult',
@@ -488,7 +475,6 @@ test('masks while no choice has been recorded', TEXT_MODE, async ($, on) => {
   expect(seen.props).toEqual({ text: `reply to ${M}`, origin: ORIGIN, isExpanded: true })
 })
 
-// A refused state read makes every render hook throw, so its .catch draws.
 const failState = (on: On) => on('state.get', () => ({ deny: 'state unavailable' }))
 
 test('draws the whole text as the mask when the hook fails, running no pattern', async ($, on) => {
@@ -558,7 +544,6 @@ test('a failed question hook draws distinct masks for every question and label',
   }
 })
 
-// Every text in a drawn tree that is not a masked bar: Markdown text and Text without a background.
 const visibleTexts = (node: unknown): string[] => {
   if (typeof node !== 'object' || node === null) return []
   const { type, props, children = [] } = node as Node

@@ -20,7 +20,6 @@ function chromium(dir) {
     ...(dir ? [() => createRequire(import.meta.url)(dir), () => createRequire(join(dir, 'x.js'))('playwright-core')] : []),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright-core'),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright'),
-    // playwright-cli's own package, in the node_modules/.bin, POSIX npm -g and Windows npm -g layouts
     ...[['..'], ['..', 'lib', 'node_modules'], ['node_modules']].map(up => () =>
       createRequire(realpathSync(join(dirname(onPath('playwright-cli')), ...up, '@playwright', 'cli', 'package.json')))('playwright-core')),
   ];

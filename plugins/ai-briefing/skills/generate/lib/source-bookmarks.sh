@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Per-source read bookmarks for /ai-briefing:generate.
-#
-#   source-bookmarks.sh get     --data-dir DIR --profile P --source S
-#   source-bookmarks.sh advance --data-dir DIR --profile P --source S --state STATE --read READ --at DATE
-#
-# One file per source under DIR/<profile>/bookmarks/<source>, holding the
-# ISO date (YYYY-MM-DD) the next run reads that source back to.
-#   get      prints the stored date, or `none` when the source has no usable bookmark.
-#   advance  moves the bookmark to --at only after a full read of the source:
-#            --read full and --state data or empty. An unreadable source or a
-#            partial read leaves the bookmark where it was.
 # Exit: 0 ok (advance prints `advanced` or `unchanged`); 2 usage or an unsafe name;
 # 1 the bookmark could not be written.
 set -uo pipefail
@@ -79,8 +68,6 @@ if [[ "$read_kind" != full || "$state" == unreadable ]]; then
   exit 0
 fi
 
-# Refuse a symlinked bookmark; write through a fresh mktemp file so a link
-# planted at the temp path is never followed.
 if [[ -L "$file" ]] || ! mkdir -p "${file%/*}" 2>/dev/null || ! tmp="$(mktemp "$file.XXXXXX" 2>/dev/null)"; then
   write_failed
 fi

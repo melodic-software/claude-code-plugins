@@ -44,7 +44,7 @@ NEW='{"ts":"2999-01-01T00:00:00Z","n":2}'
 
 # A project directory holding the shared file and its rotated .1, each with one
 # row outside the window and one inside it.
-make_project() { # <name>
+make_project() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir/$ROOT_REL" "$dir/otel"
   printf '%s\n%s\n' "$OLD" "$NEW" >"$dir/$ROOT_REL/hook-events.jsonl"
@@ -52,7 +52,7 @@ make_project() { # <name>
   printf '%s' "$dir"
 }
 
-run_clean() { # <project> [args...] ; sets OUT and RC
+run_clean() {
   local dir="$1"
   shift
   OUT=$(env CLAUDE_PROJECT_DIR="$dir" CC_OTEL_STORE="$dir/otel" CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true \

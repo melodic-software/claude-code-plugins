@@ -746,7 +746,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -762,19 +762,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The upload scanner and its gate, copied out of the default branch tip
-      # before the head checkout replaces .base: the scans below run it from
-      # RUNNER_TEMP, never from files head code or the model can write. A
-      # failure here leaves no scanner, and each scan then withholds its upload.
       - name: Stage the upload scanner
         continue-on-error: true
         timeout-minutes: 1
         run: |
           dest="$RUNNER_TEMP/scan-gate"
           mkdir "$dest"
-          mkdir -p "$dest/lib" "$dest/.github/actions/scan-upload"
+          mkdir -p "$dest/lib"
           cp .base/lib/publish-gate.mjs "$dest/lib/"
-          cp .base/.github/actions/scan-upload/scan-upload.mjs "$dest/.github/actions/scan-upload/"
           chmod -R a-w "$dest"
 
       - name: Set up Node
@@ -1350,21 +1345,10 @@ jobs:
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-        run: |
-          mkdir -p "$BIN"
-          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,tree-entries}.sh \
-            .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
-            name=$(basename "$file" .sh)
-            cp "$file" "$BIN/$name.sh"
-            sum=$(sha256sum <"$BIN/$name.sh")
-            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          done
-          no_progress=$(jq -r '.loop["no-progress"] // empty' "$RESOLVED")
-          if ! [[ $no_progress =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::the resolved config holds no loop.no-progress"
-            exit 1
-          fi
-          echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+        run: >-
+          bash .base/.github/scripts/merge-base/stage-bin.sh
+          .base/.github/scripts/merge-base/{prepare,run-prepare,tree-entries}.sh
+          .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh
 
       # The labels the apply-patch step treats as a hold, as a JSON array: do-not-merge, the human-gated role label resolved from the base
       # the way report-escalation.sh does, and the activity's labels-absent
@@ -1818,11 +1802,12 @@ jobs:
         id: scan-upload-2
         if: >-
           inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != ''
-        env:
-          SCAN_PATHS: |
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        with:
+          path: |
             ${{ runner.temp }}/work-outcome/lane.json
             ${{ runner.temp }}/work-outcome/work-outcome.json
-        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
+          gate-path: ${{ runner.temp }}/scan-gate/lib/publish-gate.mjs
 
       - name: Upload the named issue outcome
         if: >-
@@ -1888,9 +1873,10 @@ jobs:
         id: scan-upload-3
         if: >-
           always()
-        env:
-          SCAN_PATHS: ${{ runner.temp }}/verdict/verdict.json
-        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        with:
+          path: ${{ runner.temp }}/verdict/verdict.json
+          gate-path: ${{ runner.temp }}/scan-gate/lib/publish-gate.mjs
 
       - name: Upload the verdict
         if: >-
@@ -2041,7 +2027,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 

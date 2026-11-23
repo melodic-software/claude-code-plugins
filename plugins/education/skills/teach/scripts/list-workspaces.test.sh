@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for list-workspaces.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 # Fixture isolation: an inherited absolute GIT_DIR outranks -C and would route
@@ -22,12 +21,8 @@ assert_contains() {
   esac
 }
 
-# The slug the script must derive, computed here from the SKILL.md spec independently of
-# the script, so a drifting implementation fails rather than agreeing with itself.
 expected_slug() {
   local canonical basename_slug path_hash
-  # Mirrors `canonicalize` in list-workspaces.sh; SKILL.md "Workspace layout" is
-  # normative for both. `pwd -P` leads for the reason stated there.
   canonical="$(
     (cd "$1" 2>/dev/null && pwd -P) ||
       realpath "$1" 2>/dev/null ||
@@ -39,46 +34,37 @@ expected_slug() {
   printf '%s-%s' "$basename_slug" "$path_hash"
 }
 
-# --- Case 1: --help exits 0 with usage ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: wrong argument count is a usage error ---
 
 rc=0
 OUT=$(bash "$SCRIPT" only-one 2>/dev/null) || rc=$?
 assert_exit "one argument exits 2" 2 "$rc"
 
-# --- Build a fixture project + plugin-data tree ---
 
 PROJ="$TEST_TMPDIR/proj/My_Repo"
 DATA="$TEST_TMPDIR/data"
 mkdir -p "$PROJ" "$DATA"
 SLUG="$(expected_slug "$PROJ")"
 
-# --- Case 3: no workspaces yet => `none`, exit 0 ---
 
 rc=0
 OUT=$(bash "$SCRIPT" "$PROJ" "$DATA") || rc=$?
 assert_exit "no-match exits 0" 0 "$rc"
 assert_eq "no-match prints none" "none" "$OUT"
 
-# --- Case 4: a plugin-data dir that does not exist at all => `none`, exit 0 ---
 
 rc=0
 OUT=$(bash "$SCRIPT" "$PROJ" "$TEST_TMPDIR/absent") || rc=$?
 assert_exit "absent data dir exits 0" 0 "$rc"
 assert_eq "absent data dir prints none" "none" "$OUT"
 
-# --- Case 5: slug-hash dir listing ---
-# Slug is basename-lowercased-slugified + `-` + 8 hex; `My_Repo` exercises both the
-# case fold and the non-alphanumeric replacement.
 
 mkdir -p "$DATA/$SLUG/topic/rust-ownership" "$DATA/$SLUG/codebase/auth-flow"
-# A workspace belonging to a DIFFERENT project must not leak into this project's listing.
 mkdir -p "$DATA/other-project-deadbeef/topic/unrelated"
 
 rc=0
@@ -89,10 +75,6 @@ assert_contains "lists the topic workspace" "$OUT" "$DATA/$SLUG/topic/rust-owner
 assert_contains "lists the codebase workspace" "$OUT" "$DATA/$SLUG/codebase/auth-flow/"
 assert_eq "lists exactly the two workspaces" "2" "$(printf '%s\n' "$OUT" | grep -c .)"
 
-# --- Case 6: symlinked project resolves to the same workspace as the real path ---
-# Canonicalization happens BEFORE the slug is derived, so an alias basename cannot split
-# the workspace. Skipped where the OS refuses real symlinks (Windows without developer
-# mode: Git Bash silently copies instead of linking).
 
 LINK="$TEST_TMPDIR/proj/aliased-name"
 if ln -s "$PROJ" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
@@ -105,8 +87,6 @@ else
   printf 'SKIP: symlink cases (this OS/filesystem does not support real symlinks)\n'
 fi
 
-# --- Case 7: multi-root scan — workspaces under every supplied root are listed ---
-# The root may carry spaces (a Documents path usually does); the array glob must survive it.
 
 DOCS_ROOT="$TEST_TMPDIR/Documents dir/Claude Learning"
 mkdir -p "$DOCS_ROOT/$SLUG/topic/music-theory"
@@ -116,24 +96,17 @@ assert_exit "multi-root exits 0" 0 "$rc"
 assert_contains "multi-root lists the space-bearing documents root" "$OUT" "$DOCS_ROOT/$SLUG/topic/music-theory/"
 assert_contains "multi-root still lists the plugin-data root" "$OUT" "$DATA/$SLUG/topic/rust-ownership/"
 
-# --- Case 8: a surviving user_config placeholder root is skipped as unset ---
-# The skill body passes body-resolved roots; a literal `${user_config...}` means unset and
-# must be filtered, not globbed as a path.
 
 rc=0
 OUT=$(bash "$SCRIPT" "$PROJ" '${user_config.workspace_root}' "$DATA") || rc=$?
 assert_exit "placeholder root exits 0" 0 "$rc"
 assert_contains "placeholder root still scans the real roots" "$OUT" "$DATA/$SLUG/topic/rust-ownership/"
 
-# --- Case 9: ALL roots unset/placeholder is a usage error (exit 2), not a quiet none ---
-# Exit 2 tells the skill the probe is broken (glob manually); `none` means genuinely empty.
 
 rc=0
 OUT=$(bash "$SCRIPT" "$PROJ" '${user_config.workspace_root}' '' 2>/dev/null) || rc=$?
 assert_exit "all-placeholder roots exit 2" 2 "$rc"
 
-# --- Case 9b: a `Status: closed` line in MISSION.md marks the workspace `(closed)`;
-# an active mission, a non-closed Status value, and a workspace with no MISSION.md stay unmarked. ---
 
 CLOSED_ROOT="$TEST_TMPDIR/closed-root"
 mkdir -p "$CLOSED_ROOT/$SLUG/topic/sql-joins" "$CLOSED_ROOT/$SLUG/topic/sailing" \
@@ -154,9 +127,6 @@ assert_eq "active mission stays unmarked" "1" "$(printf '%s\n' "$OUT" | grep -cx
 assert_eq "a Status value that only starts with closed stays unmarked" "1" "$(printf '%s\n' "$OUT" | grep -cxF "$CLOSED_ROOT/$SLUG/topic/drafting/")"
 assert_contains "workspace with no MISSION.md is still listed" "$OUT" "$CLOSED_ROOT/$SLUG/codebase/no-mission/"
 
-# --- Case 10: --default-root honors xdg-user-dir and the ≠ $HOME guard (Linux path) ---
-# Stubbed xdg-user-dir + fake HOME; skipped on non-Linux platforms where the script takes
-# the Darwin/Windows branch instead of consulting xdg-user-dir.
 
 if [[ "$(uname -s)" == "Linux" ]]; then
   FAKE_HOME="$TEST_TMPDIR/home"
@@ -174,13 +144,11 @@ STUB
   assert_exit "default-root with configured Documents exits 0" 0 "$rc"
   assert_eq "default-root appends Claude Learning" "$FAKE_DOCS/Claude Learning" "$OUT"
 
-  # Unconfigured xdg-user-dir echoes $HOME itself — the guard must refuse it.
   rc=0
   OUT=$(HOME="$FAKE_HOME" XDG_STUB_ANSWER="$FAKE_HOME" PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --default-root) || rc=$?
   assert_exit "default-root == HOME is refused (exit 1)" 1 "$rc"
   assert_eq "default-root == HOME prints nothing" "" "$OUT"
 
-  # A Documents answer that does not exist on disk is refused — never silently created.
   rc=0
   OUT=$(HOME="$FAKE_HOME" XDG_STUB_ANSWER="$FAKE_HOME/absent-docs" PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --default-root) || rc=$?
   assert_exit "absent Documents dir is refused (exit 1)" 1 "$rc"
@@ -188,8 +156,6 @@ else
   printf 'SKIP: --default-root xdg cases (non-Linux platform)\n'
 fi
 
-# --- Case 11: a linked git worktree hoists to the main repo's slug; the old per-worktree
-# slug is still scanned and labeled legacy. Skipped when git is unavailable. ---
 
 if command -v git >/dev/null 2>&1; then
   MAIN_REPO="$TEST_TMPDIR/wt/main-repo"

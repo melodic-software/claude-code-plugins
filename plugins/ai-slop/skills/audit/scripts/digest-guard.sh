@@ -45,8 +45,6 @@ sha256_hex() {
   printf '%s' "${line%% *}"
 }
 
-# Prints the resolved run directory, refusing any whose parent lies outside the
-# state root or whose name is not a run directory's.
 resolve_run() {
   local run="$1" name parent root
   name="$(basename -- "$run")"
@@ -70,7 +68,6 @@ resolve_run() {
   printf '%s/%s' "${parent%/}" "$name"
 }
 
-# Creates a directory, or accepts an existing real one.
 ensure_dir() {
   [[ ! -L "$1" ]] || die "a symbolic link stands at $1"
   [[ -d "$1" ]] || mkdir -- "$1" || die "cannot create $1"

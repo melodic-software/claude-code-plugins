@@ -40,7 +40,7 @@ const DEMOTION_SIGNALS = new Set(["schedule", "dispatch", "read-back"]);
 const SHA = /^[0-9a-f]{40}$/;
 const MARKER = /^<!-- merge-risk-line head=([0-9a-f]{40})(?: lane=([a-z][a-z0-9-]{0,63}) run=([1-9][0-9]{0,19}))? -->$/;
 const RATED = /^Merge-Risk: max=(?:LOW|MEDIUM|HIGH|CRITICAL) demote=(true|false)(?:\s|$)/;
-const RECORD = /^<!-- (?:babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=(schedule|dispatch|canary|revert|read-back) -->$/;
+const RECORD = /^<!-- (babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=(schedule|dispatch|canary|revert|read-back) -->$/;
 const firstLine = (text) => String(text ?? "").split(/\r?\n/)[0];
 
 // The lanes App's (`bot`, without `[bot]`) newest marker comment for `head`,
@@ -96,16 +96,21 @@ export function revertsOf({ subject, body }) {
 // A demotion or post-merge-failure record's marker, its `- Pull request:`
 // number and the merge commits its range lists; the `, by <name>` of a range
 // line is never read. null for any other issue.
+export function parseRecordMarker(line) {
+  const match = RECORD.exec(String(line ?? ""));
+  return match && { kind: match[1], sha: match[2], signal: match[3] };
+}
+
 export function readRecord(body) {
   const lines = String(body ?? "").split(/\r?\n/);
-  const marker = RECORD.exec(lines[0]);
+  const marker = parseRecordMarker(lines[0]);
   if (!marker) return null;
   const prs = lines.flatMap((line) => /^- Pull request: \S*\/pull\/([0-9]+)/.exec(line)?.[1] ?? []).map(Number);
   const range = lines.flatMap((line) => /^ +- .*`([0-9a-f]{40})`/.exec(line)?.[1] ?? []);
   // The babysitter's shared record charges several merges on one line; none is singled out.
   const also = lines.flatMap((line) => (line.startsWith("- Also charged by this run: ") ? [...line.matchAll(/`([0-9a-f]{40})`/g)].map((m) => m[1]) : []));
-  if (also.length) range.push(marker[1], ...also);
-  return { signal: marker[2], sha: marker[1], prs, range };
+  if (also.length) range.push(marker.sha, ...also);
+  return { signal: marker.signal, sha: marker.sha, prs, range };
 }
 
 const ratio = (part, whole) => (whole === 0 ? null : Math.round((part / whole) * 10000) / 10000);

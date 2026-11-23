@@ -31,7 +31,7 @@ ci-workflows `resolve-branch-tip` action, or in the two release workflows that h
 key the same read inline: an authenticated `git ls-remote`, tried up to 3 times after waits of up
 to 2 and 4 s with full jitter on a timeout or a 5xx only, failing red at once on a 401 or 403 and
 when no try yields a SHA
-([`resolve.sh`](https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/resolve-branch-tip/resolve.sh)).
+([`resolve.sh`](https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh)).
 
 ## work-resolve-issue
 
@@ -436,7 +436,7 @@ lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.wind
 and no cap. intake-triage runs once per triaged issue, more green runs an hour than the monitor's
 per-lane read cap (`collect.mjs` `LIMITS.holdRuns`), so its `HOLD_LANES` entry sets its own cap.
 work-unblock's sweep also runs more often than that cap, a mean of 6.9 green runs an hour, so its
-entry sets a cap of 20.
+entry sets a cap of 20. pr-refine sets its own cap of 12 for green and red runs together.
 
 The shared element 2 opt-in is set step by step where the script holds green on a refused call:
 work-unblock's label-unblocked step, the pr-unblock-dispatch dispatch step, pr-merge's candidate
