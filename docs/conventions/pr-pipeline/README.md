@@ -364,7 +364,9 @@ counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`
 `verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
 or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
 named note ends as any fix round; no push with every note already addressed stops
-`feedback-already-addressed` for a session builder.
+`feedback-already-addressed` with no label: pr-verify judges the head on its own. The next sweep
+run on that head clears the failing status, and the `verify:earlier-fail` refusal keeps holding
+the merge until pr-verify passes the head.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -1228,7 +1230,9 @@ no stop standing on its head, whether or not one ever did), `awaiting-session` (
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
 again), `owned-branch` (a fix-ci select job on a pull request whose head branch
 `merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
-would race the rebuild), or, for an issue run under
+would race the rebuild), `gate-hold` (a review-dependency select job whose head's only CI Status
+failure is the trust-gate hold: no model turn ran, and the dispatcher sends the head again once CI
+Status passes on it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -3399,7 +3403,8 @@ them on every `pull_request` run, contract-only runs included:
   (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
   workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
   of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
-  (this repository: `anthropics` and `melodic-software`), read from the diff in the broker step's file pages. Both refs
+  (this repository: `anthropics`, `melodic-software` and the major vendors' GitHub-verified
+  organizations, owner decision 2026-11-23), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a

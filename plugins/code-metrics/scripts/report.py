@@ -91,7 +91,6 @@ def _read_jsonl(path: str | None) -> list[dict[str, Any]]:
 
 
 def _lane_measure(row: dict[str, Any]) -> str:
-    """The `lane/measure` name a run row is listed under."""
     return f"{row.get('lane', '*')}/{row.get('measure', '*')}"
 
 
@@ -495,7 +494,6 @@ def _is_line(value: Any) -> bool:
 
 
 def _union(first: Any, second: Any) -> list[Any]:
-    """`first`'s items, then each of `second`'s not already among them."""
     merged = list(first or [])
     for item in second or []:
         if item not in merged:

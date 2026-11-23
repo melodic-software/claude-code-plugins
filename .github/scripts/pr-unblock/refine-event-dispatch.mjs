@@ -23,8 +23,8 @@
 // RUN_IDS_FILE as soon as its dispatch returns, for the job's record steps,
 // which hold one record per line: fix-docs's and one per REFINE_ACTIVITIES id.
 import { runAsScript } from "../lib/run-main.mjs";
-import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { baseHumanGatedLabel, createGitHubApi, loadBaseLimits, loadBaseRefineActivities, loadBaseTidyCutoffs, TRUSTED_ACTORS_PATH, wrapRunIds } from "./dispatch.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { baseHumanGatedLabel, createGitHubApi, loadBaseLimits, loadBaseRefineActivities, loadBaseTidyCutoffs, wrapRunIds } from "./dispatch.mjs";
 import { RUN_ID } from "./dispatch-record.mjs";
 import { DEFAULTS, dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -46,7 +46,7 @@ export async function main(
     loadTidyCutoffs = loadBaseTidyCutoffs,
     loadActivities = loadBaseRefineActivities,
     readGateLabel = baseHumanGatedLabel,
-    readHumans = () => loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).humans,
+    readHumans = () => loadTrustedList(trustedActorsPath(env.BASE_PATH)).humans,
   } = {},
 ) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "RUN_IDS_FILE"]) {

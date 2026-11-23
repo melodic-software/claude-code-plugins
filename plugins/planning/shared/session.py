@@ -1377,8 +1377,6 @@ class Session:
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
         self._pairing = None  # the one live sign-in code: {"hash", "until", "misses": {address: count}}; never persisted
 
-    # -- construction and persistence ---------------------------------------------------------
-
     @classmethod
     def create(
         cls,
@@ -1530,8 +1528,6 @@ class Session:
         seq[key] = seq.get(key, 0) + 1
         return f"{key}{seq[key]}"
 
-    # -- identity -----------------------------------------------------------------------------
-
     def resolve(self, *, secret=None, owner_token=None, watcher=None):
         """The pid a request acts as, from its X-Owner-Token, X-Session-Secret or X-Watcher-Key header value. A watcher
         key is only ever resolved alone; server.py takes it on the /api/mine/requests routes and nowhere else."""
@@ -1654,8 +1650,6 @@ class Session:
         if now - input_at >= IDLE_AFTER:
             since.append(input_at + IDLE_AFTER)
         return min(since) if since else None
-
-    # -- people ------------------------------------------------------------------------------
 
     def join(self, pid, body, *, address=""):
         """POST /api/join: `pid` is HOST when the request carried a valid owner token, else None."""
@@ -2366,8 +2360,6 @@ class Session:
         self._presence.pop(src, None)
         self._presence_rev += 1
 
-    # -- rounds ------------------------------------------------------------------------------
-
     def _current_round(self):
         rounds = self.state["rounds"]
         return rounds[-1] if rounds else None
@@ -2436,8 +2428,6 @@ class Session:
 
     def _round_size(self, n):
         return sum(1 for q in self.state["questions"] if q["round"] == n)
-
-    # -- questions ---------------------------------------------------------------------------
 
     def _question(self, qid, field="qid"):
         if not isinstance(qid, str):
@@ -2733,8 +2723,6 @@ class Session:
                 raise DomainError(400, "too-long", f"A question holds at most {MAX_REFERENCES} references.", field="references", max=MAX_REFERENCES)
             refs.append(self._reference(body.get("reference"), "reference"))
         return {"references": copy.deepcopy(refs)}
-
-    # -- cards, votes, reactions -------------------------------------------------------------
 
     def _cards(self, qid):
         return self.state["cards"].setdefault(qid, [])
@@ -3416,8 +3404,6 @@ class Session:
             return last.get("card") if last else None
         return None
 
-    # -- locks and suggestions ---------------------------------------------------------------
-
     def _tally(self, qid):
         """Card ref -> support, from active people on cards that still exist: votes; a person's own
         Something else option counts its author; multi counts each option a person picked, scale
@@ -3730,8 +3716,6 @@ class Session:
             before = len(q["needsReview"])
             q["needsReview"] = [f for f in q["needsReview"] if because is not None and f["because"] != because]
             return {"cleared": before - len(q["needsReview"])}
-
-    # -- proposals, chat, annotations --------------------------------------------------------
 
     def _proposal(self, prop_id):
         p = next((p for p in self.state["proposals"] if p["id"] == prop_id), None)
@@ -4352,9 +4336,6 @@ class Session:
                 out[qid] = shown
         return out
 
-
-    # -- requests and results ----------------------------------------------------------------
-
     def _request(self, rid, *, runner=None, owner_pid=None):
         r = next((r for r in self.state["requests"] if r["id"] == rid), None)
         if r is None or (runner and r["runner"] != runner) or (owner_pid and r["pid"] != owner_pid):
@@ -4765,8 +4746,6 @@ class Session:
         for h in [h for h, p in watchers.items() if p == pid]:
             watchers.pop(h)
 
-    # -- uploads -----------------------------------------------------------------------------
-
     def _upload(self, uid):
         u = next((u for u in self.state["uploads"] if u["id"] == uid), None) if isinstance(uid, str) else None
         if u is None:
@@ -5139,8 +5118,6 @@ class Session:
             out["thumb"] = u["thumb"]
         return out
 
-    # -- problem reports --------------------------------------------------------------------
-
     def report(self, pid, body):
         """POST /api/report: tell the owner something is broken, with what the page says about where, and at most
         MAX_REPORT_IMAGES screenshots. Allowed while uploads are off: checked pictures the owner alone sees, saved under
@@ -5297,8 +5274,6 @@ class Session:
         context their page sent or where a picture is saved."""
         return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r, "images": len(_report_pics(r)),
                 "adds": self._adds_view(r)}
-
-    # -- settings, prefs, notifications, session ---------------------------------------------
 
     def set_prefs(self, pid, body):
         """POST /api/prefs: `{set: {key: value|null}}`, one validator per key; allowed while ended."""
@@ -5502,8 +5477,6 @@ class Session:
             devices.pop(h)
             return {"id": did}
 
-    # -- notifications -----------------------------------------------------------------------
-
     def _seen_now(self, pid, key):
         item = next((i for i in self._inbox(pid) if i["key"] == key), None)
         if item:
@@ -5661,8 +5634,6 @@ class Session:
         for p in self._mentioned(text, actor):
             if p not in old and p not in skip:
                 self._notify(p, "mention", f"mentioned you {where}.", actor=actor, by=actor, body=clip(one_line(text), 160), **ref)
-
-    # -- event log and digest ----------------------------------------------------------------
 
     def _event(self, kind, **fields):
         log = self.state["log"]
@@ -5962,8 +5933,6 @@ class Session:
         if not out["people"] and not others and not comments:
             return {"kind": "unanswered"}
         return out
-
-    # -- ops ---------------------------------------------------------------------------------
 
     def apply(self, doc):
         """Claude's ops (share.sh apply): parsed against ops.schema.json, then all land or none does."""
@@ -6315,8 +6284,6 @@ class Session:
         log["handled"] = sorted(set(log["handled"]) | set(op["seqs"]))
         return {"handled": list(op["seqs"])}
 
-    # -- runtime hooks the server calls ------------------------------------------------------
-
     def reset_owner_token(self, token, issued_at):
         """Make `token`, issued at `issued_at`, the owner's credential (the server's 0600 secrets file
         is authoritative), refusing a token older than the last rotation recorded in the state."""
@@ -6415,8 +6382,6 @@ class Session:
     def presence_rev(self):
         """A counter that moves on every presence change, which never changes `rev`."""
         return self._presence_rev
-
-    # -- views -------------------------------------------------------------------------------
 
     def anonymous_view(self):
         """GET /api/state without identity: only what the join dialog needs."""

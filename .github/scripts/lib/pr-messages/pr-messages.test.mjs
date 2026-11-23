@@ -11,8 +11,8 @@ const recorded = JSON.parse(readFileSync(new URL("./fixtures/pr-17708-comments.j
 
 const BOT = "github-actions[bot]";
 const KIND = "lane-run-report";
-const KEY = { activity: "read/fix-ci" };
-const MARKER = "<!-- lane-run-report activity=read/fix-ci -->";
+const KEY = { run: "123" };
+const MARKER = "<!-- lane-run-report run=123 -->";
 const throwing = { [KIND]: { ...kinds[KIND], void: "throw" } };
 
 const comment = (fields) => ({ author: BOT, body: `${MARKER}\nbody`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: null, editor: null, isMinimized: false, ...fields });
@@ -104,7 +104,7 @@ test("one current comment per kind and key across writes, in one thread or many"
     store.comments.map((c) => c.body),
     [`${MARKER}\nfour\n`],
   );
-  assert.equal(await thread(store).write(KIND, { activity: "read/other" }, {}, "x\n"), "posted");
+  assert.equal(await thread(store).write(KIND, { run: "124" }, {}, "x\n"), "posted");
   assert.equal(store.comments.length, 2);
 });
 
@@ -144,13 +144,13 @@ test("a person's comment quoting the marker is neither read nor edited", async (
 });
 
 test("a malformed section marker in a trusted comment is a read error", async () => {
-  const store = memoryStore({ comments: [comment({ body: `${MARKER}\n<!-- lane-run-report-section run=1 attempt=1 rung=7 leg=base -->\nx` })] });
+  const store = memoryStore({ comments: [comment({ body: `${MARKER}\n<!-- lane-run-report-section activity=read/fix-ci attempt=1 rung=7 leg=base -->\nx` })] });
   await assert.rejects(thread(store).read(KIND, KEY), MessageReadError);
 });
 
 test("a body carrying a malformed section marker is refused", async () => {
   const store = memoryStore();
-  await assert.rejects(thread(store).write(KIND, KEY, {}, "<!-- lane-run-report-section run=x -->\n"), MessageWriteError);
+  await assert.rejects(thread(store).write(KIND, KEY, {}, "<!-- lane-run-report-section activity=x -->\n"), MessageWriteError);
   assert.deepEqual(store.comments, []);
 });
 
@@ -174,7 +174,7 @@ test("a kind whose writer it does not trust refuses to write", async () => {
 test("an unknown kind or a kinds entry with an unknown policy is refused", async () => {
   await assert.rejects(thread(memoryStore()).read("nope", KEY), MessageReadError);
   assert.throws(() => thread(memoryStore(), { kinds: { [KIND]: { ...kinds[KIND], void: "maybe" } } }), /void/);
-  assert.throws(() => thread(memoryStore(), { kinds: { [KIND]: { ...kinds[KIND], marker: "<!-- lane-run-report -->" } } }), /activity/);
+  assert.throws(() => thread(memoryStore(), { kinds: { [KIND]: { ...kinds[KIND], marker: "<!-- lane-run-report -->" } } }), /run/);
 });
 
 const recordedGitHub = () => {
@@ -209,10 +209,9 @@ test("the GraphQL store reads a recorded live answer as REST-shaped comments", a
   ]);
 });
 
-test("old per-run report comments on a live pull request are never candidates and never throw", async () => {
+test("old report comments of that run on a live pull request are never candidates and never throw", async () => {
   const t = thread(graphqlStore(recordedGitHub().github), { repo: "melodic-software/claude-code-plugins", number: 17708 });
-  assert.equal(await t.read(KIND, { activity: "pr-unblock/fix-ci" }), null);
-  assert.equal(await t.read(KIND, { activity: "pr-unblock/apply-patch" }), null);
+  assert.equal(await t.read(KIND, { run: "44835219344" }), null);
 });
 
 const page = (nodes, hasNextPage, endCursor = null) => ({ data: { repository: { pullRequest: { comments: { pageInfo: { hasNextPage, endCursor }, nodes } } } } });
