@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/status.ts",
+            "old_string": "=== \"archived\"",
+            "new_string": "=== ARCHIVED"
+          }
+        }
+      ],
+      "why": "names the magic string"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/db/schema.sql",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits the shared database"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledgers only"
+    }
+  ]
+}

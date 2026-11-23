@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/main/findings.md",
+            "content": "# Findings\n"
+          }
+        }
+      ],
+      "why": "writes findings only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/app/admin-api/save.ts",
+            "old_string": "write",
+            "new_string": "billing.write"
+          }
+        }
+      ],
+      "why": "edits a writer"
+    }
+  ]
+}

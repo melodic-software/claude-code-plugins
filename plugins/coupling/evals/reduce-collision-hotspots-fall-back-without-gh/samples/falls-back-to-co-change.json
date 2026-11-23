@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash collision-hotspots.sh"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --name-only --format=%H -- src"
+          }
+        }
+      ],
+      "why": "co-change from git log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash collision-hotspots.sh"
+          }
+        }
+      ],
+      "why": "stops at the missing gh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/o/r/pulls"
+          }
+        }
+      ],
+      "why": "tries gh only"
+    }
+  ]
+}

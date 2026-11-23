@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledger only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/IClock.ts",
+            "content": "export interface IClock { now(): Date }"
+          }
+        }
+      ],
+      "why": "extracts an interface"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/bus.ts",
+            "content": "export class EventBus {}"
+          }
+        }
+      ],
+      "why": "adds an event bus"
+    }
+  ]
+}

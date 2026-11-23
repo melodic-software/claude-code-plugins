@@ -3,15 +3,15 @@ name: 'reduce-full-pass-splits-lanes-and-ledgers'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'reproduces-each-finding'
-    type: 'llm'
-    criteria: 'Reproduces each finding before ranking or reporting it'
-    focus: 'trace'
-  - name: 'applies-only-contained-reduction'
-    type: 'llm'
-    criteria: 'Applies only the contained behavior-preserving reduction; the shared-database coupling is surfaced and routed, never auto-applied'
-    focus: 'trace'
-  - name: 'ledger-entries-and-path'
-    type: 'llm'
-    criteria: 'Writes ledger entries with edge, strength, lane, and status, and reports the ledger path'
-    focus: 'trace'
+  - name: 'applies-contained-reduction'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*/src/[^"]*"[\s\S]*archived'
+    min: 1
+    arm: 'with-only'
+  - name: 'short-lived-branch'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit\b[^\"]*\b(?:checkout\s+-b|switch\s+-c)\b'
+    min: 1
+    arm: 'with-only'

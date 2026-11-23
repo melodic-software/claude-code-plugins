@@ -4,14 +4,15 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: 'falls-back-to-co-change'
-    type: 'llm'
-    criteria: 'Falls back to co-change mining from version-control history for the hotspot evidence'
-    focus: 'trace'
-  - name: 'gap-line-names-missing-gh'
-    type: 'llm'
-    criteria: 'Records a gap: line naming the missing gh as the reason collision hotspots were not measured'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit\b[^\"]*\blog\b'
+    min: 1
+    arm: 'with-only'
   - name: 'completes-dry-run-without-edits'
-    type: 'llm'
-    criteria: 'Completes the dry-run pass with a ranked ledger and makes no repository edits'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?![^"]*/\.work/)'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledger under .work/"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/shared-auth.md",
+            "content": "# Auth"
+          }
+        }
+      ],
+      "why": "writes a new doc"
+    }
+  ]
+}
