@@ -93,15 +93,38 @@ read_into() {
 # https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests
 # Each page is cached on its own because a change can land on any page, and every URL stays the
 # same from poll to poll, since a different query string gets a different ETag.
-declare -A etag_of body_of next_of
+# An ETag covers the body, not the Link header, so a full page that answers 304 still reads the page
+# after it: a list that grows from per_page items to one more adds a page and leaves page 1 as it was.
+# A read's new answers are staged and cached only once the whole read, and for a comment surface
+# its filter, succeeded; a read that fails partway leaves the old ETags, so the next poll reads
+# the new pages again instead of answering 304 for them.
+# The cache is parallel indexed arrays, not `declare -A`, which Bash 3.2 (macOS) lacks.
+per_page=100
+c_url=() c_etag=() c_body=() c_next=() c_full=()
 link_next='<([^>]*)>; rel="next"'
+cache_find() {
+  local i
+  for ((i = 0; i < ${#c_url[@]}; i++)); do
+    [[ "${c_url[i]}" == "$1" ]] && ci=$i && return 0
+  done
+  ci=${#c_url[@]}
+  return 1
+}
+cache_commit() {
+  local i
+  for ((i = 0; i < ${#s_url[@]}; i++)); do
+    cache_find "${s_url[i]}"
+    c_url[ci]=${s_url[i]} c_etag[ci]=${s_etag[i]} c_body[ci]=${s_body[i]} c_next[ci]=${s_next[i]} c_full[ci]=${s_full[i]}
+  done
+  s_url=()
+}
 cget() {
-  local url=$1 pages="" head body status tag next line
+  local url=$1 first=$1 page=1 pages="" head body status tag next line full n
   local -a cond
-  fresh=0
+  fresh=0 s_url=() s_etag=() s_body=() s_next=() s_full=()
   while [[ -n "$url" ]]; do
     cond=()
-    [[ -n "${etag_of[$url]:-}" ]] && cond=(-H "If-None-Match: ${etag_of[$url]}")
+    cache_find "$url" && cond=(-H "If-None-Match: ${c_etag[ci]}")
     read_into gh api -i "${cond[@]}" "$url"
     out=${out//$'\r'/}
     head=${out%%$'\n\n'*} body=""
@@ -115,18 +138,27 @@ cget() {
       *) ;;
       esac
     done <<<"$head"
-    if [[ "$status" == 304 && -n "${etag_of[$url]:-}" ]]; then
-      body=${body_of[$url]} next=${next_of[$url]}
+    if [[ "$status" == 304 ]] && cache_find "$url"; then
+      body=${c_body[ci]} next=${c_next[ci]} full=${c_full[ci]}
     elif [[ "$status" == 200 ]]; then
       fresh=1
-      [[ -n "$tag" ]] && etag_of[$url]=$tag body_of[$url]=$body next_of[$url]=$next
+      n=$(printf '%s' "$body" | jq 'if type == "array" then length else ([.[] | arrays | length] | max // 0) end' 2>/dev/null)
+      full=0
+      [[ "${n//$'\r'/}" -ge "$per_page" ]] 2>/dev/null && full=1
+      if [[ -n "$tag" ]]; then
+        n=${#s_url[@]}
+        s_url[n]=$url s_etag[n]=$tag s_body[n]=$body s_next[n]=$next s_full[n]=$full
+      fi
     else
       return 1
     fi
     pages+=$body$'\n'
+    page=$((page + 1))
+    [[ -z "$next" && "$full" -eq 1 && "$first" == *per_page=* ]] && next="$first&page=$page"
     url=$next
   done
   out=$pages
+  [[ "${2:-}" == defer ]] || cache_commit
 }
 
 while true; do
@@ -148,14 +180,14 @@ while true; do
   checks_ok=1
   [[ -n "${head_sha:-}" ]] || checks_ok=0
   if [[ "$checks_ok" -eq 1 ]]; then
-    if cget "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100"; then
+    if cget "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=$per_page"; then
       wf=$(printf '%s' "$out" | jq -s -c '[.[].workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}] | add // {}') || checks_ok=0
     else checks_ok=0; fi
   fi
   if [[ "$checks_ok" -eq 1 ]]; then
-    cget "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" || checks_ok=0
+    cget "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=$per_page" || checks_ok=0
     runs_raw=$out
-    if cget "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100"; then
+    if cget "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=$per_page"; then
       stat_raw=$(printf '%s' "$out" | jq -r "$b"' .statuses[] | "\(.context): \(.state | b)"') || checks_ok=0
     else checks_ok=0; fi
   fi
@@ -200,13 +232,14 @@ while true; do
     */comments*) row='select(.updated_at >= $ts) | "INLINE-COMMENT \(.user.login): \(.body[:80])"' ;;
     *) row='select(.submitted_at > $ts) | "REVIEW \(.user.login) [\(.state)]: \(.body[:80])"' ;;
     esac
-    if ! cget "repos/$OWNER/$REPO/${surface}per_page=100"; then
+    if ! cget "repos/$OWNER/$REPO/${surface}per_page=$per_page" defer; then
       fetch_ok=0
-    elif [[ "$fresh" -eq 1 ]]; then
-      if new=$(printf '%s' "$out" | jq -r --arg ts "$last_comment_ts" ".[] | $row"); then
-        printf '%s\n' "$new" | tr -d '\r' | grep --line-buffered . && emitted=1
-      else fetch_ok=0; fi
-    fi
+    elif [[ "$fresh" -eq 0 ]]; then
+      :
+    elif new=$(printf '%s' "$out" | jq -r --arg ts "$last_comment_ts" ".[] | $row"); then
+      cache_commit
+      printf '%s\n' "$new" | tr -d '\r' | grep --line-buffered . && emitted=1
+    else fetch_ok=0; fi
   done
   [[ "$fetch_ok" -eq 1 ]] && last_comment_ts="$now"
 

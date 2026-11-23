@@ -94,14 +94,31 @@ case "$args" in
   *"/issues/7/comments"*)
     n=$(cat "$FX/poll")
     [ "$(cat "$FX/fault.$n" 2>/dev/null)" = comments-ratelimit ] && { echo "API rate limit exceeded" >&2; exit 1; }
-    # The comment is stamped with the time it is first read, the way a comment posted between
+    # A comment is stamped with the time it is first read, the way a comment posted between
     # two polls carries a time no later than the read that finds it.
-    if [ -e "$FX/comment_at" ] && [ "$n" -ge "$(cat "$FX/comment_at")" ]; then
-      [ -e "$FX/comment.json" ] ||
-        printf '[{"user":{"login":"bot"},"updated_at":"%s","body":"hello"}]' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$FX/comment.json"
-      reply "$(cat "$FX/comment.json")"
-    fi
-    reply '[]' ;;
+    # comment_at: from that poll, page 1 holds "hello". comments.p1: page 1's older comments.
+    # paged: page 1 names a page 2. comment2_at: from that poll, page 2 holds "page two".
+    stamp() {
+      [ -e "$FX/$1.json" ] ||
+        printf '{"user":{"login":"bot"},"updated_at":"%s","body":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$2" >"$FX/$1.json"
+      cat "$FX/$1.json"
+    }
+    case "$args" in
+      *"&page=2")
+        [ "$(cat "$FX/fault.$n" 2>/dev/null)" = comments-p2 ] && { echo "boom: transient" >&2; exit 1; }
+        if [ -e "$FX/comment2_at" ] && [ "$n" -ge "$(cat "$FX/comment2_at")" ]; then
+          reply "[$(stamp comment2 "page two")]"
+        fi
+        reply '[]' ;;
+      *)
+        items=$(cat "$FX/comments.p1" 2>/dev/null)
+        if [ -e "$FX/comment_at" ] && [ "$n" -ge "$(cat "$FX/comment_at")" ]; then
+          items="${items:+$items,}$(stamp comment hello)"
+        fi
+        link=""
+        [ -e "$FX/paged" ] && link="https://api.github.com/repos/owner/repo/issues/7/comments?per_page=100&page=2"
+        reply "[$items]" "$link" ;;
+    esac ;;
   "api "*) reply '[]' ;;
   *) ;;
 esac
@@ -188,6 +205,28 @@ echo 4 >"$FX9/merged_at"
 out9="$(run_poll "$FX9")"
 assert_eq "paged checks: a check finishing on the second page is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out9")"
 assert_not_contains "paged checks: the first page's unchanged check is not emitted" "$out9" "a: pass"
+
+FX10="$TEST_TMPDIR/fx10"
+mkdir -p "$FX10"
+for n in 1 2 3; do runs_json a >"$FX10/checks.$n"; done
+seq 100 | awk '{ printf "%s{\"user\":{\"login\":\"old\"},\"updated_at\":\"2000-01-01T00:00:00Z\",\"body\":\"c%s\"}", (NR > 1 ? "," : ""), $1 }' >"$FX10/comments.p1"
+echo 2 >"$FX10/comment2_at"
+echo 4 >"$FX10/merged_at"
+out10="$(run_poll "$FX10")"
+assert_eq "list grows from 100 to 101 comments: the 101st, on a new page 2, is emitted once" "1" \
+  "$(grep -c '^COMMENT bot: page two$' <<<"$out10")"
+assert_not_contains "list grows from 100 to 101 comments: the older comments are not emitted" "$out10" "COMMENT old:"
+
+FX11="$TEST_TMPDIR/fx11"
+mkdir -p "$FX11"
+for n in 1 2 3 4; do runs_json a >"$FX11/checks.$n"; done
+touch "$FX11/paged"
+echo 2 >"$FX11/comment_at"
+echo comments-p2 >"$FX11/fault.2"
+echo 5 >"$FX11/merged_at"
+out11="$(run_poll "$FX11")"
+assert_eq "page 2 fails in the poll page 1 changes: the new comment is emitted on a later poll, once" "1" \
+  "$(grep -c '^COMMENT bot: hello$' <<<"$out11")"
 
 FX7="$TEST_TMPDIR/fx7"
 mkdir -p "$FX7"
