@@ -2,10 +2,7 @@
 # shellcheck disable=SC2154,SC2249,SC2292,SC2310,SC2311 # the step env sets the inputs; a case with no match and a read failing in a condition fall through on purpose
 set -e
 # shellcheck source=/dev/null
-. "$API_BUDGET_SH" 2>/dev/null || true
-budget() {
-  ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "$(! declare -F api_budget_route >/dev/null || api_budget_route api "$2")" <<<"$1" >/dev/null
-}
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
   echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
   exit 1
@@ -48,13 +45,11 @@ read_api() {
     cond=()
     [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
     if out=$(gh api -i "$3" "${cond[@]}"); then
-      budget "$out" "$3"
       printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
       etag_path=$3 etag_body=${!1}
       etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
       return 0
     fi
-    budget "$out" "$3"
     hdr=$(sed '/^\r\?$/q' <<<"$out")
     status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
     if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then

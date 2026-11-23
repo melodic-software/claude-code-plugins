@@ -808,7 +808,6 @@ jobs:
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml
           RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs
-          API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash
         run: bash .base/.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
 
       # Uploaded last before the re-run, so the record names the attempt the

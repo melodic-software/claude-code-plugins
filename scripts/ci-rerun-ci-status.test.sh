@@ -63,7 +63,6 @@ for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{
   'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
   'RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml' \
   'RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs' \
-  'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash' \
   'LANES_PROCEED: ${{ steps.kill.outputs.proceed }}' 'APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
@@ -269,10 +268,9 @@ esac
 EOF
 # shellcheck disable=SC2016 # the stub expands $* and $STUB_LOG when it runs
 printf '#!/usr/bin/env bash\necho "sleep $*" >>"$STUB_LOG"\n' >"$TMP_ROOT/bin/sleep"
-# The clock reads 1000 s past the epoch; any other date call runs the real date.
 REAL_DATE="$(command -v date)"
 # shellcheck disable=SC2016 # the stub expands its arguments when it runs
-printf '#!/usr/bin/env bash\nif [ "$*" = +%%s ]; then echo 1000; else exec %q "$@"; fi\n' "$REAL_DATE" >"$TMP_ROOT/bin/date"
+printf '#!/usr/bin/env bash\nif [ "$*" = +%%s ]; then awk '"'"'$1 == "sleep" { s += $2 } END { print 1000 + s }'"'"' "$STUB_LOG"; else exec %q "$@"; fi\n' "$REAL_DATE" >"$TMP_ROOT/bin/date"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 
 HEAD=0123456789abcdef0123456789abcdef01234567
@@ -327,7 +325,7 @@ expect() {
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
     REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
-    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=720 bash "$ROOT/$FIND_SCRIPT" 2>&1)" && rc=0 || rc=$?
+    POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=720 bash "${SCRIPT_COPY-$ROOT/$FIND_SCRIPT}" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -809,7 +807,9 @@ STUB_RUN_SEQ='' STUB_RUNS="$(runs "$(run 9)")"
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
-REVIEW_ATTEMPT=1 API_BUDGET_SH="$TMP_ROOT/absent.bash" expect "a missing api-budget library still re-runs" 0 "Re-running ci-status (job 77) of run 9"
+mkdir -p "$TMP_ROOT/lone/${FIND_SCRIPT%/*}"
+cp "$ROOT/$FIND_SCRIPT" "$TMP_ROOT/lone/$FIND_SCRIPT"
+REVIEW_ATTEMPT=1 SCRIPT_COPY="$TMP_ROOT/lone/$FIND_SCRIPT" expect "a missing api-budget library still re-runs" 0 "Re-running ci-status (job 77) of run 9"
 check_reran 1 "the re-run is handed on without the library"
 if [[ ! -e "$TMP_ROOT/rt/api-budget/github-token" ]]; then ok "no reading is kept without the library"; else fail "readings kept without the library"; fi
 
