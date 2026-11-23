@@ -137,7 +137,6 @@ exec "$GIT_BIN" "\$@"
 EOF
 chmod +x "$FAILBIN/git"
 
-# A PATH with git and jq but no gh.
 NOGH="$TEST_TMPDIR/nogh"
 mkdir -p "$NOGH"
 ln -s "$GIT_BIN" "$NOGH/git"
@@ -165,7 +164,6 @@ run() {
 ref_count() { git -C "$1" for-each-ref refs/collision-hotspots | grep -c . || true; }
 has_row() { grep -qxF "$2" <<<"$1" && echo yes || echo no; }
 
-# Full run.
 W="$(fresh_clone)"
 run "$W" "$LISTING" --prs 50
 assert_exit "full run exits 0" 0 "$RC"
@@ -179,14 +177,12 @@ assert_not_contains "changelog is not ranked" "$OUT" $'\tCHANGELOG.md'
 assert_eq "run namespace is gone after exit" 0 "$(ref_count "$W")"
 assert_contains "gh read every PR state" "$(cat "$STUB_GH_LOG")" "pr list --state all --limit 50"
 
-# Pair cap.
 W="$(fresh_clone)"
 run "$W" "$LISTING" --prs 50 --max-pairs 1
 assert_exit "--max-pairs 1 exits 0" 0 "$RC"
 assert_contains "--max-pairs 1 replays one and prints the skipped count" "$OUT" "replaying 1 (--max-pairs 1), skipped 2"
 assert_contains "one replayed pair ranks no file" "$OUT" "ranked: none"
 
-# Dry run.
 W="$(fresh_clone)"
 run "$W" "$LISTING" --prs 50 --dry-run
 assert_exit "--dry-run exits 0" 0 "$RC"
@@ -195,7 +191,6 @@ assert_eq "--dry-run creates no ref" 0 "$(ref_count "$W")"
 if git -C "$W" cat-file -e "$PR1_SHA^{commit}" 2>/dev/null; then fetched=yes; else fetched=no; fi
 assert_eq "--dry-run fetches nothing" no "$fetched"
 
-# Extra exclusion: shared.txt leaves the ranking, so nothing pairs.
 W="$(fresh_clone)"
 run "$W" "$LISTING" --prs 50 --exclude 'shared.*'
 assert_exit "--exclude exits 0" 0 "$RC"
@@ -313,20 +308,17 @@ run "$W" "$TAB_LISTING" --prs 50
 assert_exit "a path with a tab exits 2" 2 "$RC"
 assert_eq "a path with a tab creates no ref" 0 "$(ref_count "$W")"
 
-# Missing gh.
 W="$(fresh_clone)"
 OUT="$(cd "$W" && PATH="$NOGH" "$BASH" "$SCRIPT" --prs 50 2>&1)"
 RC=$?
 assert_exit "missing gh exits 2" 2 "$RC"
 assert_contains "missing gh names co-change mining" "$OUT" "co-change"
 
-# gh failure.
 W="$(fresh_clone)"
 OUT="$(cd "$W" && STUB_GH_FAIL=1 STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 RC=$?
 assert_exit "a failed gh read exits 2" 2 "$RC"
 
-# Usage errors.
 W="$(fresh_clone)"
 for args in "--prs abc" "--prs 0" "" "--prs 5 --max-pairs 0" "--prs 5 --repo bad" "--prs 5 --repo a/b/c" "--prs 5 --bogus" "--prs 5 --exclude"; do
   # shellcheck disable=SC2086 # word splitting builds the argument list
@@ -334,7 +326,6 @@ for args in "--prs abc" "--prs 0" "" "--prs 5 --max-pairs 0" "--prs 5 --repo bad
   assert_exit "usage error exits 2: '$args'" 2 "$RC"
 done
 
-# Outside a git repository.
 mkdir -p "$TEST_TMPDIR/plain"
 run "$TEST_TMPDIR/plain" "$LISTING" --prs 5
 assert_exit "outside a repository exits 2" 2 "$RC"

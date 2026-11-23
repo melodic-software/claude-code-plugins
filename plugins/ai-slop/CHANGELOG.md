@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.21.4] - 2026-11-23
+
+### Changed
+
+- `audit` gains a `## Related` section per the accepted skill-link table.
+
+## [0.21.3] - 2026-11-23
+
+### Changed
+
+- The audit skill's emit-findings.sh and emit-fix-record.sh name themselves through one variable in their messages, as the other audit scripts do; the printed text is unchanged.
+
+## [0.21.2] - 2026-11-23
+
+### Changed
+
+- `/ai-slop:audit` no longer gather repository context that no step read.
+
 ## [0.21.1] - 2026-11-23
 
 ### Changed

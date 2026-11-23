@@ -11,7 +11,7 @@ import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import {
   createGitHub,
   paginate,
-} from "../check-trusted-trigger/check-trusted-trigger.mjs";
+} from "../../scripts/lib/github-client.mjs";
 import { issueStatus, issueStatusSetter, StatusDisagreement } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
@@ -640,6 +640,10 @@ export function loopFromBase(env) {
 // resolve(), for fix-ci-dispatch.mjs, which applies its defaults.
 export function adoptionFromBase(env) {
   return configFromBase(env).adoption ?? {};
+}
+
+export function testScopeFromBase(env) {
+  return { apply: configFromBase(env)["test-scope"]?.apply === true };
 }
 
 // The base config's `merge.refire-skip-branches`, the head branches a workflow

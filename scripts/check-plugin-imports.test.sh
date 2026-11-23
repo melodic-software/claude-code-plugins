@@ -169,7 +169,6 @@ git_test_config "$f" rm -q --cached "$A/a.sh" >/dev/null
 printf 'source "$SCRIPT_DIR/../../beta/lib/x.sh"\n' >"$f/$A/untracked.sh"
 expect_pass "an untracked file is not read"
 
-# --- the exceptions file --------------------------------------------------------
 crossing=$'#!/usr/bin/env bash\nsource "$SCRIPT_DIR/../../beta/lib/x.sh"'
 tree "$A/a.sh" "$crossing" scripts/plugin-imports-exceptions.txt "# header
 $A/a.sh beta 2026-11-16 agreement gate: both plugins carry the same literal"
@@ -222,7 +221,6 @@ else
   bad "a git grep failure in a batch exits 2" "rc=$RC out=$OUT"
 fi
 
-# --- could not run ----------------------------------------------------------------
 tree "$A/a.sh" 'true'
 RC=0
 OUT="$(cd "$f" && bash scripts/check-plugin-imports.sh --check 2>&1)" || RC=$?

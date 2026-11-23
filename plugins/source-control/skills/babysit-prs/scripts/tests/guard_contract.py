@@ -173,10 +173,6 @@ class DocCommandSource:
     doc: str
 
 
-# --------------------------------------------------------------------------
-# Refusals -- fail-closed guards, asserted by invoking the entry point.
-# --------------------------------------------------------------------------
-
 REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         id="merge.allowlist-absent",
@@ -894,10 +890,6 @@ REFUSALS: tuple[Refusal, ...] = (
 )
 
 
-# --------------------------------------------------------------------------
-# Predicates -- guards over runtime API data, asserted against the classifier.
-# --------------------------------------------------------------------------
-
 CLASSIFY_ANCHOR = "babysit_resolve_thread.py::classify"
 
 
@@ -1250,10 +1242,6 @@ PREDICATES: tuple[Predicate, ...] = (
 )
 
 
-# --------------------------------------------------------------------------
-# Effects -- what actually touches disk, run offline against a temp state dir.
-# --------------------------------------------------------------------------
-
 EMPTY_STATE = "empty"
 EXPIRED_WORKER_LEASE = "expired-worker-lease"
 
@@ -1316,10 +1304,6 @@ EFFECTS: tuple[Effect, ...] = (
     ),
 )
 
-
-# --------------------------------------------------------------------------
-# Mechanisms -- HOW an entry point mutates, asserted against its source.
-# --------------------------------------------------------------------------
 
 MECHANISMS: tuple[Mechanism, ...] = (
     Mechanism(
@@ -1494,10 +1478,6 @@ MECHANISMS: tuple[Mechanism, ...] = (
     ),
 )
 
-
-# --------------------------------------------------------------------------
-# Entry points -- the mutating / read-only catalogue a permission rule cites.
-# --------------------------------------------------------------------------
 
 READ_ONLY = "read-only"
 MUTATING = "mutating"
@@ -1807,10 +1787,6 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
 )
 
 
-# --------------------------------------------------------------------------
-# Documents that spell out copyable wrapper command lines.
-# --------------------------------------------------------------------------
-
 DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
     DocCommandSource(
         id="safety.pinned-command-degradation",
@@ -1864,10 +1840,6 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
     ),
 )
 
-
-# --------------------------------------------------------------------------
-# Markdown emission.
-# --------------------------------------------------------------------------
 
 WRAPPER_BACKING_CLI = {
     MERGE_WRAPPER: MERGE_CLI,

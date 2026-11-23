@@ -15,14 +15,14 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import { AGENT_READY } from "../../scripts/lib/lane-vocabulary.mjs";
 import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
-const AGENT_READY = "agent-ready";
 // The bare labels that name a status; every other status label starts `status:`.
 const STATUS_LABELS = new Set([AGENT_READY, "needs-human", "needs-spec", "admission-deferred"]);
 // Reasons a later read can change: the publisher sets the type and some

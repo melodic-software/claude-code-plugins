@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+import { ciStatusOf, countRounds, main, newestRound, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
@@ -196,6 +196,67 @@ test("select keeps a superseded-looking ci-status red unless only the marker for
     assert.equal(result.decision, "proceed", JSON.stringify(annotations));
     assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
   }
+});
+
+const gateHold = (pr) => ({
+  annotation_level: "failure",
+  message: `#${pr} is by an author no review lane reviews and changes trust-gate paths: .github/workflows/maintenance-repin-ci-workflows.yml .github/workflows/release-publish-plugins.yml. A person merges it; a person on the trusted-actor list approving this head clears it.`,
+});
+const majorBump = (annotations) =>
+  select({ api: fakeApi({ gateRuns: [supersededRun], annotations }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] });
+
+test("select skips a pull request whose only CI Status failure is the trust-gate hold, with no model turn, escalation or label", async () => {
+  const result = await majorBump({ 9: [NOTICE, EXIT, gateHold(7), NOTICE] });
+  assert.equal(result.decision, "skip");
+  assert.equal(result.skipReason, "gate-hold");
+  assert.equal(result.escalationReason, undefined, "no escalation, so no needs-human label and no security reason");
+  assert.equal(result.file, undefined, "no context file, so no model turn");
+});
+
+test("select hands the model a trust-gate hold for another pull request, or one beside another failure", async () => {
+  const contract = { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" };
+  for (const annotations of [{ 9: [EXIT, gateHold(8)] }, { 9: [EXIT, gateHold(7), contract] }, { 9: [EXIT] }, {}]) {
+    const result = await majorBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+    assert.equal(result.file.merge_clears_gate_hold, false, JSON.stringify(annotations));
+  }
+});
+
+const verdictHold = (pr) => ({
+  annotation_level: "failure",
+  message: `#${pr} by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: .github/workflows/ci.yml, and merge.dependabot.trusted-action-owners does not list the owner of: evilcorp/setup-tool. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head.`,
+});
+
+test("select hands the model a trust-gate hold a merge verdict clears, and tells it so", async () => {
+  const result = await majorBump({ 9: [NOTICE, EXIT, verdictHold(7)] });
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.skipReason, undefined);
+  assert.equal(result.file.merge_clears_gate_hold, true);
+  assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+});
+
+test("a merge-verdict hold for another pull request, or beside another failure, is not one the verdict clears", async () => {
+  const contract = { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" };
+  for (const annotations of [{ 9: [EXIT, verdictHold(8)] }, { 9: [EXIT, verdictHold(7), contract] }]) {
+    const result = await majorBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.equal(result.file.merge_clears_gate_hold, false, JSON.stringify(annotations));
+  }
+  const both = await majorBump({ 9: [EXIT, verdictHold(7), gateHold(7)] });
+  assert.deepEqual([both.decision, both.skipReason], ["skip", "gate-hold"], "a hold only a person clears beside it wins");
+});
+
+test("newestRound is the lanes App's newest marker by comment time, or null", () => {
+  const at = (comment, created_at, id) => ({ ...comment, created_at, id });
+  const comments = [
+    at(marker(HEAD, "merge"), "2026-11-23T10:05:00Z", 3),
+    at(marker(OTHER, "fix"), "2026-11-23T10:01:00Z", 9),
+    at(marker(OTHER, "escalate", 1), "2026-11-23T10:09:00Z", 10),
+  ];
+  assert.deepEqual(newestRound(comments, APP), { head: HEAD, verdict: "merge", run: "1-1", createdAt: "2026-11-23T10:05:00Z" });
+  assert.equal(newestRound([...comments, at({ user: { id: APP }, body: "<!-- pr-unblock:review-dependency-round head=x -->" }, "2026-11-23T10:07:00Z", 11)], APP), null);
+  assert.equal(newestRound([at(marker(HEAD, "merge", 1), "2026-11-23T10:05:00Z", 3)], APP), null);
 });
 
 const POLICY = {
@@ -499,6 +560,12 @@ test("main writes no context or run file when the select skips", async () => {
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=false\nskip-reason=superseded-sha\nescalation-reason=\n");
   assert.equal(existsSync(env.DEPENDENCY_FILE), false);
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  const lines = [];
+  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: (line) => lines.push(line) });
+  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=gate-hold\nescalation-reason=\n");
+  assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  assert.ok(lines.some((line) => line.includes("trust-gate hold") && line.includes("content was not judged")), "the step summary says why no review ran");
+  assert.ok(!lines.some((line) => /security/i.test(line)), "a gate hold names no security risk");
 });
 
 // main over a readable base config and policy, with the registry stubbed.

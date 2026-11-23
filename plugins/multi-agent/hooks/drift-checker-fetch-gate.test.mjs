@@ -1,6 +1,3 @@
-// Tests for the drift-checker WebFetch gate: decide() directly, the hook as
-// registered (stdin in, deny JSON out), and that the workflow drops sources
-// on the same hosts the gate allows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

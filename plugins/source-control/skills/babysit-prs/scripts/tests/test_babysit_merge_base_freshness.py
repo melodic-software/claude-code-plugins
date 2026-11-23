@@ -150,10 +150,6 @@ class LooseBaseHoldsABehindCleanHead(BaseFreshnessHarness):
         )
 
     def test_an_unreadable_rules_answer_still_compares_and_holds(self) -> None:
-        # The snapshot reports this head not behind (no refresh this cycle), so
-        # the gate must not read the failure as a strict or queue base. A
-        # self-authored PR passes the unprotected-base hold that would
-        # otherwise hold it first.
         result = self._evaluate(
             RuntimeError("gh: Server Error (HTTP 502)"),
             BEHIND,

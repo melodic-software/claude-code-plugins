@@ -118,9 +118,8 @@ jobs:
     # full history and no persisted credentials (ci-workflows#881).
     steps:
       - name: Guard managed files
-        # The org requires actions pinned to a full commit SHA (reusable
-        # workflows may float on main); this pin moves by hand.
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        # First-party actions float on main (owner decision).
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@main
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

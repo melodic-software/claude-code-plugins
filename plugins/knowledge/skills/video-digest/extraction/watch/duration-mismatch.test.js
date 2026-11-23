@@ -28,7 +28,6 @@ describe("detectDurationMismatch", () => {
     expect(detectDurationMismatch(600, 600)).toBeNull();
     expect(detectDurationMismatch(600, 603.4)).toBeNull();
     expect(detectDurationMismatch(60, 64)).toBeNull();
-    // 1% of a 10000 s stream is 100 s: a 90 s gap is within tolerance.
     expect(detectDurationMismatch(10000, 9910)).toBeNull();
   });
 

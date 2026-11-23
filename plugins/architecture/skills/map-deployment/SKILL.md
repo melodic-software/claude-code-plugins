@@ -305,6 +305,10 @@ its report line is printed. Procedure:
 - The topology needs a deployment change decided: `/planning:design system`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 
+## Related
+
+- Deployables and stores before placement: /architecture:map-containers.
+
 ## Gotchas
 
 - **C4 scopes a deployment diagram to one environment.** This skill writes one fenced block with

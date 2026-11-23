@@ -81,7 +81,7 @@ mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
-printf 'unrelated\n' >"$r/README.md" # non-skill change
+printf 'unrelated\n' >"$r/README.md"
 if out="$(run "$r" "$b" 2>&1)"; then
   if grep -q "nothing to gate" <<<"$out" && [[ "$out" != *"unbound variable"* ]]; then
     ok "no changed skills passes"
@@ -123,7 +123,7 @@ mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
-add_skill "$r" p1 alpha SKILL.md # modify
+add_skill "$r" p1 alpha SKILL.md
 if out="$(run "$r" "$b" 2>&1)"; then
   if grep -q "1 skill(s) checked, 0 failed" <<<"$out"; then
     ok "one passing skill passes"
@@ -182,7 +182,7 @@ mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
-add_skill "$r" p1 alpha SKILL.md # touch two paths in one skill
+add_skill "$r" p1 alpha SKILL.md
 add_skill "$r" p1 alpha vendor/tool/SKILL.md
 run "$r" "$b" >/dev/null 2>&1
 n="$(grep -c "args=.*alpha" "$r/checklog" 2>/dev/null || echo 0)"

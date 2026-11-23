@@ -95,7 +95,6 @@ class Synthesize(unittest.TestCase):
         words = narrate.plan('ab, c', fake_phonemize, VOCAB)
         session = FakeSession()
         audio, spans = narrate.synthesize(narrate.chunks(words), session, np.zeros((10, 256)), 1.0, VOCAB[' '])
-        # ids: pad a b , space c pad; 20 samples per id
         self.assertEqual(session.calls, [[0, VOCAB['a'], VOCAB['b'], VOCAB[','], VOCAB[' '], VOCAB['c'], 0]])
         self.assertEqual(spans, [(20, 60), (100, 120)])
         self.assertEqual(len(audio), 140)

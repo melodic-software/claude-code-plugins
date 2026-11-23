@@ -1,6 +1,3 @@
-"""Whole-review requests: when one is wanted, the per-sweep limits, the
-draft toggle and the recovery of a draft a toggle left behind."""
-
 from __future__ import annotations
 
 import contextlib

@@ -1,15 +1,15 @@
-# test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/apply-verdict.mjs
+# test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/issue-spec.mjs .github/scripts/intake-triage/apply-verdict.mjs .github/scripts/intake-triage/size-split.mjs
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_own_agent_spec_trust.py
 # test-scope: .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/check-kill-switch/projection.mjs
-# test-scope: .github/actions/check-trusted-trigger/check-trusted-trigger.mjs .github/actions/log-api-budget/rate-guard.mjs
+# test-scope: .github/actions/check-trusted-trigger/check-trusted-trigger.mjs .github/scripts/lib/github-client.mjs .github/scripts/lib/trusted-actors.mjs .github/actions/log-api-budget/rate-guard.mjs
 # test-scope: .github/actions/resolve-config/read-status.mjs .github/actions/resolve-config/write-status.mjs
 # test-scope: .github/actions/select-trusted-text/select-trusted-text.mjs
 # test-scope: .github/scripts/lib/admission-comment.mjs .github/scripts/lib/admission-record.mjs .github/scripts/lib/done-evidence.mjs
-# test-scope: .github/scripts/lib/lane-hold-marker.mjs .github/scripts/lib/retry-fetch.mjs .github/scripts/lib/stop-reason.mjs
+# test-scope: .github/scripts/lib/lane-hold-marker.mjs .github/scripts/lib/retry-fetch.mjs .github/scripts/lib/stop-reason.mjs .github/scripts/lib/github-rest.mjs .github/scripts/lib/lane-branch.mjs .github/scripts/lib/lane-vocabulary.mjs
 # test-scope: .github/scripts/pr-merge/merge-holds.mjs
 # test-scope: .github/scripts/work-resolve-issue/known-names.json .github/scripts/work-resolve-issue/limits.mjs
-# test-scope: .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/stop-routes.json .github/scripts/work-resolve-issue/stop-routes.mjs
+# test-scope: .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/stop-routes.json .github/scripts/work-resolve-issue/stop-routes.mjs .github/scripts/recurring-schedule/file-due.mjs
 """The gate's triage-verdict brief (`babysit_verify_evidence.triage_briefed`,
 through `briefed_issue`): the owner's standing rule read as intake-triage's
 own verdict (#18107; architecture PR 167). The lanes App's verdict that held

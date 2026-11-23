@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-foreground-wait.sh (guardrails plugin).
-#
-# Black-box: each case pipes a PreToolUse payload into the guard, alone and
-# under run-guards.sh, and asserts the same exit code both ways (2 = denied,
-# 0 = allowed).
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/guardrails/.claude-plugin/plugin.json
@@ -23,12 +18,10 @@ REASON_UNTIL='BLOCKED: This `until` loop waits in the foreground. Run the comman
 REASON_WATCH='BLOCKED: This `--watch` command waits in the foreground. Run it with run_in_background set to true, or watch it with the Monitor tool'
 NL=$'\n'
 
-# payload <command> <run_in_background JSON value>
 payload() {
   jq -cn --arg c "$1" --argjson b "$2" '{tool_name:"Bash",tool_input:{command:$c,run_in_background:$b}}'
 }
 
-# deny_with <reason> <label> <command> [guard_invoke option ...]
 deny_with() {
   local reason="$1" label="$2" command="$3" via
   shift 3
@@ -41,14 +34,12 @@ deny_with() {
 deny_until() { deny_with "$REASON_UNTIL" "$@"; }
 deny_watch() { deny_with "$REASON_WATCH" "$@"; }
 
-# allow <label> <command> [guard_invoke option ...]
 allow() {
   local label="$1" command="$2"
   shift 2
   expect_both "$label" 0 --command "$command" "$@"
 }
 
-# --- denied -------------------------------------------------------------------
 deny_until "until loop" 'until gh run view 1 --json status | grep -q completed; do sleep 10; done'
 deny_until "until after a separator" 'echo start; until test -f done.flag; do sleep 5; done'
 deny_until "until after &&" 'cd /srv && until curl -sf localhost:8080; do sleep 1; done'
@@ -69,7 +60,6 @@ deny_watch "pnpm forwards --watch after --" 'pnpm vitest -- --watch'
 deny_watch "a configured runner forwards --watch after --" 'make test -- --watch' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_SCRIPT_RUNNERS=make
 
-# --- allowed ------------------------------------------------------------------
 BG_UNTIL=$(payload 'until test -f x; do sleep 1; done' true)
 BG_WATCH=$(payload 'gh pr checks 42 --watch' true)
 expect_both "until in the background" 0 --payload "$BG_UNTIL"
@@ -92,11 +82,9 @@ allow "watch command" 'watch -n 5 ls'
 allow "plain command" 'gh pr checks 42'
 allow "PowerShell tool" 'until x; do y; done' --tool PowerShell
 
-# --- kill switch --------------------------------------------------------------
 expect_both "kill switch off: allowed" 0 --command 'gh pr checks 42 --watch' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_ENABLED=false
 
-# --- registration -------------------------------------------------------------
 row=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].args | map(tostring) | join(" ")' "$HOOK_DIR/hooks.json")
 assert_contains "hooks.json runs the guard on the Bash|PowerShell row" "$row" " block-foreground-wait.sh"
 assert_eq "plugin.json declares the kill switch, default on" "true" \

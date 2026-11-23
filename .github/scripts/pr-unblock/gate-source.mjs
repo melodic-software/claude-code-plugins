@@ -21,9 +21,8 @@
 // `label`, `created_at`, `updated_at`. Text written by anyone but those
 // authors is never read.
 
-import { readFileSync } from "node:fs";
-
 import { FOOTER as LANE_FOOTER } from "../lib/lane-binding.mjs";
+import { readRawTrustedActors, SAME_TREE_LIST } from "../lib/trusted-actors.mjs";
 import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
@@ -39,7 +38,6 @@ export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ he
 // report-escalation.sh's comment for a fail-routed stop, one per activity,
 // edited in place; it adds no label.
 export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
-// A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 export const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 // check-signed-commits' escalation comment opens with this line; its report
@@ -88,7 +86,7 @@ let trustedHumanIds;
 export function trustedHumans() {
   if (trustedHumanIds === undefined) {
     try {
-      const list = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+      const list = readRawTrustedActors(SAME_TREE_LIST);
       trustedHumanIds = new Set(list.actors.filter((actor) => actor?.kind === "human" && Number.isSafeInteger(actor.id)).map((actor) => actor.id));
     } catch {
       trustedHumanIds = new Set();
@@ -235,9 +233,6 @@ export function gateSource(args) {
   if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
     return result("unknown", `no lane escalation by the lanes App right after it added ${label}`);
   }
-  // A whole escalation's two marker lines and address-feedback's own round
-  // record are known; any other marker, another lane's escalation or an
-  // escalation line out of place included, is not.
   const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line) || LANE_STOPPED.test(line);
   const malformed = appComments
     .filter((item) => writtenSince(item, since))

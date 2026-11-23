@@ -777,7 +777,7 @@ jobs:
           for attempt in 1 2 3; do
             if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state=pending -f context=ci-lanes \
-              -f description="full run $GITHUB_RUN_ID in flight" \
+              -f description="full run $GITHUB_RUN_ID in flight, testing $GITHUB_SHA" \
               -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
               echo "Marked ci-lanes pending on $HEAD_SHA."
               exit 0
@@ -836,11 +836,7 @@ jobs:
     name: Select Tests
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
-    # The detect-changes action lists the pull request's files through the
-    # API, and the queue-hold step reads the queued pull request. No step here
-    # reads commit statuses: queueHolds takes only the pull request. No write
-    # scope: this job runs pull request code.
+    timeout-minutes: 12
     permissions:
       contents: read
       pull-requests: read
@@ -892,24 +888,6 @@ jobs:
         env:
           KEY: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
         run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
-      # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
-      # merge queue the holds that cost no lane work, its hold labels
-      # and the lanes kill switch, are judged by
-      # the base commit's merge-holds.mjs queueHolds: a held group fails this
-      # job in seconds, and every lane, which needs it, skips. ci-status still
-      # judges each hold itself, from its own reads, so the aggregate fails on
-      # the hold and on this job, and a skipped lane stays skipped there (this
-      # job did not succeed). Nothing here feeds a ci-status hold: this job runs
-      # pull request code. Only a hold read fails it: a read that fails, a ref
-      # it cannot parse, or a base module without queueHolds leaves the hold to
-      # ci-status, which retries and fails closed. One read, the pull request,
-      # through the api-budget gh wrapper, whose api-calls notice the step ends with. The base's
-      # module, tracker config and wrapper come from one shallow fetch of the
-      # group's base commit, which leaves `ok=true` once module and wrapper read;
-      # it never fails the job, so a failed fetch only leaves the holds to
-      # ci-status. The runner's Node runs the module: queueHolds needs no
-      # API newer than the image's. Pinned by
-      # scripts/ci-early-queue-holds.test.sh, which runs this body.
       - name: Read the base commit's queue-hold rules
         id: queue_rules
         if: github.event_name == 'merge_group'
@@ -951,6 +929,8 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" >"$RUNNER_TEMP/queued-pull.json" || leave "could not read #$pr"
           head=$(jq -r '.head.sha // ""' "$RUNNER_TEMP/queued-pull.json") || head=
           [[ $head =~ ^[0-9a-f]{40}$ ]] || leave "the head of #$pr is not a commit SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" >"$RUNNER_TEMP/queued-head-statuses.json" ||
+            rm -f "$RUNNER_TEMP/queued-head-statuses.json"
           tracker=null
           [ ! -s "$RULES/tracker.json" ] || tracker=$(cat "$RULES/tracker.json")
           jq -n --slurpfile pull "$RUNNER_TEMP/queued-pull.json" --argjson tracker "$tracker" \
@@ -1025,7 +1005,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           filters: |
             shell:
@@ -1188,6 +1168,17 @@ jobs:
           cat "$RUNNER_TEMP/changed-suites.txt"
           if [ -s "$RUNNER_TEMP/changed-suites.txt" ]; then echo "any=true"; else echo "any=false"; fi >>"$GITHUB_OUTPUT"
           echo "list=$(jq -Rnc '[inputs]' <"$RUNNER_TEMP/changed-suites.txt")" >>"$GITHUB_OUTPUT"
+      - name: Log what a narrower merge-group run would skip
+        id: mq_scope
+        if: github.event_name == 'merge_group'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          scripts/merge-group-scope.sh --pull "$RUNNER_TEMP/queued-pull.json" \
+            --statuses "$RUNNER_TEMP/queued-head-statuses.json" --group-base "$GROUP_BASE_SHA" \
+            --pr-plan "$RUNNER_TEMP/plan.txt" --summary "$GITHUB_STEP_SUMMARY"
       # A merge group's hold step emits this job's notices itself. Elsewhere
       # this step does, and on a pull request it names detect-changes, which
       # lists the files through actions/github-script, a client no counter sees.
@@ -1329,6 +1320,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         shell: bash scripts/run-hygiene-gate.sh zizmor {0}
         run: scripts/run-zizmor.sh
 
@@ -1649,13 +1641,13 @@ jobs:
           fi
           echo "globs=$globs" >>"$GITHUB_OUTPUT"
       - name: Put the pinned Node in the tool cache so setup-node reads no manifest
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -1672,7 +1664,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -1699,7 +1691,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -1714,7 +1706,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: lychee.toml
           exclude: >-
@@ -1743,7 +1735,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: .editorconfig-checker.json
           # The review revert cases' fixtures: byte copies of this repository's
@@ -1762,13 +1754,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -1776,7 +1768,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -1788,12 +1780,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1826,12 +1818,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           # The remove-comments skill's audit action IS a code-comment linter:
           # its detector fixtures and shape library necessarily contain the
@@ -1937,7 +1929,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2002,6 +1994,14 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh workflow-template-size {0}
         run: scripts/check-workflow-template-size.sh --check
 
+      - name: Check committed GraphQL operations against GitHub's schema
+        id: graphql_operations
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/check-graphql-operations@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          paths: .github plugins
+          allowlist: .github/scripts/graphql-operations/unextractable.txt
+
       # Workflow, job, step and action names against melodic-software/standards'
       # github-actions-conventions naming lint, which the action runs from
       # standards main. It checks out standards under the workspace, so it
@@ -2010,7 +2010,7 @@ jobs:
         id: workflow_naming
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -2038,7 +2038,7 @@ jobs:
           # the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming
+          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming graphql-operations
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
@@ -2076,6 +2076,7 @@ jobs:
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             workflow-naming=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_naming.outcome }}
+            graphql-operations=${{ steps.graphql_operations.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
             workflow-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
@@ -2338,7 +2339,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -2826,7 +2827,7 @@ jobs:
       # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
 
@@ -2996,7 +2997,7 @@ jobs:
       # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3084,7 +3085,19 @@ jobs:
       # A plugin removed or renamed in the catalog fails here.
       - name: Check the shipped plugin profiles against the catalog
         if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: scripts/check-plugin-profiles.sh
+
+      - name: Report skill links against the accepted table
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: |
+          {
+            echo '### Skill links against the accepted table (report only)'
+            echo '```text'
+            scripts/check-skill-links.sh 2>&1 || echo "::warning::check-skill-links could not run (exit $?)"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
@@ -3296,7 +3309,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -3530,7 +3543,7 @@ jobs:
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3555,7 +3568,7 @@ jobs:
         # verifies the install on one small file whose one source is marked
         # source=/dev/null; the ShellCheck gate in `lint-shell` is what lints
         # the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -3723,14 +3736,14 @@ jobs:
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
       - name: Install pinned typos for the spelling remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/typos@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           config: _typos.toml
           paths: lefthook-remote.yml
           annotations: 'false'
       - name: Install pinned actionlint for the actionlint remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           paths: .github/workflows/pr-review-approved.yml
           color: 'false'
@@ -3843,7 +3856,7 @@ jobs:
         with:
           filter: blob:none
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3988,7 +4001,7 @@ jobs:
           echo "This leg tests: $packages"
           echo "PACKAGES=$packages" >>"$GITHUB_ENV"
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       # One npm cache for every package, keyed on the Node pin and the five
@@ -4197,7 +4210,7 @@ jobs:
         with:
           filter: blob:none
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -4215,7 +4228,7 @@ jobs:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -4312,7 +4325,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -4422,7 +4435,7 @@ jobs:
       # less GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 435 s for the job's setup and the steps after the wait, which include
       # the report-ci-status composite
-      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml):
+      # (https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/pr-require-checks/report-ci-status/action.yml):
       # check-contract's and aggregate-results' 60 s rate-limit waits, 120 s
       # of own-gate retries, 7 s of status writes and the 90 s rerun wait,
       # plus retry sleeps. It does not
@@ -4958,7 +4971,7 @@ jobs:
     permissions:
       # The composite lists this workflow's runs on the head SHA (its fixed
       # `yield-to-full-run`,
-      # https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
+      # https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
       # and `rerun-contract-only-siblings` re-runs the red contract-only ones
       # once the full run records `success`. Under an explicit permissions
       # block every unlisted scope defaults to none; write covers the read.
@@ -5410,28 +5423,32 @@ jobs:
             printf '%s' "$rows"
           } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
           [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || exit 1
-      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing, and the aggregate below passes those skips. That
-      # green check stays on the head after the ready flip until the
-      # ready_for_review run replaces it, so an enqueue in that gap meets the
-      # required check, and the merge-group run does not fully close it: the
-      # changed-file gates that read only github.base_ref decline there. No
-      # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. The hold steps that read
-      # GitHub (cost hold, human-gated, hold-lift,
-      # lanes hold) skip on a draft too, so a held draft is green as well;
-      # the ready_for_review run judges every hold. This step says why it is
-      # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
         run: |
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      - name: Read whether a re-run draft run's pull request is ready
+        id: draft_rerun
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.run_attempt != '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          if pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") && [ "$(jq -r '.draft' <<<"$pull")" = true ]; then
+            echo "Attempt $RUN_ATTEMPT: #$PR_NUMBER is still a draft."
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::Attempt $RUN_ATTEMPT of a draft run: #$PR_NUMBER is ready, or its draft state did not read, so the hold and review-lane steps run."
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+          fi
       - name: Resolve main's tip
         id: tip
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       # The cost-hold and lanes-hold steps below run node; pin it to main's
@@ -5468,6 +5485,8 @@ jobs:
             /.github/scripts/pr-merge/rotation.mjs
             /.github/scripts/lib/run-title.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
@@ -5481,13 +5500,13 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Write the source-control trust settings
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' && hashFiles('.base/.github/source-control-settings.json') != '' }}
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
       # THE FORMAL-AREA SKILLS MEET THEIR CONTRACT. The default branch's copy of
@@ -5626,7 +5645,9 @@ jobs:
             /.github/scripts/pr-unblock/thread-scope.mjs
             /.github/scripts/work-resolve-issue/report-outcome.mjs
             /.github/scripts/work-resolve-issue/limits.mjs
+            /.github/scripts/lib/lane-branch.mjs
             /.github/scripts/lib/lane-hold-marker.mjs
+            /.github/scripts/lib/lane-vocabulary.mjs
             /.github/scripts/work-resolve-issue/stop-routes.mjs
             /.github/scripts/work-resolve-issue/stop-routes.json
             /.github/scripts/work-resolve-issue/known-names.json
@@ -5634,6 +5655,8 @@ jobs:
             /.github/scripts/lib/stop-reason.mjs
             /.github/scripts/lib/admission-comment.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
@@ -5710,7 +5733,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6051,7 +6074,7 @@ jobs:
       # this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6444,7 +6467,32 @@ jobs:
               issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
             fi
           fi
-          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
+          # The lanes App's pull request whose files are exactly the base's
+          # merge.baseline-file needs no issue link (merge-holds.mjs
+          # baselineOnly, owner decision Q152 (B)): its REST author and every
+          # page of its files, renamed-from paths included, judged by the base's
+          # module. No file set, a read, a short list or a module without
+          # baselineOnly keeps the link rule.
+          baseline=false
+          baseline_file=$(yq '.merge."baseline-file" // ""' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || baseline_file=
+          if [ -n "$baseline_file" ] && [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; } &&
+            pull_rest=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr") &&
+            gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate --jq '.[] | [.filename, .previous_filename] | @json' >"$RUNNER_TEMP/queued-files.jsonl" &&
+            [ "$(grep -c . "$RUNNER_TEMP/queued-files.jsonl")" = "$(jq -r '.changed_files' <<<"$pull_rest")" ]; then
+            jq -c '.user' <<<"$pull_rest" >"$RUNNER_TEMP/queued-user.json"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            baseline=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [user, files, appId, baselineFile, module] = process.argv.slice(1);
+              const { baselineOnly } = await import(pathToFileURL(module).href);
+              const paths = readFileSync(files, "utf8").split("\n").filter(Boolean).flatMap((line) => JSON.parse(line).filter((path) => typeof path === "string"));
+              console.log(typeof baselineOnly === "function" && baselineOnly(JSON.parse(readFileSync(user, "utf8")), paths, appId, baselineFile) === true);' \
+              "$RUNNER_TEMP/queued-user.json" "$RUNNER_TEMP/queued-files.jsonl" "$LANES_APP_ID" "$baseline_file" "$module") || baseline=false
+          fi
+          if [ "$baseline" = true ]; then
+            echo "#$pr is the lanes App's and changes only $baseline_file (merge.baseline-file), which needs no issue link."
+          fi
+          if [ "$lanes" = true ] && [ "$baseline" != true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
             why="its Refs: lines name no single issue"
             [ "$total" -eq 0 ] || why="it closes $total issue(s), none or more than one here"
             echo "::error::#$pr is the lanes App's and does not link exactly one issue in this repository, as pr-merge's lane takes it: $why; a person merges it."
@@ -6702,7 +6750,11 @@ jobs:
       # exact name from the reader's listing (below), with and without the
       # head-branch digest, stopping at the first name that holds such a run:
       # one run read per artifact taken. The same approval of the head lifts
-      # it. Only in the queue: pr-verify runs only after a pull_request run of
+      # it. A lanes App pull request whose files are exactly the hold config's
+      # merge.baseline-file needs no pass and no link (merge-holds.mjs
+      # baselineOnly, on the pull request saved at BABYSIT_VERIFY_PULL,
+      # LANES_APP_ID and BASELINE_FILE).
+      # Only in the queue: pr-verify runs only after a pull_request run of
       # this workflow that succeeded or failed only on holds an approving
       # review of the head lifts, so a ci-status red for anything else there
       # would never get a verdict, and a pull request event reads nothing for it.
@@ -6753,7 +6805,7 @@ jobs:
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -6942,6 +6994,11 @@ jobs:
             exit 1
           }
           export PATH_HOLDS
+          # merge.baseline-file in the hold config: the one file the lanes App's
+          # pull request may change alone with no pr-verify pass (merge-holds.mjs
+          # baselineOnly). Absent or unreadable is empty, which takes none.
+          BASELINE_FILE=$(yq '.merge."baseline-file" // ""' "$RUNNER_TEMP/pr-pipeline.yaml") || BASELINE_FILE=
+          export BASELINE_FILE
           # On a pull request event the broker step above read every page of
           # this list live in this job and left it; read it again when that
           # step could not, its pages do not parse, or the live pull's head is
@@ -7278,7 +7335,7 @@ jobs:
           echo "Results after the ordered-skip check: $results"
           echo "results=$results" >>"$GITHUB_OUTPUT"
       # The contract, the draft policy and the aggregation in one step
-      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/README.md),
+      # (https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/pr-require-checks/report-ci-status/README.md),
       # under the aggregation step's old name, by which a contract-only run
       # finds the writer step of the full run it carries forward.
       # `!cancelled()` so a failed step above skips neither the contract check
@@ -7290,7 +7347,7 @@ jobs:
       - name: Aggregate lane results
         id: report
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -7303,7 +7360,7 @@ jobs:
           draft: allow
           # The composite fixes yield-to-full-run: 'true' and
           # carry-forward-wait-seconds: '0'
-          # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
+          # (https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
           # no carry-forward wait. While a full run on the SHA is in flight a
           # contract-only run holds, up to `yield-wait-seconds`, with this
           # check run in progress, then passes only on a `success` recorded
@@ -7324,7 +7381,7 @@ jobs:
           step-name: Aggregate lane results
       # The composite's step concludes on the lanes alone; the contract and
       # draft results fail the job here
-      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
+      # (https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
       # Anything but success fails, so an empty or renamed output fails closed.
       - name: Fail on the contract or draft policy
         if: ${{ !cancelled() && (steps.report.outputs.contract != 'success' || steps.report.outputs.draft != 'success') }}
@@ -7361,31 +7418,6 @@ jobs:
       # reconcile.mjs matches the error below, and a trusted person's re-run
       # does the same. The admin bypass stays the break-glass. A
       # check-kill-switch job that failed stopped the review too, and fails.
-      # Dependabot, the release App and the
-      # standards-sync App, by numeric author id, are exempt: no review lane
-      # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it (with merge.diff-check.path-holds false, Dependabot
-      # alone: the generated guard after hold_patterns empties the list for
-      # every other author), unless every change block of a Dependabot PR
-      # only swaps the ref of an action whose owner the base lists in
-      # merge.dependabot.trusted-action-owners (owner decision
-      # Q-ANTHROPIC-DEPS). A person on the base commit's trusted-actor list
-      # approving the head clears that hold: their newest non-comment review,
-      # matched by numeric id, is APPROVED at the head. It counts as that
-      # person's whatever client submitted it. An unreadable review or
-      # trusted-actor list keeps it. Any other
-      # same-repository PR changing one that an agent App
-      # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
-      # opened, authored or committed a commit of, or pushed to its head
-      # branch (the repository activity API, one page) fails too, since its
-      # head can rewrite the review callers; it still needs
-      # both lanes otherwise. Those reads run only once a trust-gate path
-      # matched, and an unreadable base config, PR, commit list or push
-      # history, or a short commit list or full push page, fails closed. A draft is exempt
-      # (see `Note a draft`). pr-dispatch-feedback.yml re-runs this job when a
-      # review run completes, and after a listed person's approval
-      # (pr-review-approved.yml). An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
       # step it lists with no conclusion, or not at all, proves nothing either
       # way. Then the job's own check-run annotations decide. The review
@@ -7400,7 +7432,7 @@ jobs:
       # can forge the step list. An unreadable annotation list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
       - name: Require both review lanes on this head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft == false || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -7413,7 +7445,7 @@ jobs:
           # A contract-only run (a label flip or body edit) does not wait: it
           # holds no review the full run's wait would not, and each would keep
           # a runner.
-          REVIEW_WAIT_SECONDS: ${{ (github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
+          REVIEW_WAIT_SECONDS: ${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
           REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
@@ -7443,7 +7475,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/scripts/intake-triage/triage-rubric.txt' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-repin-ci-workflows.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/scripts/lib/github-client.mjs' '.github/scripts/lib/trusted-actors.mjs' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/lib/lane-vocabulary.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/lib/lane-branch.mjs' '.github/scripts/lib/lane-registry.mjs' '.github/lane-registry.json' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' '.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh' '.github/scripts/post-merge-demotion-alert/file-demotion-issue.sh' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/spec-source.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/scripts/intake-triage/size-split.mjs' '.github/scripts/intake-triage/issue-spec.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.github/scripts/diff-chunking/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/scripts/intake-triage/triage-rubric.txt' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/scripts/pr-unblock/test-scope.mjs' '.github/scripts/pr-unblock/declare-test-scope.mjs' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-repin-ci-workflows.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns
@@ -7514,10 +7546,9 @@ jobs:
                 # swaps: one "<owner>/<repo> <new SHA>" line per new ref, or
                 # nothing when any file or line falls outside the shape.
                 swaps=
-                if [ "$owners" != '[]' ] && [ -s "$RUNNER_TEMP/pr-files.json" ]; then
-                  swaps=$(jq -nr --argjson owners "$owners" '
-                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>(?<owner>[A-Za-z0-9]+(-[A-Za-z0-9]+)*)/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$")
-                      | select(.owner | ascii_downcase | IN($owners[]));
+                if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
+                  swaps=$(jq -nr '
+                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>[A-Za-z0-9]+(-[A-Za-z0-9]+)*/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$");
                     def blocks: reduce ((split("\n") | map(sub("\r$"; "")))[], "") as $l ({done: [], cur: []};
                       if $l | test("^[-+]") then .cur += [$l] elif .cur == [] then . else .done += [.cur] | .cur = [] end) | .done;
                     [inputs | arrays[]] as $files
@@ -7533,16 +7564,30 @@ jobs:
                     else empty end' "$RUNNER_TEMP/pr-files.json") || swaps=
                 fi
                 if [ -n "$swaps" ]; then
-                  untagged=
+                  untagged='' untrusted=''
                   while read -r repo sha; do
                     if ! tags=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote --tags "https://github.com/$repo") ||
                       ! awk -v sha="$sha" '$1 == sha && index($2, "refs/tags/") == 1 { found = 1 } END { exit !found }' <<<"$tags"; then
                       untagged="$untagged $repo@$sha"
                     fi
+                    jq -e --arg owner "${repo%%/*}" 'any(.[]; . == ($owner | ascii_downcase))' <<<"$owners" >/dev/null || untrusted="$untrusted $repo"
                   done <<<"$swaps"
-                  if [ -z "$untagged" ]; then
+                  if [ -z "$untagged$untrusted" ]; then
                     echo "#$PR_NUMBER by Dependabot changes only the ref of actions by owners in merge.dependabot.trusted-action-owners ($owners), each to a tagged commit, on trust-gate paths:${held//%/%25}, which clears the trust-gate hold (owner decision Q-ANTHROPIC-DEPS); the review lanes are not required."
                     exit 0
+                  fi
+                  if [ -z "$untagged" ]; then
+                    if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
+                      comments=$(read_api "the comments of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) &&
+                      jq -es --argjson app "$LANES_APP_ID" --arg head "$HEAD_SHA" '[add[] | select(.user.id == $app and .user.type == "Bot"
+                          and (.body | strings | startswith("<!-- pr-unblock:review-dependency-round ")))]
+                        | length > 0 and (max_by([.created_at, .id]).body | split("\n")[0] | sub("\r$"; "")
+                          | test("^<!-- pr-unblock:review-dependency-round head=\($head) verdict=merge run=[1-9][0-9]*-[1-9][0-9]* -->$"))' <<<"$comments" >/dev/null; then
+                      echo "#$PR_NUMBER by Dependabot changes only the ref of actions, each to a tagged commit, on trust-gate paths:${held//%/%25}, and the lanes App's newest review-dependency round marker names $HEAD_SHA with verdict=merge, which clears the trust-gate hold (owner decision 2026-11-23, dependency review verdict for any owner); the review lanes are not required."
+                      exit 0
+                    fi
+                    echo "::error::#$PR_NUMBER by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:${held//%/%25}, and merge.dependabot.trusted-action-owners does not list the owner of:$untrusted. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head."
+                    exit 1
                   fi
                   echo "No tag of the action's repository points to, or its tag list could not be read for:$untagged, so the trusted-owner exception does not apply."
                 fi

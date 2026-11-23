@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for size_check.py: the crossing test against a scratch repository."""
-
 from __future__ import annotations
 
 import json

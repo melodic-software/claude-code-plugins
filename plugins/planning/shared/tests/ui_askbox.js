@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// One Ask Claude box (follow-up item 2), against `share.sh ensure-running` with the fake cloudflared: a guest's Ask
-// Claude panel and a question's Ask Claude form show no kind picker (Ask, Research, Explore) but a "Use the web" chip,
-// off by default; a request goes as `ask`, or as `research` with the chip on; the note says Claude works out how to
-// answer; the owner keeps the Ask, Research and Explore tabs and gets no chip.
-//   node plugins/planning/shared/tests/ui_askbox.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (follow-up item 2) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -29,7 +22,6 @@ async function main() {
     const sent = text => until(owner, t => (window.Core.snapshot()?.requests || []).some(r => r.text === t), text, 8000)
       .then(() => owner.evaluate(t => window.Core.snapshot().requests.find(r => r.text === t)?.kind, text));
 
-    // ---------- the Ask Claude panel: one box and a Use the web chip ----------
     await ann.click(".vf-asktop");
     await until(ann, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
     const panel = await ann.evaluate(() => {
@@ -44,7 +36,7 @@ async function main() {
     await ann.fill("#vf-ap-ta", PLAIN);
     await ann.click(".vf-apform button[type=submit]");
     ok("sent with the chip off, it goes as an ask", (await sent(PLAIN)) === "ask");
-    await ann.waitForTimeout(1200); // one request a second per person
+    await ann.waitForTimeout(1200);
     await ann.click(".vf-drawer .vf-webchip");
     ok("pressing Use the web turns it on", (await ann.getAttribute(".vf-drawer .vf-webchip", "aria-pressed")) === "true");
     await ann.fill("#vf-ap-ta", WEB);
@@ -53,7 +45,6 @@ async function main() {
     ok("the chip is off again after sending", await until(ann, () => document.querySelector(".vf-drawer .vf-webchip").getAttribute("aria-pressed") === "false"));
     await ann.keyboard.press("Escape");
 
-    // ---------- a question's Ask Claude form: the same ----------
     await ann.waitForTimeout(1200);
     const aria = await ann.evaluate(() => { const b = document.querySelector(".vf-askbtn"); return { pop: b.getAttribute("aria-haspopup"), ctl: b.getAttribute("aria-controls"), form: document.querySelector(".vf-askform").id, chev: !!b.querySelector(".vf-chev") }; });
     ok("the question's Ask Claude button claims no menu: it controls the ask form, with no chevron (B4)", aria.pop === null && aria.ctl === aria.form && !!aria.form && !aria.chev, JSON.stringify(aria));
@@ -70,7 +61,6 @@ async function main() {
     await ann.click(".vf-askform button[type=submit]");
     ok("sent from the question with Use the web on, it goes as research", (await sent(INLINE)) === "research");
 
-    // ---------- the owner keeps the picker ----------
     await owner.click(".vf-asktop");
     await until(owner, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
     const own = await owner.evaluate(() => {

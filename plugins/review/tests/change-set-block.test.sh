@@ -28,7 +28,6 @@ assert_lacks() {
   case "$2" in *"$3"*) fail "$1" "must not contain: $3" ;; *) pass "$1" ;; esac
 }
 
-# The first fenced bash block after the "Identify the change set" step.
 extract_block() {
   awk '
     /Identify the change set/ { seen = 1 }
@@ -55,7 +54,6 @@ done
 
 printf '%s\n' "$BLOCK" >"$TMP/block.sh"
 
-# gh fails on PATH so no PR base resolves and no network is used.
 mkdir -p "$TMP/bin"
 printf '#!/bin/sh\nexit 1\n' >"$TMP/bin/gh"
 chmod +x "$TMP/bin/gh"
@@ -66,14 +64,13 @@ init_repo() {
   git -C "$1" config user.name "test"
   git -C "$1" config core.autocrlf false
 }
-commit_file() { # <repo> <file> <content> <message>
+commit_file() {
   printf '%s\n' "$3" >"$1/$2"
   git -C "$1" add "$2"
   git -C "$1" commit -q -m "$4"
 }
 run_block() { (cd "$1" && PATH="$TMP/bin:$PATH" bash "$TMP/block.sh" 2>&1); }
 
-# Fixture: a bare "remote" with main and a feature branch two commits ahead.
 BARE="$TMP/remote.git"
 SEED="$TMP/seed"
 init_repo "$SEED"
@@ -84,7 +81,6 @@ commit_file "$SEED" two.txt "feature-line-two" "feature two"
 git clone -q --bare "$SEED" "$BARE"
 git -C "$BARE" symbolic-ref HEAD refs/heads/main
 
-# (a) no origin remote, clean tree, two commits on a feature branch
 A="$TMP/a"
 init_repo "$A"
 commit_file "$A" base.txt "base-line" "base"
@@ -95,7 +91,6 @@ OUT="$(run_block "$A")"
 assert_contains "(a) no remote: reports UNRESOLVED-BASE" "$OUT" "UNRESOLVED-BASE"
 assert_lacks "(a) no remote: no committed change is emitted as a diff" "$OUT" "feature-line"
 
-# (b) depth-1 single-branch clone, the actions/checkout shape
 B="$TMP/b"
 git clone -q --depth 1 -b feature "file://$BARE" "$B"
 OUT="$(run_block "$B")"
@@ -103,7 +98,6 @@ assert_contains "(b) shallow clone: reports UNRESOLVED-BASE" "$OUT" "UNRESOLVED-
 assert_contains "(b) shallow clone: names the clone as shallow" "$OUT" "shallow: true"
 assert_lacks "(b) shallow clone: no committed change is emitted as a diff" "$OUT" "feature-line"
 
-# (c) positive: full clone with origin/main present emits the real diff
 C="$TMP/c"
 git clone -q -b feature "file://$BARE" "$C"
 OUT="$(run_block "$C")"

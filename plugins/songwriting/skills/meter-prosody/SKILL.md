@@ -94,8 +94,12 @@ other invents symmetry. A chorus that reads 8/9/9/8 by raw syllables can be 3/4/
 the stress map has not been marked, the length claim has not been made: mark it, or say the box
 was skipped.
 
-## Related skills
+## Next
 
-- Section identification, form-fit, hook placement → `/songwriting:song-form`
-- Rhyme position and stability → `/songwriting:rhyme strategy`
-- Whole-draft diagnosis → `/songwriting:diagnose`
+/songwriting:co-write
+
+## Related
+
+- Section identification, form-fit, and hook placement: /songwriting:song-form.
+- Rhyme position and stability: /songwriting:rhyme.
+- Whole-draft diagnosis: /songwriting:diagnose.

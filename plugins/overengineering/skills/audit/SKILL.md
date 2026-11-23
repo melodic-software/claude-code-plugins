@@ -278,6 +278,13 @@ records why and holds the pointer.
 
 `/overengineering:realign`. It executes accepted findings from this run's artifact.
 
+## Related
+
+- Judging one non-enforcement artifact or unbuilt proposal: /overengineering:justify.
+- Reporting only enforcement changes since last run: /overengineering:delta.
+- Finding missing automation to add: /harness-config:audit-automation-gaps.
+- Auditing stale or over-prescriptive instruction text: /harness-config:audit-instructions.
+
 ## Gotchas
 
 - **A layer-scoped pass is not a retirement of what it did not look at.** Findings in unwalked layers

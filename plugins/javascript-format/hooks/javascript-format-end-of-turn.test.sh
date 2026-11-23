@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/javascript-format/hooks/javascript-format.test.sh
 # Contract tests for the opt-in Stop row (javascript_format_end_of_turn), launched
 # exactly as hooks.json registers it: off by default; on, an uncommitted finding
 # exits 2 with the finding on stderr and nothing is rewritten; stop_hook_active

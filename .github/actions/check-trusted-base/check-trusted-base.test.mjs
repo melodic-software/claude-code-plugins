@@ -56,7 +56,6 @@ before(() => {
   sha.D = git(work, "rev-parse", "HEAD");
   git(root, "clone", "-q", "--bare", work, "origin.git");
 
-  // A gh stand-in answering the PR read with the base branch in $FAKE_BASE_REF.
   const bin = path.join(root, "bin");
   mkdirSync(bin);
   const gh = path.join(bin, "gh");

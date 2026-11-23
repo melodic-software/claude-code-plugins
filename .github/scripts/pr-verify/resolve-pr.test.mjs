@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { createHash } from "node:crypto";
 
-import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
@@ -119,8 +119,12 @@ const ciStatusJobs = (draftStep) => ({
 const DRAFT_JOBS = ciStatusJobs("success");
 const READY_JOBS = ciStatusJobs("skipped");
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {} } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {}, prFiles = [{ filename: "docs/a.md", status: "modified" }] } = {}) {
   const github = async (method, apiPath, body) => {
+    if (apiPath === `/repos/${REPO}/pulls/41/files?per_page=100`) {
+      if (prFiles === null) throw new Error(`GET ${apiPath} failed with status 502`);
+      return prFiles;
+    }
     // GET /compare/{base}...{head}: the pull request's changed files, as
     // `files` holds them; with none given the read fails.
     if (apiPath === `/repos/${REPO}/compare/${BASE}...${HEAD}`) {
@@ -1376,6 +1380,20 @@ test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
 });
 
+test("the lanes App's PR changing only merge.baseline-file is not judged; any other file or author, or no file set, is", async () => {
+  const file = "docs/upstream/claude-code-native-surfaces.min.json";
+  const baseline = { filename: file, status: "modified" };
+  const app = { laneAppId: 337595936, baselineFile: file };
+  assert.equal(await reason({ prFiles: [baseline] }, app), "native-baseline");
+  assert.equal(await reason({ prFiles: [baseline, { filename: "docs/a.md", status: "added" }] }, app), "ok");
+  assert.equal(await reason({ prFiles: [{ ...baseline, status: "renamed", previous_filename: "docs/upstream/old.json" }] }, app), "ok");
+  assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: LANE, type: "Bot" } })], prFiles: [baseline] }, app), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { laneAppId: 337595936 }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "" }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "docs/upstream/other.json" }), "ok");
+  await assert.rejects(resolve({ prFiles: null }, app), /pulls\/41\/files/);
+});
+
 test("a PR the lanes App opened is judged, matched across login spellings", async () => {
   assert.equal(await reason({ pulls: [pull()] }), "ok");
   const spelled = pull({ user: { id: 337595936, login: "Melodic-Automation-Lanes", type: "Bot" } });
@@ -2598,11 +2616,7 @@ for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
     const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
-    const { child } = vector;
-    const ownAgent =
-      (child.labels ?? []).filter((name) => /^source:/i.test(name)).length === 1 &&
-      appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
-    assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
 

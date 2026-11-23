@@ -264,7 +264,6 @@ default_branch() {
 declare -a PLAN_REPO=() PLAN_ACTION=() PLAN_BRANCH=() PLAN_NOTE=() PLAN_RC=() PLAN_RUNG=()
 rung=""
 
-# add_plan <repo> <action> <branch> <note> [<git-exit>]
 add_plan() {
   PLAN_REPO+=("$1")
   PLAN_ACTION+=("$2")
@@ -326,7 +325,6 @@ if [[ "$YES" -ne 1 ]]; then
   esac
 fi
 
-# report_skip <repo> <reason> <git-exit|none> <remedy> [<extra column>]
 report_skip() {
   local extra=${5:+$'\t'"$5"}
   printf 'skipped\t%s\t%s%s\tgit-exit=%s\tremedy=%s\trung=%s\n' "$1" "$2" "$extra" "$3" "$4" "$rung"

@@ -227,6 +227,11 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 - /session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill
   the session missed.
 
+## Related
+
+- Mid-session retro checkpoint before end of session: /session-flow:running-retro.
+- Set a deletion watch on an added instruction: /harness-config:unhobble.
+
 ## Gotchas
 
 - **Run all phases by default** in session mode. Skip metrics only when the parser fails or the

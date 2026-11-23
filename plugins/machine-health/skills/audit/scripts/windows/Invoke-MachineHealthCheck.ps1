@@ -124,7 +124,6 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
 . (Join-Path $libRoot 'Publish-CheckupView.ps1')
 
-# stderr keeps stdout clean for the JSON snapshot.
 function Write-StderrBanner {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)] [string[]] $Line)
@@ -148,8 +147,6 @@ $effectiveDry = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
 $elevated = Test-IsElevated
 $osVersion = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Version } catch { 'unknown' }
 
-# Normalize and prepare output roots. Reports are user-facing and live under
-# OutputBase; state and logs are machine state and live under StateBase.
 if ([string]::IsNullOrWhiteSpace($OutputBase)) { $OutputBase = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 $OutputBase = [System.IO.Path]::GetFullPath($OutputBase)
 if ([string]::IsNullOrWhiteSpace($StateBase)) {
@@ -310,7 +307,6 @@ try {
         Initialize-Directory -Path $logsDir
         $runLog = Join-Path $logsDir "run-$runDate.log"
         $remedLog = Join-Path $logsDir "remediation-$runDate.log"
-        # Bind LogPath once for the 30+ orchestrator-local Write-MachineHealthLog calls below.
         $PSDefaultParameterValues['Write-MachineHealthLog:LogPath'] = $runLog
     } else {
         $runLog = $null
@@ -404,9 +400,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     $shippedIds = @($catalog.checks | Where-Object { $_ -and $_.PSObject.Properties['id'] } | ForEach-Object { [string]$_.id })
     $customIds = @()
 
-    # Machine-local catalog overlay: disable/deprecate/demote shipped checks or
-    # register custom ones without editing the plugin install (a plugin update
-    # would overwrite it). See reference/shared/catalog-overlay.md.
     $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
     if (Test-Path -LiteralPath $overlayPath) {
         try {
@@ -495,8 +488,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     }
     $windowsChecks = @($selection.due)
 
-    # Per-run battery report path -- a run-scoped file the battery check writes and
-    # reads for wear/capacity analysis. runStamp keeps same-day reruns distinct.
     $batteryReportPath = if ($stateWritable) { Join-Path $logsDir "battery-report-$runStamp.html" } else { $null }
 
     $checkResults = [System.Collections.Generic.List[object]]::new()
@@ -510,7 +501,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
                         "'$($stateLocation.Folder)'); no state was written and no remediation ran.") `
                     -ErrorReason 'state_under_sync_root'))
     }
-    # Mutes reach checks only as an argument; checks never read mutes.json.
     $muteState = Get-MuteState -StateDir $stateDir
     foreach ($entry in $windowsChecks) {
         $scriptPath = Join-Path $skillRoot $entry.script
@@ -572,8 +562,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "trend_analysis_failed $($_.Exception.Message)"
     }
 
-    # Cross-finding correlation: pair related findings + upgrade severity per
-    # reference/shared/correlation-rules.md. Additive; never downgrades.
     try {
         $checkResults = @(Invoke-FindingCorrelation -CheckResults $checkResults)
     } catch {
@@ -597,7 +585,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "custom_clamp_failed $($_.Exception.Message)"
     }
 
-    # Remediation dispatch (dry-run-aware, user-load-aware, approval-gated via approvals.json)
     $remediationAttempts = [System.Collections.Generic.List[object]]::new()
     $remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded) -and $stateWritable
     $skipReason = if ($effectiveDry) { 'dry_run' } elseif ($userLoaded) { 'user_load' } elseif (-not $stateWritable) { 'state_location' } else { 'disabled' }
@@ -919,10 +906,6 @@ $glanceRows
 
         $raw = Get-Content -LiteralPath $TemplatePath -Raw
 
-        # The report-template.md file is a spec document that embeds the actual
-        # template inside a fenced markdown code block (```markdown ... ```).
-        # Extract that block so the spec doesn't bleed into the rendered report.
-        # With no fenced block, the entire file is the template.
         $match = [regex]::Match($raw, '(?ms)^```markdown\s*\r?\n(.*?)\r?\n```\s*$')
         return $match.Success ? $match.Groups[1].Value : $raw
     }
@@ -980,7 +963,6 @@ $glanceRows
     $report | Out-File -LiteralPath $reportPath -Encoding utf8 -Force
     Write-MachineHealthLog "wrote_report path=$reportPath"
 
-    # Decision page, built from latest.json after the report.
     $pagePath = Publish-CheckupView -StateWritable $stateWritable -StateBase $StateBase -LatestPath $latestPath `
         -RunStamp $runStamp -ReportPath $reportPath
     Write-MachineHealthLog "run_end run_id=$runId duration_seconds=$durationSeconds"

@@ -174,10 +174,6 @@ else
   [[ "${common_dir##*/}" != .git ]] || main_root="$(cd -- "${common_dir%/*}" 2>/dev/null && pwd -P)"
 fi
 
-# A cd that fails is FATAL. The header prints the requested root, so a run that
-# stayed in the invoking directory would attribute that directory's plugins,
-# skills and handlers to a root they have nothing to do with. The `--` lets a
-# relative root beginning with a dash be entered rather than parsed as an option.
 if [[ ! -d "$project_root" ]] || ! cd -- "$project_root" 2>/dev/null; then
   printf 'inventory.sh: project root %s is not a directory this run could enter; no counts were produced.\n' \
     "$project_root" >&2
@@ -214,8 +210,6 @@ fi
 notes=()
 note() { notes+=("$1"); }
 
-# Classify one JSON surface. A path that exists but is not a readable regular
-# file is unreadable, not absent.
 json_status() {
   local f="$1"
   if [[ -z "$f" ]]; then
@@ -233,9 +227,6 @@ json_status() {
   fi
 }
 
-# Classify one directory scope before anything walks it. A symlink to a
-# directory is walked; a dangling symlink, a file in a directory's place, or a
-# directory this uid cannot open is unreadable.
 dir_status() {
   local d="$1"
   if [[ -z "$d" ]]; then
@@ -249,12 +240,6 @@ dir_status() {
   fi
 }
 
-# The only tree walk: start points, a literal --, then the find expression.
-#   -H       descends a symlinked START POINT only, so a symlink loop inside the
-#            tree cannot trap the walk.
-#   prune    .git/hooks/*.sample files are nobody's hook scripts, and a vendored
-#            node_modules tree can carry any layout.
-#   -print0  a newline inside a path cannot split one record into two.
 find0() {
   local dirs=()
   while [[ "$#" -gt 0 && "$1" != "--" ]]; do
@@ -266,8 +251,6 @@ find0() {
   find -H "${dirs[@]}" \( -name .git -o -name node_modules \) -prune -o \( "$@" \) -print0 2>/dev/null
 }
 
-# Counts a NUL-delimited stream on stdin; wc -l would over-count a path holding
-# a newline.
 count0() { tr -cd '\000' | wc -c | tr -d ' '; }
 
 # A settings file names its hook block under the `hooks` key; a plugin manifest
@@ -278,8 +261,6 @@ SETTINGS_HANDLERS_JQ='[(.hooks // {}) | to_entries[] | .value[]? | (.hooks // []
 PLUGIN_EVENTS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | .key] | length'
 PLUGIN_HANDLERS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | .value[]? | (.hooks // []) | length] | add // 0'
 
-# Runs one jq program over one file and prints its number. A failed run, or a
-# result that is not a non-negative integer, prints NOTHING and returns 1.
 jq_num() {
   local program="$1" file="$2" out
   out="$("$jq_bin" -r "$program" "$file" 2>/dev/null)" || return 1
@@ -293,8 +274,6 @@ jq_num() {
 # because an array answers most count programs without erroring.
 jq_type() { "$jq_bin" -r "$1 | type" "$2" 2>/dev/null; }
 
-# Discovered plugin roots. `.claude-plugin/plugin.json` is the documented marker,
-# and the depth bound keeps the walk off vendored trees.
 plugin_roots=()
 while IFS= read -r -d '' manifest; do
   [[ -n "$manifest" ]] || continue
@@ -302,7 +281,6 @@ while IFS= read -r -d '' manifest; do
 done < <(find -H . -maxdepth 4 \( -name .git -o -name node_modules \) -prune -o \
   -type f -path '*/.claude-plugin/plugin.json' -print0 2>/dev/null)
 
-# Walks every discovered plugin root, or emits nothing when there is none.
 find0_plugin_roots() {
   [[ "${#plugin_roots[@]}" -gt 0 ]] || return 0
   find0 "${plugin_roots[@]}" -- "$@"
@@ -310,8 +288,6 @@ find0_plugin_roots() {
 
 count_in_plugin_roots() { find0_plugin_roots "$@" | count0; }
 
-# Counts files under one classified directory scope: a number only for a scope
-# actually walked, else its status word.
 count_dir() {
   local status="$1" dir="$2"
   shift 2
@@ -322,9 +298,6 @@ count_dir() {
   esac
 }
 
-# Adds two figures either of which may be a status word rather than a number.
-# A status word on either side makes the sum a floor, and it is printed as the
-# two parts rather than collapsed into a number that was never measured.
 add_counts() {
   case "$1$2" in
   *[!0-9]*) printf '%s+%s' "$1" "$2" ;;
@@ -332,11 +305,6 @@ add_counts() {
   esac
 }
 
-# One scope's contribution to a total: the number of files read from it, or its
-# status word when the scope exists and could not be walked. Every scope that
-# feeds a Components figure goes through this, so no scope can reach a total as
-# a 0 it did not earn. count_dir applies the same rule to a scope it walks
-# itself; this one is for a scope whose files were already gathered into a list.
 scope_count() {
   case "$1" in
   present | absent) printf '%s' "$2" ;;
@@ -344,10 +312,6 @@ scope_count() {
   esac
 }
 
-# Counts files whose YAML frontmatter opens a top-level `hooks:` block. The walk
-# is frontmatter-only: a `hooks:` line in a skill body is prose about hooks, not
-# a hook registration. awk prints only the tally and never a path, so a newline
-# inside a path cannot be mistaken for a record separator on the way out either.
 count_frontmatter_hooks() {
   local list="$1" f
   local files=()
@@ -372,7 +336,6 @@ row() {
   printf '  %-20s %-12s %-11s %7s %9s %8s  %s\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7"
 }
 
-# --- Hook locations -----------------------------------------------------------
 
 # Reads one settings-shaped file's hook block into three globals instead of
 # printing them. note() appends to an array, and a command substitution would run
@@ -416,16 +379,6 @@ settings_row() {
   row "$label" "$shc_status" standing 1 "$declaring" "$shc_handlers" "$file"
 }
 
-# The managed-policy row covers managed-settings.json TOGETHER WITH the readable
-# managed-settings.d drop-ins, because those drop-ins merge on top of the base
-# file rather than sitting beside it; the policy's standing hooks may live
-# entirely in the drop-ins. A drop-in that could not be read contributes its
-# status word instead of a count, so the figures render in the add_counts floor
-# form rather than as a total nobody measured.
-#
-# Registrations, not the de-duplicated effective set: the merge concatenates and
-# de-duplicates arrays, so a handler registered identically in the base file and
-# in a drop-in is one entry in force and two here. The drop-in note says so.
 managed_policy_row() {
   local base="$1" dropin_dir="$2" dropin_status="$3"
   local drops=() f base_status floor="" probed_floor=""
@@ -476,8 +429,6 @@ managed_policy_row() {
     note "managed-settings.d exists at $dropin_dir with ${#drops[@]} drop-in file(s); they merge on top of managed-settings.json and are counted in the managed-policy row above. That row counts registrations read, so a handler written identically in two of these files is one entry in force and two there."
   fi
 
-  # Nothing was read: the row carries the base file's status as a single-file
-  # row would.
   if [[ "$read_any" -eq 0 ]]; then
     row managed-policy "$base_status" standing "$probed" - - "$base"
     return
@@ -530,11 +481,6 @@ plugin_hook_row() {
     "${#plugin_roots[@]} plugin roots, $total_events event slots"
 }
 
-# scope_status is the project-scope directory that feeds this list alongside the
-# plugin roots. An empty list is only an ABSENCE when that scope was actually
-# walked; when the scope exists and could not be walked, the row carries its
-# status word and no counts at all, because 0 there would be the same claim the
-# whole file exists to stop making.
 frontmatter_row() {
   local label="$1" listfile="$2" source_label="$3" scope_status="$4" scanned declaring
   scanned="$(count0 <"$listfile")"
@@ -566,11 +512,6 @@ for scope_pair in "skills:$skills_dir_status" "agents:$agents_dir_status" "hooks
   esac
 done
 
-# Each list is filled in two passes, plugin roots first and the project scope
-# second, so the two contributions stay separable. The project scope's share is
-# then rendered through scope_count, which substitutes its status word when the
-# scope could not be walked. A list is therefore always what was READ, and the
-# total beside it always says when it is only a floor.
 skill_list="$tmpdir/skills"
 agent_list="$tmpdir/agents"
 : >"$skill_list"
@@ -607,7 +548,6 @@ plugin_hook_row
 frontmatter_row skill-frontmatter "$skill_list" "$skills_total SKILL.md" "$skills_dir_status"
 frontmatter_row subagent-frontmatter "$agent_list" "$agents_total agent definitions" "$agents_dir_status"
 
-# --- Components ---------------------------------------------------------------
 
 hook_scripts="$(count_in_plugin_roots -type f -path '*/hooks/*' ! -name '*.json' ! -name '*.test.sh')"
 project_hook_scripts="$(count_dir "$hooks_dir_status" .claude/hooks -type f ! -name '*.json' ! -name '*.test.sh')"
@@ -623,10 +563,6 @@ mcp_candidates() {
   find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'
 }
 
-# mcp_files counts the .mcp.json files this run EXAMINED, readable or not, and
-# mcp_floor carries the status word of the first one it could not measure. A
-# file that exists and could not be parsed therefore leaves the server figure in
-# the add_counts floor form rather than at a numeric 0.
 mcp_servers=0
 mcp_files=0
 mcp_floor=""
@@ -667,7 +603,6 @@ printf '  mcp servers          %s across %s .mcp.json file(s)\n' "$mcp_servers" 
 printf '  hook scripts on disk %s in plugin hooks/ dirs, %s in .claude/hooks (+%s test scripts)\n' \
   "$hook_scripts" "$project_hook_scripts" "$hook_tests"
 
-# --- Enablement inputs --------------------------------------------------------
 
 ENABLED_ON_JQ='[(.enabledPlugins // {}) | to_entries[] | select(.value == true)] | length'
 ENABLED_OFF_JQ='[(.enabledPlugins // {}) | to_entries[] | select(.value == false)] | length'
@@ -716,7 +651,6 @@ if [[ -f .claude-plugin/marketplace.json && "$have_jq" -eq 1 ]]; then
 fi
 printf '  No effective enablement is computed here. Run /harness-ops:plugins-audit for the verdict.\n'
 
-# --- Notes --------------------------------------------------------------------
 
 note "A hook script on disk is not a wired hook: the Components counts are files present, and only the HANDLERS column counts entries a settings file or manifest actually registers."
 note "skill-frontmatter and subagent-frontmatter rows are conditional, so they are not part of the standing set: a skill's hooks register only once that skill is invoked, and a subagent's only while that subagent runs. Do not fold them into the always-on set."

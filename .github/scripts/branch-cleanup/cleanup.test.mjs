@@ -63,7 +63,6 @@ function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, r
     }
     throw new Error(`unexpected GET ${path}`);
   };
-  // The same answers as the client gives: a GraphQL errors list throws.
   const call = async (method, path, body) => {
     const answer = respond(method, path, body);
     if (answer?.errors) throw new Error(`POST /graphql: ${answer.errors.map((e) => e.message).join("; ")}`);

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for discover-instruction-surfaces.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +15,6 @@ run_in() {
   (cd "$proj" && CLAUDE_CONFIG_DIR="$conf" bash "$SCRIPT" "$@")
 }
 
-# --- fixtures ----------------------------------------------------------------
 
 PROJ="$TEST_TMPDIR/proj"
 CONF="$TEST_TMPDIR/conf"
@@ -32,9 +30,6 @@ printf '# subtree memory, out of scope\n' >"$PROJ/sub/CLAUDE.md"
 printf '# user memory\n' >"$CONF/CLAUDE.md"
 printf '# a user rule\n' >"$CONF/rules/user-rule.md"
 
-# --- the regression this script exists for -----------------------------------
-# A `find . -maxdepth 1` rooted at the cwd reaches neither user-scope surface.
-# These two assertions are what discriminate such an implementation.
 
 OUT="$(run_in "$PROJ" "$CONF")"
 RC=$?
@@ -45,24 +40,18 @@ assert_contains "user-scope CLAUDE.md carries the user tag" "$OUT" "$(printf 'us
 assert_contains "user-scope rule is discovered" "$OUT" "$CONF/rules/user-rule.md"
 assert_contains "user-scope rule carries the user tag" "$OUT" "$(printf 'user\trule\t%s' "$CONF/rules/user-rule.md")"
 
-# --- project scope still works, and is still tagged --------------------------
 
 assert_contains "project CLAUDE.md is tagged project" "$OUT" "$(printf 'project\tclaude-md\tCLAUDE.md')"
 assert_contains "CLAUDE.local.md gets its own kind" "$OUT" "$(printf 'project\tclaude-local-md\tCLAUDE.local.md')"
 assert_contains "project rule is tagged project" "$OUT" "$(printf 'project\trule\t.claude/rules/project-rule.md')"
 
-# --- scope tagging is what lets C9 skip personal files -----------------------
-# C9 is project-scoped. The caller routes on the emitted scope, so a user-scope
-# file must never be emitted with a project tag.
 
 assert_not_contains "user CLAUDE.md is never tagged project" "$OUT" "$(printf 'project\tclaude-md\t%s' "$CONF/CLAUDE.md")"
 
-# --- exclusions --------------------------------------------------------------
 
 assert_not_contains "non-.md under rules is not discovered" "$OUT" "nested-not-a-rule.txt"
 assert_not_contains "subtree CLAUDE.md is out of scope (depth 1 by design)" "$OUT" "sub/CLAUDE.md"
 
-# --- --scope filter ----------------------------------------------------------
 
 OUT_USER="$(run_in "$PROJ" "$CONF" --scope user)"
 assert_contains "--scope user emits user surfaces" "$OUT_USER" "$CONF/CLAUDE.md"
@@ -72,7 +61,6 @@ OUT_PROJ="$(run_in "$PROJ" "$CONF" --scope project)"
 assert_contains "--scope project emits project surfaces" "$OUT_PROJ" "$(printf 'project\tclaude-md\tCLAUDE.md')"
 assert_not_contains "--scope project suppresses user surfaces" "$OUT_PROJ" "$(printf 'user\t')"
 
-# --- absent surfaces are absent, not errors ----------------------------------
 
 EMPTY_PROJ="$TEST_TMPDIR/empty-proj"
 EMPTY_CONF="$TEST_TMPDIR/empty-conf"
@@ -87,7 +75,6 @@ else
   fail "emits nothing when no surface exists" "got: $OUT_EMPTY"
 fi
 
-# A config root that does not exist at all must not crash the run.
 OUT_NOCONF="$(run_in "$PROJ" "$TEST_TMPDIR/does-not-exist")"
 RC_NOCONF=$?
 assert_exit "exits 0 when the config root is absent" 0 "$RC_NOCONF"
@@ -111,9 +98,6 @@ else
   pass "skipped: cygpath unavailable (not Git Bash)"
 fi
 
-# --- the dotfiles case: project root IS the config root's parent -------------
-# `.claude/rules` from cwd and $CONFIG/rules are then the SAME directory; each
-# file must be emitted once, not twice under two path spellings.
 
 HOMEREPO="$TEST_TMPDIR/homerepo"
 mkdir -p "$HOMEREPO/.claude/rules"
@@ -133,22 +117,15 @@ assert_contains "the overlapping rule is tagged both" "$OUT_HOME" "$(printf 'bot
 assert_not_contains "the overlapping rule is not also tagged project" "$OUT_HOME" "$(printf 'project\trule\t')"
 assert_not_contains "the overlapping rule is not also tagged user" "$OUT_HOME" "$(printf 'user\trule\t')"
 
-# In THIS layout (repo rooted at ~) the two CLAUDE.md files really are distinct:
-# project discovery is depth-1 at the cwd, the user copy is one level down.
 assert_contains "repo-root CLAUDE.md is still project" "$OUT_HOME" "$(printf 'project\tclaude-md\tCLAUDE.md')"
 assert_contains "config-root CLAUDE.md is still user" "$OUT_HOME" "$(printf 'user\tclaude-md\t%s/CLAUDE.md' "$HOMEREPO/.claude")"
 
-# --- the OTHER dotfiles layout: the repo IS the config root ------------------
-# `~/.claude` tracked as the repo. Now `CLAUDE.md` at depth 1 and
-# `$config_root/CLAUDE.md` are the SAME file, and the rules dirs coincide too.
 
 CONFREPO="$TEST_TMPDIR/confrepo"
 mkdir -p "$CONFREPO/rules"
 printf '# the one CLAUDE.md\n' >"$CONFREPO/CLAUDE.md"
 printf '# the one rule\n' >"$CONFREPO/rules/only-rule.md"
 
-# cwd == config root: `.claude/rules` does not exist here, so only the CLAUDE.md
-# collision is in play — the case a rules-only overlap guard cannot catch.
 OUT_CONF="$(run_in "$CONFREPO" "$CONFREPO")"
 
 MD_ROWS="$(printf '%s\n' "$OUT_CONF" | grep -c 'claude-md' || true)"
@@ -161,20 +138,14 @@ assert_contains "the collided CLAUDE.md is tagged both" "$OUT_CONF" "$(printf 'b
 assert_not_contains "it is not also emitted as a user row" "$OUT_CONF" "$(printf 'user\tclaude-md\t')"
 assert_not_contains "it is not also emitted as a project row" "$OUT_CONF" "$(printf 'project\tclaude-md\t')"
 
-# And it satisfies either filter, same as a both-tagged rule.
 OUT_CONF_USER="$(run_in "$CONFREPO" "$CONFREPO" --scope user)"
 assert_contains "--scope user shows the both-tagged CLAUDE.md" "$OUT_CONF_USER" "$(printf 'both\tclaude-md\t')"
 
-# A distinct-config layout must not regress into a both-tagged CLAUDE.md.
 assert_not_contains "distinct roots never produce a both-tagged CLAUDE.md" "$OUT" "$(printf 'both\tclaude-md\t')"
 
-# --- each layout collides exactly ONE surface, not both ----------------------
-# Pins the asymmetry in both directions; layout 1 (repo at ~) is OUT_HOME above.
 assert_contains "layout 1 collides rules" "$OUT_HOME" "$(printf 'both\trule\t')"
 assert_not_contains "layout 1 leaves CLAUDE.md distinct" "$OUT_HOME" "$(printf 'both\tclaude-md\t')"
 
-# Layout 2 (repo at ~/.claude): CLAUDE.md collides, rules do NOT — project rules
-# would live at $config_root/.claude/rules, which is not $config_root/rules.
 CONFREPO2="$TEST_TMPDIR/confrepo2"
 mkdir -p "$CONFREPO2/rules" "$CONFREPO2/.claude/rules"
 printf '# the one CLAUDE.md\n' >"$CONFREPO2/CLAUDE.md"
@@ -193,12 +164,8 @@ assert_contains "--scope user still shows the both-tagged rule" "$OUT_HOME_USER"
 OUT_HOME_PROJ="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope project)"
 assert_contains "--scope project still shows the both-tagged rule" "$OUT_HOME_PROJ" "shared-rule.md"
 
-# The non-overlapping fixture must NOT regress into `both`.
 assert_not_contains "distinct rules dirs never produce a both tag" "$OUT" "$(printf 'both\t')"
 
-# --- a repository whose project instructions live in AGENTS.md ---------------
-# A root AGENTS.md nothing displaces is the project instructions; without its row
-# a repo that dropped its CLAUDE.md shim has nothing to audit.
 
 AGENTS_PROJ="$TEST_TMPDIR/agents-proj"
 mkdir -p "$AGENTS_PROJ"
@@ -216,17 +183,12 @@ else
   fail "a lone AGENTS.md emits exactly one project surface row" "got $AGENTS_ROWS rows: $OUT_AGENTS"
 fi
 
-# An empty AGENTS.md is emitted, the same as an empty CLAUDE.md: discovery tests
-# existence, and the size checks are the caller's (C1 reports 0 lines).
 EMPTY_AGENTS="$TEST_TMPDIR/agents-empty"
 mkdir -p "$EMPTY_AGENTS"
 : >"$EMPTY_AGENTS/AGENTS.md"
 OUT_AGENTS_EMPTY="$(run_in "$EMPTY_AGENTS" "$EMPTY_CONF")"
 assert_contains "a 0-byte AGENTS.md is still a surface" "$OUT_AGENTS_EMPTY" "$(printf 'project\tagents-md\tAGENTS.md')"
 
-# --- the shim: a CLAUDE.md that imports AGENTS.md ----------------------------
-# The import already carries AGENTS.md into the CLAUDE.md row; a second row would
-# double-count it.
 
 SHIM_PROJ="$TEST_TMPDIR/shim-proj"
 mkdir -p "$SHIM_PROJ"
@@ -236,7 +198,6 @@ printf '# project instructions\n\nreal content\n' >"$SHIM_PROJ/AGENTS.md"
 OUT_SHIM="$(run_in "$SHIM_PROJ" "$EMPTY_CONF")"
 assert_eq "a shimmed repo emits what it emitted before agents-md existed" "$(printf 'project\tclaude-md\tCLAUDE.md')" "$OUT_SHIM"
 
-# Every displacing name blocks on its own, not just CLAUDE.md.
 LOCAL_PROJ="$TEST_TMPDIR/agents-local"
 mkdir -p "$LOCAL_PROJ"
 printf '# personal overrides\n' >"$LOCAL_PROJ/CLAUDE.local.md"
@@ -251,23 +212,16 @@ printf '# project instructions\n' >"$DOTCLAUDE_PROJ/AGENTS.md"
 OUT_DOTCLAUDE="$(run_in "$DOTCLAUDE_PROJ" "$EMPTY_CONF")"
 assert_not_contains "a .claude/CLAUDE.md displaces the AGENTS.md" "$OUT_DOTCLAUDE" "$(printf 'agents-md\t')"
 
-# A user-scope CLAUDE.md does not count for that check, so it must not suppress
-# the project row.
 OUT_AGENTS_USER="$(run_in "$AGENTS_PROJ" "$CONF")"
 assert_contains "a user CLAUDE.md does not displace the AGENTS.md" "$OUT_AGENTS_USER" "$(printf 'project\tagents-md\tAGENTS.md')"
 
-# It is a project surface, so it answers the project filter and not the user one.
 OUT_AGENTS_PROJ="$(run_in "$AGENTS_PROJ" "$CONF" --scope project)"
 assert_contains "--scope project emits the agents-md row" "$OUT_AGENTS_PROJ" "$(printf 'project\tagents-md\tAGENTS.md')"
 OUT_AGENTS_USERSCOPE="$(run_in "$AGENTS_PROJ" "$CONF" --scope user)"
 assert_not_contains "--scope user suppresses the agents-md row" "$OUT_AGENTS_USERSCOPE" "$(printf 'agents-md\t')"
 
-# The fixture the rest of this suite uses has a CLAUDE.md, so it never gains one.
 assert_not_contains "no agents-md row without an AGENTS.md" "$OUT" "$(printf 'agents-md\t')"
 
-# --- .claude/AGENTS.md loads at session start too -----------------------------
-# Both AGENTS.md names load at session start with no stated precedence (memory
-# doc), so each existing file gets its own row.
 
 DOTAGENTS="$TEST_TMPDIR/agents-dot"
 mkdir -p "$DOTAGENTS/.claude"
@@ -282,7 +236,6 @@ printf '# more project instructions\n' >"$BOTHAGENTS/.claude/AGENTS.md"
 OUT_BOTHAGENTS="$(run_in "$BOTHAGENTS" "$EMPTY_CONF")"
 assert_eq "both AGENTS.md names are emitted, root first" "$(printf 'project\tagents-md\tAGENTS.md\nproject\tagents-md\t.claude/AGENTS.md')" "$OUT_BOTHAGENTS"
 
-# The displacement rule is the same for both names.
 DOTBLOCKED="$TEST_TMPDIR/agents-dot-blocked"
 mkdir -p "$DOTBLOCKED/.claude"
 printf '# project memory\n' >"$DOTBLOCKED/CLAUDE.md"
@@ -290,9 +243,6 @@ printf '# project instructions\n' >"$DOTBLOCKED/.claude/AGENTS.md"
 OUT_DOTBLOCKED="$(run_in "$DOTBLOCKED" "$EMPTY_CONF")"
 assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCKED" "$(printf 'agents-md\t')"
 
-# --- a displacer ABOVE the repository root ------------------------------------
-# A CLAUDE.md above the repository root displaces AGENTS.md too (memory doc); a
-# check that stops at the root reports a surface the session never reads.
 
 ABOVE="$TEST_TMPDIR/anc"
 mkdir -p "$ABOVE/proj"
@@ -315,8 +265,6 @@ printf '# project instructions\n' >"$ABOVE_DOT/proj/AGENTS.md"
 OUT_ABOVE_DOT="$(run_in "$ABOVE_DOT/proj" "$EMPTY_CONF")"
 assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ABOVE_DOT" "$(printf 'agents-md\t')"
 
-# The user root's own `.claude/CLAUDE.md` does not displace (memory doc); a bare
-# `CLAUDE.md` in that same directory does.
 HOMEY="$TEST_TMPDIR/homey"
 mkdir -p "$HOMEY/.claude" "$HOMEY/proj"
 printf '# user memory\n' >"$HOMEY/.claude/CLAUDE.md"
@@ -337,7 +285,6 @@ printf '# project instructions\n' >"$HOMEONLY/proj/AGENTS.md"
 OUT_HOMEONLY="$(cd "$HOMEONLY/proj" && HOME="$HOMEONLY" CLAUDE_CONFIG_DIR="$EMPTY_CONF" bash "$SCRIPT")"
 assert_contains "HOME/.claude is the user root even when CLAUDE_CONFIG_DIR names another" "$OUT_HOMEONLY" "$(printf 'project\tagents-md\tAGENTS.md')"
 
-# --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1
 assert_exit "unknown argument still exits 0 (advisory contract)" 0 "$?"

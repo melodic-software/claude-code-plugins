@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.24.1/schema/markdownlint-cli2-config-schema.json",
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
   "ignores": ["**/node_modules/**", "**/.venv/**", "**/bin/**", "**/obj/**"],
   "config": {
     "MD003": { "style": "atx" },

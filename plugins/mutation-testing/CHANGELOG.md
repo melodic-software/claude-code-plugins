@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-11-23
+
+### Changed
+
+- `setup` gains a `## Next` naming `/mutation-testing:audit`.
+
+## [0.22.2] - 2026-11-23
+
+### Changed
+
+- `/mutation-testing:audit` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
 ## [0.22.1] - 2026-11-22
 
 ### Changed

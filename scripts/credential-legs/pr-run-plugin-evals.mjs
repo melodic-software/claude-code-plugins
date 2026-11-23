@@ -1,0 +1,104 @@
+export default {
+  workflow: ".github/workflows/pr-run-plugin-evals.yml",
+  key: "run-eval",
+  legs: [
+    {
+      job: "run-eval-subscription",
+      drop: ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"],
+      replace: [
+        [
+          `  run-eval:
+    name: Run Eval
+    needs: check-key-credit
+    if: >-
+      \${{ !cancelled() && needs.check-key-credit.result == 'success' && ((github.event_name == 'workflow_dispatch'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+      || (github.event_name == 'workflow_run'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository)) }}
+`,
+          `  run-eval-subscription:
+    name: Run Eval Subscription
+    if: >-
+      vars.CLAUDE_EVALS_DISABLED == 'false' && github.event_name == 'workflow_dispatch'
+      && inputs.mode != 'compare' && inputs.credential == 'subscription'
+`,
+          1,
+        ],
+        [
+          `    permissions:
+      contents: read # check out the repository; nothing in this job writes
+      pull-requests: read # check-trusted-trigger reads the pull request
+      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
+      actions: read # check-trusted-trigger reads this run's re-runner
+`,
+          `    permissions:
+      contents: read
+`,
+          1,
+        ],
+        [
+          `    steps:
+      - name: Resolve main's tip
+`,
+          `    steps:
+      - name: Refuse a run off the default branch or without a case filter
+        env:
+          REF: \${{ github.ref }}
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
+          CASE: \${{ inputs.case }}
+          CASES: \${{ inputs.cases }}
+          TAGS: \${{ inputs.tag }}
+        run: |
+          if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::the subscription token runs a suite only when dispatched on the default branch; no case runs"
+            exit 1
+          fi
+          read -ra cases <<<"$CASES"
+          read -ra tags <<<"$TAGS"
+          if [ -z "\${CASE//[*?[:space:]]/}" ] && [ "\${#cases[@]}" -eq 0 ] && [ "\${#tags[@]}" -eq 0 ]; then
+            echo "::error::a suite run on the subscription token must name case, cases or tag, never the whole suite; no case runs"
+            exit 1
+          fi
+
+      - name: Resolve main's tip
+`,
+          1,
+        ],
+        [
+          `          leg: key
+          role: maintenance
+          credential-set: \${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          selected: \${{ needs.check-key-credit.outputs.next-leg }}
+          key-off: \${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
+`,
+          `          leg: subscription
+          role: maintenance
+          credential-set: \${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+`,
+          1,
+        ],
+        ["      # npm's fetch timeout and retries, from the one file that sets them.\n", "", 1],
+        [/ {10}# Strips credentials[^\n]*\n(?: {10}#[^\n]*\n)*/g, "", 1],
+        ["          LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}\n", "          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}\n", 2],
+        ["          LEG: key\n          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}\n", '          LEG: subscription\n          FALLBACK_READY: "true"\n', 2],
+        ["          credential: MAINTENANCE_CLAUDE_API_KEY\n", "          credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN\n", 1],
+        ["      - name: Stop at the key's stop\n", "      - name: Stop at the token's stop\n", 1],
+        [
+          "          REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}\n",
+          "          REASON: ${{ steps.judge.outputs.handoff-reason || 'no-token' }}\n",
+          1,
+        ],
+        [
+          `        run: echo "::warning::The API key stopped ($REASON), so no case ran; evals never fall back to subscription tokens (docs/review/evals.md)"\n`,
+          `        run: |
+          echo "::error::The subscription token stopped ($REASON), so no case ran; no fallback leg runs (docs/review/evals.md)"
+          exit 1
+`,
+          1,
+        ],
+      ],
+    },
+  ],
+};

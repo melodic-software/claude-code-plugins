@@ -392,7 +392,7 @@ The bullets below are the steps.
   ships one, and otherwise a fresh-context subagent over the diff for the security scope the
   repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization
   gaps, Actions and hook permissions).
-- **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The update moved HEAD, so the gate that ran
+- **The verify gate (`verify`), last: the pre-PR check of [prep.md](prep.md) §1.5 plus the test suites below.** The update moved HEAD, so the check that ran
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
   --tests` when the repository ships it, otherwise the commands §1.5 resolves plus the test

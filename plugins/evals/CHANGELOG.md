@@ -1,5 +1,35 @@
 # Changelog: evals
 
+## [0.25.0] - 2026-11-23
+
+### Added
+
+- `/evals:audit` reports an eval suite's health and edits nothing: skills with no case or no deterministic triggering case, judged graders with no labeled samples, legacy-only skills and missing should-not-fire cases, then judged findings on gate pairs, duplicates, grader fit and drift, each naming where its fix goes.
+
+## [0.24.2] - 2026-11-23
+
+### Added
+
+- **`apply_step`, `plugin_cli_write` and `plugin_cli_write_with_help` grader fragments.** The shared matchers now hold the git-hooks apply-step command and the `claude plugin` write command, each in its own file with must-pass and must-fail samples, and every `no-apply-step` and `no-plugin-cli-write` grader in this repository builds from them instead of carrying its own copy.
+
+## [0.24.1] - 2026-11-23
+
+### Changed
+
+- `/evals:plugin-eval select` counts a meaning-flipping word (`not`, `never`, `no`, `only`, `except`, `unless` and their contractions) inserted into an existing instruction line as a cut, so it runs the affected cases; other added words still run nothing.
+
+## [0.24.0] - 2026-11-23
+
+### Added
+
+- `/evals:plugin-eval select <diff-base>` names the eval cases a change affects, split into the cases to run (the eval workflows' `cases` input), judged cases, cases to run after merge, and affected cases that need no run, with the agent-run count. It reads which skill a case tests through the shared `case_skills.py` rule and makes no model call.
+
+## [0.23.2] - 2026-11-23
+
+### Changed
+
+- `/evals:validate` reads which skill a case tests from a shared `plugins/evals/scripts/case_skills.py`, with the same findings.
+
 ## [0.23.1] - 2026-11-23
 
 ### Added

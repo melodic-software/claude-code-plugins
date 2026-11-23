@@ -300,8 +300,6 @@ class TheKeyCoversEveryInput(unittest.TestCase):
             {"id": 4, "name": f"pr-verify-7-{HEAD}-pass", "expired": True},
             {"id": 5, "name": "pr-merge-gate-cursor", "expired": False},
             {"id": 6, "name": f"pr-verify-7-{HEAD}-fail-i3.7", "expired": False},
-            # Not verdict names: a pass carries no issues, and issues are
-            # ascending and listed once.
             {"id": 7, "name": f"pr-verify-7-{HEAD}-pass-i3", "expired": False},
             {"id": 8, "name": f"pr-verify-7-{HEAD}-pass-notes-i3", "expired": False},
             {"id": 9, "name": f"pr-verify-7-{HEAD}-fail-i7.3", "expired": False},
@@ -339,7 +337,6 @@ class ARefsPullRequestIsNeverSkipped(unittest.TestCase):
         refs["closingIssuesReferences"] = {"totalCount": 0, "nodes": []}
         refs["body"] = "Refs: #3\n\nPart one."
         self.assertIsNone(skip.pr_state(refs))
-        # No issue at all, or a closing one beside a Refs line, keeps a key.
         refs["body"] = "Part one."
         self.assertIsNotNone(skip.pr_state(refs))
         closing = _node()

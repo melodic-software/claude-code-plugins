@@ -18,8 +18,6 @@ const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const web = path.resolve(__dirname, "..", "web");
-// CSS viewport left above the keyboard, by judgment from each device's CSS size (iPhone 13: 390x844, iPhone 15:
-// 393x852, Pixel 7: 412x915) less a typical keyboard with its suggestion bar and the browser's toolbars.
 const DEVICES = [["iPhone 13", 460, "webkit"], ["iPhone 15", 470, "webkit"], ["Pixel 7", 520, "chromium"]];
 const TEXT = { answer: "What should the new checkout keep?", choice: "Which payment method by default?", locked: "Which currency do we show?", answered: "What worries you about checkout?" };
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
@@ -46,7 +44,6 @@ async function main() {
     const owner = await recs[0].open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await owner.evaluate(() => window.Core.lock("Q3", "opt-1"));
-    // server.py's allowlist: the harness is test-only and never served.
     const served = await owner.evaluate(() => fetch("/harness.html").then(r => r.status));
     ok("the server does not serve web/harness.html (it is not on the allowlist)", served === 404, served);
 
@@ -66,7 +63,6 @@ async function main() {
       await serveHarness(joined.context());
       await joinAs(joined, `Ina ${run.label}`);
       await joined.evaluate(() => window.Core.answerCiting("Q4", "My first answer", []));
-      // The harness opens in a second tab of the same browser (it shares the join), so the joined tab's beats never meet its own.
       const page = await rec.openIn(joined.context(), new URL("/harness.html", A.localUrl).href);
       await joined.close();
       if (!(await until(page, () => !!window.Harness && !!window.Core?.snapshot()?.me, null, 10000))) { ok(`${run.label}: the harness loads`, false, "no Harness"); continue; }
@@ -78,7 +74,6 @@ async function main() {
         for (const [what, text] of [["2000 typed characters", LONG], ["a pasted 300-character word", WORD]]) {
           await page.evaluate(f => { const el = document.querySelector(f); el.focus(); el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); }, sel.field);
           await page.keyboard.insertText(text);
-          // Measured once the page holds still: a surface that opens scales in, and its send icon is held to 0.5 px.
           const still = await settled(page, { rects: true });
           const bad = (still ? [] : ["the page did not hold still"]).concat(await page.evaluate(([f, sendSel]) => {
             const out = [], el = document.querySelector(f), vv = window.visualViewport, T = 0.5;
@@ -87,7 +82,6 @@ async function main() {
             if (el.tagName === "TEXTAREA" && el.scrollWidth > el.clientWidth + 1) out.push(`field content ${el.scrollWidth} wider than ${el.clientWidth}`);
             if (document.activeElement !== el) out.push("field lost focus");
             if (el.selectionEnd !== el.value.length) out.push("caret not at the end");
-            // The caret sits on the last line: at most the field's own end padding may stay scrolled away under it.
             const cs = getComputedStyle(el), padB = parseFloat(cs.paddingBottom), padR = parseFloat(cs.paddingRight);
             const left = el.tagName === "TEXTAREA" ? el.scrollHeight - el.scrollTop - el.clientHeight - padB : el.scrollWidth - el.scrollLeft - el.clientWidth - padR;
             if (left > 2) out.push(`caret scrolled out of view (${left.toFixed(0)} px below)`);

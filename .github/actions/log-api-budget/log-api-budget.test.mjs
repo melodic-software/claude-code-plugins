@@ -83,7 +83,6 @@ test("api_budget_emit writes the last reading of each resource, core last", () =
 
 test("the gh wrapper keeps stdout, stderr and the exit status, and reads the headers", () =>
   withDir((dir) => {
-    // A gh that answers `api -i <route> ...` with a header block, a body, an error and exit 1.
     writeFileSync(
       join(dir, "gh"),
       `#!/usr/bin/env bash\n[[ $1 == api && $2 == -i && $3 == route ]] || { echo "args: $*" >&2; exit 9; }\n` +
@@ -234,7 +233,6 @@ test("routeOf and the shell's api_route template each request path alike, leakin
         assert.ok(routeOk(out), `${url} -> ${out}`);
       }
     });
-    // The gh args around the path change nothing.
     assert.equal(bash(dir, "api_budget_route api -X PATCH -H 'Accept: x' --jq .id repos/o/r/issues/3 -f body=hi").stdout, "repos/{repo}/issues/{n}\n");
     assert.equal(bash(dir, "api_budget_route api --method=POST -fquery='query { viewer { login } }' graphql").stdout, "graphql\n");
     assert.equal(bash(dir, "api_budget_route pr view 1").stdout, "other\n");
@@ -243,8 +241,6 @@ test("routeOf and the shell's api_route template each request path alike, leakin
 test("api-budget.bash names a fallback stop as rate-guard.mjs's FALLBACK_NOTE", () =>
   withDir((dir) => assert.equal(bash(dir, 'printf %s "$API_BUDGET_FALLBACK_NOTE"').stdout, FALLBACK_NOTE)));
 
-// A stop rate-guard.mjs guessed is named a fallback when the gh wrapper refuses
-// a call on it, and a header-timed stop is not.
 test("gh guard: a refusal on a stop rate-guard.mjs guessed names it a fallback", async () => {
   const dir = tempDir("api-budget-");
   try {
@@ -706,8 +702,6 @@ test("gh guard: a held server error is a notice under its own title when the cal
     assert.ok(lines.every((line) => line.startsWith("::notice title=GitHub server error::")), out.stderr);
   }));
 
-// Every real limit signal keeps today's wording when it arrives on a 5xx, as on
-// a 403 or 429 with retry-after.
 test("gh guard: a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays a rate limit", () => {
   const cases = [
     ["503 with remaining 0", "503 0 5 {}", "repos/o/r"],
@@ -753,7 +747,6 @@ test("gh guard: a paginated call that fails on a primary limit stops every pool 
     const [pool, left] = stopFor(dir);
     assert.equal(pool, "*");
     assert.ok(left >= 3595 && left <= 3600, `stopped for ${left}s`);
-    // Still stopped well past the minute: two minutes on, nothing is sent.
     const later = Math.floor(Date.now() / 1000) + 120;
     const shifted = guarded(dir, ["ok never"], `date() { echo ${later}; }\ngh api repos/o/r/pulls --paginate || echo "refused=$?"`);
     assert.equal(shifted.stdout, "refused=1\n");
@@ -1402,13 +1395,19 @@ test("each shell step in the file-demotion-issue job that calls gh wraps it firs
   const block = /\n  file-demotion-issue:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
   const wrap = "{ . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true";
   const calling = block.split(/\n {6}- name: /).filter((step) => /^ {10}[^#\n]*\bgh api\b/m.test(step));
-  assert.ok(calling.length >= 2, "the file-demotion-issue job's gh-calling steps are found");
+  const filer = ".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh";
+  assert.ok(block.includes(`\n        run: bash .base/${filer}\n`), "the file-demotion-issue job runs the filing script");
+  const script = readFileSync(new URL(`../../../${filer}`, import.meta.url), "utf8");
+  assert.ok(calling.length >= 1, "the file-demotion-issue job's inline gh-calling steps are found");
   for (const step of calling) {
     const run = step.indexOf("        run: |\n");
     assert.ok(run > 0, `${step.split("\n")[0]} is a run step`);
     const at = step.indexOf(wrap);
     assert.ok(at > run && at < step.search(/^ {10}[^#\n]*\bgh api\b/m), `${step.split("\n")[0]} wraps gh before its first call`);
   }
+  const selfWrap = '[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token';
+  const at = script.indexOf(selfWrap);
+  assert.ok(at > 0 && at < script.search(/^[^#\n]*\bgh api\b/m), `${filer} wraps gh before its first call`);
 });
 
 // pr-review-main's report-review-counts job has no checkout of the action, and its only

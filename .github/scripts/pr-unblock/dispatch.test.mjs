@@ -601,7 +601,7 @@ test("skips a PR while a resolve-conflicts run for it is queued or going", async
     workflowRuns: [{ id: 1, status: "queued", display_title: "PR Unblock resolve-conflicts #26" }],
   });
   await run();
-  assert.deepEqual(dispatchedNumbers(api), ["27"], "the Title Case run-name holds as the old one does");
+  assert.deepEqual(dispatchedNumbers(api), ["27"], "a queued run under the Title Case run-name holds its PR");
 });
 
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
@@ -1382,7 +1382,6 @@ test("the required-run read takes the newest pr-require-checks run that tested t
     "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
   ]);
   assert.deepEqual(await api.readRequiredRun(head), { run: null, jobs: [] });
-  // A named workflow reads that workflow's runs instead.
   assert.deepEqual(await api.readRequiredRun(head, ".github/workflows/pr-test-platforms.yml"), {
     run: failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z"),
     jobs: [{ name: "Test Macos Planning Shared", conclusion: "failure" }],
@@ -1801,7 +1800,6 @@ test("sync-shared-copies: a head with its check run is skipped, and recorded onc
   const record = emptyRecord();
   const done = copyApi({ timelines, checks: new Map([[node.headRefOid, [{ status: "completed", conclusion: "neutral" }]]]) });
   assert.deepEqual(await copyDispatch(done, [node], { record }), { dispatched: [], failed: 0 });
-  // Recorded: the next run reads nothing for the head.
   const next = copyApi({ timelines });
   assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
   assert.deepEqual(next.calls.checkReads, []);
@@ -1987,4 +1985,28 @@ test("readBaseTip returns the base ref's commit and its committed time, and refu
   assert.deepEqual(await api.readBaseTip("main"), { oid: NEW_TIP, committedAt: Date.parse("2026-11-02T22:30:00Z") });
   assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", base: "main" });
   await assert.rejects(api.readBaseTip("main"), /the main tip is not a commit/);
+});
+
+test("the adapter lists a PR's issue comments over pages and re-runs one job by id", async () => {
+  const requests = [];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url, init = {}) => {
+      requests.push({ url, method: init.method ?? "GET" });
+      if (url.includes("/comments")) {
+        const next = url.endsWith("page=2") ? "" : '<https://api.example/repos/octo/repo/issues/9/comments?per_page=100&page=2>; rel="next"';
+        return { ok: true, status: 200, headers: { get: () => next }, json: async () => [{ id: requests.length }] };
+      }
+      return { ok: true, status: 201, json: async () => ({}) };
+    },
+  });
+  assert.deepEqual(await api.listIssueComments(9), [{ id: 1 }, { id: 2 }]);
+  assert.equal(requests[0].url, "https://api.example/repos/octo/repo/issues/9/comments?per_page=100");
+  await api.rerunJob(4242);
+  assert.deepEqual(requests[2], { url: "https://api.example/repos/octo/repo/actions/jobs/4242/rerun", method: "POST" });
+  await assert.rejects(api.rerunJob("1/../2"), /not a job id/);
+  assert.equal(requests.length, 3, "a refused job id sends nothing");
 });

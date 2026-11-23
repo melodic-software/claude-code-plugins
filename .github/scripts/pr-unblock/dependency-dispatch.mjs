@@ -28,7 +28,7 @@ import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
-import { ciStatusOf, classifyPull, commitFilesReader, gateCheckRuns } from "./review-dependency.mjs";
+import { ciStatusOf, classifyPull, commitFilesReader, GATE_HOLD_SKIP, gateCheckRuns, gateHoldOnly, newestOf, newestRound } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -52,6 +52,32 @@ export const DEFAULTS = Object.freeze({
 // (limit-stop.mjs) and it is not recorded.
 const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
 
+const GATE_JOB = /\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)$/;
+
+const gateFailedInRollup = (node, appId) =>
+  (node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []).some(
+    (context) => context?.__typename === "CheckRun" && context.name === "CI Status" && context.conclusion === "FAILURE" && context.checkSuite?.app?.databaseId === appId,
+  );
+
+export async function rerunVerdictHold({ api, node, appId, laneAppId }) {
+  const gate = newestOf(await api.listCheckRuns({ sha: node.headRefOid, checkName: "CI Status", appId }));
+  if (gate?.status !== "completed" || gate.conclusion !== "failure" || gateHoldOnly(await api.listAnnotations(gate.id), node.number) !== "verdict") {
+    return null;
+  }
+  const round = newestRound(await api.listIssueComments(node.number), laneAppId);
+  if (round?.head !== node.headRefOid || round.verdict !== "merge" || !(Date.parse(round.createdAt) > Date.parse(gate.started_at))) {
+    return null;
+  }
+  const [, runId, jobId] = GATE_JOB.exec(String(gate.details_url ?? "")) ?? [];
+  const jobs = runId ? ((await api.readLatestJobs(runId))?.jobs ?? []) : [];
+  const job = jobs.find((entry) => String(entry.id) === jobId && String(entry.check_run_url ?? "").endsWith(`/check-runs/${gate.id}`));
+  if (!job) {
+    throw new Error(`CI Status check run ${gate.id} names no job of its run`);
+  }
+  await api.rerunJob(job.id);
+  return job.id;
+}
+
 async function listAll(api, base) {
   const nodes = [];
   let after;
@@ -74,6 +100,7 @@ export async function dispatchDependencyReviews({
   checkName = DEFAULTS.checkName,
   verdictCheckName = DEFAULTS.verdictCheckName,
   appId = DEFAULTS.appId,
+  laneAppId,
   maxDispatch = DEFAULTS.maxDispatch,
   config = null,
   policy,
@@ -92,6 +119,17 @@ export async function dispatchDependencyReviews({
   let sent = 0;
   let active = null;
   for (const node of candidates) {
+    if (laneAppId !== undefined && gateFailedInRollup(node, appId)) {
+      try {
+        const job = await rerunVerdictHold({ api, node, appId, laneAppId });
+        if (job !== null) {
+          log(`rerun: #${node.number}: CI Status at ${node.headRefOid} holds only for a merge verdict the lanes App posted after it started; re-ran its job ${job}`);
+          continue;
+        }
+      } catch (error) {
+        log(`::warning::#${node.number}: could not re-run CI Status at ${node.headRefOid} for its merge verdict: ${error.message}; a later run retries`);
+      }
+    }
     if (sent >= maxDispatch) {
       log(`defer #${node.number}: ${maxDispatch} review dispatches this run; left for a later run unread`);
       continue;
@@ -131,6 +169,9 @@ export async function dispatchDependencyReviews({
         continue;
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      if (ciStatus === "success") {
+        existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
+      }
       // A round whose verdict job skipped no-model-turn handled nothing, and
       // one whose verdict job stopped on a reason routed to a failing status,
       // or that the kill switch stopped (limit-stop.mjs releasesHead), is

@@ -121,6 +121,10 @@ and offer the repository's own observed shape, or the bundled template, instead.
 The action files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before reading a file it names.
 
+## Related
+
+- Decision defines a domain term rather than system structure: /domain-driven-design:ubiquitous-language.
+
 ## Gotchas
 
 Failure modes this skill runs into, each stated as the rule it implies.

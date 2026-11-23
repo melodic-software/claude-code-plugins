@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { excludedAlwaysOn } from "./plan.mjs";
 import { ALWAYS_ON, alphabetical, ignoredLine, resolveCatalog } from "./profile-files.mjs";
+import { skillLinkReports } from "./skill-links.mjs";
 
 export class CheckError extends Error {}
 
@@ -39,7 +40,6 @@ export function readMarketplace(path) {
   return { name: doc.name, plugins: new Set(doc.plugins.map((p) => p?.name).filter((n) => typeof n === "string")) };
 }
 
-/** Problems with the ids one file names: shipped ids against the catalog, the rest against the catalog or the installed list. */
 function idProblems({ level, path, def }, catalog, installed) {
   const out = [];
   for (const list of ID_LISTS) {
@@ -56,7 +56,6 @@ function idProblems({ level, path, def }, catalog, installed) {
   return out;
 }
 
-/** A shipped file's lists out of alphabetical order, naming the first pair out of place. */
 function orderProblems({ path, def }) {
   return Object.entries(FILE_KEYS).flatMap(([field, key]) => {
     const sorted = alphabetical(def[field]);
@@ -69,7 +68,7 @@ function excludeProblems(catalog) {
   return [...catalog.profiles.values()].flatMap((p) => excludedAlwaysOn(catalog, p).map((id) => `profile ${p.name} excludes always-on member ${id}`));
 }
 
-export function checkProfiles({ files, catalog, installed }) {
+export function checkProfiles({ files, catalog, installed, skills }) {
   const shipped = files.filter((f) => f.level === "shipped");
   const others = files.filter((f) => f.level !== "shipped");
   const shippedCatalog = resolveCatalog(shipped);
@@ -94,5 +93,9 @@ export function checkProfiles({ files, catalog, installed }) {
   for (const id of installed) {
     if (governed.has(marketplaceOf(id)) && !named.has(id)) reports.push(`Installed, and no profile names it (an apply switches it off unless the repository enables it): ${id}`);
   }
-  return { failures, reports };
+  return {
+    failures,
+    reports,
+    ...(skills && skillLinkReports(skills, skills.tree ? shipped : files, skills.tree ? shippedCatalog : fullCatalog, catalog)),
+  };
 }

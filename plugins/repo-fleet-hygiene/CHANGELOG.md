@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.40] - 2026-11-23
+
+### Changed
+
+- `apply` and `sync` gain a `## Related` section, and `audit` gains `## Next` and `## Related`, per the accepted skill-link table.
+
 ## [0.28.39] - 2026-11-21
 
 ### Changed

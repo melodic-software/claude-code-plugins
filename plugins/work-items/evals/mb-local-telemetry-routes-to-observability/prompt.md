@@ -1,5 +1,5 @@
 ---
-description: "Legacy morning-brief 6. Reaches SKILL.md 'Cross-references' and 'What this skill does NOT do': token burn rate and hook latency are local telemetry this skill does not read, so the request routes to /harness-ops:observability and no local-telemetry section is added. routes-to-observability reads the reply; meets-expectations judges the rest. Bash is listed only so SKILL.md's pre-computed context lines load; needs --allow-tools Bash. Graded on the reply."
+description: "Legacy morning-brief 6. Reaches SKILL.md 'Related' and 'What this skill does NOT do': token burn rate and hook latency are local telemetry this skill does not read, so the request routes to /harness-ops:observability and no local-telemetry section is added. routes-to-observability reads the reply; meets-expectations judges the rest. Bash is listed only so SKILL.md's pre-computed context lines load; needs --allow-tools Bash. Graded on the reply."
 tags: [work-items, morning-brief, routine, routing]
 max_turns: 15
 timeout_seconds: 420

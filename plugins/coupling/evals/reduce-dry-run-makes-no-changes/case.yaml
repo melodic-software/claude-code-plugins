@@ -4,14 +4,23 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: 'no-edit-branch-or-pr'
-    type: 'llm'
-    criteria: 'Performs no edits to repository content and creates no branch or PR'
-    focus: 'trace'
-  - name: 'verifies-and-ledgers-ranked-set'
-    type: 'llm'
-    criteria: 'Still verifies findings and persists the ranked set to the memory-tier ledger'
-    focus: 'trace'
-  - name: 'reports-apply-versus-route'
-    type: 'llm'
-    criteria: 'Reports what a full run would apply versus route'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?![^"]*/\.work/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write-outside-ledger'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*/(?:\.work|tmp)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-branch-or-push'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\[nrt]))git\b(?:[^"\\]|\\.)*?\b(?:checkout\s+-b|switch\s+-c|push)\b'
+    min: 0
+    max: 0
+    arm: 'both'

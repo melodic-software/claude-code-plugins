@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for workflow-resilience-check.sh (guardrails plugin).
-#
-# Black-box: pipes PreToolUse Workflow JSON on stdin, asserts on the emitted
-# additionalContext. The hook is advisory (always exit 0) — these cases verify
-# WHEN it speaks (un-throttled fan-out) and WHEN it stays silent (throttled,
-# no fan-out, kill switch). Self-contained — no host-repo assertion library.
 
 set -uo pipefail
 
@@ -16,12 +10,8 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# The advisory is OPT-IN since 0.20.0 (default off — behavioral-class injector,
-# config-disabled per #2021). Every behavior case below runs with the switch on;
-# the default-off posture has its own case (CASE 7b).
 export CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=true
 
-# PreToolUse Workflow payload builders.
 workflow_script_json() { jq -nc --arg s "$1" '{tool_name:"Workflow",tool_input:{script:$s}}'; }
 workflow_path_json() { jq -nc --arg p "$1" '{tool_name:"Workflow",tool_input:{scriptPath:$p}}'; }
 
@@ -31,56 +21,42 @@ run_hook() {
   env "$@" bash "$HOOK" <<<"$input" 2>&1
 }
 
-# CASE 1: pipeline() fan-out, no throttle/retry → advisory fires.
 out=$(run_hook "$(workflow_script_json 'phase("x"); const r = await pipeline(FILES, s1, s2)')")
 assert_contains "un-throttled pipeline warns" "$out" "no wave cap or retry wrapper"
 assert_contains "names the throttle fix" "$out" "inWavesPipeline"
 assert_contains "names the overloaded-retry ceiling" "$out" "CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS"
 assert_contains "points at the retry docs section" "$out" "errors#tune-retry-behavior"
 
-# CASE 2: parallel() fan-out, no throttle/retry → advisory fires.
 out=$(run_hook "$(workflow_script_json 'const r = await parallel(thunks)')")
 assert_contains "un-throttled parallel warns" "$out" "no wave cap or retry wrapper"
 
-# CASE 3: fan-out WITH inWaves → silent.
 out=$(run_hook "$(workflow_script_json 'const r = await inWaves(thunks, 5)')")
 assert_silent "inWaves throttle suppresses warning" "$out"
 
-# CASE 4: pipeline WITH inWavesPipeline → silent.
 out=$(run_hook "$(workflow_script_json 'const r = await inWavesPipeline(FILES, 4, s1, s2)')")
 assert_silent "inWavesPipeline throttle suppresses warning" "$out"
 
-# CASE 5: fan-out WITH agentRetry wrapper → silent.
 out=$(run_hook "$(workflow_script_json 'const r = await parallel(items.map(i => () => agentRetry(p(i), {})))')")
 assert_silent "agentRetry wrapper suppresses warning" "$out"
 
-# CASE 6: no fan-out at all (single agent calls) → silent.
 out=$(run_hook "$(workflow_script_json 'const a = await agent("do x"); const b = await agent("do y")')")
 assert_silent "no fan-out stays silent" "$out"
 
-# CASE 7: kill switch off → silent even on un-throttled fan-out.
 out=$(run_hook "$(workflow_script_json 'await pipeline(FILES, s1)')" CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=false)
 assert_silent "kill switch silences hook" "$out"
 
-# CASE 7b: default posture is OFF (0.20.0) — an UNSET switch is a clean no-op.
 out=$(env -u CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED \
   bash "$HOOK" <<<"$(workflow_script_json 'await pipeline(FILES, s1)')" 2>&1)
 assert_silent "unset switch → no-op (advisory is opt-in by default)" "$out"
 
-# CASE 8: saved scriptPath with un-throttled fan-out → advisory fires (reads file).
 SAVED="$TEST_TMPDIR/engine.js"
 printf 'export const meta = {}\nawait pipeline(FILES, s1, s2)\n' >"$SAVED"
 out=$(run_hook "$(workflow_path_json "$SAVED")")
 assert_contains "saved scriptPath is inspected" "$out" "no wave cap or retry wrapper"
 
-# CASE 9: empty stdin → silent (graceful no-op).
 out=$(printf '' | bash "$HOOK" 2>&1)
 assert_silent "empty stdin is a no-op" "$out"
 
-# ============================ TELEMETRY ====================================
-# docs/contracts/hook-observability/: repro-verified, these assertions
-# discriminate (with telemetry absent, no HOOK_TELEMETRY_SINK-wired envelope
-# ever appears and they fail).
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \

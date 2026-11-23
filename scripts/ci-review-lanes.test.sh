@@ -36,10 +36,10 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 
 NAME='Require both review lanes on this head'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}"* ]]; then
-  ok "step runs on every ready pull_request run, contract-only ones included"
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft == false || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
+  ok "step runs on every ready pull_request run, contract-only ones included, and on a draft run's re-run once the pull request is ready"
 else
-  fail "step lost its ready pull_request condition"
+  fail "step lost its ready pull_request condition or its draft re-run widening"
 fi
 # The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
 # request by PR_NUMBER, so the step's env must set it from the event.
@@ -47,6 +47,11 @@ if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number 
   ok "step env sets PR_NUMBER from the pull_request event"
 else
   fail "step env does not set PR_NUMBER from github.event.pull_request.number"
+fi
+if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}"* ]]; then
+  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 480 s"
+else
+  fail "REVIEW_WAIT_SECONDS lost its contract-only zero or gives a ready draft re-run no wait"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
@@ -60,6 +65,53 @@ if [[ -n "${lanes_line:-}" && "$job_line" -lt "$agg_line" && "$agg_line" -lt "$l
 else
   fail "step is not inside ci-status after the aggregate (lines: $order)"
 fi
+
+RERUN_NAME="Read whether a re-run draft run's pull request is ready"
+rerun_step="$(ci_step::read "$WORKFLOW" "$RERUN_NAME" "$TMP_ROOT/draft-rerun.sh")" || ci_step::abort "$WORKFLOW" "$RERUN_NAME"
+# shellcheck disable=SC2016
+for line in $'\n        id: draft_rerun\n' \
+  "if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.run_attempt != '1' }}" \
+  'PR_NUMBER: ${{ github.event.pull_request.number }}' 'RUN_ATTEMPT: ${{ github.run_attempt }}'; do
+  if [[ "$rerun_step" == *"$line"* ]]; then ok "draft_rerun carries '${line//$'\n'/}'"; else fail "draft_rerun lost '${line//$'\n'/}'"; fi
+done
+if [[ "$rerun_step" == *"continue-on-error"* ]]; then
+  fail "draft_rerun must not continue on error: a failed read must not hide the lane step"
+else
+  ok "draft_rerun carries no continue-on-error"
+fi
+order="$(grep -nE "^      - name: ($RERUN_NAME|Clear a cost-only review hold the owner decided|Fail a pull request carrying the human-gated label|Fail a lanes App pull request on kill switch, hold path, verifier or veto|$NAME)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
+read -r rerun_line cost_line gated_line app_line lanes_line <<<"$order"
+if [[ -n "${lanes_line:-}" && "$rerun_line" -lt "$cost_line" && "$cost_line" -lt "$gated_line" && "$gated_line" -lt "$app_line" && "$app_line" -lt "$lanes_line" ]]; then
+  ok "draft_rerun sits before the hold steps and this step"
+else
+  fail "draft_rerun is not before every step that reads it (lines: $order)"
+fi
+mkdir -p "$TMP_ROOT/rerun-bin"
+cat >"$TMP_ROOT/rerun-bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_LOG"
+[[ -z "${STUB_PULL_FAIL:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+printf '%s\n' "$STUB_PULL"
+EOF
+chmod +x "$TMP_ROOT/rerun-bin/gh"
+rerun_case() {
+  ci_gh_read::reset "$TMP_ROOT" "$(($(date +%s) + 600))"
+  : >"$TMP_ROOT/rerun.out"
+  : >"$TMP_ROOT/rerun.log"
+  local out rc
+  out="$(PATH="$TMP_ROOT/rerun-bin:$PATH" STUB_LOG="$TMP_ROOT/rerun.log" STUB_PULL="$3" STUB_PULL_FAIL="${4:-}" \
+    GITHUB_OUTPUT="$TMP_ROOT/rerun.out" GITHUB_REPOSITORY=melodic-software/claude-code-plugins PR_NUMBER=18358 RUN_ATTEMPT=2 \
+    bash -e "$TMP_ROOT/draft-rerun.sh" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" == 0 && "$(cat "$TMP_ROOT/rerun.out")" == "ready=$2" && "$(grep -c 'pulls/18358' "$TMP_ROOT/rerun.log")" == 1 ]]; then
+    ok "$1"
+  else
+    fail "$1 (rc $rc, output '$(cat "$TMP_ROOT/rerun.out")', log '$(cat "$TMP_ROOT/rerun.log")', out '$out')"
+  fi
+}
+rerun_case "a re-run draft run whose pull request is now ready runs the lane and hold steps" true '{"number":18358,"draft":false}'
+rerun_case "a re-run draft run whose pull request is still a draft stays a draft run" false '{"number":18358,"draft":true}'
+rerun_case "an unreadable pull request counts as ready" true '' fail
+rerun_case "an answer with no draft field counts as ready" true '{"number":18358}'
 
 # The exempt ids are the trusted-actor list's Dependabot, release App and
 # standards-sync App.
@@ -104,7 +156,6 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
 done
 
-# Both callers run pr-review-cli at the same ref.
 pins="$(sed -nE 's/^    uses: .*pr-review-cli\.yml@([^ ]+).*/\1/p' "$ROOT/.github/workflows/pr-review-hosted.yml" "$ROOT/.github/workflows/pr-review-security-hosted.yml" | sort -u)"
 if [[ -n "$pins" && "$pins" != *$'\n'* ]]; then
   ok "both review callers run pr-review-cli at one ref"
@@ -147,7 +198,6 @@ else
   ok "the path-holds true body holds every exempt author"
 fi
 
-# The base commit's config names the agent App.
 mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/conventions"
 printf 'merge:\n  trust-path-hold-apps:\n    - melodic-agent[bot]\n' >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
@@ -241,6 +291,10 @@ case "$*" in
   [[ -z "${STUB_REVIEWS_FAIL:-}" ]] || exit 1
   printf '%s\n' "${STUB_REVIEWS:-[]}"
   ;;
+*/issues/*/comments*)
+  [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
+  printf '%s\n' "${STUB_COMMENTS:-[]}"
+  ;;
 */pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" --argjson c "${STUB_COMMIT_COUNT:-0}" --arg u "${STUB_AUTHOR:-kyle-sexton}" \
   '{changed_files: $n, commits: $c, user: {login: $u}}' ;;
 */check-runs/*/annotations*)
@@ -254,7 +308,6 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-# sleep logs its seconds.
 cat >"$TMP_ROOT/bin/sleep" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG.sleeps"
@@ -508,7 +561,6 @@ for case in \
     "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for claude-review on $HEAD"
 done
 NOTES_31="$GOOD_NOTES" STUB_NOTES_FAIL=1 expect "an unreadable annotation list fails closed" 1 "::error::could not read the annotations of job 31; re-run this run."
-# The security lane's notice names its own lane.
 JOBS_10="$PASS_CODE" JOBS_20="$(jobs "$(kill_job success skipped)" "$(listed "$SEC_CHECK" 32 '[]')")"
 NOTES_32="$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-security-review sha=$HEAD findings=0 inline=0 scope=whole")")"
 expect "the security lane counts on its own lane's notice" 0 "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20): GitHub listed no" "::error::"
@@ -729,7 +781,6 @@ done
 STUB_FILES="$(files README.md)" STUB_CHANGED=3
 AUTHOR_ID=49699333 expect "a short file listing fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_CHANGED=1 STUB_FILES_FAIL=1 AUTHOR_ID=49699333 expect "an unreadable file listing fails closed" 1 "::error::could not read the files of #77"
-# The broker step's pages are reused, so the files are not read again.
 STUB_FILES_FAIL=1 STUB_CHANGED=3 SHARED_FILES="$(files README.md)$(files docs/a.md 'docs/b.md<docs/c.md')" \
   AUTHOR_ID=49699333 expect "the broker step's file pages, across pages, are reused" 0 "no trust-gate path changed"
 if grep -q '/files' "$TMP_ROOT/log"; then fail "the files were read again"; else ok "a reused file list makes no files read"; fi
@@ -884,7 +935,8 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" 
 STUB_CHANGED=1 STUB_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="$TMP_ROOT/dep-config" expect "a listed bump with no broker file pages stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
-  BASE_CONFIG="$TMP_ROOT/bare-config" dep "a listed bump with the key absent stays held (Q24)" 1 "$HELD"
+  BASE_CONFIG="$TMP_ROOT/bare-config" dep "a tagged bump with the owner key absent stays held for a merge verdict (Q24)" 1 \
+  "::error::#77 by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: $WF, and merge.dependabot.trusted-action-owners does not list the owner of: anthropics/claude-code-action."
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   AUTHOR_ID=300666570 BASE_CONFIG="$TMP_ROOT/dep-config" expect "another exempt author's listed bump stays held" 1 "$HELD"
 mkdir -p "$TMP_ROOT/dep-bad/docs/conventions"
@@ -901,6 +953,64 @@ for dir in yq-fails yq-missing; do
   STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
     STUB_PATH="$TMP_ROOT/$dir" dep "an owner list read with $dir fails closed" 1 "::error::could not read merge.dependabot.trusted-action-owners"
 done
+LANE_APP=337595936
+round() { jq -cn --argjson id "$1" --arg type "$2" --arg head "$3" --arg v "$4" --argjson m "$5" \
+  '{id: (1000 + $m), created_at: "2026-11-23T10:\($m | tostring | if length < 2 then "0" + . else . end):00Z", user: {id: $id, type: $type},
+    body: "<!-- pr-unblock:review-dependency-round head=\($head) verdict=\($v) run=4242-1 -->\nThe pr-unblock lane reviewed this Dependabot pull request."}'; }
+comments() { local IFS=,; printf '[%s]\n' "$*"; }
+export STUB_COMMENTS STUB_COMMENTS_FAIL
+EVIL_OLD="evilcorp/setup-tool@$SHA_OLD # v1.0.0" EVIL_NEW="evilcorp/setup-tool@$SHA_NEW # v1.0.266"
+EVIL_FILES="$(patch_file "$WF" "$(swap "$EVIL_OLD" "$EVIL_NEW")")"
+VERDICT_HELD="::error::#77 by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: $WF, and merge.dependabot.trusted-action-owners does not list the owner of: evilcorp/setup-tool. The lanes App's review-dependency verdict=merge at this head clears it"
+CLEARED="the lanes App's newest review-dependency round marker names $HEAD with verdict=merge, which clears the trust-gate hold"
+vdep() { LANES_APP_ID="${LANES_APP_ID-$LANE_APP}" STUB_CHANGED="${V_CHANGED:-1}" SHARED_FILES="${V_FILES:-$EVIL_FILES}" dep "$@"; }
+STUB_COMMENTS='[]'
+vdep "an unlisted owner's tagged bump with no merge verdict stays held, naming the verdict that clears it" 1 "$VERDICT_HELD"
+if grep -qxF 'api repos/o/r/issues/77/comments?per_page=100 --paginate' "$TMP_ROOT/log"; then
+  ok "the round markers are read live and whole"
+else
+  fail "unexpected comment read: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
+vdep "an unlisted owner's tagged bump with the lanes App's merge verdict at the head clears the hold" 0 "$CLEARED" "::error::"
+STUB_COMMENTS="$(comments "$(round 777 Bot "$HEAD" merge 1)")"
+vdep "a merge marker by another bot does not clear the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" User "$HEAD" merge 1)")"
+vdep "a merge marker by a user account with the lanes App's id does not clear the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "${HEAD//0/f}" merge 1)")"
+vdep "a merge marker for an older head does not clear the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)" "$(round "$LANE_APP" Bot "$HEAD" escalate 2)")"
+vdep "a newer escalate marker after a merge marker at the head keeps the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 3)" "$(round "$LANE_APP" Bot "$HEAD" fix 2)")"
+vdep "the newest marker by time decides, wherever the listing puts it" 0 "$CLEARED" "::error::"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1 | jq -c '.body |= sub(" -->"; " --> merge")')")"
+vdep "a merge marker line with text after it does not clear the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1 | jq -c '.body |= sub("run=4242-1"; "run=none")')")"
+vdep "a merge marker that names no model run does not clear the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")" STUB_COMMENTS_FAIL=1
+vdep "unreadable round markers keep the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS_FAIL=
+STUB_COMMENTS='{"message":"not a list"}'
+vdep "a comment answer that is not a list keeps the hold" 1 "$VERDICT_HELD"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
+LANES_APP_ID='' vdep "with no lanes App id a merge marker does not clear the hold" 1 "$VERDICT_HELD"
+if grep -q '/comments' "$TMP_ROOT/log"; then fail "the comments were read with no lanes App id"; else ok "no lanes App id reads no comments"; fi
+V_FILES="$(patch_file "$WF" "$(swap "$EVIL_OLD" "evilcorp/setup-tool@$SHA_UNTAGGED # v1.0.266")")" \
+  vdep "a merge marker does not clear a bump to a commit no tag names" 1 "$HELD" "$CLEARED"
+V_FILES="$(patch_file "$WF" "$(swap "$EVIL_OLD" "$EVIL_NEW")
+-          node-version: 20
++          node-version: 22")" \
+  vdep "a merge marker does not clear a change beyond a ref swap" 1 "$HELD" "$CLEARED"
+V_FILES="$(patch_file "$WF" "$(swap "$EVIL_OLD" evilcorp/setup-tool@main)")" \
+  vdep "a merge marker does not clear a swap to a branch name" 1 "$HELD" "$CLEARED"
+V_CHANGED=2 V_FILES="$EVIL_FILES$(patch_file .github/workflows/ci.yml "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  vdep "a merge marker clears a bump mixing a listed and an unlisted owner" 0 "$CLEARED" "::error::"
+STUB_COMMENTS='[]' V_CHANGED=2 V_FILES="$EVIL_FILES$(patch_file .github/workflows/ci.yml "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  vdep "a bump mixing a listed and an unlisted owner with no merge verdict names only the unlisted one" 1 "does not list the owner of: evilcorp/setup-tool. The lanes App"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
+V_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" vdep "a listed owner's bump clears by the owner list, reading no comments" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+if grep -q '/comments' "$TMP_ROOT/log"; then fail "a listed owner's bump read the comments"; else ok "a listed owner's bump reads no comments"; fi
+STUB_COMMENTS='[]'
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 

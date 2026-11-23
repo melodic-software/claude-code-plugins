@@ -48,7 +48,6 @@ run_check_out() {
   (cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)
 }
 
-# --- consumed via an eval files[] entry -> not an orphan --------------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
@@ -63,7 +62,6 @@ printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/b.md"
 if run_check "$repo" >/dev/null; then ok "two files[]-referenced fixtures in one grader both pass --check"; else fail "cached files[] extract missed a sibling fixture"; fi
 rm -rf "$repo"
 
-# --- consumed via a test file (basename) -> not an orphan ------------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/by-test.md"
@@ -170,7 +168,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"stray.md.txt"* ]]; then ok "a fixture named only by a seed no scaffold runs is an orphan"; else fail "unused-seed fixture not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
@@ -179,7 +176,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"orphan.md"* ]]; then ok "un-consumed fixture fails --check (synthetic orphan caught)"; else fail "synthetic orphan not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# --- orphan grandfathered by an exact baseline path -> passes --------------
 mk_repo repo $'plugins/p/skills/s/evals/fixtures/orphan.md\n'
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
@@ -198,7 +194,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"valid.json.bak"* && "$out" == *"valid.jsonl"* ]]; then ok "prefix-sibling of a baselined path red-lines (exact-match, no grandfather leak)"; else fail "baseline prefix-leak not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# --- STALE baseline entry (shadows no orphan) -> fails ---------------------
 mk_repo repo $'plugins/p/skills/s/evals/fixtures/gone.md\n'
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
@@ -207,7 +202,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"* ]]; then ok "stale baseline entry fails --check"; else fail "stale baseline not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# --- discover mode labels every fixture ------------------------------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
@@ -216,7 +210,6 @@ out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh discover 2>/dev/nul
 if [[ "$out" == *"CONSUMED"*"used.md"* && "$out" == *"ORPHAN"*"orphan.md"* ]]; then ok "discover labels CONSUMED and ORPHAN"; else fail "discover mislabels: '$out'"; fi
 rm -rf "$repo"
 
-# --- bad usage -> exit 2 ---------------------------------------------------
 mk_repo repo
 (cd "$repo" && bash scripts/check-orphaned-fixtures.sh --nonsense >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exit 2"; fi

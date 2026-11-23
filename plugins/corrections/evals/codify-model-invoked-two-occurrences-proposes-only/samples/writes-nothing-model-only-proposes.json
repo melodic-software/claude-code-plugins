@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~2 --new HEAD -- grep -rn authHelper src"
+          }
+        }
+      ],
+      "why": "proposal stays in the report"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/codify-plant-1/plant.patch",
+            "content": "--- a/x\n+++ b/x\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~2 --new HEAD -- grep -rn authHelper src"
+          }
+        }
+      ],
+      "why": "plant in a temporary directory outside the tree"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~2 --new HEAD -- grep -rn authHelper src"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/auth-helper.md",
+            "content": "# Proposal"
+          }
+        }
+      ],
+      "why": "writes the proposal file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/rules/auth-helper.md",
+            "content": "Use the shared auth helper."
+          }
+        }
+      ],
+      "why": "installs a rule"
+    }
+  ]
+}

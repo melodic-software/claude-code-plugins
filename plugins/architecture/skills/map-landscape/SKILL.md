@@ -234,6 +234,11 @@ hand-written; the shared medium resolver decides the destination, with this plug
 - The question is how the code behaves: `/discovery:explore`.
 - The landscape settles a decision worth keeping: `/architecture:adr`.
 
+## Related
+
+- One system's external neighbors: /architecture:map-context.
+- Deployables inside one system: /architecture:map-containers.
+
 ## Gotchas
 
 - **The two dialects are not symmetric, and mermaid is the loose one.** The mermaid output is a

@@ -13,7 +13,7 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S" --title x --type # --type needs a value
+assert_usage_error "$S" --title x --type
 
 # --- create-item succeeds on a mocked gh 2.45 that serves REST only ---
 # GraphQL-backed calls (`issue create`, `issue view`, `repo view`) fail with the
@@ -154,7 +154,6 @@ EOF
   assert_contains "create-item on gh 2.94 calls issue create" "$(<"$STUB/calls.log")" "issue create"
   assert_not_contains "create-item without --parent reads no sub-issues" "$(<"$STUB/calls.log")" "api graphql"
 
-  # --- sibling dedupe under --parent: open, closed within 24h, closed earlier ---
   siblings() { # <state> <closedAt or null> <title>
     printf '{"data":{"repository":{"issue":{"subIssues":{"nodes":[{"number":7,"title":%s,"state":"%s","closedAt":%s,"repository":{"nameWithOwner":"O/R"}}]}}}}}' \
       "$(jq -cn --arg t "$3" '$t')" "$1" "$2"

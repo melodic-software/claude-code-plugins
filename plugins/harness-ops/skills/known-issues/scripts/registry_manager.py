@@ -34,7 +34,6 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-# ── Constants ───────────────────────────────────────────────────
 
 VALID_CATEGORIES: set[str] = {
     "blocking",
@@ -63,9 +62,6 @@ REQUIRED_FIELDS: set[str] = {
 REGISTRY_FILENAME = "registry.json"
 
 _MUTATING_ACTIONS = frozenset({"add", "update", "remove"})
-
-
-# ── Data access ─────────────────────────────────────────────────
 
 
 def load_registry(data_dir: Path) -> dict[str, Any]:
@@ -114,9 +110,6 @@ def save_registry(data_dir: Path, data: dict[str, Any]) -> None:
     except Exception:
         temp_path.unlink(missing_ok=True)
         raise
-
-
-# ── Lookup helpers ──────────────────────────────────────────────
 
 
 def find_by_key(
@@ -180,9 +173,6 @@ def _is_stale(
         return True
 
 
-# ── Validation helpers ──────────────────────────────────────────
-
-
 def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
     """Validate a single issue entry. Returns list of error strings."""
     errors: list[str] = []
@@ -235,9 +225,6 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
     return errors
 
 
-# ── Result helpers ──────────────────────────────────────────────
-
-
 def _result(status: str, action: str, message: str, data: Any) -> dict[str, Any]:
     return {"status": status, "action": action, "message": message, "data": data}
 
@@ -270,9 +257,6 @@ def _ambiguous(
     return _error(
         action, f"#{number} is ambiguous across repos ({repos}) — pass --repo"
     )
-
-
-# ── Actions ─────────────────────────────────────────────────────
 
 
 def action_list(
@@ -504,9 +488,6 @@ def action_stats(
             "open_blocking": blocking,
         },
     )
-
-
-# ── CLI ─────────────────────────────────────────────────────────
 
 
 def _data_dir_option(value: str) -> Path | None:

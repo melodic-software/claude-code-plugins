@@ -57,7 +57,6 @@ function jsonl(path) {
   return rows;
 }
 
-// The higher of each count, against a bucket's earlier peak when it has one.
 const peak = (was, waiting, running) => ({ waiting: Math.max(was?.waiting ?? 0, waiting), running: Math.max(was?.running ?? 0, running) });
 
 const tally = (counts, key) => {

@@ -1,8 +1,3 @@
-"""Tests for hop_chain.load_transcript: a hop's transcript read through the shared reader.
-
-Fixtures are written to tmp_path per test, so no transcript on this machine is read.
-"""
-
 from __future__ import annotations
 
 import importlib.util

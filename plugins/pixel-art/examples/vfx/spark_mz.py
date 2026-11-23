@@ -9,7 +9,6 @@ import pathlib
 
 SIZE = 192
 COLUMNS = 5
-# (radius, core color, rim color) per cell; radius 0 is the empty last cell
 CELLS = ((6, "y", "o"), (14, "y", "o"), (28, "y", "o"), (18, "o", "r"), (0, None, None))
 
 

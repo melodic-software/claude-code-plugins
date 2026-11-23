@@ -11,12 +11,16 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:plan|copy|decline|config-hook)\\b"
+    {
+      "use": "apply_step"
+    }
   ],
   "no-plugin-cli-write": [
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b(?!\\s+--help\\b)"
+    {
+      "use": "plugin_cli_write"
+    }
   ]
 }

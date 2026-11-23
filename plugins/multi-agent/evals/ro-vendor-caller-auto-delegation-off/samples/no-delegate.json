@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/route.sh worker session=opus --user-file ''"
+          }
+        }
+      ],
+      "why": "runs no delegated task"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/delegate --user-file ~/.config/multi-agent/role-map.yaml codex --use investigate"
+          }
+        }
+      ],
+      "why": "delegated although auto-delegation is off"
+    }
+  ]
+}

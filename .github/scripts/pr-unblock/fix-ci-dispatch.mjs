@@ -56,10 +56,13 @@ import {
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
+import { ACTIONS_BOT_ID, DISPATCH_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { HOLD_LINE } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
+import { traceOnlyFailure } from "./declare-test-scope.mjs";
+import { DEPENDABOT_ID } from "./dependency-classify.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { HEAD_LAG_STOP, KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
@@ -81,7 +84,7 @@ export const DEFAULTS = Object.freeze({
   advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: DISPATCH_HOLDS,
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
   // Failed or nothing-to-fix fix-ci runs one head gets across base moves:
@@ -225,10 +228,6 @@ function ownerIdle(node, idleHours, now) {
   const since = now - idleHours * 3_600_000;
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
-
-// The GitHub Actions bot's user id. GraphQL reports its login as
-// `github-actions`, REST as `github-actions[bot]`; the id is the same in both.
-const ACTIONS_BOT_ID = 41898282;
 
 // The head's `ci-lanes` commit status, whoever set it.
 function lanesStatus(node) {
@@ -705,6 +704,84 @@ export async function dispatchCiFixes({
       continue;
     }
     await send(node, () => "a fix-ci stop with nothing left failing");
+  }
+  return { dispatched, failed };
+}
+
+export const TEST_SCOPE_DEFAULTS = Object.freeze({
+  activity: "fix-test-scope",
+  checkName: "pr-unblock / fix-test-scope",
+  holdLabels: Object.freeze(["do-not-merge", "needs-session"]),
+  maxDispatch: 2,
+});
+
+export function testScopeSkip(node, { base = DEFAULTS.base, actionsAppId = DEFAULTS.actionsAppId, holdLabels = TEST_SCOPE_DEFAULTS.holdLabels } = {}) {
+  if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
+    return "not a ready same-repository PR into the base";
+  }
+  if (node.author?.databaseId === DEPENDABOT_ID) {
+    return "opened by Dependabot";
+  }
+  if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
+    return "held";
+  }
+  const checks = headChecks(node, actionsAppId);
+  if (!checks) {
+    return "head commit or its checks not listed whole";
+  }
+  if (!lanesFailed(node)) {
+    return "ci-lanes has not failed";
+  }
+  return checks.some((run) => run.name === TEST_SCOPE_DEFAULTS.checkName) ? `head already has a ${TEST_SCOPE_DEFAULTS.checkName} check run` : "";
+}
+
+export async function dispatchTestScope({
+  api,
+  runId,
+  log,
+  listed,
+  record = emptyRecord(),
+  base = DEFAULTS.base,
+  workflow = DEFAULTS.workflow,
+  actionsAppId = DEFAULTS.actionsAppId,
+  maxDispatch = TEST_SCOPE_DEFAULTS.maxDispatch,
+}) {
+  const { activity, checkName } = TEST_SCOPE_DEFAULTS;
+  const dispatched = [];
+  let failed = 0;
+  const candidates = listed.filter((node) => !isHandled(record, checkName, node.headRefOid) && testScopeSkip(node, { base, actionsAppId }) === "").sort((a, b) => a.number - b.number);
+  let active = null;
+  let sent = 0;
+  for (const node of candidates) {
+    if (sent >= maxDispatch) {
+      log(`defer ${activity} #${node.number}: ${maxDispatch} dispatches this run; left for a later run`);
+      continue;
+    }
+    try {
+      if (!traceOnlyFailure(await api.readRequiredRun(node.headRefOid, DEFAULTS.requiredWorkflow))) {
+        continue;
+      }
+      if ((await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId })).length > 0) {
+        markHandled(record, checkName, node.headRefOid);
+        continue;
+      }
+      active ??= (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+      const inFlight = active.find((run) => isPrUnblockTitle(run.display_title, activity, node.number));
+      if (inFlight) {
+        log(`skip ${activity} #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
+        continue;
+      }
+    } catch (error) {
+      log(`::warning::#${node.number}: could not read its required run, ${checkName} runs or runs: ${error.message}; skipped, a later run retries`);
+      continue;
+    }
+    sent += 1;
+    const id = await sendDispatch(api, log, { workflow, base, node, label: `${activity} `, errorLabel: `${activity} `, inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) } });
+    if (id === null) {
+      failed += 1;
+    } else {
+      dispatched.push({ number: node.number, workflowRunId: id });
+    }
   }
   return { dispatched, failed };
 }

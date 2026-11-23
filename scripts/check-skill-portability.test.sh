@@ -91,7 +91,6 @@ assert_staged() {
   fi
 }
 
-# --- bare origin/main fails with file:line ---------------------------------
 f="$(tmpfile 'Base the diff on origin/main for the review.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "bare origin/main should fail, got success: $out"
@@ -102,7 +101,6 @@ else
 fi
 rm -f "$f"
 
-# --- bare origin/master also fails -----------------------------------------
 f="$(tmpfile 'git checkout -b feature origin/master')"
 if scan_paths "$f" >/dev/null 2>&1; then
   fail "bare origin/master should fail"
@@ -111,7 +109,6 @@ else
 fi
 rm -f "$f"
 
-# --- detection-ladder use (origin/HEAD fallback) passes --------------------
 f="$(tmpfile 'git merge-base origin/HEAD HEAD (falling back to origin/main, then HEAD)')"
 if scan_paths "$f" >/dev/null 2>&1; then
   ok "detection-first ladder passes (guarded)"
@@ -120,7 +117,6 @@ else
 fi
 rm -f "$f"
 
-# --- generic presence prose does NOT guard a bare branch default -----------
 f="$(tmpfile 'If using a rebase workflow, diff origin/main first.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "generic 'if using' prose must not guard a bare branch default: $out"
@@ -131,7 +127,6 @@ else
 fi
 rm -f "$f"
 
-# --- the bare word "fallback" does NOT guard a bare branch default ----------
 f="$(tmpfile 'As a fallback for a network timeout, run git diff origin/main.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "standalone 'fallback' prose must not guard a bare branch default: $out"
@@ -142,7 +137,6 @@ else
 fi
 rm -f "$f"
 
-# --- a malformed active token fails closed (exit 2), not a silent pass ------
 BAD_TOKENS="$(mktemp)"
 printf 'origin/(main\n' >"$BAD_TOKENS" # unmatched '(' — invalid ERE, awk faults
 f="$(tmpfile 'diff against origin/main here')"
@@ -217,7 +211,6 @@ else
 fi
 rm -f "$f"
 
-# --- annotation does not leak past intervening code ------------------------
 f="$(tmpfile '<!-- portability-ok: covers only the next line -->
 diff against origin/main here
 now a plain line
@@ -316,7 +309,6 @@ else
 fi
 rm -f "$f"
 
-# --- a genuine # -comment declaration (not only <!-- -->) also exempts -----
 f="$(tmpfile '# portability-scope: shell-script skill file, hash-comment style
 Base the diff on origin/main for the review.')"
 if scan_paths "$f" >/dev/null 2>&1; then
@@ -375,7 +367,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- staged (commented) tokens stay inactive under the REAL token list -----
 f="$(mktemp --suffix=.md)"
 printf '%s\n' 'This agnostic skill mentions dotnet and raw.githubusercontent.com.' >"$f"
 if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
@@ -670,7 +661,6 @@ else
 fi
 rm -f "$f" "$BOTH_TOKENS"
 
-# --- missing token list fails closed (exit 2) ------------------------------
 f="$(tmpfile 'origin/main')"
 SKILL_PORTABILITY_TOKENS="/nonexistent/tokens.txt" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 if [[ "$?" -eq 2 ]]; then
@@ -680,7 +670,6 @@ else
 fi
 rm -f "$f"
 
-# --- an invalid base ref fails closed (exit 2) -----------------------------
 (cd "$REPO_ROOT" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash "$SCRIPT" definitely-not-a-ref >/dev/null 2>&1)
 if [[ "$?" -eq 2 ]]; then
   ok "invalid base ref exits 2 (fail closed)"
@@ -688,7 +677,6 @@ else
   fail "invalid base ref should exit 2"
 fi
 
-# --- --all excludes vendor/, evals/, and *.test.sh -------------------------
 fixture_tree::build fx --sut "$SCRIPT"
 mkdir -p "$fx/plugins/alpha/skills/x/vendor" "$fx/plugins/alpha/skills/x/evals"
 printf 'diff against origin/main\n' >"$fx/plugins/alpha/skills/x/SKILL.md"
@@ -706,7 +694,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- empty scope passes ----------------------------------------------------
 fixture_tree::build fx --sut "$SCRIPT" --plugins
 if (cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --all >/dev/null 2>&1); then
   ok "empty skill tree passes"
@@ -759,7 +746,6 @@ rm -rf "$fx"
 # the seam is honored and that the seams do not cross between classes.
 # =============================================================================
 
-# --- the ecosystem class is flagged where nothing declares it --------------
 ECO_TOKEN='[Dd]otnet'
 et="$(tokenfile "$ECO_TOKEN")"
 
@@ -843,7 +829,6 @@ else
 fi
 rm -f "$f"
 
-# --- the per-site and whole-file escapes work for this class too -----------
 f="$(tmpfile 'Run `dotnet build`. <!-- portability-ok: this plugin ships a .NET analyzer -->')"
 if scan_with "$et" "$f" >/dev/null 2>&1; then
   ok "ecosystem class: a per-site portability-ok escape is honored"

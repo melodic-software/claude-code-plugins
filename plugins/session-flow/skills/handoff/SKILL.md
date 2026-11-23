@@ -475,18 +475,18 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - The resume prompt was lost after `/clear`: /session-flow:find-handoff.
 - The resumed session must check that the handoff's premises still hold: /session-flow:reanchor.
 
+## Related
+
+- Delegate to a detached background agent instead: /session-flow:continue-in-background.
+- Make work durable off-machine before shutdown: /session-flow:clean-stop.
+- Read-only orientation from durable state: /session-flow:orient.
+
 ## What this skill does not do
 
-- **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code
-  changes separately; describe uncommitted work in the file-roles section. The one exception is
-  the opt-in `chore(wip):` commit of tracked work on a user's pause request ("WIP commit on an
-  explicit pause" above); the handoff file itself is never committed
-- **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits
-  the resume prompt, and stops (for a forked side task, only the side task stops)
-- **Does not launch a background agent**. Background delegation is the sibling
-  `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
-- **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
-  not relax this. A forked side task is the hard rule's exception: this session keeps its own task
+- **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code changes separately; describe uncommitted work in the file-roles section. The one exception is the opt-in `chore(wip):` commit of tracked work on a user's pause request ("WIP commit on an explicit pause" above); the handoff file itself is never committed
+- **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits the resume prompt, and stops (for a forked side task, only the side task stops)
+- **Does not launch a background agent**. Background delegation is the sibling `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
+- **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does not relax this. A forked side task is the hard rule's exception: this session keeps its own task
 - **Does not offer a resident / no-stop mode.** A resident
   `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
   written last, and only when a clear, model switch, run end, or user-only commit gate applies.

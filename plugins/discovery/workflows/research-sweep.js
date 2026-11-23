@@ -143,7 +143,6 @@ async function agentRetry(prompt, o) {
   }
 }
 
-// Run thunks at most `cap` at a time, in order; a failed thunk yields null.
 async function inWaves(thunks, cap) {
   const out = []
   for (let i = 0; i < thunks.length; i += cap) {
@@ -503,7 +502,6 @@ const SYNTH_SCHEMA = {
   required: ['summary', 'findings', 'dissent'],
 }
 
-// ---- Sweep ----
 phase('Sweep')
 
 const searchers = ANGLES.map((angle, i) => ({ label: 'search:' + (i + 1), angle }))
@@ -518,7 +516,6 @@ const swept = await inWaves(searchers.map(s => () => agentRetry(
 
 searchers.forEach((s, i) => { if (swept[i] == null) nulls.push(s.label) })
 
-// Seeds first, then lowest tier, then sweep order; one entry per URL.
 const byUrl = new Map()
 for (const url of SEEDS) byUrl.set(url, { url, tier: 1, seed: true, angles: ['seed'] })
 swept.forEach((r, i) => {
@@ -550,7 +547,6 @@ phase('Fetch')
 await inWaves(selected.map(s => () => fetchOne({ url: s.url, sections: [] })), MAX_CONCURRENT)
 log('Fetch: ' + [...slices.values()].filter(s => s.state === 'read').length + '/' + selected.length + ' selected pages read raw')
 
-// ---- Read ----
 phase('Read')
 
 // A reader may request sections of its own page, and a sitemap that dates it.
@@ -583,7 +579,6 @@ const readOk = reads
 const readUrls = new Set(readOk.map(r => r.url))
 log('Read: ' + readOk.length + '/' + readers.length + ' sources yielded claims')
 
-// ---- Consolidate ----
 phase('Consolidate')
 
 let claims = []
@@ -611,7 +606,6 @@ const toVerify = loadBearing.slice(0, CLAIM_CAP)
 const overCap = loadBearing.slice(CLAIM_CAP)
 if (overCap.length) log('Consolidate: ' + overCap.length + ' load-bearing claims past the cap of ' + CLAIM_CAP + ' are reported unverified')
 
-// ---- Verify ----
 phase('Verify')
 
 const panel = toVerify.flatMap(c => Array.from({ length: SKEPTICS }, (_, k) => ({ c, k })))
@@ -654,7 +648,6 @@ const unverified = [
 ]
 log('Verify: ' + survived.length + ' survived, ' + refuted.length + ' refuted, ' + unverified.length + ' unverified')
 
-// ---- Critique ----
 phase('Critique')
 
 const critique = await agentRetry(
@@ -676,7 +669,6 @@ const critique = await agentRetry(
 if (critique == null) nulls.push('critic')
 const gaps = critique && Array.isArray(critique.gaps) ? critique.gaps : []
 
-// ---- Synthesize ----
 phase('Synthesize')
 
 const offGrammar = s => (s && Array.isArray(s.findings) ? s.findings : [])

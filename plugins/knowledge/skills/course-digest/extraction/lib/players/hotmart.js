@@ -89,7 +89,6 @@ function findHotmartFrame(page) {
   });
 }
 
-/** Record `url` as the page's HLS master when it matches the packaged-master pattern. */
 function captureMasterUrl(page, url) {
   if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
     getOrCreateEntry(page).hlsMasterUrl = url;
@@ -233,7 +232,6 @@ async function readVjsHls(hotmartFrame, subtitleLang) {
         }
       }
     } catch {
-      /* ignore tech access errors */
     }
     return result;
   }, subtitleLang);
@@ -263,7 +261,6 @@ async function readHlsJsData(hotmartFrame, subtitleLang) {
         }
       }
     } catch {
-      /* ignore */
     }
     return result;
   }, subtitleLang);
@@ -289,7 +286,6 @@ async function scanWindowHls(hotmartFrame, subtitleLang) {
         }
         return result;
       } catch {
-        /* ignore property access errors */
       }
     }
     return {};

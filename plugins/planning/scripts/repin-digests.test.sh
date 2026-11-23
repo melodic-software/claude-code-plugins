@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/skills/*
 # repin-digests.sh computes the digest pins of interview-defenses.test.sh from the files alone
 # and runs nothing from the test file's checkout:
 #   - on a copy of the plugin, every real pin already matches what it computes, so it agrees

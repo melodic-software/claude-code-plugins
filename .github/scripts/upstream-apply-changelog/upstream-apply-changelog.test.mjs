@@ -1,10 +1,12 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 import assert from "node:assert/strict";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { evaluate as evalIf } from "../lib/gate-expression.mjs";
@@ -48,6 +50,9 @@ import {
   validatePlan,
 } from "./upstream-apply-changelog.mjs";
 import { BODY_HOLD } from "../intake-triage/admit.mjs";
+
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -316,6 +321,27 @@ const MARKER = "key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY";
 const PROBE_JOB = "verify-env-scrub";
 const PROBE_STEP = "Probe what a Bash child can reach";
 const CHECK_STEP = "Check the probe";
+
+test("native surfaces compare read-only and the two writers mint separately", () => {
+  const check = jobOf("check-native-surfaces");
+  assert.match(check, /^    permissions:\n      contents: read\n    outputs:/m);
+  assert.match(check, /npm audit signatures/);
+  assert.match(check, /python3 "\$inventory" --binary "\$binary" --self-check/);
+  assert.match(check, /--previous docs\/upstream\/claude-code-native-surfaces\.min\.json/);
+  assert.doesNotMatch(check, /request-lane-token|secrets\.|upload-artifact/);
+  for (const [job, activity, command] of [
+    ["push-native-baseline", "push-native-baseline-branch", "push"],
+    ["publish-native-baseline", "publish-native-baseline-pr", "publish"],
+  ]) {
+    assert.match(jobOf(job), /^    permissions:\n      contents: read\n      id-token: write/m);
+    assert.ok(stepIn(job, "Request the lane token").includes(`activity: ${activity}`));
+    assert.ok(stepIn(job, "Resolve the config").includes(`activity: ${activity}`));
+    assert.match(jobOf(job), new RegExp(`native-baseline-publish\\.mjs ${command}$`, "m"));
+    assert.doesNotMatch(jobOf(job), /secrets\./);
+  }
+  assert.match(jobOf("push-native-baseline"), /if: needs\.check-native-surfaces\.outputs\.summary != ''/);
+  assert.match(jobOf("publish-native-baseline"), /if: needs\.push-native-baseline\.outputs\.head != ''/);
+});
 
 test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
   const job = jobOf(PROBE_JOB);
@@ -658,24 +684,10 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
   for (const job of ["apply-changelog-subscription", "apply-changelog-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
 });
 
-// The legs are the key leg's steps but for the credential, the marker, the
-// handoff report, the leg record's fallback reason, the seal's job id and the
-// next-leg call the fallback leg, the last, does not make.
-test("the subscription and fallback legs repeat the key leg's steps", () => {
-  const shape = (job) =>
-    wf
-      .steps(job)
-      .map((s) => s.text)
-      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential|Pick the next leg)\n/.test(s))
-      .map((s) =>
-        s
-          .replace(/^ *#.*(?:\n|$)/gm, "")
-          .trimEnd()
-          .replace(/^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|JOB_ID): .*(?:\n|$)/gm, "")
-          .replace(/ && steps\.run\.outputs\.handoff != 'true'/, ""),
-      );
-  assert.deepEqual(shape("apply-changelog-subscription"), shape("apply-changelog"));
-  assert.deepEqual(shape("apply-changelog-fallback"), shape("apply-changelog"));
+test("the subscription and fallback legs of both chains are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {

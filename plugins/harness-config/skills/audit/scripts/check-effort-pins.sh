@@ -110,8 +110,6 @@ FIXTURE_DIR="${SETTINGS_AUDIT_DOCS_FIXTURE_DIR:-}"
 WORK="$(mktemp -d)" || die "could not create a temp directory"
 trap 'rm -rf "$WORK"' EXIT
 
-# read_page: set PAGE to the page's markdown, or PAGE="" and UNREAD to the
-# reason. A fetched page also sets ENTRY, the docs cache entry holding its bytes.
 PAGE="" UNREAD="" ENTRY=""
 read_page() {
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$SLUG.md" ]]; then
@@ -135,9 +133,6 @@ read_page() {
   fi
 }
 
-# adjust_section <file>: write the "Adjust effort level" section, child sections
-# included, to <file>, sliced from the cache entry the page was stored in (the
-# page file on disk when there is none); return 1 when the page has no such heading.
 adjust_section() {
   local src=(--file "$PAGE") id
   [[ -f "$DOCS_CACHE" ]] || die "shared docs cache not found: $DOCS_CACHE"
@@ -150,14 +145,6 @@ adjust_section() {
     die "the docs cache could not slice the page"
 }
 
-# parse_page <file>: print L<TAB>level (level set, first-seen order), A<TAB>row
-# (Levels table rows), C<TAB>row (level rows of the Choose table) and
-# D<TAB>line (the defaults item), or one E<TAB>reason when a part is missing.
-# The defaults item is found by content: every numbered item of the section that
-# says "default", so the list renumbering cannot point the hash at another item,
-# and a second such item is hashed rather than skipped. The item is hashed
-# without its list number, so a renumber alone leaves the hash as it was.
-# Headings inside fenced code are ignored; trailing whitespace is trimmed.
 parse_page() {
   awk '
     function rtrim(s) { sub(/[ \t\r]+$/, "", s); return s }
@@ -242,7 +229,6 @@ else
       IN_TABLE[$level]=1
       LEVELS="${LEVELS:+$LEVELS,}$level"
     done < <(grep '^L' "$WORK/parsed")
-    # Hash order: task rows, then the Levels table rows, then the defaults item.
     SHA="$(grep -E '^[CAD]' "$WORK/parsed" | cut -f2- | sha256_text)"
     if [[ $PRINT_BASELINE -eq 1 ]]; then
       STATUS=parsed
@@ -263,7 +249,6 @@ if [[ $PRINT_BASELINE -eq 1 ]]; then
   exit 0
 fi
 
-# scan_pins: print kind<TAB>repo-relative path<TAB>value for every pin under ROOT.
 scan_pins() {
   local f
   shopt -s nullglob

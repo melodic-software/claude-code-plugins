@@ -78,7 +78,6 @@ function Edit-RedactedValue {
         return $out
     }
 
-    # Containers are the only values that can form a cycle; guard them once.
     if ($Value -is [System.Collections.IDictionary] -or
         $Value -is [System.Collections.IList] -or
         $Value -is [pscustomobject]) {

@@ -63,15 +63,11 @@ run_dispatcher() {
     bash "$DISPATCHER" "$@"
 }
 
-# --- usage errors → exit 2 ---
-
 run_dispatcher >/dev/null 2>&1
 assert_eq "no verb → exit 2" "2" "$?"
 
 run_dispatcher bogus-verb >/dev/null 2>&1
 assert_eq "unknown verb → exit 2" "2" "$?"
-
-# --- binding errors → exit 3 ---
 
 ERR="$(cd "$TEST_TMPDIR" && WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/nope.json" bash "$DISPATCHER" capabilities 2>&1 >/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
@@ -81,8 +77,6 @@ BAD="$TEST_TMPDIR/bad.json"
 printf 'nope\n' >"$BAD"
 WORK_ITEM_TRACKER_BINDING="$BAD" bash "$DISPATCHER" capabilities >/dev/null 2>&1
 assert_eq "invalid binding → exit 3" "3" "$?"
-
-# --- unknown provider → exit 3 ---
 
 NOPROV="$TEST_TMPDIR/noprov.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"ghost","config":{"lease_ttl_hours":24}}' >"$NOPROV"
@@ -146,8 +140,6 @@ assert_eq "newer-minor capabilities passthrough intact" "newerminor" "$(jq -r '.
 ERR="$(run_skew newerminor capabilities 2>&1 >/dev/null)"
 assert_contains "newer-minor proceeds with a stderr notice" "$ERR" "newer than core"
 
-# --- capability gate: declared-false verb → exit 6, clear stderr ---
-
 ERR="$(run_dispatcher create-item --title x 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "declared-false verb → exit 6" "6" "$RC_CAPTURE"
@@ -185,13 +177,9 @@ RC_CAPTURE=$?
 assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the add-recurrence verb" "$ERR" "add-recurrence"
 
-# --- capabilities passthrough ---
-
 OUT="$(run_dispatcher capabilities)"
 assert_eq "capabilities → exit 0" "0" "$?"
 assert_eq "capabilities schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
-
-# --- list-frontier derivation over the fake adapter (CR-laden output) ---
 
 OUT="$(run_dispatcher list-frontier)"
 assert_eq "list-frontier → exit 0" "0" "$?"
@@ -332,27 +320,23 @@ EOF
 PROJECT="$TEST_TMPDIR/project"
 LOCAL_ADAPTERS="$PROJECT/tools/work-item-tracker/adapters"
 
-# Unshipped provider "acme" works purely from a consumer-local adapter.
 make_fake_adapter "$LOCAL_ADAPTERS/acme" "acme-local"
 ACME_BINDING="$TEST_TMPDIR/acme.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"acme","config":{"lease_ttl_hours":24}}' >"$ACME_BINDING"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "consumer-local resolves an unshipped provider" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
 
-# A consumer-local dir of a BUNDLED provider name shadows the shipped adapter.
 make_fake_adapter "$LOCAL_ADAPTERS/local-markdown" "local-markdown-shadow"
 LM_BINDING="$TEST_TMPDIR/lm.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"local-markdown","config":{"lease_ttl_hours":24,"storage_dir":"/tmp/wit-x"}}' >"$LM_BINDING"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$LM_BINDING" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "consumer-local shadows a bundled adapter" "local-markdown-shadow" "$(jq -r '.provider' <<<"$OUT")"
 
-# With no consumer-local adapters dir, the plugin-bundled adapter is the fallback.
 EMPTY_PROJECT="$TEST_TMPDIR/empty-project"
 mkdir -p "$EMPTY_PROJECT"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$LM_BINDING" CLAUDE_PROJECT_DIR="$EMPTY_PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "plugin-bundled adapter is the fallback" "local-markdown" "$(jq -r '.provider' <<<"$OUT")"
 
-# WIT_ADAPTERS_DIR still short-circuits both roots (single explicit override).
 OUT="$(WORK_ITEM_TRACKER_BINDING="$BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "WIT_ADAPTERS_DIR override wins over consumer-local" "fake" "$(jq -r '.provider' <<<"$OUT")"
 
@@ -674,7 +658,6 @@ ERR="$(CLAUDE_CODE_REMOTE=true PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING=
   WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" add-sub-item "github:o/r#1" --parent "github:o/r#2" 2>&1 >/dev/null)"
 assert_contains "remote session: the gate names the session" "$ERR" "unavailable in this Claude Code cloud session"
 
-# A conforming gh lifts the gate for every verb, including gated flags.
 cat >"$STUB_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'gh version 2.94.0 (2026-01-01)\n'
@@ -687,7 +670,6 @@ assert_eq "gh 2.94: create-item --parent dispatches" \
 assert_eq "gh 2.94: create-item --blocked-by dispatches" \
   "0" "$(run_gh_verb create-item --title t --blocked-by "github:o/r#1")"
 
-# A non-github provider is never version-gated, whatever gh reports.
 cat >"$STUB_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'gh version 1.0.0 (2020-01-01)\n'

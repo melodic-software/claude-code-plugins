@@ -70,7 +70,6 @@ else
 fi
 `;
 
-// sleep: logs its argument and returns at once.
 const FAKE_SLEEP = `#!/usr/bin/env bash
 printf '%s\\n' "$1" >>"$SLEEP_LOG"
 `;
@@ -893,7 +892,6 @@ test("an actions grant other than read or empty fails before the broker request"
   assert.equal(run.body, null);
 });
 
-// work-unblock's publish-lane-level: Variables write beside an all-read grant.
 const LEVEL = { LANE: "work-unblock", ACTIVITY: "publish-lane-level", EFFECT: "mutate-variable", CONTENTS: "read", PULL_REQUESTS: "read", ISSUES: "read", PR_NUMBER: "" };
 const levelGrant = (permissions) => ({
   token: "ghs_lane",

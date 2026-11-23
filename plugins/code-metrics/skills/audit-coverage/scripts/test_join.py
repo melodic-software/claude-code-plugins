@@ -604,7 +604,6 @@ class StatementWeightTests(unittest.TestCase):
         row = next(r for r in document["measures"] if r["function"] == "F")
         self.assertEqual(row["values"]["lines_executable"], 0)
         self.assertEqual(row["values"]["lines_hit"], 0)
-        # The file row still takes its percentage from the statement ratio.
         file_row = next(r for r in document["measures"] if r["function"] is None)
         self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
         self.assertEqual(file_row["cov_source"], "statement-ratio")

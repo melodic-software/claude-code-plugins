@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "note": "Pointers to benchmark pages read live at routing time. No scores, rankings, dates or model names live here.",
+  "rows": [
+    {
+      "id": "terminal-bench",
+      "workloads": ["coding"],
+      "link": "https://www.tbench.ai/leaderboard",
+      "publisher": "tbench.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "terminal-bench",
+      "expect": "Terminal-Bench"
+    },
+    {
+      "id": "cursorbench",
+      "workloads": ["coding"],
+      "link": "https://cursor.com/cursorbench",
+      "publisher": "cursor",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "cursorbench",
+      "expect": "CursorBench"
+    },
+    {
+      "id": "webdev-arena",
+      "workloads": ["web-ui"],
+      "link": "https://arena.ai/leaderboard/code/webdev",
+      "publisher": "arena.ai",
+      "provider_own": false,
+      "status": "permanent",
+      "task_set": "webdev-arena",
+      "expect": "WebDev"
+    },
+    {
+      "id": "vals-index",
+      "workloads": ["coding", "knowledge"],
+      "link": "https://www.vals.ai/benchmarks/vals_index",
+      "publisher": "vals.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "vals-index",
+      "expect": "Vals Index"
+    },
+    {
+      "id": "gdpval-aa",
+      "workloads": ["knowledge"],
+      "link": "https://artificialanalysis.ai/evaluations/gdpval-aa",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "gdpval",
+      "expect": "GDPval-AA"
+    },
+    {
+      "id": "aa-image-t2i",
+      "workloads": ["image"],
+      "link": "https://artificialanalysis.ai/image/leaderboard/text-to-image",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "aa-image-t2i",
+      "expect": "AA-Image"
+    }
+  ]
+}

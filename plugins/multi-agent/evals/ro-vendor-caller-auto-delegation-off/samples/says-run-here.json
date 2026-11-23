@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`run here`",
+      "why": "returns only the run-here answer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "codex: model default @ effort default (basis: default; everyday review)",
+      "why": "recommends a vendor instead of returning run here"
+    }
+  ]
+}

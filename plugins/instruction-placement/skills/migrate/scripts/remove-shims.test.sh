@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for remove-shims.sh (self-contained — ships with the plugin).
-#
-# Every case runs against a fixture repository in a temporary directory, with a
-# fixture installed-plugin manifest, fixture cutover-check inputs and a fake
-# `claude`. No case touches a real repository and no case spends a real turn.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +9,7 @@ VERSION_LIB="$SCRIPT_DIR/../../../scripts/lib/version.sh"
 # A stub copy of the script sources the plugin's shared version comparator
 # from three levels up, so a stub keeps the plugin's layout:
 # <root>/skills/migrate/{scripts,reference} beside <root>/scripts/lib.
-make_stub() { # <root> -> prints the stub's skills/migrate directory
+make_stub() {
   mkdir -p "$1/skills/migrate/scripts" "$1/skills/migrate/reference" "$1/scripts/lib"
   cp "$VERSION_LIB" "$1/scripts/lib/version.sh"
   printf '%s' "$1/skills/migrate"
@@ -39,11 +34,7 @@ make_repo() {
 
 commit_all() { (cd "$1" && git add -A && git commit -q -m "${2:-fixture}"); }
 
-# --- fixtures -------------------------------------------------------------
 
-# The cutover check's own inputs, so a remove-shims run can reach its later
-# gates. Its parser is covered by cutover-check.test.sh; here it is a
-# precondition, not the subject.
 {
   printf 'noise\001'
   printf 'Cs(ne,{isOnByDefault:()=>W});var W=!0;var B=()=>Gl("tengu_agents_md_mod",W);'
@@ -57,10 +48,6 @@ cat >"$TMP/env-vars.md" <<'EOF'
 EOF
 
 mkdir -p "$TMP/bin"
-# A load looks like the directory's own AGENTS.md coming back. Given the
-# nested write probe's `--tools Write`, `met` writes the file it was asked for
-# and answers with the root AGENTS.md only: the probe reads that as NO-LOAD.
-# Every call is logged, so a case can tell whether the probe ran.
 cat >"$TMP/bin/claude-met" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TMP/claude-args.log"
@@ -70,7 +57,6 @@ case " \$* " in
 esac
 EOF
 printf '#!/usr/bin/env bash\necho NONE\n' >"$TMP/bin/claude-unmet"
-# `loads` is `met` with the nested AGENTS.md also answering the write probe.
 cat >"$TMP/bin/claude-loads" <<EOF
 #!/usr/bin/env bash
 case " \$* " in
@@ -100,8 +86,6 @@ cat >"$TMP/installed-stale.json" <<'EOF'
 }
 EOF
 
-# A newer copy in one scope beside an older copy in another. The older one is
-# what answers in the repository being de-shimmed, so the lowest wins.
 cat >"$TMP/installed-mixed.json" <<'EOF'
 {
   "version": 2,
@@ -115,8 +99,6 @@ cat >"$TMP/installed-mixed.json" <<'EOF'
 }
 EOF
 
-# A valid copy first and an unreadable one after it. The unreadable copy could
-# be the stale one, so it must not be skipped in favor of the valid one.
 cat >"$TMP/installed-malformed.json" <<'EOF'
 {
   "version": 2,
@@ -130,8 +112,6 @@ cat >"$TMP/installed-malformed.json" <<'EOF'
 }
 EOF
 
-# 0.14.0 is below the instruction-placement floor: the old doctrine still lived
-# in two of its own files at that release.
 cat >"$TMP/installed-0140.json" <<'EOF'
 {
   "version": 2,
@@ -154,9 +134,7 @@ CHECK_ARGS=(
 AGENTS_LINE='Every change in this repository is reviewed before it is merged anywhere.'
 NESTED_LINE='The service in this directory owns its own deployment and its own rollback.'
 
-# A repository at the target shape: a root shim and a nested shim, both beside
-# a non-empty AGENTS.md, and no path detection to acknowledge.
-build_ready_repo() { # <path>
+build_ready_repo() {
   local r="$1"
   make_repo "$r"
   mkdir -p "$r/svc"
@@ -169,7 +147,6 @@ build_ready_repo() { # <path>
   commit_all "$r"
 }
 
-# --- Case 1: --help and usage errors --------------------------------------
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -189,8 +166,6 @@ rc=0
 bash "$SCRIPT" --root "$TMP" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "an unknown argument exits 2" 2 "$rc"
 
-# A copy without the plugin's scripts/lib has no comparator: exit 2 before it
-# prints a price or reads an installed version.
 NOLIB="$TMP/nolib/skills/migrate/scripts"
 mkdir -p "$NOLIB" "$TMP/nolib-repo"
 git -C "$TMP/nolib-repo" init -q
@@ -200,7 +175,6 @@ OUT=$(bash "$NOLIB/remove-shims.sh" --root "$TMP/nolib-repo" --confirm 2>&1) || 
 assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
 assert_not_contains "and prints no price" "$OUT" "=== remove-shims"
 
-# --- Case 2: without --confirm it prints the price and removes nothing ----
 
 READY="$TMP/ready"
 build_ready_repo "$READY"
@@ -215,9 +189,6 @@ assert_not_contains "and stops at the end of the pointer bullet" "$OUT" "**As of
 assert_contains "and says it is not confirmed" "$OUT" "Not confirmed"
 assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --porcelain)"
 
-# The price is the record's decision, the paragraph directly above its
-# pointer, and the pointer itself: not the section's lead-in, not the as-of
-# date or the trigger, and nothing from the next section.
 PRICE_STUB="$(make_stub "$TMP/price-stub")"
 cp "$SCRIPT" "$PRICE_STUB/scripts/remove-shims.sh"
 cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
@@ -253,8 +224,6 @@ GOT_PRICE="$(printf '%s\n' "$OUT" |
   awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
 
-# A pointer record carries no as-of date or trigger: the pointer bullet's own
-# end (a blank line here) ends the price, so the paragraph after it is left out.
 cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
 # Sources
 
@@ -274,13 +243,10 @@ GOT_PRICE="$(printf '%s\n' "$OUT" |
   awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "an unstamped pointer record's price ends at the pointer bullet" "$EXPECTED_PRICE" "$GOT_PRICE"
 
-# A nested AGENTS.md adds the write-trigger loss to the price, before any
-# confirmation and before the probe that measures it has run.
 assert_contains "a nested AGENTS.md prices the write-trigger loss" "$OUT" \
   "Nested AGENTS.md files: 1. The nested write probe says: not yet run"
 assert_contains "and names the record behind it" "$OUT" "'The nested write trigger'"
 
-# --- Case 3: a stale installed plugin refuses before anything is removed --
 
 rc=0
 OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-stale.json" \
@@ -316,7 +282,6 @@ assert_eq "an unreadable copy beside a valid one refuses" 1 "$rc"
 assert_contains "and says an unread version is not a version" "$OUT" "An unread version is not"
 assert_eq "and removes nothing" "" "$(cd "$READY" && git status --porcelain)"
 
-# --- Case 4: an unmet cutover condition removes nothing -------------------
 
 BLOCKED="$TMP/blocked"
 build_ready_repo "$BLOCKED"
@@ -333,7 +298,6 @@ assert_contains "and says the check refused it" "$OUT" "cutover-check reported a
 assert_contains "and the check's own evidence is shown" "$OUT" "UNACKNOWLEDGED tools/find-root.sh"
 assert_eq "and the repository still has its shims" "" "$(cd "$BLOCKED" && git status --porcelain)"
 
-# --- Case 5: a repository not at the target shape -------------------------
 
 UNFINISHED="$TMP/unfinished"
 build_ready_repo "$UNFINISHED"
@@ -360,8 +324,6 @@ assert_contains "and says it cannot be canaried" "$OUT" "cannot be canaried"
 assert_eq "and removes nothing" "" "$(cd "$ZERO" && git status --porcelain)"
 assert_contains "and names the shim-over-empty state, not content-in-claude" "$OUT" "shim-empty-target"
 
-# An import that loads like the shim but is not byte-for-byte `@AGENTS.md` is
-# not the finished target: removing it would skip the rewrite Apply owes it.
 for form in dotslash crlf; do
   NONCANON="$TMP/noncanonical-$form"
   build_ready_repo "$NONCANON"
@@ -380,17 +342,12 @@ for form in dotslash crlf; do
   assert_eq "and removes nothing ($form)" "" "$(cd "$NONCANON" && git status --porcelain)"
 done
 
-# --- Case 6: a surface that cannot be verified is never de-shimmed --------
 
 NOLINE="$TMP/noline"
 build_ready_repo "$NOLINE"
 printf '# Service\n\n- a bullet\n- another bullet\n' >"$NOLINE/svc/AGENTS.md"
 commit_all "$NOLINE" "a nested AGENTS.md with no canaryable line"
 
-# A nested session loads its ancestors too, so a line the nested file shares
-# with the root file is answered by the root file and proves nothing about the
-# nested surface. Such a file has no usable line, and the refusal comes BEFORE
-# any removal.
 SHARED="$TMP/sharedline"
 build_ready_repo "$SHARED"
 printf '# Service\n\n%s\n' "$AGENTS_LINE" >"$SHARED/svc/AGENTS.md"
@@ -411,7 +368,6 @@ assert_eq "a directory with no distinctive line exits 1" 1 "$rc"
 assert_contains "and says so" "$OUT" "no line that is both distinctive and unique"
 assert_eq "and removes nothing, including the root shim" "" "$(cd "$NOLINE" && git status --porcelain)"
 
-# --- Case 7: the happy path, root and nested together ---------------------
 
 rc=0
 : >"$TMP/claude-args.log"
@@ -437,8 +393,6 @@ assert_eq "the root AGENTS.md is byte-identical" "$(printf '# Conventions\n\n%s\
 assert_eq "the nested AGENTS.md is byte-identical" "$(printf '# Service\n\n%s\n' "$NESTED_LINE")" \
   "$(cat "$READY/svc/AGENTS.md")"
 
-# With no nested AGENTS.md there is no write-trigger loss to price, so the
-# probe is skipped instead of spending a metered turn nobody reads.
 FLAT="$TMP/flat"
 make_repo "$FLAT"
 printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$FLAT/AGENTS.md"
@@ -454,8 +408,6 @@ assert_not_contains "and spends no write-probe turn" "$(cat "$TMP/claude-args.lo
 assert_contains "because the probe was skipped" "$OUT" "--skip-write-probe: the probe did not run"
 assert_not_contains "and no nested loss is priced" "$OUT" "Nested AGENTS.md files"
 
-# A LOADS result means no load rides on the nested shim: the post-probe price
-# is not repeated.
 LOADS_REPO="$TMP/loads"
 build_ready_repo "$LOADS_REPO"
 LOADS_ARGS=("${CHECK_ARGS[@]:0:${#CHECK_ARGS[@]}-1}" "$TMP/bin/claude-loads")
@@ -466,8 +418,6 @@ assert_eq "a LOADS repository exits 0" 0 "$rc"
 assert_contains "the probe reports LOADS" "$OUT" "(not graded): LOADS."
 assert_not_contains "and the price is not repeated after it" "$OUT" "The price, now that the probe has run:"
 
-# An AGENTS.md under node_modules is a tree nobody edits: it is not counted,
-# so it neither prices a loss nor spends a probe turn.
 VENDORED="$TMP/vendored"
 make_repo "$VENDORED"
 printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$VENDORED/AGENTS.md"
@@ -479,15 +429,12 @@ printf 'Vendored instructions.\n' >"$VENDORED/node_modules/pkg/AGENTS.md"
 OUT=$(bash "$SCRIPT" --root "$VENDORED" --installed-plugins "$TMP/installed-current.json" 2>&1)
 assert_not_contains "a vendored AGENTS.md prices no nested loss" "$OUT" "Nested AGENTS.md files"
 
-# A nested AGENTS.md with no shim beside it has no shim to lose: only the root
-# shim goes, so no nested loss is priced.
 NOSHIM="$TMP/nested-noshim"
 build_ready_repo "$NOSHIM"
 (cd "$NOSHIM" && git rm -q svc/CLAUDE.md && git commit -q -m "the nested directory is already agents-only")
 OUT=$(bash "$SCRIPT" --root "$NOSHIM" --installed-plugins "$TMP/installed-current.json" 2>&1)
 assert_not_contains "a nested AGENTS.md without a shim prices no nested loss" "$OUT" "Nested AGENTS.md files"
 
-# --- Case 8: a canary miss restores every shim this run removed -----------
 
 MISSING="$TMP/missing"
 build_ready_repo "$MISSING"
@@ -503,8 +450,6 @@ assert_eq "and the worktree is back where it started" "" "$(cd "$MISSING" && git
 assert_eq "the root shim is one line again" "@AGENTS.md" "$(cat "$MISSING/CLAUDE.md")"
 assert_eq "and so is the nested one" "@AGENTS.md" "$(cat "$MISSING/svc/CLAUDE.md")"
 
-# A canary that could not measure is not a pass either, and restores the same
-# way a clean miss does.
 printf '#!/usr/bin/env bash\nexit 7\n' >"$TMP/bin/claude-unreach"
 chmod +x "$TMP/bin/claude-unreach"
 UNREACHABLE="$TMP/unreachable"
@@ -518,10 +463,6 @@ assert_contains "and reports UNREACH with the exit code" "$OUT" "UNREACH, the CL
 assert_contains "and restores the shims" "$OUT" "restored CLAUDE.md"
 assert_eq "leaving the worktree as it was" "" "$(cd "$UNREACHABLE" && git status --porcelain)"
 
-# A restore that did not land says so and takes the exit code with it, rather
-# than printing "restored" over a failure. The fake CLI deletes the nested
-# directory during the root canary, so the nested shim has nowhere to go back
-# to while the root one restores normally.
 HALF="$TMP/halfrestore"
 build_ready_repo "$HALF"
 # shellcheck disable=SC2016 # the fixture script's own text; it must expand when IT runs, not here
@@ -539,10 +480,6 @@ assert_contains "and says so in the refusal" "$OUT" "shim(s) could NOT be put ba
 assert_contains "while the shim it could restore is back" "$OUT" "restored CLAUDE.md"
 assert_eq "and that one is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
 
-# A line that an ancestor also carries must be rejected even when it holds
-# backslashes or regex metacharacters: passing it to awk through -v would make
-# awk interpret `\t` and `\n`, so the comparison would look at a different
-# string and score the line unique while the ancestor answers its probe.
 ESCAPED="$TMP/escaped"
 build_ready_repo "$ESCAPED"
 TRICKY='Install to C:\tools\new\bin and run .*+?[x] before the first deploy of the day.' # portability-ok: a Windows path inside fixture text, not a GNU grep word boundary
@@ -557,10 +494,6 @@ assert_eq "a shared line carrying backslashes is still rejected" 1 "$rc"
 assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
 assert_eq "and nothing was removed" "" "$(cd "$ESCAPED" && git status --porcelain)"
 
-# Claude Code loads by filesystem, not by tracking status. An UNTRACKED
-# intermediate AGENTS.md is in no plan row, so an index built from the plan
-# missed it and the nested line below it scored unique while that file would
-# answer its probe in a real session.
 UNTRACKED="$TMP/untracked"
 build_ready_repo "$UNTRACKED"
 mkdir -p "$UNTRACKED/mid/svc"
@@ -578,11 +511,6 @@ assert_eq "an untracked ancestor still blocks a shared line" 1 "$rc"
 assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
 assert_eq "and nothing was removed" "" "$(cd "$UNTRACKED" && git status --porcelain --untracked-files=no)"
 
-# A SYMLINKED AGENTS.md is a file a session loads, so the index has to see it.
-# `-type f` alone skipped it while the above-root walk's `-f` test follows
-# symlinks, so the two halves of the index disagreed. Windows Git Bash needs a
-# privilege for `ln -s`, so the case is guarded the way the sibling suites
-# guard theirs and runs on Linux CI.
 SYMLINKED="$TMP/symlinked"
 build_ready_repo "$SYMLINKED"
 mkdir -p "$SYMLINKED/mid"
@@ -600,8 +528,6 @@ else
   printf 'SKIP: symlink creation unavailable on this host (the case runs on Linux CI)\n'
 fi
 
-# A walk that failed and a repository with one AGENTS.md are the same empty
-# output, and on the empty reading every line scores unique.
 FAKEBIN="$TMP/fakefind"
 mkdir -p "$FAKEBIN"
 printf '#!/usr/bin/env bash\nexit 2\n' >"$FAKEBIN/find"
@@ -616,8 +542,6 @@ assert_eq "a failed walk is a refusal" 1 "$rc"
 assert_contains "and says the walk failed" "$OUT" "the AGENTS.md walk failed"
 assert_eq "and nothing was removed" "" "$(cd "$FINDFAIL" && git status --porcelain)"
 
-# A walk that exits 0 having seen nothing is the same hazard wearing a clean
-# exit code: the directory being judged is not in the index built to judge it.
 printf '#!/usr/bin/env bash\nexit 0\n' >"$FAKEBIN/find"
 chmod +x "$FAKEBIN/find"
 EMPTYIDX="$TMP/emptyindex"
@@ -631,8 +555,6 @@ assert_contains "and names the file the index never saw" "$OUT" "is not in the c
 assert_eq "and nothing was removed either" "" "$(cd "$EMPTYIDX" && git status --porcelain)"
 rm -rf "$FAKEBIN"
 
-# A plan with no DIR row at all is discovery that did not run, not a repository
-# with nothing in it.
 NODIR="$TMP/nodir"
 build_ready_repo "$NODIR"
 NODIR_STUB="$(make_stub "$TMP/nodir-stub")"
@@ -649,13 +571,6 @@ OUT=$(bash "$NODIR_STUB/scripts/remove-shims.sh" --root "$NODIR" --confirm \
 assert_eq "a plan with no DIR row is a refusal, not success" 1 "$rc"
 assert_contains "and says discovery did not report" "$OUT" "carries no DIR row"
 
-# The ordering that D1 fixes (a directory is listed BEFORE its file is
-# touched, so a signal landing inside `rm` cannot leave it unlisted) has no
-# portable test: provoking an `rm -f` failure means making the path a
-# directory, which changes the plan's state for it to `agents-only` and skips
-# the removal entirely. What IS testable is that every listed directory comes
-# back, including the last one processed, which the canary-miss and
-# canary-unreachable cases above both assert.
 
 # A death that is not a clean exit must not strand a de-shimmed, unverified
 # repository. A closed pipe is the case that needs no `kill` to provoke and the
@@ -680,8 +595,6 @@ assert_eq "a reader that closes after a removal still leaves the shims in place"
 assert_eq "and the root shim is the import line again" "@AGENTS.md" "$(cat "$PIPED/CLAUDE.md")"
 assert_eq "and so is the nested one" "@AGENTS.md" "$(cat "$PIPED/svc/CLAUDE.md")"
 
-# A staged edit to a shim does not become the restored content: the restore
-# writes the one line the target shape guarantees, not the index copy.
 STAGED="$TMP/staged"
 build_ready_repo "$STAGED"
 printf '@AGENTS.md\n\nsomething staged\n' >"$STAGED/CLAUDE.md"
@@ -692,7 +605,6 @@ OUT=$(bash "$SCRIPT" --root "$STAGED" --confirm --installed-plugins "$TMP/instal
 assert_eq "a repository whose shim carries staged content is refused" 1 "$rc"
 assert_contains "and named as not the target shape" "$OUT" "both-with-content"
 
-# --- Case 9: a repository with no shims left ------------------------------
 
 rc=0
 OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-current.json" \

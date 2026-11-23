@@ -272,7 +272,6 @@ if [[ -n "$expiry_date" ]]; then
       "expired-detected" "still-fresh"
   fi
 
-  # Sanity: a synthetic pre-expiry today must NOT trip.
   if nesting_invariant_expiry_date_passed "$expiry_date" "2000-01-01"; then
     fail "expiry date comparison stays fresh for a synthetic pre-expiry today" \
       "still-fresh" "expired-detected"

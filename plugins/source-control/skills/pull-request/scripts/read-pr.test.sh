@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for read-pr.sh, black-box with a stubbed `gh` on PATH.
 
 set -uo pipefail
 
@@ -95,7 +94,6 @@ exit 0
 STUB_EOF
 chmod +x "$STUB_DIR/gh" "$STUB_DIR/git"
 
-# An ambient enterprise token is dropped; RUN_ENTERPRISE_TOKEN sets one for a case.
 run() {
   : >"$TEST_TMPDIR/calls"
   env -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN ${RUN_ENTERPRISE_TOKEN:+GH_ENTERPRISE_TOKEN="$RUN_ENTERPRISE_TOKEN"} GH_STUB_CALLS="$TEST_TMPDIR/calls" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" "$@"

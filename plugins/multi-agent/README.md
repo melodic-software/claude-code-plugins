@@ -10,8 +10,8 @@ answer.
 | Skill | What it does |
 |---|---|
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
-| `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them, and each value's basis (upstream statement, judgment, or a config layer). `all` is the map a workflow reads from `args.roles`. |
-| `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
+| `/multi-agent:route <role\|all\|vendors <task>> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map and `vendors` settings through the config cascade and prints them as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort, source layer and basis, plus resolved `vendors` switches and preferences. `all` is the map a workflow reads from `args.roles`; `vendors <task>` chooses a vendor, model and effort for one delegated task via the benchmark trust model and `vendors` settings. |
+| `/multi-agent:audit-defaults [<role>\|fanout\|repo\|registry]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream. `registry` rechecks every shipped and team benchmark registry row (reachability, page date and age, work-type coverage, current-model testing) through `multi-agent:registry-audit` and proposes a diff to `reference/benchmarks.json`. Proposes only in its default modes; an explicit apply request in `registry` mode opens a PR in the marketplace repository only. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal override is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
@@ -61,15 +61,29 @@ lines, and the hook below confines its fetches. The
 workflow returns findings and, for the defaults, a proposed diff; applying any
 of it is a reviewed edit.
 
-The `docs-fetcher` and `drift-checker` definitions set `omitClaudeMd: true`:
-each reads untrusted pages and follows only the prompt the workflow gives it,
-so both opt out of the CLAUDE.md instruction hierarchy. The pointer sits
-here, not in the agent bodies, so neither agent spends a fetch on it.
+The `docs-fetcher`, `drift-checker`, `registry-fetcher` and `registry-judge` definitions set `omitClaudeMd: true`:
+each reads untrusted pages and follows only the prompt its workflow gives it,
+so all four opt out of the CLAUDE.md instruction hierarchy. The pointer sits
+here, not in the agent bodies, so none spends a fetch on it.
 
 - **Pointer**: when you need what the field drops and what still loads, fetch
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
   and [sub-agents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   live.
+
+`multi-agent:registry-audit` is the read-only benchmark registry pass behind
+`/multi-agent:audit-defaults registry`. It reads shipped rows in
+`reference/benchmarks.json` plus any repository team rows in
+`docs/conventions/multi-agent/benchmarks.json` (always running on a manual
+invocation regardless of `vendors.*` switches). One `multi-agent:registry-fetcher`
+(Bash only, gated to `docs-raw.sh` on the exact hosts of `reference/benchmarks.json`)
+fetches each allowlisted row page raw; one `multi-agent:registry-judge` (TodoWrite only,
+no shell, no web, no file access) inspects the slice as data and returns a closed JSON
+verdict (`source_id`, `reachable`, `page_date`, `covers_work_types`,
+`tests_current_models`, `notes` without quoting page text). Page text never enters the
+skill session. The workflow proposes a diff to `reference/benchmarks.json` for shipped
+rows only; an explicit apply step writes it in a worktree and opens a PR through
+`/source-control:pull-request create`, only in [the marketplace repository](https://github.com/melodic-software/claude-code-plugins/tree/main).
 
 A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
 the host rule a gate: inside a `drift-checker` subagent it denies any fetch
@@ -77,16 +91,17 @@ that is not an https URL on a first-party docs host with no query string. Every
 other agent and the main thread pass through. The workflow drops any source
 outside those hosts before a stage runs.
 
-A `PreToolUse` hook on `Bash` (`lib/docs-fetcher-gate.mjs`) holds the
-`docs-fetcher`: inside that subagent it denies every tool call except one shape,
-`bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`, with the
-URL on the same first-party hosts and no query string. For that command it
-makes no decision, and it passes once per agent run. `docs-raw.sh` fetches with
-`--public-only`, so the host must resolve only to global addresses and curl
-connects to the checked one alone. A stdin error or a crash inside the gate
-denies. The row sets `"onFailure": "block"` for a missing `node` or a
-timed-out gate (see Node.js below). Every other agent and the main thread pass
-through.
+Two `PreToolUse` hooks on `Bash` (`lib/docs-fetcher-gate.mjs`) hold `docs-fetcher`
+and `registry-fetcher`: inside each subagent the gate denies every tool call except
+one shape, `bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`,
+with no query string. The URL must be on first-party docs hosts for `docs-fetcher`, and on the exact
+host set of `reference/benchmarks.json` for `registry-fetcher` (enforced by
+`hooks/registry-fetcher-gate.test.sh`). For that command each gate makes no decision,
+and passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the host
+must resolve only to global addresses and curl connects to the checked one alone. A
+stdin error or a crash inside the gate denies. Both rows set `"onFailure": "block"`
+for a missing `node` or a timed-out gate (see Node.js below). Every other agent and
+the main thread pass through.
 
 - **Pointer:** when working out what applies to a call the gate leaves undecided, fetch
   [hooks: PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
@@ -128,8 +143,14 @@ One configuration, layered: your own file, named by the `role_map_file`
 option (set it in `/config`), then the team file
 (`docs/conventions/multi-agent.yaml`), then a gitignored personal override
 (`docs/conventions/multi-agent.local.yaml`). Each overrides the bundled defaults
-per key, and `/multi-agent:setup` writes any of the three. Keys, values and
-layering: [`reference/config.md`](reference/config.md); where each file lives:
+per key, for both role mappings and the `vendors` routing settings (`routing`,
+`trials`, `auto_delegation`, `tiebreak`, `trials_prove`, `trials_fail`,
+per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
+`/multi-agent:setup` writes any of the three. A repository can also append team
+benchmark rows in `docs/conventions/multi-agent/benchmarks.json` (same closed
+schema as `reference/benchmarks.json`; team row ids matching a shipped id are
+refused). Keys, values, team rows and layering:
+[`reference/config.md`](reference/config.md); where each file lives:
 [config locations](reference/config-locations.md).
 
 An old `~/.claude/multi-agent.yaml` or `.claude/multi-agent.local.yaml` is still read while its new
@@ -175,12 +196,13 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
-- **Node.js** for the `drift-checker` fetch gate and the `docs-fetcher` gate. Both rows set
-  `"onFailure": "block"`, and the rows fire on every `WebFetch` and every `Bash` call in any agent
-  or the main thread, so a missing `node` can stop all of those calls. What a client does with the
-  key is in the `onFailure` pointer above. Where a failed gate lets a call through, only the
-  workflow's source filter and the agent's prompt hold the drift checker's fetches to first-party
-  docs hosts, and the `docs-fetcher`'s `Bash` goes ungated.
+- **Node.js** for the `drift-checker` fetch gate, the `docs-fetcher` gate and the
+  `registry-fetcher` gate. All three rows set `"onFailure": "block"`, and the rows fire on every
+  `WebFetch` and every `Bash` call in any agent or the main thread, so a missing `node` can stop
+  all of those calls. What a client does with the key is in the `onFailure` pointer above. Where a
+  failed gate lets a call through, only the workflow's source filter and the agent's prompt hold
+  the drift checker's fetches to first-party docs hosts, and `docs-fetcher` and `registry-fetcher`
+  `Bash` go ungated.
   `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` resolves;
   `bash "<plugin root>/scripts/check-hook-registration.sh"` then reports whether `hooks/hooks.json`
   registers the fetch gate on `WebFetch` and whether the gate denies a sample off-host

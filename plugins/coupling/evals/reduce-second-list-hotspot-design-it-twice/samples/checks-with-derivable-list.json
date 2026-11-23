@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/skills/reduce/scripts/derivable-list.py config/services.json"
+          }
+        }
+      ],
+      "why": "runs the check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq length config/services.json"
+          }
+        }
+      ],
+      "why": "counts by hand"
+    }
+  ]
+}

@@ -5,7 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REF="$SCRIPT_DIR/../../../reference/providers/github/pull-request/monitor.md"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# Children that call mktemp land inside the trapped root.
 export TMPDIR="$TEST_TMPDIR"
 
 # shellcheck source=../../../scripts/test-helpers.sh
@@ -32,11 +31,6 @@ cp -p "$SCRIPT_DIR/../../../lib/github-remote.sh" "$PLUGIN/lib/"
 printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$PLUGIN/scripts/source-control-review-threads"
 POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
-# The PR is open for the first read and merged for the second, so the watch runs one poll and
-# exits. The check a is finished, c is still running, and b is finished unless STUB_B names its
-# status. STUB_FAIL_CHECKS makes the check-runs read fail. No gh default repository is recorded,
-# and a REST read of any repository other than acme/app fails, except that me/app reads as a fork
-# of acme/app the caller can push to.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 if [[ "$1 $2" == "repo set-default" ]]; then
@@ -54,22 +48,28 @@ if [[ "$1 $2" == "pr view" ]]; then
   exit 1
 fi
 [[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
+# What `gh api -i` prints on a 200: the headers, a blank line, then the body.
+reply() { printf 'HTTP/2.0 200 OK\r\n\r\n%s\n' "$1"; }
 case "$*" in
 */check-runs*)
   [[ -n "${STUB_FAIL_CHECKS:-}" ]] && exit 1
   b_status=${STUB_B:-completed}
   b_conclusion=null
   [[ "$b_status" == completed ]] && b_conclusion='"success"'
-  printf '%s' '{"check_runs":[
+  reply '{"check_runs":[
     {"name":"a","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"completed","conclusion":"success"},
     {"name":"b","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"'"$b_status"'","conclusion":'"$b_conclusion"'},
     {"name":"c","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"in_progress","conclusion":null}]}'
   ;;
-*/pulls/5\ *)
+*/pulls/5)
   n=$(cat "$GH_STUB_COUNT" 2>/dev/null || echo 0)
   echo $((n + 1)) >"$GH_STUB_COUNT"
-  [[ "$n" -eq 0 ]] && echo "OPEN h1" || echo "MERGED h1"
+  [[ "$n" -eq 0 ]] && merged=false || merged=true
+  reply '{"state":"open","merged":'"$merged"',"head":{"sha":"h1"}}'
   ;;
+*/actions/runs*) reply '{"workflow_runs":[]}' ;;
+*/status*) reply '{"statuses":[]}' ;;
+*) reply '[]' ;;
 esac
 exit 0
 STUB_EOF
@@ -97,7 +97,6 @@ assert_not_contains "no baseline: the first poll only records, a is not emitted"
 assert_not_contains "no baseline: the first poll only records, b is not emitted" "$out" "b: pass"
 assert_contains "no baseline: the watch completes" "$out" "PR #5 MERGED — watch complete"
 
-# The re-arm's snapshot comes from the poll script's own snapshot run, read while b still runs.
 out=$(STUB_B=in_progress run_poll --snapshot "$TEST_TMPDIR/baseline")
 assert_exit "snapshot run: exits 0 after writing the snapshot" 0 "$?"
 snap=$(cat "$TEST_TMPDIR/baseline" 2>/dev/null)
@@ -148,8 +147,6 @@ git -C "$TRI" remote add upstream https://github.com/acme/app.git
 fork=$(PATH="$STUB_DIR:$PATH" bash "$SCRIPT_DIR/target-repo.sh" --dir "$TRI" 2>/dev/null)
 assert_eq "triangular flow: target-repo.sh resolves the checkout to the fork" "me/app" "$fork"
 
-# identity_block <n>: the nth fenced block under "Resolve PR identity", placeholders filled, that
-# prints the resolved identity.
 identity_block() {
   awk -v n="$1" '/^## Resolve PR identity/ { on = 1; next } on && /^## / { exit }
     on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "$REF" |

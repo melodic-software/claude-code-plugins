@@ -1,11 +1,3 @@
-"""Refusal paths through the shared guarded-mutation preamble.
-
-The three CLIs used to carry this opening themselves. These rows call the
-helper directly so a future edit cannot widen what a mutating run is allowed
-to do without failing here. Existing CLI suites still assert the same
-refusals at the entry points; nothing in those assertions changes.
-"""
-
 from __future__ import annotations
 
 import argparse

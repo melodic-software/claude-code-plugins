@@ -12,10 +12,10 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 LINK="https://github.com/o/r/actions/runs/1"
 assert_help "$S"
-assert_usage_error "$S"                                                  # no id
-assert_usage_error "$S" "github:o/r#1" --note seen                       # no --source-link
-assert_usage_error "$S" "github:o/r#1" --source-link "$LINK"             # no --note
-assert_usage_error "$S" "github:o/r#1" --source-link "$LINK" --note ""   # empty note
+assert_usage_error "$S"
+assert_usage_error "$S" "github:o/r#1" --note seen
+assert_usage_error "$S" "github:o/r#1" --source-link "$LINK"
+assert_usage_error "$S" "github:o/r#1" --source-link "$LINK" --note ""
 assert_usage_error "$S" "github:o/r#1" --source-link "ftp://x" --note seen
 assert_usage_error "$S" "github:o/r#1" --source-link "https://a b" --note seen
 assert_usage_error "$S" "local-markdown:o/r#1" --source-link "$LINK" --note seen

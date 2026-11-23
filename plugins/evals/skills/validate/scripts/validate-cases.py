@@ -155,6 +155,7 @@ where no third-party package is provisioned.
 
 import argparse
 import glob
+import importlib.util
 import json
 import os
 import re
@@ -163,6 +164,27 @@ import subprocess
 import sys
 
 MIN_PYTHON = (3, 8)
+
+CASE_SKILLS_PY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    os.pardir,
+    os.pardir,
+    os.pardir,
+    "scripts",
+    "case_skills.py",
+)
+
+
+def _load_case_skills(path=CASE_SKILLS_PY):
+    spec = importlib.util.spec_from_file_location("evals_case_skills", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+case_skills = _load_case_skills()
+REFERENCE_KINDS = case_skills.REFERENCE_KINDS
 
 # The complete `prompt.md` frontmatter key set. An unknown key is an error in the
 # binary ("prompt.md: unknown frontmatter key"), which is why this is a FAIL.
@@ -391,11 +413,6 @@ class ParseError(Exception):
 
 class Unmirrored(Exception):
     """A grader setting this script cannot reproduce offline."""
-
-
-# --------------------------------------------------------------------------
-# YAML subset parser
-# --------------------------------------------------------------------------
 
 
 def _prepare(text):
@@ -694,11 +711,6 @@ def split_frontmatter(text):
     return split_markdown(text)[0]
 
 
-# --------------------------------------------------------------------------
-# Findings
-# --------------------------------------------------------------------------
-
-
 class Finding(object):
     def __init__(self, level, case, path, message):
         self.level = level
@@ -742,11 +754,6 @@ def unparsed(case, path, error):
         path,
         "frontmatter not parsed (%s); simplify or run the CLI" % error.construct,
     )
-
-
-# --------------------------------------------------------------------------
-# Case discovery and validation
-# --------------------------------------------------------------------------
 
 
 def discover_cases(eval_dir):
@@ -1096,23 +1103,6 @@ def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
 
 
 CONTEXT_PATHS = ("scaffold_script", "history_file", "add_dirs")
-LEADING_REFERENCE = re.compile(
-    r"^\s*/([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?=[\s:,.;]|$)"
-)
-TAG_REFERENCE = re.compile(r"^([A-Za-z][\w-]*):([A-Za-z][\w-]*)$")
-HOLE = "\x00"
-LITERAL_REFERENCE = re.compile(
-    r"(?<![\w.:\x00-])(/?)([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?![\w:(\[.?*+{\x00-])"
-)
-LOOKAROUNDS = ("(?=", "(?!", "(?<=", "(?<!")
-GROUP_OPENER = re.compile(r"\((?:\?:|\?P?<[A-Za-z_]\w*>)?(?!\?)")
-QUANTIFIERS = ("?", "*", "+", "{")
-NAME_CONTINUES = re.compile(r"[\w.(\[-]|\\[^bB]")
-REFERENCE_KINDS = {
-    "skill": lambda plugin, name: (plugin, "skills", name, "SKILL.md"),
-    "agent": lambda plugin, name: (plugin, "agents", name + ".md"),
-}
-TOOL_KINDS = {"Skill": "skill", "Agent": "agent"}
 
 
 def plugins_root(eval_dir):
@@ -1142,163 +1132,6 @@ def missing_reference(root, kind, plugin, name, prefix=False):
     return "/".join(("plugins",) + parts)
 
 
-def _class_end(pattern, start):
-    index = start + 1
-    if pattern.startswith("^", index):
-        index += 1
-    if pattern.startswith("]", index):
-        index += 1
-    while index < len(pattern):
-        if pattern[index] == "\\":
-            index += 2
-            continue
-        if pattern[index] == "]":
-            return index + 1
-        index += 1
-    return len(pattern)
-
-
-def _group_end(pattern, start):
-    depth = 0
-    index = start
-    while index < len(pattern):
-        char = pattern[index]
-        if char == "\\":
-            index += 2
-            continue
-        if char == "[":
-            index = _class_end(pattern, index)
-            continue
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-        index += 1
-    return len(pattern)
-
-
-def literal_text(pattern):
-    """The pattern with only the characters it matches literally, and for
-    each output character the source index just past it: an escaped symbol
-    becomes itself, `\\b` and `\\B` a space, a group's parentheses nothing
-    unless a quantifier follows the close, and any other escape, a character
-    class, a quantified group's close or a lookaround or flag group a HOLE."""
-    out = []
-    starts = []
-    ends = []
-    index = 0
-    while index < len(pattern):
-        char = pattern[index]
-        start = index
-        if char == "\\" and index + 1 < len(pattern):
-            escaped = pattern[index + 1]
-            if escaped in "bB":
-                piece = " "
-            elif escaped.isalnum() or escaped == "_":
-                piece = HOLE
-            else:
-                piece = escaped
-            index += 2
-        elif char == "[":
-            piece = HOLE
-            index = _class_end(pattern, index)
-        elif pattern.startswith(LOOKAROUNDS, index):
-            piece = HOLE
-            index = _group_end(pattern, index)
-        elif char == "(":
-            opener = GROUP_OPENER.match(pattern, index)
-            if opener:
-                piece = ""
-                index = opener.end()
-            else:
-                piece = HOLE
-                index = _group_end(pattern, index)
-        elif char == ")":
-            piece = HOLE if pattern[index + 1 : index + 2] in QUANTIFIERS else ""
-            index += 1
-        else:
-            piece = char
-            index += 1
-        if piece:
-            out.append(piece)
-            starts.append(start)
-            ends.append(index)
-    return "".join(out), starts, ends
-
-
-def _enclosing_close(pattern, index):
-    """The index of the `)` closing the group around `index`, else None."""
-    depth = 0
-    while index < len(pattern):
-        char = pattern[index]
-        if char == "\\":
-            index += 2
-            continue
-        if char == "[":
-            index = _class_end(pattern, index)
-            continue
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            if depth == 0:
-                return index
-            depth -= 1
-        index += 1
-    return None
-
-
-def alternation_groups(pattern):
-    """The (open, close) source indices of each group holding a top-level `|`."""
-    spans = []
-    stack = []
-    index = 0
-    while index < len(pattern):
-        char = pattern[index]
-        if char == "\\":
-            index += 2
-            continue
-        if char == "[":
-            index = _class_end(pattern, index)
-            continue
-        if char == "(":
-            stack.append([index, False])
-        elif char == "|" and stack:
-            stack[-1][1] = True
-        elif char == ")" and stack:
-            opened, alternation = stack.pop()
-            if alternation:
-                spans.append((opened, index))
-        index += 1
-    return spans
-
-
-def reference_reach(pattern, start, end):
-    """For a token spanning source [start, end): None when it is not one
-    literal name (it crosses a group with alternatives, or such a group it
-    ends in is followed by more of a name), else whether it is open on the
-    right, so a prefix of a real name resolves it."""
-    for opened, closed in alternation_groups(pattern):
-        if start < opened < end or start < closed < end:
-            return None
-    index = end
-    while index < len(pattern):
-        char = pattern[index]
-        if char == ")":
-            index += 1
-        elif char == "|":
-            close = _enclosing_close(pattern, index)
-            if close is None:
-                return True
-            if NAME_CONTINUES.match(pattern, close + 1):
-                return None
-            index = close + 1
-        else:
-            return False
-    return True
-
-
 def check_context_paths(case_dir, context, case, findings):
     """FAIL a context path that names nothing in the case directory."""
     for field in CONTEXT_PATHS:
@@ -1326,59 +1159,40 @@ def check_references(root, prompt, prompt_file, tag_sources, graders, case, find
     token makes it a skill; a token the pattern leaves open on the right (at
     the end, or before `|` or `)`) matches as a substring, so a prefix of a
     real name resolves it."""
-    match = LEADING_REFERENCE.match(prompt)
-    if match:
-        missing = missing_reference(root, "skill", *match.groups())
-        if missing:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    case,
-                    prompt_file,
-                    "the prompt's leading /%s:%s names no skill: %s does not exist"
-                    % (match.group(1), match.group(2), missing),
-                )
-            )
-    for tags, path in tag_sources:
-        for tag in tags:
-            match = TAG_REFERENCE.match(str(tag))
-            missing = match and missing_reference(root, "skill", *match.groups())
-            if missing:
-                findings.append(
-                    Finding(
-                        "FAIL",
-                        case,
-                        path,
-                        'tag "%s" names no skill: %s does not exist' % (tag, missing),
-                    )
-                )
-    for name, options, path in graders:
-        if not isinstance(options, dict) or options.get("type") != "tool_used":
+    for ref in case_skills.references(prompt, prompt_file, tag_sources, ()):
+        if ref.form != "literal":
             continue
-        kind = TOOL_KINDS.get(options.get("tool"))
-        pattern = options.get("input_match")
-        if not kind or not isinstance(pattern, str):
+        missing = missing_reference(root, ref.kind, ref.plugin, ref.name, ref.prefix)
+        if not missing:
             continue
-        text, starts, ends = literal_text(pattern)
-        tokens = []
-        for match in LITERAL_REFERENCE.finditer(text):
-            reach = reference_reach(
-                pattern, starts[match.start()], ends[match.end() - 1]
+        if ref.source == "prompt":
+            message = (
+                "the prompt's leading /%s:%s names no skill: %s does not exist"
+                % (ref.plugin, ref.name, missing)
             )
-            if reach is not None:
-                tokens.append(match.groups() + (reach,))
-        for slash, plugin, target, prefix in dict.fromkeys(tokens):
+        else:
+            message = 'tag "%s:%s" names no skill: %s does not exist' % (
+                ref.plugin,
+                ref.name,
+                missing,
+            )
+        findings.append(Finding("FAIL", case, ref.file, message))
+    for grader in graders:
+        name = grader[0]
+        for ref in case_skills.references("", prompt_file, (), (grader,)):
+            if ref.form != "literal":
+                continue
             missing = missing_reference(
-                root, "skill" if slash else kind, plugin, target, prefix
+                root, ref.kind, ref.plugin, ref.name, ref.prefix
             )
             if missing:
                 findings.append(
                     Finding(
                         "FAIL",
                         case,
-                        path,
+                        ref.file,
                         'grader "%s" input_match names %s:%s, but %s does not exist'
-                        % (name, plugin, target, missing),
+                        % (name, ref.plugin, ref.name, missing),
                     )
                 )
 
@@ -1569,11 +1383,6 @@ def collect_graders(case_dir, case, yaml_data, findings):
                 options[field] = body.strip()
             graders.append((filename[:-3], options, path))
     return graders
-
-
-# --------------------------------------------------------------------------
-# Sample answers: deterministic graders run offline
-# --------------------------------------------------------------------------
 
 
 def python_only_tokens(pattern, flags=""):

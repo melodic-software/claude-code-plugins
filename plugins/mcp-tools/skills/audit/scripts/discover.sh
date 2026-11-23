@@ -31,8 +31,6 @@ Exit: 0 normally, 2 on argument error, 3 on an out-of-bounds --path.
 EOF
 }
 
-# derive_server <relative-file-path> — best-effort server label from a tool file path.
-# The nearest ancestor directory above a runtime/source folder, else the top dir.
 derive_server() {
   local rel="$1" seg prev="" out=""
   local IFS='/'
@@ -53,7 +51,6 @@ derive_server() {
   printf '%s' "$out"
 }
 
-# lines_after <file> <line_num> — the up to 12 lines that follow line_num.
 lines_after() {
   sed -n "$(($2 + 1)),$(($2 + 12))p" "$1" 2>/dev/null
 }
@@ -120,7 +117,6 @@ if [[ ! -d "$root" ]]; then
 fi
 cd "$root" || exit 0
 
-# to_project_rel <path-relative-to-scan-root> — emit a path relative to project_root.
 to_project_rel() {
   local f="${1#./}"
   if [[ -n "$scan_prefix" ]]; then
@@ -133,7 +129,6 @@ to_project_rel() {
 records=""
 servers_seen=""
 
-# add_record <server> <runtime> <file> <tool_name> <line_num> — append one tool manifest record.
 add_record() {
   local record
   printf -v record 'Server: %s\nRuntime: %s\nTool file: %s\nTool: %s\nTool line: %s\n---\n' "$@"
@@ -144,7 +139,6 @@ add_record() {
   esac
 }
 
-# TypeScript — @modelcontextprotocol/sdk
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   rel="$(to_project_rel "$file")"
@@ -161,7 +155,6 @@ done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
   ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' \
   ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | LC_ALL=C sort)
 
-# Python — mcp
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   rel="$(to_project_rel "$file")"
@@ -186,7 +179,6 @@ done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.py' \
   ! -path '*/.venv/*' ! -path '*/__pycache__/*' \
   ! -name '*_test.py' ! -name 'test_*.py' 2>/dev/null | LC_ALL=C sort)
 
-# .NET — ModelContextProtocol
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   rel="$(to_project_rel "$file")"

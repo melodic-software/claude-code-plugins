@@ -236,6 +236,16 @@ When the target skill is one person's or company's corpus, its SKILL.md takes th
 
 When the person publishes, add the piece to the corpus, write its note and add it to the index. Add its new arguments, with citations, to the theme references they belong in, and its coined terms to the glossary, so the skill can answer from the piece and not only list it. Re-read the core list to see if anything shifted. Update the count in the description and the counts in the Reference files section. A corpus skill with a stale count is a skill that lies about its own boundary. Run the visibility check again before the write.
 
+## Next
+
+/skill-quality:check
+
+## Related
+
+- Finding an author's primary corpus before distilling: /discovery:research.
+- Digesting a single vendor docs page: /knowledge:docpage-digest.
+- Extracting a DRM-protected Kindle book first: /kindle-dedrm:manage.
+
 ## Rules and warnings
 
 These are hard-won lessons from real distillation sessions:

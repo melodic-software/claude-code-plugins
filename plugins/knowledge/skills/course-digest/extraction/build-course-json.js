@@ -1,14 +1,3 @@
-/**
- * Build course.json for a Teachable course by scraping the curriculum page.
- *
- * Usage: node build-course-json.js --course-url <enrolled-url> --output-dir <path>
- *
- * Example:
- *   node build-course-json.js \
- *     --course-url "https://www.courses.example.tech/courses/enrolled/2518872" \
- *     --output-dir "<work-root>/courses/<platform>/<slug>"
- */
-
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";

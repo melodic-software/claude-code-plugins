@@ -348,7 +348,8 @@ const carryActions = (runs) => {
   const actions = async (method, path) => {
     calls.push(path);
     if (/maintenance-monitor-signals\.yml\/runs/.test(path)) return { workflow_runs: runs };
-    if (/runs\/\d+\/artifacts/.test(path)) return { total_count: 1, artifacts: [{ name: JOBS_ARTIFACT, expired: false }] };
+    const run = /runs\/(\d+)\/artifacts/.exec(path)?.[1];
+    if (run) return { total_count: 2, artifacts: [{ id: Number(run) * 10, name: "other", expired: false }, { id: Number(run) * 10 + 1, name: JOBS_ARTIFACT, expired: false }] };
     throw new Error(`no route for ${path}`);
   };
   return { actions, calls };
@@ -370,10 +371,22 @@ test("the job reads carry is read from the newest trusted run, past a pull_reque
     actions,
     download: (id) => (downloaded.push(id), jobsCarryFile("o/r", [ENTRY], HELD)),
   });
-  assert.deepEqual(downloaded, [901]);
+  assert.deepEqual(downloaded, [9011], "run 901's job reads artifact, fetched by its id");
   assert.deepEqual([...jobs.keys()], ["50:1"]);
   assert.deepEqual(held, HELD);
-  assert.ok(!calls.some((p) => /runs\/90[23]\/artifacts/.test(p)));
+  assert.equal(calls.length, 2, "one run listing and run 901's artifact listing, which is never listed again");
+  assert.match(calls[0], /maintenance-monitor-signals\.yml\/runs\?branch=main/);
+  assert.equal(calls[1], "/repos/o/r/actions/runs/901/artifacts?per_page=100");
+});
+
+test("a trusted run whose job reads artifact comes back without an id carries nothing, with a warning", async (t) => {
+  const actions = async (method, path) =>
+    /\/runs\?/.test(path) ? { workflow_runs: [{ id: 901, path: LANE, event: "schedule", head_branch: "main" }] } : { total_count: 1, artifacts: [{ name: JOBS_ARTIFACT, expired: false }] };
+  const log = t.mock.method(console, "log", () => {});
+  const download = t.mock.fn(() => jobsCarryFile("o/r", [ENTRY], HELD));
+  assert.deepEqual(await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download }), { jobs: new Map(), held: null, episodes: {} });
+  assert.equal(download.mock.callCount(), 0);
+  assert.match(log.mock.calls[0].arguments[0], /^::warning::monitoring lane: nothing carried, so every run's jobs are read: run 901's .* artifact has no id$/);
 });
 
 test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries nothing", async (t) => {

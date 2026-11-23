@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// The page end to end in a real browser, against `share.sh ensure-running` on spare ports with the fake
-// cloudflared: two browsers (the owner and a guest) join, answer, vote, lock, pick, react and send a round;
-// every state poll carries a query string; the page runs under the server's CSP with no violation; and a
-// returning guest, with the secret the page stored, comes back as the same pid, even when the first heartbeats are
-// answered 429 or lost to the network.
-//   node plugins/planning/shared/tests/ui_journey.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Design's Contracts (routes, snapshot, auth) and the fixtures, never from the page.
 "use strict";
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -36,7 +28,6 @@ async function main() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "shared-ui-journey-"));
   const dirs = [];
   const errors = [], csp = [], stateUrls = [], tooFast = [];
-  /** A page that records its errors, its CSP violations and every /api/state request it makes. */
   async function openPage(url, init, before) {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     await ctx.addInitScript(() => document.addEventListener("securitypolicyviolation", e => { (window.__csp ||= []).push(`${e.violatedDirective} ${e.blockedURI}`); }));
@@ -55,7 +46,6 @@ async function main() {
   const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : qid === "Q2" ? "Which default" : "What worries" }).first();
 
   try {
-    // ---------- session A: a fresh session ----------
     const dA = path.join(tmp, "topic", "shared", "po"); dirs.push(dA);
     const up = await upOnSparePort(port => share(dA, "ensure-running", "--guest-port", String(port)));
     ok("ensure-running answers a local URL", /^http:\/\/127\.0\.0\.1:\d+\/$/.test(up.localUrl), up.localUrl);
@@ -79,7 +69,6 @@ async function main() {
     const gusPid = (await snap(guest))?.me?.pid;
     ok("the guest's pid is stored under the prototype's key with its secret", await guest.evaluate(p => localStorage.getItem("pid") === p && (localStorage.getItem("secret") || "").length >= 32, gusPid));
 
-    // answer
     await railQ(guest, "Q1").click();
     await guest.fill("#vf-answer", "Pin it on the right, sticky.");
     await guest.press("#vf-answer", "Control+Enter");
@@ -92,30 +81,25 @@ async function main() {
     await owner.press("#vf-answer", "Control+Enter");
     ok("the owner's answer shows on the guest's page", await until(guest, () => [...document.querySelectorAll(".vf-alist .vf-card")].some(c => /Below the total/.test(c.textContent))));
 
-    // vote
     const ownerCard = guest.locator(".vf-alist .vf-card", { hasText: "Below the total" });
     await ownerCard.locator(".vf-vote").click();
     ok("the guest's vote lands on the owner's card", await until(owner, p => window.Core.snapshot()?.me && (window.Core.snapshot().cards.Q1.find(c => c.ref === "p:host")?.votes || []).includes(p), gusPid));
     ok("the vote button shows it is pressed", await until(guest, () => document.querySelector(".vf-alist .vf-card:not(.vf-mine):not(.vf-bot) .vf-vote")?.getAttribute("aria-pressed") === "true"));
 
-    // lock
     ok("the owner sees Lock top answer", await until(owner, () => { const b = document.querySelector(".vf-anshead .vf-btn-brass"); return !!b && !b.hidden && b.getAttribute("aria-disabled") === "false"; }));
     await owner.click(".vf-anshead .vf-btn-brass");
     ok("Lock top answer locks the most voted card", await until(owner, () => window.Core.snapshot()?.locks?.Q1?.source?.card === "p:host"));
     ok("the guest's page shows the lock", await until(guest, () => !document.querySelector(".vf-lock").hidden && /Below the total/.test(document.querySelector(".vf-lock").textContent)));
 
-    // pick on a choice question
     await railQ(guest, "Q2").click();
     await guest.locator(".vf-opt", { hasText: "Card" }).locator(".vf-optchoose").click();
     ok("a pick is the guest's vote on the option", await until(owner, p => window.Core.snapshot()?.me && (window.Core.snapshot().cards.Q2.find(c => c.ref === "o:opt-1")?.votes || []).includes(p), gusPid));
-    // The server adds "Something else…" to every choice question; the owner locks options, never that one.
     await railQ(owner, "Q2").click();
     ok("the choice question offers Something else…, with no Lock this one on it", await until(owner, () => {
       const o = document.querySelector(".vf-opt.vf-opt-other");
       return !!o && /Something else…/.test(o.textContent) && o.querySelector(".vf-optlock").hidden && !document.querySelector(".vf-opt:not(.vf-opt-other) .vf-optlock").hidden;
     }));
 
-    // gather: reactions instead of votes
     await railQ(owner, "Q3").click();
     await owner.fill("#vf-answer", "Losing the saved card.");
     await owner.press("#vf-answer", "Control+Enter");
@@ -125,7 +109,6 @@ async function main() {
     await gatherCard.locator('.vf-react[data-r="thumbs"]').click();
     ok("a reaction reaches the server", await until(owner, () => window.Core.snapshot()?.cards?.Q3?.find(c => c.ref === "p:host")?.reactions?.thumbs === 1));
 
-    // send
     await owner.locator(".vf-round-cur .vf-send").click();
     const confirm = owner.locator("dialog.vf-cdlg[open] button", { hasText: "Send anyway" });
     if (await confirm.isVisible().catch(() => false)) await confirm.click();
@@ -134,10 +117,7 @@ async function main() {
     ok("the guest's page shows the round went to Claude", await until(guest, () => { const s = document.querySelector(".vf-next .vf-steps"); return !!s && !s.hidden; }));
     ok("the guest's composer is read-only once the round is sent", await until(guest, () => document.getElementById("vf-answer").disabled));
 
-    // ---------- a returning guest whose first heartbeats fail ----------
     const seed = { fn: s => { if (!localStorage.getItem("seeded")) { localStorage.setItem("seeded", "1"); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } } };
-    // After a restart every open tab reloads at once: a first heartbeat answered 429 (twice), or lost to the network
-    // (twice), must not cost a guest their stored secret. Only the server's 401 refuses a secret.
     const ANN = await guest.evaluate(() => localStorage.getItem("secret"));
     for (const [what, refuse] of [["answered 429", route => route.fulfill({ status: 429, contentType: "application/json", headers: { "x-test-refusal": "1" }, body: '{"error":"slow-down","message":"Wait a moment."}' })],
       ["lost to the network", route => route.abort("failed")]]) {
@@ -152,7 +132,6 @@ async function main() {
       await p.context().close();
     }
 
-    // every page, every poll
     ok("every /api/state request the page made carries a query string", stateUrls.length > 10 && stateUrls.every(s => /^\?since=\d+$/.test(s)), `${stateUrls.length} polls, ${stateUrls.filter(s => !/^\?since=\d+$/.test(s)).slice(0, 3).join(",")}`);
     for (const p of [owner, guest]) csp.push(...(await p.evaluate(() => window.__csp || [])));
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));

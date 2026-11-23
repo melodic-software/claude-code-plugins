@@ -146,7 +146,6 @@ test("the body opens with the spec link and quotes run text only inside a fence 
   });
   assert.equal(body.split("\n")[0], `Refs: #${SPEC_ISSUE}`);
   for (const heading of ["## Summary", "## Fix", "## Verification", "## Related"]) assert.ok(body.includes(`\n${heading}\n`), heading);
-  // The summary's four backticks sit inside a five-backtick fence.
   const at = body.indexOf("@kyle-sexton");
   const open = body.lastIndexOf("`````text\n", at);
   assert.ok(open > 0 && body.indexOf("\n`````", at) > at, "the mention is inside a fence");

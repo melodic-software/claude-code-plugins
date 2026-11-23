@@ -28,7 +28,7 @@ point() {
   [[ "$4" == - ]] || attrs+=",{\"key\":\"type\",\"value\":{\"stringValue\":\"$4\"}}"
   printf '{"timeUnixNano":"%s000000000","attributes":[%s],%s}' "$EPOCHSECONDS" "$attrs" "$5"
 }
-metric() { # <name> <aggregationTemporality> <points...>: one Collector batch line
+metric() {
   local name="$1" temporality="$2" IFS=,
   shift 2
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"%s","unit":"x","sum":{"dataPoints":[%s],"aggregationTemporality":%s,"isMonotonic":true}}]}]}]}\n' \
@@ -43,13 +43,12 @@ api_request() {
 TOKENS=claude_code.token.usage
 COST=claude_code.cost.usage
 
-run() { # <store> <args...>
+run() {
   out="$(CC_OTEL_STORE="$1" bash "$SCRIPT" "${@:2}" 2>&1)"
   rc=$?
   flat="$(tr -s ' ' <<<"$out")"
 }
 
-# Usage errors need no store and no duckdb.
 out="$(bash "$SCRIPT" --help)"
 assert_contains "--help prints usage" "$out" "session-a"
 run "$TMP"

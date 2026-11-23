@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for crap.py at its command line, plus the imported
-function the join calls directly."""
-
 from __future__ import annotations
 
 import importlib.util

@@ -440,6 +440,12 @@ execution request was made on one of those platforms, read [reference/unsupporte
 and follow it. On Windows it runs one `handoff-apply` per tier, re-verifying each path just before sending it to the Recycle Bin, and that call's hook `ask`, listing the tier and every path, is the tier's approval; on macOS the human first approves an exact single-tier path list in this session.
 It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and how long the hook belt holds. Do not improvise a manual deletion lane from the engine steps above.
 
+## Related
+
+- Single repository cache or build-output cleanup: /repo-hygiene:clean.
+- Git worktree lifecycle cleanup: /source-control:worktree.
+- Delegated read-only leftover scan: /disk-hygiene:audit.
+
 ## Gotchas
 
 Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale
@@ -452,8 +458,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
 - Python 3.11 has no `os.path.isjunction`; the engine reads the Windows reparse attribute from `lstat`
   and treats every reparse point as protected. Windows `apply` remains disabled; Windows removal is `handoff-apply`'s Recycle Bin lane.
-- `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
-  parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
+- `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
 - Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,
   verifies the descriptor identity, and removes only by descriptor-relative `unlink`/`rmdir`. A
   directory is reopened without following links, matched by device/inode/type, and proven empty after
@@ -491,6 +496,4 @@ and what the guard does when no Python resolves → "Hook launch form".
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
 - A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking how a hook `ask` combines with an allow rule, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control) live; for which allow rules survive auto mode, [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
-- The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
-  Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
-  are already long-form.
+- The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures are already long-form.

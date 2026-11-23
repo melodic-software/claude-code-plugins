@@ -1,5 +1,3 @@
-# Example docs/conventions/ecosystems/dotnet.yaml — a consuming repo's .NET command surface.
-# Contract: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md (schema: ecosystem.schema.json).
 globs: ["*.cs", "*.csproj", "*.sln", "*.slnx", "*.props", "*.targets"]
 anchor: "the solution file at repo root (*.slnx or *.sln); when none exists, the nearest *.csproj above the changed files"
 build-cmd: 'dotnet build "<solution-or-project-file>"'

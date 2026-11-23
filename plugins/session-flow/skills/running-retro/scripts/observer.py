@@ -67,9 +67,9 @@ def now_ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-_PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
-_NARRATION_LIMIT = 160  # bounded `say`/`human` narration -- see _bounded()
-_ID_TAIL_LEN = 8  # bounded id correlation key -- see _short_id()
+_PREVIEW_LIMIT = 80
+_NARRATION_LIMIT = 160
+_ID_TAIL_LEN = 8
 
 
 def _short_id(value: object) -> object:
@@ -394,7 +394,7 @@ class Observer:
         try:
             mtime_age = time.time() - self.lock_path.stat().st_mtime
         except OSError:
-            return True  # already gone -> free to take
+            return True
         cap = self.idle_secs + self.max_secs
         try:
             data = json.loads(self.lock_path.read_text(encoding="utf-8"))
@@ -675,7 +675,7 @@ class Observer:
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
-            return True  # nothing to retain
+            return True
         claude = _find_claude()
         if not claude:
             # Analysis could not run -> RETAIN the observations as the collect-only

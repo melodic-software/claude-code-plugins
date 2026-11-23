@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/harness-ops/retirements.yaml
-# Runs harness-ops' own retirements.yaml through its check-retirements.sh copy
-# against fixture repositories: the morning_brief records clean only the
-# block, keep the file's other keys, and the demoted records stay report-only.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 

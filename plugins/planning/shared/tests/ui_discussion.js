@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// The Discussion under each question (item 10), against `share.sh ensure-running` with the fake cloudflared: it starts
-// folded under the Claude section, its head counts the comments and the ones new to this person, and opening it
-// clears that count on the server; a comment's author edits and deletes it, nobody else can; the owner hides any,
-// leaving it to its author marked Hidden; the composer says @Claude sends it to Claude, and such a comment becomes a
-// request in the host's queue whose card, and later answer, link back with "from Discussion"; on a 390-wide phone the
-// section fits the screen with nothing scrolling sideways.
-//   node plugins/planning/shared/tests/ui_discussion.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (.work spec-question-screen.md, followups item 10, mockup variant A) and
-// the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
@@ -24,14 +14,12 @@ const shown = page => page.evaluate(() => [...document.querySelectorAll(".vf-dis
   hidden: !li.querySelector(".vf-cm-hidden").hidden, isNew: !li.querySelector(".vf-cm-new").hidden,
   became: li.querySelector(".vf-cm-became").hidden ? "" : li.querySelector(".vf-cm-became-t").textContent })));
 const openDisc = async page => { if ((await page.getAttribute(".vf-disc-head", "aria-expanded")) !== "true") await page.click(".vf-disc-head"); return until(page, () => !document.querySelector(".vf-disc-body").hidden); };
-/** Post through the composer once the last post finished (its field cleared, Post enabled again). */
 const post = async (page, text) => {
   await until(page, () => !document.querySelector(".vf-disc-post").disabled && !document.querySelector(".vf-disc-ta").value);
   await page.fill(".vf-disc-ta", text); await page.click(".vf-disc-post");
   return until(page, t => (window.Core.state.discussions.Q1 || []).some(c => c.text === t), text, 10000);
 };
 const cm = (page, text) => page.locator(".vf-disc-list > .vf-cm", { hasText: text });
-/** F4: the Edit, Delete and Hide/Show a comment's ⋯ menu offers, the same menu as a chat message's. */
 const acts = async (page, text) => {
   await cm(page, text).locator(".vf-cm-more").click();
   await until(page, () => !document.querySelector(".vf-msgmenu").hidden);
@@ -39,7 +27,6 @@ const acts = async (page, text) => {
   await page.keyboard.press("Escape");
   return a;
 };
-/** Pick one entry from a comment's ⋯ menu. */
 const pick = async (page, text, label) => { await cm(page, text).locator(".vf-cm-more").click(); await page.locator(".vf-msgmenu [role=menuitem]", { hasText: label }).click(); };
 const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
 const DRAFT = "@Claude a draft typed on Q1", ANN_ASK = "@Claude is a sticky bar common?";
@@ -61,7 +48,6 @@ async function main() {
     const bo = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(bo, "Bo");
 
-    // ---------- folded by default, below the Claude section ----------
     let h = await head(ann);
     ok("the Discussion starts folded, reading No comments yet", h.open === "false" && h.body && h.count === "No comments yet" && !h.fresh, JSON.stringify(h));
     ok("  and sits right after the Claude section", await ann.evaluate(() => document.querySelector(".vf-clsec").nextElementSibling === document.querySelector(".vf-disc")));
@@ -69,7 +55,6 @@ async function main() {
     ok("the composer says @Claude sends it to Claude", await ann.evaluate(() => document.querySelector(".vf-disc-hint").textContent === "Type @Claude to send it to Claude."));
     ok("Ann's two comments show in her open Discussion", await post(ann, ANN1) && await post(ann, OFF) && await until(ann, () => document.querySelectorAll(".vf-disc-list > .vf-cm").length === 2));
 
-    // ---------- N new, cleared on open, on the server ----------
     ok("the host's folded head reads 2 comments and 2 new", await until(owner, () => document.querySelector(".vf-disc-count").textContent === "2 comments" && document.querySelector(".vf-disc-new").textContent === "2 new"), JSON.stringify(await head(owner)));
     ok("  and stays folded", (await head(owner)).body);
     ok("Ann's own comments are not new to her", (await head(ann)).fresh === "");
@@ -83,7 +68,6 @@ async function main() {
     ok("  after a reload the head shows no new count", await until(owner, () => document.querySelector(".vf-disc-count").textContent === "2 comments" && document.querySelector(".vf-disc-new").hidden));
     ok("Bo's head still reads 2 new", await until(bo, () => document.querySelector(".vf-disc-new").textContent === "2 new"));
 
-    // ---------- edit and delete one's own only ----------
     await openDisc(bo);
     const boActs = [await acts(bo, ANN1), await acts(bo, OFF)];
     ok("Bo's menu on Ann's comments has no Edit, Delete or Hide", boActs.every(a => a.length === 0), JSON.stringify(boActs));
@@ -110,7 +94,6 @@ async function main() {
     ok("Bo's 👍 from the chat's emoji set shows on Ann's comment for her", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)
       && [...li.querySelectorAll(".vf-mreact")].some(b => b.textContent === "👍1")), ANN1_EDIT));
 
-    // ---------- the owner hides one ----------
     await openDisc(owner);
     const ownerActs = [await acts(owner, ANN1_EDIT), await acts(owner, OFF)];
     ok("the host's menu has Hide on every comment", ownerActs.every(a => a.includes("Hide")), JSON.stringify(ownerActs));
@@ -125,7 +108,6 @@ async function main() {
     ok("Ann deletes her own comment after confirming", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), OFF));
     ok("  and it is gone for the host too", await until(owner, () => document.querySelector(".vf-disc-count").textContent === "1 comment"));
 
-    // ---------- @Claude becomes a request in the host's queue ----------
     await bo.waitForTimeout(1100);
     await post(bo, BO_ASK);
     ok("Bo's @Claude comment reads Sent to Claude, waiting", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent.startsWith("Sent to Claude")), BO_ASK), JSON.stringify(await shown(bo)));
@@ -142,21 +124,19 @@ async function main() {
     await owner.locator(".vf-threq .vf-fromdisc").first().click();
     ok("  which opens the Discussion at the comment", await until(owner, t => !document.querySelector(".vf-disc-body").hidden && [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), BO_ASK));
     await owner.evaluate(id => window.Core.requestAct(id, "run"), rid.id);
-    s.apply(A.dir, [{ op: "result", qid: "Q1", request: rid.id, kind: "ask", summary: ANSWER, sources: [], report: "", used: [], why: "" }]); // asked for everyone: shared when it arrives
+    s.apply(A.dir, [{ op: "result", qid: "Q1", request: rid.id, kind: "ask", summary: ANSWER, sources: [], report: "", used: [], why: "" }]);
     await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANSWER, 10000);
     await openClaude(bo);
     ok("Claude's shared answer shows Bo from Discussion on its card", await until(bo, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a) && !li.querySelector(".vf-fromdisc").hidden), ANSWER));
     ok("  and the comment now reads Sent to Claude · Answered", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent === "Sent to Claude · Answered"), BO_ASK));
 
-    // ---------- @Claude past the waiting cap: posted, with no request, and the reason said ----------
     await bo.evaluate(async () => { for (let i = 0; i < 10; i++) await window.Core.request("Q1", "ask", "filler " + i).catch(() => {}); });
-    await bo.waitForTimeout(1100); // past the one request a second the comment's request shares with the fillers
+    await bo.waitForTimeout(1100);
     const FULL = "@Claude one more?";
     ok("an @Claude comment past the waiting cap still posts", await post(bo, FULL));
     ok("  and Bo is told it was not sent to Claude", await until(bo, () => /^Posted, but not sent to Claude/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")));
     ok("  with no Sent to Claude line on it", (await shown(bo)).some(r => r.text === FULL && !r.became));
 
-    // ---------- a draft stays with the question it was typed on ----------
     await openDisc(ann);
     await ann.fill(".vf-disc-ta", DRAFT);
     await railQ(ann, "Q2").click();
@@ -170,7 +150,6 @@ async function main() {
     ok("back on Q1 the draft is still there", await until(ann, t => document.querySelector(".vf-disc-ta").value === t, DRAFT), await ann.inputValue(".vf-disc-ta"));
     await ann.fill(".vf-disc-ta", "");
 
-    // ---------- the author of a hidden comment sent to Claude can still delete it ----------
     await ann.waitForTimeout(1100);
     ok("Ann's @Claude comment posts", await post(ann, ANN_ASK));
     await openDisc(owner);
@@ -182,7 +161,6 @@ async function main() {
     await ann.click("dialog.vf-cdlg[open] .vf-btn-danger-solid");
     ok("  and deletes it", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK));
 
-    // ---------- 390 phone ----------
     const still = await settled(bo, { rects: true });
     const fit = await bo.evaluate(() => {
       const r = document.querySelector(".vf-disc").getBoundingClientRect(), hd = document.querySelector(".vf-disc-head").getBoundingClientRect();

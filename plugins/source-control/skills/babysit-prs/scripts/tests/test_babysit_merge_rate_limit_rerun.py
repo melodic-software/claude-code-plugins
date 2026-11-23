@@ -1,14 +1,4 @@
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/*
-"""A `--merge` run re-runs an AI review check that failed on the usage limit
-or on its runner install.
-
-The re-run fires only for a failure annotation the review evidence accepts a
-re-run after and the gate re-runs (a `rate-limit` lane-outcome record, five
-hours after the failure; this lane's publish failure on GitHub's API rate
-limit, one hour after; this lane's
-`install-failed` failure at once), only on the pinned live head, and only on a
-run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
-"""
 
 from __future__ import annotations
 
@@ -146,9 +136,6 @@ class RerunRateLimitedReview(unittest.TestCase):
         )
 
     def test_a_failed_job_in_an_attempt_that_did_not_fail_is_not_rerun(self) -> None:
-        # The binding (review_evidence.rerun_binds) takes attempt 2 only
-        # after an attempt 1 that concluded failure, so a re-run of any other
-        # attempt would spend the one allowed attempt on a hold.
         for conclusion in ("cancelled", "success"):
             with self.subTest(conclusion):
                 report, posts = self._run(attempt_conclusion=conclusion)
@@ -157,8 +144,6 @@ class RerunRateLimitedReview(unittest.TestCase):
                 self.assertEqual(posts, [])
 
     def test_an_attempt_still_running_is_read_again_by_the_next_gate(self) -> None:
-        # A sibling job can keep attempt 1 open after the lane job failed; a
-        # stable reason here would freeze the skip before the run concludes.
         report, posts = self._run(attempt_conclusion=None)  # type: ignore[arg-type]
         self.assertFalse(report["rerun"])
         self.assertEqual(posts, [])
@@ -169,15 +154,12 @@ class RerunRateLimitedReview(unittest.TestCase):
         self.assertFalse(report["rerun"])
         self.assertIn("2026-10-09T15:00:00Z", report["reason"])
         self.assertEqual(posts, [])
-        # The job and its annotations, not the attempt.
         self.assertEqual(len(self.reads), 2)
 
     def test_other_failure_class_is_never_rerun(self) -> None:
         for text in (
             "Claude review exited with: failure class=timeout",
             "Claude review exited with: failure class=other",
-            # Classes the evidence binds a re-run after, but the gate leaves
-            # to a person.
             evidence_tests.AUTH_FAILURE["message"],
         ):
             report, posts = self._run(annotations=[text])
@@ -195,7 +177,6 @@ class RerunRateLimitedReview(unittest.TestCase):
                     job=_job(name=check["name"], workflow_name=check["workflow_name"]),
                     annotations=[text],
                     check=check,
-                    # A minute after the failure: no wait.
                     now="2026-10-09T10:01:00Z",
                 )
                 self.assertTrue(report["rerun"], report)
@@ -233,11 +214,8 @@ class RerunRateLimitedReview(unittest.TestCase):
 
     def test_an_install_failure_lookalike_is_never_rerun(self) -> None:
         for text in (
-            # Another lane's line.
             INSTALL_FAILED.replace("claude-review:", "claude-security-review:", 1),
-            # Not at the message start.
             f"quoted: {INSTALL_FAILED}",
-            # Another class sharing the prefix.
             "claude-review: failure-class=install-failed-x: something else",
         ):
             with self.subTest(text[:50]):
@@ -248,9 +226,6 @@ class RerunRateLimitedReview(unittest.TestCase):
                 self.assertEqual(posts, [])
 
     def test_the_gate_reruns_only_classes_whose_rerun_binds(self) -> None:
-        # A re-run the evidence would not bind spends the one allowed attempt
-        # for nothing.
-        # `LOST` is a conclusion, not an annotation; LostReviewRerun covers it.
         self.assertLessEqual(
             merge.review_evidence.GATE_RERUN_CLASSES,
             {*merge.review_evidence.RERUN_CLASSES, merge.review_evidence.LOST},
@@ -270,7 +245,6 @@ class RerunRateLimitedReview(unittest.TestCase):
         return _job(name=check["name"], workflow_name=check["workflow_name"])
 
     def test_a_publish_rate_limit_reruns_its_lane(self) -> None:
-        # The texts the review evidence binds attempt 2 after.
         primary = evidence_tests.PUBLISH_RATE_LIMIT["message"]
         secondary = evidence_tests.publish_failed(
             "You have exceeded a secondary rate limit. Please wait a few minutes"
@@ -342,21 +316,18 @@ class RerunRateLimitedReview(unittest.TestCase):
     def test_a_publish_failure_the_evidence_refuses_is_never_rerun(self) -> None:
         primary = evidence_tests.PUBLISH_RATE_LIMIT["message"]
         for check, text in (
-            # Another lane's publish line.
             (SECURITY_CHECK, primary),
             (CLI_SECURITY_CHECK, primary),
             (
                 CLI_CHECK,
                 primary.replace("claude-review:", "claude-security-review:", 1),
             ),
-            # A publish failure that is not GitHub's rate limit.
             (
                 CHECK,
                 evidence_tests.publish_failed("Resource not accessible by integration")[
                     "message"
                 ],
             ),
-            # The publish line not at the message start.
             (CHECK, f"quoted: {primary}"),
         ):
             report, posts = self._run(
@@ -405,8 +376,6 @@ class RerunRateLimitedReview(unittest.TestCase):
         self.assertIn("boom", report["reason"])
 
     def test_a_plain_failure_is_never_rerun(self) -> None:
-        # A failure outside the listed classes, with no annotation at all:
-        # the lane judged the head, so a re-run could trade its verdict away.
         report, posts = self._run(annotations=[])
         self.assertFalse(report["rerun"])
         self.assertTrue(report["reason"].startswith("failure class is not "), report)
@@ -494,8 +463,6 @@ class LostReviewRerun(unittest.TestCase):
     def test_a_lost_run_whose_bound_comment_is_unproven_is_left_to_a_person(
         self,
     ) -> None:
-        # The lost run may never have uploaded the record that would prove
-        # it, so its footer alone holds the re-run, with no artifact read.
         summary = {
             "id": 2,
             "user": {"login": "github-actions[bot]", "type": "Bot"},
@@ -512,8 +479,6 @@ class LostReviewRerun(unittest.TestCase):
     def test_a_lost_run_whose_lane_rewrote_its_marker_is_left_to_a_person(
         self,
     ) -> None:
-        # The producer edits one marker in place: created by an earlier run,
-        # rewritten since this one started, or with no readable edit time.
         rewritten = _marker(at="2026-10-09T09:00:00Z", edited="2026-10-09T09:55:00Z")
         unreadable = _marker(at="2026-10-09T09:00:00Z")
         del unreadable["updated_at"]
@@ -528,10 +493,8 @@ class LostReviewRerun(unittest.TestCase):
 
     def test_what_the_lane_posted_elsewhere_does_not_hold_the_rerun(self) -> None:
         for comments in (
-            # Before the run started: an earlier run's review.
             [_marker(at="2026-10-09T09:00:00Z")],
             [_marker(at="2026-10-09T08:00:00Z", edited="2026-10-09T09:00:00Z")],
-            # Another head, or the other lane.
             [_marker(sha=base.STALE)],
             [_marker(lane="claude-security-review")],
         ):
@@ -546,8 +509,6 @@ class LostReviewRerun(unittest.TestCase):
         self.assertEqual(posts, [])
 
     def test_a_lost_job_in_a_failed_attempt_is_not_rerun(self) -> None:
-        # The binding reads attempt 1's conclusion: a failure there goes the
-        # failure-class way and binds no lost re-run.
         report, posts = self._lost(attempt_conclusion="failure")
         self.assertFalse(report["rerun"])
         self.assertIn("'failure'", report["reason"])

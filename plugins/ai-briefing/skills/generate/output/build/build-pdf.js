@@ -1,4 +1,3 @@
-// Print HTML deck to PDF via Playwright headless chromium.
 import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -29,7 +28,6 @@ if (externalRequests.length > 0) {
   throw new Error(`Local PDF render attempted external requests: ${externalRequests.join(", ")}`);
 }
 
-// Letter landscape, full color, one slide per page
 await page.pdf({
   path: PDF_PATH,
   format: "Letter",

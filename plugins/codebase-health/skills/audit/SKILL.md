@@ -248,7 +248,8 @@ Discovery runs as a **parallel subagent fan-out. One agent per primary-source fi
 sequential pass. A single context skips claims as it fills, which is the most common way an audit
 misses drift; a fresh context per file does not. Each agent applies the claim-extraction method
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
-the scope-fencing rules of the discovery method linked below.
+the scope-fencing rules of the discovery method linked below. Route these per-file agents per the
+caller contract of `/multi-agent:route` (if enabled); otherwise run them here as before.
 
 **Scope first (cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before

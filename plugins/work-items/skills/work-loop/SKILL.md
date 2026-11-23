@@ -485,15 +485,14 @@ blocking drain exit. [reference/mode-drain.md](reference/mode-drain.md) "Cordone
 
 `/work-items:attend-queue` for the escalations that wait.
 
+## Related
+
+- Execute a single frontier item interactively: /work-items:work.
+- Merge lane advancing authored PRs: /source-control:babysit-loop.
+
 ## Gotchas
 
-- **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary;
-  merge authority lives with the merge lane per the convention's autonomy ladder.
-- **Claim before dispatch.** `/work-items:work` holds the seam claim before any subagent is
-  dispatched; nothing in this loop's phrasing replaces that.
-- **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
-  snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep,
-  or, when the drain exits, named in the final report and left for the next launch.
-- **Telemetry is the report surface, never the escalation channel.** When human action is
-  required, the escalation contract (role label + machine-marked comment + the step-5 record
-  write) is the path; a note in the telemetry comment alone is invisible to the attended queue.
+- **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary; merge authority lives with the merge lane per the convention's autonomy ladder.
+- **Claim before dispatch.** `/work-items:work` holds the seam claim before any subagent is dispatched; nothing in this loop's phrasing replaces that.
+- **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep, or, when the drain exits, named in the final report and left for the next launch.
+- **Telemetry is the report surface, never the escalation channel.** When human action is required, the escalation contract (role label + machine-marked comment + the step-5 record write) is the path; a note in the telemetry comment alone is invisible to the attended queue.

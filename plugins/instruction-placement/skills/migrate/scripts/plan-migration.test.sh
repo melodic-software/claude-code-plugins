@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for plan-migration.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +21,6 @@ make_repo() {
 
 commit_all() { (cd "$1" && git add -A && git commit -q -m "${2:-fixture}"); }
 
-# --- Case 1: --help, an unknown argument, and a non-repository ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -47,7 +45,6 @@ rc=0
 GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" --root "$TMP/norepo" >/dev/null 2>&1 || rc=$?
 assert_eq "outside a git repository exits 1" 1 "$rc"
 
-# --- Case 2: all five directory states in one repository ---
 
 REPO="$TMP/states"
 make_repo "$REPO"
@@ -73,10 +70,6 @@ assert_contains "an AGENTS.md with no CLAUDE.md" "$OUT" "DIR	agentsonly	agents-o
 assert_contains "both carrying content" "$OUT" "DIR	both	both-with-content"
 assert_contains "two empty files" "$OUT" "DIR	empty	zero-byte"
 
-# A bare import over an empty or missing AGENTS.md holds nothing to split, so it
-# is not content-in-claude. A comment above the import is still content, and so
-# is any import that is not exactly `@AGENTS.md`: Apply does nothing for
-# shim-empty-target, so a noncanonical form must stay in the state that rewrites it.
 mkdir -p "$REPO/shimempty" "$REPO/shimmissing" "$REPO/commentempty" "$REPO/shimnonl" \
   "$REPO/dotslash" "$REPO/twice" "$REPO/crlf"
 printf '@AGENTS.md' >"$REPO/shimnonl/CLAUDE.md"
@@ -101,16 +94,11 @@ assert_contains "a repeated import over an empty AGENTS.md is content-in-claude"
 assert_contains "a CRLF import over an empty AGENTS.md is content-in-claude" "$OUT" "DIR	crlf	content-in-claude"
 assert_contains "a shim with a non-empty AGENTS.md is unchanged" "$OUT" "DIR	shimmed	shim	"
 
-# An HTML-comment note above the import does not stop it being a shim: the
-# comment is content the target shape removes, not a different load state.
 printf '<!-- see AGENTS.md -->\n@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md"
 commit_all "$REPO" "comment above the import"
 OUT=$(bash "$SCRIPT" --root "$REPO" --home "$TMP/nohome")
 assert_contains "a comment above the import is still a shim" "$OUT" "DIR	shimmed	shim"
 
-# Over a non-empty AGENTS.md, only a byte-exact `@AGENTS.md` is the finished
-# shape: remove-shims.sh takes `shim` as done, so an import that merely loads the
-# same way must be reported as the state Apply rewrites.
 CANON="$TMP/canonical"
 make_repo "$CANON"
 mkdir -p "$CANON/dotslash" "$CANON/crlf" "$CANON/padded" "$CANON/nonl" "$CANON/nl"
@@ -133,7 +121,6 @@ assert_contains "the canonical import without a trailing newline is shim" "$OUT"
 assert_contains "the canonical import with its trailing newline is shim" "$OUT" "DIR	nl	shim	11	"
 assert_contains "the canonical root import is shim" "$OUT" "DIR	.	shim	11	"
 
-# --- Case 3: other tools' directories are never reported ---
 
 TOOLS="$TMP/tools"
 make_repo "$TOOLS"
@@ -154,7 +141,6 @@ assert_not_contains "a .github/AGENTS.md gets no row" "$OUT" ".github/AGENTS.md"
 assert_not_contains "a .claude/CLAUDE.md gets no row" "$OUT" "DIR	.claude"
 assert_contains "an ordinary subtree still gets one" "$OUT" "DIR	src	agents-only"
 
-# --- Case 4: the Codex budget is summed along the root-to-directory path ---
 
 BUDGET="$TMP/budget"
 make_repo "$BUDGET"
@@ -169,7 +155,6 @@ assert_contains "the root alone is under budget" "$OUT" "BUDGET	.	20000	OK"
 assert_contains "the path sum trips the Codex budget" "$OUT" "BUDGET	deep	40000	OVER"
 assert_contains "and every directory below it inherits the sum" "$OUT" "BUDGET	deep/leaf	40007	OVER"
 
-# --- Case 5: case variants, path detection, citations and action pins ---
 
 HAZARD="$TMP/hazard"
 make_repo "$HAZARD"
@@ -196,14 +181,10 @@ OUT=$(bash "$SCRIPT" --root "$HAZARD" --home "$TMP/nohome")
 if [[ "$case_sensitive" -eq 1 ]]; then
   assert_contains "a case-variant file is reported" "$OUT" "CASE	agents.md"
 else
-  # The variant is what is being detected, so there is no weaker assertion to
-  # fall back to: a host that cannot hold both names cannot host this case.
   CASE_NUM=$((CASE_NUM + 1))
   printf 'SKIP: a case-variant file is reported (host filesystem folds case)\n'
 fi
 assert_contains "an existence test on CLAUDE.md is a path detector" "$OUT" "PATHDET	tools/find-root.sh:1"
-# A comment is not a path detector. It IS a mention, which is the row kind that
-# exists so "checked and dismissed" beats "never shown".
 assert_not_contains "a comment naming CLAUDE.md is not" "$OUT" "PATHDET	tools/find-root.sh:2"
 assert_contains "it is reported as a mention instead" "$OUT" "MENTION	tools/find-root.sh:2"
 assert_contains "a markdown link into CLAUDE.md is a citation" "$OUT" "CITE	docs/guide.md:1"
@@ -215,10 +196,6 @@ assert_contains "a tracked docs directory is the detected home" "$OUT" "DOCSHOME
 OUT=$(bash "$SCRIPT" --root "$BUDGET" --home "$TMP/nohome")
 assert_contains "a repository with no docs directory reports absent" "$OUT" "DOCSHOME	docs	absent"
 
-# --- Case 8: a shim carrying a comment is not yet the target shape ---
-# The target shape is a CLAUDE.md that is exactly `@AGENTS.md`. A comment above
-# the import still loads, but it is content the migration removes, so it gets
-# its own state rather than hiding inside `shim` or `both-with-content`.
 
 COMMENT="$TMP/comment"
 make_repo "$COMMENT"
@@ -239,15 +216,11 @@ assert_contains "a multi-line comment above the import is too" "$OUT" "DIR	multi
 assert_contains "a bare import is still plain shim" "$OUT" "DIR	clean	shim"
 assert_not_contains "and neither comment case is both-with-content" "$OUT" "both-with-content"
 
-# --- Case 9: --root below the repository root still plans the repository ---
-# git resolves relative to the directory it is run in, so a --root pointing at a
-# subdirectory silently described a subtree as if it were the whole repository.
 
 OUT=$(bash "$SCRIPT" --root "$COMMENT/multiline" --home "$TMP/nohome")
 assert_contains "a subdirectory --root still reports the repository root" "$OUT" "DIR	.	shim"
 assert_contains "and still reports its siblings" "$OUT" "DIR	oneline	shim-with-comment"
 
-# --- Case 10: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
 
 OWNED="$TMP/owned"
 make_repo "$OWNED"
@@ -261,19 +234,11 @@ commit_all "$OWNED"
 
 OUT=$(bash "$SCRIPT" --root "$OWNED" --home "$TMP/nohome")
 assert_contains "a Claude CLAUDE.md under .github is planned" "$OUT" "DIR	.github	content-in-claude"
-# The AGENTS.md beside it is Cursor's, so it is not paired with the CLAUDE.md
-# and contributes nothing: the directory reads as Claude content with no Claude
-# AGENTS.md, which is what it is.
 assert_contains "a Claude CLAUDE.md under .cursor is planned" "$OUT" "DIR	.cursor	content-in-claude"
 # The root AGENTS.md is 7 bytes and still counts on the path; Cursor's own
 # 9-byte file does not, so the sum is the root's alone.
 assert_contains "and the Cursor file is left out of the Codex budget" "$OUT" "BUDGET	.cursor	7	OK"
 
-# --- Case 11: every other mention of the literal CLAUDE.md ---
-# A YAML list entry or a comment naming CLAUDE.md is neither a markdown link nor
-# a filesystem-existence call, so CITE and PATHDET both miss it and the operator
-# never sees it. claude-code-proxy's .github/workflows/ci.yml carried exactly
-# that: a DOCUMENTATION_ROOTS list whose gate the new AGENTS.md failed.
 
 MENTION="$TMP/mention"
 make_repo "$MENTION"
@@ -295,9 +260,6 @@ assert_contains "and it is still reported as a PATHDET" "$OUT" "PATHDET	src/find
 assert_not_contains "a changelog is history, not a mention to triage" "$OUT" "MENTION	CHANGELOG.md"
 assert_not_contains "the instruction files themselves are not mentions" "$OUT" "MENTION	CLAUDE.md"
 
-# --- Case 12: an empty row kind says so rather than staying silent ---
-# "Checked, none" and "did not run" are the same output otherwise, and a reader
-# cannot tell a clean repository from a broken script.
 
 CLEAN="$TMP/cleanrows"
 make_repo "$CLEAN"
@@ -316,7 +278,6 @@ assert_not_contains "a populated CITE kind reports no NONE row" "$OUT" "CITE	NON
 assert_not_contains "a populated PATHDET kind reports no NONE row" "$OUT" "PATHDET	NONE"
 assert_contains "while an empty one alongside it still does" "$OUT" "CASE	NONE"
 
-# --- Case 13: .claude/ is where a Claude repo enumerates instruction files ---
 
 DOTC2="$TMP/dotclaude-mentions"
 make_repo "$DOTC2"
@@ -335,9 +296,6 @@ assert_contains "a .claude hook naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.
 assert_contains "a .claude rule naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.claude/rules/py.md:5"
 assert_not_contains "but .claude/CLAUDE.md is an instruction file, not a mention" "$OUT" "MENTION	.claude/CLAUDE.md"
 
-# --- Case 14: MENTION rolls up a directory that would flood the report ---
-# A corpus repo printed 108 rows of captured third-party prose. A report nobody
-# reads is the same as no report.
 
 FLOOD="$TMP/flood"
 make_repo "$FLOOD"
@@ -352,9 +310,6 @@ done
 printf 'a single mention of CLAUDE.md here\n' >"$FLOOD/src/notes.md"
 commit_all "$FLOOD"
 
-# A configuration tree is never rolled up, however many rows it holds: it is
-# exactly where a real instruction-surface leak lives, and the roll-up exists
-# for content directories whose every row is the same non-finding.
 mkdir -p "$FLOOD/.claude/hooks"
 i=1
 while [[ "$i" -le 14 ]]; do
@@ -374,7 +329,6 @@ OUT=$(bash "$SCRIPT" --root "$FLOOD" --home "$TMP/nohome" --expand-mentions)
 assert_contains "--expand-mentions lists them all" "$OUT" "MENTION	corpus/doc1.md:1"
 assert_not_contains "and prints no roll-up line" "$OUT" "14 rows"
 
-# --- Case 15: SUPPRESS prints a path native tools accept ---
 
 OUT=$(bash "$SCRIPT" --root "$FLOOD" --home "$TMP/fakehome")
 if command -v cygpath >/dev/null 2>&1; then
@@ -385,9 +339,6 @@ else
   printf 'SKIP: SUPPRESS path form (no cygpath on this host; the path is passed through unchanged)\n'
 fi
 
-# --- Case 16: a heading citation is a CITE, not a mention ---
-# medley's form is a backticked path plus a quoted heading, which no markdown
-# link matches. Thirteen live, pre-commit-enforced citations reported NONE.
 
 HEADCITE="$TMP/headcite"
 make_repo "$HEADCITE"
@@ -412,7 +363,6 @@ assert_contains "an .mdc file counts too" "$OUT" "CITE	.cursor/rules/d.mdc:1"
 assert_not_contains "a bare mention with no heading is not a CITE" "$OUT" "CITE	docs/plain.md"
 assert_contains "it stays a MENTION" "$OUT" "MENTION	docs/plain.md:1"
 
-# --- Case 17: hook and CI configuration trees are never rolled up ---
 
 HOOKS="$TMP/hooktrees"
 make_repo "$HOOKS"
@@ -434,7 +384,6 @@ for d in .lefthook .husky .githooks; do
   assert_contains "and $d rows are listed" "$OUT" "MENTION	$d/h1.sh:1"
 done
 
-# --- Case 18: ACTION matches a uses: line, not a comment about one ---
 
 PINS="$TMP/pins"
 make_repo "$PINS"
@@ -452,9 +401,6 @@ OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
 assert_contains "a uses: line is a pin" "$OUT" "ACTION	.github/workflows/w.yml:5"
 assert_not_contains "a comment naming the action is not" "$OUT" "ACTION	.github/workflows/w.yml:1"
 
-# A composite action pins the CLI exactly as a workflow does, and the subpath
-# form is the same action through another entry point. Missing either reports a
-# repository with a pin as having none.
 mkdir -p "$PINS/.github/actions/review"
 printf 'runs:\n  steps:\n      - uses: anthropics/claude-code-action/base-action@2261fcf # v1.0.228\n' \
   >"$PINS/.github/actions/review/action.yml"
@@ -464,7 +410,6 @@ assert_contains "a composite action under .github/actions is scanned" "$OUT" \
   "ACTION	.github/actions/review/action.yml:3"
 assert_contains "and the base-action subpath form is a pin" "$OUT" "claude-code-action/base-action@2261fcf"
 
-# --- Case 18b: .claude/ is scanned for detectors, minus the ack list ---
 
 CLAUDEDIR="$TMP/claudedir"
 make_repo "$CLAUDEDIR"
@@ -483,7 +428,6 @@ assert_contains "a detector under .claude/ is reported" "$OUT" "PATHDET	.claude/
 assert_not_contains "the acknowledgement list is not its own detector" "$OUT" \
   "PATHDET	.claude/cutover-pathdet-ack.txt"
 
-# --- Case 19: more than one import is not the target shape ---
 
 DUPE="$TMP/dupeimport"
 make_repo "$DUPE"
@@ -498,7 +442,6 @@ OUT=$(bash "$SCRIPT" --root "$DUPE" --home "$TMP/nohome")
 assert_not_contains "a doubled import is not reported as the target shape" "$OUT" "DIR	twice	shim	"
 assert_contains "it is reported as content to resolve" "$OUT" "DIR	twice	both-with-content"
 
-# --- Case 20: the RULES summary row ---
 
 RULES="$TMP/rules"
 make_repo "$RULES"
@@ -514,7 +457,6 @@ assert_contains "RULES counts the files, the unscoped ones, and their bytes" "$O
 OUT=$(bash "$SCRIPT" --root "$HOOKS" --home "$TMP/nohome")
 assert_contains "a repo with no rules says so" "$OUT" "RULES	0	0	0"
 
-# --- Case 6: the home suppressors are reported either way ---
 
 mkdir -p "$TMP/fakehome"
 OUT=$(bash "$SCRIPT" --root "$HAZARD" --home "$TMP/fakehome")
@@ -523,7 +465,6 @@ printf '# Home\n' >"$TMP/fakehome/CLAUDE.md"
 OUT=$(bash "$SCRIPT" --root "$HAZARD" --home "$TMP/fakehome")
 assert_contains "a present bare ~/CLAUDE.md is reported as present" "$OUT" "/CLAUDE.md	yes"
 
-# --- Case 7: the run writes nothing ---
 
 BEFORE=$(cd "$HAZARD" && git status --porcelain)
 bash "$SCRIPT" --root "$HAZARD" --home "$TMP/fakehome" >/dev/null
@@ -536,7 +477,5 @@ if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
 fi
-# Both summaries go to stdout. The failure one went to stderr, so a caller
-# capturing stdout alone saw a run that printed no verdict at all.
 printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM"
 exit 1

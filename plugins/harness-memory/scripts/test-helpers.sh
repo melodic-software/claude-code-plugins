@@ -57,7 +57,6 @@ make_repo() {
   (cd "$1" && git init -q && git config user.email "test@example.com" && git config user.name "test" && git commit -q --allow-empty -m init)
 }
 
-# Print the suite tally and exit: 0 when every check passed, 1 otherwise.
 report_and_exit() {
   if [[ "$FAILED" -eq 0 ]]; then
     printf '\nAll %d checks passed.\n' "$CASE_NUM"

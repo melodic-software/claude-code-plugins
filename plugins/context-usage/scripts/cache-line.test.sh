@@ -31,7 +31,6 @@ check() {
   fi
 }
 
-# 1767225600 is 2026-01-01T00:00:00Z; +1920 s is 00:32 UTC.
 check "warm shows the expiry clock time, ttl and hit ratio" \
   '{"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1767227520,"hit_ratio":0.912,"misses":0}}' \
   'cache ● warm until 00:32 (1h) · hit 91%'
@@ -106,7 +105,6 @@ else
   fail "empty NO_COLOR: [$out]"
 fi
 
-# --after runs the existing command on the same stdin, then prints the segment.
 payload='{"model":{"display_name":"Opus"},"prompt_cache":{"warm":false,"recache_tokens_if_cold":82340}}'
 want=$'model Opus\ncache ○ cold · next message re-caches ~82k'
 # shellcheck disable=SC2016 # the command is expanded by the shell --after starts
@@ -132,7 +130,6 @@ else
   fail "--after bad payload: [$out]"
 fi
 
-# --wire prints the statusLine object, quoting the existing command as one shell word.
 wire() { printf '%s' "$1" | node "$SUT" --wire 2>/dev/null; }
 
 out="$(wire '{}')"

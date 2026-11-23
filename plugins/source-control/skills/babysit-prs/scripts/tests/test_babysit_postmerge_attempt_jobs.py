@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json
 """The attempt answers the post-merge check carries in its attempts file.
 
 A completed attempt's job list cannot change, so `_Context.failing_checks`
@@ -28,6 +29,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import babysit_merge_policy as merge_policy
 import babysit_postmerge as pm
 from test_babysit_postmerge import (
     HEAD_SHA,
@@ -46,6 +48,7 @@ from test_babysit_postmerge import (
     schedule_run,
 )
 
+BASH = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile) or "bash"
 TESTS = pathlib.Path(__file__).resolve().parent
 WORKFLOW = (
     pathlib.Path(__file__).resolve().parents[6] / ".github/workflows/pr-merge.yml"
@@ -227,11 +230,15 @@ class TheNextRunsCheckSendsNoJobsRead(AttemptJobsCase):
         kept.mkdir()
         subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 self.shell_line(block, 'cp "$RUNNER_TEMP/post-merge-attempts.json"'),
             ],
-            env={**os.environ, "RUNNER_TEMP": str(self.dir), "kept": str(kept)},
+            env={
+                **os.environ,
+                "RUNNER_TEMP": self.dir.as_posix(),
+                "kept": kept.as_posix(),
+            },
             check=True,
         )
         next_temp = self.dir / "next-run"
@@ -240,11 +247,15 @@ class TheNextRunsCheckSendsNoJobsRead(AttemptJobsCase):
         shutil.copytree(kept, last)
         subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 self.shell_line(block, 'cp "$last/attempts.json"'),
             ],
-            env={**os.environ, "RUNNER_TEMP": str(next_temp), "last": str(last)},
+            env={
+                **os.environ,
+                "RUNNER_TEMP": next_temp.as_posix(),
+                "last": last.as_posix(),
+            },
             check=True,
         )
 

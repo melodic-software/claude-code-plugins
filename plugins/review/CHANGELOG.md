@@ -3,6 +3,44 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.10.0] - 2026-11-23
+
+### Added
+
+- route two pilot steps through the route caller contract
+
+  /review:fanout's leaf reviewer dispatch and /codebase-health:audit's
+  per-file discovery fan-out now point at the caller contract of
+  /multi-agent:route (if enabled); otherwise they run here as before.
+
+## [10.9.1] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver and the reviewer-media decision check a personal override's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [10.9.0] - 2026-11-23
+
+### Changed
+
+- `/review:council`, `/review:fanout`, `/review:quality-gate` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+- Bundled review criterion "Fail a change that loosens a check": a `## Loosened checks` section in
+  the pull request body now gives a reason for loosening an ordinary check (tests, lint, coverage,
+  type checks, scanners, validators, CI jobs). A secret scanner or a dependency audit is not
+  cleared by the section: only the spec gives a reason for loosening one. The section names each loosening and why the change
+  needs it, and the reviewer judges whether that reason holds; a loosening the section omits, or
+  whose reason does not hold, still fails. A security control or a billing hold keeps its stop
+  whatever the section says, and the trusted spec issue still gives a reason as before. A loosening
+  the section allows needs no decision-record citation: behavior change for repositories that set
+  `loosened_check_decision_record`, where that citation now applies only to a loosening the spec
+  allows.
+- `/review:quality-gate`, `/review:fanout`, the `code-reviewer` agent and the `/review:code-review`
+  CI lane hand reviewers that section beside the spec. The `review:fanout-sweep` workflow takes it
+  as the new `loosenedSection` arg, keeps it only when it starts with the `## Loosened checks`
+  heading, and cuts it at the next level-two heading so no other part of the body reaches a leaf.
+
 ## [10.8.2] - 2026-11-22
 
 ### Changed

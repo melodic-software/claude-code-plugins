@@ -81,11 +81,14 @@ Two section-type rules bind before any line-level judgment here, both from
   judging its material: a chorus full of concrete inventory is verse material in the wrong box.
 - **A chorus is sung back.** Length and singability are structural properties, not polish.
 
-## Related skills
+## Next
 
-- Line generation and variations → `/songwriting:co-write`
-- Sensory raw material → `/songwriting:object-writing`
-- Metaphor systems across a form → `/songwriting:metaphor`
-- Stability and scansion of the sections → `/songwriting:meter-prosody`
-- Rhyme within sections → `/songwriting:rhyme`
-- Whole-draft diagnosis → `/songwriting:diagnose`
+/songwriting:co-write
+
+## Related
+
+- Sensory raw material for thin sections: /songwriting:object-writing.
+- Metaphor systems across a form: /songwriting:metaphor.
+- Stability and scansion of sections: /songwriting:meter-prosody.
+- Rhyme within sections: /songwriting:rhyme.
+- Whole-draft diagnosis: /songwriting:diagnose.

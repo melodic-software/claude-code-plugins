@@ -304,14 +304,11 @@ describe("runWatchCli envelope consumption", () => {
     const code = await runWatchCli(["node", "run-watch.js", URL]);
     expect(code).toBe(0);
 
-    // Watch orchestration covers the media-bearing entry…
     expect(vi.mocked(orchestrateWatching)).toHaveBeenCalledOnce();
     expect(vi.mocked(orchestrateWatching).mock.calls[0][0].videoPath).toBe(
       path.join(fixtureDir, "video-2.mp4"),
     );
 
-    // …and transcript.txt names THAT entry's transcript, so downstream
-    // consumers that assume transcript.txt is THE transcript stay correct.
     const state = await readWatchJson();
     expect(state.phases.acquire.metrics.entryCount).toBe(2);
     await expect(

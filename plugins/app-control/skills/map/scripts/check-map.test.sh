@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for check-map.sh: one planted defect per rule, a clean control skill that prints nothing.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -26,7 +25,7 @@ assert_equals() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$2]"; fi
 }
 
-feature_readme() { # <entry lines> <drive line>
+feature_readme() {
   cat <<EOF
 # Feature
 
@@ -57,7 +56,6 @@ Reprovision through the admin page.
 EOF
 }
 
-# A control skill that meets every rule, under <root>/.claude/skills/control-shop.
 make_clean() {
   local root="$1" skill="$1/.claude/skills/control-shop"
   mkdir -p "$skill/features/cart" "$skill/features/billing/export" "$skill/shared/sign-in" \
@@ -110,7 +108,6 @@ EOF
   printf '# Sign in\n\nWhy shared: cart and export both start signed in.\n' >"$skill/shared/sign-in/README.md"
 }
 
-# Replace the first occurrence of <old> with <new> in <file>.
 replace() {
   local content
   content="$(<"$1")"
@@ -131,7 +128,6 @@ new_case() {
 run_check() { bash "$CHECK" "$SKILL" --root "$ROOT"; }
 tree_sum() { (cd "$1" && find . -type f -exec cksum {} + | LC_ALL=C sort); }
 
-# Usage.
 out="$(bash "$CHECK" --help)"
 assert_equals "usage: --help exits 0" "$?" "0"
 bash "$CHECK" >/dev/null 2>&1
@@ -144,17 +140,14 @@ mkdir -p "$TEST_TMPDIR/loose" && : >"$TEST_TMPDIR/loose/SKILL.md"
 bash "$CHECK" "$TEST_TMPDIR/loose" >/dev/null 2>&1
 assert_equals "usage: no .claude/skills parent and no repository exits 2" "$?" "2"
 
-# Clean: nothing printed, exit 0, and the default root resolves the globs.
 new_case
 out="$(run_check)"
 assert_equals "clean: exit 0" "$?" "0"
 assert_equals "clean: prints nothing" "$out" ""
-# The project holding .claude/ is the default root, even inside an enclosing repository.
 git init -q "$TEST_TMPDIR"
 out="$(bash "$CHECK" "$SKILL")"
 assert_equals "clean: default root is the project holding .claude, not the git top level" "$out" ""
 
-# A Budget: line under ## Drive and a frames row under ## Capture are contract lines, not findings.
 new_case
 replace "$SKILL/features/cart/README.md" "## Gotchas" "Budget: first_paint_ms | trace
 
@@ -163,7 +156,6 @@ replace "$SKILL/SKILL.md" "screenshot: the browser driver" "screenshot: the brow
 frames: ffmpeg -i <recording> <dir>/%04d.png"
 assert_equals "clean: a Budget line and a frames row print nothing" "$(run_check)" ""
 
-# index-dead, also: exit 0 with a finding and the tree is unchanged.
 new_case
 printf -- '- Refunds | features/refunds/README.md | entry points: 1 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
 before="$(tree_sum "$ROOT")"
@@ -232,19 +224,16 @@ new_case
 replace "$SKILL/features/cart/README.md" " Result: the cart lists one item." " Result:"
 assert_equals "drive-result: a Result with nothing after it" "$(run_check)" \
   "drive-result | features/cart/README.md | 1. Sign in with shared/sign-in, then open the cart. Related: [export](../billing/export/README.md). Result:"
-# A Result on an indented line of the step, after a blank line, belongs to that step.
 new_case
 replace "$SKILL/features/cart/README.md" " Result: the cart lists one item." "
 
    Result: the cart lists one item."
 assert_equals "drive-result: a Result on the step's indented line" "$(run_check)" ""
-# A Result on an unindented line after the step ends the step and does not count for it.
 new_case
 replace "$SKILL/features/billing/export/README.md" " Result: invoices.csv downloads." "
 Result: invoices.csv downloads."
 assert_equals "drive-result: a Result on an unindented line" "$(run_check)" \
   "drive-result | features/billing/export/README.md | 1. Sign in with shared/sign-in, then press Export."
-# A Drive that hands off in prose holds no steps of its own.
 new_case
 replace "$SKILL/features/billing/export/README.md" "1. Sign in with shared/sign-in, then press Export. Result: invoices.csv downloads.
 2. **Proof.** Result: the page shows the change. Captures: screenshot" \
@@ -267,7 +256,6 @@ new_case
 rm "$SKILL/shared/sign-in/README.md"
 assert_equals "shared-why: folder item with no README.md" "$(run_check)" "shared-why | shared/sign-in | no README.md"
 
-# A file item holds its why line in a comment; a hidden file is not an item.
 new_case
 rm -r "$SKILL/shared/sign-in"
 printf '#!/bin/sh\n# Why shared: cart and export both start signed in.\n' >"$SKILL/shared/sign-in.sh"
@@ -276,7 +264,6 @@ replace "$SKILL/features/cart/README.md" "shared/sign-in" "shared/sign-in.sh"
 replace "$SKILL/features/billing/export/README.md" "shared/sign-in" "shared/sign-in.sh"
 assert_equals "shared: file item with a commented why line, hidden file ignored" "$(run_check)" ""
 
-# A malformed index line is a finding, and later rules still run.
 new_case
 printf -- '- Bad || features/x/README.md | entry points: 1 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
 replace "$SKILL/features/cart/README.md" "../billing/export/README.md" "../billing/exports/README.md"
@@ -285,7 +272,6 @@ assert_equals "index-form: exit 0" "$?" "0"
 assert_equals "index-form" "$out" "index-form | SKILL.md | - Bad || features/x/README.md | entry points: 1 | sources: src/cart/**/*.py
 link | features/cart/README.md | ../billing/exports/README.md does not resolve"
 
-# An index line whose second field is mistyped or empty is still read, and is an index-form finding.
 new_case
 printf -- '- Cart | feature/cart/README.md | entry points: 2 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
 assert_equals "index-form: mistyped feature path" "$(run_check)" \
@@ -295,18 +281,15 @@ printf -- '- Refunds | | entry points: 1 | sources: shop/refunds.py\n' >>"$SKILL
 assert_equals "index-form: empty feature path" "$(run_check)" \
   "index-form | SKILL.md | - Refunds | | entry points: 1 | sources: shop/refunds.py"
 
-# A single-use item moved into its feature's folder is not a feature.
 new_case
 mkdir -p "$SKILL/features/cart/sign-in"
 printf '# Sign in\n\nSteps.\n' >"$SKILL/features/cart/sign-in/README.md"
 assert_equals "index-missing: a folder inside a feature folder is not a feature" "$(run_check)" ""
 
-# Two comma-separated globs: each is checked.
 new_case
 replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: src/billing/export.py, src/billing/gone.py"
 assert_equals "index-glob: second of two globs" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: src/billing/gone.py matches no file"
 
-# A glob that leaves the project root is a finding and is never expanded.
 new_case
 replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: ../../../../../../etc/pass*"
 assert_equals "index-glob: escapes the project root" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: ../../../../../../etc/pass* leaves the project root"
@@ -316,19 +299,16 @@ ln -s / "$ROOT/rootlink"
 replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: rootlink/**/nonexistent-zzz"
 assert_equals "index-glob: a symlink out of the project root" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: rootlink/**/nonexistent-zzz leaves the project root"
 
-# Dependency folders under the skill are not checked for links.
 new_case
 mkdir -p "$SKILL/cli/node_modules/pkg"
 printf '[a](./docs/a.md)\n' >"$SKILL/cli/node_modules/pkg/README.md"
 assert_equals "link: node_modules is skipped" "$(run_check)" ""
 
-# Size budget: the hub 16000 characters, a feature file 4000, newlines included.
-repeat() { # <character> <count>: the character <count> times, then a newline
+repeat() {
   local s
   printf -v s '%*s' "$2" ''
   printf '%s\n' "${s// /$1}"
 }
-# Pad the ASCII hub with a fenced line so the file holds <total> characters.
 pad_hub() {
   local have
   have="$(wc -c <"$SKILL/SKILL.md" | tr -d ' ')"
@@ -351,7 +331,6 @@ assert_equals "size-budget: nested README one over" "$(run_check)" \
   "size-budget | features/cart/notes/README.md | 4001 characters, budget 4000"
 repeat é 3999 >"$SKILL/features/cart/notes/README.md"
 assert_equals "size-budget: counts characters, not bytes" "$(run_check)" ""
-# A host with no UTF-8 locale: its `wc -m` counts bytes. The count must not depend on it.
 mkdir -p "$TEST_TMPDIR/no-utf8-bin"
 cat >"$TEST_TMPDIR/no-utf8-bin/wc" <<EOF
 #!/usr/bin/env bash
@@ -372,7 +351,6 @@ assert_equals "size-budget: legacy feature file one over" "$(run_check)" \
   "index-missing | features/wishlist.md | no index line names this feature file
 size-budget | features/wishlist.md | 4001 characters, budget 4000"
 
-# ready-listing: a Ready command whose last stage is a bare listing; grep -q on the row clears it.
 LISTING_DETAIL="ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
 new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
@@ -383,14 +361,12 @@ new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
   "curl -fsS http://localhost:8080/healthz && docker ps --format {{.Names}} | grep -q '^shop-db\$'"
 assert_equals "ready-listing: a listing piped to grep -q" "$(run_check)" ""
-# A `|` inside a quoted --format string is not a stage.
 new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" '```sh
 docker compose ps --format "{{.Name}}|{{.State}}"
 ```'
 assert_equals "ready-listing: fenced line with a quoted pipe" "$(run_check)" \
   "ready-listing | SKILL.md | docker compose ps --format \"{{.Name}}|{{.State}}\": $LISTING_DETAIL"
-# A code span in prose is a command; a listing outside ## Ready is not checked.
 new_case
 # shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
@@ -399,7 +375,6 @@ replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
 replace "$SKILL/SKILL.md" "Stop the process the launch started." 'Stop the process the launch started, then run `docker ps`.'
 assert_equals "ready-listing: code span in prose, other sections skipped" "$(run_check)" \
   "ready-listing | SKILL.md | kubectl get pods -l app=shop: $LISTING_DETAIL"
-# A kubectl get that names an object exits 1 when it is missing, so it is not a listing.
 new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get deploy/shop"
 assert_equals "ready-listing: kubectl get type/name" "$(run_check)" ""
@@ -410,7 +385,6 @@ new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -l 'app=shop' pods -A"
 assert_equals "ready-listing: kubectl get with a quoted flag value is still a listing" "$(run_check)" \
   "ready-listing | SKILL.md | kubectl get -l 'app=shop' pods -A: $LISTING_DETAIL"
-# A flag's separate value is not a second resource type.
 new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get pods --request-timeout 5s"
 assert_equals "ready-listing: kubectl get with --request-timeout is still a listing" "$(run_check)" \
@@ -423,7 +397,6 @@ new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -f shop.yaml"
 assert_equals "ready-listing: kubectl get -f names its objects" "$(run_check)" ""
 
-# mask-missing: a Capture that records a screenshot or video needs a ## Mask line.
 MASK_LINES="- account email | [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+
 values: config.account.email"
 MASK_DETAIL="with no ## Mask line"
@@ -470,12 +443,10 @@ replace "$SKILL/SKILL.md" "$MASK_LINES" ""
 assert_equals "mask-missing: plural kind names" "$(run_check)" \
   "mask-missing | SKILL.md | ## Capture records screenshot, video $MASK_DETAIL"
 
-# mask hand-off: a hub whose ## Mask is only the hand-off line is checked against the target the
-# Driving tool line names, resolved against the project root.
 # shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
 HAND_OFF_LINE='The driving tool'\''s `## Mask`.'
 UNREADABLE="mask-missing | SKILL.md | ## Mask hands off to a target that cannot be read:"
-hand_off_case() { # <target's ## Mask body, or "" for no target file>
+hand_off_case() {
   new_case
   # shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
   replace "$SKILL/SKILL.md" "# control-shop" '# control-shop
@@ -518,7 +489,6 @@ values: config.account.email"
 assert_equals "mask hand-off: the hand-off beside another line is read as the hub's own mask" "$(run_check)" \
   "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
 
-# launch-model: the hub's ## Launch records its Data and Side by side lines.
 # shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
 DATA_LINE='Data: a new directory per run, `bin/migrate` then `bin/seed demo`'
 SIDE_LINE="Side by side: yes, each on its own port"

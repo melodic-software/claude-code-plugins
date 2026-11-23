@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the disk-hygiene Python telemetry emitter."""
 
 from __future__ import annotations
 

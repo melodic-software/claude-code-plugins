@@ -478,8 +478,8 @@ test("a failed budget read proceeds", async () => {
 // existing work (reviews, merges, verdicts, post-model writes, model legs that
 // take over a handed-off turn) and check the switches only.
 const GATES = {
-  "pr-run-plugin-evals.yml": { "run-eval": "switch", "compare-prepare": "switch", "compare-record": "switch" },
-  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch" },
+  "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "compare-prepare": "switch", "compare-record": "switch" },
+  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
     "check-kill-switch": "start",
@@ -522,6 +522,7 @@ const GATES = {
   "pr-unblock.yml": {
     "resolve-conflicts-select": "switch",
     "sync-shared-copies-select": "switch",
+    "fix-test-scope-select": "switch",
     "address-feedback-select": "switch",
     "adjudicate-feedback": "switch",
     "review-dependency-select": "switch",
@@ -537,6 +538,9 @@ const GATES = {
     "verify-env-scrub-subscription": "switch",
     "verify-env-scrub-fallback": "switch",
     "check-claude-function-flags": "switch",
+    "check-native-surfaces": "switch",
+    "push-native-baseline": "switch",
+    "publish-native-baseline": "switch",
     "push-branches": "switch",
     publish: "switch",
   },

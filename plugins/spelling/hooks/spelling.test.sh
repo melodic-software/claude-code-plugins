@@ -24,7 +24,6 @@ command -v jq >/dev/null 2>&1 || {
   exit 0
 }
 
-# --- The row set ------------------------------------------------------------------
 if [[ "$(jq -c '.hooks | keys' "$HOOKS_JSON")" == '["Stop"]' ]]; then
   ok "hooks.json: no per-edit PostToolUse row and no SessionStart row; only Stop"
 else
@@ -53,7 +52,6 @@ else
   fail "plugin.json: spelling_end_of_turn must default to false"
 fi
 
-# --- The manifest lists the plugin's tools ------------------------------------------
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
   ok "manifest: declares exactly typos, jq and node"
@@ -72,7 +70,6 @@ else
   fail "manifest: want session_probe gated on SPELLING_ENABLED"
 fi
 
-# --- spelling.sh's remaining entry points -------------------------------------
 out="$(printf '{"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x.md"}}' | bash "$HOOK" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then

@@ -818,6 +818,7 @@ test("pr-unblock.yml: report-stop-status posts on the commit the activity's push
     ["apply-dependency-relock", "review-dependency-select"],
     [null, "fix-ci-context"],
     [null, "sync-shared-copies-select"],
+    [null, "fix-test-scope-select"],
   ];
   const block = jobBlock(UNBLOCK, "report-stop-status");
   const needs = block.slice(block.indexOf("    needs:") + 1, block.findIndex((line) => /^ {4}if: /.test(line))).map((line) => line.replace(/^ {6}- /, ""));

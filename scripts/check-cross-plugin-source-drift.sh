@@ -215,7 +215,6 @@ if [[ "$mode" == "discover" ]]; then
   exit 0
 fi
 
-# --check mode
 errors=0
 
 for rel in "${!cluster_status[@]}"; do

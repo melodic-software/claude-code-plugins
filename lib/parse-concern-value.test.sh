@@ -42,7 +42,6 @@ resolve() {
   bash "$SCRIPT" "$f" "$key" "$fallback"
 }
 
-# --- Case: --help exits 0 with usage ---
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -91,16 +90,12 @@ assert_eq 'written_against and provenance beside a key return its value' "$(reso
 assert_eq 'written_against and provenance beside a key: the value is .scratch' ".scratch" \
   "$(resolve "$(printf 'written_against: fixture@1.2.0\nmemory_dir: .scratch\nprovenance:\n  memory_dir: chosen (default .work)')")"
 
-# --- Held behavior: unquoted trailing ` # comment` still stripped ---
 assert_eq 'unquoted trailing comment stripped' ".scratch" "$(resolve 'memory_dir: .scratch  # the tier')"
 
-# --- Held behavior: surrounding whitespace trimmed ---
 assert_eq 'leading/trailing whitespace trimmed (unquoted)' ".scratch" "$(resolve 'memory_dir:    .scratch   ')"
 
-# --- Held behavior: interior whitespace in a quoted value preserved ---
 assert_eq 'quoted interior space preserved' ".scratch dir" "$(resolve 'memory_dir: ".scratch dir"')"
 
-# --- Held behavior: trailing slash normalized ---
 assert_eq 'trailing slash normalized (unquoted)' ".work" "$(resolve 'memory_dir: .work/')"
 assert_eq 'trailing slash normalized (quoted)' "foo/bar" "$(resolve 'memory_dir: "foo/bar/"')"
 
@@ -116,17 +111,14 @@ assert_eq 'comment-only value, no fallback => empty' \
 assert_eq 'fallback is trailing-slash-agnostic passthrough' \
   ".notes/deep" "$(resolve 'other_key: x' memory_dir '.notes/deep')"
 
-# --- Absent concern FILE returns fallback (empty when none) ---
 assert_eq 'missing file, no fallback => empty' "" "$(bash "$SCRIPT" "$TEST_TMPDIR/nope.yaml" memory_dir)"
 assert_eq 'missing file, with fallback => fallback' ".x" "$(bash "$SCRIPT" "$TEST_TMPDIR/nope.yaml" memory_dir '.x')"
 
-# --- Present key wins over fallback ---
 assert_eq 'present key overrides fallback' ".real" "$(resolve 'memory_dir: .real' memory_dir '.fallback')"
 
 # --- Nothing resolves => empty (caller applies documented default) ---
 assert_eq 'no key, no fallback => empty' "" "$(resolve 'other_key: x')"
 
-# --- Missing args exit 2 ---
 rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_exit "no args exits 2" 2 "$rc"
@@ -167,7 +159,6 @@ assert_eq 'a sequence at its key indent is still the key value' $'a\nb' \
 assert_eq 'a root key after such a sequence is still a root key' "1" \
   "$(bash "$SCRIPT" "$TEST_TMPDIR/indentless.yaml" z)"
 
-# --- stdin: `-` reads the document from standard input ---
 assert_eq 'stdin form equals the file form' "$(bash "$SCRIPT" "$EX" merge.rung)" \
   "$(bash "$SCRIPT" - merge.rung <"$EX")"
 

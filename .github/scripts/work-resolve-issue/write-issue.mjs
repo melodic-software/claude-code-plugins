@@ -24,10 +24,10 @@
 // issue lane's web hosts); a split refinement whose record does not stand is
 // left out, so its prose excuses no item. `split_parent` holds the body of the
 // native parent a size split filed the issue from, only while the issue
-// counts as that parent's text (admit.mjs splitChildBody) and a listed human
+// counts as that parent's text (size-split.mjs splitChildBody) and a listed human
 // wrote, and last edited before the admission if ever, that body: the split
 // copies only its task-list lines. `scope` lists, for such a part split by
-// target, the targets its Scope line names (admit.mjs splitScope).
+// target, the targets its Scope line names (size-split.mjs splitScope).
 // `verify_close` lists, for a finished parent (admit.mjs finishedParent), its
 // sub-issues, each closed as completed by a trusted close: the run checks the
 // issue's own done-when and stops verified-done or verify-unmet. On any failure no file is left, so
@@ -79,11 +79,15 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftShaped, finishedParent, humanWritten, REFINE_MARKER, webHostsFrom } from "../intake-triage/admit.mjs";
+import { driftIssue, loadRules, parentOf, personChecks, refinementSpec, specOf, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec } from "../intake-triage/issue-spec.mjs";
+import { splitParentOf } from "../intake-triage/size-split.mjs";
 import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
+import { laneBranchPattern, WORK_RESOLVE_ISSUE } from "../lib/lane-branch.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -160,12 +164,10 @@ async function readAdmission(github, repository, number, { lanesAppId, humans, s
   return admittedAt({ comments, appId: lanesAppId, fieldEvents: events, fieldId: state ? config["field-id"] : null, humans, sender, triggerAt });
 }
 
-// The resume record, or undefined when the run resumes nothing. Any value
-// that is not its expected shape, or a failed comparison, throws.
 const SHA = /^[0-9a-f]{40}$/;
 export const MAX_RESUME_COMMITS = 50;
 export const MAX_RESUME_FILES = 100;
-const laneShape = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`);
+const laneShape = (issueNumber) => laneBranchPattern(WORK_RESOLVE_ISSUE, issueNumber);
 async function readResume(github, env) {
   const { RESUME_BRANCH: branch = "", RESUME_TIP: tip = "", RESUME_CAUSE: cause = "", BASE_SHA: base = "" } = env;
   if (!branch && !tip && !cause) {
@@ -177,11 +179,6 @@ async function readResume(github, env) {
   return { branch, cause, tip, ...(await branchWork(github, env, base, tip)) };
 }
 
-// The stale-branch record, or undefined when the run started past none: the
-// lane branch issue-prior would have resumed but for being behind the default
-// branch, at the tip it checked every commit of, which this run does not start
-// from. Any value that is not its expected shape, or a failed comparison,
-// throws.
 async function readStale(github, env) {
   const { STALE_BRANCH: branch = "", STALE_TIP: tip = "", BASE_SHA: base = "" } = env;
   if (!branch && !tip) {

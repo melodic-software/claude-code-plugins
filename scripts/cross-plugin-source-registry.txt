@@ -384,6 +384,10 @@ evals/ck-notice-runs-bundled-checker/samples/no-write.json
 # Canonical copy: the file under plugins/discovery/evals/.
 evals/ck-notice-alone-installs-nothing/samples/ran-checker.json
 
+# No dedicated check: accepted, for the reason on the entries above.
+# Canonical copy: the file under plugins/discovery/evals/.
+evals/ck-notice-alone-installs-nothing/matchers.json
+
 # No dedicated check: accepted. Every plugin's copy of this case builds
 # no-install from one matchers.json, rendered by check-matchers into each
 # case.yaml; this script's own --check is the gate. Canonical copy: the file
@@ -602,6 +606,15 @@ scripts/docs-cache.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/fetch-docs-generic.sh, carried beside each copy of fetch-docs.sh, which
+# sources it for the generic profile.
+scripts/fetch-docs-generic.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/fetch-docs-generic.sh -> plugins/*/scripts/fetch-docs-generic.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to

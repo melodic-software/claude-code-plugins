@@ -23,6 +23,8 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { DEMOTION, parseRecordMarker } from "./demotion-record.mjs";
+
 export const PATH_LABEL_PREFIX = "merge-path: ";
 export const REVERTED_LABEL = "post-merge: reverted";
 // Older pull requests carry the names from before the org label grammar
@@ -197,10 +199,11 @@ export function label({ repo, merged, reverted, config, gh = defaultGh, log = co
   return { plan, failed };
 }
 
-// --- Rollup ------------------------------------------------------------------
-
 const FIX_TITLE = /^fix(\([^)]*\))?!?:/;
-const REVERT_MARKER = /^<!-- babysit-merge-demotion sha=[0-9a-f]{40} signal=revert -->/;
+const isRevertRecord = (body) => {
+  const marker = parseRecordMarker(body.split("\n", 1)[0].trimEnd());
+  return marker?.kind === DEMOTION && marker.signal === "revert";
+};
 
 const days = (since, until) => {
   const out = [];
@@ -277,7 +280,7 @@ export function readRollup({ repo, since, until, identity, gh = defaultGh, today
   const revertRecords = search(gh, RECORDS_QUERY, `repo:${repo} is:issue in:title "Post-merge revert"`)
     .filter((i) => filers.has((i.author?.login ?? "").replace(/\[bot\]$/, "").toLowerCase()))
     .map((i) => (i.body ?? "").replace(/^\s+/, ""))
-    .filter((b) => REVERT_MARKER.test(b));
+    .filter(isRevertRecord);
   return rollup({ repo, since, until, merged, revertRecords, identity });
 }
 

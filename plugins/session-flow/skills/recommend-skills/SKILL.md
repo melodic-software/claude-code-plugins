@@ -215,6 +215,11 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 
 A menu has no single successor; the workflow router picks the one next stage.
 
+## Related
+
+- Current-state briefing without recommendations: /session-flow:orient.
+- Model skipped a skill it should have invoked: /discipline:use-your-skills.
+
 ## Gotchas
 
 - A skill turned off via `skillOverrides` can still appear in a catalog but cannot run.

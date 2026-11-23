@@ -47,8 +47,6 @@ commit_all() {
   git -C "$1" commit -qm "$2"
 }
 
-# --- Usage contract -------------------------------------------------------------
-
 REPO="$TEST_TMPDIR/usage"
 make_repo "$REPO"
 printf 'a\n' >"$REPO/a.txt"
@@ -70,15 +68,12 @@ rc=0
 (cd "$TEST_TMPDIR" && bash "$SCRIPT" HEAD >/dev/null 2>&1) || rc=$?
 assert_exit "outside a repository exits 2" 2 "$rc"
 
-# --- Hunks: start, count, path last -----------------------------------------------
-
 REPO="$TEST_TMPDIR/hunks"
 make_repo "$REPO"
 printf '%s\n' one two three four five six seven eight >"$REPO/app.py"
 printf 'keep\n' >"$REPO/gone.py"
 commit_all "$REPO" base
 base="$(git -C "$REPO" rev-parse HEAD)"
-# Insert two lines after line 1 and replace line 8; delete gone.py entirely.
 printf '%s\n' one new-a new-b two three four five six seven EIGHT >"$REPO/app.py"
 rm "$REPO/gone.py"
 commit_all "$REPO" change
@@ -108,8 +103,6 @@ commit_all "$REPO" theirs
 git -C "$REPO" checkout -q -
 out="$(cd "$REPO" && bash "$SCRIPT" basebranch)"
 assert_equal "only the branch's own additions, read from the merge base" "2${TAB}1${TAB}s.py" "$out"
-
-# --- Path forms -----------------------------------------------------------------
 
 REPO="$TEST_TMPDIR/spaces"
 make_repo "$REPO"
@@ -222,8 +215,6 @@ for flag in --name-status -U0; do
   (cd "$REPO" && FAIL_ON="$flag" PATH="$FAILGIT:$PATH" bash "$SCRIPT" "$base" >/dev/null 2>&1) || rc=$?
   assert_exit "a git diff $flag failure exits 2" 2 "$rc"
 done
-
-# --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed, %d host skip(s).\n' "$CASE_NUM" "$SKIPPED"

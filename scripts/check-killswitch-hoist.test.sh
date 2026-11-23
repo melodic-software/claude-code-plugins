@@ -90,8 +90,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 exit 0'
 
-# --- the rule, from both sides ----------------------------------------------
-
 new_fixture f
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
@@ -135,8 +133,6 @@ if ((rc != 0)) && [[ "$out" == *"no inlined kill switch"* ]]; then
 else
   fail "a guard with no kill switch at all FAILS (rc=$rc): $out"
 fi
-
-# --- accepted shapes ---------------------------------------------------------
 
 new_fixture f
 guard "$f" demo "demo-guard.sh" "${HOISTED/:-true\}\" == \"true\"/:-false\}\" == \"true\"}"
@@ -189,8 +185,6 @@ if ((rc == 0)); then
 else
   fail "a guard that sources nothing passes on its switch alone (rc=$rc): $out"
 fi
-
-# --- discovery ---------------------------------------------------------------
 
 # Launcher arguments are guards; the launcher itself is not.
 new_fixture f
@@ -327,8 +321,6 @@ if ((rc != 0)) && [[ "$out" == *"plugins/demo/hooks/demo-guard.sh — kill switc
 else
   fail "a guard registered in an inline manifest map should be checked (rc=$rc): $out"
 fi
-
-# --- rule 2: every blocking event, first early exit before the first source --
 
 # stop_hook <fixture> <event> <body> [<async>]
 stop_hook() {
@@ -520,8 +512,6 @@ if ((rc == 0)); then
 else
   fail "a Stop hook whose only exit is its last line passes (rc=$rc): $out"
 fi
-
-# --- fail closed -------------------------------------------------------------
 
 # No PreToolUse shell guard anywhere is an environment problem, not a clean run:
 # a discovery bug must not read as "nothing to check".

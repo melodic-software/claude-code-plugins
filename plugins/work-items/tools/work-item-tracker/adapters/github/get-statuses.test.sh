@@ -17,8 +17,8 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-statuses.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-assert_usage_error "$S" github:o/r#1                       # no --field
-assert_usage_error "$S" --field                            # no value
+assert_usage_error "$S" github:o/r#1
+assert_usage_error "$S" --field
 assert_usage_error "$S" --field "Work status" --bogus
 assert_usage_error "$S" --field "Work status" local-markdown:x#1
 

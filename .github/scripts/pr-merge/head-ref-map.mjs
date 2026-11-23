@@ -47,7 +47,8 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, readDefaultBranchTip, requireBehindTip } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
+import { readDefaultBranchTip, requireBehindTip } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const MAP_ARTIFACT = "pr-merge-head-refs";

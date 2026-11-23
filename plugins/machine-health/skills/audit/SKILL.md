@@ -294,6 +294,10 @@ The skill grows itself within narrow, auditable bounds:
 
 /machine-health:setup picks, which resolves the picks copied from this run's decision page and writes the mutes and approvals the owner confirms.
 
+## Related
+
+- Researching unfamiliar new findings: /discovery:research.
+
 ## Not in scope for this skill
 
 - **Scheduling.** The audit never creates a scheduled task. `/machine-health:setup schedule` creates the monthly one, only on the owner's explicit yes. This skill is stateless about cadence.

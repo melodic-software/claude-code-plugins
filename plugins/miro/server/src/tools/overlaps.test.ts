@@ -78,7 +78,6 @@ describe("detectOverlaps", () => {
   });
 
   it("should detect all overlaps in a dense cluster", () => {
-    // 4 items at same position = 6 pairs (4 choose 2)
     const items = [
       { id: "1", content: "A", x: 0, y: 0 },
       { id: "2", content: "B", x: 0, y: 0 },

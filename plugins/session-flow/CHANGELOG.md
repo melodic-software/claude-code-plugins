@@ -1,5 +1,29 @@
 # Changelog: session-flow plugin
 
+## [9.22.5] - 2026-11-23
+
+### Changed
+
+- Skills now list their context-dependent links under `## Related`, and `find-handoff`, `orient` and `reanchor` name their successor under `## Next`, matching the committed skill-link table.
+
+## [9.22.4] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [9.22.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [9.22.2] - 2026-11-23
+
+### Changed
+
+- `/session-flow:workflow` no longer gather repository context that no step read.
+
 ## [9.22.1] - 2026-11-23
 
 ### Changed

@@ -7,8 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/id.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
-# --- valid IDs ---
-
 wit_parse_id "github:acme/webapp#1335"
 assert_eq "provider parsed" "github" "$WIT_ID_PROVIDER"
 assert_eq "owner parsed" "acme" "$WIT_ID_OWNER"
@@ -21,15 +19,11 @@ assert_eq "repo with dot" "r.dot" "$WIT_ID_REPO"
 
 assert_eq "make_id round-trip" "github:o/r#12" "$(wit_make_id github o r 12)"
 
-# --- invalid IDs ---
-
 for bad in "#123" "123" "github:#123" "github:owner#123" "github:owner/repo" \
   "github:owner/repo#" "github:owner/repo#12a" "GitHub:o/r#1" "" "github:o/r#1 trailing"; do
   assert_fails "rejects malformed id: ${bad:-<empty>}" "parse failure" "parsed" \
     wit_parse_id "$bad"
 done
-
-# --- change-link helpers ---
 
 wit_parse_id "github:acme/webapp#42"
 assert_eq "hash ref short in the item's repo" "#42" "$(wit_hash_ref acme/webapp)"

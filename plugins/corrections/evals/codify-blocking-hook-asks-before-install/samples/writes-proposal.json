@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/.gitignore",
+            "content": "*\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/main/20261123T120000Z-proposal.md",
+            "content": "# Proposal\nRung: action-guard hook\nInstall? Waiting for your yes."
+          }
+        }
+      ],
+      "why": "gitignore then the proposal under the branch slug"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/.gitignore",
+            "content": "*\n"
+          }
+        }
+      ],
+      "why": "only the bootstrap gitignore"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/force-push.md",
+            "content": "# Proposal"
+          }
+        }
+      ],
+      "why": "proposal outside a branch-slug folder"
+    }
+  ]
+}

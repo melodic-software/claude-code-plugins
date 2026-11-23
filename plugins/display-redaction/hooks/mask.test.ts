@@ -98,7 +98,6 @@ test('returns invalid, over-long, empty-matching and nested-quantifier patterns 
     '((x*)y)*',
     'a*',
     '(\\d+){2,}',
-    // Alternation in a quantified group, and unbounded quantifiers over overlapping classes.
     '(a|a)*b',
     '(?:x|(y|z))+w',
     '\\d+\\d+\\d+\\d+x',
@@ -249,7 +248,6 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
   expect(blocks('Intro\n\n~~~\nx\n\ny')).toEqual(['Intro', '~~~\nx\n\ny'])
 })
 
-// The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
 const SMALL_TEXT = WINDOW

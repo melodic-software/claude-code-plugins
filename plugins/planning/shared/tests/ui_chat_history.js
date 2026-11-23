@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Chat beyond the snapshot's window in a real browser (triage 48), against `share.sh ensure-running` with the fake
-// cloudflared and 120 seeded messages: a guest's snapshot holds the newest 50; a notification and a reply quote that
-// point at a message outside them open the chat at it; the "Load earlier messages" button works from the keyboard and
-// keeps focus; scrolling to the top loads the rest and keeps the message the reader was looking at in place; and 60
-// messages that arrive while the page is frozen all count as unread.
-//   node plugins/planning/shared/tests/ui_chat_history.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from triage row 48 (50 in the window, Load earlier, kept position) and the messages this suite
-// seeds and posts, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -29,7 +20,6 @@ async function main() {
     const gusPid = await joinAs(first, "Gus");
     const ctx = first.context();
     await first.close();
-    // Seed while stopped: M1 mentions Gus (his bell links it), M2..M119 from the host, M120 replies to M1.
     const port = new URL(A.localUrl).port;
     s.share(A.dir, "stop");
     const file = path.join(A.dir, "state.json"), st = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -47,12 +37,10 @@ async function main() {
       return p;
     };
 
-    // ---------- the window ----------
     let gus = await open();
     const sn = await gus.evaluate(() => { const x = window.Core.snapshot(); return { n: x.chat.length, first: x.chat[0].id, before: x.chatBefore }; });
     ok(`a guest's snapshot holds the newest ${WINDOW} messages and a cursor to the older ones`, sn.n === WINDOW && sn.first === "M71" && sn.before === "M71", JSON.stringify(sn));
 
-    // ---------- a notification to a message outside the window ----------
     await gus.click(".vf-bell");
     await gus.click(".vf-ixtabs [data-k=notes]");
     await gus.locator(".vf-nitem", { hasText: "mentioned you in chat." }).click();
@@ -67,7 +55,6 @@ async function main() {
     }));
     ok("a Load earlier row marks the gap between the messages around it and the newest ones", await gus.evaluate(() => [...document.querySelectorAll(".vf-mlist > .vf-mgap")].some(g => g.previousElementSibling?.classList.contains("vf-msg"))));
 
-    // ---------- a reply quote to a message outside the window ----------
     await gus.close();
     gus = await open();
     await gus.click(".vf-fab");
@@ -75,7 +62,6 @@ async function main() {
     await gus.locator(".vf-mlist > .vf-msg", { hasText: "Seeded message 120" }).locator(".vf-mquote").click();
     ok("a reply's quote of a message outside the window goes to it", await until(gus, ringedM1));
 
-    // ---------- the keyboard button ----------
     await gus.close();
     gus = await open();
     await gus.click(".vf-fab");
@@ -89,10 +75,6 @@ async function main() {
     ok("focus stays on the button while there is more to load", await gus.evaluate(() => document.activeElement?.textContent === "Load earlier messages"));
     ok("the load is announced once, not message by message", await until(gus, () => document.querySelector(".vf-sr")?.textContent === "50 earlier messages loaded."));
 
-    // ---------- scrolling up loads the rest and keeps the reader's place ----------
-    // Scroll to the top until a scroll event finds the chat there. A repaint that runs before that event still counts
-    // the reader at the newest message and puts the chat back at the bottom, and then no load starts. The page's own
-    // handler runs first on that event and reads the message's place there, so the test reads it there too.
     const before = await gus.evaluate(async () => {
       const box = document.querySelector(".vf-mscroll"), frame = () => new Promise(r => requestAnimationFrame(r));
       const top = () => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top;
@@ -104,10 +86,8 @@ async function main() {
       return at;
     });
     ok("scrolling to the top loads the oldest messages by itself", await until(gus, n => document.querySelectorAll(".vf-mlist > .vf-msg").length === n, SEEDED), String(await msgCount(gus)));
-    // The page announces the load after it has put the message back.
     ok("the load of the rest is announced", await until(gus, t => document.querySelector(".vf-sr")?.textContent === t, `${SEEDED - 2 * WINDOW} earlier messages loaded.`),
       await gus.evaluate(() => document.querySelector(".vf-sr")?.textContent));
-    // Read once the message holds still for 250 ms of frames (5 s at most): late layout could still move it.
     const after = await gus.evaluate(() => new Promise(res => {
       const top = () => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top;
       const t0 = performance.now();
@@ -122,7 +102,6 @@ async function main() {
     ok("the message the reader was looking at stays where it was", before !== null && Math.abs(after - before) <= 4, `${before} -> ${after}`);
     ok("at the start of the chat no Load earlier row is left", await gus.evaluate(() => !document.querySelector(".vf-mlist > .vf-mgap")));
 
-    // ---------- someone else's reaction on a loaded message outside the window reaches it ----------
     const reacter = { "Content-Type": "application/json", "CF-Connecting-IP": "198.51.100.40" };
     reacter["X-Session-Secret"] = (await (await fetch(`${A.localUrl}api/join`, { method: "POST", headers: reacter, body: JSON.stringify({ name: "Reacter", device: "computer", key: A.guestKey }) })).json()).secret;
     const reacted = await fetch(`${A.localUrl}api/chat/react`, { method: "POST", headers: reacter, body: JSON.stringify({ id: "M5", emoji: "👍", on: true }) });
@@ -130,8 +109,7 @@ async function main() {
     ok("  and the page holding M5 shows that reaction", await until(gus, () => (window.Core.state.chat.find(m => m.id === "M5")?.reactions?.["👍"] || []).length === 1),
       await gus.evaluate(() => JSON.stringify(window.Core.state.chat.find(m => m.id === "M5")?.reactions)));
 
-    // ---------- 60 arrivals while frozen all count as unread ----------
-    await gus.click(".vf-chat-head .vf-icon-btn"); // close the chat
+    await gus.click(".vf-chat-head .vf-icon-btn");
     const posters = [];
     for (let i = 1; i <= 6; i++) {
       const r = await fetch(`${A.localUrl}api/join`, { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Poster ${i}`, device: "computer", key: A.guestKey }) });

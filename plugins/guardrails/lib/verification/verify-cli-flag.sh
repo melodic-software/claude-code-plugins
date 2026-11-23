@@ -29,11 +29,8 @@
 # Cross-platform: Git Bash on Windows + Linux + macOS bash 5.x.
 # Caches `--help` output per-binary in $LOCALAPPDATA/guardrails or $XDG_CACHE_HOME/guardrails.
 
-# Omit -e: we explicitly capture exit codes from `<bin> --help` and decide.
 set -uo pipefail
 
-# Cache location, key, window and flag pattern are shared with the
-# cli-flag-verify hook, which answers cache hits without spawning this script.
 CFV_LIB_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$CFV_LIB_DIR" == "${BASH_SOURCE[0]}" ]] && CFV_LIB_DIR=.
 # shellcheck source=cli-flag-cache.sh
@@ -46,9 +43,6 @@ usage() {
 QUIET=false
 VERBOSE=false
 
-# Verifier options are recognized only at the FRONT of argv; parsing stops at
-# the first positional so a TARGET flag spelled --quiet/--verbose stays a
-# positional and gets verified instead of silently steering the verifier.
 while (($# > 0)); do
   case "$1" in
   -h | --help)
@@ -77,40 +71,30 @@ if (($# < 2)); then
   exit 3
 fi
 
-# Last positional must be a --flag token. Everything before it is bin+subcmds.
 FLAG="${!#}"
 if [[ "$FLAG" != --* ]]; then
   echo "verify-cli-flag: error: last argument must start with '--' (got '$FLAG')" >&2
   exit 3
 fi
 
-# Strip trailing =VALUE if present (e.g. --output-format=json).
 FLAG_NAME="${FLAG%%=*}"
 
 BIN="$1"
 SUBCMDS=("${@:2:$#-2}")
 
-# Verify binary on PATH.
 if ! command -v "$BIN" >/dev/null 2>&1; then
   $QUIET || echo "verify-cli-flag: '$BIN' not found on PATH" >&2
   exit 2
 fi
 
-# Cache directory and key come from the shared definitions (cli-flag-cache.sh).
 CACHE_DIR=""
 cfv_cache_dir_to CACHE_DIR
-# The directory exists on every run but the first; a test costs nothing and a
-# spawn costs a process (a fork emulation on Windows Git Bash).
 [[ -d "$CACHE_DIR" ]] || mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
 CACHE_KEY=""
 cfv_cache_key_to CACHE_KEY "$BIN" "${SUBCMDS[@]}"
 CACHE_FILE="$CACHE_DIR/$CACHE_KEY.help"
 
-# Cache hit if file exists, mtime within 24h, non-empty. The 24 h mark is a
-# reference file touched to that timestamp and compared with bash's own `-nt`:
-# one `touch` (POSIX `-t`) in place of `find | grep`, which cost two processes
-# plus the pipe. Bash without EPOCHSECONDS (before 5.0) keeps the find shape.
 USE_CACHE=false
 if [[ -s "$CACHE_FILE" ]]; then
   FRESH_REF="$CACHE_DIR/.fresh-24h"
@@ -127,9 +111,6 @@ HELP_OUTPUT=""
 if $USE_CACHE; then
   HELP_OUTPUT=$(<"$CACHE_FILE")
 else
-  # Run `<bin> [<subcmds>...] --help` with timeout 5s where `timeout` exists;
-  # an empty prefix array runs the binary directly. 2>&1 catches binaries that
-  # print --help to stderr (e.g. some legacy tools).
   TIMEOUT_PREFIX=()
   command -v timeout >/dev/null 2>&1 && TIMEOUT_PREFIX=(timeout 5)
   HELP_OUTPUT=$("${TIMEOUT_PREFIX[@]}" "$BIN" "${SUBCMDS[@]}" --help 2>&1)
@@ -150,23 +131,13 @@ else
     rm -f "$CACHE_TMP" 2>/dev/null || true
 fi
 
-# The match pattern is the shared definition (cli-flag-cache.sh documents the
-# help-text shapes it accepts); the hook applies the same one on a cache hit.
 FLAG_PATTERN=""
 cfv_flag_pattern_to FLAG_PATTERN "$FLAG_NAME"
-# Matched in-process: bash's `=~` is the same ERE dialect grep -E reads, and
-# over the whole multi-line string the leading class admits the newline that
-# precedes a line start, so a flag at the start of any --help line matches
-# exactly as it did under grep. No pipe, no process, no pipe-capacity window.
-# The --verbose path below still greps, because it wants the line number.
 if [[ "$HELP_OUTPUT" =~ $FLAG_PATTERN ]]; then
   $VERBOSE && grep -m 1 -nE "$FLAG_PATTERN" < <(printf '%s\n' "$HELP_OUTPUT")
   exit 0
 fi
 
-# A global argument the resolved help omits is looked up in the bin's
-# global-arguments help, cached under its own key by the same script. Its
-# unverifiable answer (2) leaves this one absent (1).
 GLOBAL_CHAIN=""
 cfv_global_chain_to GLOBAL_CHAIN "$BIN"
 if [[ -n "$GLOBAL_CHAIN" && "${SUBCMDS[*]}" != "$GLOBAL_CHAIN" ]]; then

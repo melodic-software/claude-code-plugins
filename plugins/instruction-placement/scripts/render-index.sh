@@ -63,28 +63,14 @@ discover="$SCRIPT_DIR/lib/discover.sh"
 # shellcheck source=./lib/discover.sh
 . "$discover"
 
-# Individually-listed surfaces before the index switches to grouping its tail.
-# The index is always-loaded, so its own growth is a cost the migrations were
-# meant to remove; 40 rows is roughly a screenful and well under the size at
-# which a table stops being scannable.
-#
-# Declared userConfig reaches a script process as the native
-# $CLAUDE_PLUGIN_OPTION_<KEY> mirror; reading it is what makes the advertised
-# option real rather than documentation for a value nothing consults. An
-# explicit --max-rows still wins.
 MAX_ROWS="${CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS:-40}"
 [[ "$MAX_ROWS" =~ ^[0-9]+$ ]] || MAX_ROWS=40
 
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
 
-# What a block says when there is nothing to index. `render` still prints it, so
-# a human asking what the index WOULD hold gets an answer. `write` does not: the
-# index is always-loaded, and a block announcing that the repository has no
-# deferred surfaces is pure cost, the same reason a pure shim gets no row.
 EMPTY_NOTE="No path-scoped rules or nested instruction files are present in this repository."
 
-# True when a rendered block carries the empty note rather than rows.
 block_is_empty() { [[ "$1" == *"$EMPTY_NOTE"* ]]; }
 
 usage() {
@@ -133,7 +119,6 @@ die() {
   exit 2
 }
 
-# First H1 of a file, without its `# ` marker; empty when the file has none.
 first_h1() {
   grep -m1 '^# ' "$1" 2>/dev/null | sed 's/^#[[:space:]]*//'
 }
@@ -162,31 +147,17 @@ rule_title() {
   printf '%s' "${title//|/\\|}"
 }
 
-# Comma-joined `paths:` values, or empty when the rule is unscoped.
-#
-# Parsing is `ip_parse_paths` in lib/discover.sh — one parser, three consumers.
-# A private copy here would risk the brace-comma bug: splitting the inline flow
-# form `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
-# broken ones.
-#
-# The join pads only the commas it inserts, so `{ts,tsx}` keeps its brace comma
-# unpadded. (`paste -sd', '` cannot do it: -d cycles single characters.)
 rule_globs() {
   ip_parse_paths "$1" | awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { if (NR) printf "\n" }'
 }
 
-# True when every non-blank, non-comment line is an `@import`. Such a file is a
-# shim: it exists only so Claude Code loads the AGENTS.md beside it.
 is_pure_shim() {
   local file="$1" line trimmed seen=0
   while IFS= read -r line || [[ -n "$line" ]]; do
-    # Trim leading and trailing whitespace with parameter expansion only —
-    # glob matching below stays portable where a regex would not.
     trimmed="${line#"${line%%[![:space:]]*}"}"
     trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
     [[ -z "$trimmed" ]] && continue
     [[ "$trimmed" == "<!--"* ]] && continue
-    # An import is a single `@token` with no embedded whitespace.
     if [[ "$trimmed" == "@"?* && "$trimmed" != *[[:space:]]* ]]; then
       seen=1
       continue
@@ -199,27 +170,20 @@ is_pure_shim() {
 render_block() {
   local -a rows=()
 
-  # Path-scoped rules.
   local rule globs title
   while IFS= read -r rule; do
     [[ -z "$rule" ]] && continue
     globs="$(rule_globs "$rule")"
-    [[ -z "$globs" ]] && continue # unscoped: already always-loaded
+    [[ -z "$globs" ]] && continue
     title="$(rule_title "$rule")"
     # shellcheck disable=SC2016 # backticks here are markdown code spans, not command substitution
     rows+=("$(printf '| `%s` | `%s` | %s |' "$rule" "$globs" "$title")")
   done < <(ip_discover_rules .)
 
-  # Nested instruction files. Discovery owns the root-level, tracked-status, and
-  # vendored-tree filters — an untracked or vendored file must never reach the
-  # consuming repository's always-loaded surface.
   local nested dir label
   while IFS= read -r nested; do
     [[ -z "$nested" ]] && continue
     dir="$(dirname "$nested")"
-    # Skip a pure shim — a CLAUDE.md whose whole body is `@import` lines carries
-    # no content of its own, and the file it imports is indexed on its own row.
-    # The index is always-loaded, so a row that says nothing is a real cost.
     if [[ "$(basename "$nested")" == "CLAUDE.md" ]] && is_pure_shim "$nested"; then
       continue
     fi
@@ -259,13 +223,6 @@ already in context, read the file directly.
 | Surface | Covers | Topic |
 |---|---|---|
 PREAMBLE
-    # SIZE POSTURE. The index is always-loaded, so it spends the exact budget
-    # the migrations exist to free. Past a threshold it stops listing every
-    # surface individually and groups the tail by directory, which keeps the
-    # "these exist, go read them" contract at a bounded cost. What was collapsed
-    # is stated rather than silently dropped: a truncated index that reads as
-    # complete is the failure mode here.
-    # The listed head and the grouped tail are two halves of the same sort.
     local sorted
     sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
@@ -287,11 +244,6 @@ PREAMBLE
   printf '%s\n' "$END_MARKER"
 }
 
-# print_row_diff <current block> <fresh block>: one line per row that differs,
-# keyed by the surface path in the row's first cell (a grouped-tail line by its
-# directory): `ADD`, `CHANGE` (the fresh row) or `REMOVE`, each with the row.
-# When every row matches, one `NOTE` line says only the surrounding text differs.
-# The blocks travel through ENVIRON for the reason the write branch gives.
 print_row_diff() {
   IP_CUR="$1" IP_NEW="$2" awk '
     function key(r) { sub(/^([|]|-) `/, "", r); sub(/`.*$/, "", r); return r }
@@ -312,9 +264,6 @@ print_row_diff() {
     }'
 }
 
-# print_fix: the `write` command that clears the drift. It names the root
-# discovery read ($PWD, after the `cd` into --root), since `write` without
-# --root would render the caller's directory into the target.
 print_fix() {
   printf 'FIX\tbash "%s/render-index.sh" write --file "%s" --root "%s"\n' "$SCRIPT_DIR" "$TARGET" "$PWD"
 }
@@ -335,12 +284,8 @@ normalize_drive_path() {
   printf '%s' "$p"
 }
 
-# True for a POSIX-absolute path or a drive-letter one (`C:/repo`, `C:\repo`).
 is_abs_path() { [[ "$1" == /* || "$1" =~ ^[A-Za-z]:[\\/] ]]; }
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 [[ $# -eq 0 ]] && {
   usage >&2
   exit 2
@@ -449,12 +394,8 @@ if [[ -n "$TARGET" ]]; then
   fi
 fi
 
-# `reachable` and `write` both name the target relative to --root, which the
-# `cd` above made the working directory.
 REL_TARGET="${TARGET_NORM#"$PWD"/}"
 
-# `reachable` answers a question about wiring, not about content, so it runs
-# before the (comparatively expensive) block render.
 if [[ "$SUBCOMMAND" == "reachable" ]]; then
   ip_index_target_loaded "." "$REL_TARGET"
   exit $?
@@ -519,11 +460,6 @@ nested_agents_wiring() {
 }
 
 if [[ "$SUBCOMMAND" == "wiring" ]]; then
-  # A repository with no nested AGENTS.md printed nothing, which reads the same
-  # as a subcommand that never ran. The NONE line is emitted HERE rather than
-  # inside nested_agents_wiring, because the write-time warning consumes that
-  # function's rows and filters on the UNWIRED state: a NONE row reaching it
-  # would be a row it has to know to ignore.
   wiring_out="$(nested_agents_wiring)"
   wiring_rc=$?
   if [[ -z "$wiring_out" ]]; then
@@ -550,9 +486,6 @@ check)
     exit 3
   fi
   if [[ "$begin_count" -eq 0 ]]; then
-    # No block and nothing to index is the correct resting state, not a gap:
-    # `write` deliberately leaves no block there, so the gate must agree with
-    # the writer or a repository with no deferred surfaces can never be green.
     if block_is_empty "$BLOCK"; then
       printf 'IN-SYNC\t%s\tnothing to index, and no block to keep in sync\n' "$TARGET"
       exit 0
@@ -564,8 +497,6 @@ check)
     printf 'NO-BLOCK\t%s\tbegin marker present, end marker missing\n' "$TARGET"
     exit 3
   fi
-  # A block left behind after the last rule or nested file went away is drift:
-  # it is stale text that outlived what it indexed, and `write` clears it.
   if block_is_empty "$BLOCK"; then
     printf 'DRIFTED\t%s\tnothing to index; the block should be removed\n' "$TARGET"
     print_fix
@@ -610,9 +541,6 @@ write)
   fi
   if [[ "$begin_count" -eq 1 ]]; then
     if block_is_empty "$BLOCK"; then
-      # Nothing to index: drop the block rather than replacing it with one that
-      # announces its own emptiness, and drop the blank line that separated it
-      # so removal does not leave a growing gap behind.
       awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
         $0 == b { skipping = 1; if (blankheld) blankheld = 0; next }
         $0 == e { skipping = 0; next }
@@ -637,22 +565,15 @@ write)
     fi
   else
     cat "$TARGET" >"$tmp"
-    # Separate the appended block from whatever precedes it.
     [[ -s "$tmp" ]] && printf '\n' >>"$tmp"
     printf '%s\n' "$BLOCK" >>"$tmp"
   fi
   if cat "$tmp" >"$TARGET"; then
     rm -f "$tmp"
     printf 'WROTE\t%s\n' "$TARGET"
-    # An index Claude Code never loads is the whole point silently not working,
-    # so say so at the moment of writing rather than leaving it for a later gate.
     if ! reach="$(ip_index_target_loaded "." "$REL_TARGET")"; then
       printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
     fi
-    # The same silence one level down: a nested AGENTS.md row the block just
-    # wrote is a promise that the file loads on demand, and an unwired one does
-    # not. The row stays (the shim is the fix, not the row's removal); the
-    # warning names each file so the operator can add the shim now.
     while IFS=$'\t' read -r state nested detail; do
       [[ "$state" == "UNWIRED" ]] || continue
       printf 'WARNING\t%s is indexed but %s\n' "$nested" "$detail" >&2

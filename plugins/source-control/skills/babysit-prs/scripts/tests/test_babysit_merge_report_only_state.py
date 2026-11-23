@@ -1,11 +1,4 @@
-"""A report-only run reads the pending merge records and never writes them.
-
-`merge.report-only` makes an unattended `--merge` run a check that writes
-nothing, so a merged queue entry it reads must stay recorded for the live run
-that dispatches the post-merge full run. A live run still clears it. The state
-directory is a real temporary one; the GitHub reads are the harness fakes of
-`test_babysit_merge_unattended`.
-"""
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py
 
 from __future__ import annotations
 

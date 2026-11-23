@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.5] - 2026-11-23
+
+### Changed
+
+- `clean` gains a `## Related` section per the accepted skill-link table.
+
+## [0.22.4] - 2026-11-23
+
+### Changed
+
+- `/repo-hygiene:clean` no longer gather repository context that no step read.
+
 ## [0.22.3] - 2026-11-21
 
 ### Changed

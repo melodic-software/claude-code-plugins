@@ -196,6 +196,10 @@ hand-written; the shared medium resolver decides the destination, with this plug
 - One repository on the context needs its own module-level pass: `/architecture:improve`.
 - The context opens a new external contract or integration to decide: `/planning:design integration`.
 
+## Related
+
+- Deployables inside this system: /architecture:map-containers.
+
 ## Gotchas
 
 - **Scope is one software system.** The view centers that one system and draws the people and

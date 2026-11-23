@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Run one eval cell run: one (scenario, arm, model, run index) in a fresh fixture copy.
 set -uo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

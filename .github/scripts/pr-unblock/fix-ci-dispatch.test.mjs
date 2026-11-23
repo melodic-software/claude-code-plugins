@@ -6,7 +6,7 @@ import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { adoptableOwnerIds, DEFAULTS, dispatchCiFixes, humanGatedLabel, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS, dispatchCiFixes, dispatchTestScope, humanGatedLabel, skipReason, staleStop, testScopeSkip } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -810,8 +810,8 @@ test("a fix-ci run for the PR that is not done yet holds the dispatch", async ()
   const { api, result } = await run({
     pages: [[pr(5), pr(6)]],
     workflowRuns: [
-      { id: 1, status: "in_progress", display_title: "pr-unblock fix-ci #5" },
-      { id: 2, status: "completed", display_title: "pr-unblock fix-ci #6" },
+      { id: 1, status: "in_progress", display_title: "PR Unblock fix-ci #5" },
+      { id: 2, status: "completed", display_title: "PR Unblock fix-ci #6" },
     ],
   });
   assert.deepEqual(
@@ -1101,7 +1101,7 @@ test("an unreadable required run still keeps the per-head cap, the restart count
     {
       pages: [[pr(1, { checks: [failed, oldFix, oldFix, oldFix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
       requiredRuns,
-      workflowRuns: [{ id: 99, status: "in_progress", display_title: "pr-unblock fix-ci #3" }],
+      workflowRuns: [{ id: 99, status: "in_progress", display_title: "PR Unblock fix-ci #3" }],
       baseCommittedAt: "2026-10-22T10:00:00Z",
     },
     { maxDispatch: 5, record },
@@ -1129,7 +1129,6 @@ test("a head whose tested run is being re-run waits for the re-run's result", as
   assert.ok(lines.includes("skip fix-ci #7: run 40119285048 attempt 3 is waiting; its result decides"), lines.join("\n"));
 });
 
-// Once per head: an infra-only failure gets one re-run, then fix-ci.
 test("an infra-only head gets one re-run; once it failed again at attempt 2, fix-ci takes it", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const requiredRuns = new Map([
@@ -1191,7 +1190,6 @@ test("a real failure goes straight to fix-ci at attempt 1, and the log names its
     [head(5), { run: tested(1), jobs: MIXED_JOBS }],
     [head(6), { run: tested(2), jobs: MIXED_JOBS }],
     [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
-    // Only ci-status failed.
     [head(8), { run: tested(1), jobs: [{ name: "Lint Repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
     [head(9), { run: tested(1), jobs: typos }],
   ]);
@@ -1413,7 +1411,6 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
     stops: new Map([[head, [stop("10:05"), stop("10:35")]]]),
   });
   assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
-  // A push job that did not stop leaves the run handling the head.
   const pushed = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00")]]]), stops: new Map([[head, [{ ...stop("10:05"), output: { title: "Pushed" }, conclusion: "success" }]]]) });
   assert.ok(pushed.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), pushed.lines.join("\n"));
   // A select job's own stop (the round cap) on the fix-ci check is final.
@@ -1453,10 +1450,8 @@ test("a fix-ci run the gate stopped head-lag on the current head is sent again o
   const once = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]) });
   assert.deepEqual(once.result.dispatched.map((d) => d.number), [7], once.lines.join("\n"));
   assert.ok(once.lines.includes(`refire: #7: head ${head}'s pr-unblock / fix-ci was stopped head-lag; sending it again`), once.lines.join("\n"));
-  // The round it sent is still going: not sent twice.
-  const going = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]), workflowRuns: [{ id: 99, status: "queued", display_title: "pr-unblock fix-ci #7" }] });
+  const going = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]), workflowRuns: [{ id: 99, status: "queued", display_title: "PR Unblock fix-ci #7" }] });
   assert.deepEqual(going.result.dispatched, [], going.lines.join("\n"));
-  // A newer run pushed a fix: the head is handled.
   const fixed = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at("10:30"), completed_at: at("10:30") };
   const newer = await run({ pages: [[pr(7, { checks: [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", { title: "Fixed" })] })]], history: new Map([[head, [lagged("10:00"), fixed]]]) });
   assert.deepEqual(newer.result.dispatched, [], newer.lines.join("\n"));
@@ -1485,7 +1480,6 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   const pair = [fixCi("10:00", 1, "Passed: no changes"), fixCi("10:10", 1, "Fixed")];
   const once = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 1)]]]) });
   assert.ok(once.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), once.lines.join("\n"));
-  // A stop in another workflow run marks only that run.
   const other = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 2)]]]) });
   assert.ok(other.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), other.lines.join("\n"));
   // A stopped pair and one failed run are three model runs, the per-head cap.
@@ -1515,11 +1509,9 @@ test("an escalated head whose rollup shows a passed fix-ci check is retried once
   const stop = { ...toRest(check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })), started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:40843021992:1" };
   const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop]]]) });
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
-  // With no lane stop, the passed check handles the head.
   const handled = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]) });
   assert.deepEqual(handled.api.calls.dispatch, []);
   assert.ok(handled.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), handled.lines.join("\n"));
-  // With no stop in the rollup, the listing pass skips the head unread.
   const unread = await run({ pages: [[pr(7, { checks: rollup.slice(0, 2) })]], history: new Map([[head, [fixCi]]]) });
   assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
 });
@@ -1556,7 +1548,6 @@ test("a stop in a run's first attempt leaves the head handled when the re-run fi
   const rerun = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1), fixCi("10:30", 2)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
   assert.ok(rerun.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), rerun.lines.join("\n"));
   assert.deepEqual(rerun.api.calls.dispatch, []);
-  // A stop in the same attempt still marks it.
   const same = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
   assert.ok(same.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), same.lines.join("\n"));
 });
@@ -1599,7 +1590,7 @@ test("a fix-ci stop is left on a head with a check failing or going, a run since
     ["another account's status", settled([lanes("SUCCESS"), fixCiStop("FAILURE", { __typename: "User", databaseId: 1 })]), {}],
     ["do-not-merge", settled(green, { labels: { nodes: [{ name: "do-not-merge" }] } }), {}],
     ["a person's PR", settled(green, { author: { login: "someone", databaseId: 1 } }), {}],
-    ["a run since the stop", settled(green), { workflowRuns: [{ id: 3, status: "completed", display_title: "pr-unblock fix-ci #9", created_at: "2026-10-22T11:30:00Z" }] }],
+    ["a run since the stop", settled(green), { workflowRuns: [{ id: 3, status: "completed", display_title: "PR Unblock fix-ci #9", created_at: "2026-10-22T11:30:00Z" }] }],
   ]) {
     const { api } = await run({ pages: [[page]], ...options });
     assert.deepEqual(api.calls.dispatch, [], label);
@@ -1608,8 +1599,7 @@ test("a fix-ci stop is left on a head with a check failing or going, a run since
   const opts = { base: "main", appSenderId: APP, holdLabels: ["do-not-merge"], gateLabel: "needs-human" };
   assert.equal(staleStop(settled([lanes("SUCCESS"), check("lint", "FAILURE"), fixCiStop()]), opts), null);
   assert.equal(staleStop(settled(green), opts).state, "FAILURE");
-  // A run from before the stop does not hold it.
-  const older = await run({ pages: [[settled(green)]], workflowRuns: [{ id: 2, status: "completed", display_title: "pr-unblock fix-ci #9", created_at: "2026-10-22T10:00:00Z" }] });
+  const older = await run({ pages: [[settled(green)]], workflowRuns: [{ id: 2, status: "completed", display_title: "PR Unblock fix-ci #9", created_at: "2026-10-22T10:00:00Z" }] });
   assert.equal(older.api.calls.dispatch.length, 1);
 });
 
@@ -1621,4 +1611,60 @@ test("adoption leaves out Dependabot and the release and standards-sync Apps, wh
   assert.ok(excluded.every((id) => ids.includes(id)));
   assert.deepEqual(adopted, ids.filter((id) => !excluded.includes(id)));
   assert.ok(adopted.includes(APP));
+});
+
+const TRACE_RUN = { run: { conclusion: "failure" }, jobs: [{ name: "Test Selection", conclusion: "failure", steps: [{ name: "Check out", conclusion: "success" }, { name: "Trace the changed suites", conclusion: "failure" }] }] };
+const SCOPE_OWNER = 1000;
+const scopePr = (number, overrides = {}) => pr(number, { author: { login: "someone", databaseId: SCOPE_OWNER }, updatedAt: new Date(NOW).toISOString(), ...overrides });
+
+function scopeApi({ required = new Map(), checks = new Map(), runs = [] } = {}) {
+  const calls = { dispatch: [], required: [] };
+  return {
+    calls,
+    async readRequiredRun(sha, path) {
+      calls.required.push([sha, path]);
+      return required.get(sha) ?? TRACE_RUN;
+    },
+    listCheckRuns: async ({ sha }) => checks.get(sha) ?? [],
+    listWorkflowRuns: async () => runs,
+    async dispatchWorkflow(request) {
+      calls.dispatch.push(request);
+      return { workflowRunId: 7000 + calls.dispatch.length };
+    },
+  };
+}
+
+test("fix-test-scope: an active owner PR whose trace alone failed is dispatched at once, with no adoption idle wait", async () => {
+  const api = scopeApi();
+  const node = scopePr(51);
+  const result = await dispatchTestScope({ api, runId: 55, log: () => {}, listed: [node] });
+  assert.deepEqual(api.calls.dispatch, [{ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "51", activity: "fix-test-scope", "dispatcher-run-id": "55" } }]);
+  assert.deepEqual(result, { dispatched: [{ number: 51, workflowRunId: "7001" }], failed: 0 });
+  assert.notEqual(skipReason(node, { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: DEFAULTS.checkName, holdLabels: DEFAULTS.holdLabels, restarts: 1, now: NOW }), "", "fix-ci would not take this owner PR");
+});
+
+test("fix-test-scope: no dispatch for a fork, a draft, Dependabot, a do-not-merge or needs-session label, or lanes that passed", () => {
+  const options = { base: "main", actionsAppId: ACTIONS };
+  assert.equal(testScopeSkip(scopePr(1), options), "");
+  assert.equal(testScopeSkip(scopePr(1, { isCrossRepository: true }), options), "not a ready same-repository PR into the base");
+  assert.equal(testScopeSkip(scopePr(1, { isDraft: true }), options), "not a ready same-repository PR into the base");
+  assert.equal(testScopeSkip(scopePr(1, { author: { login: "dependabot", databaseId: 49699333 } }), options), "opened by Dependabot");
+  for (const name of ["do-not-merge", "needs-session"]) {
+    assert.equal(testScopeSkip(scopePr(1, { labels: { nodes: [{ name }] } }), options), "held", name);
+  }
+  assert.equal(testScopeSkip(scopePr(1, { checks: [lanes("SUCCESS")] }), options), "ci-lanes has not failed");
+});
+
+test("fix-test-scope: once per head, and only when the trace step was the one failure", async () => {
+  const done = scopePr(52, { checks: [lanes("FAILURE"), check("pr-unblock / fix-test-scope", "NEUTRAL")] });
+  const other = scopePr(53);
+  const listed = scopePr(54);
+  const record = emptyRecord();
+  const api = scopeApi({
+    required: new Map([[other.headRefOid, { run: { conclusion: "failure" }, jobs: [...TRACE_RUN.jobs, { name: "Lint", conclusion: "failure", steps: [] }] }]]),
+    checks: new Map([[listed.headRefOid, [{ name: "pr-unblock / fix-test-scope", status: "completed", conclusion: "neutral" }]]]),
+  });
+  await dispatchTestScope({ api, runId: 55, log: () => {}, listed: [done, other, listed], record });
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(isHandled(record, "pr-unblock / fix-test-scope", listed.headRefOid), true, "a head whose check the rollup missed is recorded");
 });

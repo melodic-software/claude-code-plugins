@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// Build a codebase-mode lesson page: Teach chunks (each may end in a quiz
-// block), Practice, then Go deeper.
-//
-// Every interpolated field goes through escapeHtml from the synced helper,
-// including the raw concept name in the concept meta tag the slug-collision
-// guard reads. The page has no script, image, or link: a quiz is a list of
-// questions the learner answers in chat.
 
 import { asText, codeBlocks, e, pageShell, paragraphs, rows, runCli, textList } from "../../../lib/page-kit.mjs";
 

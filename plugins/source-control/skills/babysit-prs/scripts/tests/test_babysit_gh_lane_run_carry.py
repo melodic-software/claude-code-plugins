@@ -47,7 +47,7 @@ def carry(source: pathlib.Path, target: pathlib.Path) -> None:
     subprocess.run(
         ["node", str(CARRY)],
         env={
-            "PATH": os.environ["PATH"],
+            **{k: os.environ[k] for k in ("PATH", "SYSTEMROOT") if k in os.environ},
             "CARRY_FROM": str(source),
             "CARRY_TO": str(target),
             "GITHUB_REPOSITORY": REPO,

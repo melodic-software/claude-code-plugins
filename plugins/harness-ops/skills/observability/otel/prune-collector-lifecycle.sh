@@ -12,7 +12,7 @@ esac
 readonly OS_KIND
 readonly COLLECTOR_SERVICE_NAME='otelcol-contrib'
 readonly POLL_INTERVAL_SECONDS=0.25
-readonly POLL_MAX_TRIES=40 # 40 * 0.25s = 10s
+readonly POLL_MAX_TRIES=40
 # A prune stops the Collector for seconds to a few minutes; a lock older than this is a problem.
 # CC_OTEL_SENTINEL_MAX_AGE_MINUTES overrides it; prune-otel-store.sh validates it.
 readonly SENTINEL_MAX_AGE_MINUTES="${CC_OTEL_SENTINEL_MAX_AGE_MINUTES:-60}"
@@ -106,7 +106,6 @@ require_windows_service() {
   fi
 }
 
-# Run one PowerShell statement against the Collector service, stdout discarded.
 service_ps() {
   require_windows_service || return 1
   powershell.exe -NoProfile -NonInteractive -Command "\$ErrorActionPreference='Stop'; $1" >/dev/null
@@ -191,7 +190,6 @@ ensure_collector_running() {
 ensure_collector_briefly() {
   manages_collector || return 0
   local rc=0
-  # No store directory, so no prune can hold a lock in it.
   if [[ ! -d "${SENTINEL%/*}" ]]; then
     ensure_collector_running || rc=$?
     return "$rc"

@@ -3,6 +3,83 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.1] - 2026-11-23
+
+### Added
+
+- Eval case `evals/ro-vendor-caller-auto-delegation-off/`: a Caller contract request with `vendors.auto_delegation` off makes `/multi-agent:route vendors` stop after `route.sh` and return only `run here`, with no board fetch, no `vendor-decide`, no `delegate` run and no vendor recommendation.
+
+### Fixed
+
+- carry a named agent's definition into a delegated brief
+
+  The route caller contract now has a step that dispatches a named agent
+  open its delegated brief with that agent's definition body, so another
+  vendor gets the agent's instructions and report shape.
+
+## [3.6.0] - 2026-11-23
+
+### Added
+
+- A Caller contract section in `reference/vendors.md` for skill steps that ask `/multi-agent:route vendors` which vendor runs a task: with `vendors.auto_delegation` off, route returns only `run here` and the step runs as before with no extra output; with it on and a vendor other than Claude chosen, the step sends its task text through route's `delegate` script and Claude reviews the report (and, for `task`, the changed files), which replaces the subagent's; text the user or caller did not write is framed as data; a skill asks route once per run per work type and passes route's `delegate:` line back with each later task; each call site carries one seam-phrased sentence.
+- `skills/route/scripts/delegate --use investigate` runs `external-agents run <product> --use investigate --mode read-only`; `--use task` (the default) keeps `--use task --mode write`. Every other external-agents flag is still refused.
+- `/multi-agent:route vendors` step 12 delegates `coding`, `web-ui` and `knowledge` work: with auto-delegation on and a non-Claude vendor chosen it prints one `delegate:` line naming the product, `--use` and any non-default model and effort, and runs a caller's brief through `delegate`. With auto-delegation off its output is unchanged.
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [3.5.0] - 2026-11-23
+
+### Added
+
+- Harness gating in `vendor-decide` (`--needs-tools <list>`, `--context <tokens>`) and `scripts/lib/gating.mjs`: skips harnesses lacking a needed tool, models whose `context_window` is below `--context` (keeping Claude when its window is unknown), and vendors with `breaker.open: true` (naming `reset_at`), each with one note.
+- Usage tiebreak in `vendor-decide` (`--usage <file>`): `most-usage-left` compares per-vendor `UsageReading.remaining` and falls back to `vendor-order` with one note when any tied vendor's reading is missing or `unavailable`.
+- Eval cases `evals/ro-vendor-image-recommend/` (image recommendation with `auto_delegation: false`) and `evals/ro-vendor-unavailable-line/` (one-line notice for an unavailable `in_use` vendor).
+- Benchmark registry recheck agents `agents/registry-fetcher.md` (Bash-only, gated by a second `PreToolUse` `Bash` entry in `hooks/hooks.json` to the exact host list of `reference/benchmarks.json` with `onFailure: "block"`) and `agents/registry-judge.md` (TodoWrite only, closed JSON verdict, never quotes page text).
+- Three `support-only` rows in `reference/benchmarks.json`: `vals-index` (coding, knowledge), `gdpval-aa` (knowledge) and `aa-image-t2i` (image), with `www.vals.ai` and `artificialanalysis.ai` added to the `registry-fetcher` gate and `workflows/registry-audit.js`.
+- `workflows/registry-audit.js` and `skills/audit-defaults/scripts/list-registry.mjs` (plus tests `hooks/registry-fetcher-gate.test.mjs`, `tests/registry-audit.test.mjs`, and `skills/audit-defaults/scripts/list-registry.test.mjs` with `.test.sh` wrappers) for read-only benchmark registry rechecks across shipped and team rows.
+
+### Changed
+
+- `/multi-agent:route vendors` now grants `external-agents usage:*` and the bundled `scripts/delegate` (the only route to `external-agents run`: it refuses unless `vendors.auto_delegation` resolves `true` from a user layer file outside any git work tree, takes a product with `--model` and `--effort` only, and always runs `--use task --mode write` on a prompt it reads from stdin), passes harness facts (`tools`, `image`, `breaker`, `context_window`) into `--models`, queries plan usage only when `vendors.tiebreak` names `most-usage-left` (`external-agents usage` per in-use vendor plus `mcp__rate-limits__status` when enabled), handles `image` auto-delegation with task-only prompts naming the vendor's built-in image tool, reviews generated images with `Read` before `vendor-state record`, and recommends nothing (`basis: user-choice`) when every image-capable vendor has failed its trial.
+- `resolve-roles.sh` reads `vendors.auto_delegation` from the user layer only and ignores it, with a note, in the team and personal-override layers, so no file inside a repository can turn on external-agent runs.
+- `reference/vendors.md` and `reference/config.md` document harness gating, breaker skipping, usage tiebreak fallback, image auto-delegation, and Claude's live model-overview context-window pointer.
+- `/multi-agent:audit-defaults` gains read-only `registry` mode (always runnable manually regardless of `vendors.*` switches) with an explicit opt-in apply step that writes the proposed `reference/benchmarks.json` diff in a worktree and opens a PR through `/source-control:pull-request create` in `melodic-software/claude-code-plugins` only; `allowed-tools-pairing.test.sh` and `README.md` are updated for `Workflow(multi-agent:registry-audit)` and the `registry-fetcher` gate.
+
+## [3.4.1] - 2026-11-23
+
+### Added
+
+- **Vendor routing audit.** New `reference/vendor-routing-audit.md` lists the skill steps that delegate a whole task, each with its work type and whether it could take its vendor from `/multi-agent:route vendors` (keep or route, with the reason). Each row cites the `file:line` that shows its delegating step.
+
+## [3.4.0] - 2026-11-23
+
+### Added
+
+- Trust-model vendor routing core for `/multi-agent:route vendors`: closed JSON Schemas (`benchmark-registry.schema.json`, `verdict-record.schema.json`), pointer-only `reference/benchmarks.json`, `fetch-boards` wrapper over `scripts/fetch-docs.sh`, Read-only `board-reader` agent, and `vendor-decide` script with command-line tests.
+- Vendor routing eval cases `ro-vendor-cites-sources` and `ro-vendor-unread-page-abstains` on fixture pages, plus fixture-page staging for `ro-vendor-everyday-default` and `ro-vendor-heavy-above-default`.
+- `vendors` configuration block in `schemas/multi-agent.schema.json` and shipped switch defaults in `reference/defaults.yaml` (`routing: true`, `trials: false`, `auto_delegation: false`, plus `tiebreak`, `trials_prove`, `trials_fail`, per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
+- Team benchmark rows support in `fetch-boards` and `vendor-decide` via `<repo>/docs/conventions/multi-agent/benchmarks.json` (appended after shipped rows; duplicate shipped ids refused with a note).
+- Trial state script `skills/route/scripts/vendor-state` (`record`, `outcome`, `send-back`, `seen`) with `O_EXCL` outcome creation, per-machine data-folder resolution, machine-neutral outcomes keyed by `vendor:model:version:effort:work_type`, and command-line tests in `vendor-state.test.mjs`.
+- Eval case `evals/ro-vendor-routing-off/` covering `vendors.routing: false` in the team layer.
+
+### Changed
+
+- `/multi-agent:route vendors` now fetches enabled registry pages through `fetch-boards`, dispatches `board-reader` per read page, decides via `vendor-decide` with `--settings` from the resolved `vendors` object, cites every source with its read state, carries the untrusted-content framing inline, names each tool's own skill for MCP-vs-CLI decisions, grants `vendor-state`, runs `vendor-state seen` to relay `registry recheck due` on new model ids, records reviewed `trial` verdicts with `vendor-state record`, and reports rejected `proven` results without re-entering trial automatically.
+- `scripts/resolve-roles.sh` and `skills/setup/scripts/setup.sh` validate `vendors.*` across layers (rejecting `trials_fail: 1` and unknown tiebreak steps) and emit the resolved `vendors` object with per-key source layers.
+- `vendor-decide` accepts `--state-dir` (defaulting to the plugin data-folder rule), routes proven pairs with basis `proven`, excludes failed pairs, routes active trials with basis `trial`, writes nothing on routine runs, and honors `--settings` for routing-off decisions, silent `in_use: false` skipping, one-line unavailable notes for `in_use: true`, ordered `tiebreak` steps and vendor ranks, per-source enable overrides, and inactive-trials notices when counts are unset.
+- `reference/vendors.md` now states the trust model and points to `reference/benchmarks.json`, with the dated checked column and model names removed; `reference/config.md` and `README.md` document the `vendors` keys, layers, team rows file, trial state location, and `send-back` command.
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+### Fixed
+
+- `vendor-decide` now reads Claude's base model and effort from `roles.worker.single` in `route.sh` `--settings` output (falling back to `--models` defaults and bundled `defaults.yaml` only when absent) before applying the heavy-task effort raise.
+- `vendor-decide` enforces the default-effort floor on `coding` consensus and trial recommendations, raising any effort below the selected model's default to that default with one note.
+- `vendor-decide` no longer copies `board-reader` `findings` strings into `Decision.notes` (emitting one fixed non-relayed note per flagged source instead); `agents/board-reader.md` restricts `findings` to reader-authored labels and `skills/route/SKILL.md` relays only that fixed note.
+- `vendor-decide` drops records whose `model`, `version`, or `effort` fails `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$` with one note naming source and field (never the value), constrains decision `effort` to the vendor/model's listed efforts in `--models` (falling back to the model/vendor default), and sources `version` exclusively from `--models` (never from page records, falling back to `null`).
+
 ## [3.3.1] - 2026-11-23
 
 ### Changed
