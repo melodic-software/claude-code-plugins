@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Output: one markdown table row per file, then an aggregate line.
 # Exit: 0 on scan paths; 2 on unknown args.
 set -uo pipefail
 

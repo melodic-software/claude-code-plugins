@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Behavioral tests for the python3 App-Execution-Alias stub probe.
-
-The probe exists so ``/disk-hygiene:setup check`` can classify the first rung of
-the guard launcher's interpreter ladder (``python3``) WITHOUT executing it — a bare
-``python3 --version`` against the zero-length WindowsApps alias stub pops the
-Microsoft Store or hangs. The verdict here is diagnostic input, never the setup
-verdict: the fail-open is an exhausted ladder (``python`` and ``py -3`` absent too),
-because a guard that never runs emits neither exit 2 nor a ``deny`` decision and so
-cannot block a destructive tool call. The stub
-signal (WindowsApps path component + zero length) is fabricated here so the
-detection is exercised cross-platform, without needing a real Windows box or
-executing anything.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -70,8 +56,6 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual("store-alias-stub", result["verdict"])
 
     def test_real_interpreter_under_windowsapps_is_ok(self) -> None:
-        # The Microsoft Store's genuine Python lives under a versioned WindowsApps
-        # subdirectory and has a non-zero size — it must not be flagged as the stub.
         real = self.make_file(
             "Microsoft/WindowsApps/PythonSoftwareFoundation.Python.3.12_x/python3.exe",
             2048,
@@ -82,7 +66,6 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(2048, result["size"])
 
     def test_zero_length_outside_windowsapps_is_ok(self) -> None:
-        # Zero length alone is not the signal; the WindowsApps component is required.
         empty = self.make_file("bin/python3", 0)
         result = self.run_probe(["--path", str(empty)])
         self.assertEqual("ok", result["verdict"])
@@ -107,9 +90,6 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(str(real), result["resolved_path"])
 
     def test_stat_failure_under_windowsapps_is_indeterminate(self) -> None:
-        # An interpreter whose identity cannot be read is uncertainty about the
-        # guard's own launch; the verdict must not be "ok" (which would pass), so
-        # the skill fails closed on it.
         candidate = self.root / "Microsoft" / "WindowsApps" / "python3.exe"
         with mock.patch.object(probe.Path, "stat", side_effect=OSError("denied")):
             result = self.run_probe(["--path", str(candidate)])
@@ -125,8 +105,6 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["windowsapps"])
 
     def test_probe_never_executes_the_candidate(self) -> None:
-        # Inspect-before-execute: detecting the stub must not run it (which would
-        # pop the Store or hang). Guard against any subprocess use in the probe.
         stub = self.make_file("Microsoft/WindowsApps/python3.exe", 0)
         with (
             mock.patch("subprocess.run", side_effect=AssertionError("executed")),
