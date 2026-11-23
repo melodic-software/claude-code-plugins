@@ -1469,11 +1469,10 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
       const context = { "steps.kill.outputs.proceed": proceed, "steps.wip.outputs.capped": capped };
       assert.equal(evaluate(hold.if, context), runs, `hold notice on proceed ${JSON.stringify(proceed)}, capped ${JSON.stringify(capped)}`);
     }
-    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed, "steps.node.outcome": "success" }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
-    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed, "steps.node.outcome": "failure" }), false, `no Node skips the cap check on proceed ${JSON.stringify(proceed)}`);
+    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
   }
-  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false", "steps.node.outcome": "skipped" }), false, "the switch on skips the cap check");
-  const node = pick.steps.find((item) => item.id === "node");
+  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
+  const node = pick.steps.find((item) => item.name === "Set up Node");
   assert.equal(node.if, "steps.kill.outputs.proceed != 'false'");
   assert.equal(node["continue-on-error"], true, "a failed Node setup holds green");
   assert.ok(pick.steps.indexOf(node) < pick.steps.indexOf(wip), "Node is set up before the check");

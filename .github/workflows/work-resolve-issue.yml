@@ -277,7 +277,6 @@ jobs:
       # queued cap (`admission-open`) gates only new agent-ready labels in
       # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Set up Node
-        id: node
         if: steps.kill.outputs.proceed != 'false'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
@@ -286,7 +285,7 @@ jobs:
 
       - name: Check the WIP cap
         id: wip
-        if: steps.kill.outputs.proceed != 'false' && steps.node.outcome == 'success'
+        if: steps.kill.outputs.proceed != 'false'
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
