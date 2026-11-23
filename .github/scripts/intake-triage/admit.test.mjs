@@ -1293,6 +1293,16 @@ describe("decide", () => {
       test("a lane cap or budget that does not limit spend reads as no charge", () => {
         assert.deepEqual(workCharges({ title: "", body: "The lane runs past its turn cap." }, chargePattern(), false, RULES["task-list"]), []);
       });
+
+      test("a charge word under a leading negation reads as no charge; one past it still counts", () => {
+        const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
+        assert.deepEqual(charged("No new storage or retention."), [], "a negated clause");
+        assert.deepEqual(charged("- [ ] No new storage or retention."), [], "a negated task item");
+        assert.deepEqual(charged("No new storage, but add artifact retention of 90 days."), ["retention"], "a charge after the negated span");
+        assert.deepEqual(charged("Add 90-day artifact retention."), ["retention"], "a clause with no negation");
+        assert.deepEqual(charged("No spending limit on the lanes account."), ["spending limit"], "a negated spend guard");        assert.deepEqual(charged("No retention limit."), ["retention"], "a negated bound on a charge");
+        assert.deepEqual(charged("No expiry on artifact retention."), ["retention"], "a negated expiry on a charge");
+      });
     });
 
     // Owner decision 2026-10-31 Q1: the check reads what the issue will do,

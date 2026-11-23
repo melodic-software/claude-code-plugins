@@ -936,6 +936,12 @@ const lowersOnly = (clause, charges, isPublic) => {
   const at = clause.search(TOWARD);
   return at < 0 || clauseCharges(clause.slice(at), charges, isPublic).length === 0;
 };
+const NEGATED_HEAD = /^(?:[^\p{L}]|\[x\])*(?:no|not|without)\s[^,]*?(?=,|\bbut\b|$)/iu;
+const BOUND = /\b(?:limits?|expir\w*)\b/i;
+const unnegated = (clause) => {
+  const head = NEGATED_HEAD.exec(clause)?.[0];
+  return head === undefined || [CHARGING, SAFEGUARD, SPEND_LIMIT, BOUND].some((keeps) => keeps.test(head)) ? clause : clause.slice(head.length);
+};
 // A clause ends at a sentence end, or at a line break before a blank line or
 // a list item.
 const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
@@ -960,6 +966,7 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
       parts
         .flatMap(clausesOf)
         .filter((clause) => !lowersOnly(clause, charges, isPublic))
+        .map(unnegated)
         .flatMap((clause) => {
           const named = clauseCharges(clause, charges, isPublic);
           const words = named.length > 0 ? named : accountsTakenOn(clause);
