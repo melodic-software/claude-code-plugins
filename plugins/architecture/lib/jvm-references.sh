@@ -1,38 +1,4 @@
 #!/usr/bin/env bash
-# Reader for JVM build manifests: settings.gradle(.kts), build.gradle(.kts)
-# and pom.xml.
-#
-# WHY. map-dependencies cites which Gradle subprojects a build includes, which
-# subprojects another one depends on, and which Maven modules a pom aggregates,
-# and says so when a declaration is a shape it does not read.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   jvm_settings_records <settings.gradle | settings.gradle.kts>
-#     include<TAB>project path<TAB>declaration   a literal include argument
-#     unread<TAB>declaration                     a shape this reader skips
-#   jvm_build_records <build.gradle | build.gradle.kts>
-#     project<TAB>project path<TAB>declaration   project(':x') or
-#                                                project(path = ':x')
-#     unread<TAB>declaration
-#   jvm_pom_records <pom.xml>
-#     name<TAB>artifactId                        the project's own artifactId
-#     module<TAB>path<TAB>declaration            a <modules><module> entry
-#     unread<TAB>declaration
-#     declaration is the statement as written, comment removed. An include
-#     statement spread over several lines is one declaration.
-#     Unread in settings: includeFlat, includeBuild, an include with an
-#     argument that is not a string literal (a variable, an interpolated
-#     string, a spread, a loop body), a statement inside .each, .forEach, for
-#     or while, a project(...).projectDir, .buildFileName or .name assignment,
-#     and apply from. Unread in a build file: projects.x type-safe accessors,
-#     project(...) with a non-literal argument or used as a receiver, and a
-#     project( whose arguments leave the line. Unread in a pom: a module value
-#     that is empty or holds a ${property}.
-#     Version catalog accessors (libs.x) name external coordinates, and this
-#     reader draws no external edge for JVM, so it does not read them.
-#
-# Portability: bash plus POSIX awk.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.

@@ -8,27 +8,6 @@ metadata:
   summary: Audit for drift between docs, config, code, and architecture via verified findings
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Working tree status (empty = clean), `git status --porcelain | head -20`
-- Changed files (staged+unstaged), `git diff --name-only HEAD`
-
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the cap applies only after the command's output has come back. What a large output
-returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines
-([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
-Pointer for how injected commands run:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-
 ## Variables
 
 Arguments: `$ARGUMENTS`

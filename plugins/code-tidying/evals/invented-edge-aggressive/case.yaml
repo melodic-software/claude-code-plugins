@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: invented-edge-aggressive
-description: aggressive on an invented src tree deletes a comment above a marker-listed identifier without renaming it, proposes a private docstring, and keeps a comment paired with a regression test
+description: aggressive on an invented src tree deletes a comment above a marker-listed identifier without renaming it, deletes a private docstring under DOCSTRING-ONLY, and keeps a comment paired with a regression test
 tags: [calibration, necessary, invented]
-expected_outcome: The end-offset comment is deleted and gql_page_end is never renamed because scripts/restoration-markers.txt lists it; the _parse docstring is unchanged and reported as a proposal; the empty-input comment paired with tests/edge-paired.test.sh stays; code is unchanged.
+expected_outcome: The end-offset comment is deleted and gql_page_end is never renamed because scripts/restoration-markers.txt lists it; the private _parse docstring is deleted and reported with its DOCSTRING-ONLY verdict, the function's code unchanged; the empty-input comment paired with tests/edge-paired.test.sh stays; code is unchanged.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -21,14 +21,13 @@ graders:
     pattern: '^  gql_page_end=\$\(\(offset \+ page_size\)\)$'
     flags: m
     target: { source: file, path: src/edge-marker.sh }
-  - name: docstring-unchanged
+  - name: docstring-deleted-code-unchanged
     type: regex
-    pattern: 'def _parse\(line\):\n    """Split a header line into key and value\."""\n    key, _, value = line\.partition\(":"\)'
+    pattern: 'def _parse\(line\):\n    key, _, value = line\.partition\(":"\)\n    return key\.strip\(\), value\.strip\(\)'
     target: { source: file, path: src/edge_docstring.py }
   - name: docstring-reported
     type: regex
-    pattern: 'docstring'
-    flags: i
+    pattern: 'DOCSTRING-ONLY'
     target: last_message
   - name: paired-comment-kept
     type: regex

@@ -333,7 +333,7 @@ const assertScanned = (name, predicate, list = steps) => {
   const id = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(scan.text)?.[1];
   assert.ok(id, `the scan before ${name} has an id`);
   assert.ok(scan.text.includes(`\n        if: >-\n          ${predicate}\n`), `the scan before ${name} runs on its condition`);
-  assert.ok(scan.text.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), `the scan before ${name}`);
+  assert.match(scan.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+\n {8}with:\n {10}gate-path: \.base\/lib\/publish-gate\.mjs\n/, `the scan before ${name}`);
   const upload = list[at].text;
   assert.ok(upload.includes(`\n        if: >-\n          (${predicate}) && steps.${id}.outputs.clean == 'true'\n`), `${name} waits on ${id}`);
   assert.ok(pathOf(upload), `${name} has a path`);

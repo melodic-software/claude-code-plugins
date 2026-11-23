@@ -11,19 +11,6 @@ metadata:
 **Arguments.** `[deep|shallow] [incumbent [target]|<plan text or file path>]`. An optional leading
 deep/shallow sets research depth; with no argument, work from conversation context.
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined:
-
-- Current branch, `git branch --show-current`
-- Recent commits, `git log --oneline -5`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-Why they stay separate: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
-
 ## Variables
 
 Arguments: `$ARGUMENTS`

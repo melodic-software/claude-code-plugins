@@ -110,10 +110,9 @@ runs:
   using: composite
   steps:
     - id: scan
-      shell: bash
-      env:
-        SCAN_PATHS: plain.json
-      run: node "$GITHUB_ACTION_PATH/../scan-upload/scan-upload.mjs"
+      uses: ./.github/actions/scan-upload
+      with:
+        path: plain.json
     - uses: actions/upload-artifact@v7
       with:
         name: pack-${{ github.run_id }}
@@ -168,7 +167,7 @@ run_case "a dynamic name maps by its literal prefix, not by a longer family" 1 \
 
 run_case "an upload in a composite action is checked" 1 \
   "subst $ACTION 'retention-days: 3' 'retention-days: 5'" \
-  "$ACTION:9: upload \`pack-\${{ github.run_id }}\` keeps 5 days"
+  "$ACTION:8: upload \`pack-\${{ github.run_id }}\` keeps 5 days"
 
 run_case "a computed name its job is not listed for fails" 1 \
   "edit $TABLE 't.families[\"verdict-*\"].uploads=[\".github/workflows/build.yml#build\"]'" \
@@ -268,8 +267,8 @@ run_case "the upload's condition repeats its scan step's if:, parenthesized" 0 \
   "check-artifact-retention: 4 upload step(s) match"
 
 run_case "a plaintext family with no scan step before the seal fails" 1 \
-  "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs'" \
-  "$ACTION:9: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
+  "subst $ACTION 'uses: ./.github/actions/scan-upload' 'uses: ./.github/actions/seal'" \
+  "$ACTION:8: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
 
 add_sealed_job() {
   local perms=$1
