@@ -12,7 +12,7 @@ assert_usage_error "$S" --nope
 # Foreign-provider edge id is well-formed by the shared grammar but rejected here
 # (offline: fails before any storage access).
 assert_usage_error "$S" --title x --parent "github:o/r#1"
-assert_usage_error "$S" --title x --type # --type needs a value
+assert_usage_error "$S" --title x --type
 
 # create-item is the verb that writes a whole item, so assert what reaches the
 # store, not just the exit code. `type` is additive: supplied it round-trips,
