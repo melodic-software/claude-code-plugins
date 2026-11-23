@@ -78,7 +78,6 @@ expect_eq() { # <name> <actual> <expected>
 
 S="$TMP/stubs"
 
-# --- exit 0, 1 and 2 map to clean, drift and untracked ---------------------
 table "$TMP/t-basic" \
   "# comment lines and blank lines are skipped" \
   "" \
@@ -197,7 +196,6 @@ expect_eq "--list: every row's check script exists" "$missing" ""
 expect_has "--list: good-css row names its check script" "$OUT" \
   "vojtaholik/good-css plugins/user-interface/scripts/check-good-css-drift.sh"
 
-# --- usage ---------------------------------------------------------------------
 OUT="$(bash "$SUT" --help 2>&1)"
 CODE=$?
 expect_code "--help: exit 0" 0

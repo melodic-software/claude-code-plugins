@@ -51,7 +51,6 @@ fi
 
 conv() { PYTHONUTF8=1 "$PY" "$SCRIPT" "$@"; }
 
-# --- Case: the fixture page ---
 out_file="$TEST_TMPDIR/page.md"
 conv "$FIXTURE" >"$out_file"
 assert_eq "fixture: converter exits 0" 0 "$?"
@@ -90,10 +89,8 @@ else
   fail "fixture: output ends with exactly one newline" "last bytes [$last_two]"
 fi
 
-# --- Case: stdin gives the same bytes as a file argument ---
 assert_eq "cli: stdin and file argument agree" "$(cksum <"$out_file")" "$(conv <"$FIXTURE" | cksum)"
 
-# --- Case: CRLF input still yields LF-only output ---
 sed 's/$/\r/' "$FIXTURE" >"$TEST_TMPDIR/crlf.html"
 conv "$TEST_TMPDIR/crlf.html" >"$TEST_TMPDIR/crlf.md"
 assert_eq "cli: CRLF input converts to the same bytes" "$(cksum <"$out_file")" "$(cksum <"$TEST_TMPDIR/crlf.md")"

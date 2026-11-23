@@ -84,6 +84,11 @@ function settingsOf(opts, root) {
 
 const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
 const round2 = (x) => Math.round(x * 100) / 100;
+const increment = (map, key) => map.set(key, (map.get(key) ?? 0) + 1);
+const append = (map, key, value) => {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(value);
+};
 
 /** The commits of the window, newest first, each {hash, author, files}. */
 function readHistory(root, count, paths) {
@@ -146,9 +151,9 @@ function analyze(commits, s, paths) {
   }
 
   const revs = new Map();
-  for (const commit of kept) for (const file of commit.files) revs.set(file, (revs.get(file) ?? 0) + 1);
+  for (const commit of kept) for (const file of commit.files) increment(revs, file);
   const folderSize = new Map();
-  for (const file of revs.keys()) folderSize.set(folderOf(file), (folderSize.get(folderOf(file)) ?? 0) + 1);
+  for (const file of revs.keys()) increment(folderSize, folderOf(file));
   const active = new Set([...revs].filter(([, n]) => n >= s.min_revs).map(([file]) => file));
 
   const shared = new Map();
@@ -156,9 +161,7 @@ function analyze(commits, s, paths) {
     const files = commit.files.filter((file) => active.has(file));
     for (let i = 0; i < files.length; i += 1) {
       for (let j = i + 1; j < files.length; j += 1) {
-        const key = `${files[i]}\0${files[j]}`;
-        if (!shared.has(key)) shared.set(key, []);
-        shared.get(key).push(commit.hash);
+        append(shared, `${files[i]}\0${files[j]}`, commit.hash);
       }
     }
   }
@@ -187,11 +190,7 @@ function analyze(commits, s, paths) {
     if (ra !== rb) parent.set(rb, ra);
   }
   const groups = new Map();
-  for (const file of [...parent.keys()].sort(cmp)) {
-    const root = find(file);
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root).push(file);
-  }
+  for (const file of [...parent.keys()].sort(cmp)) append(groups, find(file), file);
 
   const patternOf = (spread, focus) => {
     if (spread === 1) return focus >= s.encapsulated_min_focus ? "well-encapsulated" : "well-confined";
@@ -203,7 +202,7 @@ function analyze(commits, s, paths) {
     .sort((x, y) => cmp(x[0], y[0]))
     .map((files, i) => {
       const byFolder = new Map();
-      for (const file of files) byFolder.set(folderOf(file), (byFolder.get(folderOf(file)) ?? 0) + 1);
+      for (const file of files) increment(byFolder, folderOf(file));
       const folders = [...byFolder]
         .sort((x, y) => cmp(x[0], y[0]))
         .map(([folder, n]) => ({ folder, cluster_files: n, folder_files: folderSize.get(folder) }));
@@ -216,12 +215,7 @@ function analyze(commits, s, paths) {
   for (const pair of pairs) pair.cluster = clusterOf.get(pair.a) ?? null;
 
   const touchedBy = new Map();
-  for (const cluster of clusters) {
-    for (const { folder } of cluster.folders) {
-      if (!touchedBy.has(folder)) touchedBy.set(folder, []);
-      touchedBy.get(folder).push(cluster.id);
-    }
-  }
+  for (const cluster of clusters) for (const { folder } of cluster.folders) append(touchedBy, folder, cluster.id);
   const mixedFolders = [...touchedBy]
     .filter(([, ids]) => ids.length >= 2)
     .sort((x, y) => cmp(x[0], y[0]))

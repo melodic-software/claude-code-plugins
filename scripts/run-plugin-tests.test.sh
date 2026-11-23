@@ -92,8 +92,6 @@ export PLUGIN_TEST_ADVISORY_LIST="$empty_list"
 # The same holds for the shipped suite-budget exceptions list.
 export PLUGIN_TEST_SUITE_EXCEPTIONS="$empty_list"
 
-# --- exit contract -----------------------------------------------------------
-
 r="$(make_root pass)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
@@ -181,8 +179,6 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "--jobs 0 is rejected" --root
 assert_output_has "the bad job count is named" "--jobs must be a positive integer (got '0')"
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an unknown flag prints usage" --root "$r" --parallel
 assert_output_has "usage names the flags" "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]"
-
-# --- --timings and suite arguments --------------------------------------------
 
 r="$(make_root timings)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
