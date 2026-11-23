@@ -1,8 +1,3 @@
-"""Contract tests for tidy_work.py, run as a subprocess.
-
-Every fixture is a temp HOME plus a temp git repo; the real ~/.work is never read.
-"""
-
 from __future__ import annotations
 
 import json
@@ -1050,8 +1045,6 @@ def test_a_kept_handoff_that_names_no_issue_keeps_what_it_names(env):
     assert "would remove" not in clean(env).stdout
 
 
-# --- shape-3 archives: handoffs/archive/<chain-root-stem>/ ---------------------------
-
 ROOT3 = "20260101T100000Z-handoff-three.md"
 HOP3_2 = "20260102T100000Z-handoff-three.md"
 
@@ -1098,7 +1091,6 @@ def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
 
 
 def test_a_finished_chain_keeps_its_newest_hot_file_and_its_archive(env):
-    """The shrink removes older hot files only."""
     archive = three_chain(env)
     _, _, repo = env
     items = report(env, *links(env[0], STATE))

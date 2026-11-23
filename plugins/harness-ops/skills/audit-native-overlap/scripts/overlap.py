@@ -277,11 +277,6 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 """
 
 
-# ---------------------------------------------------------------------------
-# Small helpers
-# ---------------------------------------------------------------------------
-
-
 def _fail(message: str) -> None:
     print(f"error: {message}", file=sys.stderr)
 
@@ -636,11 +631,6 @@ def current_cli_version() -> tuple[str | None, str]:
     if match is None:
         return None, "no version found in `claude --version` output"
     return match.group(1), f"claude --version ({exe})"
-
-
-# ---------------------------------------------------------------------------
-# Store validation
-# ---------------------------------------------------------------------------
 
 
 def _row_label(row: Any, index: int) -> str:
@@ -1022,11 +1012,6 @@ def validate_pairs(pairs_data: dict[str, Any]) -> list[str]:
     return problems
 
 
-# ---------------------------------------------------------------------------
-# Rendering
-# ---------------------------------------------------------------------------
-
-
 _CELL_BREAKS = re.compile("[\r\n  ]")
 _CELL_SPECIALS = re.compile(r"([\\`<>\[\]|])")
 
@@ -1234,11 +1219,6 @@ def _scan_markers(text: str) -> list[tuple[list[tuple[int, str]], list[tuple[int
                 ends.append((offset, line))
         at += len(raw) + 1
     return found
-
-
-# ---------------------------------------------------------------------------
-# Baked-line parity
-# ---------------------------------------------------------------------------
 
 
 def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
@@ -1451,11 +1431,6 @@ def check_presence_mentions(repo: Path) -> list[str]:
                 f'and bake the phrase with "{GATE_TOKEN}", or drop the condition'
             )
     return advisories
-
-
-# ---------------------------------------------------------------------------
-# Subcommands
-# ---------------------------------------------------------------------------
 
 
 def _failed(problems: list[str]) -> bool:
@@ -2315,11 +2290,6 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
         f"{store_path}; run `overlap.py generate`"
     )
     return 0
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentParser:
