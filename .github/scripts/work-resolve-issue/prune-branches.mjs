@@ -16,6 +16,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { client, DELETE_REF, ZERO_OID } from "../branch-cleanup/cleanup.mjs";
+import { parseLaneBranch } from "../lib/lane-branch.mjs";
 import { isLaneBranch, PRUNE_CAP } from "./report-outcome.mjs";
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -25,10 +26,9 @@ export function claimed(env) {
   if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) throw new Error("ISSUE_NUMBER is not an issue number");
   if (!/^[1-9][0-9]*$/.test(env.RUN_ID ?? "")) throw new Error("RUN_ID is not a run id");
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "")) throw new Error("REPOSITORY is not owner/repo");
-  const own = `work-resolve-issue/issue-${env.ISSUE_NUMBER}-${env.RUN_ID}-`;
   const spared = new Set([env.REUSE_BRANCH, env.RESUME_BRANCH].filter(Boolean));
   const names = [...new Set(String(env.PRUNE_BRANCHES ?? "").split(/\s+/).filter(Boolean))];
-  return names.filter((name) => isLaneBranch(name, env.ISSUE_NUMBER) && !name.startsWith(own) && !spared.has(name)).slice(0, PRUNE_CAP);
+  return names.filter((name) => isLaneBranch(name, env.ISSUE_NUMBER) && parseLaneBranch(name).run !== env.RUN_ID && !spared.has(name)).slice(0, PRUNE_CAP);
 }
 
 const readQuery = (count) => {
