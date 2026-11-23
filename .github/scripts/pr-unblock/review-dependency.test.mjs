@@ -208,7 +208,7 @@ const majorBump = (annotations) =>
 test("select skips a pull request whose only CI Status failure is the trust-gate hold, with no model turn, escalation or label", async () => {
   const result = await majorBump({ 9: [NOTICE, EXIT, gateHold(7), NOTICE] });
   assert.equal(result.decision, "skip");
-  assert.equal(result.skipReason, "awaiting-human");
+  assert.equal(result.skipReason, "gate-hold");
   assert.equal(result.escalationReason, undefined, "no escalation, so no needs-human label and no security reason");
   assert.equal(result.file, undefined, "no context file, so no model turn");
 });
@@ -525,7 +525,7 @@ test("main writes no context or run file when the select skips", async () => {
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
   const lines = [];
   await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: (line) => lines.push(line) });
-  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=awaiting-human\nescalation-reason=\n");
+  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=gate-hold\nescalation-reason=\n");
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
   assert.ok(lines.some((line) => line.includes("trust-gate hold") && line.includes("content was not judged")), "the step summary says why no review ran");
   assert.ok(!lines.some((line) => /security/i.test(line)), "a gate hold names no security risk");

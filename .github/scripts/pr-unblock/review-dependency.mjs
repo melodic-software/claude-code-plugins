@@ -118,6 +118,7 @@ export function supersededOnly(annotations, headSha) {
   return failures.some(marks) && failures.every((message) => marks(message) || EXIT_LINE.test(message));
 }
 
+export const GATE_HOLD_SKIP = "gate-hold";
 const GATE_HOLD = /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/;
 export function gateHoldOnly(annotations, pr) {
   const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
@@ -290,7 +291,7 @@ export async function select({
     relockError = error.message;
   }
   if (gate.gateHold) {
-    return { decision: "skip", skipReason: "awaiting-human", gateHold: true, classification, pinError, relockError };
+    return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError };
   }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.

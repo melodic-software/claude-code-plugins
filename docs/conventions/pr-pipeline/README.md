@@ -1228,7 +1228,9 @@ no stop standing on its head, whether or not one ever did), `awaiting-session` (
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
 again), `owned-branch` (a fix-ci select job on a pull request whose head branch
 `merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
-would race the rebuild), or, for an issue run under
+would race the rebuild), `gate-hold` (a review-dependency select job whose head's only CI Status
+failure is the trust-gate hold: no model turn ran, and the dispatcher sends the head again once CI
+Status passes on it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
