@@ -11,24 +11,22 @@ import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
+import { stepsOf, workflowText } from "../lib/workflow-text.mjs";
+
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
 const main = read("maintenance-measure-skill-edit.yml");
 const pass = read("maintenance-measure-skill-edit-pass.yml");
 // The jobs that mint a lanes App token, each its one effect (AL-Q11).
 const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
-const jobs = (text) =>
-  Object.fromEntries(
-    text
-      .slice(text.indexOf("\njobs:\n"))
-      .split(/\n(?= {2}[a-z0-9-]+:\n)/)
-      .slice(1)
-      .map((block) => [block.match(/^ {2}([a-z0-9-]+):/)[1], block]),
-  );
+const jobs = (text) => {
+  const wf = workflowText(text);
+  return Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
+};
 const step = (block, name) => {
-  const start = block.indexOf(`- name: ${name}\n`);
-  assert.ok(start > 0, `step ${name}`);
-  return block.slice(start).split("\n      - name:")[0];
+  const found = stepsOf(block).find((s) => s.name === name);
+  assert.ok(found, `step ${name}`);
+  return found.text;
 };
 
 test("only push-branch and publish hold id-token, each for its one lane token; every other job reads only", () => {
