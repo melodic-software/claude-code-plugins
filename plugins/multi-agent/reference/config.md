@@ -187,7 +187,9 @@ tiebreak list, or `vendors.tiebreak=` to clear it.
   shows how to run it; `true` runs `external-agents run <product> --use task --mode write`
   for `image` requests (using a prompt built strictly from the user's task and
   naming the vendor's built-in image tool), reports the CLI and output path, and
-  reviews the image before recording any trial verdict. Only the user layer
+  reviews the image before recording any trial verdict. For other work it runs a
+  caller's brief through route's `delegate` script (`--use investigate` read-only,
+  or `--use task --mode write`), per the Caller contract in `vendors.md`. Only the user layer
   (`role_map_file`) sets it; a team or personal-override value, both files inside a
   repository, is ignored with a note.
 - `vendors.tiebreak`: a higher layer's valid list replaces the lower layer's
