@@ -117,7 +117,7 @@ before(() => {
   mkdirSync(path.join(base, "plugins", "source-control"), { recursive: true });
   const docsScripts = path.join(base, "plugins", "discovery", "scripts");
   mkdirSync(docsScripts, { recursive: true });
-  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) writeFileSync(path.join(docsScripts, name), "");
+  for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) writeFileSync(path.join(docsScripts, name), "");
   mkdirSync(path.join(base, ".claude-plugin"));
   writeFileSync(path.join(base, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
   resolved = path.join(root, "resolved.json");
@@ -1165,7 +1165,7 @@ test("web-access with any domain allows the read-docs scripts and points their f
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
   assert.deepEqual(ownDenied(denied, env), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
-  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
+  for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
   // The cache directory travels in the prompt, never through $GITHUB_ENV.
