@@ -90,7 +90,7 @@ test("the kill switch is checked before the report reads anything", () => {
   }
 });
 
-test("main's tip is checked out without credentials, and every action ref follows ADR 0126's pin rule", () => {
+test("main's tip is checked out without credentials, and every action ref follows ADR 0129's pin rule", () => {
   assert.match(job, /\n {10}branch: main\n/);
   assert.match(job, /ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n/);
   assert.match(job, /persist-credentials: false\n/);

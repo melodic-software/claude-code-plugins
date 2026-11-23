@@ -129,7 +129,7 @@ test("the job holds the job token with least privilege, and no secret, App token
   assert.doesNotMatch(text, /secrets\.|id-token|request-lane-token|create-github-app-token|claude-code-action|run-claude-cli/);
 });
 
-test("it checks out main only, without credentials, and every external action ref follows ADR 0126's pin rule", () => {
+test("it checks out main only, without credentials, and every external action ref follows ADR 0129's pin rule", () => {
   const checkout = steps.find((step) => step.text.includes("uses: actions/checkout@")).text;
   assert.match(checkout, /\n {8}uses: actions\/checkout@v7/);
   assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);

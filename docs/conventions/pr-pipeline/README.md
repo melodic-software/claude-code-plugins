@@ -4675,7 +4675,7 @@ the lanes.
 | Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
 
 Every ci-workflows reference, reusable workflow and action alike, tracks `@main`, and official
-vendor actions run at their moving major tag (ADR 0126). The synced runner policy admits a
+vendor actions run at their moving major tag (ADR 0129). The synced runner policy admits a
 ci-workflows reusable only at `@main` or at a commit its contract lists in `approvedShas`
 (`.github/standards/runner-policy/runner-policy.mjs`, `reusableWorkflowContract`).
 
