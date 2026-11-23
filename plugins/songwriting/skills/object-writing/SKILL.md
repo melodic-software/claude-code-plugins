@@ -153,9 +153,15 @@ line from here is the specific failure the boundary exists to catch: the generat
 lives in the skill that owns it, and material that skips that skill arrives as an LLM default
 wearing the vocabulary.
 
-## Related skills
+## Next
 
-- Metaphor generation and diagnosis → `/songwriting:metaphor`
-- Rhyme choice and rhyme cliche → `/songwriting:rhyme`
-- Daily practice curriculum and numbered exercises → `/songwriting:practice`
-- Whole-draft diagnosis (where images fail in context) → `/songwriting:diagnose`
+- Turn mined imagery into metaphor: /songwriting:metaphor.
+- Turn mined imagery into lyric lines: /songwriting:co-write.
+
+## Related
+
+- Rhyme choice and rhyme cliche: /songwriting:rhyme.
+- Daily practice curriculum and numbered exercises: /songwriting:practice.
+- Whole-draft diagnosis: /songwriting:diagnose.
+- Section placement judgment: /songwriting:song-form.
+- Scansion or stress-map claim: /songwriting:meter-prosody.
