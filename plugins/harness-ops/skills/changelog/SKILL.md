@@ -249,6 +249,11 @@ that path in place of the placeholder before running it.
 - A revalidation item: `/harness-ops:inventory`.
 - Behavior probes the range touches: `/harness-ops:behavior-probes live`.
 
+## Related
+
+- Tracking Claude Code bugs and docs lag: /harness-ops:known-issues.
+- Effort-pin drift checks: /harness-config:audit.
+
 ## Reference index. Load on demand
 
 | File | Load when |

@@ -226,6 +226,10 @@ edits nothing.
 /multi-agent:route all
 Shows the resolved map after an accepted change lands.
 
+## Related
+
+- Overriding role defaults per user, team, or checkout: /multi-agent:setup.
+
 ## Gotchas
 
 - A `current` verdict needs the fetched text. A page that fails to load is

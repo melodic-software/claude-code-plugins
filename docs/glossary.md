@@ -259,7 +259,10 @@ Avoid: task, factory workflow
 **stage**
 
 The step in the chain a lane serves. For CI lanes it is the `stage` field in
-[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json).
+[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json). A step of the session
+workflow, interview through retro, is a workflow stage, the sense **phase boundary** uses.
+
+Avoid: explore (for intake triage)
 
 **software factory**
 

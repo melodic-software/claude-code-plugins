@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/disk-hygiene/*
-"""Behavioral tests for the deterministic kill-switch probe.
-
-The probe exists so ``/disk-hygiene:setup check`` (and the clean skill when its
-body token arrives unexpanded) can report the *actually configured*
-``disk_hygiene_enabled`` value instead of presenting an assumed default as the
-configured one. Every degraded read must be labeled as assumed, never as
-configured.
-"""
-
 from __future__ import annotations
 
 import importlib.util

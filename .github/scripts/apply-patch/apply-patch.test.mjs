@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { buildTree, checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, MAX_TREE_ENTRIES_PER_REQUEST, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
+import { buildTree, cdnPinsFrom, checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, MAX_TREE_ENTRIES_PER_REQUEST, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
@@ -3907,6 +3907,80 @@ test("shared-copies: main pushes the written patch on a clean merge, and the mer
   const emptyEnv = envFor(empty, "empty", { PATCH_FILE: join(out, "absent.diff"), PATCH_SHA256: "" });
   await main([], emptyEnv, { api: fakeApi(empty.repo, empty.head), cwd: empty.repo, gitBin: "git", log: () => {} });
   assert.match(readFileSync(emptyEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+});
+
+const CDN_TEST_TARGET = "plugins/example/skills/report/reference/view.md";
+const CDN_TEST_UNCHANGED = "docs/unchanged.md";
+const CDN_TEST_PINS = "lib/cdn-pins/pins.json";
+const cdnTestRecord = (version, integrity) => ({
+  cdn: "https://cdn.jsdelivr.net/npm/",
+  packages: {
+    x: { version, file: "view.js", integrity },
+    y: { version: "1.0.0", file: "view.js", integrity: "sha256-unchanged" },
+  },
+  targets: [
+    { path: CDN_TEST_TARGET, packages: ["x"], integrity: true },
+    { path: CDN_TEST_UNCHANGED, packages: ["y"], integrity: true },
+  ],
+});
+const cdnTestView = (version, integrity, name = "x") => `https://cdn.jsdelivr.net/npm/${name}@${version}/view.js ${integrity}\n`;
+const writeRecord = (dir, record) => writeFileSync(join(dir, CDN_TEST_PINS), `${JSON.stringify(record, null, 2)}\n`);
+
+function cdnTestBase() {
+  const baseDir = tempDir("cdn-pins-base-");
+  mkdirSync(join(baseDir, "lib/cdn-pins"), { recursive: true });
+  cpSync(new URL("./fixtures/cdn-check.mjs", import.meta.url), join(baseDir, "lib/cdn-pins/sync.mjs"));
+  writeRecord(baseDir, cdnTestRecord("1.0.0", "sha256-before"));
+  return baseDir;
+}
+
+test("cdn-pins allows only the base registry and its targets, and fails closed without a registry", () => {
+  const allowed = PREDICATES["cdn-pins"]({ cdnPins: cdnPinsFrom(cdnTestBase()) });
+  assert.ok(allowed(CDN_TEST_PINS));
+  assert.ok(allowed(CDN_TEST_TARGET));
+  assert.equal(allowed("lib/cdn-pins/package.json"), false);
+  assert.equal(allowed("docs/unlisted.md"), false);
+  assert.throws(() => PREDICATES["cdn-pins"]({ cdnPins: cdnPinsFrom(tempDir("cdn-pins-absent-")) }), /needs the base pins.json/);
+});
+
+test("cdn-pins-sync checks the patched blobs and unchanged targets with the base script before pushing", async (t) => {
+  const baseDir = cdnTestBase();
+  for (const [why, version, hash, mode, headMode = 0o644] of [
+    ["matching sync", "2.0.0", "sha256-after", 0o644],
+    ["wrong hash", "2.0.0", "sha256-stale", 0o644],
+    ["wrong version", "3.0.0", "sha256-after", 0o644],
+    ["changed mode", "2.0.0", "sha256-after", 0o755],
+    ["executable on both sides", "2.0.0", "sha256-after", 0o755, 0o755],
+  ]) {
+    const fix = repoWithPatch(t, (repo) => {
+      writeRecord(repo, cdnTestRecord(version, "sha256-after"));
+      writeFileSync(join(repo, CDN_TEST_TARGET), cdnTestView(version, hash));
+      chmodSync(join(repo, CDN_TEST_TARGET), mode);
+    }, {
+      head: (repo) => {
+        for (const path of [CDN_TEST_PINS, CDN_TEST_TARGET, CDN_TEST_UNCHANGED]) {
+          mkdirSync(dirname(join(repo, path)), { recursive: true });
+        }
+        writeFileSync(join(repo, "lib/cdn-pins/package.json"), PKG("2.0.0", { dependencies: { x: "2.0.0", y: "1.0.0" } }));
+        writeRecord(repo, cdnTestRecord("1.0.0", "sha256-before"));
+        writeFileSync(join(repo, CDN_TEST_TARGET), cdnTestView("1.0.0", "sha256-before"));
+        chmodSync(join(repo, CDN_TEST_TARGET), headMode);
+        writeFileSync(join(repo, CDN_TEST_UNCHANGED), cdnTestView("1.0.0", "sha256-unchanged", "y"));
+      },
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const result = await pushWith(fix, api, {
+      row: row("cdn-pins-sync"),
+      context: { baseDir, cdnPins: cdnPinsFrom(baseDir) },
+    });
+    if (why === "matching sync") {
+      assert.equal(result.outcome, "pushed");
+      assert.match(api.calls.find((call) => call.createCommit).createCommit.message, /^Sync the CDN pins to the bumped manifest on feat\/x \[dependabot skip\]/);
+    } else {
+      assert.deepEqual(result, { outcome: "escalate", escalationReason: "dependency-pin-protected-path" }, why);
+      assert.deepEqual(api.calls, [], why);
+    }
+  }
 });
 
 const SUITE = "tests/a.test.sh";

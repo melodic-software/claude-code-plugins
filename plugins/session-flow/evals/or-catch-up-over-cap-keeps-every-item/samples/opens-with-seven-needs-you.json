@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "## Needs you\n\n7 action items, listed below.\n\n## What happened\n\nAPI tests pass, docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready.\n\n## Action items\n\n### 1. Billing provider\nRecommendation: adopt Stripe. If you don't answer: the integration work waits.\n\n### 2. Delete the staging database\nRecommendation: approve after a snapshot. If you don't answer: staging stays up and keeps billing.\n\n### 3. Rotate the deploy key\nRecommendation: rotate it today. If you don't answer: the old key stays live.\n\n### 4. Logo variant\nRecommendation: ship variant B. If you don't answer: the launch page keeps the placeholder.\n\n### 5. Bot write access to the docs repository\nRecommendation: grant it, scoped to docs. If you don't answer: docs updates stay manual.\n\n### 6. Delay the launch by a week\nRecommendation: keep the date. If you don't answer: the launch holds its current date.\n\n### 7. Force-push to the release branch\nRecommendation: decline it. If you don't answer: the release branch is unchanged.\n\n"
+    },
+    {
+      "answer": "**Needs you:** seven decisions.\n\n## What happened\n\nAPI tests pass, docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready.\n\n- **Billing provider**: I recommend adopt Stripe. Unanswered: the integration work waits.\n- **Delete the staging database**: I recommend approve after a snapshot. Unanswered: staging stays up and keeps billing.\n- **Rotate the deploy key**: I recommend rotate it today. Unanswered: the old key stays live.\n- **Logo variant**: I recommend ship variant B. Unanswered: the launch page keeps the placeholder.\n- **Bot write access to the docs repository**: I recommend grant it, scoped to docs. Unanswered: docs updates stay manual.\n- **Delay the launch by a week**: I recommend keep the date. Unanswered: the launch holds its current date.\n- **Force-push to the release branch**: I recommend decline it. Unanswered: the release branch is unchanged.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "## Needs you\n\n5 action items, listed below.\n\n## What happened\n\nAPI tests pass, docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready.\n\n## Action items\n\n### 1. Billing provider\nRecommendation: adopt Stripe. If you don't answer: the integration work waits.\n\n### 2. Delete the staging database\nRecommendation: approve after a snapshot. If you don't answer: staging stays up and keeps billing.\n\n### 3. Rotate the deploy key\nRecommendation: rotate it today. If you don't answer: the old key stays live.\n\n### 4. Logo variant\nRecommendation: ship variant B. If you don't answer: the launch page keeps the placeholder.\n\n### 5. Bot write access to the docs repository\nRecommendation: grant it, scoped to docs. If you don't answer: docs updates stay manual.\n\n### 6. Delay the launch by a week\nRecommendation: keep the date. If you don't answer: the launch holds its current date.\n\n### 7. Force-push to the release branch\nRecommendation: decline it. If you don't answer: the release branch is unchanged.\n\n"
+    },
+    {
+      "answer": "## What happened\n\nAPI tests pass, docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready.\n\n## Needs you\n\n7 action items.\n\n\n\n### 1. Billing provider\nRecommendation: adopt Stripe. If you don't answer: the integration work waits.\n\n### 2. Delete the staging database\nRecommendation: approve after a snapshot. If you don't answer: staging stays up and keeps billing.\n\n### 3. Rotate the deploy key\nRecommendation: rotate it today. If you don't answer: the old key stays live.\n\n### 4. Logo variant\nRecommendation: ship variant B. If you don't answer: the launch page keeps the placeholder.\n\n### 5. Bot write access to the docs repository\nRecommendation: grant it, scoped to docs. If you don't answer: docs updates stay manual.\n\n### 6. Delay the launch by a week\nRecommendation: keep the date. If you don't answer: the launch holds its current date.\n\n### 7. Force-push to the release branch\nRecommendation: decline it. If you don't answer: the release branch is unchanged.\n\n"
+    },
+    {
+      "answer": "Here is the changelog draft for version 2.3."
+    }
+  ]
+}

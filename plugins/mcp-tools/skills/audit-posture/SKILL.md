@@ -178,6 +178,11 @@ changed rows.
 
 /harness-config:audit to check the same MCP configuration for correctness, enablement, and allow or deny lists.
 
+## Related
+
+- Auditing author-side MCP tool definition quality: /mcp-tools:audit.
+- Full inventory of invocable Claude Code surfaces: /harness-ops:inventory.
+
 ## Gotchas
 
 - Every stdio row reads `sandboxed = no`. This is expected; the checklist's

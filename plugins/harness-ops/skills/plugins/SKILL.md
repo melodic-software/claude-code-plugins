@@ -468,6 +468,11 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 /harness-ops:prerequisites lists which external binaries the enabled fleet is missing.
 
+## Related
+
+- Read-only dry run before syncing: /harness-ops:plugins-audit.
+- Checking stale upstreams and plugin alternatives: /harness-ops:audit-plugin-landscape.
+
 ## Reference index. Load on demand
 
 | File | Load when |

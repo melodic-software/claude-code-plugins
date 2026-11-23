@@ -51,7 +51,6 @@ Output (stdout, one line):
 TIERS = ("Direct", "Supported", "Inferred", "Speculative", "Unknown")
 OWNER_QUOTE = "owner-quote"
 KINDS = (OWNER_QUOTE, "agent-relay")
-# The parser opens a source item on url:; an intent source opens on ref:.
 SOURCE_REF = re.compile(r"^(\s*- )ref(\s*:)")
 
 

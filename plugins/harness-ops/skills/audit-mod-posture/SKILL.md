@@ -146,6 +146,11 @@ line into the report. Tell the operator to save the report so the next run can d
 
 /harness-config:audit-permission-state to see which deny rules are in effect beside these mods.
 
+## Related
+
+- Built-in mod coverage via binary extraction: /harness-ops:inventory.
+- Settings correctness: /harness-config:audit.
+
 ## Gotchas
 
 - Two rows can share an id when one plugin is installed at two paths (two versions, or user and

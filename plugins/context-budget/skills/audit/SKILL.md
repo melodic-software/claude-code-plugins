@@ -326,6 +326,10 @@ otherwise use the payload's share of the measured window.
   the spawned headless session; they say nothing about the context remaining here and are no
   reason to shorten, summarize, or wrap up this audit.
 
+## Related
+
+- Settings correctness or permission-rule state: /harness-config:audit.
+
 ## Gotchas
 
 Each of these produces a confidently wrong number unless the engine's guard is honored:

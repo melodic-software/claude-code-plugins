@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Candidates 1 and 2 are one tree: the invoice total depends on the tax module's entry point, so I start with the tax module and take the invoice total inside the same thread. The mail sender is its own design fork, interviewed after.\n\nFirst question, on the tax module: should quote(order) return a single total or a per-line breakdown?"},
+    {"answer": "I'll interview the tax module and invoice total together, because invoice total depends on quote(order). Mail sender is separate.\n\nTax module: which of TaxRates, TaxRounding and TaxExemptions owns rounding?", "why": "together"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I'll go through them one by one: tax module, invoice total, then mail sender.\n\nTax module: what should quote(order) return?", "why": "three forks, no tree, no dependency"},
+    {"answer": "Here is a summary of the deepening scan.", "why": "different answer"}
+  ]
+}

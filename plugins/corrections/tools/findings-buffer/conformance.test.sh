@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for conformance.sh: it passes the local-file adapter, fails adapters that
-# break the contract, and rejects a bad invocation with exit 2.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -11,7 +9,6 @@ LOCAL="$SCRIPT_DIR/adapters/local-file"
 
 # shellcheck source=../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../lib/test-helpers.sh"
-# expect_exit <want> <got> <name>
 expect_exit() {
   if [[ "$2" -eq "$1" ]]; then
     pass "$3"
@@ -27,10 +24,8 @@ fi
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# Children that call mktemp land inside the trapped root.
 export TMPDIR="$TEST_TMPDIR"
 
-# local-file passes
 OUT="$(bash "$CONF" "$LOCAL" 2>&1)"
 RC=$?
 if [[ $RC -eq 0 ]]; then
@@ -45,7 +40,6 @@ expect_exit 2 $? "no adapter-dir exits 2"
 bash "$CONF" "$TEST_TMPDIR/nope" >/dev/null 2>&1
 expect_exit 2 $? "a missing adapter-dir exits 2"
 
-# make_broken <name>: a copy of local-file to sabotage; prints its directory.
 make_broken() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d"
@@ -53,7 +47,6 @@ make_broken() {
   printf '%s\n' "$d"
 }
 
-# an adapter that stores only the first line of each call loses rows
 D="$(make_broken drops)"
 cat >"$D/append.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -64,19 +57,16 @@ EOF
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an adapter that loses a row fails"
 
-# an unsupported schema_version
 D="$(make_broken badcaps)"
 printf '{"schema_version":"2.0","adapter":"x"}\n' >"$D/capabilities.json"
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an unsupported schema_version fails"
 
-# invalid JSON that still contains the expected text
 D="$(make_broken badjson)"
 printf '{"schema_version":"1.0","adapter":"x",\n' >"$D/capabilities.json"
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an unparsable capabilities.json fails"
 
-# a reader that ignores its arguments
 D="$(make_broken lax)"
 cat >"$D/read.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -87,7 +77,6 @@ EOF
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an adapter that accepts a bad argument fails"
 
-# local-file stores under <git common dir>/findings-buffer/findings.jsonl
 REPO="$TEST_TMPDIR/repo"
 git init -q -b main "$REPO" >/dev/null 2>&1
 printf '{"obs_id":"x","ts":"2026-10-21T00:00:00Z"}\n' | (cd "$REPO" && bash "$LOCAL/append.sh")
@@ -123,8 +112,6 @@ else
   fail "read.sh --since compares the top-level ts"
 fi
 
-# the mkdir lock (flock and perl hidden from PATH): released after an append and on
-# TERM, and a lock left by a dead holder fails fast and stores nothing
 NOFLOCK="$TEST_TMPDIR/noflock-bin"
 mkdir -p "$NOFLOCK"
 for t in bash git jq mkdir rmdir rm mv cat sleep mktemp sync find wc grep; do
@@ -139,8 +126,6 @@ else
   fail "the mkdir lock is released after an append"
 fi
 
-# TERM while waiting on a live holder: the waiter never held the lock, so the
-# holder's lock stays; TERM to the holder side is the trap path below.
 mkdir "$REPO/.git/findings-buffer/.lockdir"
 printf '%s\n' "$$" >"$REPO/.git/findings-buffer/.lockdir/pid"
 (cd "$REPO" && PATH="$NOFLOCK" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"nf-wait","ts":"2026-10-21T00:00:05Z"}') 2>/dev/null &
@@ -155,8 +140,6 @@ else
 fi
 rm -rf "$REPO/.git/findings-buffer/.lockdir"
 
-# TERM to a holder: a slow sync stub keeps the holder inside the lock; bash runs
-# the TERM trap once the stub returns, and the EXIT trap releases the lock.
 SLOW="$TEST_TMPDIR/slow-bin"
 mkdir -p "$SLOW"
 cp -P "$NOFLOCK"/* "$SLOW"/
@@ -195,8 +178,6 @@ else
 fi
 rm -rf "$REPO/.git/findings-buffer/.lockdir"
 
-# perl's flock (flock hidden from PATH, perl present): it locks .lock, an append
-# after a SIGKILLed holder succeeds, and parallel appends never share the lock
 if perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; then
   PERLBIN="$TEST_TMPDIR/perl-bin"
   mkdir -p "$PERLBIN"
@@ -213,9 +194,6 @@ if perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; the
     fail "append.sh without flock takes perl's flock on .lock" "exit $RC"
   fi
 
-  # A slow sync stub keeps the holder inside the lock and records the processes
-  # holding it: the shell that took the lock (its parent) and itself, as fd 9 is
-  # inherited. SIGKILL to all of them is a holder that dies without cleanup.
   SLOWPERL="$TEST_TMPDIR/slow-perl-bin"
   INSIDE="$TEST_TMPDIR/inside"
   mkdir -p "$SLOWPERL"
@@ -248,8 +226,6 @@ EOF
   fi
   rm -rf "$PREPO/.git/findings-buffer/.lockdir"
 
-  # A sync stub that finds another appender inside the lock records an overlap;
-  # each appender stays inside long enough for one to show.
   PARPERL="$TEST_TMPDIR/par-perl-bin"
   MARK="$TEST_TMPDIR/inside-lock"
   OVERLAP="$TEST_TMPDIR/overlap"
@@ -296,7 +272,6 @@ else
   printf 'ok %d - perl flock checks # SKIP no perl with native flock(2)\n' "$CASE_NUM"
 fi
 
-# the buffer sits where git tracks nothing, and symlinks never redirect rows or truncate the lock
 LREPO="$TEST_TMPDIR/links"
 LBUF="$LREPO/.git/findings-buffer"
 git init -q -b main "$LREPO" >/dev/null 2>&1
@@ -396,7 +371,6 @@ else
   fail "concurrent appends from two worktrees all exit 0 and store every row once" "$bad failed, off:$off"
 fi
 
-# rows in the per-worktree .work/buffer file written before the buffer moved are still read
 LEGACY="$LINKED/.work/buffer"
 mkdir -p "$LEGACY"
 printf '{"obs_id":"legacy-new","ts":"2026-10-22T00:00:00Z"}\n{"obs_id":"legacy-old","ts":"2020-01-01T00:00:00Z"}\n' \

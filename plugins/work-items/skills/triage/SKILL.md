@@ -93,7 +93,7 @@ A reversible change with a well-grounded recommendation (the decision-defaulted 
 none of them: it takes the decision-defaulted exit, never this label. The rules in
 [`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for an
 untrusted-provenance or signal-marked item, a decomposition or probe a person must start, or the
-work-loop intake sweep's proposed role-label swap awaiting a person's admission, are instances of part 2.
+work-loop intake sweep's proposed role-label swap awaiting a person who approves it, are instances of part 2.
 
 ```text
 raw → verified → briefed

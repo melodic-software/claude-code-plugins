@@ -330,6 +330,12 @@ tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to
 Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- Reading per-lane telemetry freshness: /work-items:morning-brief.
+- Full plugin fleet sync and scope convergence: /harness-ops:plugins.
+- Viewing lane hook latency and token telemetry: /harness-ops:observability.
+
 ## Gotchas
 
 - **No durable prompt home.** `.work/lanes` is a sanctioned home, not a durable one:

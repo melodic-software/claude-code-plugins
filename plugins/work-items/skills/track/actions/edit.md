@@ -1,7 +1,7 @@
 # Action: `edit`
 
 Change an existing item: its title or body, its labels, a blocked-by edge, or add a comment. The
-entry point for another plugin that maintains items it filed (a decision map's index, a rewritten
+entry point for another plugin that maintains items it filed (a map's index, a rewritten
 question) without naming a tracker's commands.
 
 ## Usage

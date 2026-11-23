@@ -239,6 +239,13 @@ If /doctor is available in your session (gate basis: **Boundary, the bundled `do
 /disk-hygiene:clean
 Consumes a genuinely unmanaged leftover this report surfaced; the audit itself never deletes.
 
+## Related
+
+- Project config correctness: /harness-config:audit.
+- Permission grant portability: /harness-config:audit-permission-grants.
+- Plugin fleet currency and scopes: /harness-ops:plugins-audit.
+- Live session slowness diagnosis: /harness-ops:audit-performance.
+
 ## Gotchas
 
 - **A number in a filename is not a PID until proven otherwise.** The most expensive error in this

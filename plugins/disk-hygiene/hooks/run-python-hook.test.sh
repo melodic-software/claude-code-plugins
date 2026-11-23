@@ -354,8 +354,6 @@ for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py;
           (((.args // []) | map(tostring) | join(" ")) | contains("run-python-hook.sh") | not)
         )] | length' "$HOOKS_JSON")"
 
-  # Placeholders live in args, which Claude Code substitutes before spawn.
-  # There is no shell to re-tokenize them.
   bad_cmd="$(jq -r --arg target "$hook_name" '
     [.hooks[][].hooks[] |
       select((.args // []) | map(tostring) | join(" ") | contains($target)) |
