@@ -247,3 +247,20 @@ test("every eval entry job runs only while CLAUDE_EVALS_DISABLED is exactly fals
     assert.match(head(text, name), /\n {4}if: (?:>-\n {6})?vars\.CLAUDE_EVALS_DISABLED == 'false'/, name);
   }
 });
+
+test("pass workflow accepts cases through env, passes --cases when set, and rejects case+cases", () => {
+  assert.match(
+    pass,
+    /\n {6}cases:\n {8}description: Exact case names, space-separated; stages a suite copy with only these cases\. Not with case\.\n {8}required: false\n {8}type: string\n {8}default: ""\n/,
+  );
+  const stage = step(pass, "Stage the suite");
+  assert.match(stage, /CASE: \$\{\{ inputs\.case \}\}\n/);
+  assert.match(stage, /CASES: \$\{\{ inputs\.cases \}\}\n/);
+  assert.match(stage, /stage_args=\(--cases "\$CASES"\)/);
+  assert.doesNotMatch(stage.slice(stage.indexOf("run: |")), /\$\{\{\s*inputs\./);
+  const stageGuard = /read -ra cases <<<"\$CASES"\n.*?\n\s+fi\n/s.exec(stage)[0];
+  const checkStage = (env) => spawnSync("bash", ["-c", stageGuard], { env, encoding: "utf8" });
+  assert.equal(checkStage({ CASE: "", CASES: "" }).status, 0);
+  assert.equal(checkStage({ CASE: "", CASES: "c1 c2" }).status, 0);
+  assert.equal(checkStage({ CASE: "c1", CASES: "c2" }).status, 1);
+});
