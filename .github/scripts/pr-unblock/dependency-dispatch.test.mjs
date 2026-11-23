@@ -57,7 +57,6 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
       if (checkName === "ci-status") {
         return ci.get(sha) ?? [];
       }
-      // A run that names no check is the review-dependency one.
       return (checks.get(sha) ?? []).filter((run) => (run.name ?? CHECK) === checkName);
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
@@ -379,8 +378,6 @@ test("a limit-stopped head is held until its reset, dispatched after it, and hel
   assert.deepEqual(capped.dispatched, [], "the resolved limits set the cap");
 });
 
-// Three limit stops under a resolved cap of 5: the newest holds the head until
-// its reset, the head is not recorded, and it dispatches after the reset.
 test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
   const node = pr(71);
   const runs = [limitStop("2026-10-17T07:00:00Z"), limitStop("2026-10-17T08:00:00Z"), limitStop("2026-10-17T09:30:00Z"), noModelTurn("2026-10-17T09:35:00Z")];
