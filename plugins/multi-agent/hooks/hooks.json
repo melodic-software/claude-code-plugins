@@ -8,9 +8,7 @@
           {
             "type": "command",
             "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"
-            ],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"],
             "timeout": 10,
             "onFailure": "block",
             "statusMessage": "Checking the drift-checker fetch host..."

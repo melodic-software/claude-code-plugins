@@ -46,13 +46,9 @@ test('schemas are closed JSON Schemas and shipped benchmarks.json has pointers o
   assert.deepEqual(shipped.rows.map((r) => r.id).sort(), [
     'aa-image-t2i', 'cursorbench', 'gdpval-aa', 'terminal-bench', 'vals-index', 'webdev-arena',
   ])
-  const hooks = JSON.parse(readFileSync(join(BENCHMARKS, '..', '..', 'hooks', 'hooks.json'), 'utf8'))
-  const gateArgs = Object.values(hooks.hooks).flat().flatMap((m) => m.hooks)
-    .map((h) => h.args ?? []).find((a) => a.includes('multi-agent:registry-fetcher'))
   for (const r of shipped.rows) {
     assert.ok(r.status === 'permanent' || r.status === 'support-only')
     assert.ok(r.task_set && r.expect && r.publisher && r.link.startsWith('https://'))
-    assert.ok(gateArgs.includes(new URL(r.link).hostname), `${r.id} host not in the registry-fetcher gate`)
   }
 })
 

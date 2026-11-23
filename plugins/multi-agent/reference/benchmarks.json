@@ -4,9 +4,7 @@
   "rows": [
     {
       "id": "terminal-bench",
-      "workloads": [
-        "coding"
-      ],
+      "workloads": ["coding"],
       "link": "https://www.tbench.ai/leaderboard",
       "publisher": "tbench.ai",
       "provider_own": false,
@@ -16,9 +14,7 @@
     },
     {
       "id": "cursorbench",
-      "workloads": [
-        "coding"
-      ],
+      "workloads": ["coding"],
       "link": "https://cursor.com/cursorbench",
       "publisher": "cursor",
       "provider_own": false,
@@ -28,9 +24,7 @@
     },
     {
       "id": "webdev-arena",
-      "workloads": [
-        "web-ui"
-      ],
+      "workloads": ["web-ui"],
       "link": "https://arena.ai/leaderboard/code/webdev",
       "publisher": "arena.ai",
       "provider_own": false,
@@ -40,10 +34,7 @@
     },
     {
       "id": "vals-index",
-      "workloads": [
-        "coding",
-        "knowledge"
-      ],
+      "workloads": ["coding", "knowledge"],
       "link": "https://www.vals.ai/benchmarks/vals_index",
       "publisher": "vals.ai",
       "provider_own": false,
@@ -53,9 +44,7 @@
     },
     {
       "id": "gdpval-aa",
-      "workloads": [
-        "knowledge"
-      ],
+      "workloads": ["knowledge"],
       "link": "https://artificialanalysis.ai/evaluations/gdpval-aa",
       "publisher": "artificialanalysis.ai",
       "provider_own": false,
@@ -65,9 +54,7 @@
     },
     {
       "id": "aa-image-t2i",
-      "workloads": [
-        "image"
-      ],
+      "workloads": ["image"],
       "link": "https://artificialanalysis.ai/image/leaderboard/text-to-image",
       "publisher": "artificialanalysis.ai",
       "provider_own": false,
