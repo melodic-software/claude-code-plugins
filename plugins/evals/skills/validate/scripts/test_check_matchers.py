@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # test-scope: plugins/*/evals/*/case.yaml plugins/*/evals/*/matchers.json plugins/*/evals/*/samples/*
+# test-scope: plugins/evals/matchers/*
 """Tests for check-matchers.py: rendering, drift, sample registration, both
-regex engines, and the live fragments file with every suite in the repository."""
+regex engines, and the live fragment files with every suite in the repository."""
 
 import importlib.util
 import json
