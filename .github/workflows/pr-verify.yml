@@ -185,7 +185,9 @@ jobs:
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
+          # The one file a lanes App pull request may change alone with no verdict (resolve-pr.mjs baselineOnly).
+          BASELINE_FILE=$(yq '.merge."baseline-file" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS BASELINE_FILE
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -2243,7 +2245,9 @@ jobs:
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
+          # The one file a lanes App pull request may change alone with no verdict (resolve-pr.mjs baselineOnly).
+          BASELINE_FILE=$(yq '.merge."baseline-file" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS BASELINE_FILE
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The upstream run's actors, the re-runner and the PR author must all be
@@ -4031,7 +4035,9 @@ jobs:
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
+          # The one file a lanes App pull request may change alone with no verdict (resolve-pr.mjs baselineOnly).
+          BASELINE_FILE=$(yq '.merge."baseline-file" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS BASELINE_FILE
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       - name: Check the trigger

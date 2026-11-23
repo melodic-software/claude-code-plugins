@@ -133,7 +133,7 @@ test("every ci-workflows action, and the classifier each pass leg checks out, tr
   assert.ok(refs.length >= 2);
   for (const ref of refs) assert.equal(ref, "main");
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+)/g)].map(([, ref]) => ref);
-  assert.deepEqual(classifier, ["main"]);
+  assert.deepEqual(classifier, ["main", "main"]);
 });
 
 test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {

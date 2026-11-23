@@ -759,6 +759,18 @@ activities:
     gating: advisory
     # Posts the plan's titles and bodies, which the model wrote.
     reads-untrusted: true
+  push-native-baseline-branch:
+    script: .github/scripts/upstream-apply-changelog/native-baseline-publish.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+  publish-native-baseline-pr:
+    script: .github/scripts/upstream-apply-changelog/native-baseline-publish.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: true
   apply-upkeep-branches:
     # Recreates each chore/tidy-adhoc-<slug>-<date> branch the code-tidying upkeep
     # model job committed, as one lanes App commit through the Git Data API. A
@@ -904,6 +916,9 @@ lanes:
         needs: [apply-changelog]
       - activity: publish-changelog-intake
         needs: [apply-changelog-branches]
+      - activity: push-native-baseline-branch
+      - activity: publish-native-baseline-pr
+        needs: [push-native-baseline-branch]
   # Started daily and by a listed human's dispatch
   # (.github/workflows/maintenance-tidy-code-upkeep.yml). Push and pull request
   # open are separate jobs: the broker refuses contents and pull-requests write in
@@ -1523,6 +1538,7 @@ merge:
   # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
   # both. Absent is native.
   lane-prs: native
+  baseline-file: docs/upstream/claude-code-native-surfaces.min.json
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
   # to a pull request from one, and pr-unblock never runs fix-ci on one
@@ -1800,6 +1816,8 @@ merge:
       - glob: ".github/scripts/intake-triage/admit.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/size-split.mjs"
+        class: enforcement
+      - glob: ".github/scripts/intake-triage/issue-spec.mjs"
         class: enforcement
       - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
         class: enforcement

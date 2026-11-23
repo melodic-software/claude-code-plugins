@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/pr-verify/probe/fixtures/*
 // The fixture set, the data the replay lays out from it, and the scoring.
 // Expected counts come from the planted-defect plan (fixture mix and scoring
 // rules); the data expectations from prompt.md and resolve-pr.mjs's spec
@@ -93,7 +94,7 @@ test("every case lays out the six data files through the real filters", async ()
   try {
     for (const [index, testCase] of CASES.entries()) {
       const dataDir = path.join(dir, testCase.id);
-      const resolved = await writeData({ testCase, index, dataDir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE });
+      const resolved = await writeData({ testCase, index, dataDir, trustedActorsPath: TRUSTED, verifyAuthors: "lane", laneIdentity: LANE, baselineFile: "docs/upstream/claude-code-native-surfaces.min.json" });
       const read = (name) => JSON.parse(readFileSync(path.join(dataDir, name), "utf8"));
       assert.equal(readFileSync(path.join(dataDir, "diff.patch"), "utf8"), testCase.diff);
       assert.deepEqual(read("pr.json"), { pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha });

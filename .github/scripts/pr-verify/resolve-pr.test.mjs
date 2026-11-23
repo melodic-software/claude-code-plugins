@@ -119,8 +119,12 @@ const ciStatusJobs = (draftStep) => ({
 const DRAFT_JOBS = ciStatusJobs("success");
 const READY_JOBS = ciStatusJobs("skipped");
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {} } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {}, prFiles = [{ filename: "docs/a.md", status: "modified" }] } = {}) {
   const github = async (method, apiPath, body) => {
+    if (apiPath === `/repos/${REPO}/pulls/41/files?per_page=100`) {
+      if (prFiles === null) throw new Error(`GET ${apiPath} failed with status 502`);
+      return prFiles;
+    }
     // GET /compare/{base}...{head}: the pull request's changed files, as
     // `files` holds them; with none given the read fails.
     if (apiPath === `/repos/${REPO}/compare/${BASE}...${HEAD}`) {
@@ -1374,6 +1378,20 @@ test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "lane" }), "author-not-lane", "lane named");
   // The workflow passes an unset identity as an empty string.
   assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
+});
+
+test("the lanes App's PR changing only merge.baseline-file is not judged; any other file or author, or no file set, is", async () => {
+  const file = "docs/upstream/claude-code-native-surfaces.min.json";
+  const baseline = { filename: file, status: "modified" };
+  const app = { laneAppId: 337595936, baselineFile: file };
+  assert.equal(await reason({ prFiles: [baseline] }, app), "native-baseline");
+  assert.equal(await reason({ prFiles: [baseline, { filename: "docs/a.md", status: "added" }] }, app), "ok");
+  assert.equal(await reason({ prFiles: [{ ...baseline, status: "renamed", previous_filename: "docs/upstream/old.json" }] }, app), "ok");
+  assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: LANE, type: "Bot" } })], prFiles: [baseline] }, app), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { laneAppId: 337595936 }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "" }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "docs/upstream/other.json" }), "ok");
+  await assert.rejects(resolve({ prFiles: null }, app), /pulls\/41\/files/);
 });
 
 test("a PR the lanes App opened is judged, matched across login spellings", async () => {

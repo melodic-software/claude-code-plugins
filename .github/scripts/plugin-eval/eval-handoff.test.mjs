@@ -85,7 +85,7 @@ test("the eval legs' sparse checkout is the contract manifest and its paths at t
     const sparse = [...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/sparse-checkout: \|\n((?: {12}\S+\n)+)/g)]
       .filter(([block]) => block.includes(CONTRACT_FILES))
       .map(([, block]) => block.trim().split(/\s+/));
-    assert.equal(sparse.length, 1, name);
+    assert.equal(sparse.length, name === "maintenance-measure-skill-edit-pass.yml" ? 2 : 1, name);
     for (const paths of sparse) assert.deepEqual(paths, CHECKOUT, name);
   }
 });
@@ -124,7 +124,7 @@ test("a classifier that cannot load prints no verdict and exits 2", async () => 
 });
 
 test("every eval leg checks out the classifier at main", () => {
-  assert.equal(workflowPins.length, 2, "one key leg in each eval workflow");
+  assert.equal(workflowPins.length, 3, "a key leg in each eval workflow, and the pass's subscription leg");
   assert.deepEqual([...new Set(workflowPins)], ["main"]);
 });
 

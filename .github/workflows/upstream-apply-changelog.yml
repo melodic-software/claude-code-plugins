@@ -1963,6 +1963,273 @@ jobs:
         with:
           tokens: github-token
 
+  check-native-surfaces:
+    name: Check Native Surfaces
+    needs: select-release
+    if: needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    cache-mode: read
+    permissions:
+      contents: read
+    outputs:
+      summary: ${{ steps.report.outputs.summary }}
+      report: ${{ steps.report.outputs.report }}
+    env:
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.select-release.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Install the release's CLI outside the checkout and verify its registry signatures
+        if: steps.kill.outputs.proceed == 'true'
+        working-directory: ${{ runner.temp }}
+        env:
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          PREFIX: ${{ runner.temp }}/claude-cli
+        run: |
+          mkdir -p "$PREFIX"
+          printf '{"allowScripts":{"@anthropic-ai/claude-code@%s":true}}\n' "$RELEASE" >"$PREFIX/package.json"
+          timeout 4m npm install --registry=https://registry.npmjs.org/ --save-exact --no-audit --no-fund --prefix "$PREFIX" "@anthropic-ai/claude-code@$RELEASE"
+          timeout 2m npm audit signatures --registry=https://registry.npmjs.org/ --prefix "$PREFIX"
+
+
+      - name: Extract and compare native surfaces
+        if: steps.kill.outputs.proceed == 'true'
+        working-directory: .base
+        env:
+          PACKAGE: ${{ runner.temp }}/claude-cli/node_modules/@anthropic-ai/claude-code
+          NATIVE_DIR: ${{ runner.temp }}/native-baseline
+        run: |
+          binary="$PACKAGE/bin/claude.exe"
+          if [[ ! -f "$binary" || -L "$binary" ]] || [[ "$(stat -c %s "$binary")" -le 20000000 ]]; then
+            echo "::error::No native Claude Code binary over 20 MB at $binary. Use the host changelog apply Phase 5 procedure."
+            exit 1
+          fi
+          mkdir -p "$NATIVE_DIR"
+          harness=plugins/harness-ops/skills
+          inventory="$harness/inventory/scripts/inventory.py"
+          store=docs/native-surfaces/records.json
+          drift="$harness/changelog/scripts/native_drift.py"
+          check=0
+          python3 "$inventory" --binary "$binary" --self-check || check=$?
+          if [[ "$check" != 0 && "$check" != 3 ]]; then
+            echo "::error::Native inventory self-check failed ($check). See the host changelog apply Phase 5 procedure."
+            exit 1
+          fi
+          python3 "$inventory" --binary "$binary" --binary-only --docs --out "$RUNNER_TEMP/native-inventory.json"
+          detect=0
+          python3 "$harness/audit-native-overlap/scripts/overlap.py" detect \
+            --inventory "$RUNNER_TEMP/native-inventory.json" --store "$store" --out "$RUNNER_TEMP/native-detect.json" || detect=$?
+          [[ "$detect" == 0 || "$detect" == 3 ]]
+          python3 "$drift" summarize --inventory "$RUNNER_TEMP/native-inventory.json" \
+            --detect "$RUNNER_TEMP/native-detect.json" --out "$NATIVE_DIR/summary.json"
+          python3 "$drift" diff --current "$NATIVE_DIR/summary.json" \
+            --previous docs/upstream/claude-code-native-surfaces.min.json --store "$store" \
+            --detect "$RUNNER_TEMP/native-detect.json" --self-check-exit "$check" --out "$NATIVE_DIR/diff.json"
+
+      - name: Scan the native-surface results for credentials
+        id: scan-native
+        if: steps.kill.outputs.proceed == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/native-baseline/
+
+      - name: Report the baseline difference
+        id: report
+        if: steps.scan-native.outputs.clean == 'true'
+        env:
+          NATIVE_DIR: ${{ runner.temp }}/native-baseline
+          RELEASE: ${{ needs.select-release.outputs.release }}
+        run: node .base/.github/scripts/upstream-apply-changelog/native-baseline-publish.mjs report
+
+  push-native-baseline:
+    name: Push Native Baseline
+    needs: [select-release, check-native-surfaces]
+    if: needs.check-native-surfaces.outputs.summary != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    cache-mode: read
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      head: ${{ steps.write.outputs.head }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.select-release.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: upstream-apply-changelog
+          activity: push-native-baseline-branch
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: upstream-apply-changelog
+          activity: push-native-baseline-branch
+          release: ${{ needs.select-release.outputs.release }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: Push the baseline branch
+        id: write
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          BASE_SHA: ${{ needs.select-release.outputs.base-sha }}
+          BASELINE_SUMMARY: ${{ needs.check-native-surfaces.outputs.summary }}
+        run: node .base/.github/scripts/upstream-apply-changelog/native-baseline-publish.mjs push
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
+
+  publish-native-baseline:
+    name: Publish Native Baseline
+    needs: [select-release, check-native-surfaces, push-native-baseline]
+    if: needs.push-native-baseline.outputs.head != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    cache-mode: read
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.select-release.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: upstream-apply-changelog
+          activity: publish-native-baseline-pr
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: upstream-apply-changelog
+          activity: publish-native-baseline-pr
+          release: ${{ needs.select-release.outputs.release }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          kill-switch-ok: true
+
+      - name: Open the baseline pull request
+        id: write
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          RELEASE: ${{ needs.select-release.outputs.release }}
+          HEAD_SHA: ${{ needs.push-native-baseline.outputs.head }}
+          BASELINE_REPORT: ${{ needs.check-native-surfaces.outputs.report }}
+        run: node .base/.github/scripts/upstream-apply-changelog/native-baseline-publish.mjs publish
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
+
   # Opens the sealed plan and bundle, scans what will be published for
   # credentials, and uploads only a clean set. No model, no write token.
   # One leg answers the run: the fallback leg when it ran, else the

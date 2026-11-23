@@ -30,10 +30,23 @@ const DEPENDABOT_COMMIT_AUTHOR = { name: "dependabot[bot]", email: "49699333+dep
 // GitHub verified and committed it, as it does Dependabot's commits.
 const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 
-function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map(), runs = [] } = {}) {
-  const calls = { dispatch: [], checks: [], commits: [], files: [], runs: 0 };
+function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map(), runs = [], annotations = {}, comments = new Map(), jobs = {} } = {}) {
+  const calls = { dispatch: [], checks: [], commits: [], files: [], runs: 0, reruns: [], comments: [] };
   return {
     calls,
+    async listAnnotations(id) {
+      return annotations[id] ?? [];
+    },
+    async listIssueComments(number) {
+      calls.comments.push(number);
+      return comments.get(number) ?? [];
+    },
+    async readLatestJobs(runId) {
+      return jobs[runId] ? { jobs: jobs[runId] } : null;
+    },
+    async rerunJob(jobId) {
+      calls.reruns.push(jobId);
+    },
     async listWorkflowRuns() {
       calls.runs += 1;
       return runs;
@@ -579,4 +592,96 @@ test("a review run still going, or an untrusted-trigger skip, is not recorded", 
   assert.equal(record.handled.get(CHECK), undefined);
   markHandled(record, CHECK, a.headRefOid);
   assert.deepEqual((await run(fakeApi({ nodes: [a, b], checks }), { record })).dispatched.map((d) => d.number), [13]);
+});
+
+const LANE_APP = 337595936;
+const gateRed = (number) =>
+  pr(number, {
+    commits: {
+      totalCount: 1,
+      nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [{ __typename: "CheckRun", name: "CI Status", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } }] } } } }],
+    },
+  });
+const gateRun = { id: 901, name: "CI Status", app: { slug: "github-actions" }, status: "completed", conclusion: "failure", started_at: "2026-11-23T10:00:00Z", details_url: "https://github.com/o/r/actions/runs/600/job/901" };
+const EXIT_NOTE = { annotation_level: "failure", message: "Process completed with exit code 1." };
+const verdictHold = (number) => ({
+  annotation_level: "failure",
+  message: `#${number} by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: .github/workflows/ci.yml, and merge.dependabot.trusted-action-owners does not list the owner of: evilcorp/setup-tool. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head.`,
+});
+const personHold = (number) => ({
+  annotation_level: "failure",
+  message: `#${number} is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; a person on the trusted-actor list approving this head clears it.`,
+});
+const roundComment = (head, verdict, createdAt, author = LANE_APP) => ({
+  id: 5,
+  created_at: createdAt,
+  user: { id: author },
+  body: `<!-- pr-unblock:review-dependency-round head=${head} verdict=${verdict} run=12-1 -->\nThe pr-unblock lane reviewed this Dependabot pull request.`,
+});
+const GATE_JOBS = { 600: [{ id: 901, check_run_url: "https://api.github.com/repos/o/r/check-runs/901" }] };
+const reviewedHead = (node) => headOf(node, [gateRun, { status: "completed", conclusion: "success", started_at: "2026-11-23T09:00:00Z", output: { title: "Reviewed" } }]);
+
+test("a CI Status held only for a merge verdict the lanes App posted after it started is re-run once, even on a recorded head", async () => {
+  const node = gateRed(80);
+  const record = emptyRecord();
+  markHandled(record, CHECK, node.headRefOid);
+  const api = fakeApi({
+    nodes: [node],
+    checks: reviewedHead(node),
+    annotations: { 901: [EXIT_NOTE, verdictHold(80)] },
+    comments: new Map([[80, [roundComment(node.headRefOid, "merge", "2026-11-23T10:02:00Z")]]]),
+    jobs: GATE_JOBS,
+  });
+  const lines = [];
+  const result = await run(api, { record, laneAppId: LANE_APP, log: (line) => lines.push(line) });
+  assert.deepEqual(api.calls.reruns, [901]);
+  assert.deepEqual(result.dispatched, [], "a re-run sends no review");
+  assert.ok(lines.some((line) => line.startsWith("rerun: #80:") && line.includes("job 901")), lines.join("\n"));
+});
+
+test("CI Status is not re-run without a merge verdict at the head that is newer than it, a hold the verdict clears, or a lanes App id", async () => {
+  const head = gateRed(81).headRefOid;
+  const cases = [
+    ["the marker predates CI Status", [EXIT_NOTE, verdictHold(81)], [roundComment(head, "merge", "2026-11-23T09:59:00Z")], LANE_APP],
+    ["the marker names an older head", [EXIT_NOTE, verdictHold(81)], [roundComment("e".repeat(40), "merge", "2026-11-23T10:02:00Z")], LANE_APP],
+    ["the newest marker is not merge", [EXIT_NOTE, verdictHold(81)], [roundComment(head, "merge", "2026-11-23T10:01:00Z"), roundComment(head, "fix", "2026-11-23T10:02:00Z")], LANE_APP],
+    ["the marker is another author's", [EXIT_NOTE, verdictHold(81)], [roundComment(head, "merge", "2026-11-23T10:02:00Z", 777)], LANE_APP],
+    ["only a person clears the hold", [EXIT_NOTE, personHold(81)], [roundComment(head, "merge", "2026-11-23T10:02:00Z")], LANE_APP],
+    ["CI Status fails for something else too", [EXIT_NOTE, verdictHold(81), { annotation_level: "failure", message: "lint failed" }], [roundComment(head, "merge", "2026-11-23T10:02:00Z")], LANE_APP],
+    ["no lanes App id", [EXIT_NOTE, verdictHold(81)], [roundComment(head, "merge", "2026-11-23T10:02:00Z")], undefined],
+  ];
+  for (const [label, notes, comments, laneAppId] of cases) {
+    const node = gateRed(81);
+    const record = emptyRecord();
+    markHandled(record, CHECK, node.headRefOid);
+    const api = fakeApi({ nodes: [node], checks: reviewedHead(node), annotations: { 901: notes }, comments: new Map([[81, comments]]), jobs: GATE_JOBS });
+    await run(api, { record, laneAppId });
+    assert.deepEqual(api.calls.reruns, [], label);
+  }
+});
+
+test("a head whose rollup shows no failed CI Status reads nothing for a re-run", async () => {
+  const node = pr(82);
+  const record = emptyRecord();
+  markHandled(record, CHECK, node.headRefOid);
+  const api = fakeApi({ nodes: [node], checks: reviewedHead(node), comments: new Map([[82, [roundComment(node.headRefOid, "merge", "2026-11-23T10:02:00Z")]]]) });
+  await run(api, { record, laneAppId: LANE_APP });
+  assert.deepEqual([api.calls.checks, api.calls.comments, api.calls.reruns], [[], [], []]);
+});
+
+test("a CI Status check run whose job its run does not list warns and re-runs nothing", async () => {
+  const node = gateRed(83);
+  const record = emptyRecord();
+  markHandled(record, CHECK, node.headRefOid);
+  const api = fakeApi({
+    nodes: [node],
+    checks: reviewedHead(node),
+    annotations: { 901: [EXIT_NOTE, verdictHold(83)] },
+    comments: new Map([[83, [roundComment(node.headRefOid, "merge", "2026-11-23T10:02:00Z")]]]),
+    jobs: { 600: [{ id: 901, check_run_url: "https://api.github.com/repos/o/r/check-runs/902" }] },
+  });
+  const lines = [];
+  await run(api, { record, laneAppId: LANE_APP, log: (line) => lines.push(line) });
+  assert.deepEqual(api.calls.reruns, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#83: could not re-run CI Status") && line.includes("names no job")), lines.join("\n"));
 });

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# delegate --user-file <role_map_file> <codex|antigravity> [--model <id>] [--effort <level>] < prompt
-# Runs one auto-delegated task: external-agents run <product> --use task --mode write
-# --prompt-file <a temp file holding stdin>. No other external-agents flag can be passed.
+# delegate --user-file <role_map_file> <codex|antigravity> [--use task|investigate] [--model <id>] [--effort <level>] < prompt
+# Runs one auto-delegated run: external-agents run <product> --use task --mode write, or with
+# --use investigate, --use investigate --mode read-only; --prompt-file is a temp file holding
+# stdin. No other external-agents flag can be passed.
 # Refuses unless vendors.auto_delegation resolves true from the user layer, and refuses a
 # --user-file inside a git work tree, so no repository can supply the setting.
 set -euo pipefail
@@ -11,7 +12,7 @@ die() {
   exit 2
 }
 
-USAGE="usage: delegate --user-file <role_map_file> <codex|antigravity> [--model <id>] [--effort <level>] < prompt"
+USAGE="usage: delegate --user-file <role_map_file> <codex|antigravity> [--use task|investigate] [--model <id>] [--effort <level>] < prompt"
 [[ $# -ge 3 && "$1" == --user-file ]] || die "$USAGE"
 user_file="$2"
 product="$3"
@@ -34,9 +35,16 @@ codex | antigravity) ;;
 *) die "product must be codex or antigravity, got '${product//[^[:print:]]/?}'" ;;
 esac
 
+use=""
 extra=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+  --use)
+    [[ -z "$use" ]] || die "--use is given once"
+    [[ $# -ge 2 && ( "$2" == task || "$2" == investigate ) ]] || die "--use needs task or investigate"
+    use="$2"
+    shift 2
+    ;;
   --model)
     [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$ ]] || die "--model needs an id of letters, digits, '.', '_', ':' or '-'"
     extra+=(--model "$2")
@@ -47,7 +55,7 @@ while [[ $# -gt 0 ]]; do
     extra+=(--effort "$2")
     shift 2
     ;;
-  *) die "unsupported argument '${1//[^[:print:]]/?}': only --model and --effort are accepted" ;;
+  *) die "unsupported argument '${1//[^[:print:]]/?}': only --use, --model and --effort are accepted" ;;
   esac
 done
 
@@ -57,4 +65,8 @@ trap 'rm -rf "$dir"' EXIT
 cat >"$dir/prompt.md"
 [[ -s "$dir/prompt.md" ]] || die "the prompt on stdin is empty"
 
-external-agents run "$product" --use task --mode write --prompt-file "$dir/prompt.md" "${extra[@]+"${extra[@]}"}"
+case "${use:-task}" in
+task) run_args=(--use task --mode write) ;;
+investigate) run_args=(--use investigate --mode read-only) ;;
+esac
+external-agents run "$product" "${run_args[@]}" --prompt-file "$dir/prompt.md" "${extra[@]+"${extra[@]}"}"

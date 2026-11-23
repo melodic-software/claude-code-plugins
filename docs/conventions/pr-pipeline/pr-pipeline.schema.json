@@ -1335,6 +1335,11 @@
           "default": "native",
           "description": "How the agent identity's own pull requests merge. native: GitHub's auto-merge, armed by the enable-auto-merge activity and gated by ci-status; the pr-merge gate does not list, score or enqueue them. gate: the pr-merge gate lists, scores and enqueues them as well (README.md, Native auto-merge)."
         },
+        "baseline-file": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._/-]+$",
+          "description": "The one repository path a pull request of the agent identity may change alone and merge with no linked issue and no pr-verify verdict; its risk score and every other hold still apply. The pr-merge lane's arm reader (babysit_merge_policy.baseline_only), pr-verify (resolve-pr.mjs) and ci-status (merge-holds.mjs baselineOnly) all read it; the arm reader keeps it only when the base and the default branch head name the same file. Absent: no pull request is taken so (README.md, Native auto-merge)."
+        },
         "refire-skip-branches": {
           "type": "array",
           "items": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },

@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/apply-verdict.mjs .github/scripts/intake-triage/size-split.mjs
+# test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/issue-spec.mjs .github/scripts/intake-triage/apply-verdict.mjs .github/scripts/intake-triage/size-split.mjs
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_own_agent_spec_trust.py
 # test-scope: .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/check-kill-switch/projection.mjs

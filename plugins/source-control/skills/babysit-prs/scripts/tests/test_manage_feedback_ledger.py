@@ -10,6 +10,7 @@ by `test_guards.py`.
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import shlex
 import subprocess
@@ -22,9 +23,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_checks as checks
 import babysit_lease as leases
+import babysit_merge_policy as merge_policy
 import babysit_state as state
 import manage_feedback_ledger as ledger
 
+BASH = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile) or "bash"
 HEAD = "a" * 40
 OLDER = "b" * 40
 LEDGER_CLI = (
@@ -212,14 +215,17 @@ class RecordRerunCommandTests(unittest.TestCase):
         )
 
     def shell(self, check_id: str) -> subprocess.CompletedProcess[str]:
+        def arg(path: str | pathlib.Path) -> str:
+            return shlex.quote(pathlib.Path(path).as_posix())
+
         command = (
-            f"{shlex.quote(sys.executable)} {shlex.quote(str(LEDGER_CLI))} "
+            f"{arg(sys.executable)} {arg(LEDGER_CLI)} "
             f"record-rerun --pr {KEY} --expected-head-sha {HEAD} "
             f"--check-id {check_id} --lease-token {TOKEN} "
-            f"--state-dir {shlex.quote(str(self.state_dir))} --apply"
+            f"--state-dir {arg(self.state_dir)} --apply"
         )
         return subprocess.run(
-            ["bash", "-c", command],
+            [BASH, "-c", command],
             cwd=self.cwd,
             capture_output=True,
             text=True,

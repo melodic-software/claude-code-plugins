@@ -222,6 +222,10 @@ run a large rules layer) declares them in its own `CLAUDE.md` / `.claude/rules/`
 during the audit and apply any additional criteria or documented exemptions they define, reporting
 such findings under a `REPO` check-ID so they stay distinct from the doc-derived checks.
 
+## Next
+
+- A finding names a rule a check can enforce: /corrections:codify rules <file>.
+
 ## Complementary workflows
 
 The `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace

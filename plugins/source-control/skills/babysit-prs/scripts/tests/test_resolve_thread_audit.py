@@ -1,5 +1,3 @@
-"""Tests for resolve-thread wrapper audit logging (#2139)."""
-
 from __future__ import annotations
 
 import json
