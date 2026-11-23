@@ -475,7 +475,8 @@ describe("usage", () => {
     assert.equal(reading.remaining, 0);
     assert.equal(reading.window, "7d");
     assert.equal(reading.resets_at, new Date(1795900000 * 1000).toISOString());
-    assert.equal(reading.windows.length, 2);
+    assert.deepEqual(reading.windows.map((w) => w.group), ["primary", "secondary"]);
+    assert.equal(reading.group, undefined);
   });
 
   test("Antigravity usage runs without --disable-slash-commands, parses tab lines, reports lowest remaining with all windows, and prints no email or plan", async () => {

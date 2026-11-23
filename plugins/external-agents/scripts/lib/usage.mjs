@@ -31,17 +31,17 @@ function parseJsonRpcReply(msg, source) {
   }
   const limits = msg.result?.rateLimits;
   const windows = ["primary", "secondary"]
-    .map((name) => limits?.[name])
-    .filter((w) => isMap(w) && typeof w.usedPercent === "number" && Number.isFinite(w.usedPercent))
-    .map((w) => {
+    .map((group) => ({ group, w: limits?.[group] }))
+    .filter(({ w }) => isMap(w) && typeof w.usedPercent === "number" && Number.isFinite(w.usedPercent))
+    .map(({ group, w }) => {
       const window = formatMinutes(w.windowDurationMins);
       const resetsAt = typeof w.resetsAt === "number" && Number.isFinite(w.resetsAt) && w.resetsAt > 0
         ? new Date(w.resetsAt * 1000).toISOString()
         : null;
-      return { remaining: clamp01(1 - w.usedPercent / 100), ...(window ? { window } : {}), ...(resetsAt ? { resets_at: resetsAt } : {}) };
+      return { group, remaining: clamp01(1 - w.usedPercent / 100), ...(window ? { window } : {}), ...(resetsAt ? { resets_at: resetsAt } : {}) };
     });
   if (!windows.length) return { ok: false, reason: "rateLimits.primary.usedPercent missing in reply" };
-  const lowest = windows.reduce((min, cur) => (cur.remaining < min.remaining ? cur : min));
+  const { group: _group, ...lowest } = windows.reduce((min, cur) => (cur.remaining < min.remaining ? cur : min));
   return {
     ok: true,
     reading: {

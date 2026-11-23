@@ -85,9 +85,10 @@ output), and `2` for an unknown product.
 | `source` | The command and method the reading came from. |
 | `reason` | Present when `status` is `unavailable`. |
 
-- **Codex**: queries `codex app-server` over stdio (`account/rateLimits/read`), normalizes
-  `result.rateLimits.primary.usedPercent` to remaining fraction, and converts `resetsAt` epoch
-  seconds to ISO-8601.
+- **Codex**: queries `codex app-server` over stdio (`account/rateLimits/read`), reads
+  `result.rateLimits.primary` and `secondary`, and reports the one with less left (`usedPercent`
+  as a remaining fraction, `resetsAt` epoch seconds as ISO-8601). With both present, `windows`
+  lists each with `group` `primary` or `secondary`.
 - **agy**: runs `agy --output-format json -p=/usage` directly without `--disable-slash-commands`,
   parses the tab-delimited lines in `response`, reports the lowest remaining fraction with its
   window and reset, and keeps every parsed line in `windows`.
