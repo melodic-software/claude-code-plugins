@@ -134,7 +134,8 @@ None. The guardrails plugin's connected-page guard denies publishing a page buil
   "Fail a change that loosens a check" criterion that `code-reviewer`, every slice and every model
   tier apply (both required; without
   either the run dispatches nothing), plus `loosenedSettings` (that criterion's resolved setting
-  lines), `spec` (the issue text the change resolves), `slices`, `roles`, `maxConcurrent`
+  lines), `spec` (the issue text the change resolves), `loosenedSection` (the pull request body's
+  `## Loosened checks` section), `slices`, `roles`, `maxConcurrent`
   (default 4), `diversity`, `session` and `findingsPaths`. `roles` is the map `/multi-agent:route all`
   prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
   `sonnet` at `medium`. The reviewer agents, slices included, keep the model and effort pinned in
