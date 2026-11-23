@@ -64,7 +64,6 @@ const councilSpecs = () => {
   return Object.fromEntries(Object.values(KEYS).map((k) => [k, props[k]]));
 };
 
-// The repository layer: { doc, read_at, problems } with doc null when absent or skipped.
 function repositoryLayer(root, ref) {
   const real = realpathSync(root);
   const home = homedir();
@@ -102,7 +101,6 @@ function repositoryLayer(root, ref) {
   }
 }
 
-// The user layer: council values from the option file, JSON text parsed.
 function userLayer(file) {
   if (file === undefined) return { doc: {}, problems: [] };
   let raw;
@@ -144,7 +142,6 @@ export function resolveConfig({ root, ref, userFile }) {
     { name: FILE, doc: repo.doc ?? {} },
     { name: "userConfig", doc: user.doc },
   ];
-  // Candidates per key, highest layer first, each already checked against the schema.
   const candidates = {};
   for (const k of Object.values(KEYS)) {
     candidates[k] = [];
@@ -234,7 +231,6 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
     const a = readYaml(adapterPath);
     const sets = new Set(a.sets);
     row.route = a.kind === "agent" ? "agent" : m.brief === undefined ? "review" : "adversarial-review";
-    // Model
     let model = m.model;
     if (model !== undefined) {
       if (!sets.has("model")) return skip(`a model cannot be set on ${m.provider}`);
@@ -257,13 +253,11 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
       row.model_from = a.model_default === "provider" ? "provider" : "adapter default";
     }
     row.frontier = (a.frontier ?? []).includes(model ?? a.model_default);
-    // Brief
     if (m.brief !== undefined) {
       if (!sets.has("brief")) return skip(`a brief cannot be set on ${m.provider}`);
       if (!briefs.has(m.brief)) return skip(`no shipped brief named ${m.brief}`);
       if (Array.isArray(a.briefs) && !a.briefs.includes(m.brief)) return skip(`${m.provider} cannot carry the ${m.brief} brief`);
     }
-    // Effort
     const effortSettable = !a.effort_min_version || Boolean(claudeVersion && versionAtLeast(claudeVersion, a.effort_min_version));
     if (m.effort !== undefined) {
       if (!sets.has("effort")) return skip(`effort cannot be set on ${m.provider}`);

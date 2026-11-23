@@ -156,8 +156,6 @@ test("pipelineEvent maps GitHub events onto the predicate's event names", () => 
   assert.equal(pipelineEvent("issues", {}), null);
 });
 
-// mergeable, labels-absent and draft
-
 const pullFacts = { ...facts, mergeable: "conflicting", draft: false };
 
 test("a mergeable predicate matches the PR's mergeability", () => {

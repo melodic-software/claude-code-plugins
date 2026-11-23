@@ -97,8 +97,6 @@ ERR="$(WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/missing.json" wit_no_binding_reas
 assert_eq "missing env-override binding → the reason names the env path" \
   "no binding file at WORK_ITEM_TRACKER_BINDING=$TEST_TMPDIR/missing.json; unset it to read <home>/work-items.yaml, which /work-items:setup apply writes" "$ERR"
 
-# --- validation ---
-
 BINDING="$TEST_TMPDIR/b.json"
 
 write_binding "$BINDING" "$VALID"

@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.24.2] - 2026-11-23
+
+### Added
+
+- **`apply_step`, `plugin_cli_write` and `plugin_cli_write_with_help` grader fragments.** The shared matchers now hold the git-hooks apply-step command and the `claude plugin` write command, each in its own file with must-pass and must-fail samples, and every `no-apply-step` and `no-plugin-cli-write` grader in this repository builds from them instead of carrying its own copy.
+
+## [0.24.1] - 2026-11-23
+
+### Changed
+
+- `/evals:plugin-eval select` counts a meaning-flipping word (`not`, `never`, `no`, `only`, `except`, `unless` and their contractions) inserted into an existing instruction line as a cut, so it runs the affected cases; other added words still run nothing.
+
 ## [0.24.0] - 2026-11-23
 
 ### Added

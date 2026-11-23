@@ -57,7 +57,6 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
       if (checkName === "ci-status") {
         return ci.get(sha) ?? [];
       }
-      // A run that names no check is the review-dependency one.
       return (checks.get(sha) ?? []).filter((run) => (run.name ?? CHECK) === checkName);
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
@@ -379,8 +378,6 @@ test("a limit-stopped head is held until its reset, dispatched after it, and hel
   assert.deepEqual(capped.dispatched, [], "the resolved limits set the cap");
 });
 
-// Three limit stops under a resolved cap of 5: the newest holds the head until
-// its reset, the head is not recorded, and it dispatches after the reset.
 test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
   const node = pr(71);
   const runs = [limitStop("2026-10-17T07:00:00Z"), limitStop("2026-10-17T08:00:00Z"), limitStop("2026-10-17T09:30:00Z"), noModelTurn("2026-10-17T09:35:00Z")];
@@ -511,6 +508,27 @@ test("a version 5 record that holds a head-lag-stopped head is ignored, and the 
 // Reads spent only where they change the decision. Each count beside the
 // assertion is what the dispatcher read before it skipped them.
 const RED_CI = [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }];
+
+test("a gate-hold skip holds the head while CI Status is red, unrecorded, and dispatches again once CI Status passes on it", async () => {
+  const node = pr(70);
+  const gateHeld = roundRun("review-dependency", "neutral", "Skipped: gate-hold", "2026-10-17T10:00:00Z");
+  const record = emptyRecord();
+  for (const tick of [1, 2]) {
+    const held = await run(fakeApi({ nodes: [node], checks: headOf(node, [gateHeld]), ci: new Map([[node.headRefOid, RED_CI]]) }), { record });
+    assert.deepEqual(held.dispatched, [], `tick ${tick}: no dispatch while the trust-gate hold stands`);
+    assert.equal(record.handled.get(CHECK), undefined, `tick ${tick}: not recorded, so a later sweep reads it again`);
+  }
+  const green = [{ id: 2, app: { slug: "github-actions" }, status: "completed", conclusion: "success" }];
+  const approved = await run(fakeApi({ nodes: [node], checks: headOf(node, [gateHeld]), ci: new Map([[node.headRefOid, green]]) }), { record });
+  assert.deepEqual(approved.dispatched, [{ number: 70, workflowRunId: "7070" }]);
+});
+
+test("an awaiting-human skip with a green CI Status still holds the head", async () => {
+  const node = pr(71);
+  const green = [{ id: 2, app: { slug: "github-actions" }, status: "completed", conclusion: "success" }];
+  const held = roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T10:00:00Z");
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks: headOf(node, [held]), ci: new Map([[node.headRefOid, green]]) }))).dispatched, []);
+});
 
 test("a red ci-status is review without reading the commits or files", async () => {
   const node = pr(8, { title: "bump x from 1.0.0 to 1.0.1" });

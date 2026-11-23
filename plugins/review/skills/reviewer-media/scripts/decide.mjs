@@ -13,7 +13,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLayers } from "../../../lib/config-cascade.mjs";
 import { LEVELS, addSetting, baseReader, isSha, projectRootOf, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
@@ -42,7 +42,6 @@ export const DEFAULTS = Object.freeze({
   artifact_retention_days: 30,
 });
 
-/** Every key as config-cascade names it: a schema node with `properties` is a branch, any other a leaf. */
 const leavesOf = (node, prefix = []) =>
   Object.entries(node.properties ?? {}).flatMap(([k, child]) => (k === "$schema" ? [] : child.properties ? leavesOf(child, [...prefix, k]) : [[...prefix, k]]));
 const LEAVES = leavesOf(SCHEMA);
@@ -89,8 +88,6 @@ function choose(facts, { requested, shown, delta }, config, triggersOf) {
   return fired.length ? out("build", "selected", fired) : out("skip", "under-thresholds");
 }
 
-// ------------------------------------------------------------ layers
-
 function gitOut(root, args) {
   try {
     return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -107,9 +104,9 @@ export function resolveConfig(root, baseOid) {
   const base = baseReader(root, baseOid, warnings);
   const team = { path: `${base.ref}:${TEAM_YAML}`, text: base.read(TEAM_YAML) };
   const { layers } = readLayers({ plugin: PLUGIN, projectRoot: root, schema: SCHEMA, teamOnly: TEAM_ONLY, team, userHome: homedir() });
-  const localPath = join(root, LOCAL_YAML);
   for (const layer of layers) {
-    if (layer.name === "local" && (!existsSync(localPath) || !personalOverrideApplies(root, localPath, warnings))) continue;
+    const checkout = layer.name === "local" && resolve(layer.path, ...LOCAL_YAML.split("/").map(() => ".."));
+    if (checkout && (!existsSync(layer.path) || !personalOverrideApplies(checkout, layer.path, warnings))) continue;
     warnings.push(...layer.errors);
     const source = layer.name === "team" ? `team ${team.path}` : `personal-override ${LOCAL_YAML}`;
     for (const [key, value] of Object.entries(layer.values)) {
@@ -147,7 +144,6 @@ export function invalidPatterns(patterns) {
   }
 }
 
-/** Changed files between the commit the media show and the head, or null when git cannot say. */
 function deltaOf(root, from, to) {
   if (!root || !isSha(from) || !isSha(to)) return null;
   const out = gitOut(root, ["diff", "--numstat", "--no-renames", from, to]);
@@ -161,8 +157,6 @@ function deltaOf(root, from, to) {
     });
   return { files };
 }
-
-// ------------------------------------------------------------ CLI
 
 function parseArgs(argv) {
   const opts = { requested: false, producerUnavailable: false, shown: null, policy: null, blastRadius: "", settings: {} };

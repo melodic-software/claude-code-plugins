@@ -235,6 +235,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -264,7 +265,6 @@ import {
   LANE_HOLD,
   liftersOf,
   MEMBERS,
-  OUTSIDE_ACTOR_LABEL,
   pathHoldKind,
   pathLifters,
   personWrote,
@@ -274,6 +274,7 @@ import {
   unblockStops,
   vetoers,
 } from "./merge-holds.mjs";
+import { ARM_HOLDS } from "../lib/lane-vocabulary.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -281,7 +282,7 @@ const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
-export const HOLD_LABELS = Object.freeze(["do-not-merge", "pr-verify-failed", OUTSIDE_ACTOR_LABEL]);
+export const HOLD_LABELS = ARM_HOLDS;
 // 100 pull requests a page; more than this many open is a listing the run
 // holds on (ListingFull) rather than one it reads only part of.
 const MAX_PAGES = 10;
@@ -679,7 +680,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 // decision clears.
 function trustedHumans(env) {
   try {
-    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    const { actors } = readRawTrustedActors(env.TRUSTED_ACTORS || trustedActorsPath());
     return humansOf(actors);
   } catch {
     return new Set();
@@ -1683,7 +1684,7 @@ const SKIP_CHUNK = 20;
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   "docs/conventions/work-items.yaml",
-  ".github/standards/trusted-actors/trusted-actors.json",
+  TRUSTED_ACTORS_PATH,
   ".github/workflows/pr-merge.yml",
   ".github/actions",
   ".github/scripts",

@@ -154,7 +154,6 @@ refused() {
   OUT="$out"
 }
 
-# --- Unknown key: one warning, ignored, its line kept -------------------------
 R="$(new_root unknown)"
 printf '# team\nstray: keep me  # note\nmode: slow\n' >"$(yaml_of "$R")"
 out="$(run --root "$R" --yes mode=fast)"
@@ -203,7 +202,6 @@ assert_eq "a symlinked docs/conventions under a symlinked root: exits 1" "1" "$?
 one_line "a symlinked docs/conventions under a symlinked root" "$out"
 assert_eq "a symlinked docs/conventions: nothing lands outside" "" "$(ls -A "$TEST_TMPDIR/elsewhere")"
 
-# --- CRLF: split and written back on the file's own line ending ---------------
 R="$(new_root crlf)"
 printf '# team\r\nmode: slow\r\n' >"$(yaml_of "$R")"
 out="$(run --root "$R" --yes mode=fast)"
@@ -215,7 +213,6 @@ out="$(run --root "$R" mode=fast)"
 assert_contains "a CRLF file: the same value is already configured" "$out" "already configured"
 refused "a file mixing CRLF and LF" $'mode: slow\r\nstrict: true\n' mode=fast
 
-# --- Integers: a whole number from the minimum to any maximum ------------------
 for n in 1 8; do
   R="$(new_root "int-$n")"
   run --root "$R" "workers=$n" >/dev/null
@@ -243,7 +240,6 @@ refused "an empty quoted integer" $'workers: ""\n' workers=3
 refused "an integer in a flow list" $'workers: [2]\n' workers=3
 refused "an out-of-range integer on a key not being written" $'workers: 9\n' mode=fast
 
-# --- --ref: a usage error unless the plugin enables it -------------------------
 R="$(new_root ref-off)"
 out="$(run --root "$R" --check --ref origin/main)"
 assert_eq "--ref where it is not enabled: exits 2" "2" "$?"
@@ -275,7 +271,6 @@ out="$(cd "$TEST_TMPDIR/no-repo" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" HOME=
 assert_eq "no --root outside a repository: exits 2" "2" "$?"
 assert_contains "no --root outside a repository: says so" "$out" "not inside a git working tree"
 
-# --- Refusals that leave the file untouched -----------------------------------
 refused "a duplicate key after trimming" $'mode: fast\n"mode ": slow\n' mode=slow
 assert_contains "a duplicate key after trimming: named once" "$OUT" "key mode is set more than once"
 refused "a block map value" $'mode:\n  a: fast\n' mode=slow
@@ -302,7 +297,6 @@ assert_eq "a symlinked docs/conventions: exits 1" "1" "$?"
 one_line "a symlinked docs/conventions" "$out"
 assert_eq "a symlinked docs/conventions: nothing lands outside" "" "$(ls -A "$TEST_TMPDIR/elsewhere2")"
 
-# --- Overwrites: out-of-list, empty and null values on the key being written ---
 for body in 'mode: medium' 'mode: "medium"' 'mode:' 'mode: null' 'mode: ~'; do
   R="$(new_root "ow-$CASE_NUM")"
   printf '%s\n' "$body" >"$(yaml_of "$R")"
@@ -383,7 +377,6 @@ for bad in Team '' 'a b'; do
   one_line "label=$bad on the command line" "$out"
 done
 
-# --- Objects: nested leaves checked against properties, recursively -----------
 check_ok "a one-level object" $'session:\n  uploads: true\n  names: initials  # note\n' "PASS session:"
 check_warn "an object key with nothing under it" $'session:\n  # nothing yet\n' 'session is empty'
 check_ok "a two-level object" $'sizes:\n  small:\n    label: S\n    note: "tiny: one"\n  large:\n    label: L\n' "PASS sizes:"
@@ -408,7 +401,6 @@ check_warn "a scalar where an inner object belongs" $'sizes:\n  small: x\n' 'siz
 check_warn "a map where a leaf belongs" $'session:\n  uploads:\n    a: true\n' 'session.uploads holds a map or a list'
 check_warn "a schema shape the checker does not know" $'weird: [1]\n' 'weird uses a schema shape setup-apply does not check'
 
-# --- Lists: checked from the parsed document, items included -----------------
 check_ok "a block list of strings" $'tags:\n  - a\n  - b\n' "PASS tags:"
 check_ok "a flow list of strings" $'tags: [a, b]\n' "PASS tags:"
 check_warn "a list under minItems" $'tags: []\n' 'tags holds 0 items; it takes at least 1'
@@ -500,7 +492,6 @@ region_text() {
 }
 resolved_home() { bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$1" 2>/dev/null; }
 
-# A region naming Documentation: the file lands there, listed in the index.
 R="$(git_root home-bound)"
 mkdir -p "$R/Documentation"
 region_text Documentation >"$R/AGENTS.md"
@@ -598,7 +589,6 @@ for bad in /abs ../up 'a b' '~x' "a$(printf '\134')b" .git .git/hooks 'a;b'; do
   assert_eq "--home $bad: nothing is written" "0:0" "$(exists "$R/AGENTS.md"):$(exists "$R/docs")"
 done
 
-# A decline is recorded and not offered again.
 R="$(git_root home-decline)"
 printf '# Agents\n' >"$R/AGENTS.md"
 out="$(run --root "$R" --decline)"
@@ -677,14 +667,12 @@ out="$(run --root "$R" --yes mode=slow)"
 assert_eq "AGENTS.md a link to CLAUDE.md: exits 0" "0" "$?"
 assert_eq "AGENTS.md a link to CLAUDE.md: the region lands in the real file" "1:CLAUDE.md" "$(grep -cF 'BEGIN GENERATED: convention-home' "$R/CLAUDE.md"):$(readlink "$R/AGENTS.md")"
 
-# A root that is $HOME is refused, in a repository too.
 R="$(git_root home-is-home)"
 out="$(HOME="$R" node "$APPLY" --root "$R" --yes mode=slow 2>&1)"
 assert_eq "a git root that is \$HOME: exits 1" "1" "$?"
 one_line "a git root that is \$HOME" "$out"
 assert_eq "a git root that is \$HOME: nothing is written" "0:0:0" "$(exists "$R/docs"):$(exists "$R/AGENTS.md"):$(exists "$R/.gitignore")"
 
-# --check on an unbound repository offers nothing and writes nothing.
 R="$(git_root home-check-unbound)"
 out="$(run --root "$R" --check)"
 assert_eq "an unbound repository: --check exits 0" "0" "$?"
@@ -789,7 +777,6 @@ assert_contains "provenance on a schema without the keys: the refusal names them
 assert_eq "provenance on a schema without the keys: nothing written" "0" "$(exists "$(yaml_of "$R")")"
 prov_plugin 1.1.0 safe 4
 
-# An entry point without provenance accepts both keys and keeps them as written.
 R="$(new_root prov-off)"
 printf 'written_against: fixture@1.0.0\nmode: slow\nprovenance:\n  mode: chosen (default fast)\n' >"$(yaml_of "$R")"
 out="$(run --root "$R" --check)"
@@ -811,7 +798,6 @@ printf 'mode: fast\nprovenance: chosen\n' >"$(yaml_of "$R")"
 out="$(prun --root "$R" --yes mode=slow)"
 assert_eq "with provenance: a scalar provenance key is refused" "1:"$'mode: fast\nprovenance: chosen' "$?:$(cat "$(yaml_of "$R")")"
 one_line "with provenance: a scalar provenance key" "$out"
-# An indented document: the appended keys take its base indent.
 R="$(new_root prov-indented)"
 printf '  mode: slow\n' >"$(yaml_of "$R")"
 out="$(prun --root "$R" --yes workers=3)"
@@ -950,7 +936,6 @@ out="$(jrun --root "$R" --yes)"
 assert_eq "a value that cannot be carried, run again: exits 0 and writes nothing" "0:$written:$before" "$?:$(cat "$(yaml_of "$R")"):$(od -c "$R/.claude/fixture.json")"
 assert_contains "a value that cannot be carried, run again: already configured" "$out" "already configured; nothing written"
 
-# Both locations: the new one wins and the run warns, naming both.
 R="$(new_root mig-both)"
 printf 'mode: fast\n' >"$(yaml_of "$R")"
 old_yaml "$R" $'mode: slow\nworkers: 3\n'

@@ -9,12 +9,11 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S"                                     # no id
-assert_usage_error "$S" "gitea:acme/webapp#12"              # no --blocked-by
-assert_usage_error "$S" "gitea:acme/webapp#12" --blocked-by # flag without value
+assert_usage_error "$S"
+assert_usage_error "$S" "gitea:acme/webapp#12"
+assert_usage_error "$S" "gitea:acme/webapp#12" --blocked-by
 assert_usage_error "$S" "not-an-id" --blocked-by "gitea:acme/webapp#4"
 assert_usage_error "$S" "gitea:acme/webapp#12" --blocked-by "not-an-id"
 assert_usage_error "$S" "github:o/r#1" --blocked-by "gitea:acme/webapp#4"
@@ -47,7 +46,6 @@ assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea_out)")"
 assert_eq "id is the blocked item" "gitea:acme/webapp#12" "$(jq -r '.id' <<<"$(gitea_out)")"
 assert_eq "blocked_by is the blocker" "gitea:acme/webapp#4" "$(jq -r '.blocked_by' <<<"$(gitea_out)")"
 assert_eq "linked" "true" "$(jq -r '.linked' <<<"$(gitea_out)")"
-# The BLOCKED item's number is in the URL — not the blocker's.
 assert_contains "the blocked item is the URL subject" "$(gitea_requests)" \
   "POST https://git.example.invalid/api/v1/repos/acme/webapp/issues/12/dependencies"
 
@@ -71,7 +69,6 @@ assert_eq "cross-repo disabled → exit 7" "7" "$rc"
 assert_contains "the instance setting is named" "$(gitea_err)" "ALLOW_CROSS_REPOSITORY_DEPENDENCIES"
 gitea_write_binding
 
-# --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/dependencies" 404 '{"message":"the issue does not exist"}'
 rc="$(gitea_run "$S" "gitea:acme/webapp#12" --blocked-by "gitea:acme/webapp#4")"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/pre-push-content.sh
 # Contract tests for the guardrails commit-msg entry (git-hooks/commit-msg-convention.sh):
 # a subject off the team's tracked subject_pattern fails, as does one off the
 # operator's ignored personal pattern where the team tracks none, a matching one and

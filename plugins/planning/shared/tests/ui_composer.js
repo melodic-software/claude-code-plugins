@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// The composer kit and the follow-ups built on it, against `share.sh ensure-running` with the fake cloudflared:
-// unsent chat and Discussion text survives a reload; Ask Claude text belongs to the question it was typed on; the @
-// picker works in the Discussion and a comment edit, with Claude first where "@Claude" files a request (chat and
-// Discussion) and a picked person posted as a mention; Ctrl + Enter posts a comment, also with the @ list open, Enter
-// sends chat, Escape cancels a comment edit, the counter shows near the limit, the request edit field has its limit and
-// a pasted answer from one's own Claude is never cut (follow-ups 22, 31, F1, F2, B1, B3); a poll or pick-many comment,
-// and its files, go in with the pick in one step, on a phone too, keeping text typed while the pick is on its way
-// (26), and with an own option saved on a choice or pick-many question, a save held back by a file still waiting for the host keeping the picks; the comment box working before a pick
-// on a choice with Something else and on a scale too, a comment typed before Something else becoming the own option's
-// draft (the owner's call: the composer works before a pick on every format); a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
-// becomes its asker's own option on a choice question, asking first when they had picked, Cancel putting the picks back, never cutting a long answer, never once taken down or
-// while it is their own Claude's unshared answer (29); and unsent text comes back only to whoever wrote it.
-//   node plugins/planning/shared/tests/ui_composer.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the brief (.work/brief-A.md), the review round (.work/review-round-1.md) and the texts this
-// suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
 
@@ -51,7 +35,6 @@ async function main() {
     const picker = p => p.evaluate(() => { const b = document.querySelector(".vf-mentions"); return b.hidden ? null : [...b.querySelectorAll(".vf-mopt-n")].map(x => x.textContent); });
     const comments = p => p.evaluate(() => (window.Core.state.discussions.Q1 || []).map(c => c.text));
 
-    // ---------- Discussion: @ picker with Claude first, a picked person posts as a mention, Ctrl + Enter posts ----------
     await go(ann, T.q1);
     await openDisc(ann);
     await ann.click(".vf-disc-ta");
@@ -74,7 +57,6 @@ async function main() {
     ok("  and shows in it as a mention of Bo", await until(ann, () => [...document.querySelectorAll(".vf-disc-list .vf-cm-txt .vf-mention")].some(m => m.textContent.startsWith("@Bo"))),
       await ann.evaluate(() => [...document.querySelectorAll(".vf-disc-list .vf-cm-txt")].map(t => t.innerHTML).join(" | ")));
 
-    // ---------- Ctrl + Enter with the @ list open closes it and posts ----------
     await ann.waitForTimeout(1100);
     await ann.fill(".vf-disc-ta", "Ping ");
     await ann.keyboard.type("@B");
@@ -83,7 +65,6 @@ async function main() {
     ok("Ctrl + Enter with the @ list open closes the list and posts the comment", opened && await until(ann, () => document.querySelector(".vf-mentions").hidden
       && (window.Core.state.discussions.Q1 || []).some(c => c.text === "Ping @B")), JSON.stringify({ opened, list: await picker(ann), comments: await comments(ann) }));
 
-    // ---------- the counter near the limit ----------
     await ann.waitForTimeout(1100);
     await ann.fill(".vf-disc-ta", "y".repeat(1499));
     const cnt = () => ann.evaluate(() => document.querySelector(".vf-disc-form .vf-count-txt")?.textContent ?? null);
@@ -92,7 +73,6 @@ async function main() {
     ok("the comment counter stays hidden below the last quarter and shows 1500 / 2000 there", before === "" && (await cnt()) === "1500 / 2000", `${before} | ${await cnt()}`);
     await ann.fill(".vf-disc-ta", "");
 
-    // ---------- comment edit: the @ picker (people only) and Escape cancels ----------
     const mine = ann.locator(".vf-disc-list > .vf-cm", { hasText: "for the idea" });
     await mine.locator(".vf-cm-more").click();
     await ann.locator(".vf-msgmenu [role=menuitem]", { hasText: "Edit" }).click();
@@ -107,7 +87,6 @@ async function main() {
     await ann.keyboard.press("Escape");
     ok("  then cancels the edit", await until(ann, () => document.querySelector(".vf-cm-edit").hidden));
 
-    // ---------- chat: Claude first, Enter sends ----------
     await ann.click(".vf-fab");
     await ann.click(".vf-minput");
     await ann.keyboard.type("@");
@@ -119,7 +98,6 @@ async function main() {
     await ann.keyboard.press("Enter");
     ok("Enter sends a chat message", await until(ann, () => (window.Core.state.chat || []).some(m => m.text === "Hello from chat")));
 
-    // ---------- drafts: chat and Discussion survive a reload; Ask Claude text stays with its question ----------
     await ann.fill(".vf-minput", "An unsent chat line");
     await ann.click(".vf-chat-head .vf-icon-btn");
     await ann.fill(".vf-disc-ta", "An unsent comment on Q1");
@@ -138,7 +116,6 @@ async function main() {
     ok("  and so is the unsent comment on Q1", await until(ann, () => document.querySelector(".vf-disc-ta").value === "An unsent comment on Q1"), await ann.inputValue(".vf-disc-ta"));
     ok("  and the Ask Claude text on Q1", (await ann.inputValue("#vf-ask-ta")) === "Ask typed on Q1", await ann.inputValue("#vf-ask-ta"));
 
-    // ---------- a request's edit field has its limit ----------
     await ann.evaluate(() => window.Core.request("Q2", "ask", "Which cart default do the big shops use?"));
     await until(owner, () => (window.Core.state.requests || []).some(r => r.status === "pending"));
     await owner.click(".vf-bell");
@@ -151,7 +128,6 @@ async function main() {
     ok("  and Escape cancels that edit", await until(owner, () => [...document.querySelectorAll(".vf-ibneeds .vf-ritem")].some(li => /big shops/.test(li.textContent) && li.querySelector("textarea").hidden)));
     await owner.keyboard.press("Escape");
 
-    // ---------- 26: the comment goes in with the pick, in one step ----------
     const sends = [];
     bo.on("request", r => { const p = new URL(r.url()).pathname; if (["/api/pick", "/api/answer"].includes(p)) sends.push(p); });
     await go(bo, T.q4);
@@ -174,10 +150,9 @@ async function main() {
     ok("  saving the picks sends the comment with them", await until(owner, () => (window.Core.snapshot().cards?.Q5 || []).some(c => JSON.stringify(c.picks) === '["opt-1","opt-2"]' && c.text === "Both are common here")), JSON.stringify(await myCard(bo, "Q5")));
     ok("  in one request", sends.join() === "/api/pick", sends.join());
 
-    // ---------- the composer works before a pick on every format (the owner's call): choice with Something else, scale ----------
     const C7 = "Small boxes cost less to post", C8 = "The supplier has not confirmed yet", codes = [];
     bo.on("response", r => { if (new URL(r.url()).pathname === "/api/pick") codes.push(r.status()); });
-    await bo.waitForTimeout(1100); // one pick a second per person (session.py WRITE_INTERVAL); Q5's was just now
+    await bo.waitForTimeout(1100);
     for (const [t, qid, comment, pickIt, picked] of [
       [T.q7, "Q7", C7, () => bo.locator(".vf-opt", { hasText: "Small" }).locator(".vf-optchoose").click(), c => c.pick === "opt-1"],
       [T.q8, "Q8", C8, () => bo.locator(".vf-scale-btn", { hasText: "4" }).click(), c => c.value === 4],
@@ -192,7 +167,6 @@ async function main() {
         && picked(await owner.evaluate(([qq, p]) => (window.Core.snapshot().cards?.[qq] || []).find(c => c.pid === p), [qid, boPid]) || {}) && sends.join() === "/api/pick", JSON.stringify({ cards: await owner.evaluate(qq => window.Core.snapshot().cards?.[qq], qid), sends, codes }));
       await bo.waitForTimeout(1100);
     }
-    // a comment typed before choosing Something else becomes the own option's first draft, then leaves the comment box
     await go(ann, T.q7);
     await ann.fill("#vf-answer", "Medium, if the courier takes it", { timeout: 5000 }).catch(() => {});
     await ann.locator(".vf-opt-other .vf-optchoose").click({ timeout: 5000 }).catch(() => {});
@@ -203,7 +177,6 @@ async function main() {
     ok("  saving the edited draft makes it her own option, and the comment box no longer holds the comment", await until(owner, () => (window.Core.snapshot().cards?.Q7 || []).some(c => c.pick === "other" && c.text === "Medium boxes, if the courier takes them"))
       && await until(ann, () => document.getElementById("vf-answer").value !== "Medium, if the courier takes it"), await ann.evaluate(() => document.getElementById("vf-answer").value));
 
-    // ---------- 28: a repaint does not pull the page back to a focused field ----------
     const small = await rec.open(A.localUrl, { context: { viewport: { width: 1200, height: 520 } } });
     await joinAs(small, "Cy");
     await go(small, T.q1);
@@ -212,7 +185,6 @@ async function main() {
     await small.click("#vf-ask-ta", { timeout: 5000 }).catch(() => {});
     await small.keyboard.type("Reading the question first");
     await small.waitForTimeout(1200);
-    // scrolled to the top, the field sits below what the scroller shows, so a pull back to it would move scrollTop
     const top = await small.evaluate(() => {
       const f = document.getElementById("vf-ask-ta"), sc = f.closest(".vf-scroll"); sc.scrollTop = 0;
       const r = f.getBoundingClientRect(), S = sc.getBoundingClientRect();
@@ -228,7 +200,6 @@ async function main() {
     const typed = await small.evaluate(() => { const f = document.getElementById("vf-ask-ta"), r = f.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
     ok("  and typing again brings the field back into view", typed);
 
-    // ---------- 29: Use as my answer ----------
     const ASK = "Which carrier is cheapest for small parcels?", ANS = "Post: it is cheapest for parcels under 2 kg.";
     await ann.evaluate(t => window.Core.request("Q3", "ask", t), ASK);
     const rid = await owner.evaluate(async t => {
@@ -252,7 +223,6 @@ async function main() {
     await ann.fill("#vf-other", "Post, under 2 kg", { timeout: 5000 }).catch(() => {});
     await ann.click(".vf-other-save", { timeout: 5000 }).catch(() => {});
     ok("  saving makes the edited text her pick, as her own option", await until(owner, () => (window.Core.snapshot().cards?.Q3 || []).some(c => c.pick === "other" && c.text === "Post, under 2 kg")));
-    // Bo picks, then asks: Use as my answer asks before replacing his pick
     await bo.locator(".vf-opt", { hasText: "Courier" }).locator(".vf-optchoose").click();
     await until(owner, () => (window.Core.snapshot().cards?.Q3 || []).some(c => c.pick === "opt-2"));
     ok("others (Bo, once he picked) can back it like any own option", await until(bo, () => [...document.querySelectorAll(".vf-card, .vf-opt")].some(c => c.textContent.includes("Post, under 2 kg")
@@ -274,7 +244,6 @@ async function main() {
     await bo.click(".vf-other-save", { timeout: 5000 }).catch(() => {});
     ok("  and saving moves his pick to it", await until(owner, a => (window.Core.snapshot().cards?.Q3 || []).some(c => c.pick === "other" && c.text === a), ANS2));
 
-    // ---------- S3: no Use as my answer on an answer taken down, or on my own Claude's answer not yet shared ----------
     const useHidden = (p, a) => until(p, t => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(t) && li.querySelector(".vf-res-use").hidden), a);
     await owner.evaluate(id => window.Core.requestAct(id, "takedown"), rid2);
     await until(bo, a => (window.Core.state.research.Q3 || []).some(x => x.summary === a && x.takenDown), ANS2, 10000);
@@ -292,7 +261,6 @@ async function main() {
     ok("  nor on her own Claude's answer the host has not shared", !!ownId && await useHidden(ann, OWN),
       await ann.evaluate(a => [...document.querySelectorAll(".vf-res")].filter(li => li.textContent.includes(a)).map(li => li.querySelector(".vf-res-use").hidden).join(), OWN));
 
-    // ---------- C5: a pasted answer from my own Claude is never cut; Post says how much to shorten ----------
     await ann.waitForTimeout(1100);
     await ann.evaluate(() => window.Core.request("Q3", "ask", "A long one for my own Claude", undefined, "self"));
     await ann.keyboard.press("Escape");
@@ -307,7 +275,6 @@ async function main() {
       && await until(ann, () => /Shorten it to 4000 characters; it has 9000\./.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")), kept);
     await ann.keyboard.press("Escape");
 
-    // ---------- 26: a comment typed while the pick is on its way stays (C3) ----------
     const di = await rec.open(A.localUrl, DESK);
     await joinAs(di, "Di");
     await go(di, T.q4);
@@ -326,7 +293,6 @@ async function main() {
     await di.unroute("**/api/pick");
     ok("text typed while the pick with its comment is on its way stays in the box", held && (await di.inputValue("#vf-answer")) === "First thought and more", `${held} ${await di.inputValue("#vf-answer")}`);
 
-    // ---------- 26 on a phone: Save before the pick closes the sheet and keeps the comment (C1) ----------
     const PHONE = { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } };
     const gus = await rec.open(A.localUrl, PHONE);
     await joinAs(gus, "Gus");
@@ -344,7 +310,6 @@ async function main() {
     await gus.locator(".vf-opt", { hasText: "Sushi" }).locator(".vf-optchoose").tap({ timeout: 5000 }).catch(() => {});
     ok("  and the pick takes the comment with it", await until(owner, () => (window.Core.snapshot().cards?.Q4 || []).some(c => c.pick === "opt-2" && c.text === "Typed on my phone")));
 
-    // ---------- 26: a file attached before the pick goes in with it (C2) ----------
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
     const fay = await rec.open(A.localUrl, DESK);
     await joinAs(fay, "Fay");
@@ -366,7 +331,6 @@ async function main() {
       .some(c => c.pick === "opt-2" && c.text === "With a photo of the menu" && (c.attachments || []).includes(id)), up),
       JSON.stringify(await myCard(fay, "Q4")));
 
-    // ---------- 26: files attached before an own option go in with it, on a choice and on a pick-many question ----------
     const pastePng = (p, name) => p.evaluate(async n => {
       const c = document.createElement("canvas"); c.width = 64; c.height = 40; c.getContext("2d").fillRect(0, 0, 64, 40);
       const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
@@ -391,7 +355,7 @@ async function main() {
     await gil.click(".vf-other-save", { timeout: 5000 }).catch(() => {});
     ok("a file attached before Something else on a choice goes in with the own option", await until(owner, id => (window.Core.snapshot().cards?.Q7 || [])
       .some(c => c.pick === "other" && c.text === "A padded envelope" && (c.attachments || []).includes(id)), gilUp), JSON.stringify(await myCard(gil, "Q7")));
-    await gil.waitForTimeout(1100); // one pick a second per person (session.py WRITE_INTERVAL)
+    await gil.waitForTimeout(1100);
     await go(gil, T.q5);
     await pastePng(gil, "voucher.png");
     const gilUp2 = await accepted(gil, 2);
@@ -402,7 +366,6 @@ async function main() {
     ok("  and before an own option on a pick-many question, with Save my picks", await until(owner, id => (window.Core.snapshot().cards?.Q5 || [])
       .some(c => JSON.stringify(c.picks) === '["opt-1","other"]' && c.text === "Gift vouchers" && (c.attachments || []).includes(id)), gilUp2), JSON.stringify(await myCard(gil, "Q5")));
 
-    // ---------- a pick-many save held back by a file still waiting for the host keeps the picks drafted ----------
     const hy = await rec.open(A.localUrl, DESK);
     await joinAs(hy, "Hy");
     await go(hy, T.q5);
@@ -420,7 +383,7 @@ async function main() {
     hy.on("request", r => { if (new URL(r.url()).pathname === "/api/pick") picksSent.push(r.url()); });
     await hy.click(".vf-fmt-save");
     const waitSaid = await until(hy, () => /is waiting for the host/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || ""));
-    await hy.waitForTimeout(2000); // a poll or two repaint the page
+    await hy.waitForTimeout(2000);
     const checked = () => hy.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
     const heldPicks = await checked();
     ok("Save my picks held back by a file waiting for the host sends nothing and keeps both picks checked", waitSaid && picksSent.length === 0
@@ -432,7 +395,6 @@ async function main() {
     ok("  once the host accepts the file, Save sends those picks with the comment and the file", await until(owner, id => (window.Core.snapshot().cards?.Q5 || [])
       .some(c => JSON.stringify(c.picks) === '["opt-1","opt-2"]' && c.text === "Card first" && (c.attachments || []).includes(id)), hyUp), JSON.stringify(await myCard(hy, "Q5")));
 
-    // ---------- 29: Use as my answer never cuts Claude's answer, and Cancel after Replace puts the picks back ----------
     const jo = await rec.open(A.localUrl, DESK);
     const joPid = await joinAs(jo, "Jo");
     const askAndAnswer = async (qid, ask, summary) => {
@@ -454,7 +416,6 @@ async function main() {
       return until(jo, () => !!document.getElementById("vf-other")?.offsetParent);
     };
     const saveLive = () => jo.evaluate(() => document.querySelector(".vf-fmt-save").getAttribute("aria-disabled") !== "true");
-    // pick-many: Card saved, then a 2100-character answer
     await go(jo, T.q5);
     await jo.locator(".vf-check-row", { hasText: "Card" }).locator("input").check();
     await jo.click(".vf-fmt-save");
@@ -472,7 +433,6 @@ async function main() {
     const multiBack = await jo.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
     ok("on a pick-many question, Cancel after Replace brings back the saved pick, with Save not live", multiBack.length === 1 && multiBack[0].includes("Card") && !(await saveLive())
       && await jo.evaluate(() => document.querySelector(".vf-otherbox").hidden), JSON.stringify({ multiBack, live: await saveLive() }));
-    // ranking: Fast, Cheap, Green saved, then Claude's answer
     await go(jo, T.q6);
     await until(jo, () => document.querySelectorAll(".vf-rank-item").length === 3);
     await jo.click(".vf-fmt-save");
@@ -486,7 +446,6 @@ async function main() {
     ok("on a ranking, Cancel after Replace brings back the saved order without the own option, with Save not live", rankBack === "Fast,Cheap,Green" && !(await saveLive()),
       JSON.stringify({ rankBack, live: await saveLive() }));
 
-    // ---------- S1: unsent text belongs to whoever wrote it ----------
     const UNSENT_HOST = "The host's unsent line";
     const hostTab = await rec.open(A.ownerUrl, DESK);
     await until(hostTab, () => window.Core.snapshot()?.me?.role === "owner");
@@ -505,7 +464,6 @@ async function main() {
     await annTab.evaluate(sec => { location.hash = "me=" + sec; }, boSecret);
     await annTab.reload();
     await until(annTab, () => !!document.querySelector("dialog.core-switch[open]"));
-    // Switch reloads the page: wait for the new one, since a wait begun on the old page ends when it unloads.
     await Promise.all([annTab.waitForEvent("domcontentloaded"), annTab.click("dialog.core-switch button:text-is('Switch')")]);
     await until(annTab, () => window.Core?.snapshot()?.me?.name === "Bo Lee" && !!document.querySelector(".vf-chat"), null, 10000);
     if (await annTab.evaluate(() => document.querySelector(".vf-chat").hidden)) await annTab.click(".vf-fab");

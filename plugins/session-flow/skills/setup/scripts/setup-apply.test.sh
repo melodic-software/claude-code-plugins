@@ -25,7 +25,7 @@ WORKROOT="$(mktemp -d)"
 trap 'rm -rf "$WORKROOT"' EXIT
 
 fails=0
-assert_true() { # assert_true <description> <command...>
+assert_true() {
   local desc="$1"
   shift
   if "$@"; then printf 'ok   - %s\n' "$desc"; else
@@ -43,7 +43,7 @@ new_repo() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local repo="$1"
   shift
   OUT="$(node "$SUT" --root "$repo" "$@" 2>&1)"
@@ -57,7 +57,6 @@ seed() { # seed <repo> <content>
   printf '%b' "$2" >"$1/$REL"
 }
 
-# Fresh write.
 repo="$(new_repo)"
 f="$repo/$REL"
 run "$repo" worker_continuation=respawn
@@ -71,7 +70,6 @@ run "$repo" worker_continuation=respawn
 assert_true 'an unchanged value reports already configured' out_has 'already configured'
 assert_true 'an unchanged value leaves the file' [ "$(cat "$f")" = "$before" ]
 
-# Existing file that would change: diff, then --yes.
 repo="$(new_repo)"
 f="$repo/$REL"
 seed "$repo" '# team pick\nworker_continuation: resume\n'
@@ -85,7 +83,6 @@ run "$repo" --yes worker_continuation=respawn
 assert_true 'with --yes the change is written' code_is 0
 assert_true 'the comment is kept and the value is respawn' [ "$(settings "$f")" = $'# team pick\nworker_continuation: respawn' ]
 
-# Invalid value and unknown key.
 repo="$(new_repo)"
 run "$repo" worker_continuation=restart
 assert_true 'an invalid value exits 1' code_is 1
@@ -95,8 +92,6 @@ run "$repo" cadence=hourly
 assert_true 'a key outside the schema exits 1' code_is 1
 assert_true 'a key outside the schema writes nothing' [ ! -e "$repo/docs" ]
 
-# Empty and null values: --check flags each, and apply replaces the key's
-# single line with a valid value.
 for doc in 'worker_continuation:\n' \
   'worker_continuation: null\n' \
   'worker_continuation: ~\n'; do
@@ -141,9 +136,6 @@ seed "$repo" 'worker_continuation: resume\nworker_continuation: respawn\n'
 run "$repo" --check
 assert_true 'a duplicate key is named as a parse error' out_has 'line 2: duplicate key "worker_continuation"'
 
-# A key outside the schema, empty or with a value, is named in one line and
-# ignored: --check still prints the valid key and exits 1, and apply writes
-# the asked-for key and keeps that line byte for byte.
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\nstray:\n'
 run "$repo" --check
@@ -158,14 +150,12 @@ assert_true 'apply beside an unknown key exits 0' code_is 0
 assert_true 'apply names the unknown key in one warning' [ "$(grep -c 'WARN.*key stray is not in the schema' <<<"$OUT")" -eq 1 ]
 assert_true 'apply keeps the unknown key line' [ "$(settings "$repo/$REL")" = $'worker_continuation: respawn\nstray:' ]
 
-# An invalid existing scalar is replaced by a valid one.
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: restart\n'
 run "$repo" --yes worker_continuation=resume
 assert_true 'an invalid existing value is replaced' code_is 0
 assert_true 'the replacement reads back as resume' [ "$(bash "$READER" "$repo/$REL" worker_continuation)" = resume ]
 
-# A key given twice on the command line is refused, with or without a file.
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\n'
 before="$(cat "$repo/$REL")"
@@ -217,7 +207,6 @@ assert_true 'an existing file at the temp name makes the write exit 1' code_is 1
 assert_true 'the file at the temp name, not created by this run, survives' [ "$(settings "$repo/docs/conventions/.session-flow.yaml."*.tmp 2>/dev/null)" = 'not mine' ]
 assert_true 'nothing is written when the temp name is taken' [ ! -e "$repo/$REL" ]
 
-# Symlinks and hard links.
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -241,7 +230,6 @@ assert_true 'a hard-linked target exits 1' code_is 1
 assert_true 'the hard link is named' out_has 'hard link'
 assert_true 'the other link is untouched' [ "$(cat "$outside/hard.yaml")" = 'worker_continuation: resume' ]
 
-# A directory or a file in the way: one line, exit 1, no stack trace.
 repo="$(new_repo)"
 mkdir -p "$repo/$REL"
 run "$repo" worker_continuation=respawn
@@ -256,14 +244,12 @@ run "$repo" --check
 assert_true '--check with a file where docs/ should be exits 1' code_is 1
 assert_true '--check with a file where docs/ should be gives no stack trace' no_trace
 
-# An invalid value on a key the call does not write is refused.
 repo="$(new_repo)"
 seed "$repo" 'wip_commit: yes\n'
 run "$repo" --yes worker_continuation=respawn
 assert_true 'an invalid value on a key not being written is refused' code_is 1
 assert_true 'that refusal leaves the file unchanged' [ "$(cat "$repo/$REL")" = 'wip_commit: yes' ]
 
-# wip_commit takes an unquoted true or false.
 repo="$(new_repo)"
 run "$repo" wip_commit=true
 assert_true 'wip_commit=true writes' code_is 0
@@ -295,7 +281,6 @@ for doc in 'wip_commit: [true]\n' 'wip_commit: ""\n' 'wip_commit:\n  on: true\n'
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
 done
 
-# transcript_scope takes worktree, repo or all.
 for v in worktree repo all; do
   repo="$(new_repo)"
   run "$repo" "transcript_scope=$v"
@@ -314,7 +299,6 @@ run "$repo" --check
 assert_true '--check flags transcript_scope: global' code_is 1
 assert_true '--check names transcript_scope' out_has 'transcript_scope'
 
-# retro_lenses takes 1 or 3; an unquoted 3 in the file is valid, 2 is not.
 repo="$(new_repo)"
 run "$repo" retro_lenses=3
 assert_true 'retro_lenses=3 writes' code_is 0
@@ -363,7 +347,6 @@ for doc in 'recall_doc_paths: "../x"\n' \
   assert_true "--check gives no PASS line for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(grep -c "^PASS $key" <<<"$OUT")" -eq 0 ]
 done
 
-# --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check
 assert_true '--check on a missing file exits 0' code_is 0
@@ -372,7 +355,6 @@ seed "$repo" 'worker_continuation: respawn\n'
 run "$repo" --check
 assert_true '--check on a valid file prints its value' out_has 'worker_continuation: respawn'
 
-# Usage errors.
 run "$repo"
 assert_true 'no <key>=<value> exits 2' code_is 2
 run "$repo" --check worker_continuation=resume

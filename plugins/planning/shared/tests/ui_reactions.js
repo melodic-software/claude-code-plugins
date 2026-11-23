@@ -1,16 +1,10 @@
 #!/usr/bin/env node
-//   node plugins/planning/shared/tests/ui_reactions.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from triage row 41 and research/presence-indicator/RESEARCH-reactions.md (the token each
-// state takes, read back through a probe element styled with that token), and the labels Core.REACTIONS names in
-// the brief's set (Agree, Disagree, Love it, Sparks an idea), never from the chip itself.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
 const gather = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" } });
 const LABELS = { thumbs: "Agree", down: "Disagree", heart: "Love it", idea: "Sparks an idea" };
 
-/** In the page: one chip's computed look next to what each token computes to on a probe in the same place. */
 function look([r, theme]) {
   if (theme) document.querySelector(".app").dataset.theme = theme;
   const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => /Losing the saved card/.test(c.textContent));
@@ -58,22 +52,21 @@ async function main() {
     await chip("heart").click();
     ok("clicking a chip presses it", await until(bo, () => [...document.querySelectorAll('.vf-react[data-r="heart"]')].some(b => b.getAttribute("aria-pressed") === "true")));
     const record = want => until(bo, w => JSON.stringify(window.Core.snapshot()?.me?.reactions?.Q1?.["p:host"] || []) === w, JSON.stringify(want), 10000);
-    await record(["heart"]); // measured once the server's answer holds it, not only the page's own guess
+    await record(["heart"]);
     for (const t of ["dark", "light"]) {
       const on = await bo.evaluate(look, ["heart", t]);
       ok(`${t}: chosen, the --accent-soft fill inside a full --accent border, the count in --accent-text`, on.bg === on.t.accentSoft && on.border === on.t.accent && on.count === on.t.accentText, JSON.stringify(on));
       ok(`${t}:   and its label names the reaction and count only`, on.label === `${LABELS.heart}: 1`, on.label);
     }
     await chip("heart").focus();
-    await bo.keyboard.press("Space"); // a keyboard press: focus-visible, and the chip lets go
+    await bo.keyboard.press("Space");
     ok("Space lets the chip go", await until(bo, () => [...document.querySelectorAll('.vf-react[data-r="heart"]')].every(b => b.getAttribute("aria-pressed") === "false")));
-    await bo.mouse.move(0, 0); // the click left the pointer on the chip
+    await bo.mouse.move(0, 0);
     await record([]);
     const off =await bo.evaluate(look, ["heart", ""]);
     ok("let go, the label is the same sentence with the count", off.label === `${LABELS.heart}: 0` && off.bg === off.t.transparent, JSON.stringify(off));
     ok("focused from the keyboard, a 2px --accent outline with an offset", off.outline === `solid 2px ${off.t.accent} 2px`, off.outline);
 
-    // ---------- combined reactions (triage row 45): ❤️ and 💡 with 👍 or 👎, never 👍 and 👎 together ----------
     const pressed = () => bo.evaluate(() => {
       const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => /Losing the saved card/.test(c.textContent));
       return [...card.querySelectorAll(".vf-react")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.r).join(" ");

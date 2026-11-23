@@ -725,7 +725,8 @@
         "pass-only",
         "stop-resolved",
         "awaiting-session",
-        "owned-branch"
+        "owned-branch",
+        "gate-hold"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -1184,7 +1185,7 @@
         },
         "split-child-size": {
           "$ref": "#/$defs/name",
-          "description": "The size a trusted size-split sub-issue (admit.mjs splitChildBody) runs at when its Size is one that splits; a key of sizes that runs. Absent, such a child skips with split-required like any other."
+          "description": "The size a trusted size-split sub-issue (size-split.mjs splitChildBody) runs at when its Size is one that splits; a key of sizes that runs. Absent, such a child skips with split-required like any other."
         },
         "complexity-profiles": {
           "type": "object",

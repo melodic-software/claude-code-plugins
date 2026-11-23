@@ -9,7 +9,6 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" # no --title
@@ -37,7 +36,6 @@ rc="$(gitea_run "$S" --title "t" --blocked-by "gitea:other/repo#1")"
 assert_eq "out-of-scope blocker → exit 2" "2" "$rc"
 assert_eq "still nothing created" "" "$(gitea_requests)"
 
-# --- happy path ---
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'new work')"
@@ -135,7 +133,6 @@ rc="$(gitea_run "$S" --title "created, deps down")"
 assert_eq "unavailable blocker-count read after create → exit 8" "8" "$rc"
 assert_contains "and still names the created item" "$(gitea_err)" "gitea:acme/webapp#12"
 
-# --- HTTP status mapping on the create itself ---
 gitea_reset_routes
 gitea_seed "/issues" 403 '{"message":"no write access"}'
 rc="$(gitea_run "$S" --title "t")"
@@ -173,7 +170,6 @@ gitea_seed "/issues" 201 '{"number":8,"title":"t","state":"open","assignees":[],
 rc="$(gitea_run "$S" --title "t" --labels "type: fix")"
 assert_eq "a 404 from /orgs is not an error → exit 0" "0" "$rc"
 
-# And a name that exists in neither place is still refused, not silently dropped.
 gitea_reset_routes
 gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
 gitea_seed_total "/orgs/acme/labels" 200 '[{"id":9,"name":"priority: high"}]' 1

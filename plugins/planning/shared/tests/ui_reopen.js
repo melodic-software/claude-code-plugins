@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// A late Disagree on a locked decision, in real browsers against `share.sh ensure-running` with the fake cloudflared:
-// once the round closed, a guest may still Disagree with the locked answer; the owner's Inbox then holds a "Possibly
-// reopened" row with Keep decision and Unlock; the question that depends on it reads "Needs review: Q1 may be
-// reopened" for everyone; the owner alone reads the decision history (folded under the question, and the session's
-// Decisions); Keep decision clears the row and the badge, and a newer late Disagree brings the row back.
-//   node plugins/planning/shared/tests/ui_reopen.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the owner's decisions (late Disagree only on a lock; the owner's row with Keep decision
-// and Unlock; "Needs review: <Q> may be reopened" for everyone; history for the owner only) and the texts this suite
-// writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -16,7 +6,6 @@ const Q1T = "Where should the offsite be?", Q2T = "Which hotel near the venue?",
 const q1 = { id: "Q1", text: Q1T, recommendation: "Lisbon", alternatives: [{ key: "a", text: "Porto" }, { key: "b", text: "Madrid" }], dependsOn: [], purpose: "decide", format: { kind: "text" } };
 const q = (id, text, dependsOn = []) => ({ id, text, alternatives: [], dependsOn, purpose: "decide", format: { kind: "text" } });
 const REASON = "Too far for half the team", BADGE = "Needs review: Q1 may be reopened";
-/** Open a question from the rail, opening its round's list first when it is folded (an earlier round). */
 async function goQ(page, text) {
   const item = page.locator(".vf-q", { hasText: text }).first();
   if (!(await item.isVisible())) await page.locator(".vf-round", { has: item }).locator(".vf-rtoggle").click();
@@ -45,7 +34,6 @@ async function main() {
     s.apply(A.dir, [{ op: "ack-round", round: 1 }, { op: "open-round", questions: [q("Q3", Q3T)] }]);
     await until(ann, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q3"));
 
-    // ---------- the guest disagrees late with the locked answer ----------
     await goQ(ann, Q1T);
     const disBtn = ann.locator(".vf-disagree-btn:visible").first();
     ok("on the closed round's locked question the guest is offered Disagree", await until(ann, () => [...document.querySelectorAll(".vf-disagree-btn")].some(b => !!b.offsetParent)));
@@ -55,7 +43,6 @@ async function main() {
     ok("  and the disagreement is kept", await until(owner, r => (window.Core.snapshot().disagreements.Q1 || []).some(d => d.reason === r), REASON),
       await owner.evaluate(() => JSON.stringify(window.Core.snapshot().disagreements)));
 
-    // ---------- the owner's Inbox row ----------
     await openInbox(owner);
     ok("the owner's Inbox shows a Possibly reopened row on Q1", await until(owner, reopenRow), await owner.evaluate(() => document.querySelector(".vf-inboxpage")?.textContent.slice(0, 300)));
     const rowText = await owner.evaluate(() => [...document.querySelectorAll(".vf-inboxpage .vf-qitem")].find(li => li.dataset.t === "reopen")?.textContent || "");
@@ -63,7 +50,6 @@ async function main() {
     const buttons = await owner.evaluate(() => [...document.querySelectorAll(".vf-inboxpage .vf-qitem[data-t=reopen] .vf-acts button")].map(b => b.textContent));
     ok("  with Keep decision and Unlock", buttons.includes("Keep decision") && buttons.includes("Unlock"), buttons.join(","));
 
-    // ---------- the guest: the dependent's badge, no row, no history ----------
     await goQ(ann, Q2T);
     ok("the guest's Q2 reads \"Needs review: Q1 may be reopened\"", await until(ann, b => { const r = document.querySelector(".vf-reviewrow"); return !!r?.offsetParent && r.textContent.includes(b); }, BADGE),
       await ann.evaluate(() => document.querySelector(".vf-reviewrow")?.textContent));
@@ -73,7 +59,6 @@ async function main() {
     ok("  and no History fold under the locked question", await until(ann, () => document.querySelector(".vf-qtext")?.textContent.includes("offsite") && !!document.querySelector(".vf-qhist")?.hidden));
     ok("  and no Decisions entry in Help or More", await ann.evaluate(() => { const b = [...document.querySelectorAll(".vf-help-decisions, .vf-ms-decisions")]; return b.length > 0 && b.every(x => x.hidden); }));
 
-    // ---------- the owner's history ----------
     await owner.click(".vf-ibback");
     await until(owner, () => document.querySelector(".vf-inboxpage").hidden);
     await goQ(owner, Q1T);
@@ -87,7 +72,6 @@ async function main() {
     ok("the owner's Decisions timeline lists the same, by question", dec.length === 2 && dec.every(t => t.startsWith("Q1 · ")), dec.join(" | "));
     await owner.keyboard.press("Escape");
 
-    // ---------- Keep decision, then a newer late Disagree ----------
     await openInbox(owner);
     await owner.locator(".vf-inboxpage .vf-qitem[data-t=reopen]").getByRole("button", { name: "Keep decision" }).click();
     ok("Keep decision clears the row", await until(owner, () => !document.querySelector(".vf-inboxpage .vf-qitem[data-t=reopen]")));

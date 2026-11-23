@@ -193,11 +193,11 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   dependency-escalate-none dependency-fix-refused
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
-  feedback-untaken-threads feedback-unadjudicated feedback-already-addressed
+  feedback-untaken-threads feedback-unadjudicated
   feedback-round-cap feedback-uncertain feedback-disputed)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
-  feedback-incomplete feedback-stood-open feedback-publish-failed feedback-verdict-unreadable
+  feedback-incomplete feedback-stood-open feedback-publish-failed feedback-verdict-unreadable feedback-already-addressed
   dependency-invalid
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry
   shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)
@@ -213,8 +213,6 @@ check "the routing table names these owner reasons, each on a hold route" \
   "$(for r in "${!OWNER_REASONS[@]}"; do printf '%s=%s\n' "$r" "${OWNER_REASONS[$r]}"; done | sort)" \
   "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route == "hold") | "\(.key)=\(.value."owner-reason")"' "$ROUTES" | sort)"
 check "the routing table names no owner reason off a hold route" "" "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route != "hold") | .key' "$ROUTES")"
-# The guard: a hold reaches the owner, so every hold row names which owner
-# reason it is, one a person may be handed work for.
 check "every hold row names its owner reason" "" "$(jq -r 'to_entries[] | select(.value.route == "hold") | select((.value."owner-reason" // "") | IN("intent", "design", "security", "cost") | not) | .key' "$ROUTES")"
 for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
@@ -268,7 +266,6 @@ for reason in "${SESSION_REASONS[@]}"; do
   check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 done
 
-# With needs-session already on, the comment goes up and the label is not written again.
 setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-weaken-required
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
@@ -351,7 +348,6 @@ for reason in "${SESSION_REASONS[@]}"; do
   check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 done
 
-# With needs-session already on, the comment goes up and the label is not written again.
 setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-escalated
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
@@ -578,7 +574,6 @@ for entry in false null 7 '""' '["needs-human"]'; do
   check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
 done
 
-# Idempotency.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A")"
 run feedback-question-design
 check "re-run on the same head: exit 0" 0 "$RC"
@@ -775,7 +770,6 @@ run feedback-incomplete
 check "incomplete, no marker on this head: still escalates" 0 "$RC"
 has "incomplete, no marker on this head: points at the log" 'none named in the lane' "$STUB/bodies"
 
-# Input validation.
 setup '[]' '[]'
 run repeat-cap not-a-sha
 check "rejects a malformed head sha" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"

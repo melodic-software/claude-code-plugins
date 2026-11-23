@@ -1200,7 +1200,6 @@ test("in the merge queue, a FAIL the reader counts holds a passed head", async (
   assert.equal(code, 1, out);
   assert.match(out, /::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
-  // A verifier hold is not a body hold: no untitled error line.
   assert.doesNotMatch(out, /^::error::/m);
   assert.match(out, /^#99: no member veto and no hold path\.$/m);
 });
@@ -1368,7 +1367,6 @@ test("an approval of an earlier head lifts a hold path over a later base merge, 
     const run = await lifting(world);
     assert.equal(run.code, 0, `${name}: ${run.out}`);
     assert.match(run.out, /owner-person approved an earlier head whose every change since is a base merge, which lifts its hold path/, name);
-    // The base is resolved once by its full ref; no compare names the branch.
     assert.equal(world.reads.filter((path) => path.includes("/git/ref/")).length, 1, name);
     assert.ok(world.reads.includes(`/repos/owner/repo/compare/${TIP}...${OLD}`) && world.reads.includes(`/repos/owner/repo/compare/${MAIN}...${TIP}`), world.reads.join(" "));
     assert.ok(!world.reads.some((path) => /\/compare\/(main\.\.\.|.*\.\.\.main$)/.test(path)), world.reads.join(" "));

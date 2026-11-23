@@ -3,6 +3,8 @@
 // docs/conventions/pr-pipeline/README.md, "Branch cleanup", states the rule;
 // cleanup.mjs reads GitHub and calls these.
 
+import { parseLaneBranch } from "../lib/lane-branch.mjs";
+
 // The `branch-cleanup` leaf of pr-pipeline.yaml (pr-pipeline.schema.json);
 // the one copy of its defaults.
 export const BRANCH_CLEANUP_DEFAULTS = Object.freeze({
@@ -30,10 +32,9 @@ export function excluded(name, defaultBranch) {
 
 // The issue number of a work-resolve-issue lane branch
 // (work-resolve-issue/issue-<n>-<run id>-<attempt>), else null.
-const LANE = /^work-resolve-issue\/issue-([1-9][0-9]*)-[1-9][0-9]*-[1-9][0-9]*$/;
 export function laneIssue(name) {
-  const match = LANE.exec(name);
-  return match ? Number(match[1]) : null;
+  const match = parseLaneBranch(name);
+  return match ? Number(match.issue) : null;
 }
 
 // Issue numbers in this repository a pull request body links with Closes,

@@ -19,9 +19,6 @@ bridge=$(cd "$skill/../../notes-bridge" && pwd)
 source "$here/../../../lib/browser-test-helpers.sh"
 browser_setup ed-relocate edr playwright-cli node python3 curl
 
-# The mockup: two variants with two screen states each, and in B's empty state a demo and a worst
-# content set, each with the call to action. The worst one is solid green and sits under the
-# switcher. $1 is the worst set's markup.
 page() {
   cat <<'HTML'
 <!doctype html>
@@ -97,7 +94,6 @@ else
   bad "the note is not the expected one: $status"
 fi
 
-# One relocation of note $1 (default 1) against the page as it is now; prints the script's JSON result.
 relocate() {
   local seq=${1:-1} made script raw got
   made=$(node "$bridge/relocate-note.mjs" --dir "$d" --seq "$seq" --url "$url")
@@ -111,8 +107,6 @@ relocate() {
     printf 'no result: %s\n' "$(printf '%s' "$raw" | head -c 600)" >&2
   fi
 }
-# Pixel shares of the shot, measured in the browser: green (the element), dark (the switcher's
-# pill) and near-white (the host page's panel and the page around the element).
 pixels() {
   python3 -c '
 import base64, json, sys

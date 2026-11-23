@@ -218,7 +218,6 @@ test("a pr-unblock run refused as workflow-modified on the current head gets one
   const commit = w.calls.find((call) => call.startsWith(`POST /repos/${REPO}/git/commits `));
   assert.ok(commit.includes(`"tree":"${TREE}"`) && commit.includes(`"parents":["${sha(9)}"]`));
   assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/9 {"sha":"${NEW_SHA}","force":false}`]);
-  // The marker is posted before the branch moves.
   assert.ok(w.calls.indexOf(posts(w.calls)[0]) < w.calls.indexOf(pushes(w.calls)[0]));
 });
 

@@ -5,8 +5,6 @@ import { expect, mock, test as kitTest } from 'claude-code/testing'
 const test = (name: string, ...rest: [any] | [any, any]) =>
   rest.length === 1 ? kitTest(name, { options: { model_notices: true } }, rest[0]) : kitTest(name, { ...rest[0], options: { model_notices: true, ...rest[0].options } }, rest[1])
 
-// Fixture times, computed by hand: 2026-10-03T18:00:00Z is 1791050400 s, 21:00Z is 1791061200 s,
-// 2026-10-08T09:00:00Z is 1791450000 s.
 const T0 = 1_791_050_400_000
 const FIVE_RESET = '2026-10-03T21:00:00Z'
 const SEVEN_RESET = '2026-10-08T09:00:00Z'
@@ -38,8 +36,6 @@ const limits = (five?: number, seven = 7): Limit[] => [
   { kind: 'seven_day', percentUsed: seven, resetsAt: SEVEN_RESET },
 ]
 
-// The world beneath the plugin: usage, files, processes and the prompt box are inputs; process
-// runs, suggestions and the context returned are what the tests read.
 const world = (stub: any, init: Partial<World> = {}, env: Record<string, string> = { HOME }, omit: string[] = []) => {
   const on = (event: string, ...rest: unknown[]) => (omit.includes(event) ? undefined : stub(event, ...rest))
   const w: World = {
@@ -105,7 +101,6 @@ const prompt = ($: any, kind = 'sdk', extra: object = {}) =>
   $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
 const OPTIONS =
   "rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
-// The verdict lines; the options line that follows them is asserted on its own.
 const ownLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('rate-limits:') && c !== OPTIONS)
 const optionLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
 const bodies = (w: World) => w.runs.map(r => JSON.parse(String(r.stdin)))
@@ -436,9 +431,7 @@ test('origin: a peer message delivered into an operator-mode typed turn keeps th
   expect(ownLines((await bash($)).context)).toEqual([])
 })
 
-// A notice row: the operator offer (FYI, ...) or a window change shown off the terminal.
 const NOTICE = /^(FYI, )?rate-limits: /
-// The operator offer: one prefix, the verdict lines, then the options line.
 const offer = (...lines: string[]) => `FYI, rate-limits: ${[...lines, OPTIONS].map(l => l.replace(/^rate-limits: /, '')).join(' ')}`
 
 test('operator mode: a typed turn holds the line and offers it at turn end with an empty box, with one notice row on every surface and no toast', { options: { rate_limits_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
@@ -447,7 +440,6 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.limits = limits(96)
   expect(ownLines((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  // Written out once in full, so the offer helper's join is pinned against a literal.
   const offered =
     "FYI, rate-limits: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC. options: continue at the same model, effort and review depth; the user can switch accounts; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
   expect(offer(EDGE_5H)).toBe(offered)
@@ -584,9 +576,7 @@ test('automatic mode: a typed turn gets the line at once, offers nothing and han
 })
 
 const BAND_ON = { options: { rate_limits_enabled: false, rate_limits_band: true } }
-// The band row, led by the plugin's name; a notice row also starts with the name, then a window clause.
 const BAND_ROW = /^rate-limits: 5h \S+ \| 7d /
-// Every Text the AbovePrompt mount drew, in order.
 const drawn = async ($: any, surface: 'terminal' | 'desktop' | 'vscode') => {
   const ui = await $.ui.mount({ ...BAND, surface })
   const texts = (await ui.findAll({ type: 'Text' })).map((t: any) => t.text)
@@ -684,7 +674,6 @@ test('session.start registers the status tool and one command, named after the p
   expect(registered.sort()).toEqual(['/rate-limits [band [on|off]]', 'status'])
 })
 
-// The person's channel: a toast and one transcript line when a window rises from a known level or resets.
 const TOAST_EDGE = '5h at the 95% line threshold · resets 21:00 UTC'
 const LOG_EDGE = `rate-limits: ${TOAST_EDGE} · more: /rate-limits`
 const crossingLogs = (w: World) => w.logs.filter(l => l.text.endsWith('· more: /rate-limits'))
@@ -1060,8 +1049,6 @@ test('switch: rate_limits_enabled false stops writes while lines continue', NO_W
   expect(w.runs).toEqual([])
 })
 
-// The manifest's defaults: Claude's context gets nothing from the module, at a prompt or a tool
-// result, while the toast and the snapshot write still happen.
 kitTest('defaults: no approach, threshold or later line reaches Claude; the toasts and writes go on', async ($, on) => {
   const { w } = world(on)
   await bash($)
@@ -1071,7 +1058,6 @@ kitTest('defaults: no approach, threshold or later line reaches Claude; the toas
   const edge = (await prompt($, 'sdk')).context
   w.limits = limits(10)
   const reset = (await bash($)).context
-  // Everything added to the context, whatever its prefix (the world adds nothing beneath).
   expect([...(approach ?? []), ...(edge ?? []), ...(reset ?? [])]).toEqual([])
   expect(w.toasts).toEqual(['5h nearing the 95% line threshold · resets 21:00 UTC', '5h at the 95% line threshold · resets 21:00 UTC'])
   expect(w.runs.length).toBeGreaterThan(0)
@@ -1237,8 +1223,6 @@ test('fail open: a failing write leaves the tool result and the line', async ($,
   expect(ownLines(called.context)).toHaveLength(1)
 })
 
-// The helper's outcomes by run number: 'exit' is its exit 1 for a rename refused 3 times, 'throw'
-// a spawn that never ran, 'skip' its exit 3; anything else writes the file and exits 0.
 type Outcome = 'exit' | 'throw' | 'skip' | undefined
 const scriptedWrites = (stub: any, outcome: (run: number) => Outcome) => {
   const logs: string[] = []
@@ -1260,7 +1244,6 @@ const FAILURE_LOG = {
   exit: /^rate-limits: snapshot write failed \(exit 1\): write-snapshot: rename failed after 3 tries: EPERM$/,
   throw: /^rate-limits: snapshot write did not run: \S/,
 }
-// One of each carrier: a tool call, a measurement, the in-turn timer, and the session.end flush.
 const everyCarrier = async ($: any, w: World, clock: any, runsAfter: number[]) => {
   await bash($)
   runsAfter.push(w.runs.length)
@@ -1595,7 +1578,6 @@ test('account: a state file rewritten at the same size with another identity and
   expect(bodies(w)[1].account).toBeUndefined()
 })
 
-// An empty reading (no window reported, as before a session's first response) is no reading, not a reset.
 test('lines: a carrier with an empty reading sends no reset line and keeps the levels, so the same reading again sends nothing', async ($, on) => {
   const { w } = world(on, { limits: limits(96) })
   expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
@@ -1604,7 +1586,6 @@ test('lines: a carrier with an empty reading sends no reset line and keeps the l
   expect(ownLines((await prompt($)).context)).toEqual([])
   w.limits = limits(96)
   expect(ownLines((await bash($)).context)).toEqual([])
-  // A windowless body still goes to the helper with the key it must keep from a file that has windows.
   expect(w.runs.filter(r => !String(r.stdin).includes('rate_limits')).every(r => r.argv.join(' ').includes('--preserve-key rate_limits'))).toBe(true)
 })
 
@@ -1645,7 +1626,6 @@ test('snapshot: the first write after a branch carries the new session id, insid
   expect(bodies(w)).toHaveLength(2)
 })
 
-// An account switch: the state file names another account, or a window's reset time moves earlier.
 const UUID_A = '0a1b2c3d-0000-4000-8000-00000000000a'
 const UUID_B = '0a1b2c3d-0000-4000-8000-00000000000b'
 const RESET_0610 = '2026-10-04T06:10:00Z'

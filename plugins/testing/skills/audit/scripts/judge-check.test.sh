@@ -36,7 +36,6 @@ cs_test() {
   } >"$1"
 }
 
-# --- shape -------------------------------------------------------------------
 cs_test "$REPO/a/CalcTests.cs" Adds_one
 cs_test "$REPO/b/CalcTests.cs" Adds_two
 cs_test "$REPO/c/CalcTests.cs" Adds_one 'using System;'
@@ -103,7 +102,6 @@ diff_of "$R" "$TMP/mod"
 bash "$CHECK" comment-only "$R" "$TMP/d.diff"
 same "a language with no known comment syntax is never comment-only" "$?" 1
 
-# --- usage -------------------------------------------------------------------
 bash "$CHECK" 2>/dev/null
 same "no mode is a usage error" "$?" 2
 bash "$CHECK" shape sonnet medium "$F" 1 4-7 2>/dev/null

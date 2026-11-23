@@ -31,7 +31,6 @@ make_skill() {
 
 run() { bash "$SUT" "$@" 2>&1; }
 
-# A directory without SKILL.md must not count as a skill.
 mkdir -p "$TMP/plugins/alpha/skills/not-a-skill"
 
 make_skill alpha solo

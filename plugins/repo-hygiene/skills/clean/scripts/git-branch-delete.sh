@@ -156,10 +156,6 @@ if [[ -z "$REPO_ROOT" ]]; then
   exit 2
 fi
 
-# ---- Batch-wide precondition: the capture itself -----------------------------
-# Every refusal is printed as its own `Refused:` line and the batch stops with
-# nothing deleted. The message names what is missing and how to produce it.
-
 REFUSED=0
 refuse() {
   printf 'Refused: %s\n' "$1"
@@ -228,8 +224,6 @@ if [[ $REFUSED -eq 0 ]]; then
   fi
 fi
 
-# A merge, rebase, cherry-pick, revert or bisect in progress: the audit offers no
-# deletable tier then, so refuse.
 for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
   op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
   if [[ -n "$op_file" && -e "$op_file" ]]; then
@@ -237,8 +231,6 @@ for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD
     break
   fi
 done
-
-# ---- Batch-wide precondition: every branch --------------------------------------
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
@@ -254,8 +246,6 @@ live_tip() {
 # capture) must satisfy neither.
 PR_MERGED_RE='^#[0-9]+ MERGED( \(tip drift\))?$'
 PR_OPEN_RE='^#[0-9]+ OPEN$'
-# Every proof clean_landed_proof prints starts `landed `; `-` (none) and an older
-# capture's timestamp in the same column do not.
 LANDED_RE='^landed '
 
 # delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
@@ -315,7 +305,7 @@ for branch in "${BRANCHES[@]}"; do
     continue
   fi
 
-  [[ $REFUSED -gt 0 && $CAP_ROWS -eq 0 ]] && continue # capture itself already refused
+  [[ $REFUSED -gt 0 && $CAP_ROWS -eq 0 ]] && continue
 
   cap_tip="${CAP_TIP[$branch]:-}"
   if [[ -z "$cap_tip" ]]; then
@@ -394,9 +384,6 @@ if [[ $REFUSED -gt 0 ]]; then
   exit 3
 fi
 
-# loss_note <branch>: for a LOSSY branch, the live count of commits on no remote
-# ref and no tag, so the plan the operator confirms states the loss in numbers
-# rather than pointing back at the audit. Empty for every other tier.
 loss_note() {
   local n
   n="$(clean_loss_count "$REPO_ROOT" "$1")" || n=""
@@ -419,10 +406,6 @@ if [[ "$MODE" == "dry-run" ]]; then
   exit 0
 fi
 
-# ---- Apply -----------------------------------------------------------------------
-
-# resolve_file <path>: the path with every symlink followed and the directory
-# canonicalised, so the ledger is derived from where the capture really is.
 resolve_file() {
   local path="$1" target dir hops=0
   while [[ -L "$path" && $hops -lt 40 ]]; do
@@ -473,7 +456,6 @@ for branch in "${PLAN[@]}"; do
   tip="${CAP_TIP[$branch]}"
   tier="${CAP_TIER[$branch]}"
 
-  # 1. Stale-plan guard, again, immediately before the destructive step.
   now_tip="$(live_tip "$branch")"
   if [[ "$now_tip" != "$tip" ]]; then
     ABORTED="$branch (tip moved between check and delete: captured $tip, now ${now_tip:-gone})"
@@ -486,7 +468,6 @@ for branch in "${PLAN[@]}"; do
     break
   fi
 
-  # 3. Record the deletion durably BEFORE it happens.
   if ! ledger_line "$(printf '%s\t%s\t%s\t%s\t%s' "$branch" "$tip" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$BACKUP_NS/$branch" "$tier")"; then
     ABORTED="$branch (could not append to ledger $LEDGER)"
     break

@@ -145,7 +145,6 @@ if ((commands == 0)); then
   exit 1
 fi
 
-# --- shape (a) ---------------------------------------------------------------
 READERS_RE='(^|[^A-Za-z0-9_-])(mapfile|readarray|cat|grep|jq|sed|awk)([^A-Za-z0-9_-]|$)'
 # Sorted: an associative array's key order is unspecified, and the findings
 # must come out in the same order on every run.

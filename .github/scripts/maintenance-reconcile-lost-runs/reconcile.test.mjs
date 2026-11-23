@@ -20,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2014,7 +2014,6 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     comments: { totalCount: 0, nodes: [] },
   };
   const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
-  // The pull requests whose spec was read.
   const specReads = [];
   const prefilterReads = [];
   // The reconciler's own pass reads (passStarts), which page nothing.
@@ -4009,5 +4008,16 @@ test("pr-rate-merge-risk still gates its resolver on the kill-switch step the re
     assert.match(kill, /\n[ ]+id: kill\n/, name);
     const resolve = steps.find((s) => s.startsWith(`      - name: ${RATER_RESOLVE_STEP}\n`));
     assert.match(resolve, /\n[ ]+if: steps\.kill\.outputs\.proceed == 'true'\n/, name);
+  }
+});
+
+test("the registry's review job names stop a kill-switched review exactly where the hand-kept /^(PR Review|pr-review)/ did", () => {
+  assert.deepEqual(REVIEW_JOB_PREFIXES, ["PR Review", "pr-review", "PR Review Security", "pr-review-security"]);
+  const handKept = /^(PR Review|pr-review)/;
+  const gate = { name: "Check Kill Switch", conclusion: "success", steps: [{ name: REVIEW_STOP_STEP, conclusion: "success" }] };
+  const names = ["PR Review", "pr-review", "PR Review / Publish Review", "PR Review Security", "PR Review Security / review-status", "pr-review-security", "Kill Switch", "Review", "Publish Review"];
+  for (const name of names) {
+    assert.equal(reviewStopped([gate, { name, conclusion: "success" }]), !handKept.test(name), `a ${name} job that ran`);
+    assert.equal(reviewStopped([gate, { name, conclusion: "skipped" }]), true, `a ${name} job that skipped`);
   }
 });

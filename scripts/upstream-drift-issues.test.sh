@@ -223,7 +223,6 @@ expect_has "close: the comment says clean" "$c" 'clean'
 expect_lacks "close: no create" "$c" 'issue create'
 expect_lacks "close: no edit" "$c" 'issue edit'
 
-# --- clean with nothing open: no write --------------------------------------
 GH_STUB_LIST="$LIST_NONE"
 run_sut "$CLEAN"
 expect_code "clean, none open: exit 0" 0
@@ -377,7 +376,6 @@ GH_STUB_LIST="$LIST_MARKER_MID"
 run_sut "$DRIFT"
 expect_has "marker text mid-body: still this script's issue 44, edited" "$(calls)" 'issue edit 44 --body-file'
 
-# --- untracked page touches nothing -----------------------------------------
 UNTRACKED="$TMP/untracked.txt"
 printf '%s\n' "page repo=acme/plans pin=$PIN head=$HEAD status=untracked path=docs/upstream/plans.md" >"$UNTRACKED"
 GH_STUB_LIST="$LIST_NONE"
@@ -409,7 +407,6 @@ expect_code "clean beside unreachable: exit 0" 0
 expect_lacks "clean beside unreachable: closes nothing" "$(calls)" 'issue close'
 expect_has "clean beside unreachable: reports action none" "$OUT" 'action=none repo=acme/plans'
 
-# --- a source with no git pin: pin=unknown head=unknown ---------------------
 VENDORED="$TMP/vendored.txt"
 printf '%s\n' \
   "page repo=playwright/playwright pin=unknown head=unknown status=drift path=plugins/playwright/skills/playwright/scripts/update.sh" >"$VENDORED"
@@ -484,7 +481,6 @@ expect_code "untracked vendored id: exit 0" 0
 expect_has "untracked vendored id: the sweep leaves its issue alone" "[$(calls)]" "[$LIST_API]"
 expect_lacks "untracked vendored id: no close-unreported line" "$OUT" 'close-unreported'
 
-# --- body over the cap is cut with a job-summary pointer --------------------
 BIG="$TMP/big.txt"
 {
   for ((i = 1; i <= 800; i++)); do
@@ -521,7 +517,6 @@ for needle in 'Ignore the page' '.github/workflows' '@octocat' 'rm -rf' 'github.
   expect_lacks "hostile: no upstream-chosen text ($needle) in the body" "$body" "$needle"
 done
 
-# --- path holding a space, = and | is parsed whole, on the right repo --------
 ODD="$TMP/odd.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=clean path=docs/upstream/widgets.md" \
@@ -537,7 +532,6 @@ expect_has "odd path: the row is counted once, on the drifted page" "$body" 'Cha
 expect_lacks "odd path: the row's path is not written" "$body" 'd.md'
 expect_has "odd path: the page path with a space is kept whole" "$body" '`docs/upstream/my tools.md`'
 
-# --- counts stay with their own page and upstream ---------------------------
 PAGES="$TMP/pages.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \
@@ -555,7 +549,6 @@ want_counts=$'### `docs/upstream/widgets.md`\n\nPin `'"$PIN"'`, upstream head `'
 expect_has "per-page counts: each page of one upstream carries its own counts" "$body" "$want_counts"
 expect_lacks "per-page counts: the next upstream's removed unit is not counted here" "$body" 'removed units: 1'
 
-# --- a line breaking the field order exits nonzero with no write ------------
 for shape in split reordered orphan; do
   BROKEN="$TMP/broken-$shape.txt"
   case "$shape" in
@@ -577,7 +570,6 @@ for shape in split reordered orphan; do
   expect_has "broken ($shape): no gh call at all" "[$(calls)]" '[]'
 done
 
-# --- --dry-run: list calls only, one action line per repository -------------
 MIXED="$TMP/mixed.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \
@@ -608,7 +600,6 @@ GH_STUB_LIST="$LIST_OPEN"
 run_sut "$CLEAN" --dry-run
 expect_has "dry-run: close when clean and one is open" "$OUT" 'action=close repo=acme/widgets'
 
-# --- a failed gh call fails the run -----------------------------------------
 for verb in api create; do
   GH_STUB_LIST="$LIST_NONE" GH_STUB_FAIL="$verb"
   run_sut "$DRIFT"
@@ -652,7 +643,6 @@ body="$(body_of create)"
 expect_has "inject: the page path lands literally" "$body" "\`docs/upstream/\$(touch $PWNED).md\`"
 expect_lacks "inject: the row path is not written" "$body" 'skills/'
 
-# --- usage ------------------------------------------------------------------
 LOG="$(mktemp -d "$TMP/log.XXXXXX")"
 OUT="$(bash "$SUT" --help 2>&1)"
 CODE=$?

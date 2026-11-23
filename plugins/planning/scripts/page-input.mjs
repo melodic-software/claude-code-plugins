@@ -39,7 +39,6 @@ export function templateChoices(kind, root = PLUGIN_ROOT) {
   return choices;
 }
 
-/** The lines of the one page-input fenced block in text. */
 function blockLines(text) {
   const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
   const opens = lines.flatMap((line, i) => (/^\s*```page-input\s*$/.test(line) ? [i] : []));

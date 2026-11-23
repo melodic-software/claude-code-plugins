@@ -45,7 +45,6 @@ test("a bound comment counts only when its run's record lists it on the lane's w
   const fake = api({ [RUN]: { path: PATH, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] } });
   const check = laneChecker({ pr: 7, ...fake });
   assert.equal(await check({ kind: "review_comment", id: 11, body }), true);
-  // Another id, another kind, another PR, an edited body: none is listed.
   assert.equal(await check({ kind: "review_comment", id: 12, body }), false);
   assert.equal(await check({ kind: "issue_comment", id: 11, body }), false);
   assert.equal(await check({ kind: "review_comment", id: 11, body: bound("Off by two.") }), false);

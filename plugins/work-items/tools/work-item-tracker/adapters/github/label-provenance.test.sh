@@ -18,12 +18,12 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/label-provenance.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-assert_usage_error "$S"                                            # no id
-assert_usage_error "$S" "github:o/r#1"                             # no --label
-assert_usage_error "$S" "github:o/r#1" --label ""                  # empty label
-assert_usage_error "$S" "github:o/r#1" --label a --nope            # unknown argument
-assert_usage_error "$S" "local-markdown:o/r#1" --label agent-ready # foreign provider
-assert_usage_error "$S" "not-an-id" --label agent-ready            # malformed id
+assert_usage_error "$S"
+assert_usage_error "$S" "github:o/r#1"
+assert_usage_error "$S" "github:o/r#1" --label ""
+assert_usage_error "$S" "github:o/r#1" --label a --nope
+assert_usage_error "$S" "local-markdown:o/r#1" --label agent-ready
+assert_usage_error "$S" "not-an-id" --label agent-ready
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 
@@ -120,7 +120,6 @@ ID="github:o/r#7"
 AR="agent-ready"
 C1="work-class: read-only"
 
-# --- triage-role labeler on the work-class label: refused ---
 TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "triage-labeled C1: exit 0 (the read succeeded)" "0" "$RC"
@@ -135,17 +134,14 @@ assert_eq "triage-labeled C1: maintain labeler of agent-ready still trusted" "tr
   "$(jq -r --arg l "$AR" '.labels[] | select(.label == $l) | .trusted' <<<"$OUT")"
 assert_eq "result carries schema_version and the id" "1.0 $ID" "$(jq -r '"\(.schema_version) \(.id)"' <<<"$OUT")"
 
-# --- triage-role labeler on agent-ready: refused ---
 TL="[$(ev "$AR" triager-d 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "triage-applied agent-ready: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- read-role labeler: refused ---
 TL="[$(ev "$AR" reader-e 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "read-role labeler: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- write, maintain and admin labelers: admitted ---
 TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "write-labeled item: exit 0" "0" "$RC"
@@ -163,7 +159,6 @@ TL="[$(ev "$C1" dev-c 2026-10-02T09:00:00Z),$(ev "$C1" triager-d 2026-10-01T09:0
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "later write re-application overrides an earlier triage one" "true" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- failed timeline read: no verdict, non-zero exit ---
 ERRFILE="$(mktemp "$TMP_ROOT/e.XXXXXX")"
 OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" GH_STUB_TIMELINE="[]" \
   GH_STUB_TIMELINE_ERR="dial tcp: connection refused" bash "$S" "$ID" --label "$AR" 2>"$ERRFILE")"
@@ -173,7 +168,6 @@ assert_eq "failed timeline read: no JSON on stdout" "" "$OUT"
 assert_contains "failed timeline read: stderr carries the cause" "$(<"$ERRFILE")" "connection refused"
 rm -f "$ERRFILE"
 
-# --- empty timeline and a label with no labeled event: refused with a reason ---
 run "[]" "$ID" --label "$AR"
 assert_eq "empty timeline: exit 0" "0" "$RC"
 assert_eq "empty timeline: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
@@ -183,7 +177,6 @@ TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "label with no labeled event: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- failed or empty permission read: refused with a reason ---
 TL="[$(ev "$AR" "lane-app[bot]" 2026-10-01T10:00:00Z)]"
 run "$TL" "$ID" --label "$AR"
 assert_eq "permission 404: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
@@ -216,7 +209,6 @@ OUT="$(BASH_COMPAT=51 PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$P
   GH_STUB_TIMELINE="$TL" bash "$S" "$ID" --label "$AR" --label "$C1" 2>/dev/null)"
 assert_eq "BASH_COMPAT=51: triage-labeled C1 still refused" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- a timeline split across two pages is read whole ---
 P1="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z)]"
 P2="[$(ev "$C1" dev-c 2026-10-01T10:05:00Z),$(ev "$AR" triager-d 2026-10-01T11:00:00Z)]"
 PAGE2="$P2" run "$P1" "$ID" --label "$AR" --label "$C1"

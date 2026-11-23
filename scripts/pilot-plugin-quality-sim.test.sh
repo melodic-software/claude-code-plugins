@@ -209,5 +209,4 @@ run_resolver "$crlf"
 assert_exit "case 6: CRLF AGENTS.md resolves" 0 "$RC"
 assert_eq "case 6: prints the home despite CRLF endings" "docs/conventions" "$OUT"
 
-# ------------------------------------------------------------------------------
 test_harness::report

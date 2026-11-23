@@ -247,6 +247,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { callers, jobNames, laneJob } from "../lib/lane-registry.mjs";
 import { annotationsPath, firstAttemptJobsPath, graphqlCall, isObject, jobsKey, serveFirstAttemptJobs, slimJob } from "../lib/run-jobs.mjs";
 import { loadTrustedList, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
@@ -289,29 +290,25 @@ export const LANE_LOST = new Set([...LOST, "failure"]);
 // Workflows with no trigger-actor check, which a github-actions[bot] re-run passes.
 // The hosted review callers among them are re-run only for an upstream stop
 // (GATED_REVIEWS).
-export const GATED_REVIEWS = new Set([".github/workflows/pr-review-hosted.yml", ".github/workflows/pr-review-security-hosted.yml"]);
+export const REVIEW_SWITCHES = new Map([
+  [".github/workflows/pr-review-hosted.yml", "CLAUDE_REVIEW_DISABLED"],
+  [".github/workflows/pr-review-security-hosted.yml", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+]);
+export const GATED_REVIEWS = new Set(REVIEW_SWITCHES.keys());
 export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-require-checks.yml",
   ".github/workflows/pr-test-platforms.yml",
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
-// The hosted review callers' check-kill-switch job, by its name (Kill Switch
-// before its rename to Check Kill Switch, kill-switch on a head tested before
-// an earlier rename), and the step that fails it while the upstream-status
-// gate skips the review.
-export const GATE_JOBS = new Set(["Kill Switch", "kill-switch", "Check Kill Switch"]);
+export const GATE_JOBS = new Set([...GATED_REVIEWS].flatMap((path) => jobNames(path.slice(".github/workflows/".length), "check-kill-switch")));
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
-// The step that job runs when a kill switch stops the review, and the caller's
-// job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;
-// pr-review on a head tested before the rename).
 export const REVIEW_STOP_STEP = "Report the kill switch";
-const REVIEW_JOB = /^(PR Review|pr-review)/;
-// Each hosted review's own switch, by the name its caller reads from `vars`.
-export const REVIEW_SWITCHES = new Map([
-  [".github/workflows/pr-review-hosted.yml", "CLAUDE_REVIEW_DISABLED"],
-  [".github/workflows/pr-review-security-hosted.yml", "CLAUDE_SECURITY_REVIEW_DISABLED"],
-]);
+const PR_REVIEW_CLI = "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml";
+export const REVIEW_JOB_PREFIXES =[...GATED_REVIEWS].flatMap((path) => {
+  const workflow = path.slice(".github/workflows/".length);
+  return callers(workflow, PR_REVIEW_CLI).flatMap((id) => jobNames(workflow, id));
+});
 // GitHub re-runs a run up to 30 days after its initial run
 // (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 export const RERUN_WINDOW_DAYS = 30;
@@ -338,16 +335,14 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
 // once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
-// intake-label-needs-triage names it on a run from before the rename.
-export const INTAKE_LABEL_JOBS = ["Intake Label Needs Triage", "intake-label-needs-triage"];
+export const INTAKE_LABEL_JOBS = jobNames("intake-triage.yml", "intake-label-needs-triage");
 const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
 // pr-dispatch-feedback's job that applies a pr-verify verdict to its PR, and
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
 // failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
-// post-verify-notes names it on a run from before the rename.
-export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
+export const VERDICT_JOBS = new Set(jobNames("pr-dispatch-feedback.yml", "post-verify-notes"));
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
 // A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
@@ -391,21 +386,19 @@ export const RATER = ".github/workflows/pr-rate-merge-risk.yml";
  * runs are listed by workflow, not by PR head; the trigger check binds the
  * re-run to the one open PR whose head is still the upstream run's.
  */
-export const RECORDED_LANES = new Map([
-  [".github/workflows/pr-verify.yml", { judge: JUDGE_STEP, write: WRITE_STEP }],
-  [".github/workflows/pr-review-main.yml", { judge: REVIEW_STEP, write: WRITE_STEP }],
-  [RATER, { judge: RATE_STEP, write: RATE_WRITE_STEP }],
+const LANES = new Map([
+  [".github/workflows/pr-verify.yml", { judge: JUDGE_STEP, write: WRITE_STEP, triggers: ["success", "failure"], gated: false, faultHeld: true }],
+  [".github/workflows/pr-review-main.yml", { judge: REVIEW_STEP, write: WRITE_STEP, triggers: ["success"], gated: true, faultHeld: true }],
+  [RATER, { judge: RATE_STEP, write: RATE_WRITE_STEP, triggers: ["success"], gated: false, faultHeld: true }],
 ]);
+const lanesWhere = (flag) => new Set([...LANES].filter(([, lane]) => lane[flag]).map(([path]) => path));
+export const RECORDED_LANES = new Map([...LANES].map(([path, { judge, write }]) => [path, { judge, write }]));
 // The checks-run conclusions that start each recorded lane's work: the
 // conclusions its jobs' `github.event.workflow_run.conclusion` test passes.
-export const LANE_TRIGGERS = new Map([
-  [".github/workflows/pr-verify.yml", new Set(["success", "failure"])],
-  [".github/workflows/pr-review-main.yml", new Set(["success"])],
-  [RATER, new Set(["success"])],
-]);
+export const LANE_TRIGGERS = new Map([...LANES].map(([path, { triggers }]) => [path, new Set(triggers)]));
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
-export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
+export const GATED_LANES = lanesWhere("gated");
 // The recorded lanes that hold green on a GitHub fault, each with HELD_STEP
 // and a `held: ` notice: pr-verify's resolver (resolve-pr.mjs closing) and
 // pr-review-main's file-list read (its `Select a lane-source pull request`
@@ -414,7 +407,7 @@ export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 // through an outage reads nothing and carries nothing, and holds cluster in
 // exactly those outages, or when a run created earlier was still going then
 // (pr-verify's three jobs can take about 17 hours).
-export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".github/workflows/pr-review-main.yml", RATER]);
+export const FAULT_HELD_LANES = lanesWhere("faultHeld");
 /**
  * The rater's kill-switch step and the resolver it gates: a rater run the
  * lanes kill switch stopped succeeds with the switch step run and the resolver
@@ -425,7 +418,7 @@ export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".gi
 export const RATER_SWITCH_STEP = "Check the kill switch";
 export const RATER_RESOLVE_STEP = "Resolve the pull request";
 /** The rater's legs by job name, in the order each hands off to the next. */
-export const RATER_LEGS = ["Rate Merge Risk", "Rate Merge Risk Subscription", "Rate Merge Risk Fallback"];
+export const RATER_LEGS = ["rate-merge-risk", "rate-merge-risk-subscription", "rate-merge-risk-fallback"].map((id) => laneJob("pr-rate-merge-risk.yml", id).name);
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.
@@ -944,7 +937,7 @@ export const upstreamStopped = (jobs) =>
 // short proves nothing, so that head stays with a person (ci-status names it).
 export const reviewStopped = (jobs) =>
   Array.isArray(jobs) &&
-  !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
+  !jobs.some((job) => REVIEW_JOB_PREFIXES.some((prefix) => (job?.name ?? "").startsWith(prefix)) && job.conclusion !== "skipped") &&
   jobs.some((job) => GATE_JOBS.has(job?.name) && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
 
 const CLAUDE_REVIEW_STEP = "Claude review";

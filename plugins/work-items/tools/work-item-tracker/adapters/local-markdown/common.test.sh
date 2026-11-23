@@ -21,7 +21,6 @@ done
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 assert_eq "default namespace" "local/markdown" "$WIT_LOCAL_DEFAULT_NS"
 
-# Foreign-provider IDs are rejected; local ones parse.
 assert_succeeds "accepts local id" "0" "1" wit_require_local_id "local-markdown:o/r#7"
 assert_eq "local id number parsed" "7" "$WIT_ID_NUMBER"
 assert_fails "rejects github id" "1" "0" wit_require_local_id "github:o/r#7"

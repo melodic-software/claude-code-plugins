@@ -1382,7 +1382,6 @@ test("the required-run read takes the newest pr-require-checks run that tested t
     "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
   ]);
   assert.deepEqual(await api.readRequiredRun(head), { run: null, jobs: [] });
-  // A named workflow reads that workflow's runs instead.
   assert.deepEqual(await api.readRequiredRun(head, ".github/workflows/pr-test-platforms.yml"), {
     run: failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z"),
     jobs: [{ name: "Test Macos Planning Shared", conclusion: "failure" }],
@@ -1801,7 +1800,6 @@ test("sync-shared-copies: a head with its check run is skipped, and recorded onc
   const record = emptyRecord();
   const done = copyApi({ timelines, checks: new Map([[node.headRefOid, [{ status: "completed", conclusion: "neutral" }]]]) });
   assert.deepEqual(await copyDispatch(done, [node], { record }), { dispatched: [], failed: 0 });
-  // Recorded: the next run reads nothing for the head.
   const next = copyApi({ timelines });
   assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
   assert.deepEqual(next.calls.checkReads, []);

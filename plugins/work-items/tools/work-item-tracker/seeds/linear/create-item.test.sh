@@ -10,10 +10,9 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S" # no --title
+assert_usage_error "$S"
 assert_usage_error "$S" --title
 assert_usage_error "$S" --title "t" --repo
 
@@ -53,7 +52,6 @@ assert_no_create() {
   fi
 }
 
-# --- happy path ---
 seed_create
 rc="$(lin_run "$S" --title "new work")"
 assert_eq "create → exit 0" "0" "$rc"
@@ -82,7 +80,6 @@ else
   pass "no issue is created when a label is unknown"
 fi
 
-# --- --type cannot be honored, and says so ---
 seed_create
 rc="$(lin_run "$S" --title "typed" --type "Bug")"
 assert_eq "--type is accepted → exit 0" "0" "$rc"
@@ -223,7 +220,6 @@ rc="$(lin_run "$S" --title "t" --blocked-by "linear:acme/OPS#1")"
 assert_eq "out-of-scope blocker → exit 2" "2" "$rc"
 assert_eq "still nothing created" "" "$(lin_requests)"
 
-# --- blocker edges are written after creation, in the right direction ---
 seed_create
 rc="$(lin_run "$S" --title "blocked" --blocked-by "linear:acme/ENG#12")"
 assert_eq "create with a blocker → exit 0" "0" "$rc"
@@ -232,13 +228,11 @@ assert_eq "create with a blocker → exit 0" "0" "$rc"
 assert_contains "the blocker is the relation source" "$(lin_bodies)" '"type":"blocks"'
 assert_contains "and the new issue is the target" "$(lin_bodies)" '"relatedIssueId":"uuid-issue-12"'
 
-# --- a missing team is exit 5, not a create against nothing ---
 lin_reset
 lin_data 'teams(filter:' '{"teams":{"nodes":[]}}'
 rc="$(lin_run "$S" --title "t")"
 assert_eq "unknown team → exit 5" "5" "$rc"
 
-# --- ambiguity is refused rather than guessed ---
 lin_write_binding '{"scopes":["acme/ENG","acme/OPS"]}'
 lin_reset
 rc="$(lin_run "$S" --title "t")"
@@ -247,7 +241,6 @@ assert_contains "and says --repo is required" "$(lin_err)" "--repo is required"
 assert_eq "nothing was requested" "" "$(lin_requests)"
 lin_write_binding
 
-# --- GraphQL errors inside a 200 still fail ---
 lin_reset
 lin_data 'teams(filter:' "$TEAM_NODE"
 lin_seed 'issueCreate' 200 '{"errors":[{"message":"forbidden","extensions":{"type":"Forbidden"}}]}'

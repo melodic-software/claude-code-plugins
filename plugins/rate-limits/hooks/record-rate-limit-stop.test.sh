@@ -62,7 +62,6 @@ run() {
     bash "$HOOK" <"$WORK/stdin.json" 2>&1
 }
 
-# --- Case 1: kill switch false → silent exit 0, nothing written --------------
 HOME1="$WORK/home1"
 mkdir -p "$HOME1"
 OUT="$(run "$HOME1" "$(build_input s-kill)" CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=false)"
@@ -70,7 +69,6 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch false → silent exit 0"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 if [[ ! -e "$HOME1/$EVENTS_REL" ]]; then ok "kill switch false → no record written"; else fail "kill switch false → record written"; fi
 
-# --- Case 2: payload → one valid JSONL record with contract fields -----------
 HOME2="$WORK/home2"
 mkdir -p "$HOME2"
 OUT="$(run "$HOME2" "$(build_input s-abc-123)")"
@@ -90,13 +88,11 @@ else
   fail "detected_at = $(jq -r '.detected_at' <"$EVENTS")"
 fi
 
-# --- Case 3: second invocation appends ---------------------------------------
 run "$HOME2" "$(build_input s-second)" >/dev/null
 LINES=$(count_records "$EVENTS")
 if [[ "$LINES" == "2" ]]; then ok "second invocation appends (2 records)"; else fail "record count $LINES, want 2"; fi
 if [[ "$(tail -n 1 "$EVENTS" | jq -r '.session_id')" == "s-second" ]]; then ok "newest record last"; else fail "newest record wrong: $(tail -n 1 "$EVENTS")"; fi
 
-# --- Case 4: empty stdin → still records (event firing is the signal) --------
 HOME4="$WORK/home4"
 mkdir -p "$HOME4"
 OUT="$(env -u CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED HOME="$HOME4" bash "$HOOK" </dev/null 2>&1)"
@@ -114,14 +110,12 @@ else
   fail "empty stdin → session_id = $(jq -r '.session_id' <"$EVENTS4")"
 fi
 
-# --- Case 5: hostile session_id is JSON-escaped, record stays parseable ------
 HOME5="$WORK/home5"
 mkdir -p "$HOME5"
 run "$HOME5" '{"session_id":"a\"b\\c","hook_event_name":"StopFailure"}' >/dev/null
 EVENTS5="$HOME5/$EVENTS_REL"
 if jq -e . <"$EVENTS5" >/dev/null 2>&1; then ok "escaped session_id → record valid JSON"; else fail "escaped session_id broke record: $(cat "$EVENTS5" 2>/dev/null)"; fi
 
-# --- Case 6: rotation bounds the file ----------------------------------------
 HOME6="$WORK/home6"
 mkdir -p "$HOME6/.claude/rate-limits"
 EVENTS6="$HOME6/$EVENTS_REL"
@@ -131,10 +125,9 @@ LINES=$(count_records "$EVENTS6")
 if [[ "$LINES" =~ ^[0-9]+$ ]] && ((LINES <= 150)); then ok "rotation bounds the file ($LINES lines)"; else fail "rotation did not bound the file ($LINES lines)"; fi
 if grep -q 's-rotated' "$EVENTS6"; then ok "rotation keeps the newest record"; else fail "rotation dropped the newest record"; fi
 
-# --- Case 7: contract dir cannot be created → silent exit 0 ------------------
 HOME7="$WORK/home7"
 mkdir -p "$HOME7"
-: >"$HOME7/.claude" # a FILE where the directory belongs → mkdir -p fails
+: >"$HOME7/.claude"
 OUT="$(run "$HOME7" "$(build_input s-blocked)")"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "uncreatable contract dir → silent exit 0"; else fail "uncreatable dir (rc=$RC out=$OUT)"; fi

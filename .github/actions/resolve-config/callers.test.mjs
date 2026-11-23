@@ -11,6 +11,7 @@
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -575,7 +576,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
-test("intake-triage.yml and maintenance-tidy-code-upkeep.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+test("intake-triage.yml, maintenance-tidy-code-upkeep.yml, post-merge-test-mutation.yml, pr-refine.yml, pr-unblock.yml and work-resolve-issue.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
   const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
   const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stdout + run.stderr);
@@ -1398,6 +1399,22 @@ test("work-resolve-issue.yml: a Work status field write to agent-ready from a pe
   const text = JSON.stringify(jobs);
   assert.doesNotMatch(text, /github\.event\.label\b/);
   assert.doesNotMatch(text, /'labeled'/);
+});
+
+test("every Work status field id written outside models.issue-status equals its field-id", () => {
+  const sites = [
+    [".github/workflows/intake-reenter.yml", /github\.event\.issue_field\.id == (\d+)/g],
+    [".github/workflows/maintenance-file-dead-links.yml", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/workflows/post-merge-file-demotion-issues.yml", /field_id: (\d+), value: "needs-human"/g],
+    [".github/scripts/maintenance-audit-lane-runs/file-findings.mjs", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/scripts/maintenance-monitor-signals/monitor.mjs", /WORK_STATUS_FIELD = (\d+);/g],
+    [".github/scripts/post-merge-demotion-alert/handoff.bash", /jq -n '\[\[(\d+), /g],
+  ];
+  for (const [path, pattern] of sites) {
+    const ids = [...read(`../../../${path}`).matchAll(pattern)].map((match) => Number(match[1]));
+    assert.ok(ids.length > 0, `${path} names the Work status field`);
+    assert.deepEqual(ids, ids.map(() => ISSUE_STATUS["field-id"]), path);
+  }
 });
 
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
@@ -10182,7 +10199,7 @@ test("the release-key workflows run no ci-workflows action, and their tip steps 
   }
 });
 
-// The guards of https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh
+// The guards of https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/resolve-branch-tip/resolve.sh
 test("the inline tip read authenticates, takes the exact ref, retries only timeouts and 5xx, and fails fast on 401/403", (t) => {
   const tipRun = inlineTipSteps()[0].step.run;
   const root = tempDir("inline-tip-");
@@ -10722,12 +10739,6 @@ test("the mutant-job check names each way a credential could reach mutated code"
   assert.equal(runsMutants({ steps: [{ run: "echo hi" }] }), false);
 });
 
-// Both of the mutation lane's model chains run key, subscription and fallback
-// legs, one credential per job, each the key leg's steps but for the
-// credential, the no-token stop, the key's credit-stop marker, the leg record's
-// fallback reason and the next-leg call the fallback leg, the last, does not
-// make. post-merge-test-mutation/credential-legs.test.mjs drives each leg's
-// start and credential through every state.
 for (const stage of ["generate", "triage"]) {
   test(`post-merge-test-mutation.yml: the ${stage} chain runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow("post-merge-test-mutation.yml");
@@ -10742,17 +10753,6 @@ for (const stage of ["generate", "triage"]) {
       assert.ok(ifTerms(jobs[id].if).includes(SAME_REPO), `${id} keeps the same-repo gate`);
       assert.doesNotMatch(run(id).with.tools, /^\s*(?:Edit|Write)\s*$/m, `${id} edits nothing`);
     }
-    const shape = (id) =>
-      jobs[id].steps
-        .filter((s) => !["credential", "no-token", "next", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
-        .map((s) => {
-          const copy = structuredClone(s);
-          if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
-          if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
-          return copy;
-        });
-    assert.deepEqual(shape(ids[1]), shape(ids[0]));
-    assert.deepEqual(shape(ids[2]), shape(ids[0]));
     // Each leg starts on the leg the one before it names; the subscription
     // leg also on the gate's, for a key job that failed before its credential.
     assert.ok(ifTerms(jobs[ids[1]].if).includes(`(needs.${ids[0]}.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.${stage}-next-leg == 'subscription')`));

@@ -145,7 +145,6 @@ test("a chunked review's verdict sums every chunk's findings and takes the most 
   // One chunk is the single-pass verdict, unchanged.
   const one = { findings: [finding("CRITICAL")], summary: "s" };
   assert.deepEqual(buildChunkedVerdict({ ...rest, outputs: [one] }), buildVerdict(args(one)));
-  // Any chunk off the schema voids the whole verdict.
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [one, { findings: [finding("HIGH")], summary: "s" }] }), /chunk 2 of 2/);
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [] }));
 });

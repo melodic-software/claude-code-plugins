@@ -11,7 +11,8 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, retriageNote, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, retriageNote, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -5137,7 +5138,7 @@ const relabeled = (n, id = 801) => [
 ];
 
 test("post-merge-file-demotion-issues still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
-  const alert = readFileSync(join(HERE, "../../workflows/post-merge-file-demotion-issues.yml"), "utf8");
+  const alert = readFileSync(join(HERE, "../post-merge-demotion-alert/file-demotion-issue.sh"), "utf8");
   assert.ok(alert.includes(`note="${RECURRENCE_PREFIX.replace("`", "\\`")}`), "the recurrence comment's opening words changed");
   assert.ok(alert.includes('fix_marker="<!-- post-merge-fix check=$check -->"'), "the fix issue's first line changed");
 });

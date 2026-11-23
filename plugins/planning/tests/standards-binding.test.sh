@@ -13,7 +13,6 @@ REVIEWER="$PLUGIN_DIR/skills/plan/context/plan-reviewer.md"
 # shellcheck source=../lib/test-ok-fail.sh
 source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
-# --- grounding subsection exists exactly once, inside Step 2 ----------------
 count=$(grep -c "Ground in consumer standards" "$ARCHITECT")
 if [[ "$count" -eq 1 ]]; then
   ok "plan SKILL.md carries exactly one grounding heading"
@@ -21,7 +20,6 @@ else
   fail "expected exactly 1 'Ground in consumer standards' in plan SKILL.md, got $count"
 fi
 
-# First 1-based line number in the plan SKILL.md matching <pattern>, or empty.
 first_line() { grep -n "$1" "$ARCHITECT" | cut -d: -f1 | head -1; }
 
 step2=$(first_line "^### Step 2: Formulate the Plan")
@@ -33,7 +31,6 @@ else
   fail "grounding heading not inside Step 2 (step2=$step2 ground=$ground step3=$step3)"
 fi
 
-# --- binding reference present in both skills -------------------------------
 for f in "$ARCHITECT" "$SETUP"; do
   if grep -q "reference/standards-contract.md" "$f"; then
     ok "binding reference present in ${f#"$PLUGIN_DIR/"}"
@@ -42,7 +39,6 @@ for f in "$ARCHITECT" "$SETUP"; do
   fi
 done
 
-# --- pointer discipline: the ladder is cited, never restated ----------------
 if grep -q "Resolution ladder" "$ARCHITECT"; then
   ok "plan SKILL.md points at the binding's Resolution ladder section"
 else
@@ -59,7 +55,6 @@ for phrase in "present at the resolution root" "exit without interview"; do
   fi
 done
 
-# --- template + reviewer carry the grounding surface ------------------------
 if grep -q "Standards grounding" "$TEMPLATE"; then
   ok "plan template carries the Standards grounding element"
 else
