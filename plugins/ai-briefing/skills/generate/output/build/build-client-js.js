@@ -1,5 +1,3 @@
-// Client-side JS for single-file HTML deck (keyboard nav, scroll-spy, print mode).
-
 export function buildClientJs(groups) {
   return `
 (() => {

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#   actionlint-check.sh --end-of-turn
 
 set -uo pipefail
 

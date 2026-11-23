@@ -1,31 +1,9 @@
-// Parse output/meetings/meeting-{N}.md into structured items via remark AST.
-//
-// Briefing markdown shape:
-//   # AI Briefing — Meeting #N
-//   **Window:** ISO → ISO (~N days)
-//   **Next meeting:** YYYY-MM-DD HH:MM TZ
-//   ...
-//   ## Anthropic
-//   ### HIGH
-//   - **Title** (date opt): body. — URL · URL
-//   ### MED
-//   - **Title**: body. — URL
-//   ### LOW
-//   - body. — URL
-//   ---
-//   ## OpenAI
-//   ...
-//
-// Output:
-//   { meta: { meetingNumber, window, sourcesLine }, buckets: { Anthropic: { HIGH:[…], MED:[…], LOW:[…] }, ... } }
-
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import fs from "node:fs/promises";
 
-/** Extract plain text from an mdast inline node array. */
 function flattenInline(nodes) {
   let out = "";
   for (const n of nodes ?? []) {
@@ -40,17 +18,7 @@ function stripMetadataLabel(text, label) {
   return text.replace(new RegExp(`^${label}:\\s*`, "i"), "").trim();
 }
 
-/**
- * Split a bullet's text on the ' — ' (em-dash space) sentinel that separates
- * body from URL list. Returns { headline, body, urls, date }.
- *
- * Heuristics:
- *   - First child of listItem is paragraph; first inline run typically begins
- *     with **strong** title, then ":" or " (date):" or just " — "
- *   - URLs come after the LAST " — " segment
- */
 function parseBulletParagraph(paragraph) {
-  // Build segments: { type: "strong"|"text"|..., value, url? }
   const segs = [];
   for (const child of paragraph.children ?? []) {
     if (child.type === "strong") {
@@ -66,7 +34,6 @@ function parseBulletParagraph(paragraph) {
     }
   }
 
-  // Headline = first strong segment if it leads, else first sentence chunk
   let headline = "";
   let bodyStart = 0;
   if (segs[0]?.type === "strong") {
@@ -79,33 +46,23 @@ function parseBulletParagraph(paragraph) {
     .map((s) => (s.type === "link" ? s.url : s.value))
     .join("");
 
-  // URLs collected from raw link nodes — dedup (GFM autolink can create duplicates)
   const linkSet = new Set();
   visit(paragraph, "link", (n) => linkSet.add(n.url));
   const allLinks = [...linkSet];
 
-  // Body = text before final " — URL" tail
-  // Find last " — " followed by url-ish content
   let body = rest;
   const dashSplit = rest.split(/\s+—\s+/);
-  // Last chunk likely contains URLs separated by ' · '
   if (dashSplit.length > 1 && /https?:\/\//.test(dashSplit[dashSplit.length - 1])) {
     body = dashSplit.slice(0, -1).join(" — ").trim();
   }
 
-  // Strip ALL urls inline that survived (defensive — autolink puts them as link nodes,
-  // but they may bleed into body if the dash-split heuristic missed them)
   body = body.replace(/https?:\/\/\S+/g, "").replace(/\s+·\s+(?=$|\s)/g, " ").trim();
 
-  // Strip leading punctuation/whitespace; promote leading "(date)" prefix
-  // Also strip leading em-dash / hyphen separator (covers "**Title** — Body" pattern).
   body = body.replace(/^[—–\-:\s]+/, "").trim();
   body = body.replace(/^\(([^)]+)\):\s*/, "($1) ");
   body = body.replace(/\s+/g, " ").trim();
   body = body.replace(/\s*\.\s*$/, ".");
 
-  // Cap body length for slide density. Tail-ellipsis preserves URL coverage; no
-  // overflow at desktop/laptop/tablet/mobile viewports at this cap.
   const BODY_CAP = 500;
   if (body.length > BODY_CAP) {
     body = body.slice(0, BODY_CAP).replace(/\s+\S*$/, "") + "…";
@@ -126,9 +83,6 @@ const MONTHS = {
   oct:9, october:9, nov:10, november:10, dec:11, december:11,
 };
 
-/** Reject implausible publish dates: more than 30 days in the future
- *  (catches "retire July 24 2026" in body text being misread as a pub date)
- *  or more than 5 years in the past. */
 function isReasonablePubDate(ms) {
   if (ms == null || !Number.isFinite(ms)) return false;
   const now = Date.now();
@@ -137,9 +91,6 @@ function isReasonablePubDate(ms) {
   return ms > fiveYearsPast && ms < thirtyDaysFuture;
 }
 
-/** Turn a [, monthName, day, year?] match into a plausible timestamp, else null.
- *  Unknown month names and implausible dates both yield null so the caller falls
- *  through to the next priority. */
 function monthNameMatchToMs(match) {
   if (!match) return null;
   const monthName = match[1].toLowerCase();
@@ -150,36 +101,19 @@ function monthNameMatchToMs(match) {
   return isReasonablePubDate(ms) ? ms : null;
 }
 
-/** Extract a sortable timestamp (ms-since-epoch) from item body / headline.
- *  Supports "Apr 28", "May 6, 2026", "(May 6-7)", "2026-05-06", "5/13", "5/13/26".
- *  Returns null when no date pattern is found — caller treats null as
- *  "undated, leave in source order".
- *
- *  Priority order (highest → lowest):
- *    1. Parenthetical (Month Day) in HEADLINE — author's explicit intent
- *    2. "Mon DD" / "Mon DD, YYYY" anywhere in headline/body
- *    3. "M/D" or "M/D/YY" anywhere — covers SDK-bump shorthand
- *    4. ISO YYYY-MM-DD that is NOT inside a hyphenated compound token
- *       (e.g. `fast-mode-2026-02-01` beta header should NOT match)
- *    5. Date segments in authorized source URLs
- *       — caller applies via the URL inference pass, not here
- */
 function extractDate(body, headline) {
   const text = `${headline} ${body}`;
 
-  // Priority 1: (Month Day) parenthetical in headline. Author signal.
   const paren = monthNameMatchToMs(
     headline.match(/\(([A-Za-z]+)\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\)/),
   );
   if (paren != null) return paren;
 
-  // Priority 2: "Mon DD" / "Mon DD, YYYY" / "Mon DD-DD" anywhere
   const named = monthNameMatchToMs(
     text.match(/\b(January|February|March|April|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:[\s-–]+\d{1,2})?(?:,\s*(\d{4}))?\b/i),
   );
   if (named != null) return named;
 
-  // Priority 3: "M/D" or "M/D/YY" or "M/D/YYYY" — SDK-bump shorthand like "(5/13)"
   const slash = text.match(/(?<![\w/])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\w/])/);
   if (slash) {
     const month = parseInt(slash[1], 10) - 1;
@@ -195,9 +129,6 @@ function extractDate(body, headline) {
     }
   }
 
-  // Priority 4: ISO YYYY-MM-DD — but NOT inside a hyphenated compound token.
-  // `fast-mode-2026-02-01` should fail; ` 2026-05-15 ` or `(2026-05-15)` should match.
-  // Lookbehind/ahead require non-`-` non-word character (or start/end of string).
   const iso = text.match(ISO_DATE);
   if (iso) {
     const ms = ymdMatchToMs(iso);
@@ -207,22 +138,14 @@ function extractDate(body, headline) {
   return null;
 }
 
-/** An ISO YYYY-MM-DD date that is not part of a hyphenated compound token. */
 const ISO_DATE = /(?<![\w-])(\d{4})-(\d{2})-(\d{2})(?![\w-])/;
 
-/** Turn a [, year, month, day] digit match into a UTC timestamp. */
 function ymdMatchToMs(match) {
   return Date.UTC(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
 }
 
-/** Infer a date from a URL when extractDate returned null.
- *  Supported:
- *    - any URL with /YYYY/MM/DD/ path segment → that date
- *    - any URL with YYYY-MM-DD in path → that date (not in domain)
- *  Returns ms-since-epoch or null. */
 function dateFromUrl(url) {
   if (!url) return null;
-  // /YYYY/MM/DD/ path
   const pathDate = url.match(/\/(\d{4})\/(\d{2})\/(\d{2})(?:\/|$)/);
   if (pathDate) return ymdMatchToMs(pathDate);
   // ISO date in path (not in domain). Guard against malformed URLs — `item.urls`
@@ -238,7 +161,6 @@ function dateFromUrl(url) {
   return isoInPath ? ymdMatchToMs(isoInPath) : null;
 }
 
-/** The first non-null date `dateOf` gives across `urls`, in order, else null. */
 function firstUrlDate(urls, dateOf) {
   for (const u of urls) {
     const date = dateOf(u);
@@ -247,9 +169,6 @@ function firstUrlDate(urls, dateOf) {
   return null;
 }
 
-/** Parse a single ## bucket section's H3 children. Buckets without H3 tiers
- *  (e.g. ## Patterns, ## Breaking & Deprecated) collect their bullets under
- *  the synthetic "_items" tier. */
 function parseBucketSection(nodes) {
   const tiers = {};
   let currentTier = null;
@@ -264,8 +183,6 @@ function parseBucketSection(nodes) {
         const para = item.children.find((c) => c.type === "paragraph");
         if (!para) continue;
         const parsed = parseBulletParagraph(para);
-        // Also walk nested list (sub-bullets) for additional URLs — our briefing
-        // pattern puts source URLs as nested `- <url>` items beneath the headline.
         const nestedList = item.children.find((c) => c.type === "list");
         if (nestedList) {
           const nestedUrls = new Set(parsed.urls);
@@ -289,7 +206,6 @@ export async function parseBriefing(briefingPath, opts = {}) {
   const raw = await fs.readFile(briefingPath, "utf-8");
   const tree = unified().use(remarkParse).use(remarkGfm).parse(raw);
 
-  // Extract meta from header paragraphs
   const meta = { meetingNumber: null, window: null, sourcesLine: "" };
   let bucketStart = -1;
   for (let i = 0; i < tree.children.length; i++) {
@@ -310,7 +226,6 @@ export async function parseBriefing(briefingPath, opts = {}) {
     if (n.type === "heading" && n.depth === 2) { bucketStart = i; break; }
   }
 
-  // Walk siblings — group H2 sections
   const buckets = {};
   let currentBucket = null;
   let bucketChildren = [];
@@ -325,7 +240,7 @@ export async function parseBriefing(briefingPath, opts = {}) {
       flushBucket();
       currentBucket = flattenInline(n.children).trim();
     } else if (n.type === "thematicBreak") {
-      flushBucket(); // section separator
+      flushBucket();
     } else if (currentBucket) {
       bucketChildren.push(n);
     }
@@ -336,10 +251,7 @@ export async function parseBriefing(briefingPath, opts = {}) {
   for (const bucket of Object.values(buckets)) {
     for (const tier of Object.values(bucket)) {
       for (const item of tier) {
-        // Pass 1: URL-based inference for items still undated.
         item.date ??= firstUrlDate(item.urls, dateFromUrl);
-        // Pass 2: seen-items.json first_seen fallback (caller-provided map).
-        // Final resort when markdown encodes no date and URL has no embedded date.
         if (seenUrlDateMap) item.date ??= firstUrlDate(item.urls, (u) => seenUrlDateMap.get(u));
       }
     }

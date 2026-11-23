@@ -1,9 +1,6 @@
 # yaml-language-server: $schema=../../plugins/harness-config/schemas/harness-config.schema.json
 # Team layer for the harness-config plugin's settings.
 # Resolution: plugins/harness-config/skills/audit/scripts/audit-engine.sh (suppressions).
-# Deliberately kept findings of /harness-config:audit and /harness-config:audit-pass, keyed by
-# finding_id per the finding-suppression convention. `audit-engine.sh --table` prints the id,
-# surface and anchor of each finding; the constituents are authoritative and the key is their hash.
 suppressions:
   fce618a146f90b9c:
     check: harness-config/audit/B/baseline-ask-rules

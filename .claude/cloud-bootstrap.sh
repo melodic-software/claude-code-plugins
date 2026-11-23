@@ -1,40 +1,4 @@
 #!/usr/bin/env bash
-# Cloud bootstrap for Claude Code cloud sessions (Claude Code on the web).
-#
-# Two callers run this script, both with CLAUDE_CODE_REMOTE=true:
-#   1. The account environments' setup scripts, after clone and BEFORE the
-#      session process launches. Claude Code builds its plugin/command/skill
-#      registry at process start and never re-reads it, so this pre-launch call
-#      is the only path that gets the repo's plugins loaded at turn one.
-#   2. The SessionStart hook registered in .claude/settings.json (matcher:
-#      startup|resume), which re-runs the same script on every session start
-#      and resume as drift repair — the environment cache can be ~7 days
-#      stale. Plugin installs made by a hook run go live at the next resume,
-#      not in the session that ran the hook.
-# First-turn slash of plugins installed only by the SessionStart caller can
-# still return "Unknown command" (harness residual — claude-code-plugins#2733):
-# resume so the process reloads the registry, or follow the skill's SKILL.md
-# from the working tree. Prefer the pre-launch caller so turn one is populated.
-# Local sessions exit immediately via the CLAUDE_CODE_REMOTE guard — a local
-# machine is presumed provisioned by its owner, and this script must never
-# mutate one.
-#
-# Purpose: give a fresh cloud VM the same tool inventory as
-# .github/workflows/pr-require-checks.yml, so the repo's gates (scripts/run-plugin-tests.sh,
-# scripts/validate-plugins.sh, hygiene linters) run instead of SKIPping.
-# In-repo manifests stay the single source of truth where one exists:
-#   Node               — .node-version (standards-synced)
-#   ruff               — .github/requirements-ci.txt (hash-locked)
-#   claude CLI / Biome / markdownlint-cli2 — root package-lock.json (npm ci)
-# Tools with no in-repo manifest are pinned in the VERSION PINS block below.
-#
-# Idempotent by design: every step checks before it installs, so re-runs on
-# session resume cost seconds. Required steps (Node, npm ci, hash-locked Python
-# CI deps) fail the session start when they break; best-effort steps warn and
-# continue, because a hygiene binary being briefly unreachable should not block
-# a session. The cloud proxy only reliably allows GitHub release-asset downloads
-# for repos attached to the session, so every GitHub-release install is
-# best-effort.
 set -euo pipefail
 
 if [[ "${CLAUDE_CODE_REMOTE:-}" != "true" ]]; then
@@ -49,36 +13,22 @@ bin_dir="$HOME/.local/bin"
 mkdir -p "$bin_dir"
 export PATH="$bin_dir:$PATH"
 
-# --- VERSION PINS (only for tools with no in-repo manifest) -----------------
-# The proxy blocks the GitHub API and /releases/latest redirects; only direct
-# /releases/download/ asset URLs resolve, hence hard pins. Each pinned asset
-# also carries a SHA-256 recorded from a verified download of that exact
-# version; a mismatch refuses the install. Bump pin and hash together — and
-# authenticate before executing: on a bump, download the new asset, check it
-# against the checksums file / signature / attestation the project publishes
-# for that release BEFORE running the binary (a compromised artifact can lie
-# about its version, and hashing it here would only legitimize it), then
-# confirm the binary reports the pinned version and record
-# `sha256sum <downloaded-asset>` here.
-shellcheck_pin="v0.11.0" # .shellcheckrc targets 0.11.0+
+shellcheck_pin="v0.11.0"
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 actionlint_pin="1.17.0" # the kjanat/actionlint fork CI runs (ci-workflows actionlint/action.yml `version`); its numbers overlap upstream's, so the SHA-256 is the anchor
 actionlint_sha="620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
 typos_pin="v1.42.1"
 typos_sha="fe1492d6c1079c328ef66de2094b7a3a4569987ec972ab56002c5db4746a8d1b"
-ec_pin="v3.4.0" # editorconfig-checker 3.x, per .editorconfig-checker.json
+ec_pin="v3.4.0"
 ec_sha="feae0baaf8d55e51fd9b6c9e04497f2fb288b40034110fb9ac83fb1bf0b6011e"
 gitleaks_pin="8.28.0"
 gitleaks_sha="a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
-shfmt_pin="v3.14.1" # check-detector-eval-coverage.sh requires >= v3.13.0; check-skills installs this pin
+shfmt_pin="v3.14.1"
 shfmt_sha="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
 # markdownlint-cli2: root package-lock.json (npm ci) — never npm -g into the
 # nvm prefix; hook processes do not inherit that PATH segment (#2739 / #2748).
-check_jsonschema_pin="0.37.4" # pip/uv installs carry registry integrity checks
+check_jsonschema_pin="0.37.4"
 
-# --- Node (required) ---------------------------------------------------------
-# CI resolves Node from .node-version; the cloud image ships 20/21/22 via nvm,
-# so the pinned major is installed from nodejs.org on first run (~10s).
 node_pin="$(tr -d '[:space:]' <.node-version)"
 current_node="$(node --version 2>/dev/null || true)"
 if [[ "$current_node" != "v$node_pin" ]]; then
@@ -96,84 +46,22 @@ if [[ "$current_node" != "v$node_pin" ]]; then
 fi
 node_bin="$(dirname -- "$(command -v node)")"
 
-# --- Session PATH (required) -------------------------------------------------
-# This process's env dies with the script; $CLAUDE_ENV_FILE is the sanctioned
-# channel for shaping the session's Bash environment (per the cloud-environments
-# doc). It is set only for the SessionStart-hook caller — the pre-launch caller
-# has no session yet, so this block is skipped there.
-# node_modules/.bin exposes the pinned claude CLI and Biome from npm ci.
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC2016 # $PATH must stay literal for the session to expand
   path_line="$(printf 'export PATH="%s:%s/node_modules/.bin:%s:$PATH"' \
     "$node_bin" "$repo_root" "$bin_dir")"
-  # Resume re-runs must not stack duplicate lines: append only when absent.
   if ! grep -qxF "$path_line" "$CLAUDE_ENV_FILE" 2>/dev/null; then
     printf '%s\n' "$path_line" >>"$CLAUDE_ENV_FILE"
   fi
 fi
 
-# --- Root npm toolchain (required) --------------------------------------------
-# Provides the pinned claude CLI, Biome, and markdownlint-cli2 that
-# scripts/validate-plugins.sh, the javascript-format contract tests, and the
-# markdown-format hook expect. markdownlint-cli2 must stay a root
-# package-lock install: npm -g lands in the nvm prefix, which hook processes
-# do not inherit (#2739 / #2748). Skipped when node_modules is already in sync
-# with package-lock.json, so resume-time re-runs are free.
 if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
   npm ci --no-audit --no-fund
 fi
 
-# --- Plugins (best effort) -----------------------------------------------------
-# This script is the only place this checkout is registered as a `directory`
-# marketplace source, and it runs only in cloud sessions. .claude/settings.json
-# declares no marketplace, so a local session keeps the user's own registration
-# (local branch testing uses `claude --plugin-dir`). The fleet list the
-# environment bakes into the snapshot enables the catalog, and the settings
-# block carries only this repo's deltas (see the enabled-set computation
-# below). Cloud sessions arrive with an empty plugin registry: no plugin skill
-# loaded and every `/plugin` command unknown. Registering the checkout by
-# absolute path and installing the enabled set repairs the on-disk state, and a
-# session exercises the plugin code on the current branch, not published main.
-#
-# Timing limit (docs/cloud-sessions.md, "Plugins in sessions on this repo"):
-# the plugin/command registry is read at process start, BEFORE a SessionStart
-# hook runs, and is not re-read, so a hook run's installs are invisible to the
-# session performing them. They serve the next process start — which on an
-# ephemeral cloud VM means the environment's setup script must run this script
-# at cache-build time for a session to ever start with plugins loaded.
-#
-# Never `claude plugin marketplace remove` here. That subcommand deletes the
-# marketplace's entry from .claude/settings.json, so using it to force a
-# re-add would silently mutate tracked repository config.
-#
-# Best effort by design: a plugin that fails to install costs that plugin's
-# skills, not the session. Idempotent — installed plugins are skipped, so a
-# resume re-run costs two `claude plugin list` calls: one to see what is
-# installed, one to verify the end state afterwards. Measured on this VM with
-# nothing to do: 72 declared, 0 installed, 0 refreshed, 0 failed. The counts are
-# that measurement; only the first label changed with the summary line below.
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
-# Enabled set: the fleet list the shared environment baked into the snapshot
-# (standards cloud-environment component), overlaid with the tracked settings
-# file below. Only the /opt copy is read. The environment component also leaves
-# a /tmp copy when /opt was unwritable at cache build, but /tmp is
-# world-writable and a list at a predictable path there is an input any code
-# running in the session could plant to enable a plugin with no settings diff.
-# CLOUD_BOOTSTRAP_FLEET_LIST is the test seam.
 fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
-# A list that is absent, unparsable (a partial write at cache build), or valid
-# JSON of the wrong shape (a bare array, enabledPlugins as an array) ends the
-# plugin stage loudly, matching the canonical component. The settings file is
-# NOT a stand-in: it declares this repo's DELTAS from the fleet, not the whole
-# set, so treating it as the source installs a near-empty catalog and reports
-# it as a healthy run. Since standards #562 the snapshot installs the fleet
-# list before this script runs, so an absent list means a broken snapshot and
-# is worth saying out loud. Skipping leaves the rest of the bootstrap (Node,
-# npm ci, CI deps, hygiene binaries) to run, exactly as the missing-CLI branch
-# always has. Each reason for not running the stage says its own name: a
-# missing CLI or jq is a broken VM, an unusable list is a broken snapshot, and
-# diagnosing one as the other sends an operator after the wrong thing.
 plugin_stage=0
 if [[ ! -x "$claude_bin" ]] || ! command -v jq >/dev/null 2>&1; then
   echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
@@ -192,20 +80,6 @@ if ((plugin_stage)); then
       echo "cloud-bootstrap: warning: could not register the $marketplace_name marketplace" >&2
   fi
 
-  # Where installs actually resolve from. The registration above runs only
-  # when no marketplace of this name exists, and a cloud snapshot arrives with
-  # one of the same name registered from GitHub and tracking main. `plugin
-  # install` then pulls THAT clone and records its commit as gitCommitSha, so
-  # the checkout's HEAD is the wrong reference for both the refresh decision
-  # and the verification below: a branch ahead of main, or a checkout behind
-  # it, scored every healthy install as failed and re-ran the refresh on every
-  # resume. The reference is therefore the repository the installs come from.
-  # When that is not this checkout, bring it current first (the CLI-sanctioned
-  # pull, the one `plugin install` performs anyway) and say so once: the
-  # session then runs that clone's plugin code and not this branch's, which is
-  # the property the directory source exists for and the one thing an operator
-  # on a branch that changed a plugin needs to hear. A location that is not a
-  # git repository (a copied directory source) keeps the checkout.
   source_repo="$repo_root"
   marketplace_entry="$("$claude_bin" plugin marketplace list --json 2>/dev/null |
     jq -c --arg n "$marketplace_name" 'first(.[]? | select(.name == $n)) // {}' 2>/dev/null || true)"
@@ -214,37 +88,14 @@ if ((plugin_stage)); then
   if [[ -n "$marketplace_location" ]] &&
     git -C "$marketplace_location" rev-parse --verify HEAD >/dev/null 2>&1 &&
     [[ "$(cd -P -- "$marketplace_location" && pwd)" != "$(cd -P -- "$repo_root" && pwd)" ]]; then
-    # A pull that fails (no network, a clone the CLI refuses to fast-forward)
-    # leaves the clone as it stands, which is still what the installs serve,
-    # so the verdict below stays truthful about serving; what it cannot claim
-    # is currency, and that is said here rather than swallowed.
     if ! "$claude_bin" plugin marketplace update "$marketplace_name" >/dev/null 2>&1; then
       echo "cloud-bootstrap: warning: could not bring the $marketplace_name marketplace clone current (\`plugin marketplace update\` failed); verifying against the clone as it stands" >&2
     fi
     source_repo="$marketplace_location"
-    # `plugin marketplace list --json` reports `source` as a plain string
-    # (claude 2.1.263: "github"), while known_marketplaces.json nests it as an
-    # object with a `repo`; `jq -r` pretty-prints an object over several
-    # lines, so the one-line warning below takes either shape.
     marketplace_source="$(jq -r 'if (.source | type) == "object" then (.source.repo // .source.source // "an unknown source") else (.source // "an unknown source") end' <<<"$marketplace_entry" 2>/dev/null | tr -d '\r')"
     echo "cloud-bootstrap: warning: marketplace $marketplace_name is registered from ${marketplace_source:-an unknown source} at $marketplace_location, not this checkout; plugins serve that clone at $(git -C "$source_repo" rev-parse --short HEAD 2>/dev/null), not $(git branch --show-current 2>/dev/null || echo detached) at $(git rev-parse --short HEAD 2>/dev/null)" >&2
   fi
 
-  # The enabled set is the fleet list gated above, overlaid with the tracked
-  # settings file, so a repo entry set to false opts out of a fleet entry and
-  # a repo entry beyond the fleet is added. Only this marketplace's ids count,
-  # and they resolve against the checkout registered above, so a settings
-  # block reduced to deltas still dogfoods the whole catalog from the current
-  # branch.
-  #
-  # Every `jq -r` here and below is piped through `tr -d '\r'`. The cloud VM
-  # this script provisions runs a jq that ends its lines with LF, but the
-  # Windows build ends them with CRLF, and a plugin id carrying a trailing CR
-  # compares unequal to the same id read from anywhere else: the accounting
-  # below then calls every healthy plugin "not installed at user scope". That
-  # is only reachable when the suite in .claude/hooks/ drives this block on a
-  # developer's Windows checkout, and the strip costs nothing where jq already
-  # answers in LF.
   mapfile -t wanted < <(
     jq -r --arg n "$marketplace_name" --slurpfile f "$fleet_list" \
       '(($f[0].enabledPlugins // {}) + (.enabledPlugins // {})) | to_entries[]
@@ -253,75 +104,27 @@ if ((plugin_stage)); then
   )
   mapfile -t have < <("$claude_bin" plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null | tr -d '\r')
 
-  # Catalog entries this marketplace marks `defaultEnabled: false`. The two
-  # sources above answer INSTALL; enablement is the catalog's separate axis, and
-  # `plugin install --scope user -y` honors it — measured on claude 2.1.263
-  # against a throwaway marketplace: exit 0, the CLI printing "This plugin is
-  # disabled by default", and `plugin list --json` showing scope=user with
-  # enabled=false. So DISABLED is the EXPECTED end state for these ids, and
-  # scoring it as a failed install printed a standing failure count on every
-  # fresh snapshot — the shape that teaches operators to skip the log. The
-  # catalog is read from the repository the installs resolve against (this
-  # checkout, or the clone found above), so it reads off disk at no CLI or
-  # network cost.
   mapfile -t default_disabled < <(
     jq -r '.plugins[]? | select(.defaultEnabled == false) | .name' \
       "$source_repo/.claude-plugin/marketplace.json" 2>/dev/null | tr -d '\r'
   )
 
-  # Whether a later commit under the same version reaches a session depends on
-  # how the marketplace was added (see "Same-version commit drift" in
-  # docs/migration-playbook.md). Added by local path, as above, a relative-path
-  # plugin loads in place and the commit is live at the next session start
-  # (measured on 2.1.289: `plugin list --json` reports the clone as
-  # readFromFolder), so a reinstall here only re-records the SHA. Registered
-  # from GitHub, as a baked snapshot may be (the source_repo clone above), the
-  # plugin is a copy keyed on its version: it keeps the skills and hooks of
-  # whatever commit installed first, and `plugin update` false-greens on the
-  # version compare (#2061). For that case, compare the SHA recorded at install
-  # time against HEAD and reinstall only the plugins whose own directory changed
-  # between them.
-  #
-  # Uncommitted edits to a plugin are out of scope here and stay that way: the
-  # playbook's answer for that loop is `claude --plugin-dir ./plugins/<name>`,
-  # which takes session precedence over the cached install.
   plugins_registry="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
   head_sha="$(git -C "$source_repo" rev-parse HEAD 2>/dev/null || true)"
-  # recorded_sha <plugin-id> — the gitCommitSha the registry recorded for the
-  # plugin's user-scope install; empty when there is none.
   recorded_sha() {
     jq -r --arg id "$1" \
       '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
       "$plugins_registry" 2>/dev/null | tr -d '\r'
   }
   needs_refresh() {
-    # needs_refresh <plugin-id> — true when the cached snapshot predates a
-    # change to that plugin's directory in this checkout.
     local id="$1" name="${1%@*}" recorded
     [[ -n "$head_sha" && -f "$plugins_registry" ]] || return 1
     recorded="$(recorded_sha "$id")"
     [[ -n "$recorded" && "$recorded" != "$head_sha" ]] || return 1
-    # A commit this clone doesn't have (shallow fetch, force-push): refresh
-    # rather than guess that the snapshot is current.
     git -C "$source_repo" cat-file -e "${recorded}^{commit}" 2>/dev/null || return 0
     ! git -C "$source_repo" diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null
   }
 
-  # snapshot_problem <plugin-id> — the VERIFICATION counterpart of
-  # needs_refresh. It prints a reason when this run cannot show the installed
-  # snapshot is serving the plugin's current sources, and prints nothing when it
-  # can. Always exits 0; the OUTPUT is the verdict.
-  #
-  # Same question, deliberately OPPOSITE default, which is why this is a second
-  # function and not a second caller of the first. needs_refresh decides whether
-  # to spend an uninstall/install cycle, so every "cannot tell" case (no HEAD
-  # sha, no registry file, no recorded gitCommitSha, a JSON null flattened by
-  # `// ""`) correctly answers "do not bother". Verification asks whether the
-  # session is healthy, where "cannot tell" must NOT read as "healthy" — that
-  # fail-open is how a machine with no registry at all reported 0 failed. So
-  # each unknown becomes a named failure here. The one case needs_refresh
-  # already fails CLOSED on, a recorded commit this clone does not have
-  # (shallow fetch or force-push), is kept and reported for the same reason.
   snapshot_problem() {
     local id="$1" name="${1%@*}" recorded
     if [[ -z "$head_sha" ]]; then
@@ -350,17 +153,6 @@ if ((plugin_stage)); then
     return 0
   }
 
-  # A subcommand's exit status is NOT the verdict here, because one of them is
-  # nonzero on the healthy path. `plugin install --scope user` leaves the
-  # plugin ENABLED, so the trailing `plugin enable --scope user` then exits 1
-  # with `Plugin "<id>" is already enabled at user scope`. Measured on claude
-  # 2.1.246 against this checkout: uninstall exit 0, install exit 0,
-  # `plugin list --json` showing the id at scope=user with enabled=true and the
-  # registry's gitCommitSha advanced to HEAD, and enable exit 1 with that
-  # message. Chaining the three with `&&` therefore scored almost every healthy
-  # refresh as a failure (observed startup lines: 65 failed of 66 refreshes,
-  # then 54), which buried the one real signal this block emits. So run the
-  # chain for effect, then verify the END STATE and let that decide.
   installed=0
   refreshed=0
   declare -A action_of=()
@@ -370,10 +162,6 @@ if ((plugin_stage)); then
     if [[ " ${have[*]} " == *" $id "* ]]; then
       # shellcheck disable=SC2310  # the return status IS the verdict
       needs_refresh "$id" || continue
-      # `uninstall` drops enabled state, so re-enable explicitly or the plugin
-      # goes silently absent instead of silently stale. `--keep-data` preserves
-      # the plugin's persistent data directory. It does not preserve
-      # pluginConfigs — uninstall still drops stored userConfig.
       "$claude_bin" plugin uninstall "$id" --keep-data >/dev/null 2>&1 || true
       "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1 || true
       "$claude_bin" plugin enable "$id" --scope user >/dev/null 2>&1 || true
@@ -384,42 +172,17 @@ if ((plugin_stage)); then
     action_of["$id"]="install"
   done
 
-  # End-state verification over the FULL enabled set, not just the plugins this
-  # run touched. Verifying only what was attempted fails open twice over, and
-  # both holes are reachable on a real machine: `have` is built from every scope
-  # `plugin list` reports (this VM carries 145 entries, 73 user and 72 project),
-  # so a plugin present only at PROJECT scope counts as present and is never
-  # installed at user scope; and `needs_refresh` skips a plugin it cannot judge,
-  # so one sitting at user scope with enabled:false, or with no recorded
-  # gitCommitSha, was never looked at again. Both then printed 0 failed. The
-  # whole set costs nothing extra: verification is one batched `plugin list
-  # --json` regardless of how many ids it covers.
-  #
-  # A plugin passes only when it is installed at user scope, enabled there
-  # (enabled must be the JSON boolean true, so a string "true" is rejected), and
-  # snapshot_problem finds nothing. The one exception is an id the catalog marks
-  # `defaultEnabled: false` whose user-scope record has enabled as the JSON
-  # boolean false; a missing, null, or string enabled value still fails. It is
-  # still held to the install and snapshot checks. The exception is keyed on
-  # the catalog rather than on the disabled state itself, so a plugin that is
-  # disabled and NOT default-disabled still fails, which is the fail-closed
-  # signal this block was given in the first place. Failures are NAMED, not just
-  # counted, because a bare count cannot be acted on.
   failed_ids=()
   end_state="$("$claude_bin" plugin list --json 2>/dev/null || true)"
   listed=1
   jq -e 'type == "array"' <<<"$end_state" >/dev/null 2>&1 || listed=0
   if [[ "$listed" -eq 0 ]]; then
-    # One line for the batch. A per-plugin warning here would reproduce exactly
-    # the log flood this accounting change exists to end.
     echo "cloud-bootstrap: warning: could not read \`claude plugin list --json\`; no plugin could be verified" >&2
   fi
   for id in "${wanted[@]}"; do
     [[ -n "$id" ]] || continue
     action="${action_of[$id]}"
     reason=""
-    # One jq per id: whether a user-scope record exists, is enabled (true), or
-    # is disabled (false). An entry jq cannot read counts as no match.
     on_user="" enabled_true="" enabled_false=""
     if [[ "$listed" -eq 1 ]]; then
       IFS=$'\t' read -r on_user enabled_true enabled_false < <(
@@ -450,9 +213,6 @@ if ((plugin_stage)); then
     fi
   done
 
-  # "declared", not "enabled": the count is of ids the two sources declare, and
-  # a catalog entry marked `defaultEnabled: false` is declared and installed
-  # without ever being enabled.
   plugin_summary="cloud-bootstrap: plugins ${#wanted[@]} declared, $installed newly installed, $refreshed refreshed, ${#failed_ids[@]} failed"
   if [[ "$listed" -eq 0 ]]; then
     plugin_summary="$plugin_summary: none could be verified, see the warning above"
@@ -464,28 +224,11 @@ if ((plugin_stage)); then
 fi
 
 # --- Python CI deps (required) -------------------------------------------------
-# The same hash-locked install CI's plugin-gate lane runs; a satisfied install is
-# a fast no-op. --require-hashes is the integrity control that catches a resolved
-# wheel whose digest is not in the lockfile — including a genuine supply-chain
-# compromise — so a failure here stays fatal via `set -e`. Do not swallow stderr
-# or fall back to an unpinned install: that would convert the one tampering
-# signal into a warning easy to lose among bootstrap log lines.
-#
-# `.github/requirements-ci.txt` carries ABI-specific hashes for both the CI
-# interpreter (cp314) and the cloud VM system Python (cp311; #2657 / #2654), so
-# the locked install succeeds on either without an interpreter-mismatch skip.
 # pip rather than uv: uv's PyPI fetches time out against this VM's egress proxy.
 python3 -m pip install --user --quiet --only-binary=:all: --require-hashes \
   --requirement .github/requirements-ci.txt
 
-# --- Hygiene binaries (best effort) --------------------------------------------
-# CI installs these via hosted composite actions this VM can't reach; having
-# them locally lets the agent run the same hygiene checks before pushing.
-# Failures warn instead of blocking: each corresponding contract test SKIPs
-# visibly when its tool is absent, and CI still enforces the real gate.
 fetch_release_tool() {
-  # fetch_release_tool <cmd-name> <asset-url> <asset-sha256> <path-inside-archive>
-  # Pass "-" as <path-inside-archive> for a bare-binary asset (no archive).
   local name="$1" url="$2" sha="$3" member="$4" tmp
   if command -v "$name" >/dev/null 2>&1; then
     return 0
@@ -505,7 +248,7 @@ fetch_release_tool() {
     case "$url" in
     *.tar.xz) tar -xJf "$tmp/asset" -C "$tmp" || failed=1 ;;
     *.tar.gz) tar -xzf "$tmp/asset" -C "$tmp" || failed=1 ;;
-    *) member="asset" ;; # bare binary: install the download itself
+    *) member="asset" ;;
     esac
   fi
   if [[ "$failed" -eq 0 && -f "$tmp/$member" ]]; then
@@ -520,9 +263,6 @@ fetch_release_tool() {
 fetch_release_tool shellcheck \
   "https://github.com/koalaman/shellcheck/releases/download/${shellcheck_pin}/shellcheck-${shellcheck_pin}.linux.x86_64.tar.xz" \
   "$shellcheck_sha" "shellcheck-${shellcheck_pin}/shellcheck"
-# fetch_release_tool keeps a tool already on PATH, so a restored snapshot that
-# holds upstream actionlint would never get the fork: remove a non-fork binary
-# from the bin directory first. The fork's version line names kjanat.
 if command -v actionlint >/dev/null 2>&1 &&
   [[ "$(actionlint -version 2>/dev/null | head -n 1)" != *kjanat* ]]; then
   rm -f "$bin_dir/actionlint"
@@ -539,22 +279,10 @@ fetch_release_tool editorconfig-checker \
 fetch_release_tool gitleaks \
   "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_pin}/gitleaks_${gitleaks_pin}_linux_x64.tar.gz" \
   "$gitleaks_sha" "gitleaks"
-# shfmt ships as a bare binary (no archive). The eval-coverage gate reads
-# `shfmt --to-json` and refuses anything older than v3.13.0; bash-format's
-# format pass uses the same binary (its lint pass uses shellcheck above).
-# v3.14.1 publishes no sha256sums.txt, so shfmt_sha is sha256sum of the
-# linux_amd64 asset, checked by a second download of that URL.
 fetch_release_tool shfmt \
   "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64" \
   "$shfmt_sha" "-"
 
-# markdownlint-cli2 comes from root npm ci (devDependency in package.json),
-# not npm -g. Hook processes inherit Claude Code's environ — they see
-# ~/.local/bin (where shellcheck lands) but NOT the nvm prefix that npm -g
-# would write into, and CLAUDE_ENV_FILE PATH repairs reach subsequent Bash
-# tool calls only (#2739 / #2748). Symlink the repo-local shim into
-# ~/.local/bin so PATH-based hook resolution matches the filesystem probe
-# markdown-format already uses (`node_modules/.bin`).
 repo_mdlint="$repo_root/node_modules/.bin/markdownlint-cli2"
 if [[ -x "$repo_mdlint" ]]; then
   ln -sfn "$repo_mdlint" "$bin_dir/markdownlint-cli2"
@@ -562,9 +290,6 @@ elif [[ ! -e "$bin_dir/markdownlint-cli2" ]]; then
   echo "cloud-bootstrap: warning: markdownlint-cli2 missing from node_modules/.bin after npm ci; markdown-format will skip until it is present" >&2
 fi
 
-# pip/uv installs carry no committed hash: the registry verifies package
-# integrity against metadata (PyPI digests), a weaker trust anchor than the
-# committed SHA-256s above but an accepted one.
 if ! command -v check-jsonschema >/dev/null 2>&1; then
   if command -v uv >/dev/null 2>&1; then
     uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}"
@@ -573,10 +298,6 @@ if ! command -v check-jsonschema >/dev/null 2>&1; then
   fi || echo "cloud-bootstrap: warning: check-jsonschema install failed" >&2
 fi
 
-# --- Git history (best effort) --------------------------------------------------
-# Several CI lanes (sync/parity/portability checks) diff against origin/<base>;
-# CI checks out with fetch-depth: 0. A shallow cloud clone breaks base-ref
-# resolution, so deepen it and make sure origin/main resolves.
 git_dir="$(git rev-parse --git-dir)"
 if [[ -f "$git_dir/shallow" ]]; then
   git fetch --quiet --unshallow ||
@@ -588,17 +309,9 @@ git fetch --quiet origin "+main:refs/remotes/origin/main" ||
   echo "cloud-bootstrap: warning: could not fetch origin/main" >&2
 
 # --- Git author (best effort) ---------------------------------------------------
-# Cloud sessions don't author commits as the connected GitHub account
-# (undocumented). This derives the author from the account the session is
-# connected to, so each person is attributed to themselves. Author-only so the
-# committer's SSH signature keeps verifying. Remove once upstream fixes it.
-# The select drops a response missing login or id, so an empty field can never
-# shift the tab-split fields below.
 gh_user="$(gh api user --jq 'select((.login // "") != "" and (.id // "" | tostring) != "")
   | [.login, (.id | tostring), (.name // "")] | @tsv' 2>/dev/null)" || gh_user=''
 IFS=$'\t' read -r gh_login gh_id gh_name <<<"$gh_user" || true
-# On any failure both keys are cleared, so neither a stale author from an
-# earlier run nor a half-written pair survives.
 if [[ -z "$gh_login" || -z "$gh_id" ]] ||
   ! git config --global author.name "${gh_name:-$gh_login}" ||
   ! git config --global author.email "$gh_id+$gh_login@users.noreply.github.com"; then
@@ -608,11 +321,6 @@ if [[ -z "$gh_login" || -z "$gh_id" ]] ||
 fi
 
 # --- Report --------------------------------------------------------------------
-# Hook processes do not inherit this script's nvm-augmented PATH or
-# CLAUDE_ENV_FILE repairs (#2739). Build a hook-equivalent PATH: keep
-# ~/.local/bin and every other entry, drop only the nvm node_bin prefix this
-# script may have activated, so the startup report cannot go false-green for a
-# tool hooks cannot resolve.
 hook_safe_path="$PATH"
 if [[ -n "${node_bin:-}" ]]; then
   hook_safe_path="$(
@@ -629,8 +337,6 @@ if [[ -n "${node_bin:-}" ]]; then
 fi
 
 report_tool() {
-  # report_tool <cmd-name> <version-args...>
-  # Resolves and versions under hook_safe_path; prints the resolved path.
   local name="$1" resolved ver
   shift
   resolved="$(PATH="$hook_safe_path" command -v "$name" 2>/dev/null || true)"

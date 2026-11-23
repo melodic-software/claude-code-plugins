@@ -1,33 +1,8 @@
 #!/usr/bin/env bash
-# AI-slop findings for /ai-slop:audit. Read-only.
-#
-# Rules: the catalog entries with v1=script (reference/catalog.md is the
-# inventory; the severity crosswalk in the detector-findings convention holds
-# the argued tier per rule). Two rule classes:
-#   pattern  fires per prose line matching the rule's expression
-#   density  fires per file when matches per 1000 words reach the threshold
-#
-# Output: Finding rows (rule/file/line/fired/excerpt), then Summary rows with
-# per-rule finding and declined counts, the declined count split by cause
-# (marker, quote, config), and the rule's disabled flag. All key=value,
-# line-oriented. A chunked run (--offset/--limit) emits one Summary block per
-# chunk; emit-findings.sh sums them. --list-targets prints the resolved target
-# list instead of scanning: one `<key><TAB><path>` row per file, the key spelled
-# as the file= field.
 # Exit: always 0 on audit paths (a read-only audit must never fail the caller);
 # 2 on unknown arguments or unreadable --paths-file, when no temporary
 # directory can be made for the scan's per-file streams (removed on exit), or
 # when prose extraction fails.
-#
-# Prose extraction: fenced code blocks, inline code spans, generated regions,
-# and ignore-marked lines and blocks are removed before any rule runs; exempted candidates are
-# counted as declined per rule, never silently dropped.
-#
-# Unicode: matching uses LC_ALL=C byte sequences and POSIX ERE only, so
-# behavior is identical across GNU and BSD grep and independent of the host
-# locale. Em dash is \xE2\x80\x94; emoji classes are \xF0\x9F.. and
-# \xE2[\x98-\x9E\xAC\xAD]..; curly quotes and invisible-space residue are
-# \xE2\x80[\x98\x99\x9C\x9D\x8B] and \xC2\xA0.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,72 +15,17 @@ source "$SCRIPT_DIR/lib/config-layers.sh"
 # shellcheck source=lib/resolve-targets.sh
 source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
-# All text processing runs in the C locale: the byte-sequence rules require it,
-# and word counts diverge between UTF-8 and C locales (caught by the CI
-# portability probe — a UTF-8 default runner counted 12 words where C counted
-# 15 on the same line). Forcing it here makes output identical on every
-# machine regardless of the caller's locale.
 export LC_ALL=C
 
 EM_DASH=$'\xe2\x80\x94'
 EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
-# Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-# The trailing four are measured admissions: the three plain-word additions
-# (catalog calibration record, second pass) and pre-existing (fourth pass, from
-# the model-era section), common enough alone that only the density gate makes
-# them safe to ship. The bare singular "underscore" is not on the list: the
-# source's entry targets the verb ("underscores the importance"), and in a
-# programming-docs repository the singular is almost always the noun, the `_`
-# character in a naming convention. "underscores" stays, as the verb's common
-# form; rule-significance-inflation catches its stock objects separately.
 DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate pre-existing"
 
-# Model-era phrase roster (catalog rule-model-era-phrases; config-tunable via
-# phrase_add/phrase_remove). One ERE alternation fragment per element, apostrophes
-# spelled `.` like the PATTERN_RULES phrase lists. Anchored forms only: the bare
-# "honest take" and "the unlock" bigrams are recorded-only in the catalog
-# (measured domain-literal false positives). A fragment may contain spaces, so
-# these are read and joined as whole elements, never word-split.
 MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the unlock")
 
 # --- Rule registry ---------------------------------------------------------------
-# Pattern rules: slug|fired label|case-insensitive(0/1)|whole-word(0/1)|class|ERE
-#
-# whole-word adds grep's POSIX -w: the match must be bounded by non-word
-# characters on both sides. Phrase rules need it — without it "great question"
-# fires on "These are great questions for the reviewer", reporting an
-# IMPORTANT-tier chat-residue finding on ordinary prose. GNU's \b would express this inline but is not
-# POSIX, and this script's cross-grep parity claim rests on POSIX ERE only.
-#
-# It is OFF for rules whose match legitimately abuts a word character or is not
-# word-shaped at all: the byte-class rules (em dash, emoji, curly quotes),
-# the two EREs carrying `[^.]{0,80}` wildcards, the citation tokens (`[cite:`
-# is followed by digits), and `utm_[a-z]+=` (followed by its value).
-#
-# class is `wording` or `typography` — the policy-level quotation exemption
-# (catalog "Quotation exemption"; design borrowed from Wikipedia's MOS "principle
-# of minimal change"). A wording rule judges prose the repo AUTHORS, so it never
-# scans quoted material: blockquote lines and double-quoted spans are removed
-# from its input and counted as declined. A typography rule targets artifacts
-# that are defects wherever they appear (byte residue, tracking params, citation
-# tokens), so it scans quoted material too.
-#
-# rule-emoji-formatting anchors on the prose stream's field-separator tab and
-# then walks the markdown prefixes a formatting glyph can sit behind: up to
-# three spaces of indentation, any depth of blockquote marker, and then one
-# heading or bullet marker. A blockquote marker takes at most ONE following
-# space, because that space is part of the marker and every space after it is
-# the quote's own content: `>` and five spaces is an indented code block inside
-# a quote, and a greedy `[ ]*` there would report a glyph in code as
-# formatting. The blockquote branch is what catches a callout
-# written as `> <glyph>` or `> ### <glyph>`; without it the same glyph fired at
-# column zero and passed clean one character further in, which is how six
-# callouts survived a whole fix pass. The glyph must still follow the last
-# prefix DIRECTLY, so an emoji in content position stays clean: the catalog
-# scopes this rule to emoji used as bullets, section markers, or visual
-# separators, and an emoji inside a sentence is none of those.
 PATTERN_RULES=(
   "rule-em-dash|zero-tolerance|0|0|typography|${EM_DASH}"
   "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')[ ]?[ ]?[ ]?(>[ ]?)*(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
@@ -121,19 +41,6 @@ PATTERN_RULES=(
   "rule-stacked-hedging|stacked hedge|1|1|wording|((could|may|might) potentially|(could|might) possibly)"
   "rule-model-era-phrases|phrase match|1|1|wording|__PHRASES__"
 )
-# Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
-# All density rules are wording-class: they judge authored prose, so they run on
-# the quote-exempt stream and its word count.
-# A density rule needs BOTH density >= threshold AND at least DENSITY_MIN_HITS
-# matches: short files otherwise fire on a single normal-prose occurrence
-# (measured on this repo: one triad in a 201-word doc hit 5.0/1000).
-#
-# rule-rule-of-three was demoted from this table to the judgment rubric
-# (catalog reclass, 2026-08-25): a dogfood fix pass ended with 18/18 residual
-# findings on load-bearing enumerations, no surveyed prose linter implements a
-# tricolon rule, and the shipped ERE matched only single-word triads — biasing
-# it toward exactly the terse operative enumerations the catalog's own boundary
-# ("enumerating three actual things is not a tell") protects.
 DENSITY_MIN_HITS=3
 DENSITY_RULES=(
   "rule-ai-vocabulary|ai_vocabulary|3.0|__VOCAB__"
@@ -187,7 +94,6 @@ fi
 
 resolve_config_layers "$REPO_ROOT" "$SHOW_CONFIG"
 
-# jq reads the user-global JSON layer; the YAML layers need no jq.
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 HAVE_JSON_LAYER=0
@@ -203,15 +109,8 @@ PHRASE_REMOVE_LAYER=""
 EXCLUDED_GLOBS=()
 EM_DASH_ALLOWED_GLOBS=()
 DISABLED_RULES=""
-# Per-rule path exemptions: rule_allowed_paths maps a rule slug to globs whose
-# files decline that rule (the generalization of em_dash_allowed_paths, which
-# stays supported as an alias feeding rule-em-dash's entry). This is the
-# proportionate closure for a density rule: a line marker cannot quiet a
-# per-file density verdict, a file marker silences every rule, and this key
-# silences exactly one rule on exactly the named paths.
 declare -A RULE_ALLOWED_GLOBS
 
-# threshold_for <threshold key> <default>: .thresholds.<key> from config, else default.
 threshold_for() {
   local key="$1" default="$2" v
   cascade::scalar v ".thresholds.${key}" ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
@@ -253,13 +152,6 @@ fi
 
 VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
 
-# Effective phrase roster: shipped minus phrase_remove, plus phrase_add, then
-# hygiene. Both hygiene checks close measured failure modes, not hypothetical
-# ones: an empty/whitespace fragment joins as an empty alternation branch that
-# matches EVERY line (flood), and a fragment grep -E rejects (exit 2, e.g. an
-# unbalanced paren) errors every grep for the rule into findings=0 — a Summary
-# row indistinguishable from a clean corpus. Invalid fragments are skipped with
-# a note; the rule keeps running on the fragments that survive.
 phrase_fragment_ok() {
   grep -E -- "($1)" /dev/null >/dev/null 2>&1
   [[ $? -ne 2 ]]
@@ -287,22 +179,14 @@ if [[ "${#EFFECTIVE_PHRASES[@]}" -gt 0 ]]; then
   ))"
 fi
 
-# em_dash_allowed_paths is the legacy alias: append it to rule-em-dash's entry
-# so both spellings work and neither silently shadows the other.
 if [[ "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]]; then
   RULE_ALLOWED_GLOBS["rule-em-dash"]="${RULE_ALLOWED_GLOBS["rule-em-dash"]:-} ${EM_DASH_ALLOWED_GLOBS[*]}"
 fi
 
-# rule_allowed <slug> <file>: the file declines this one rule via config.
 rule_allowed() {
   local slug="$1" file="$2" globs
   globs="${RULE_ALLOWED_GLOBS[$slug]:-}"
   [[ -z "${globs// /}" ]] && return 1
-  # read -r -a word-splits WITHOUT pathname expansion. An unquoted $globs here
-  # was glob-expanded against the caller's cwd first, so a configured glob
-  # reached matches_glob as whatever files it happened to match locally —
-  # exemptions silently failed whenever the cwd made the expansion diverge
-  # from the literal glob (worst from the repo root, where globs expand).
   local -a glob_arr=()
   read -r -a glob_arr <<<"$globs"
   [[ "${#glob_arr[@]}" -eq 0 ]] && return 1
@@ -324,8 +208,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
   [[ -n "$OLD_PATH_NOTE" ]] && echo "$OLD_PATH_NOTE"
-  # Every Effective line ends with "[layer: <file>]" naming the layer that
-  # supplied the value, or "[layer: default]" when no layer did.
   for entry in "${DENSITY_RULES[@]}"; do
     IFS='|' read -r slug key default _ <<<"$entry"
     _val=""
@@ -344,7 +226,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cascade::list _scratch em_dash_allowed_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   _em_dash_layer="${cascade_list_layer:-default}"
   echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-} [layer: $_em_dash_layer]"
-  # Re-read the per-rule map so cascade_slug_layer holds this call's layers.
   declare -A _slug_scratch=()
   cascade::slug_map _slug_scratch rule_allowed_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   for slug in "${!RULE_ALLOWED_GLOBS[@]}"; do
@@ -365,7 +246,6 @@ fi
 resolve_targets TARGETS "$REPO_ROOT" "$PATHS_FILE" "$OFFSET" "$LIMIT" "$LIST_TARGETS" ${TARGETS[@]+"${TARGETS[@]}"} || exit $?
 
 matches_glob() {
-  # matches_glob <path> <glob>...: any glob matches the path (or its repo-relative form).
   local path="$1" rel="${1#"$REPO_ROOT"/}" g
   shift
   for g in "$@"; do
@@ -377,7 +257,6 @@ matches_glob() {
   return 1
 }
 
-# Excluded paths, the filter the scan loop applies before reading a file.
 if [[ "$LIST_TARGETS" -eq 1 ]]; then
   for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}" && continue
@@ -387,80 +266,6 @@ if [[ "$LIST_TARGETS" -eq 1 ]]; then
 fi
 
 # --- Prose extraction ------------------------------------------------------------
-# Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code
-# spans, and honors the ignore markers. A marker-exempt (DECLINE) line keeps the
-# same "lineno<TAB>text" shape in its own stream, so a caller can ask which rule
-# the exempted line would have matched instead of charging every rule for it.
-#
-# A fence opener may follow a list marker (`- ` or `1. ` plus one to four
-# spaces), because CommonMark puts a fence inside a list item; its closer is
-# then measured against that item's content column rather than column zero. A
-# fence still open at end of file is reported on stderr: that is the correct
-# parse, but it reads the rest of the file as code, and scanning nothing is a
-# failure that must not be silent.
-#
-# Markers must be WELL-FORMED comment markers, not prose mentions (the
-# audit-noise precedent): the file/start/end forms must stand alone on their
-# line, and the trailing line form must not be backtick-quoted. Without this, a
-# document that DOCUMENTS the markers exempts itself — found by dogfooding when
-# the plugin's own README declined and was silently half-scanned.
-#
-# Every form takes the same optional `: reason`, because the fix flow tells the
-# operator to suppress with one (audit SKILL.md, step 3) and the catalog names
-# the marker as the remedy for a recorded false-positive class. When only the
-# file form parsed a reason, the two forms an operator reaches for first failed
-# differently and silently: a line marker carrying a reason did not match, so
-# the finding stayed AND the reason text landed in its own excerpt; a `-start`
-# carrying one never opened the block, so the whole block was scanned. The `-end`
-# form takes one for the same reason in the dangerous direction — an unmatched
-# `-end` leaves `ignored` set and silently swallows the rest of the file.
-#
-# The backtick guard mirrors the line-marker pattern exactly rather than matching
-# any string starting with the marker prefix. A prefix match would let a
-# backticked mention of `-start`, `-end`, or `-file` veto a genuine line marker
-# sharing that line, rejecting the suppression and quoting the operator's own
-# marker back inside the excerpt — the same failure this parser exists to avoid,
-# in a new shape. Covered by the mixed-marker case in detect.test.sh.
-#
-# Batched: one awk process reads every scanned file in turn (a list of
-# "k<TAB>path" rows, k the file's index in the target list) and writes each
-# file's streams under $SCAN_DIR, one file per stream per target. Each rule then
-# runs one grep over a whole stream directory instead of one grep per file, so
-# the process count no longer grows with the number of files. Every stream file
-# holds exactly the bytes a per-file `printf '%s\n' "$stream"` would have fed
-# grep, so the rules see the same input; a stream with no rows holds one empty
-# line, as that printf did for an empty variable.
-#   P/k    prose rows
-#   W/k    P/k with quoted material removed (see the quotation exemption below)
-#   TP/k   the text column of P/k (what `cut -f2-` gave), for word and density counts
-#   TW/k   the text column of W/k
-#   DP/k, DW/k, TDW/k  the same three for marker-exempt rows, written only when
-#          the file has some
-# stdout carries one status row per file: "k<TAB>marker" when a file-level marker
-# declines it, else "k<TAB>scan<TAB>1" or "k<TAB>scan<TAB>0" for whether it has
-# marker-exempt rows.
-#
-# Quotation exemption (strip_row): blockquote lines are dropped and double-quoted
-# spans cut, for the prose rows and the marker-exempt rows separately. A quoted
-# span may WRAP: markdown prose soft-wraps at a column, so the closing quote of a
-# span often sits on the next line. The stripper carries an open-span state
-# across rows: a row with an unmatched opening quote is cut from that quote to
-# its end and the next row is cut from its start through the closing quote.
-# Without the carry, the quote pairing on the continuation line is off by one and
-# the exemption inverts, keeping the quoted text and stripping the prose between
-# quotes. The state resets per file, at a paragraph boundary (a blank line), and
-# at the start of a new block element (heading, list item, table row), so a stray
-# unmatched quote can blank out at most the rest of its own paragraph.
-#
-# Generated regions: a standalone `<!-- BEGIN GENERATED: ... -->` line through
-# the next standalone `<!-- END GENERATED: ... -->` line belongs to the script
-# the marker names, which would overwrite any edit, so no rule scans it. A
-# region left open is reported on stderr, as an unclosed fence is.
-#
-# Fences per CommonMark: openers may be indented up to three spaces past their
-# container (counted by hand, because mawk has no {n,m} intervals), and a fence
-# closes only on its OWN character, so ~~~ inside a backtick fence stays content.
-# No apostrophes anywhere in this program: it is single-quoted.
 # shellcheck disable=SC2016 # awk program text, not shell expansions
 EXTRACT_AWK='
   function fence_char(s) {
@@ -637,18 +442,6 @@ EXTRACT_AWK='
   }
 '
 
-# Finding rows from `grep -r` over a stream directory ("<stream>/k:lineno<TAB>text")
-# become "k<TAB>lineno<TAB>excerpt". The lineno/text split reproduces
-# `IFS=$'\t' read -r lineno text` (runs of tabs separate, edge tabs trimmed),
-# and a row with no line number is dropped.
-#
-# The excerpt is truncated to at most 80 BYTES without splitting a multi-byte
-# UTF-8 sequence: under the forced C locale substr counts bytes, so an em dash /
-# curly quote / emoji straddling the boundary (exactly this tool's own targets)
-# would be cut mid-character and emit invalid UTF-8 into the finding. It scans
-# back over at most three trailing continuation bytes; if their lead byte
-# declares more bytes than survived the cut, the whole partial sequence drops.
-# A `|` in the excerpt becomes `/`.
 # shellcheck disable=SC2016 # awk program text, not shell expansions
 FINDING_AWK='
   BEGIN { for (j = 0; j < 256; j++) ORD[sprintf("%c", j)] = j }
@@ -691,14 +484,6 @@ FINDING_AWK='
 ALL_RULES=()
 for entry in "${PATTERN_RULES[@]}" "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
 
-# Declined counts are kept per rule AND per cause, because one total tells a
-# reader nothing about what was exempted: `marker` is the in-file ignore
-# markers, counting the exempted lines, or occurrences, THAT RULE would have matched,
-# plus one whole-file charge to every rule when a file-level marker declines
-# the file; `quote` is the quotation exemption (blockquote lines and
-# double-quoted spans a wording rule would have matched); and `config` is an
-# excluded_paths glob or a rule_allowed_paths entry. Fenced code is not a
-# decline at all: it is never prose, so nothing is counted for it.
 declare -A FINDINGS DECLINED DECL_MARKER DECL_QUOTE DECL_CONFIG
 for slug in "${ALL_RULES[@]}"; do
   FINDINGS[$slug]=0
@@ -708,7 +493,6 @@ for slug in "${ALL_RULES[@]}"; do
   DECL_CONFIG[$slug]=0
 done
 
-# decline_rule <slug> <n> <cause>: cause is marker | quote | config.
 decline_rule() {
   local slug="$1" n="$2" cause="$3"
   DECLINED[$slug]=$((DECLINED[$slug] + n))
@@ -723,7 +507,6 @@ decline_rule() {
   esac
 }
 
-# decline_all_rules <n> <cause>
 decline_all_rules() {
   local n="$1" cause="$2" slug
   for slug in "${ALL_RULES[@]}"; do
@@ -734,13 +517,8 @@ decline_all_rules() {
 TOTAL_FILES=0
 DECLINED_FILES=0
 
-# Stdout is assembled per target index and printed in target order at the end,
-# because each rule now runs across every file at once: OUT[k] collects file
-# k's rows in the order the per-file scan emitted them (pattern rules in table
-# order, then density rules, each in line order).
 declare -A OUT=()
 emit_finding() {
-  # emit_finding <k> <slug> <lineno> <fired> <excerpt>
   local row
   printf -v row 'Finding: rule=ai-slop/audit/%s file=%s line=%s fired=%s excerpt=%s\n' \
     "$2" "${REL_OF[$1]}" "$3" "$4" "$5"
@@ -753,8 +531,6 @@ SCAN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ai-slop-detect.XXXXXX")" || {
   exit 2
 }
 trap 'rm -rf "$SCAN_DIR"' EXIT
-# A signal taken inside a `done < <(...)` loop skips the EXIT trap unless the
-# signal itself exits.
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -763,16 +539,12 @@ mkdir -p "$SCAN_DIR"/{P,W,TP,TW,DP,DW,TDW} || {
   exit 2
 }
 
-# scan_grep <stream> <grep args...>: one grep over every file of one stream.
 scan_grep() {
   local stream="$1"
   shift
   (cd "$SCAN_DIR" && grep -r "$@" "$stream")
 }
 
-# file_counts c|o: reads `grep -r` output and prints "k<TAB>n" for each file with
-# n > 0. Mode c reads `-c` rows ("<stream>/k:n"); mode o counts one row per
-# `-o` match, as `| wc -l` did.
 file_counts() {
   awk -v mode="$1" '
     {
@@ -807,17 +579,6 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
 done >"$SCAN_DIR/list"
 N_TARGETS=$k
 
-# Every file now rides on this one awk run, so its failure is not a per-file
-# blank: an extraction that did not complete would report a clean tree. It stops
-# the scan instead, and a run that returned fewer status rows than files fails
-# the same way.
-#
-# gawk has aborted this run on clean trees (exit 134, SIGABRT, after "fatal
-# error: internal error") and passed on an unchanged rerun, with no cause found.
-# That status alone earns one retry: an error in the program itself exits
-# otherwise and still stops the scan at once. The retry reads the same list, so
-# it truncates and rewrites each stream file the first run wrote, and the
-# status file.
 extract_prose() {
   awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"
 }
@@ -837,8 +598,6 @@ if [[ "$(wc -l <"$SCAN_DIR/status" | tr -d ' ')" -ne "$TOTAL_FILES" ]]; then
   exit 2
 fi
 
-# A file-level marker declines the WHOLE file wherever it sits: extraction stops
-# at the marker and the file contributes no stream.
 while IFS=$'\t' read -r k state has_decl; do
   STATE_OF[k]="$state"
   if [[ "$state" == marker ]]; then
@@ -850,8 +609,6 @@ while IFS=$'\t' read -r k state has_decl; do
   [[ "$has_decl" == 1 ]] && HAS_DECL[$k]=1
 done <"$SCAN_DIR/status"
 
-# Rule exemptions per file for one rule: ALLOWED[k] is set, and the config
-# decline charged, for each scanned file a rule_allowed_paths glob exempts.
 declare -A ALLOWED=()
 mark_allowed() {
   local slug="$1" charge="$2" kk
@@ -865,29 +622,9 @@ mark_allowed() {
   done
 }
 
-# Marker-exempt rows are kept in a stream shaped exactly like the prose stream
-# (`lineno<TAB>text`), so each rule can be asked what IT would have matched
-# instead of every rule being charged the raw exempted-line count. The shape
-# matters beyond tidiness: rule-emoji-formatting anchors its expression on that
-# field separator, so a bare-text stream could never match it.
-#
-# Quotation exemption: wording rules never scan quoted material. Blockquote
-# lines are dropped and double-quoted spans stripped; every quote-exempt
-# candidate a wording rule WOULD have matched is counted as declined for that
-# rule below, never silently dropped. Typography rules keep the full stream.
-#
-# The same split applies to the marker accounting: a wording rule is charged
-# against the quote-free marker stream (DW), a typography rule against the full
-# one (DP). A marker-exempt line a wording rule would only have matched inside
-# quoted material is charged to no rule at all. It was exempt twice over, and the
-# marker count is the count of lines the rule would actually have raised a
-# finding on.
 declare -A FULL_HITS=() KEPT_HITS=()
 for entry in "${PATTERN_RULES[@]}"; do
   IFS='|' read -r slug label ci word class ere <<<"$entry"
-  # Runtime-built roster, like __VOCAB__ in the density loop. The empty-roster
-  # guard runs before decline accounting: with every phrase removed there is
-  # nothing to exempt, and "()" would match every line.
   if [[ "$ere" == "__PHRASES__" ]]; then
     [[ -z "$PHRASES_ERE" ]] && continue
     ere="$PHRASES_ERE"
@@ -919,7 +656,6 @@ for entry in "${PATTERN_RULES[@]}"; do
       decline_rule "$slug" "$n" marker
     done < <(scan_grep "$declined_stream" -c "${flags[@]}" -- "$ere" | file_counts c)
   fi
-  # One finding per matching prose line.
   while IFS= read -r row; do
     kk="${row%%$'\t'*}"
     row="${row#*$'\t'}"
@@ -928,15 +664,6 @@ for entry in "${PATTERN_RULES[@]}"; do
   done < <(scan_grep "$stream" "${flags[@]}" -- "$ere" | awk "$FINDING_AWK")
 done
 
-# Density rules: one finding per file when density reaches the threshold. All
-# density rules are wording-class, so both the hit count and the word count come
-# from the quote-exempt stream; quote-exempt hits are declined. The threshold is
-# read once per rule: it does not depend on the file.
-#
-# Marker declines for the density rules are counted OUTSIDE the word-count
-# guard. A file whose every prose line sits inside an ignore block has no
-# scannable words left, so the guarded pass never reaches it, and a rule would
-# report zero declines for material the markers demonstrably suppressed.
 declare -A WORDS=()
 if [[ "${#SCANNED[@]}" -gt 0 ]]; then
   while IFS=$'\t' read -r kk n; do WORDS[$kk]="$n"; done < <(
@@ -976,10 +703,6 @@ for entry in "${DENSITY_RULES[@]}"; do
     candidates+="$kk"$'\t'"$hits"$'\t'"$words"$'\n'
   done
   [[ -z "$candidates" ]] && continue
-  # Density and the threshold test as the per-file awk calls computed them: the
-  # density string is split back into a field so the comparison sees two
-  # numeric strings, exactly as it did with two -v values. The threshold is
-  # config text, so it reaches awk only as -v, never as a row field.
   fired=()
   while IFS=$'\t' read -r kk hits words density over; do
     [[ "$kk" =~ ^[0-9]+$ && "$over" == 1 ]] && fired+=("$kk"$'\t'"$hits"$'\t'"$words"$'\t'"$density")
@@ -988,8 +711,6 @@ for entry in "${DENSITY_RULES[@]}"; do
     print $1 "\t" $2 "\t" $3 "\t" d[1] "\t" ((d[1] >= t) ? 1 : 0)
   }')
   [[ "${#fired[@]}" -eq 0 ]] && continue
-  # Each file's first matching line, from one grep over the stream: rows read
-  # "W/k:<line number><TAB><text>".
   FIRST=()
   while IFS= read -r row; do
     kk="${row%%:*}"
