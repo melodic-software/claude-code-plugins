@@ -3140,8 +3140,6 @@ def queued_entry_hold(
     return None, None
 
 
-# --- The unattended path ------------------------------------------------------------------------
-
 RISK_MARKER = whole_review.RISK_MARKER
 # Appended to the reasons comment when its refusal persisted: the rewrite
 # stamps the comment beside the label it explains, which the head-moved

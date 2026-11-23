@@ -5,6 +5,16 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.0] - 2026-11-23
+
+### Added
+
+- route do-your-research's fan-out through the route caller contract
+
+  The fan-out tier's per-item claim checkers now point at the caller
+  contract of /multi-agent:route (if enabled); otherwise they run here as
+  before. This is the third pilot site of #18503.
+
 ## [0.30.3] - 2026-11-23
 
 ### Changed

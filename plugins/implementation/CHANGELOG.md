@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1] - 2026-11-23
+
+### Changed
+
+- `implement` and `implement-dispatch` now list their context-dependent links under `## Related`, matching the committed skill-link table.
+
 ## [0.48.0] - 2026-11-23
 
 ### Changed

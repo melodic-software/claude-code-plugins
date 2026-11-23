@@ -361,6 +361,12 @@ four-part records live in [reference/native-deep-research.md](reference/native-d
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
+## Related
+
+- Single named upstream docs page read: /discovery:read-docs.
+- Local codebase exploration: /discovery:explore.
+- Quick library docs lookup: /context7:lookup.
+
 ## See also
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`. Source tiers, recency gates, broad-topic recipe, effort ceiling over that doubling, falsification recipe, tool-ecosystem fallback, confidence calibration, source-quality red flags, observed failure patterns

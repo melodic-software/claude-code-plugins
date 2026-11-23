@@ -1,11 +1,3 @@
-"""Actor typing and bot/human feedback classification.
-
-Ports the feedback-classification coverage onto `babysit_feedback`: structural
-bot typing with the empty-config fallback, the dependency-manager author test,
-and `collect_feedback`'s blocking/material/human bucketing including
-head-scoped dispositions and negated-severity redaction.
-"""
-
 from __future__ import annotations
 
 import pathlib

@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.22.5] - 2026-11-23
+
+### Changed
+
+- Skills now list their context-dependent links under `## Related`, and `find-handoff`, `orient` and `reanchor` name their successor under `## Next`, matching the committed skill-link table.
+
 ## [9.22.4] - 2026-11-23
 
 ### Changed

@@ -181,6 +181,11 @@ verbatim; the coverage table stays in the emitted output and is never written to
 - The gate passed: /planning:plan, reading the plan-ready summary and PLAN.md's `## Design`.
 - The gate failed: /planning:design.
 
+## Related
+
+- Recording ADR candidates surfaced by handoff: /architecture:adr.
+- Mid-session pause save-point instead of design gate: /session-flow:handoff.
+
 ## Gotchas
 
 - A thread marked "decided" without recorded rationale is not RESOLVED. FAIL it back by invoking

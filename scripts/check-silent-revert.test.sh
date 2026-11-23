@@ -90,6 +90,23 @@ drop_block() {
   git_test_config "$repo" commit -qm "$msg"
 }
 
+PIN_OLD=07df326dec55d0740f9b0dd885a2d09c09620deb
+PIN_NEW=3f2a9c1e5d7b4a6f8e0c2d1b9a7f5e3c1d0b8a6e
+
+add_pins() {
+  local repo="$1" file="$2" count="$3" sha="$4" i
+  for i in $(seq 1 "$count"); do
+    printf '      uses: melodic-software/ci-workflows/.github/workflows/job-%s.yml@%s # v0.82.0\n' \
+      "$i" "$sha" >>"$repo/$file"
+  done
+}
+
+repin() {
+  local repo="$1" file="$2"
+  sed "s/$3 # v0\.82\.0/$4 # v0.82.1/" "$repo/$file" >"$repo/$file.tmp"
+  mv "$repo/$file.tmp" "$repo/$file"
+}
+
 filler() {
   local repo="$1" n="$2" i
   for i in $(seq 1 "$n"); do
@@ -236,6 +253,62 @@ t_does_not_sum_across_culprits() {
     ok "does not sum unrelated culprits into one finding (36 lines, 18 each, threshold 25)"
   else
     fail "expected clean; culprits must be counted separately: $out"
+  fi
+}
+
+t_pure_pin_bump_is_not_a_removal() {
+  local repo
+  mk_repo repo
+  add_pins "$repo" feature.txt 40 "$PIN_OLD"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "ci: re-pin ci-workflows to v0.82.0"
+  repin "$repo" feature.txt "$PIN_OLD" "$PIN_NEW"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "ci: re-pin ci-workflows to v0.82.1"
+  SILENT_REVERT_THRESHOLD=1 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "a pin bump that changes only the SHA and version comment of 40 recent lines scores 0 (threshold 1)"
+  else
+    fail "expected a pure pin bump to attribute nothing, got rc=$RC: $OUT"
+  fi
+}
+
+t_real_removal_beside_a_pin_bump_still_fires() {
+  local repo
+  mk_repo repo
+  add_pins "$repo" feature.txt 40 "$PIN_OLD"
+  add_block "$repo" feature.txt 30 alpha
+  repin "$repo" feature.txt "$PIN_OLD" "$PIN_NEW"
+  grep -vE '/job-([1-9]|10)\.yml@' "$repo/feature.txt" >"$repo/f.tmp" || true
+  mv "$repo/f.tmp" "$repo/feature.txt"
+  drop_block "$repo" feature.txt alpha "ci: re-pin ci-workflows to v0.82.1"
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'lines lost   40  ' <<<"$OUT"; then
+    ok "a pin bump beside a real removal counts the 30 dropped lines and 10 dropped pins, not the 30 re-pinned ones"
+  else
+    fail "expected one 40-line finding (30 block lines + 10 removed pins), got rc=$RC: $OUT"
+  fi
+}
+
+t_sha_line_with_changed_free_comment_still_fires() {
+  local repo i
+  mk_repo repo
+  for i in $(seq 1 30); do
+    printf 'git checkout %s  # keep: needed for the relocation regression\n' \
+      "$PIN_OLD" >>"$repo/feature.txt"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: pin the relocation fixtures"
+  sed "s/$PIN_OLD  # keep: needed for the relocation regression/$PIN_NEW  # anything/" \
+    "$repo/feature.txt" >"$repo/f.tmp"
+  mv "$repo/f.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: bump fixture pins"
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'lines lost   30  ' <<<"$OUT"; then
+    ok "a SHA line whose free-text comment changed counts as removed (30 lines, threshold 20)"
+  else
+    fail "expected one 30-line finding; only a version-tag comment may fold, got rc=$RC: $OUT"
   fi
 }
 
@@ -2476,6 +2549,9 @@ t_finding_is_actionable
 t_quiet_below_threshold
 t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
+t_pure_pin_bump_is_not_a_removal
+t_real_removal_beside_a_pin_bump_still_fires
+t_sha_line_with_changed_free_comment_still_fires
 t_rename_is_not_a_removal
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire

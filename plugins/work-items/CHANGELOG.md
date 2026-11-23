@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.6] - 2026-11-23
+
+### Changed
+
+- Skills now list their context-dependent links under `## Related`, and `setup` and `morning-brief` name their successors under `## Next`, matching the committed skill-link table. The `morning-brief` `## Cross-references` section became those two sections.
+
 ## [15.14.5] - 2026-11-23
 
 ### Fixed
