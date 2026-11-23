@@ -76,6 +76,23 @@ and the previous record's `uuid` on each later one. A record that is not a `user
 `system` message and carries no `uuid` (a `summary` or `file-history-snapshot` line) is off the
 chain and skipped. Why the chain matters is in the script's history-file drift record.
 
+Four more FAILs are this skill's own stale-reference checks, so a rename cannot leave a case
+testing a skill or agent that no longer exists:
+
+- a prompt whose leading `/<plugin>:<skill>` resolves to no `plugins/<plugin>/skills/<skill>/SKILL.md`;
+- a `context.scaffold_script`, `context.history_file` or `context.add_dirs` entry that names nothing
+  in the case directory;
+- a `tool_used` grader on `tool: Skill` whose `input_match` names, as a literal token, a
+  `<plugin>:<skill>` with no SKILL.md, or on `tool: Agent` a `<plugin>:<agent>` with no
+  `plugins/<plugin>/agents/<agent>.md` (a `/<plugin>:<skill>` token there is checked as a skill).
+  Character classes, lookarounds and tokens joined to another regex part are skipped; a token the
+  pattern leaves open on the right (at the end, or before `|` or `)`) matches as a substring, so a
+  prefix of a real name passes;
+- a tag in `<plugin>:<skill>` form that names no skill.
+
+The name checks resolve `plugins/` as the nearest directory named `plugins` above the suite, and
+are off for a suite with none. The path check always runs.
+
 **WARN is an authoring mistake the suite loads with** and then scores badly on: `target: files`
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two paid types, with no

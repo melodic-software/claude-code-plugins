@@ -14,6 +14,7 @@ import { test } from "node:test";
 import { admits } from "../lib/gate-expression.mjs";
 import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
 import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 // The one commit and version comment every select-model-credential pin in
@@ -30,23 +31,14 @@ const LEGS = [KEY, SUB, FB];
 const PROBE = "review-handoffs-credit";
 // The one read of the trusted PR text each leg may take: no model, no secret.
 const TEXT = "collect-trusted-text";
-const jobText = (id) => {
-  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(found, `a job ${id}`);
-  return found[1];
-};
-// Each step starts at a `      - name:` line of its job.
-const stepsOf = (id) =>
-  jobText(id)
-    .split(/\n(?=      - name: )/)
-    .slice(1)
-    // A step ends before the next step's or job's comment.
-    .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block: block.replace(/\n\n {2}(?: {4})?#[\s\S]*$/, "") }));
+const wf = workflowText(text);
+const jobText = wf.job;
+const stepsOf = wf.steps;
 const STEPS = Object.fromEntries([...LEGS, PROBE, "review-handoffs"].map((id) => [id, stepsOf(id)]));
 const step = (name, job = KEY) => {
   const found = STEPS[job].find((s) => s.name === name);
   assert.ok(found, `a step named ${name} in ${job}`);
-  return found.block;
+  return found.text;
 };
 const index = (name, job = KEY) => STEPS[job].findIndex((s) => s.name === name);
 const writeDiff = readFileSync(new URL("./write-diff.py", import.meta.url), "utf8");
@@ -59,7 +51,7 @@ test("each leg reviews every chunk in order, one run each, and stops at a handof
   assert.ok(SLOTS >= 2 && SLOTS <= 9, String(SLOTS));
   for (const job of LEGS) {
     assert.equal(/^ {10}MAX_CHUNKS: "(\d+)"$/m.exec(step("Write the diff", job))[1], String(SLOTS), job);
-    const runs = STEPS[job].filter((s) => /run-claude-cli@/.test(s.block)).map((s) => s.name);
+    const runs = STEPS[job].filter((s) => /run-claude-cli@/.test(s.text)).map((s) => s.name);
     assert.deepEqual(runs, Array.from({ length: SLOTS }, (_, i) => `Review chunk ${i + 1}`), job);
     const first = step("Review chunk 1", job);
     assert.equal(/^ {8}if: (.*)$/m.exec(first)[1], "steps.prompt.outcome == 'success'", job);
@@ -522,9 +514,9 @@ test("each chunk's prompt names the manifest file and holds none of its paths, a
 
 test("after a stop no later step of the leg runs, and each lane's stop leaves the leg", () => {
   for (const job of LEGS) {
-    const gated = STEPS[job].filter((s) => /steps\.diff\.outcome == 'success'/.test(s.block));
+    const gated = STEPS[job].filter((s) => /steps\.diff\.outcome == 'success'/.test(s.text));
     assert.ok(gated.length >= 5, job);
-    for (const s of gated) assert.match(s.block, /steps\.diff\.outcome == 'success' && steps\.diff\.outputs\.stop == ''/, `${job}: ${s.name}`);
+    for (const s of gated) assert.match(s.text, /steps\.diff\.outcome == 'success' && steps\.diff\.outputs\.stop == ''/, `${job}: ${s.name}`);
     for (const lane of ["claude-review", "claude-security-review"]) {
       for (const kind of ["stop", "head"]) {
         assert.match(jobText(job), new RegExp(`^ {6}${lane}-${kind}: \\$\\{\\{ steps\\.diff\\.outputs\\.${lane}-${kind} \\|\\| steps\\.chunk-stop\\.outputs\\.${lane}-${kind} \\}\\}$`, "m"), `${job} ${lane}-${kind}`);
@@ -535,7 +527,7 @@ test("after a stop no later step of the leg runs, and each lane's stop leaves th
 
 // The report-review-counts job's "Record the stops" script, with gh stubbed to log its args.
 function recordStops(env) {
-  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").block;
+  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").text;
   const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-record-"));
   try {
@@ -553,7 +545,7 @@ function recordStops(env) {
 }
 
 test("the report-review-counts job posts each stop as a neutral verdict=none record, from a closed reason", () => {
-  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").block;
+  const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").text;
   // A stop run uploads no artifact, so the step never waits on the download.
   assert.doesNotMatch(block, /steps\.download/);
   assert.match(block, /\^\(too-large\|binary\|chunk-failed\)\$/);
@@ -810,26 +802,26 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   // One checkout per leg, the check-trigger job's of the tip, like the key leg's,
   // and the collect-trusted-text job's of the check-trigger job's recorded commit.
   assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 2);
-  const textCheckout = stepsOf(TEXT).filter((s) => /uses: actions\/checkout@/.test(s.block));
+  const textCheckout = stepsOf(TEXT).filter((s) => /uses: actions\/checkout@/.test(s.text));
   assert.equal(textCheckout.length, 1);
-  assert.match(textCheckout[0].block, /^ {10}ref: \$\{\{ needs\.check-trigger\.outputs\.main-sha \}\}\n {10}path: \.base\n {10}persist-credentials: false$/m);
+  assert.match(textCheckout[0].text, /^ {10}ref: \$\{\{ needs\.check-trigger\.outputs\.main-sha \}\}\n {10}path: \.base\n {10}persist-credentials: false$/m);
   const triggerCheckout = jobText("check-trigger").split(/\n(?=      - name: )/).filter((s) => /uses: actions\/checkout@/.test(s));
   assert.equal(triggerCheckout.length, 1);
   assert.match(triggerCheckout[0], /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m);
   assert.match(triggerCheckout[0], /^ {10}path: \.base$/m);
   assert.match(triggerCheckout[0], /^ {10}persist-credentials: false$/m);
   for (const job of LEGS) {
-    const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.block));
+    const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.text));
     assert.equal(checkouts.length, 1, job);
     // The key leg checks out the tip when it starts, never github.sha, which
     // a re-run of an old run would bring back; a later leg checks out the
     // commit its lane's key leg recorded, which the route passed on.
-    const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].block)[1];
+    const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].text)[1];
     assert.equal(ref, job === KEY ? "${{ steps.tip.outputs.sha }}" : "${{ matrix.base }}", job);
     // Right after it, the leg records the commit under the lane's name.
     assert.equal(index("Record the main commit", job), index(checkouts[0].name, job) + 1, job);
     assert.match(step("Record the main commit", job), /^ {8}run: echo "\$LANE-base-sha=\$\(git -C \.base rev-parse --verify HEAD\)" >>"\$GITHUB_OUTPUT"$/m);
-    assert.match(checkouts[0].block, /^ {10}persist-credentials: false$/m);
+    assert.match(checkouts[0].text, /^ {10}persist-credentials: false$/m);
   }
   assert.doesNotMatch(text, /github\.sha/);
   // The key and subscription legs pass each lane's commit on, and each route
@@ -891,15 +883,15 @@ test("the verdict uploads once, after it is written, under the writer's name", (
   // exactly one upload per job names lane-hold-pr-review-main, only after
   // Note the hold ran, with the fixed path that step wrote.
   const markerOf = (job, steps) => {
-    const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
-    const markers = uploads.filter((s) => input(s.block, "name") === "lane-hold-pr-review-main");
+    const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.text));
+    const markers = uploads.filter((s) => input(s.text, "name") === "lane-hold-pr-review-main");
     assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
     const [marker] = markers;
-    assert.match(marker.block, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, `${job}: the marker uploads only after Note the hold ran`);
-    assert.equal(input(marker.block, "path"), "${{ runner.temp }}/lane-hold/pr-review-main", job);
-    assert.equal(input(marker.block, "retention-days"), "1", job);
-    assert.equal(input(marker.block, "if-no-files-found"), "ignore", job);
-    assert.match(steps.find((s) => s.name === "Note the hold").block, /^ {8}id: note-hold$/m, job);
+    assert.match(marker.text, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, `${job}: the marker uploads only after Note the hold ran`);
+    assert.equal(input(marker.text, "path"), "${{ runner.temp }}/lane-hold/pr-review-main", job);
+    assert.equal(input(marker.text, "retention-days"), "1", job);
+    assert.equal(input(marker.text, "if-no-files-found"), "ignore", job);
+    assert.match(steps.find((s) => s.name === "Note the hold").text, /^ {8}id: note-hold$/m, job);
     return { marker, others: uploads.filter((s) => s !== marker) };
   };
   assert.deepEqual(markerOf("check-trigger", stepsOf("check-trigger")).others, [], "the check-trigger job uploads only its marker");
@@ -913,8 +905,8 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     const scan = step("Scan the upload for credentials", job);
     assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}steps\.verdict\.outcome == 'success'$/m, job);
     assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-review-main-verdict\/verdict\.json$/m, job);
-    assert.match(uploads[0].block, /^ {8}if: >-\n {10}\(steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m);
-    assert.match(uploads[0].block, /^ {10}name: \$\{\{ steps\.verdict\.outputs\.name \}\}$/m);
+    assert.match(uploads[0].text, /^ {8}if: >-\n {10}\(steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m);
+    assert.match(uploads[0].text, /^ {10}name: \$\{\{ steps\.verdict\.outputs\.name \}\}$/m);
     // The tree is git's, the head and base the trigger gate's: never the model's.
     const write = step("Write the verdict", job);
     assert.match(write, /TREE_SHA: \$\{\{ steps\.diff\.outputs\.tree \}\}/);
@@ -975,8 +967,7 @@ test("the key leg takes the check-trigger job's gate only from this attempt, and
   );
   assert.doesNotMatch(trigger, /head-ref/);
   // Its gate is the legs' gate, skipped under the kill switch or when both lanes are off.
-  const gateOf = (block) => block.split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Check the trigger\n"));
-  const triggerGate = gateOf(trigger);
+  const triggerGate = wf.stepNamed("check-trigger", "Check the trigger").text;
   assert.match(triggerGate, /^ {8}if: steps\.kill\.outputs\.proceed == 'true' && \(vars\.CLAUDE_REVIEW_DISABLED != 'true' \|\| vars\.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'\) && steps\.files\.outputs\.review != 'false' && steps\.judged\.outputs\.judged != 'true'$/m);
   const gateWith = (block) => block.slice(block.indexOf("        uses: ")).replace(/\n\n {6}#[\s\S]*$/, "");
   assert.equal(gateWith(triggerGate), gateWith(step("Check the trigger")));
@@ -995,7 +986,7 @@ test("the key leg takes the check-trigger job's gate only from this attempt, and
     // The values reach the script only through env, never interpolated.
     assert.doesNotMatch(take.slice(take.indexOf("        run: |")), /\$\{\{/, job);
     // Past it, the leg reads the gate's values only through it.
-    const after = STEPS[job].slice(index("Take the gate's result", job) + 1).map((s) => s.block).join("\n");
+    const after = STEPS[job].slice(index("Take the gate's result", job) + 1).map((s) => s.text).join("\n");
     assert.doesNotMatch(after, /steps\.(gate|select)\.|needs\.check-trigger\./, job);
   }
   for (const name of ["PROCEED", "REVIEW", "PR", "HEAD", "BASE"]) {
@@ -1165,7 +1156,7 @@ test("a held file list marks the run and starts no review, in the check-trigger 
     const names = steps.map((s) => s.name);
     // The marker is the step right after the select, under faultHeld's name.
     assert.equal(names[names.indexOf("Select a lane-source pull request") + 1], HELD_STEP, job);
-    const marker = /^ {8}if: (.*)$/m.exec(steps.find((s) => s.name === HELD_STEP).block)[1];
+    const marker = /^ {8}if: (.*)$/m.exec(steps.find((s) => s.name === HELD_STEP).text)[1];
     assert.ok(admits(marker, selected("true")), job);
     for (const held of [undefined, "", "false"]) assert.ok(!admits(marker, selected(held)), `${job}: ${held}`);
     if (job === "check-trigger") continue;
@@ -1192,7 +1183,7 @@ test("a held file list marks the run and starts no review, in the check-trigger 
 // judged, whose file list read.
 const GO_AHEAD = ["needs.check-trigger.outputs.run-attempt == github.run_attempt", "needs.check-trigger.outputs.proceed == 'true'", "needs.check-trigger.outputs.review == 'true'", "needs.check-trigger.outputs.judged != 'true'", "needs.check-trigger.outputs.held != 'true'"];
 
-const jobGate = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
+const jobGate = wf.jobIf;
 const upstreamRun = { ref: "refs/heads/main", repository: "o/r", run_attempt: "1", event: { workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: "o/r" } } } };
 const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "true", review: "true", judged: "" } };
 
@@ -1210,7 +1201,7 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
   }
   // The check-trigger job's own result still gates the key leg, as the implicit success() did.
   assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
-  assert.ok(!runs({ result: "success", outputs: {} }, triggered, { cancelled: true }));
+  assert.ok(!runs({ result: "success", outputs: {} }, triggered, { status: "cancelled" }));
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { "check-trigger": trigger } });
   const reviewRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { "check-trigger": trigger, [PROBE]: { result: "skipped", outputs: {} } } });
   for (const outputs of [{}, { proceed: "" }, { review: "" }]) {
@@ -1706,7 +1697,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   // job may ask only whether it is set.
   for (const job of LEGS) {
     for (const s of STEPS[job]) {
-      const values = [...s.block.matchAll(/secrets\.([A-Z_]+)(?![A-Z_]| != '')/g)].map(([, name]) => name);
+      const values = [...s.text.matchAll(/secrets\.([A-Z_]+)(?![A-Z_]| != '')/g)].map(([, name]) => name);
       if (/^Review chunk \d$/.test(s.name)) assert.equal(values.length, 1, job);
       else assert.deepEqual(values, [], `${job}: ${s.name}`);
     }
@@ -1904,7 +1895,7 @@ test("every later leg repeats the key leg's steps but for its credential and why
     keyNames.filter((name) => name !== "Pick the next leg" && name !== "Hand the lane on"),
   );
   for (const job of [SUB, FB]) {
-    for (const s of STEPS[job].filter((s) => s.name !== FB_WARNING)) assert.equal(normal(s.block), normal(step(s.name, KEY)), `${job}: ${s.name}`);
+    for (const s of STEPS[job].filter((s) => s.name !== FB_WARNING)) assert.equal(normal(s.text), normal(step(s.name, KEY)), `${job}: ${s.name}`);
     // Each record names why it ran: the route's reason, checked by the
     // credential call against report-lane-outcome's closed list.
     assert.equal(input(step("Check the credential", job), "reason"), "${{ matrix.reason }}");

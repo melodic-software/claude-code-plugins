@@ -24,7 +24,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Assuming `lock` never needs a register:** `lock` always writes its problem row, and its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.
 
-- **Treating the register gate's exit 2 as a pass:** ungradeable means the check could not see the state (missing register, gapped `Q<N>`, a deferred row absent from the Brief), which is when a silent hole is most likely, not least.
+- **Treating the register gate's exit 2 as a pass:** ungradeable means the check could not see the state (missing register, an undeclared gap in `Q<N>`, a deferred row absent from the Brief), which is when a silent hole is most likely, not least.
 
 - **A blocking question fired mid-phase:** a gate that lands after the caller's phase is underway idles a lane nobody is watching. Emit the open set at the phase boundary; justify the exception in one line.
 

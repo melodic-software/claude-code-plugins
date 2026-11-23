@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Reader for Node workspace manifests: package.json and pnpm-workspace.yaml.
-#
-# WHY. map-dependencies cites a Node package's declared dependencies and the
-# workspace members they name. A JSON manifest is not line-oriented, so the
-# reader walks the whole file as tokens with a container stack and takes
-# members by position. A nested object that reuses a section name, such as
-# pnpm.overrides.dependencies, is never read as the section.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   node_manifest_records <package.json>
-#     One line per fact, tab separated:
-#       name<TAB>value                              the "name" member
-#       workspace<TAB>glob<TAB>declaration          one "workspaces" glob
-#       dep<TAB>section<TAB>name<TAB>spec<TAB>declaration
-#                                                   one entry of dependencies,
-#                                                   devDependencies,
-#                                                   peerDependencies or
-#                                                   optionalDependencies
-#       unread<TAB>declaration                      a shape this reader skips
-#     The workspaces member is an array of strings, or an object whose
-#     "packages" member is one. declaration is the member as written,
-#     "name": "spec". An unterminated file gives one unread line.
-#   node_pnpm_workspace_records <pnpm-workspace.yaml>
-#     The same workspace and unread lines for the block list under the
-#     top-level "packages:" key. A flow list (packages: [a, b]) is unread.
-#   node_glob_regex <glob>
-#     An anchored ERE that matches a workspace-relative folder path. * stays
-#     inside one path segment, ** crosses segments, ? is one character. Fails
-#     for a negated glob or any glob using syntax beyond those characters.
-#
-# Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.

@@ -1,11 +1,11 @@
 ---
-description: "Round 2 of a webhook-sender interview whose frontier spans two topics, retry policy and failure alerting. Why hard: the round must keep every question in its full layout and add topic headers; the easy failures are one flat numbered list, or a closing summary table of the questions."
+description: "Round 2 of a webhook-sender interview whose frontier spans two topics, retry policy and failure alerting. Why hard: the round must keep every question in its full layout and add topic headers; the easy failures are one flat numbered list, or a closing summary table of the questions. The round header carries a Scope check: line."
 tags: [interview, round-layout, topic-groups, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "Round 2 asks the five decisions from Q4 on under at least two topic headers (retries and alerting), keeps each question in its full layout, and ends with the closing probe and no summary table"
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
+expected_outcome: "Round 2 asks the five decisions from Q4 on under at least two topic headers (retries and alerting), keeps each question in its layout, carries a Scope check: line in the round header, and ends with the closing probe and no summary table"
 ---
 
 /planning:interview me Add retries and failure alerting to our outbound webhook sender.

@@ -80,8 +80,6 @@ EDGES="$SCRIPT_DIR/reference-edges.sh"
 source "$SCRIPT_DIR/../../../lib/record-layout.sh"
 
 usage() {
-  # Print the header comment block only, selected by comment marker so --help
-  # stays correct as the block grows.
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
@@ -90,7 +88,6 @@ die() {
   exit "$2"
 }
 
-# --- Arguments --------------------------------------------------------------
 
 repos=()
 edges_from=""
@@ -180,7 +177,6 @@ done
 [[ -n "$edges_from" ]] || edges_from="${repos[0]}"
 [[ -d "$edges_from" ]] || die "not a directory: $edges_from" 1
 
-# --- Collect ----------------------------------------------------------------
 
 facts_out="$(bash "$FACTS" "${repos[@]}")" || die "fact collection failed" 1
 
@@ -190,12 +186,6 @@ edges_out="$(bash "$EDGES" "${edge_args[@]}")" || die "edge extraction failed" 1
 subject_owner="$(bash "$EDGES" "${edge_args[@]}" --print-owner)" || die "owner resolution failed" 1
 [[ -n "$subject_owner" ]] || subject_owner="unknown"
 
-# Fetched facts for repositories nobody has checked out. They arrive already
-# assembled, because fetching them is model work against an API and this script
-# reaches no network. A local checkout wins outright rather than field by field:
-# a probe that read the files is a better witness than an API summary of them,
-# and merging the two would produce a repository row no single source stands
-# behind.
 if [[ -n "$remote_facts" ]]; then
   [[ -r "$remote_facts" ]] || die "cannot read remote facts: $remote_facts" 1
   merged="$(printf '%s\n' "$facts_out" | awk '
@@ -228,10 +218,7 @@ if [[ -n "$remote_facts" ]]; then
   facts_out="$merged"
 fi
 
-# --- Emit -------------------------------------------------------------------
 
-# The top-level key/value split in lib/split-object.awk, shared by emission and
-# comparison, then this script's own unquote, which keeps escapes as written.
 read -r -d '' SPLIT_AWK <<'AWK' || true
 function unquote(v) {
   if (substr(v, 1, 1) == "\"") return substr(v, 2, length(v) - 2)
@@ -241,8 +228,6 @@ AWK
 SPLIT_AWK="$(<"$SCRIPT_DIR/../../../lib/split-object.awk")"$'\n'"$SPLIT_AWK"
 
 emit_array() {
-  # $1 the JSON key, $2 the newline-separated object lines, $3 the trailing
-  # comma ("," for every array but the last).
   if [[ -z "$2" ]]; then
     printf '  "%s": []%s\n' "$1" "$3"
     return
@@ -268,7 +253,6 @@ if [[ -z "$compare_to" ]]; then
   printf '  "discovery_source": "%s",\n' "$(json_escape "$source_text")"
   printf '  "remote": "%s",\n' "$(json_escape "$remote_text")"
   printf '  "subject_owner": "%s",\n' "$(json_escape "$subject_owner")"
-  # `path` is dropped on the way in; the header says why.
   emit_array repositories "$(printf '%s\n' "$facts_out" | awk "$SPLIT_AWK"'
     NF {
       n = split_object($0, k, v)
@@ -287,7 +271,6 @@ if [[ -z "$compare_to" ]]; then
   exit 0
 fi
 
-# --- Drift ------------------------------------------------------------------
 
 [[ -r "$compare_to" ]] || die "cannot read record: $compare_to" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$compare_to" ||
@@ -297,8 +280,6 @@ layout_problem="$(record_layout_problem "$compare_to")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout this script writes ($layout_problem); regenerate it: $compare_to" 1
 
-# The committed record's own arrays, one object per line, recovered by shape:
-# a repository object opens with "name", an edge object with "from".
 old_repos="$(sed -n 's/^[[:space:]]*\({"name":.*}\),\{0,1\}$/\1/p' "$compare_to")"
 old_edges="$(sed -n 's/^[[:space:]]*\({"from":.*}\),\{0,1\}$/\1/p' "$compare_to")"
 
@@ -309,15 +290,11 @@ say() {
   report="$report$1"$'\n'
   drift=1
 }
-# A timestamp moving forward is expected of any repository anyone is working in,
-# so it is reported and never gated on: a `--check` lane that went red on every
-# commit to the subject repository would be turned off within a week.
 note() {
   notes="$notes$1"$'\n'
 }
 
 compare_set() {
-  # $1 label, $2 key expression, $3 old lines, $4 new lines
   local label="$1" keyexpr="$2"
   local old_keys new_keys
   # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.
@@ -331,9 +308,6 @@ compare_set() {
   '
   old_keys="$(printf '%s\n' "$3" | awk -v e="$keyexpr" "$SPLIT_AWK$keyprog" | sort)"
   new_keys="$(printf '%s\n' "$4" | awk -v e="$keyexpr" "$SPLIT_AWK$keyprog" | sort)"
-  # A here-string, not `printf | grep -q`: grep -q exits at its first match,
-  # a printf still writing then fails with EPIPE, and under pipefail the
-  # pipeline reports that failure, so a present key reads as removed.
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -349,11 +323,6 @@ compare_set() {
 
 report="$report"'Landscape drift, fresh collection versus '"$compare_to"$'\n'
 
-# A repository is identified by `name`: the github.com origin repository name
-# when collectors resolve one (#4554), else the directory basename. Two
-# checkouts sharing a basename would still collapse onto one key here and
-# silently match the wrong row below, so an ambiguous identity is reported
-# rather than guessed at.
 dup_names() {
   printf '%s\n' "$1" | awk "$SPLIT_AWK"'
     NF { n = unquote(field($0, "name")); if (n != "") seen[n]++ }
@@ -367,9 +336,6 @@ done < <(
   printf '%s\n%s\n' "$(dup_names "$old_repos")" "$(dup_names "$facts_out")" | sort -u
 )
 
-# The committed record and this collection must describe the same kind of
-# thing. A record built with remote facts carries repositories no local-only
-# run can produce, and every one of them would otherwise report as removed.
 old_remote="$(sed -n 's/^[[:space:]]*"remote"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$compare_to" | head -1)"
 if [[ "$old_remote" != "$remote_text" ]]; then
   report="$report"'  NOT COMPARABLE: the committed record was built with remote "'"$old_remote"'" and this run declares "'"$remote_text"'".'$'\n'
@@ -379,10 +345,7 @@ fi
 compare_set repository "name" "$old_repos" "$facts_out"
 compare_set edge "to,type" "$old_edges" "$edges_out"
 
-# Field-level comparison for records present in both collections. `path` is
-# skipped: it says where a checkout sits on one machine, not what the system is.
 compare_fields() {
-  # $1 label, $2 identity key, $3 old lines, $4 new lines
   local label="$1" idkey="$2" new_line id old_line changed c
   while IFS= read -r new_line; do
     [[ -n "$new_line" ]] || continue
@@ -407,12 +370,6 @@ compare_fields() {
       [[ -n "$c" ]] || continue
       case "$c" in
       last_touched:*) note "  moved on $id: $c" ;;
-      # `remote` is `git remote get-url origin` on whichever checkout ran the
-      # collector: an https clone and an ssh clone of the same repository
-      # report different strings for the same system, the same machine-vs-
-      # architecture split `path` is dropped for outright. Downgraded to a
-      # note rather than dropped, because unlike `path` it is still a useful
-      # fact worth keeping in the emitted record.
       remote:*) note "  remote transport differs on $id: $c" ;;
       *) say "  changed $label on $id: $c" ;;
       esac
@@ -422,17 +379,12 @@ compare_fields() {
 
 compare_fields fact name "$old_repos" "$facts_out"
 
-# An edge is identified by its target and type together, so the field pass runs
-# per type rather than collapsing two edges to the same repository into one.
 for t in uses-workflow installs-plugin depends-on cites; do
   compare_fields "edge ($t)" to \
     "$(printf '%s\n' "$old_edges" | grep -F "\"type\":\"$t\"")" \
     "$(printf '%s\n' "$edges_out" | grep -F "\"type\":\"$t\"")"
 done
 
-# Evidence the COMMITTED record cites that is no longer in the checkout. Reading
-# the committed side is the point: a fresh collection can only ever cite files
-# that exist, so checking it would find nothing by construction.
 missing="$(printf '%s\n' "$old_edges" | awk "$SPLIT_AWK"'
   NF {
     to = unquote(field($0, "to"))
@@ -455,9 +407,6 @@ if [[ "$drift" -eq 0 ]]; then
   if [[ -z "$notes" ]]; then
     printf 'Landscape drift: none. The committed record matches a fresh collection.\n'
   else
-    # Saying the record "matches" and then listing what moved contradicts
-    # itself. Non-gating lines are still differences; only their consequence
-    # differs.
     printf 'Landscape drift: none that gates. Non-gating differences follow.\n'
     printf '%s' "$notes"
   fi

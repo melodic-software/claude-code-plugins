@@ -36,17 +36,15 @@ interfaces and contracts wait for design, files and symbols for plan.
   changes behavior, structure, or contracts
 - Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
   on-ramp), or follow-ups where the Brief is the conversation
-- Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
-  time, highest architectural blast radius first
-- Calls explore, research or a PRD (stages 2-4), or a prototype, only when a question it asks
-  needs one, then resumes; none of them runs before it
+- How its questions are paced, and when explore, research, a PRD (stages 2-4) or a prototype runs
+  around it, are `/planning:interview`'s rules
 - When the interview adds or renames a domain term, the glossary change, and for a renamed term the
   code rename, land as their own change before plan and decompose, so the spec and tickets name
   only the settled terms: through a glossary capability (if enabled, e.g.
   /domain-driven-design:ubiquitous-language) and a rename sweep (if enabled, e.g.
   /docs-hygiene:rename-references); without them, edit the glossary file and sweep the old name by
   hand. With no term added or renamed, this step is skipped
-- **Effort:** scoping in question rounds the human answers one at a time
+- **Effort:** scoping in question rounds the human answers
 
 ## 2. Explore (conditional: a question needs the code read)
 

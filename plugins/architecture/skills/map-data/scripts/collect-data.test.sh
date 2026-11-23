@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-data.sh and render-data.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -58,7 +57,6 @@ bad="$(bash "$COLLECT" --nope 2>&1)"
 assert_equals "usage: unknown argument exits 2" "$?" "2"
 assert_contains "usage: names the argument" "$bad" "unknown argument"
 
-# --- Prisma cardinality, no columns in the diagram -------------------------
 repo="$TEST_TMPDIR/prisma"
 init_repo "$repo"
 mkdir -p "$repo/orders"
@@ -101,7 +99,6 @@ assert_contains "columns flag shows title" "$mdc" "title"
 assert_contains "columns summary" "$sumc" "columns=yes"
 assert_contains "authorId is a foreign key" "$mdc" "authorId FK"
 
-# --- two modules refuse until scoped ----------------------------------------
 repo2="$TEST_TMPDIR/two"
 init_repo "$repo2"
 mkdir -p "$repo2/orders" "$repo2/billing"
@@ -124,7 +121,6 @@ mdone="$(cat "$TEST_TMPDIR/two-one/data-model.md")"
 assert_contains "scope orders draws Order" "$mdone" "Order"
 assert_not_contains "scope orders hides Invoice" "$mdone" "Invoice"
 
-# --- migration disagrees with prisma ----------------------------------------
 repo3="$TEST_TMPDIR/mismatch"
 init_repo "$repo3"
 mkdir -p "$repo3/shop/prisma/migrations/20240101000000_init"
@@ -162,7 +158,6 @@ mismd="$(cat "$TEST_TMPDIR/record-out/data-model.md")"
 assert_contains "mismatch is on the artifact" "$mismd" "optionality"
 assert_contains "diagram follows the model" "$mismd" 'User ||--o{ Post'
 
-# --- SQL only, after a dropped table ----------------------------------------
 repo4="$TEST_TMPDIR/sqlonly"
 init_repo "$repo4"
 mkdir -p "$repo4/db/migrations/001" "$repo4/db/migrations/002"
@@ -184,7 +179,6 @@ assert_contains "sql tier" "$sqlrec" '"source_tier": "migration"'
 assert_contains "sql keeps Note" "$sqlrec" '"name":"Note"'
 assert_not_contains "sql replays the drop" "$sqlrec" "Gone"
 
-# --- django is a refusal, not a diagram -------------------------------------
 repo5="$TEST_TMPDIR/django"
 init_repo "$repo5"
 mkdir -p "$repo5/app"
@@ -203,7 +197,6 @@ djmd="$(cat "$TEST_TMPDIR/dj-out/data-model.md")"
 assert_not_contains "django draws nothing" "$djmd" "erDiagram"
 assert_contains "django names the mechanism" "$djmd" "django"
 
-# --- prisma plus django is a partial read -----------------------------------
 repo6="$TEST_TMPDIR/both"
 init_repo "$repo6"
 mkdir -p "$repo6/app"
@@ -215,13 +208,11 @@ both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "partial read refused" "$both" '"reason": "partial-read"'
 assert_not_contains "partial read has no entity" "$both" '"name":"User"'
 
-# --- live never reads the schema --------------------------------------------
 bash "$COLLECT" --repo "$repo" --out "$TEST_TMPDIR/live.json" --generated-on 2026-09-28 --live
 live="$(cat "$TEST_TMPDIR/live.json")"
 assert_contains "live refused" "$live" '"reason": "live-connection-requested"'
 assert_not_contains "live did not read prisma" "$live" "Post"
 
-# --- EF fluent --------------------------------------------------------------
 repo7="$TEST_TMPDIR/ef"
 init_repo "$repo7"
 mkdir -p "$repo7/src"
@@ -237,7 +228,6 @@ bash "$RENDER" --record "$TEST_TMPDIR/ef.json" --out "$TEST_TMPDIR/ef-out" --dia
 efmd="$(cat "$TEST_TMPDIR/ef-out/data-model.md")"
 assert_contains "ef diagram" "$efmd" 'User ||--o{ Post'
 
-# --- EF docs standard shape: entity classes plus IEntityTypeConfiguration ----
 mk_ef_docs_repo() {
   local dir="$1" fk_type="$2" required="$3"
   init_repo "$dir"
@@ -339,7 +329,6 @@ assert_contains "ef unreadable chain refused" "$efref" '"status": "refused"'
 assert_contains "ef unreadable chain reason" "$efref" 'ef-fluent-unreadable'
 assert_not_contains "ef unreadable chain emits no relationship" "$efref" '"tool":"ef-fluent"'
 
-# --- dialect resolver -------------------------------------------------------
 # shellcheck disable=SC2016 # the fence is literal markdown, not a command substitution
 printf '```yaml\ndiagram_dialect:\n  data: dbml\n```\n' >"$TEST_TMPDIR/formats.md"
 got="$(bash "$DIALECT" --kind data --formats "$TEST_TMPDIR/formats.md")"
@@ -352,7 +341,6 @@ dbml="$(cat "$TEST_TMPDIR/dbml/data-model.dbml")"
 assert_contains "dbml ref" "$dbml" 'Ref: "Post"."authorId" > "User"."id"'
 assert_contains "dbml column" "$dbml" "title"
 
-# --- one-to-one and referenced columns, Prisma ------------------------------
 repo9="$TEST_TMPDIR/prisma-11"
 init_repo "$repo9"
 mkdir -p "$repo9/app"
@@ -472,7 +460,6 @@ commit_all "$repo10"
 bash "$COLLECT" --repo "$repo10" --out "$TEST_TMPDIR/pc2.json" --generated-on 2026-09-28
 assert_contains "composite fk with a unique set is one-to-one" "$(cat "$TEST_TMPDIR/pc2.json")" '"cardinality":"||--o|"'
 
-# --- one-to-one and referenced columns, SQL ---------------------------------
 repo11="$TEST_TMPDIR/sql-11"
 init_repo "$repo11"
 mkdir -p "$repo11/db/migrations/001"
@@ -543,7 +530,6 @@ sc="$(cat "$TEST_TMPDIR/sc.json")"
 assert_contains "sql composite fk with no unique set refuses" "$sc" '"reason": "unknown-cardinality"'
 assert_not_contains "sql composite fk draws no relationship" "$sc" '"cardinality"'
 
-# --- one-to-one, EF fluent --------------------------------------------------
 repo13="$TEST_TMPDIR/ef-11"
 init_repo "$repo13"
 mkdir -p "$repo13/src"
@@ -567,7 +553,6 @@ assert_contains "ef dbml names a declared principal key" "$ef11dbml" 'Ref: "Post
 assert_contains "ef dbml keeps an unknown referenced column as a comment" "$ef11dbml" '// Ref: "Note"."UserId" > "User" (referenced column not declared)'
 assert_not_contains "ef dbml does not invent an id column" "$ef11dbml" '"User"."id"'
 
-# --- SQL replay: ALTER TABLE, column-level REFERENCES, root migrations/ -----
 repo14="$TEST_TMPDIR/sql-alter"
 init_repo "$repo14"
 mkdir -p "$repo14/migrations/001" "$repo14/migrations/002" "$repo14/migrations/003"
@@ -666,7 +651,6 @@ for form in 'ALTER TABLE "User" RENAME TO "Account";' 'ALTER TABLE "User" ALTER 
   assert_not_contains "unreadable ALTER draws no entity: $form" "$s16" '"name":"User"'
 done
 
-# --- a losing tier does not block or inflate the winner ---------------------
 repo17="$TEST_TMPDIR/losers"
 init_repo "$repo17"
 mkdir -p "$repo17/orders/migrations/001" "$repo17/tests"
@@ -711,7 +695,6 @@ assert_equals "default scope draws the only module, exit 0" "$rc17" "0"
 assert_contains "the diagram is drawn" "$sum17" "status=drawn"
 assert_contains "the diagram follows prisma" "$(cat "$TEST_TMPDIR/s17-out/data-model.md")" 'User ||--o{ Post'
 
-# The same fixture with a readable migration and an EF file that reads still compares.
 printf 'modelBuilder.Entity<Post>().HasOne<User>().WithMany().HasForeignKey("authorId").IsRequired();\n' >"$repo17/tests/Sample.cs"
 commit_all "$repo17"
 bash "$COLLECT" --repo "$repo17" --out "$TEST_TMPDIR/s17b.json" --generated-on 2026-09-28
@@ -719,7 +702,6 @@ s17b="$(cat "$TEST_TMPDIR/s17b.json")"
 assert_not_contains "a readable losing tier is compared, not skipped" "$s17b" '"kind":"not-compared"'
 assert_contains "the readable EF tier keeps its mechanism row" "$s17b" '"name":"ef-fluent"'
 
-# An unreadable losing SQL migration is reported the same way.
 printf 'ALTER TABLE "Post" RENAME TO "Article";\n' >"$repo17/orders/migrations/001/migration.sql"
 printf 'model Note {\n  id Int @id\n}\n' >"$repo17/orders/schema.prisma"
 commit_all "$repo17"
@@ -728,7 +710,6 @@ s17c="$(cat "$TEST_TMPDIR/s17c.json")"
 assert_contains "prisma still wins beside an unreadable migration" "$s17c" '"source_tool": "prisma"'
 assert_contains "the unreadable migration is reported as not compared" "$s17c" 'sql-migration was not compared with prisma'
 
-# EF that would win still refuses.
 repo18="$TEST_TMPDIR/ef-wins"
 init_repo "$repo18"
 mkdir -p "$repo18/src"
@@ -737,7 +718,6 @@ commit_all "$repo18"
 bash "$COLLECT" --repo "$repo18" --out "$TEST_TMPDIR/s18.json" --generated-on 2026-09-28
 assert_contains "an unreadable EF chain refuses when EF would win" "$(cat "$TEST_TMPDIR/s18.json")" '"reason": "ef-fluent-unreadable"'
 
-# --- the same short name in two modules stays two nodes ---------------------
 repo19="$TEST_TMPDIR/same-name"
 init_repo "$repo19"
 mkdir -p "$repo19/orders" "$repo19/billing"
@@ -756,7 +736,6 @@ assert_contains "dbml keeps billing/User as its own table" "$s19dbml" 'Table "bi
 bash "$RENDER" --record "$TEST_TMPDIR/s19.json" --out "$TEST_TMPDIR/s19-one" --dialect mermaid --scope orders >/dev/null
 assert_contains "one module in scope keeps the short name" "$(cat "$TEST_TMPDIR/s19-one/data-model.md")" 'User ||--o{ Note'
 
-# --- reformatted record -----------------------------------------------------
 printf '%s\n' '{"schema_version":1,"entities":[]}' >"$TEST_TMPDIR/flat.json"
 set +e
 bash "$RENDER" --record "$TEST_TMPDIR/flat.json" --out "$TEST_TMPDIR/flat-out" >/dev/null 2>"$TEST_TMPDIR/flat-err"
@@ -764,7 +743,6 @@ frc=$?
 assert_equals "flat record exits 1" "$frc" "1"
 assert_not_contains "flat record writes nothing" "$(ls "$TEST_TMPDIR/flat-out" 2>/dev/null || true)" "data-model.md"
 
-# --- empty tree -------------------------------------------------------------
 repo8="$TEST_TMPDIR/empty"
 init_repo "$repo8"
 printf 'hello\n' >"$repo8/README.md"

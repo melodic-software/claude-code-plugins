@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" reopen --ledger .work/api-rate-limit/interview-checklist.md Q3 --round 3 --fact-file .work/api-rate-limit/fact-q3.txt"
+          }
+        }
+      ],
+      "why": "Q3 reopened through the tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/api-rate-limit/interview-checklist.md",
+            "old_string": "| answered | round 2 | Where",
+            "new_string": "| open | round 2 | Where"
+          }
+        }
+      ],
+      "why": "the row is hand-edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash round.sh reopen --ledger x.md Q5 --round 3 --fact-file f"
+          }
+        }
+      ],
+      "why": "the wrong row is reopened"
+    }
+  ]
+}

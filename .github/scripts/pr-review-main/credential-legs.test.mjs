@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { launcherOutcomes, loadSelect, runs, selectPin, value } from "../lib/model-credential.mjs";
+import { admits } from "../lib/gate-expression.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 
 const TEXT = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
@@ -34,7 +35,7 @@ const memo = (fn) => {
   };
 };
 const parsed = workflowText(TEXT);
-const wf = { job: memo(parsed.job), jobIf: memo(parsed.jobIf), outputs: memo(parsed.outputs), step: memo(parsed.step) };
+const wf = { job: memo(parsed.job), jobIf: memo(parsed.jobIf), outputs: memo(parsed.outputs), step: memo(parsed.step), stepNamed: memo(parsed.stepNamed) };
 const S = await loadSelect(selectPin(TEXT));
 
 const GATE = "review-handoffs-credit";
@@ -50,20 +51,11 @@ const SLOTS = [1, 2, 3, 4];
 // evaluate() reads no matrix context; a matrix value rides under inputs.
 const expr = (text) => text.replace(/\bmatrix\./g, "inputs.matrix.");
 const val = (text, ctx) => value(expr(text), ctx);
-// A step whose if: names no status function also needs every step before it
-// to have succeeded (GitHub's implicit success()).
-const stepRuns = (condition, ctx, jobOk) => (/cancelled\(\)|always\(\)/.test(condition) || jobOk) && runs(expr(condition), ctx);
-
-// A named step's if: and its `with:` and `env:` values.
-const named = memo((job, name) => {
-  const block = wf.job(job).split(/\n(?= {6}- name: )/).find((s) => s.startsWith(`      - name: ${name}\n`));
-  assert.ok(block, `${job}: ${name}`);
-  const map = (key) => Object.fromEntries([...(new RegExp(`^ {8}${key}:\\n((?: {10}.*\\n?)+)`, "m").exec(block)?.[1] ?? "").matchAll(/^ {10}([\w-]+): (.*)$/gm)].map(([, k, v]) => [k, v]));
-  return { if: /^ {8}if: (.*)$/m.exec(block)?.[1] ?? "true", with: map("with"), env: map("env"), run: /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(block)?.[1] ?? "" };
-});
+const stepRuns = (condition, ctx, jobOk) => admits(expr(condition), ctx, { status: jobOk ? "success" : "failure" });
+const named = wf.stepNamed;
 
 // The handoff step's own reason check (its run: case), from the workflow.
-const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").run)[1].split("|").map((r) => r.trim());
+const CASE = /case "\$REASON" in\n\s+([a-z| -]+)\) ;;/.exec(named(KEY, "Hand the lane on").text)[1].split("|").map((r) => r.trim());
 
 // The old conditions, reasons and route env, at a6a9c686f3 (main before this
 // change, with #13836's held terms), with the trigger job under its id since
@@ -124,7 +116,7 @@ function legInstance(version, job, legName, s, l, reason) {
   const result = { model: willRun };
   if (legName === "subscription") result["fallback-ready"] = credential["fallback-ready"] ?? "";
   if (legName !== "key" && ran) {
-    const record = named(job, "Report chunk 1's outcome").with["fallback-reason"];
+    const record = named(job, "Report chunk 1's outcome").inputs["fallback-reason"];
     result["fallback-reason"] = val(version === "old" ? OLD.fallbackReason : record, ctx);
   }
   let handedOn = "";

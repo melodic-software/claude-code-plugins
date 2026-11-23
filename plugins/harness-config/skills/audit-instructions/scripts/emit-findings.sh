@@ -97,18 +97,13 @@ to the human report.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "emit-findings.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+source "$SCRIPT_DIR/../../../lib/opt-value.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --from | --from-lane | --out | --branch | --declined-carveout | --declined-residency)
-    require_opt_value "$@"
+    require_opt_value emit-findings.sh "$@"
     case "$1" in
     --from) FROM="$2" ;;
     --from-lane) FROM_LANE="$2" ;;

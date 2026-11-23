@@ -98,7 +98,6 @@ rc=$?
 assert_equals "no dialect option" "$rc" "2"
 assert_equals "no structurizr file" "$(ls "$OUT"/events.dsl 2>/dev/null)" ""
 
-# Short names, file-scoped namespaces, registrations, and a dynamic send.
 SHOP="$TEST_TMPDIR/shop"
 mkdir -p "$SHOP/src/Contracts" "$SHOP/src/Legacy" "$SHOP/src/Orders"
 cat >"$SHOP/src/Contracts/OrderPlaced.cs" <<'EOF'
@@ -170,7 +169,6 @@ assert_contains "dynamic send is an unresolved edge" "$shop" '{"from":"src/Order
 assert_contains "an ambiguous short name stays unresolved" "$shop" '"detail":"unresolved publish OrderPlaced src/Orders/Ambiguous.cs:4"'
 assert_contains "dynamic send is a finding" "$shop" '{"kind":"unresolved","contract":"-","detail":"unresolved send X src/Orders/OrderService.cs:8"}'
 
-# Dotted names resolve against declared types, never verbatim.
 DOTS="$TEST_TMPDIR/dots"
 mkdir -p "$DOTS/src"
 cat >"$DOTS/src/Contracts.cs" <<'EOF'
@@ -216,7 +214,6 @@ assert_contains "an undeclared dotted consumer is unresolved" "$dots" '"detail":
 assert_not_contains "no orphan from a dotted name" "$dots" '"kind":"orphan-'
 assert_not_contains "an undeclared dotted name is not a message" "$dots" '{"id":"Vendor'
 
-# A ReceiveEndpoint queue holds for its own call only.
 QUEUES="$TEST_TMPDIR/queues"
 mkdir -p "$QUEUES/src"
 cat >"$QUEUES/src/Setup.cs" <<'EOF'
@@ -270,8 +267,6 @@ rc=$?
 set +e
 assert_equals "bad layout exits 1" "$rc" "1"
 
-# A tab inside a generic argument must not shift the internal TSV fields and
-# forge record keys.
 TABS="$TEST_TMPDIR/tabs"
 mkdir -p "$TABS/src"
 printf 'namespace T;\npublic class P { void Go() { bus.Publish<X\t1\tinjected\t-\t9\tstatic\tforged>(); } }\n' >"$TABS/src/P.cs"
