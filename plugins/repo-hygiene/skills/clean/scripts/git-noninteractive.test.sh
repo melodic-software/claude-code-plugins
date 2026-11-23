@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Networked git stays non-interactive and keeps the configured ssh command.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,9 +52,6 @@ init_repo() {
   git -C "$dir" commit -qm init
 }
 
-# Shim stands in for core.sshCommand. It records its arguments and, when those
-# arguments omit BatchMode=yes, sleeps: a helper that drops the configured
-# command or forgets BatchMode fails the bounded run.
 SSH_LOG="$TEST_TMPDIR/ssh.log"
 mkdir -p "$TEST_TMPDIR/shim"
 SSH_SHIM="$TEST_TMPDIR/shim/ssh"
@@ -79,7 +75,6 @@ run_shimmed() {
   run_bounded 15 env -u GIT_SSH_COMMAND GIT_CONFIG_GLOBAL="$CFG" "$@"
 }
 
-# --- file:// remotes are contacted and do not invoke ssh ---
 BARE="$TEST_TMPDIR/origin.git"
 WORK="$TEST_TMPDIR/prune-work"
 git init -q --bare "$BARE"
@@ -131,7 +126,6 @@ else
   fail "file:// fetch moved HEAD to the remote tip" "$NEW" "$(git -C "$WORK2" rev-parse HEAD)"
 fi
 
-# --- unreachable ssh: the configured command runs, with BatchMode, and returns ---
 make_unreachable() {
   local dir="$1" track="${2:-}"
   init_repo "$dir"
@@ -222,8 +216,6 @@ VAR_REPO="$TEST_TMPDIR/variant-repo"
 make_unreachable "$VAR_REPO"
 VAR_DIR="$TEST_TMPDIR/variants dir"
 
-# run_variant <gitconfig> [VAR=value...] — the helper's ls-remote on VAR_REPO,
-# with only the given ssh settings in effect.
 run_variant() {
   local cfg="$1"
   shift
@@ -258,7 +250,6 @@ log="$(log_of "$OSSH")"
 assert_not_exit "configured BatchMode=no does not reach a prompt" 124 "$rc"
 assert_contains "enforced options precede the configured ones" "$log" "-o BatchMode=yes -o ConnectTimeout=5 -o BatchMode=no -o ConnectTimeout=30"
 
-# plink (by basename, or GIT_SSH naming plink.exe): -batch, never -o.
 PLINK="$VAR_DIR/plink/plink"
 make_recorder "$PLINK" plain
 git config --file "$VAR_DIR/plink.cfg" core.sshCommand "'$PLINK'"
@@ -288,7 +279,6 @@ log="$(log_of "$TPLINK")"
 assert_contains "tortoiseplink runs with git's -batch" "$log" " -batch "
 assert_not_contains "tortoiseplink gets no OpenSSH option" "$log" " -o "
 
-# simple, from ssh.variant or GIT_SSH_VARIANT: nothing is added, even to an ssh basename.
 WRAP="$VAR_DIR/wrap/ssh-wrap"
 make_recorder "$WRAP" plain
 git config --file "$VAR_DIR/simple.cfg" core.sshCommand "'$WRAP'"

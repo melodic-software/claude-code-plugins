@@ -10,7 +10,7 @@ answer.
 | Skill | What it does |
 |---|---|
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
-| `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them, and each value's basis (upstream statement, judgment, or a config layer). `all` is the map a workflow reads from `args.roles`. |
+| `/multi-agent:route <role\|all\|vendors <task>> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map and `vendors` settings through the config cascade and prints them as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort, source layer and basis, plus resolved `vendors` switches and preferences. `all` is the map a workflow reads from `args.roles`; `vendors <task>` chooses a vendor, model and effort for one delegated task via the benchmark trust model and `vendors` settings. |
 | `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal override is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
@@ -128,8 +128,14 @@ One configuration, layered: your own file, named by the `role_map_file`
 option (set it in `/config`), then the team file
 (`docs/conventions/multi-agent.yaml`), then a gitignored personal override
 (`docs/conventions/multi-agent.local.yaml`). Each overrides the bundled defaults
-per key, and `/multi-agent:setup` writes any of the three. Keys, values and
-layering: [`reference/config.md`](reference/config.md); where each file lives:
+per key, for both role mappings and the `vendors` routing settings (`routing`,
+`trials`, `auto_delegation`, `tiebreak`, `trials_prove`, `trials_fail`,
+per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
+`/multi-agent:setup` writes any of the three. A repository can also append team
+benchmark rows in `docs/conventions/multi-agent/benchmarks.json` (same closed
+schema as `reference/benchmarks.json`; team row ids matching a shipped id are
+refused). Keys, values, team rows and layering:
+[`reference/config.md`](reference/config.md); where each file lives:
 [config locations](reference/config-locations.md).
 
 An old `~/.claude/multi-agent.yaml` or `.claude/multi-agent.local.yaml` is still read while its new

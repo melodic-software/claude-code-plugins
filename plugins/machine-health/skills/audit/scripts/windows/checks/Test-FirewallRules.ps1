@@ -39,9 +39,7 @@ $commands = @(
     'Get-NetFirewallPortFilter -PolicyStore ActiveStore -All'
 )
 
-# Informational only: the one level this check and its items ever report.
 $infoLevel = 'INFO'
-# Hosts whose SystemDefaults baseline has been confirmed against another host's candidates.
 $baselineHosts = 2
 
 function Get-GroupProgramState {

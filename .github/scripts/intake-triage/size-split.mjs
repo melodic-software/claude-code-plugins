@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
-import { paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { paginate } from "../lib/github-client.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { baseAdmissionRules, countedRefinement, here, humanActor, names, parentOf, personChecks, RECURRING, repoOf, specOf, taskItems, taskLinesOf, trustedTaskLines, withoutItems } from "./admit.mjs";
 

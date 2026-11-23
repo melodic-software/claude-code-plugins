@@ -16,15 +16,11 @@ mkdir -p "$ROOT"
 
 git_quiet() { git "$@" >/dev/null 2>&1; }
 
-# run_remove <arg>...: run remove-path.sh, leaving stdout in $out and the exit
-# status in $rc. stderr passes through so a refusal message stays visible.
 run_remove() {
   rc=0
   out="$(bash "$REMOVE" "$@")" || rc=$?
 }
 
-# run_remove_quiet <arg>...: same, with both streams discarded for the cases
-# that assert on $rc alone.
 run_remove_quiet() {
   rc=0
   bash "$REMOVE" "$@" >/dev/null 2>&1 || rc=$?
@@ -40,7 +36,6 @@ make_repo() {
   git_quiet -C "$path" commit -m init
 }
 
-# Push everything to a local bare "remote" so the repo reads as fully pushed.
 make_pushed_repo() {
   local path="$1" bare="$2"
   make_repo "$path"
@@ -49,9 +44,6 @@ make_pushed_repo() {
   git_quiet -C "$path" push -u origin HEAD
 }
 
-# make_ignoring_repo <path> <bare> <pattern> — a fully pushed repo whose
-# committed .gitignore ignores <pattern>, so a file the caller then drops under
-# it reads as ignored (not dirty) and only the secret/skill-data scans see it.
 make_ignoring_repo() {
   local path="$1" bare="$2" pattern="$3"
   make_pushed_repo "$path" "$bare"
@@ -196,24 +188,18 @@ ROOT_PHYS="$(cd "$ROOT" && pwd -P)"
 ROOT_PHYS="${ROOT_PHYS//\\//}"
 assert_contains "default root resolved from git config" "$out" "Root: $ROOT_PHYS"
 
-# Nested git repos inside a plain-dir target are refused (exit 2) so a leftover
-# owner dir cannot take child clones' state down with it.
 mkdir -p "$ROOT/owner-dir"
 make_repo "$ROOT/owner-dir/child-clone"
 run_remove "$ROOT/owner-dir" --root "$ROOT"
 assert_exit "plain dir with nested git repo refused exits 2" 2 "$rc"
 assert_file_exists "nested child repo left intact by refusal" "$ROOT/owner-dir/child-clone/file.txt"
 
-# A nested *bare* repo (HEAD + objects/ + refs/, no .git entry) is caught by the
-# structural scan, not the .git-name scan.
 mkdir -p "$ROOT/mirror-owner"
 git_quiet init --bare "$ROOT/mirror-owner/project.git"
 run_remove "$ROOT/mirror-owner" --root "$ROOT"
 assert_exit "plain dir with nested bare repo refused exits 2" 2 "$rc"
 assert_file_exists "nested bare repo left intact by refusal" "$ROOT/mirror-owner/project.git/HEAD"
 
-# Plain leftover directory holding a secret-class file blocks like a repo does,
-# and --include-secrets clears it.
 mkdir -p "$ROOT/leftover-dir"
 printf 'TOKEN=x\n' >"$ROOT/leftover-dir/.env"
 run_remove "$ROOT/leftover-dir" --root "$ROOT"
@@ -222,7 +208,6 @@ assert_contains "plain dir secret block reason" "$out" "Blocked: secrets"
 run_remove "$ROOT/leftover-dir" --root "$ROOT" --include-secrets
 assert_exit "--include-secrets clears plain dir secret block" 0 "$rc"
 
-# Skill-owned data/ is irreplaceable — blocked with NO override, in a plain dir.
 mkdir -p "$ROOT/synth-dir/.claude/skills/notes/data"
 printf 'synthesis\n' >"$ROOT/synth-dir/.claude/skills/notes/data/corpus.md"
 run_remove "$ROOT/synth-dir" --root "$ROOT"
@@ -231,8 +216,6 @@ assert_contains "plain dir skill-data block reason" "$out" "Blocked: skill-data"
 run_remove "$ROOT/synth-dir" --root "$ROOT" --include-secrets
 assert_exit "--include-secrets does NOT clear skill-data block" 3 "$rc"
 
-# Gitignored skill data in an otherwise-clean pushed repo blocks: it is neither
-# dirty (ignored) nor secret-class, so only the skill-data scan catches it.
 make_ignoring_repo "$ROOT/skill-repo" "$TEST_TMPDIR/skill-remote.git" '.claude/skills/*/data/'
 mkdir -p "$ROOT/skill-repo/.claude/skills/notes/data"
 printf 'synthesis\n' >"$ROOT/skill-repo/.claude/skills/notes/data/corpus.md"
@@ -240,15 +223,12 @@ run_remove "$ROOT/skill-repo" --root "$ROOT"
 assert_exit "repo with gitignored skill data blocked exits 3" 3 "$rc"
 assert_contains "repo skill-data block reason" "$out" "Blocked: skill-data"
 
-# A local-only (never-pushed) tag counts as unpushed work: the branch is pushed
-# but the annotated tag has no upstream.
 make_pushed_repo "$ROOT/tag-repo" "$TEST_TMPDIR/tag-remote.git"
 git_quiet -C "$ROOT/tag-repo" tag -a v1.0.0-rc1 -m rc
 run_remove "$ROOT/tag-repo" --root "$ROOT"
 assert_exit "local-only tag blocks exits 4" 4 "$rc"
 assert_contains "local tag unpushed reason" "$out" "Blocked: unpushed"
 
-# Stash guard: a clean-tree repo with a stash entry blocks.
 make_pushed_repo "$ROOT/stash-repo" "$TEST_TMPDIR/stash-remote.git"
 printf 'z\n' >>"$ROOT/stash-repo/file.txt"
 git_quiet -C "$ROOT/stash-repo" stash push -m wip
@@ -256,8 +236,6 @@ run_remove "$ROOT/stash-repo" --root "$ROOT"
 assert_exit "stash entry blocks exits 3" 3 "$rc"
 assert_contains "stash block reason" "$out" "Blocked: stash"
 
-# Pruned upstream fails closed as unpushed: the branch keeps its upstream config
-# but the remote-tracking ref is gone (as after fetch --prune on an orphan clone).
 make_pushed_repo "$ROOT/pruned-repo" "$TEST_TMPDIR/pruned-remote.git"
 pruned_branch="$(git -C "$ROOT/pruned-repo" branch --show-current | tr -d '\r')"
 git_quiet -C "$ROOT/pruned-repo" update-ref -d "refs/remotes/origin/$pruned_branch"

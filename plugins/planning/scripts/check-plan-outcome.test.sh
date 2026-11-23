@@ -59,7 +59,6 @@ Sequential.
 EOF
 }
 
-# run <label> <want_exit> <file> [grep-pattern-that-must-appear]
 run() {
   local label="$1" want="$2" file="$3" pattern="${4-}" out got
   out="$(bash "$SUT" "$file" 2>&1)"
@@ -108,7 +107,6 @@ run "the Decision table counts without a Decisions made heading" 0 "$TMP/tableon
 good_plan | grep -v 'grep -c source' >"$TMP/nosanity.md"
 run "a phase with no Sanity Check fails, and is named" 1 "$TMP/nosanity.md" 'criterion=sanity-checks status=fail missing=Phase-2$'
 
-# Two Sanity Checks in one phase must not cover a phase that has none.
 good_plan | grep -v 'grep -c source' | sed 's/^- \*\*Sanity Check:\*\* `chezmoi apply --dry-run` exits 0\.$/&\n- **Sanity Check:** second check./' >"$TMP/uneven.md"
 run "the count is per phase, not a file total" 1 "$TMP/uneven.md" 'missing=Phase-2'
 
@@ -130,7 +128,6 @@ run "a Decisions made table with no row fails" 1 "$TMP/emptydecisions.md" 'crite
 good_plan | sed 's/ \[EXEC-SHAPE\]$//' | sed '/^## Decisions made/,/^## Handoff/{/^## Handoff/!d}' >"$TMP/notags.md"
 run "the Handoff heading's own tag is not a decision" 0 "$TMP/notags.md" 'criterion=decisions status=pass tagged=0'
 
-# Decision ids: a tag `[EXEC-SHAPE D1]` maps to the row whose first column starts with D1.
 ided_plan() { good_plan | sed 's/ \[EXEC-SHAPE\]$/ [EXEC-SHAPE D1]/; s/^| Ignore file first/| D1 Ignore file first/'; }
 
 ided_plan >"$TMP/ided.md"
@@ -209,8 +206,6 @@ U_ROOT="/Us""ers/alice/x"
 } >"$TMP/rooted.md"
 run "a /home or /Users path at line start or after any non-path character fails" 1 "$TMP/rooted.md" 'criterion=portable-paths status=fail hits=8'
 
-# A three-backtick block quoted inside a four-backtick block must not count as
-# real structure: its Phase heading and Sanity Check line are text.
 {
   good_plan | sed 's/^- \*\*Sanity Check:\*\* `grep -c source ~\/.bashrc` returns 1\.$//'
   printf '\n````markdown\n```\n### Phase 9: quoted\n- **Sanity Check:** quoted.\n```\n### Phase 8: still quoted\n````\n'
@@ -228,9 +223,8 @@ run "a tilde line does not close a backtick fence" 0 "$TMP/mixedfence.md" '^phas
 { good_plan; printf '\n```\n```markdown\n### Phase 4: quoted\n```\n'; } >"$TMP/infostring.md"
 run "a fence with an info string does not close an open fence" 0 "$TMP/infostring.md" '^phases=3 status=ok$'
 
-# --approval-only: one criterion, graded after the Approval: line is written.
 with_approval() { good_plan | sed "s|^Sequential\.\$|Approval: $1\nSequential.|"; }
-approval_run() { # <label> <want_exit> <file> [pattern]
+approval_run() {
   local label="$1" want="$2" file="$3" pattern="${4-}" out got
   out="$(bash "$SUT" --approval-only "$file" 2>&1)"
   got=$?
@@ -265,11 +259,8 @@ approval_run "a TBD value fails" 1 "$TMP/ap-tbd.md" '^criterion=approval status=
 { good_plan; printf '\n```\nApproval: approved by Kyle on 2026-09-29\n```\n'; } >"$TMP/ap-fenced.md"
 approval_run "an Approval line inside a code fence does not count" 1 "$TMP/ap-fenced.md" '^criterion=approval status=fail'
 
-# planned-breakage: a `**Planned breakage:**` line declares a span of red builds,
-# tests or lint that a later phase closes.
 run "a plan with no declaration passes planned-breakage" 0 "$TMP/good.md" '^criterion=planned-breakage status=pass declarations=0$'
 
-# declare <phase heading prefix> <declaration text>: insert the line under that heading.
 declare_in() { good_plan | sed "/^### Phase $1:/a\\
 $2"; }
 
@@ -312,8 +303,6 @@ good_plan | sed '/^## Brief$/a\
 **Planned breakage:** build red until Phase 2 for src/: before any phase' >"$TMP/pb-outside.md"
 run "a declaration outside any phase section fails" 1 "$TMP/pb-outside.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:outside-phase$'
 
-# criteria: each AC<n> id under an Acceptance criteria heading maps to a phase's
-# **Satisfies:** line.
 run "a plan with no criteria passes criteria" 0 "$TMP/good.md" '^criterion=criteria status=pass ids=0$'
 
 traced_plan() {
@@ -363,8 +352,6 @@ run "a checkbox or bold id maps, and AC10 is not AC1" 0 "$TMP/ac-forms.md" '^cri
 { traced_plan; printf '\n```markdown\n### Acceptance criteria\n- AC9: quoted\n```\n'; } >"$TMP/ac-fenced.md"
 run "a criterion inside a code fence is not graded" 0 "$TMP/ac-fenced.md" '^criterion=criteria status=pass ids=2 mapped=2$'
 
-# behaviors: `## Plan` opens with a `### Behavior` list whose items cite criterion
-# ids, and each behavior is delivered by a phase's **Delivers:** line.
 run "a valid behavior list passes" 0 "$TMP/ac-traced.md" '^criterion=behaviors status=pass behaviors=2 ids=2$'
 run "a plan with no criterion ids passes behaviors" 0 "$TMP/good.md" '^criterion=behaviors status=pass ids=0$'
 run "the no-id plan prints a behaviors warning" 0 "$TMP/good.md" '^warning=behaviors-without-criterion-ids '

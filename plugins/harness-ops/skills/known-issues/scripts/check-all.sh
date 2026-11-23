@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Loop registry, query GitHub for current state, write transitions.
-# Reads registry-snapshot.tsv (number<TAB>repo<TAB>tracked_status) from the
-# resolved output directory and writes check-all-results.tsv + check-all.log
-# next to it.
-#
-# The output directory is KEYED by project. ${CLAUDE_PLUGIN_DATA} resolves to
-# ~/.claude/plugins/data/{id}/ and carries no project, checkout or worktree
-# segment, so a fixed `check-all-output/` is one scratch directory per MACHINE.
-# The registry this script reports on is per-project whenever `registry_dir` is
-# set (the option, or the repository's harness-ops.yaml), so an unkeyed scratch directory lets one project's
-# snapshot be overwritten by another's and then reports the second project's
-# rows as the first's. That is a wrong answer served, not merely a lost file.
-# The key comes from lib/state-key.sh, the scheme
-# docs/contracts/plugin-data-report-keying/ rule 1 defines. It splits
-# worktrees, which is right here: registry_dir is project-relative, so two
-# worktrees of one repository hold two registries.
-#
-# Omit -e: per-row gh failures are expected (rate-limit, deleted issues) and
-# must not abort the loop — each row records its own FETCH_FAILED transition.
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -58,17 +39,12 @@ if [[ $# -gt 0 ]]; then
   exit 2
 fi
 
-# An inherited CLAUDE_PLUGIN_DATA is used only when its last path segment names
-# this plugin: the Bash tool does not carry harness-ops' value, and another
-# plugin's SessionStart hook can export its own data dir under that name.
 seg="${CLAUDE_PLUGIN_DATA:-}"
 seg="${seg%[/\\]}"
 seg="${seg##*[/\\]}"
 if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
   DATA_DIR="$CLAUDE_PLUGIN_DATA"
 else
-  # Expanded only on the fallback. Under set -u, reading $HOME first aborts a
-  # sanitized environment that already supplied this plugin's data directory.
   DATA_DIR="$HOME/.claude/plugins/data/harness-ops"
 fi
 COMPONENT_DIR="$DATA_DIR/check-all-output"
@@ -80,17 +56,12 @@ else
   # subprocess can carry another plugin's value for that variable.
   PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   STATE_KEY="$(bash "$PLUGIN_ROOT/lib/state-key.sh")"
-  # Fail closed. Falling back to the unkeyed path is the defect being fixed:
-  # it would silently reintroduce the cross-project collision.
   if [[ -z "$STATE_KEY" ]]; then
     echo "ERROR: could not derive a state key ($PLUGIN_ROOT/lib/state-key.sh)" >&2
     exit 2
   fi
   OUT_DIR="$COMPONENT_DIR/$STATE_KEY"
 
-  # Rule 3 — an artifact written under the old unkeyed layout has no project
-  # segment, so nothing records which repository produced it. Name it; never
-  # read it, move it, or compute from it.
   for legacy in registry-snapshot.tsv check-all-results.tsv check-all.log; do
     if [[ -f "$COMPONENT_DIR/$legacy" ]]; then
       echo "NOTE: unkeyed leftover from an older layout, not read: $COMPONENT_DIR/$legacy" >&2
@@ -108,8 +79,6 @@ if [[ $PRINT_ONLY -eq 1 ]]; then
   exit 0
 fi
 
-# Below --print-output-dir, which is path arithmetic. Without gh every row would
-# come back FETCH_FAILED under exit 0, which reads as a lookup that ran and failed.
 for tool in gh jq; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "ERROR: $tool is required to re-check issues but is not on PATH" >&2
@@ -130,10 +99,6 @@ fi
 echo "number	repo	tracked_status	current_state	state_reason	closed_at	transition" >"$OUT"
 
 n=0
-# wc -l counts newlines, not rows: a final row without a trailing newline would
-# be undercounted here and then dropped by the read loop below without the
-# `|| [[ -n "$number" ]]` guard, which lets read's last (newline-less) partial
-# read still populate $number before the loop exits.
 total=$(grep -c '' "$SNAPSHOT" | tr -d '\r ')
 while IFS=$'\t' read -r number repo tracked || [[ -n "$number" ]]; do
   n=$((n + 1))

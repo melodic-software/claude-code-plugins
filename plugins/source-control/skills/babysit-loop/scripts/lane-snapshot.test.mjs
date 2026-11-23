@@ -102,7 +102,6 @@ function pages(connection, total, ...pageNodes) {
   };
 }
 
-// Three PRs across two pages and two issues across two pages.
 const complete = () => ({
   [`repos/${REPO}`]: { out: { has_issues: true } },
   pullRequests: pages("pullRequests", 3, [pr(1), pr(2)], [pr(3)]),

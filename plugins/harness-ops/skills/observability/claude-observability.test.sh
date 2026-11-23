@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for /observability skill jq pipelines + privacy filter.
-# Validates the queries in context/data-sources.md and rules in context/privacy.md
-# against synthetic JSONL fixtures.
 
 set -uo pipefail
 
@@ -13,8 +10,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# A test must never reach a real OTEL store: drop any inherited store path, and have the prune
-# refuse a store outside this run's temp dir.
 unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
 export CC_OTEL_TEST_ROOT="$TEST_TMPDIR"
 
@@ -26,18 +21,12 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 
-# --- Fixture: a hook log root ---
-# The shared file plus one per-session file. Every row is one hook event record
-# in the single key set session-log-lib.sh formats, so `hook_event_name` names
-# the event wherever the row came from and no query normalizes an event key.
 HOOK_ROOT="$TEST_TMPDIR/root"
 mkdir -p "$HOOK_ROOT/sessions"
 HOOK_LOG="$HOOK_ROOT/hook-events.jsonl"
 SESSION_LOG="$HOOK_ROOT/sessions/s-a.jsonl"
 SINCE_ISO="2026-01-01T00:00:00Z"
 
-# Append one shared-file envelope row (the sink's session-less route).
-# Args: <ts> <hook> <tool> <duration_ms> <exit_code> <subject> <status>
 emit_event() {
   jq -nc \
     --arg ts "$1" --arg hook "$2" --arg tool "$3" \
@@ -48,8 +37,6 @@ emit_event() {
       exit_code:$exit_code, subject:$subject, tool:$tool}' \
     >>"$HOOK_LOG"
 }
-# Append one per-session envelope row (the reference sink's per-session shape).
-# Args: <ts> <hook> <event> <duration_ms> <exit_code> <subject> <status>
 emit_session_event() {
   jq -nc \
     --arg ts "$1" --arg hook "$2" --arg ev "$3" \
@@ -61,8 +48,6 @@ emit_session_event() {
      + (if $changed == "" then {} else {changed: ($changed == "true")} end)' \
     >>"$SESSION_LOG"
 }
-# Append one per-session event-log row (session-event-log.sh's shape). No hook.
-# Args: <ts> <event> <category> [tool_name] [file_path]
 emit_log_row() {
   jq -nc --arg ts "$1" --arg ev "$2" --arg cat "$3" --arg tool "${4:-}" --arg file "${5:-}" \
     '{ts:$ts, session_id:"s-a", hook_event_name:$ev, category:$cat, status:"ok",
@@ -72,29 +57,23 @@ emit_log_row() {
     >>"$SESSION_LOG"
 }
 
-# Count lines in a JSONL fixture, stripping spaces and Git Bash CR.
 lines_in() {
   wc -l <"$1" | tr -d ' \r'
 }
 
-# 12 bash-format events: 10 fast (~120ms), 2 slow (5000ms+ outliers)
 for i in $(seq 1 10); do
   emit_event "2026-04-29T10:0${i}:00.000Z" bash-format Write 120 0 test.sh success
 done
 emit_event "2026-04-29T10:11:00.000Z" bash-format Write 5000 0 slow.sh success
 emit_event "2026-04-29T10:12:00.000Z" bash-format Write 6000 0 slower.sh success
 
-# 5 sarif-diagnostics events with 1 error
 for i in $(seq 1 4); do
   emit_event "2026-04-29T11:0${i}:00.000Z" sarif-diagnostics Edit 800 0 a.cs success
 done
 emit_event "2026-04-29T11:05:00.000Z" sarif-diagnostics Edit 1200 2 b.cs error
 
-# Out-of-window event (should be filtered)
 emit_event "2025-01-01T00:00:00.000Z" old-hook Write 100 0 old.sh success
 
-# Per-session file: two more bash-format fires, one blocked guard, and event-log
-# rows (which carry no hook and must never count as a hook fire).
 emit_session_event "2026-04-29T12:01:00.000Z" bash-format PostToolUse 130 0 s.sh success false
 emit_session_event "2026-04-29T12:02:00.000Z" bash-format PostToolUse 140 0 t.sh success true
 emit_session_event "2026-04-29T12:03:00.000Z" block-dangerous-git PreToolUse 7 2 "Bash:git push --force" blocked
@@ -102,14 +81,12 @@ emit_log_row "2026-04-29T12:00:59.000Z" PostToolUseFailure tool Write s.sh
 emit_log_row "2026-04-29T12:01:00.500Z" PostToolBatch tool Write s.sh
 emit_log_row "2026-04-29T12:05:00.000Z" Stop turn
 
-# The whole-root file set, as data-sources.md builds it.
 shopt -s nullglob
 HOOK_FILES=("$HOOK_ROOT"/sessions/*.jsonl)
 shopt -u nullglob
 [[ -f "$HOOK_LOG" ]] && HOOK_FILES+=("$HOOK_LOG")
 assert_eq "file set: one session file plus the shared file" "2" "${#HOOK_FILES[@]}"
 
-# --- Test 1: latency p50/p95 per (hook,event) across the root ---
 LAT_OUT=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
   | group_by(.hook + "|" + .hook_event_name)
   | map({
@@ -130,7 +107,6 @@ assert_eq "bash-format count = 14 (12 shared + 2 per-session)" "14" "$bash_forma
 bash_format_max=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostToolUse") | .max')
 assert_eq "bash-format max = 6000" "6000" "$bash_format_max"
 
-# --- Test 2: error rate per hook ---
 ERR_OUT=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
   | group_by(.hook)
   | map({
@@ -145,13 +121,11 @@ sarif_err=$(echo "$ERR_OUT" | jq -r '.[] | select(.hook=="sarif-diagnostics") | 
 assert_eq "sarif error count = 1" "1" "$sarif_err"
 assert_contains "a blocked per-session row counts as an error" "$ERR_OUT" "block-dangerous-git"
 
-# --- Test 3: window filter excludes 2025 event; event-log rows never count as hooks ---
 filtered_count=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null)) | length' "${HOOK_FILES[@]}")
-assert_eq "window filter applied" "20" "$filtered_count" # 12 + 5 + 3 (excludes old-hook and the 3 event-log rows)
+assert_eq "window filter applied" "20" "$filtered_count"
 
 assert_not_contains "out-of-window event excluded" "$LAT_OUT" "old-hook"
 
-# --- Test 3.5: the per-session report (data-sources.md §2.5) ---
 SESSION_FILES=("$SESSION_LOG")
 FIRED=$(jq -s 'map(select(.source == "envelope"))
   | group_by(.hook)
@@ -182,7 +156,6 @@ TIMELINE=$(jq -sr '.[] | select(.source == "event-log")
 assert_eq "per-session: timeline has the three event-log rows" "3" "$(printf '%s\n' "$TIMELINE" | grep -c .)"
 assert_contains "per-session: timeline carries the tool and file" "$TIMELINE" "PostToolBatch	tool	Write	s.sh"
 
-# session:<id> names one file; `session` is the newest by mtime.
 sleep 1
 printf '%s\n' '{"ts":"2026-04-30T00:00:00Z","session_id":"s-b","hook_event_name":"Stop","category":"turn","status":"ok","source":"event-log","duration_ms":1}' >"$HOOK_ROOT/sessions/s-b.jsonl"
 SCOPE="session:s-a"
@@ -191,19 +164,16 @@ assert_eq "session:<id> resolves the named file" "$SESSION_LOG" "$HOOK_ROOT/sess
 NEWEST="$(ls -t "$HOOK_ROOT"/sessions/*.jsonl 2>/dev/null | head -n 1)"
 assert_eq "session resolves the newest file by mtime" "$HOOK_ROOT/sessions/s-b.jsonl" "$NEWEST"
 
-# --- Test 4: redaction — token-shaped strings ---
 redact() {
   sed -E 's|[A-Za-z0-9+/_-]{32,}={0,2}|[redacted-token]|g'
 }
 
-# Synthetic 40-char base64-shaped string (clearly fake — XYZ prefix + repeating chars)
 fake_token='XYZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1234'
 token_input="some_field=${fake_token}"
 redacted=$(echo "$token_input" | redact)
 assert_contains "long base64-shaped string redacted" "$redacted" "[redacted-token]"
 assert_not_contains "raw fake token absent" "$redacted" "$fake_token"
 
-# --- Test 5: redaction — env-var assignment ---
 env_redact() {
   sed -E 's/(AWS_[A-Z_]*|GITHUB_[A-Z_]*|.*_TOKEN|.*_KEY|.*_SECRET|.*_PASSWORD)=[^[:space:]"]*/\1=[redacted]/gi'
 }
@@ -213,19 +183,16 @@ env_redacted=$(echo "$env_input" | env_redact)
 assert_contains "GITHUB_TOKEN redacted" "$env_redacted" "GITHUB_TOKEN=[redacted]"
 assert_not_contains "raw value absent" "$env_redacted" "placeholder123"
 
-# --- Test 6: paths are NOT redacted (normal paths must survive) ---
 path_input='subject=apps/monolith-api/Program.cs'
 path_after=$(echo "$path_input" | env_redact)
 assert_contains "path preserved through env filter" "$path_after" "apps/monolith-api/Program.cs"
 
-# --- Test 7: empty-log graceful degradation ---
 EMPTY_LOG="$TEST_TMPDIR/empty.jsonl"
 : >"$EMPTY_LOG"
 empty_out=$(jq -s --arg since "$SINCE_ISO" \
   'map(select(.ts >= $since)) | length' "$EMPTY_LOG")
 assert_eq "empty log returns 0" "0" "$empty_out"
 
-# --- Test 8: missing-log handled by caller guard ---
 MISSING_LOG="$TEST_TMPDIR/does-not-exist.jsonl"
 if [[ -f "$MISSING_LOG" ]]; then
   count=$(jq -s 'length' "$MISSING_LOG")
@@ -234,9 +201,7 @@ else
 fi
 assert_eq "missing log handled by guard" "0" "$count"
 
-# --- Test 9: clean action — synthetic mixed-age data + dry-run + real run ---
 CLEAN="$SCRIPT_DIR/scripts/clean.sh"
-# clean delegates to the OTEL prune; stub its Collector service calls so no run reaches the host's.
 export CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true CC_OTEL_RUNNING_CMD=false
 clean_test_dir="$TEST_TMPDIR/clean-test"
 mkdir -p "$clean_test_dir"
@@ -252,8 +217,7 @@ else
   OLD_5=$(date -u -v-5d +%Y-%m-%dT%H:%M:%SZ)
 fi
 HOOK_FX="$clean_test_dir/.claude/observability/hook-events.jsonl"
-# Append <count> identical hook-event rows stamped <ts> to <file>.
-emit_hook_rows() { # <file> <count> <ts>
+emit_hook_rows() {
   local i
   for ((i = 0; i < $2; i++)); do
     printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' \
@@ -264,31 +228,23 @@ emit_hook_rows "$HOOK_FX" 3 "$OLD_45"
 emit_hook_rows "$HOOK_FX" 2 "$OLD_5"
 emit_hook_rows "$HOOK_FX" 2 "$TODAY"
 
-# 9a: dry-run does not modify
 before_hook=$(lines_in "$HOOK_FX")
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --dry-run --quiet) >/dev/null 2>&1
 after_hook=$(lines_in "$HOOK_FX")
 assert_eq "clean --dry-run preserves hook log" "$before_hook" "$after_hook"
 
-# 9b: real run with --keep-days 30 prunes 45-day-old (3 hook)
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --quiet) >/dev/null 2>&1
 after_hook=$(lines_in "$HOOK_FX")
-assert_eq "clean prunes 45-day-old hook events" "4" "$after_hook" # 2 (5d) + 2 (today)
+assert_eq "clean prunes 45-day-old hook events" "4" "$after_hook"
 
-# 9c: --keep-days 4 prunes the 5-day-old hook events (2)
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 4 --quiet) >/dev/null 2>&1
 after_hook=$(lines_in "$HOOK_FX")
-assert_eq "clean --keep-days 4 prunes 5-day-old" "2" "$after_hook" # only today's 2 remain
+assert_eq "clean --keep-days 4 prunes 5-day-old" "2" "$after_hook"
 
-# 9d: idempotent — re-run with same window changes nothing
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 4 --quiet) >/dev/null 2>&1
 after_hook2=$(lines_in "$HOOK_FX")
 assert_eq "clean is idempotent" "$after_hook" "$after_hook2"
 
-# --- 9s: skill-usage target (opt-in; its own window; its own resolved location) ---
-# The rollback property is asserted first and is the important one: with no
-# skill-usage flag this script must behave byte-for-byte as it did before the
-# target existed, so reverting the feature is dropping one branch.
 SU_FX="$clean_test_dir/.claude/observability/skill-usage.jsonl"
 : >"$SU_FX"
 for _ in 1 2 3; do
@@ -296,28 +252,19 @@ for _ in 1 2 3; do
 done
 printf '{"ts":"%s","event":"SkillUse","skill":"b:two","source":"expansion"}\n' "$TODAY" >>"$SU_FX"
 
-# 9s-a: inert without the flag — the 45-day rows survive a 30-day hook prune.
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --quiet) >/dev/null 2>&1
 assert_eq "clean leaves skill-usage untouched without its flag" "4" "$(lines_in "$SU_FX")"
 
-# 9s-b: opted in with a long window, the same old rows still survive — proving
-# the target uses ITS OWN window rather than inheriting --keep-days.
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days 30 --skill-usage-scope repo --quiet) >/dev/null 2>&1
 assert_eq "skill-usage uses its own 365d window, not --keep-days" "4" "$(lines_in "$SU_FX")"
 
-# 9s-c: dry-run reports the resolved target without modifying it.
 su_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope repo 2>&1 || true)
 assert_contains "clean --dry-run names the skill-usage target" "$su_out" "skill-usage target"
 assert_eq "clean --dry-run preserves skill-usage" "4" "$(lines_in "$SU_FX")"
 
-# 9s-d: a short window does prune, so the branch is real and not inert.
 (cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope repo --keep-skill-usage-days 4 --quiet) >/dev/null 2>&1
 assert_eq "skill-usage prunes at its own short window" "1" "$(lines_in "$SU_FX")"
 
-# 9s-d2: data-dir HAPPY PATH — the branch must reach the store the WRITER
-# actually produces (<data-root>/skill-usage/<repo-slug>), not a repo-relative
-# path. Without this the branch could abort or prune the wrong file and no test
-# would notice.
 su_data_root="$TEST_TMPDIR/plugin-data"
 su_slug_dir="$su_data_root/skill-usage/$(basename "$clean_test_dir")-$(printf '%s' "$clean_test_dir" | sha1sum | cut -c1-8)"
 mkdir -p "$su_slug_dir"
@@ -326,24 +273,18 @@ printf '{"ts":"%s","event":"SkillUse","skill":"new:two"}\n' "$TODAY" >>"$su_slug
 su_dd_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope data-dir --skill-usage-data-root "$su_data_root" 2>&1 || true)
 assert_contains "data-dir resolves under the plugin data root" "$su_dd_out" "$su_data_root/skill-usage/"
 
-# 9s-e: data-dir refuses to guess a location. CLAUDE_PLUGIN_DATA in a skill
-# subprocess was observed pointing at an UNRELATED plugin's data directory, so a
-# delete path is never derived from it.
 rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope data-dir --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "data-dir scope demands an explicit dir (exit 2)" "2" "$rc"
 
-# 9s-f: a traversing dir is refused rather than resolved.
 rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope repo --skill-usage-dir ../../etc --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "traversal in --skill-usage-dir rejected (exit 2)" "2" "$rc"
 
-# 9s-g: an unknown scope is refused rather than defaulted.
 rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --skill-usage-scope nonsense --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "unknown skill-usage scope rejected (exit 2)" "2" "$rc"
 
-# 9e: missing files don't crash
 empty_dir="$TEST_TMPDIR/empty-clean"
 mkdir -p "$empty_dir"
 (cd "$empty_dir" && git init -q && git config commit.gpgsign false)
@@ -352,13 +293,10 @@ rc=0
 (cd "$empty_dir" && bash "$CLEAN" --keep-days 30 --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "clean handles missing files (exit 0)" "0" "$rc"
 
-# 9f: invalid --keep-days rejected
 rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days notanumber --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "clean rejects non-integer --keep-days (exit 2)" "2" "$rc"
 
-# 9f2: an empty or missing value is refused, never defaulted. An empty window
-# would otherwise reach `find -mmin +0` and remove every session file.
 guard_dir="$TEST_TMPDIR/clean-guard"
 mkdir -p "$guard_dir/.observability/claude/sessions"
 (cd "$guard_dir" && git init -q)
@@ -373,8 +311,6 @@ assert_eq "clean with a refused window leaves the session file" "1" "$(find "$gu
 unknown_err=$(cd "$guard_dir" && bash "$CLEAN" --nonsense 2>&1 >/dev/null || true)
 assert_contains "clean unknown flag names --help" "$unknown_err" "unknown flag: --nonsense (see --help)"
 
-# 9f3: a file jq cannot read to the end is left intact and the run exits 1; the
-# dry run says it would skip rather than predicting a prune.
 bad_dir="$TEST_TMPDIR/clean-badjson"
 mkdir -p "$bad_dir/.claude/observability"
 (cd "$bad_dir" && git init -q)
@@ -390,9 +326,6 @@ assert_eq "clean exits 1 when a file could not be pruned" "1" "$rc"
 assert_contains "clean names the file it could not prune, even with --quiet" "$bad_err" "hook-events.jsonl: jq or mv failed"
 assert_eq "clean leaves the malformed file intact" "3" "$(lines_in "$BAD_LOG")"
 
-# 9g: OTEL store wiring — clean delegates to otel/prune-otel-store.sh (dry-run, non-destructive).
-# env -u CC_OTEL_STORE forces the store to resolve to the temp repo regardless of any
-# machine-level CC_OTEL_STORE.
 mkdir -p "$clean_test_dir/.claude/observability/otel"
 otel_now=$EPOCHSECONDS
 otel_logs="$clean_test_dir/.claude/observability/otel/cc-logs.json"
@@ -404,7 +337,6 @@ assert_contains "clean wires OTEL prune (dry-run report)" "$otel_out" "cc-logs.j
 otel_after=$(lines_in "$otel_logs")
 assert_eq "clean --dry-run leaves OTEL store unchanged" "$otel_before" "$otel_after"
 
-# --- Test 9h: the hook log root — session files, stale prune sets, the new shared file ---
 NEW_ROOT="$clean_test_dir/.observability/claude"
 mkdir -p "$NEW_ROOT/sessions" "$NEW_ROOT/prune-pending/1000-old" "$NEW_ROOT/prune-pending/2000-fresh"
 printf '*\n' >"$NEW_ROOT/.gitignore"
@@ -441,7 +373,6 @@ fi
 assert_eq "clean prunes the root's shared file line by line" "1" "$(lines_in "$NEW_ROOT/hook-events.jsonl")"
 assert_eq "clean leaves the root's guard alone" "*" "$(head -1 "$NEW_ROOT/.gitignore")"
 
-# --hook-root moves the root; an uncontained value is refused.
 ALT_ROOT="$clean_test_dir/telemetry/hooks"
 mkdir -p "$ALT_ROOT/sessions"
 printf '{"a":1}\n' >"$ALT_ROOT/sessions/old.jsonl"
@@ -459,7 +390,6 @@ rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --hook-root . --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "clean refuses a root-equivalent --hook-root (exit 2)" "2" "$rc"
 
-# --- Test 10: failed-then-fixed sequence detection (data-sources.md query) ---
 retry_log="$TEST_TMPDIR/retry-events.jsonl"
 printf '%s\n' \
   '{"ts":"2026-01-01T10:00:00Z","hook":"bash-format","exit_code":1}' \
@@ -477,7 +407,6 @@ retry_out=$(jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
 assert_eq "failed-then-fixed counts bash-format retries" \
   "$(echo '[{"hook":"bash-format","retries":2}]' | jq -c .)" "$(echo "$retry_out" | jq -c .)"
 
-# --- Summary ---
 TOTAL=$CASE_NUM
 PASSED=$((TOTAL - FAILED))
 printf '\n--- Results: %d/%d passed ---\n' "$PASSED" "$TOTAL"

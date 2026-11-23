@@ -50,7 +50,6 @@ ip_realpath() {
   }
   base="$(basename "$p")"
 
-  # Follow a symlink chain by hand, bounded so a cycle cannot spin forever.
   while [[ -L "$dir/$base" ]] && ((hops < 32)); do
     target="$(readlink "$dir/$base" 2>/dev/null)" || break
     [[ -n "$target" ]] || break
@@ -252,7 +251,6 @@ ip_discover_rules() {
   local rules_dir found_file real seen_file
   seen_file="$(mktemp)" || return 1
 
-  # Every `.claude/rules` directory at any depth, not just the root one.
   while IFS= read -r rules_dir; do
     [[ -z "$rules_dir" ]] && continue
     # -L follows symlinked entries and symlinked directories. GNU find detects
@@ -291,51 +289,11 @@ ip_discover_rules() {
   rm -f "$seen_file"
 }
 
-# ---------------------------------------------------------------------------
-# Excluded trees, two lists for this whole plugin, because the two exclusions
-# answer different questions.
-#
-# IP_EXCLUDED_TREES is unconditional: nothing under these directories is a
-# nested convention of this repository at all. `vendor` and `node_modules` hold
-# third-party instructions that must never reach the consuming repository's own
-# surface; `.claude` is the plugin-and-config tree rather than a nested
-# convention; `.git` is not content.
-#
-# IP_FOREIGN_AGENT_TREES is keyed on the FILE, not the directory: `.cursor`,
-# `.codex` and `.github` hold another tool's `AGENTS.md`, and listing one would
-# advertise a Cursor file as a Claude on-demand surface while the wiring gate
-# demanded a Claude shim beside it. A `CLAUDE.md` in one of those directories is
-# nobody's but Claude's, though: `.github/CLAUDE.md` is how a repository states
-# conventions for its workflow files. Skipping the whole directory would make
-# that file silently vanish from the index and from a migration plan, so only
-# the `AGENTS.md` is skipped.
-#
-# Every consumer inside this plugin reads these two variables, so the rule
-# cannot drift between the index, the wiring gate and the migration plan.
-# `harness-memory`'s `nested-agents-check.sh` keeps its own copy of the same
-# lists: a plugin never imports a file from a sibling plugin
-# (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
-# ---------------------------------------------------------------------------
 IP_EXCLUDED_TREES=".claude node_modules vendor .git"
 IP_FOREIGN_AGENT_TREES=".codex .cursor .github"
 
-# An eval or unit-test fixture tree imitates a consuming repository as test
-# input. Its rules and nested instruction files are not this repository's
-# conventions, so both discovery functions drop any path with an
-# `evals/fixtures/` or `tests/fixtures/` segment pair. One awk ERE over a
-# repository-relative path, shared so the index, the glob gate and the wiring
-# gate cannot disagree about a fixture.
 IP_FIXTURE_ERE='(^|/)(evals|tests)/fixtures/'
 
-# ---------------------------------------------------------------------------
-# Nested instruction-file discovery
-#
-# Tracked-only, and excluding the trees above. What is not tracked is not a
-# shared convention.
-#
-# Root-level files are excluded because they already load at session start;
-# this function answers "what loads on demand", which is what the index covers.
-# ---------------------------------------------------------------------------
 ip_discover_nested_instructions() {
   local root="${1:-.}"
   [[ -d "$root" ]] || return 0
@@ -344,8 +302,6 @@ ip_discover_nested_instructions() {
   if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     listing="$(git -C "$root" ls-files -z 2>/dev/null | tr '\0' '\n')"
   else
-    # Not a repository: fall back to a plain walk. Tracked status is unknowable
-    # here, so the vendor exclusions below carry the whole filter.
     listing="$(cd "$root" && find . -type f \
       \( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) 2>/dev/null | sed 's|^\./||')"
   fi
@@ -398,15 +354,6 @@ ip_entry_points_on_path() {
   done
 }
 
-# ---------------------------------------------------------------------------
-# Import-chain reachability
-#
-# Writing the index into a root AGENTS.md is only useful if Claude Code loads
-# that file, and a root CLAUDE.md is read INSTEAD of the AGENTS.md beside it. A
-# repository carrying both with no import between them gets an index nothing
-# ever reads, while every other gate reports green. This function is what stops
-# that.
-# ---------------------------------------------------------------------------
 
 # Emit the @import targets of one markdown file, resolved to absolute paths.
 # Fenced code blocks and inline code spans are skipped: upstream documents that
@@ -484,12 +431,6 @@ ip_index_target_loaded() {
     return 1
   }
 
-  # An ALREADY-ABSOLUTE target is used as-is. Prefixing the root unconditionally
-  # produced `.//abs/path`, which collapses to `./abs/path` -- a path under the
-  # root that does not exist -- so a real, loadable file outside `--root` was
-  # reported "does not exist". Callers legitimately pass an absolute target when
-  # `--file` is not under `--root`, which is easy to do by accident with the
-  # default `--root .`.
   local abs_target
   case "$target" in
   /*) abs_target="$(ip_realpath "$target")" ;;
@@ -500,7 +441,6 @@ ip_index_target_loaded() {
     return 1
   fi
 
-  # A root memory file is loaded by Claude Code directly, with no import needed.
   case "$target" in
   CLAUDE.md | CLAUDE.local.md | .claude/CLAUDE.md)
     printf 'LOADED\t%s is a root memory file, loaded at session start\n' "$target"
@@ -509,12 +449,6 @@ ip_index_target_loaded() {
   *) ;;
   esac
 
-  # Otherwise it must be reachable from an entry point on its OWN path, which
-  # for a nested target is not the root alone: a `svc/CLAUDE.md` beside a
-  # `svc/AGENTS.md` displaces it exactly as a root one would, and reading only
-  # the root triple would make this verdict disagree with the wiring gate about
-  # the same tree. An absolute target is outside this root's tree, so its path
-  # cannot be walked and the root is all there is to check.
   local target_dir="."
   [[ "$target" == /* ]] || target_dir="$(dirname "$target")"
 
@@ -528,14 +462,6 @@ ip_index_target_loaded() {
     fi
   done < <(ip_entry_points_on_path "$root" "$target_dir")
 
-  # Nothing on the target's path, and the target carries one of the names
-  # Claude Code reads on its own. Nothing in the repository blocks it, so an
-  # import is not what decides the outcome. That is not the same as LOADED:
-  # reading AGENTS.md directly needs a Claude Code version and a session kind
-  # this function cannot see, and a CLAUDE.md above the repository root would
-  # block it invisibly from here.
-  # `*/AGENTS.md` already covers every nested spelling, `.claude/AGENTS.md`
-  # included; only the bare root name needs its own pattern.
   if [[ -z "$blocker" && ("$target" == AGENTS.md || "$target" == */AGENTS.md) ]]; then
     printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md on its path, so Claude Code reads it directly where AGENTS.md support is available\n' \
       "$target"

@@ -62,7 +62,6 @@ Describe 'Write-StateFile' -Tag 'lib' {
         $reader = [System.IO.File]::Open($script:path, 'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
         try {
             $null = Write-StateFile -Path $script:path -Update { 'new' }
-            # The open handle still reads the file it opened: the swap never exposes a partial write.
             [System.IO.StreamReader]::new($reader).ReadToEnd() | Should -Be 'old'
         } finally {
             $reader.Dispose()
@@ -102,7 +101,6 @@ Describe 'Write-StateFile' -Tag 'lib' {
             param($current)
             $calls.Add($current)
             if ($calls.Count -eq 1) {
-                # Another writer creates the file after the existence test, before the move.
                 [System.IO.File]::WriteAllText($target, 'theirs')
                 return 'mine'
             }
@@ -126,7 +124,6 @@ Describe 'Write-StateFile' -Tag 'lib' {
         $update = {
             param($current)
             if ($null -eq $current) {
-                # The file appears before the first-write move, held by a reader that does not share Delete.
                 [System.IO.File]::WriteAllText($target, 'theirs')
                 $holder.Add([System.IO.File]::Open($target, 'Open', 'Read', [System.IO.FileShare]::Read))
                 return 'mine'

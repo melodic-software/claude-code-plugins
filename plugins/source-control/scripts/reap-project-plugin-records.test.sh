@@ -127,8 +127,6 @@ mkdir -p "$WT" "$OTHER"
 WT_NATIVE="$(native_of "$WT")"
 OTHER_NATIVE="$(native_of "$OTHER")"
 
-# --- CLI contract ---------------------------------------------------------------
-
 help_out="$(bash "$REAP" --help 2>&1)"
 help_rc=$?
 assert_exit "--help exits 0" 0 "$help_rc"
@@ -203,16 +201,12 @@ assert_contains "the named worktree's record is reaped" "$OUT" "reaped a@m"
 assert_eq "the other path's record is left" "b@m" "$(jq -r 'map(.id) | join(",")' "$STATE")"
 assert_contains "the uninstall step ran" "$(cat "$LOG")" "uninstall"
 
-# --- nothing to reap ------------------------------------------------------------
-
 seed_state "$(jq -n --arg o "$OTHER_NATIVE" '[{id:"a@m",scope:"project",projectPath:$o}]')"
 reset_log
 run "$WT" --worktree-path "$WT"
 assert_exit "no records for this directory exits 0" 0 "$RC"
 assert_contains "the zero case is reported, not silent" "$OUT" "nothing to reap"
 assert_not_contains "no uninstall is attempted" "$(cat "$LOG")" "uninstall"
-
-# --- the reap itself ------------------------------------------------------------
 
 seed_state "$(jq -n --arg wt "$WT_NATIVE" --arg o "$OTHER_NATIVE" '[
   {id:"a@m",scope:"project",projectPath:$wt},
@@ -427,8 +421,6 @@ else
   assert_eq "the variant record is gone" "0" "$(jq 'length' "$STATE")"
 fi
 
-# --- dry run --------------------------------------------------------------------
-
 seed_state "$(jq -n --arg wt "$WT_NATIVE" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
 reset_log
 run "$WT" --worktree-path "$WT" --dry-run
@@ -464,8 +456,6 @@ assert_contains "the report forbids the user-scope escalation" "$OUT" "do NOT re
 assert_contains "survivors are surfaced" "$OUT" "survived the pass"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 assert_contains "a no-op uninstall still passes --keep-data" "$(cat "$LOG")" "--keep-data"
-
-# --- visible degrade ------------------------------------------------------------
 
 cat >"$STUB_DIR/claude" <<'STUB3'
 #!/usr/bin/env bash

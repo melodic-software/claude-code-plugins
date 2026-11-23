@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, retriageNote, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import { codeDigest } from "./verdict-carry.mjs";

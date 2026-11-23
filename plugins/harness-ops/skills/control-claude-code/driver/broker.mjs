@@ -36,8 +36,6 @@ const REQUEST_MAX = 64 * 1024;
 // The driver's session rule (driver.mjs SESSION), kept here so the broker imports nothing from beside it.
 export const SESSION = /^[A-Za-z0-9_][\w-]{0,31}$/;
 const CREDENTIALS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
-// Our rule: the broker hands the driven side a dummy key only. A key must carry this prefix, and one
-// shaped like a real Anthropic key is refused outright, so a misconfigured job cannot pass the real one.
 export const KEY_PREFIX = 'ccd-dummy-';
 const REAL_KEY = 'sk-ant-';
 
@@ -52,7 +50,6 @@ const absolute = (name, value) => {
   return value;
 };
 
-/** Validators by option kind; each returns the value to pass on or throws Refused. */
 const KINDS = {
   session: (name, value) => {
     if (!SESSION.test(value)) throw new Refused(`--${name} takes 1-32 letters, digits, _ or -, not starting with -`);
@@ -86,7 +83,7 @@ const KINDS = {
     if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Refused(`--${name} may not be a symbolic link`);
     return path;
   },
-  flag: () => undefined, // --unattended: the broker always adds it
+  flag: () => undefined,
 };
 
 const verb = (options, { prompt = false, required = [] } = {}) => ({ options, prompt, required });
@@ -146,7 +143,6 @@ export function childEnv(env, key) {
   return child;
 }
 
-/** Serves one connection: reads one request line, runs the driver, streams its output and exit back. */
 function answer(conn, { driver, roots, depsDir, key, inSandbox }) {
   let buf = '';
   let started = false;
@@ -202,7 +198,6 @@ function answer(conn, { driver, roots, depsDir, key, inSandbox }) {
   });
 }
 
-/** Whether a process accepts connections on `sock`. */
 const listening = (sock) =>
   new Promise((done) => {
     const conn = net.createConnection(sock);

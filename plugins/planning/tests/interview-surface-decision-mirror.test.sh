@@ -6,7 +6,6 @@ set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 surface="$root/plugins/planning/skills/interview/context/surface.md"
-# The page lane's own spoke carries the rule since the surface registry replaced SKILL.md's lane table.
 lane_page="$root/plugins/planning/skills/interview/context/lane-page.md"
 loop="$root/plugins/planning/skills/interview/context/loop.md"
 fail=0

@@ -54,8 +54,6 @@
 set -uo pipefail
 
 usage() {
-  # Sentinel range rather than fixed line numbers, so the printed usage cannot
-  # silently truncate when this header grows.
   sed -n '/^# Retention pruning/,/^# Exit 0/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
@@ -195,7 +193,6 @@ unparsable=0
 failed=0
 escaped=0
 
-# <root>/<session-id>/<target-slug>/<run-nonce>
 for packet in "$root_abs"/*/*/*; do
   [[ -d "$packet" ]] || continue
   scanned=$((scanned + 1))

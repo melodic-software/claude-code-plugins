@@ -99,6 +99,15 @@ test("a line cap no fold can use stops the step, with no chunk written", () => {
   }
 });
 
+test("with no LONG_LINE_BYTES of its own a line folds at the length the review reads whole", async () => {
+  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
+  const at = file("a.js", 1, `+${"x".repeat(LONG_LINE_BYTES - 1)}`);
+  const over = file("b.js", 1, `+${"y".repeat(LONG_LINE_BYTES)}`);
+  const { status, data } = run(at + over, { LONG_LINE_BYTES: undefined, MAX_DIFF_BYTES: "10000", PART_BYTES: "10000" });
+  assert.equal(status, 0);
+  assert.equal(partsOf(data, 1).join(""), `${at}${over.slice(0, -2)}\n${MARK}y\n`);
+});
+
 test("a line at the cap is left alone", () => {
   const patch = file("a.js", 1, `+${"x".repeat(99)}`);
   const { data } = run(patch);

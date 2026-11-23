@@ -93,7 +93,8 @@ import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
 import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, SPLIT_PENDING, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";

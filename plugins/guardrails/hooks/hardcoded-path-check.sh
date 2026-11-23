@@ -1,61 +1,21 @@
 #!/usr/bin/env bash
-# PreToolUse hook: detect hardcoded machine-specific paths before file writes.
-# Triggered on Write|Edit|NotebookEdit of any file.
-#
-# BLOCKING: exits 2 when hardcoded user home directories or drive-letter paths
-# are detected in new content. Stderr feedback tells Claude what was found and
-# how to fix it.
-#
-# Cross-platform: detects Windows drive-letter user homes, macOS user homes,
-# and Linux user homes. Excludes dynamic references, documentation
-# placeholders, and legitimate system paths.
-#
-# Detection patterns live in the bundled lib/path-detection/hardcoded-path-patterns.sh.
-# This script keeps the tool-specific I/O glue: kill switch, JSON stdin parsing,
-# exemption set, exit-code mapping.
-#
-# Consumer seams: gitignored files are skipped (git check-ignore against
-# $CLAUDE_PROJECT_DIR) — designate machine-local files there. Disable entirely
-# with the hardcoded_path_check_enabled userConfig option set to false.
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. This guard runs on every
-# Write/Edit: a defect in it must not stop the session writing files, and the
-# allow it always inherited on an abort is now visible instead of silent.
 guard::abort_boundary hardcoded-path-check PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# Bundled pattern lib — resolved under the plugin root (CC sets
-# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset).
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
 # shellcheck source=../lib/path-detection/hardcoded-path-patterns.sh
 source "$PLUGIN_ROOT/lib/path-detection/hardcoded-path-patterns.sh"
 
-# High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
@@ -95,28 +55,17 @@ hook::jq_fields "$INPUT" \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
   '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
-# A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
-# text across the byte, so a clean scan would not reflect the bytes carried. One
-# verdict for both lanes: the single-file read below and the per-file MCP loop
-# ask the same question of the same helper flag. Never returns.
 hpc_block_nul() {
   guard::refuse_nul
   exit 2
 }
 
-# The portable-alternatives guidance both violation reports end with, printed on
-# the caller's already-redirected stream. One definition so the two lanes cannot
-# drift apart on the advice they give.
 hpc_print_alternatives() {
   # shellcheck disable=SC2016  # the `$` spellings are literal advice, not expansions
   printf 'Use portable alternatives: ~/, $HOME, $(pwd), $TMPDIR, '
   printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
 }
 
-# hpc_print_violations <text>: the report body, each matched line capped at 160
-# characters. The scanner keeps a matched line whole, so one minified line
-# would otherwise carry the whole file into the deny reason; the line number
-# at its head still locates it.
 hpc_print_violations() {
   local line
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -125,26 +74,12 @@ hpc_print_violations() {
   done < <(printf '%s' "$1")
 }
 
-# Telemetry labels for a violation report, into the variable named by $1: the
-# block headers only (e.g. "Linux user path detected"), never the matched lines,
-# which carry the actual machine-specific path.
-#
-# Process substitution, not `<<<`. A report is NOT small: each block embeds up to
-# three MATCHED LINES verbatim, and the lib's `head -3` bounds the line COUNT,
-# not the byte count, so one 65KB minified line carrying a hardcoded path makes
-# it payload-sized. A here-string of 65536-65663 bytes deadlocks (see
-# lib/path-detection/hardcoded-path-patterns.sh), and it would deadlock on the
-# blocked path, after the stderr message but before `exit 2`, turning a detected
-# violation into a hook the harness cancels at its timeout.
 hpc_labels_json_to() {
   local __hpc_labels
   __hpc_labels=$(grep -E 'detected:$' < <(printf '%s' "$2") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || __hpc_labels='[]'
   printf -v "$1" '%s' "$__hpc_labels"
 }
 
-# hpc_send_tel <status> <file> <violation report, or "" for none>: one telemetry
-# envelope. The caller checks the start stamp and the opt-in sink first, so the
-# unwired path spawns nothing.
 hpc_send_tel() {
   local labels_json='[]' data
   [[ -z "$3" ]] || hpc_labels_json_to labels_json "$3"
@@ -160,47 +95,14 @@ fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
 
-# 0 when <slash-normalized path> legitimately contains path patterns. A function
-# rather than the inline case it replaced because the MCP lane asks the same
-# question of a repo-relative path: one list, two callers.
 hpc_path_allowlisted() {
   case "$1" in
-  # Hook / hook-manager scripts contain path-detection patterns as regex strings.
   *.claude/hooks/* | *.lefthook/*) return 0 ;;
-  # Claude Code session/workflow state (under ~/.claude/projects/) lives OUTSIDE
-  # any repo working tree and is never committed; absolute paths there are expected
-  # machine-local glue. The gitignore check cannot catch it — the path is outside
-  # $CLAUDE_PROJECT_DIR, so `git check-ignore` errors rather than matching.
   *.claude/projects/*) return 0 ;;
   *) return 1 ;;
   esac
 }
 
-# Scan every file a GitHub MCP write carries, and block the whole tool call if
-# any of them holds a machine-specific path. Exits 2 on a violation; returns for
-# a clean call.
-#
-# WHAT THIS LANE DELIBERATELY DOES NOT REUSE, and why. All three are statements
-# about a LOCAL file, and an MCP write has none — it names `owner/repo` and a
-# repo-relative path, and the bytes go straight to GitHub:
-#
-#   The project-scope guard, which exists because a local Write can target
-#   another checkout on this machine. Applied here it would skip every MCP write
-#   (a relative path is never under the project root) — a silent hole, not a
-#   scope.
-#
-#   The git-working-tree requirement on CLAUDE_PROJECT_DIR. The destination's
-#   tree is on GitHub; this session's own tree says nothing about it.
-#
-#   `git check-ignore`. It answers whether THIS checkout ignores a path. The
-#   destination repo's ignore rules are not readable from here, and a path that
-#   happens to be gitignored locally can be tracked there.
-#
-# SCAN_ROOT is still resolved, and it is the most valuable half of this lane:
-# when the session's own checkout path appears verbatim in content being pushed
-# to a repository, that is precisely the leak this guard exists to stop, and it
-# is unrecoverable once pushed. It resolves to empty when there is no usable
-# project root, which only turns that one branch off.
 hpc_mcp_lane() {
   local count=1 i path content violations="" first_offender="" scan_out
   local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
@@ -215,8 +117,6 @@ hpc_mcp_lane() {
 
   for ((i = 0; i < count; i++)); do
     if [[ "$TOOL" == *__push_files ]]; then
-      # One jq process per file, on a lane that fires only on a GitHub MCP write
-      # — never on the Write/Edit path this guard runs on for authored content.
       hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
       path="${HOOK_JQ_FIELDS[0]}"
       content="${HOOK_JQ_FIELDS[1]}"
@@ -258,16 +158,6 @@ hpc_mcp_lane() {
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) IS_MCP=0 ;;
-# The GitHub MCP write lane (#3719). A Write|Edit matcher does not see a write
-# issued through an MCP tool, so a machine-specific path this session authored
-# could reach a repository by a route this guard never inspected.
-#
-# mcp__github__delete_file is deliberately absent: its schema carries owner,
-# repo, path, message and branch, and NO content. There is nothing for a content
-# guard to scan, and a delete cannot introduce a hardcoded path. Naming it here
-# would claim coverage that consists of skipping every call.
-# A GitHub server bundled by a plugin names its tools
-# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
 mcp__github__push_files | mcp__github__create_or_update_file | \
   mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
@@ -278,58 +168,25 @@ if ((IS_MCP)); then
   exit 0
 fi
 
-# NotebookEdit sends its target as notebook_path; file_path is read only when
-# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
 
-# Normalize path separators for cross-platform case matching.
 NORM_FILE="${FILE//\\//}"
 
-# --- Scope guard: police only files inside THIS project ---
-# A PreToolUse Write|Edit hook fires on every file write regardless of which
-# repo the target lives in. A file outside the project root is not ours to scan
-# — that repo owns its own path policy. No active project (CLAUDE_PROJECT_DIR
-# unset) → skip entirely: the target is machine-local (a $HOME dotfile, not a
-# portable repo artifact this guard protects), and the gitignore escape hatch
-# below needs a project root, so scanning here would leave no per-file
-# exemption short of the global kill switch. Deliberately different from
-# secret-pattern-detection, which scans even without a resolvable root —
-# secrets are dangerous anywhere; hardcoded paths only harm portable artifacts.
 [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] || exit 0
 
-# Extract content to check — Write has .content, Edit has .new_string,
-# NotebookEdit has .new_source.
 case "$TOOL" in
 Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
 NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
-*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+*) exit 0 ;;
 esac
 
-# Clean content, the common case, is decided here, before either git probe.
-# Every branch below ends in `exit 0` for content hpp::scan_text finds clean:
-# not a work tree, outside the project, allowlisted, gitignored, empty, or a
-# clean scan. Only the clean scan differs, by its `ok` telemetry envelope, so
-# the early exit is taken only when no envelope can be written. The scan root
-# below is CLAUDE_PROJECT_DIR or empty, and a prefilter `clean` with the root
-# is `clean` without it.
 if [[ -z "$start" ]] || ! hook::telemetry_enabled; then
   hpp::prefilter "$CONTENT" "$CLAUDE_PROJECT_DIR"
   [[ "$HPP_GATE" == clean ]] && exit 0
 fi
-# Same rationale when the project dir resolves but is NOT a git working tree
-# (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
-# session is the common case): the target is not a portable repo artifact, and
-# every per-file exemption rung below is unreachable there — the .claude
-# carve-outs don't cover machine-local plugin config, and git check-ignore
-# errors outside a work tree — leaving only the global kill switch. A bare
-# repo also skips (no working tree means no tracked portable artifacts to
-# protect at this path).
-#
-# One git process answers both questions this lane asks of the project dir:
-# line 1 is the work-tree test, line 2 the toplevel hpp::resolve_scan_root needs.
 { _hpc_git="$(hook::git_untrusted -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel)"; } 2>/dev/null
 [[ "${_hpc_git%%$'\n'*}" == "true" ]] || exit 0
 _hpc_toplevel=""
@@ -340,60 +197,30 @@ _scope_project=""
 hook::normalize_path_to _scope_project "${CLAUDE_PROJECT_DIR}"
 _scope_project="${_scope_project%/}"
 case "$_scope_file" in
-"$_scope_project"/*) ;; # inside the project — proceed
-*) exit 0 ;;            # outside the project — not this hook's concern
+"$_scope_project"/*) ;;
+*) exit 0 ;;
 esac
 
 hpc_path_allowlisted "$NORM_FILE" && exit 0
 
-# Skip gitignored files — designated for machine-specific state (settings.local.json,
-# CLAUDE.local.md, .venv/, node_modules/, etc.). git check-ignore does not require
-# the file to exist on disk, so this works for new Write operations too.
-# CLAUDE_PROJECT_DIR is guaranteed non-empty here — the scope guard above
-# exited on the no-project case.
 if hook::git_untrusted -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 
 [[ -n "${CONTENT:-}" ]] || exit 0
 
-# Resolve current repo root for the machine-specific-path check. Comments are
-# NOT exempt — examples and "do not use" comments still ship as hardcoded paths
-# in fresh clones, get copy-pasted, and rot. Use placeholders in comments too.
-# The scope guard above guarantees CLAUDE_PROJECT_DIR is set.
 PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 
-# SCAN_ROOT gates hpp::scan_text's repo-path branch; which checkouts earn that
-# branch, and why, is hpp::resolve_scan_root above. PROJECT_ROOT itself is left
-# alone: telemetry below still anchors the repo-relative path on it.
 hpp::resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
 
-# Emit one telemetry envelope: $1 status, $2 violation report. Gated on the
-# high-res start stamp and the opt-in sink — the unwired path spawns nothing,
-# which is also why the repo-relative path is resolved in here rather than at
-# the top level: the default unwired run never pays for it.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # The helper carries the redaction: a path it could not make repo-relative
-  # comes back as the basename, never an absolute path (which would embed the
-  # developer's username) and never a UNC share (which would name an internal
-  # host). PROJECT_ROOT is the anchor the envelope itself carries, and the
-  # scope guard above guarantees it is set, so no fallback root is needed.
-  # The helper strips "$root/", so a root that already ends in a separator
-  # makes the prefix "/repo//" and matches nothing: every in-project file
-  # would collapse to its basename. PROJECT_ROOT comes from the caller-supplied
-  # CLAUDE_PROJECT_DIR, where a trailing slash is a supported spelling, so trim
-  # it here. The copy this replaced did the same.
   local file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "${PROJECT_ROOT%/}"
   hpc_send_tel "$1" "$file_rel" "$2"
 }
 
-# `$(…)` strips every trailing newline. Each violation block ends with a blank
-# line terminator (`\n\n`); without a sentinel those separators vanish and the
-# guidance line glues onto the last path (`…/repoUse portable alternatives:`).
-# printf x absorbs the strip; peeling it restores the block terminators intact.
 VIOLATIONS=""
 hpp::prefilter "$CONTENT" "$SCAN_ROOT"
 if [[ "$HPP_GATE" != clean ]]; then
@@ -404,10 +231,6 @@ if [[ "$HPP_GATE" != clean ]]; then
   VIOLATIONS=${VIOLATIONS%x}
 fi
 if [[ -n "$VIOLATIONS" ]]; then
-  # The file as the model names it: project-relative when it sits under the
-  # project spelled the same way, else as given. A prefix strip, not
-  # hook::repo_relative_path_to: that one forks cygpath on Windows and degrades
-  # to a basename, which names a different file.
   show_file="$FILE"
   [[ "$FILE" == "${PROJECT_ROOT%/}/"?* ]] && show_file="${FILE#"${PROJECT_ROOT%/}/"}"
   {

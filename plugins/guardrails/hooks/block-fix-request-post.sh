@@ -79,15 +79,12 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh).
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_FIX_REQUEST_POST_ENABLED:-true}" == "false" ]] && exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: fail-open with a dual-channel "guard did not run"
-# notice; 0 (allow) and 2 (block) pass through, like the other per-call guards.
 guard::abort_boundary block-fix-request-post PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -97,8 +94,6 @@ source "${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}/lib/github-post/github-post-body.s
 _bfr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_FIX_REQUEST_POST_ENABLED:-true}"
 start=${EPOCHREALTIME:-}
 
-# rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
-# short by the pipe) is a loud skip the dispatcher takes once.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
@@ -109,8 +104,6 @@ hook::buffer_stdin_to INPUT || {
 
 hook::require_jq_blocking "guardrails-block-fix-request-post" "block_fix_request_post_enabled"
 
-# _bfr_settle_fields <hook::jq_fields rc>: refuse an unparsable payload or a
-# NUL byte, skip on any other jq failure.
 _bfr_settle_fields() {
   if (($1 == 2)); then
     guard::refuse_unparsable
@@ -131,9 +124,6 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 _BFR_CWD="${HOOK_JQ_FIELDS[2]:-$PWD}"
 
 _BFR_PHRASE='pr-fix lane: please fix this finding'
-# A request line: the phrase at a line start or right after a value-opening
-# quote or `=`, then no word character. The fast form reads the whole text, a
-# newline standing for the line start; the line form is for fenced text.
 _bfr_q="[\"'=]"
 _BFR_RE_ANY="(["$'\n'"\"'=])${_BFR_PHRASE}([^[:alnum:]_]|\$)"
 _BFR_RE_LINE="^(.*${_bfr_q})?${_BFR_PHRASE}([^[:alnum:]_]|\$)"
@@ -147,12 +137,6 @@ emit_tel() {
   hook::emit_telemetry "block-fix-request-post" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# _bfr_allowed: 0 when the team file on the payload's repository's default
-# branch (origin/HEAD) sets fix_request_post to allow. That ref, never the
-# working tree or the index, so one edit and `git add` do not lift it (KNOWN
-# GAPS names what does). Read only on a would-block call, so a call that
-# posts no request pays nothing. Any other state keeps the block; a value
-# other than allow or block, or a file that does not parse, says so.
 _BFR_TEAM_REL="docs/conventions/guardrails.yaml"
 _bfr_allowed() {
   local root text recs val key=$'\nfix_request_post\t'
@@ -185,7 +169,6 @@ block() {
   exit 2
 }
 
-# _bfr_lines <lowercased text>: 0 when a line reads as a fix request.
 _bfr_lines() {
   [[ "$1" == *"$_BFR_PHRASE"* ]] || return 1
   if [[ "$1" != *'```'* && "$1" != *'~~~'* ]]; then
@@ -241,10 +224,7 @@ _bfr_carries() {
   return 1
 }
 
-# --- the GitHub MCP server's write tools ------------------------------------
 if [[ "$TOOL_NAME" == mcp__* ]]; then
-  # hooks.json names the tools; any other MCP payload that reaches here has no
-  # body to post.
   jq_rc=0
   hook::jq_fields "$INPUT" '.tool_input.body' '.tool_input.comments' || jq_rc=$?
   _bfr_settle_fields "$jq_rc"
@@ -257,15 +237,11 @@ fi
 
 [[ -n "$COMMAND" ]] || exit 0
 _bfr_lc="${COMMAND,,}"
-# Past the row's shared ceiling the command is not parsed; one that names the
-# phrase is refused unread.
 MAX_COMMAND_LEN=16384
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   [[ "$_bfr_lc" == *"$_BFR_PHRASE"* ]] && block "too-long"
   exit 0
 fi
-# Cheap pre-filter: a post names the phrase (quotes and escapes aside), or names
-# gh or curl with a way to read a body from elsewhere.
 _bfr_flat="${_bfr_lc//[\\\'\"]/}"
 if [[ "$_bfr_flat" != *"pr-fix lane"* && "$_bfr_flat" != *pr-fix%20lane* && "$_bfr_flat" != *pr-fix+lane* ]]; then
   _bfr_re_cli='(^|[^a-z0-9_.-])(gh|curl)(\.exe)?([^a-z0-9_-]|$)'
@@ -279,8 +255,6 @@ if [[ -z "$GHPOST_POST" ]]; then
   exit 0
 fi
 
-# Every text the post carries (ghpost::bodies says which, and when the whole
-# command counts), in the order the library gives.
 ghpost::bodies
 for _bfr_i in "${!GHPOST_BODY[@]}"; do
   _bfr_carries "${GHPOST_BODY[_bfr_i]}" &&

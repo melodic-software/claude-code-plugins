@@ -23,8 +23,6 @@ trap 'rm -rf "$TMP"' EXIT
 source "$SCRIPT_DIR/../../lib/test-helpers.sh"
 SKIPPED=0
 
-# A case whose subject this host cannot build is neither a pass nor a failure:
-# it never routes through pass(), so the summary cannot count it as run.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -43,7 +41,6 @@ host_makes_symlinks() {
   return "$rc"
 }
 assert_lists() {
-  # $1 label, $2 newline-separated expected, $3 actual
   local want actual
   want="$(printf '%s\n' "$2" | grep -c . || true)"
   actual="$(printf '%s\n' "$3" | grep -c . || true)"
@@ -78,9 +75,6 @@ rule_file() {
   printf -- '---\npaths:\n  - "%s"\n---\n\n# %s\n' "$2" "$3" >"$1"
 }
 
-# ==========================================================================
-# BUG (a) — rules in a NESTED .claude/rules tree
-# ==========================================================================
 repo="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$repo" init -q .
 rule_file "$repo/.claude/rules/root.md" '**/*.cs' 'Root rule'
@@ -93,11 +87,6 @@ assert_has "a root rules tree is discovered" "$out" ".claude/rules/root.md"
 assert_has "a nested package rules tree is discovered" "$out" "packages/web/.claude/rules/web.md"
 assert_has "a subdirectory inside a nested rules tree is discovered" "$out" "packages/api/.claude/rules/deep/api.md"
 
-# ==========================================================================
-# BUG (b) — symlinked rule FILE and symlinked rule DIRECTORY
-# Documented upstream: ".claude/rules/ supports symlinks, so you can maintain
-# a shared set of rules and link them into multiple projects."
-# ==========================================================================
 sym="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$sym" init -q .
 rule_file "$sym/.claude/rules/local.md" '**/*.cs' 'Local rule'
@@ -113,8 +102,6 @@ assert_has "a plain rule file is discovered alongside symlinks" "$out" ".claude/
 assert_has "a SYMLINKED rule file is discovered" "$out" ".claude/rules/security.md"
 assert_has "a rule inside a SYMLINKED directory is discovered" "$out" ".claude/rules/shared/style.md"
 
-# The rules ROOT itself being a symlink is the documented way to share one whole
-# rule set across projects; missing it loses every shared rule rather than one.
 symroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$symroot" init -q .
 mkdir -p "$symroot/.claude" "$symroot/shared"
@@ -127,7 +114,6 @@ out="$(ip_discover_rules "$symroot")"
 assert_has "a SYMLINKED rules root is traversed" "$out" ".claude/rules/security.md"
 assert_has "every rule under a symlinked root is found" "$out" ".claude/rules/style.md"
 
-# A `.claude` directory that is itself a symlink is the same shape one level up.
 symclaude="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$symclaude" init -q .
 mkdir -p "$symclaude/external/rules"
@@ -137,9 +123,6 @@ commit_all "$symclaude"
 out="$(ip_discover_rules "$symclaude")"
 assert_has "a symlinked .claude directory is traversed" "$out" ".claude/rules/x.md"
 
-# --------------------------------------------------------------------------
-# `paths:` parsing — one parser, and brace commas are not list separators
-# --------------------------------------------------------------------------
 pp="$(mktemp -d "$TMP/x.XXXX")"
 rule_file "$pp/block.md" 'src/**/*.ts' 'Block'
 cat >"$pp/flow-brace.md" <<'EOF'
@@ -179,8 +162,7 @@ assert_lists "a bracket expression inside a flow entry survives" 'photos/a[0-9].
 out="$(ip_parse_paths "$pp/block.md")"
 assert_lists "the block-sequence form still parses" 'src/**/*.ts' "$out"
 
-# The memory page's frontmatter reference: `paths` accepts a comma-separated string.
-scalar() { # <name> <value after `paths: `>
+scalar() {
   printf -- '---\npaths: %s\n---\n\n# Scalar\n' "$2" >"$pp/$1.md"
 }
 scalar comma-plain 'src/**/*.ts, lib/**/*.ts'
@@ -211,7 +193,6 @@ b/**" "$(ip_parse_paths "$pp/apostrophe-quoted.md")"
 assert_lists "nor inside a plain string" "it's/*.ts
 b/**" "$(ip_parse_paths "$pp/apostrophe-plain.md")"
 
-# A circular symlink must not hang or explode the listing.
 circ="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$circ" init -q .
 mkdir -p "$circ/.claude/rules"
@@ -225,10 +206,6 @@ assert_has "a circular symlink still yields the real rule" "$out" ".claude/rules
 dupes="$(printf '%s\n' "$out" | sort | uniq -d | grep -c . || true)"
 assert_eq "discovery emits no duplicate paths under a symlink loop" "0" "$dupes"
 
-# ==========================================================================
-# BUG (c) — untracked and gitignored nested instruction files
-# corpus.md: untracked files are not swept; vendor trees are never swept.
-# ==========================================================================
 track="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$track" init -q .
 mkdir -p "$track/pkg" "$track/vendor/thirdparty" "$track/node_modules/dep" "$track/svc"
@@ -236,7 +213,6 @@ printf 'vendor/\nnode_modules/\n' >"$track/.gitignore"
 printf '# Tracked service conventions\n' >"$track/svc/AGENTS.md"
 printf 'x\n' >"$track/svc/a.txt"
 commit_all "$track"
-# Created AFTER the commit, so they are genuinely untracked.
 printf '# Untracked scratch conventions\n' >"$track/pkg/AGENTS.md"
 printf '# Vendored third-party conventions\n' >"$track/vendor/thirdparty/AGENTS.md"
 printf '# Dependency conventions\n' >"$track/node_modules/dep/CLAUDE.md"
@@ -247,8 +223,6 @@ assert_lacks "an UNTRACKED nested instruction file is excluded" "$out" "pkg/AGEN
 assert_lacks "a GITIGNORED vendor tree is excluded" "$out" "vendor/thirdparty/AGENTS.md"
 assert_lacks "node_modules is excluded" "$out" "node_modules/dep/CLAUDE.md"
 
-# An eval fixture tree imitates a consuming repository as test input. Neither its
-# rules nor its nested instruction files are this repository's conventions.
 fixt="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$fixt" init -q .
 rule_file "$fixt/.claude/rules/real.md" '**/*.cs' 'Real rule'
@@ -264,8 +238,6 @@ out="$(ip_discover_nested_instructions "$fixt")"
 assert_has "a nested file outside an eval fixture is discovered" "$out" "svc/AGENTS.md"
 assert_lacks "a nested file inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/CLAUDE.md"
 
-# A unit-test fixture tree (tests/fixtures/) is the same kind of imitated
-# repository and is excluded the same way (#6868).
 tfixt="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$tfixt" init -q .
 rule_file "$tfixt/.claude/rules/real.md" '**/*.cs' 'Real rule'
@@ -281,8 +253,6 @@ out="$(ip_discover_nested_instructions "$tfixt")"
 assert_has "a nested file outside a tests/fixtures tree is discovered" "$out" "svc/AGENTS.md"
 assert_lacks "a nested file inside a tests/fixtures tree is excluded" "$out" "plugins/demo/tests/fixtures/home/AGENTS.md"
 
-# A fixture alias of a real rule, shallower than the real path, must not win the
-# realpath dedupe and then be filtered out, taking the real rule with it.
 if host_makes_symlinks; then
   falias="$(mktemp -d "$TMP/x.XXXX")"
   git -C "$falias" init -q .
@@ -297,7 +267,6 @@ else
   skip "a real rule with a shallower tests/fixtures alias is still discovered" "ln -s copies instead of linking"
 fi
 
-# Root-level instruction files already load at session start — never "nested".
 root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .
 printf '@AGENTS.md\n' >"$root_files/CLAUDE.md"
@@ -310,10 +279,6 @@ assert_lacks "the root CLAUDE.md is not a nested surface" "$out" "CLAUDE.md"
 assert_lacks "the root AGENTS.md is not a nested surface" "$out" "AGENTS.md"
 assert_has "a subdirectory instruction file is a nested surface" "$out" "sub/AGENTS.md"
 
-# Another tool's instruction files are that tool's. Discovery feeds the index
-# and the wiring gate alike, so a `.cursor/AGENTS.md` appearing here would both
-# advertise a Cursor file as a Claude on-demand surface and demand a Claude
-# shim beside it.
 tools="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$tools" init -q .
 mkdir -p "$tools/.cursor/rules" "$tools/.codex" "$tools/.github/workflows" "$tools/src"
@@ -333,9 +298,6 @@ assert_lacks "a .codex tree is not a Claude surface" "$out" ".codex/AGENTS.md"
 assert_lacks "a .github tree is not a Claude surface" "$out" ".github/AGENTS.md"
 assert_has "an ordinary subtree still is" "$out" "src/AGENTS.md"
 
-# ==========================================================================
-# BUG (d) — index target must actually be reachable by Claude Code
-# ==========================================================================
 chain="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$chain" init -q .
 printf '# Claude instructions\n\nNothing imported here.\n' >"$chain/CLAUDE.md"
@@ -352,13 +314,9 @@ commit_all "$chain"
 ip_index_target_loaded "$chain" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an imported AGENTS.md is reachable" "0" "$?"
 
-# A CLAUDE.md target is always reachable — it is a root memory file itself.
 ip_index_target_loaded "$chain" "CLAUDE.md" >/dev/null 2>&1
 assert_eq "a root CLAUDE.md target is reachable" "0" "$?"
 
-# With no root CLAUDE.md at all, the import is not what decides whether the
-# target is read: nothing blocks Claude Code's own AGENTS.md walk. The verdict
-# is a third one, because availability is not observable from the repository.
 nativeroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nativeroot" init -q .
 printf '# Shared agent instructions\n' >"$nativeroot/AGENTS.md"
@@ -368,9 +326,6 @@ assert_eq "an AGENTS.md with no root CLAUDE.md is not a failure" "0" "$?"
 reason="$(ip_index_target_loaded "$nativeroot" "AGENTS.md" 2>&1)"
 assert_eq "and the verdict is NATIVE, not LOADED" "NATIVE" "$(printf '%s' "$reason" | cut -f1)"
 
-# A CLAUDE.md on a NESTED target's own path blocks it exactly as a root one
-# does, so the verdict must agree with what the wiring gate says about the same
-# tree.
 nestedblock="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nestedblock" init -q .
 mkdir -p "$nestedblock/svc" "$nestedblock/free"
@@ -391,8 +346,6 @@ commit_all "$nestedblock"
 reason="$(ip_index_target_loaded "$nestedblock" "svc/AGENTS.md" 2>&1)"
 assert_eq "and an importing sibling makes it LOADED" "LOADED" "$(printf '%s' "$reason" | cut -f1)"
 
-# A Claude-owned file inside another tool's directory is still Claude's. Only
-# an AGENTS.md there belongs to that tool.
 ownedin="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$ownedin" init -q .
 mkdir -p "$ownedin/.github" "$ownedin/.cursor" "$ownedin/.codex"
@@ -410,15 +363,11 @@ assert_has "a CLAUDE.md under .cursor is a Claude surface" "$out" ".cursor/CLAUD
 assert_lacks "the AGENTS.md beside it is not" "$out" ".cursor/AGENTS.md"
 assert_lacks "and neither is a .codex AGENTS.md" "$out" ".codex/AGENTS.md"
 
-# A non-AGENTS.md target gets no NATIVE verdict: Claude Code reads only the
-# AGENTS.md names on its own, so any other index target still needs an import.
 printf '# Index\n' >"$nativeroot/docs-index.md"
 commit_all "$nativeroot"
 ip_index_target_loaded "$nativeroot" "docs-index.md" >/dev/null 2>&1
 assert_eq "a target under another name is still unreachable" "1" "$?"
 
-# An ABSOLUTE target must not be re-anchored under the root: `<root>//abs/path`
-# names a file that does not exist.
 ip_index_target_loaded "$chain" "$chain/AGENTS.md" >/dev/null 2>&1
 assert_eq "an absolute target that exists is reachable" "0" "$?"
 reason="$(ip_index_target_loaded "$chain" "$chain/AGENTS.md" 2>&1)"
@@ -454,7 +403,6 @@ else
     'ln -s copies rather than links here, so there is no link to follow'
 fi
 
-# An import inside a fenced code block is not a real import.
 fenced="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$fenced" init -q .
 {
@@ -467,8 +415,6 @@ commit_all "$fenced"
 ip_index_target_loaded "$fenced" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an @import inside a code fence does not count as an import" "1" "$?"
 
-# The memory page's import section: a backslash keeps a space in the path, a bare
-# space ends it, and a path wrapped in quotes is not imported at all.
 tok="$(mktemp -d "$TMP/x.XXXX")"
 tok_abs="$(cd "$tok" && pwd)"
 cat >"$tok/tokens.md" <<'EOF'
@@ -492,7 +438,6 @@ commit_all "$spaced"
 ip_index_target_loaded "$spaced" "Design Docs/shared.md" >/dev/null 2>&1
 assert_eq "a quoted import leaves its target unreachable" "1" "$?"
 
-# The `.claude/CLAUDE.md` project location is equally valid.
 alt="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$alt" init -q .
 mkdir -p "$alt/.claude"
@@ -502,10 +447,6 @@ commit_all "$alt"
 ip_index_target_loaded "$alt" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an import from .claude/CLAUDE.md also makes the target reachable" "0" "$?"
 
-# ==========================================================================
-# Entry points on a nested path: the walk migrate's shim rule (condition A)
-# runs for each nested AGENTS.md
-# ==========================================================================
 walk="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$walk/svc/deep/.claude" "$walk/other"
 printf '@AGENTS.md\n' >"$walk/CLAUDE.md"
@@ -523,14 +464,10 @@ assert_has "an intermediate CLAUDE.local.md above a nested AGENTS.md is a blocke
   "$out" "$walk/svc/CLAUDE.local.md"
 assert_lacks "a sibling directory's CLAUDE.local.md is off the path" "$out" "$walk/other/CLAUDE.local.md"
 
-# ==========================================================================
-# Determinism
-# ==========================================================================
 a="$(ip_discover_rules "$repo")"
 b="$(ip_discover_rules "$repo")"
 assert_lists "rules discovery is byte-identical across runs" "$a" "$b"
 
-# ==========================================================================
 
 printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1

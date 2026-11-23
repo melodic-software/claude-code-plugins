@@ -51,8 +51,6 @@ make_repo() {
   git -C "$1" config user.name 'changed-code-files-test' >/dev/null 2>&1
 }
 
-# --- 1. Mixed working tree: code listed, non-code and rename origin excluded ----
-
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 printf 'base\n' >"$REPO/committed.ts"
@@ -75,15 +73,11 @@ assert_contains "rename lists destination" "$out" "new.go"
 assert_absent "rename origin excluded" "$out" "old.go"
 assert_absent "non-code file excluded" "$out" "notes.txt"
 
-# --- 2. Cap applies ------------------------------------------------------------
-
 out=$(cd "$REPO" && bash "$SCRIPT" 1 2>&1)
 rc=$?
 line_count=$(printf '%s\n' "$out" | grep -c .)
 assert_exit "capped run exits 0" 0 "$rc"
 assert_equal "cap of 1 emits 1 line" 1 "$line_count"
-
-# --- 3. Clean tree emits nothing ------------------------------------------------
 
 CLEAN="$TEST_TMPDIR/clean"
 make_repo "$CLEAN"
@@ -94,8 +88,6 @@ out=$(cd "$CLEAN" && bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "clean tree exits 0" 0 "$rc"
 assert_equal "clean tree emits nothing" 0 "${#out}"
-
-# --- 4. Outside a repo exits 1 (caller supplies fallback text) -------------------
 
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"
@@ -135,8 +127,6 @@ assert_exit "a missing extension list exits 4" 4 "$rc"
 assert_contains "the missing list's path is named" "$out" "$LONE/code-extensions.txt"
 assert_absent "no code file is listed without the list" "$out" "f.py"
 assert_absent "only the script's own message is printed" "$out" "No such file"
-
-# --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

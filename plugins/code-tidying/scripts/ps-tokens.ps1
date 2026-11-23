@@ -26,8 +26,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Asked of a fresh runspace, not hand-maintained, so the list cannot go stale. The
-# supplement adds names that exist only inside a pipeline, function body, or match.
 $script:reserved = @(
     (Get-Variable -Scope Global).Name
     '_', 'PSItem', 'args', 'input', 'this', 'null', 'true', 'false', 'Matches', 'Error', 'Host'
@@ -99,15 +97,11 @@ function Add-NestedTokens {
     }
 }
 
-# One JSON object per line, one line per input path.
 foreach ($p in $Path) {
     $tokens = $null
     $errors = $null
     [System.Management.Automation.Language.Parser]::ParseFile(
         (Resolve-Path -LiteralPath $p).ProviderPath, [ref]$tokens, [ref]$errors) | Out-Null
-    # Kind and Text flattened into one list rather than a list of pairs: on a
-    # 97k-token file the per-token array allocation costs 2.1 s and this costs
-    # 0.7 s. The Python side re-pairs them.
     $tk = [string[]]::new($tokens.Count * 2)
     $cm = [System.Collections.Generic.List[object[]]]::new()
     $nested = [System.Collections.Generic.List[string]]::new()

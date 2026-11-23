@@ -164,7 +164,6 @@ const log = git([
 ]);
 if (log.status !== 0) fail(`git log ${ref} failed: ${log.stderr.trim()}`);
 
-// Oldest first, so an advisory record is seen before the blocking one that promotes it.
 const commits = log.stdout
   .split("\x1e")
   .map((chunk) => chunk.replace(/^\n/, ""))
@@ -176,15 +175,11 @@ const commits = log.stdout
   .reverse();
 for (const [index, c] of commits.entries()) c.index = index;
 
-// Reverts: by commit hash, or by the pull request number a squash subject ends with.
 const byPr = new Map();
 for (const c of commits) {
   const pr = PR_SUFFIX.exec(c.subject)?.[1];
   if (pr) byPr.set(pr, [...(byPr.get(pr) ?? []), c]);
 }
-// Only a commit whose subject starts `Revert ` reverts, and only a commit older than itself.
-// `Reverts owner/repo#n` names a pull request in this repository only when owner/repo is origin's;
-// with no origin owner/repo to compare, the number alone is matched and the output says so.
 const revertersOf = new Map();
 let unscopedReverts = 0;
 for (const [index, c] of commits.entries()) {
@@ -265,11 +260,6 @@ for (const c of commits) {
   }
 }
 
-// Events: each record adds a check; a promotion moves one from advisory to blocking. An advisory
-// record is known by the pull request that landed it and its rung; a blocking record promotes it by
-// naming that pull request as its source.
-// A reverted advisory record cannot be promoted: the blocking record naming it stands as a new
-// blocking check and is listed with the advisory record it would have promoted.
 const advisoryKey = (r) => {
   const landedIn = PR_SUFFIX.exec(r.commit.subject)?.[1];
   return landedIn ? `#${landedIn} ${r.rung}` : undefined;
@@ -304,8 +294,6 @@ for (const r of records) {
   events.push({ day: r.commit.day, blocking: 1, advisory: 0, rung: r.rung, rungDelta: 1 });
 }
 
-// With no --since the window opens at the first record line in history: a counted or reverted
-// record, or a line not counted that looks like an attempted record.
 const firstDay = [...records, ...reverted, ...notCounted].map((e) => e.commit.day).sort()[0];
 let since = opts.since ?? firstDay ?? until;
 if (since > until) since = until;

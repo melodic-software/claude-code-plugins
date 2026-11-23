@@ -69,8 +69,6 @@ make_stub_path() {
   done
 }
 
-# report_and_exit: the suite's last line. Totals to stdout when everything
-# passed, to stderr otherwise, then the suite's exit status.
 report_and_exit() {
   if [[ "$FAILED" -eq 0 ]]; then
     printf '\nAll %d checks passed.\n' "$CASE_NUM"

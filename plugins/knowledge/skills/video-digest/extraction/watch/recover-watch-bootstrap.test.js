@@ -43,8 +43,6 @@ describe("recovery source-URL resolution", () => {
   });
 
   it("reads sourceUrl from the slice's persisted watch.json — never synthesized", async () => {
-    // A non-YouTube sourceUrl proves recovery honors what the original run
-    // recorded instead of re-deriving a YouTube-shaped URL from metadata.
     const sourceUrl = "https://x.com/someone/status/1234567890";
     await writeWatchState(
       sliceDir,

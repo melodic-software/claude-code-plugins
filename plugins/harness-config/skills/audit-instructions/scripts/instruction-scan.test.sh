@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for instruction-scan.sh (assertions from test-helpers.sh
-# beside this file; both ship with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,13 +17,11 @@ if ! command -v grep >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Case 1: --help ----------------------------------------------------------
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: I6 bare prohibitions flagged -----------------------------------
 I6F="$TEST_TMPDIR/i6.md"
 cat >"$I6F" <<'EOF'
 Never commit secrets to the repository.
@@ -40,7 +36,6 @@ assert_contains "flags 'Do not' prohibition on line 2" "$OUT" "$I6F:2:I6"
 assert_not_contains "positive 'Always' instruction not flagged" "$OUT" ":3:I6"
 assert_eq "two I6 candidates" "2" "$(bash "$SCRIPT" --count "$I6F")"
 
-# --- Case 3: prohibition WITH rationale not flagged -------------------------
 I6R="$TEST_TMPDIR/i6-rationale.md"
 cat >"$I6R" <<'EOF'
 Never force-push to main because it rewrites shared history.
@@ -48,7 +43,6 @@ Do not skip the lint step, since CI will reject the PR otherwise.
 EOF
 assert_eq "rationale-bearing prohibitions not flagged" "0" "$(bash "$SCRIPT" --count "$I6R")"
 
-# --- Case 3b: I6 imperative-opening gate --------------------------------------
 I6G="$TEST_TMPDIR/i6-imperative.md"
 cat >"$I6G" <<'EOF'
 Older versions do not support this flag.
@@ -65,7 +59,6 @@ assert_not_contains "descriptive 'never' mid-sentence is not I6" "$OUT" "$I6G:3:
 assert_contains "a list-item prohibition opens its sentence" "$OUT" "$I6G:5:I6"
 assert_contains "a blockquoted, emphasized prohibition opens its sentence" "$OUT" "$I6G:7:I6"
 
-# --- Case 3c: I6 paired-positive boundary -------------------------------------
 I6P="$TEST_TMPDIR/i6-paired.md"
 cat >"$I6P" <<'EOF'
 Never edit the lockfile by hand; regenerate it instead.
@@ -94,7 +87,6 @@ assert_not_contains "a transparent adverb is looked through to the alternative" 
 assert_contains "a second prohibition is not an alternative" "$OUT" "$I6P:13:I6"
 assert_contains "a positive in the NEXT sentence does not pair it" "$OUT" "$I6P:15:I6"
 
-# --- Case 3d: I6 soft-wrapped sentence accumulation ---------------------------
 I6W="$TEST_TMPDIR/i6-wrapped.md"
 cat >"$I6W" <<'EOF'
 Never edit the generated index by hand, because the
@@ -112,7 +104,6 @@ assert_not_contains "a positive on the wrapped line pairs the sentence" "$OUT" "
 assert_contains "a wrapped sentence is attributed to its first physical line" "$OUT" "$I6W:7:I6"
 assert_not_contains "the continuation line carries no row" "$OUT" "$I6W:8:I6"
 
-# --- Case 3e: I6 fence, table, heading, and frontmatter exclusion --------------
 I6X="$TEST_TMPDIR/i6-excluded.md"
 cat >"$I6X" <<'EOF'
 ---
@@ -147,7 +138,6 @@ assert_contains "prose after the table is still read" "$OUT" "$I6X:21:I6"
 assert_eq "--i6-counts reports raw and surviving" "I6 raw=6 surviving=1" \
   "$(bash "$SCRIPT" --i6-counts "$I6X")"
 
-# --- Case 3f: I6 fence closing rules ------------------------------------------
 I6C="$TEST_TMPDIR/i6-fence-close.md"
 cat >"$I6C" <<'EOF'
 ````markdown
@@ -182,7 +172,6 @@ assert_not_contains "a blockquoted fence opener is not read as prose" "$OUT" "$I
 assert_not_contains "a blockquoted fence body is not read" "$OUT" "$I6Q:2:I6"
 assert_contains "prose after a blockquoted fence is scanned" "$OUT" "$I6Q:5:I6"
 
-# --- Case 3g: I6 one row per line, setext headings, underscore emphasis -------
 I6S="$TEST_TMPDIR/i6-setext.md"
 cat >"$I6S" <<'EOF'
 Never call foo. Do not call bar.
@@ -215,7 +204,6 @@ assert_eq "--count counts the doubled line once" "4" "$(bash "$SCRIPT" --count "
 assert_eq "--i6-counts counts the doubled line once" "surviving=4" \
   "$(bash "$SCRIPT" --i6-counts "$I6S" | grep -o 'surviving=[0-9]*')"
 
-# --- Case 4: I10 reasoning-echo directives flagged --------------------------
 I10F="$TEST_TMPDIR/i10.md"
 cat >"$I10F" <<'EOF'
 Show your thinking before giving the final answer.
@@ -230,7 +218,6 @@ assert_contains "flags 'Think out loud'" "$OUT" "$I10F:3:I10"
 assert_not_contains "benign summarize instruction not flagged" "$OUT" ":4:I10"
 assert_eq "three I10 candidates" "3" "$(bash "$SCRIPT" --count "$I10F")"
 
-# --- Case 4b: I10 scratchpad rules flagged, scratchpad storage not ------------
 I10S="$TEST_TMPDIR/i10-scratchpad.md"
 cat >"$I10S" <<'EOF'
 Use a scratchpad to work through the problem before you answer.
@@ -244,7 +231,6 @@ assert_contains "flags a <scratchpad> tag" "$OUT" "$I10S:2:I10"
 assert_not_contains "a scratchpad storage path is not I10" "$OUT" "$I10S:3:I10"
 assert_not_contains "a <scratchpad>/ path placeholder is not I10" "$OUT" "$I10S:4:I10"
 
-# --- Case 4c: I38 progress-update suppressors flagged, report shape not ------
 I38F="$TEST_TMPDIR/i38.md"
 cat >"$I38F" <<'EOF'
 Hold all findings for the final response.
@@ -260,7 +246,6 @@ assert_contains "flags 'No interim updates'" "$OUT" "$I38F:3:I38"
 assert_not_contains "a final-message shape contract is not I38" "$OUT" "$I38F:4:I38"
 assert_not_contains "an instruction to post updates is not I38" "$OUT" "$I38F:5:I38"
 
-# --- Case 5: clean file ------------------------------------------------------
 CLEAN="$TEST_TMPDIR/clean.md"
 cat >"$CLEAN" <<'EOF'
 Use ES modules syntax.
@@ -270,22 +255,18 @@ EOF
 assert_contains "clean file message" "$(bash "$SCRIPT" "$CLEAN")" "No instruction candidates found."
 assert_eq "clean file count is 0" "0" "$(bash "$SCRIPT" --count "$CLEAN")"
 
-# --- Case 6: multiple files aggregate ---------------------------------------
 assert_eq "aggregate count across files" "5" "$(bash "$SCRIPT" --count "$I6F" "$I10F")"
 
-# --- Case 7: nonexistent path skipped, not an error -------------------------
 rc=0
 OUT=$(bash "$SCRIPT" "$TEST_TMPDIR/does-not-exist.md") || rc=$?
 assert_exit "nonexistent path exits 0" 0 "$rc"
 assert_contains "nonexistent path yields clean message" "$OUT" "No instruction candidates found."
 
-# --- Case 8: no file arguments ----------------------------------------------
 rc=0
 OUT=$(bash "$SCRIPT") || rc=$?
 assert_exit "no-args exits 0" 0 "$rc"
 assert_eq "no-args count is 0" "0" "$(bash "$SCRIPT" --count)"
 
-# --- Case 9: I8-a instructed self-check directives flagged -------------------
 I8SC="$TEST_TMPDIR/i8-selfcheck.md"
 cat >"$I8SC" <<'EOF'
 Double-check your answer before responding.
@@ -309,7 +290,6 @@ assert_contains "flags spaced 'double check'" "$OUT" "$I8SC:7:I8-a"
 assert_contains "flags inflected 're-verified'" "$OUT" "$I8SC:8:I8-a"
 assert_contains "flags 'have a subagent verify'" "$OUT" "$I8SC:9:I8-a"
 
-# --- Case 10: I8-c don't-think directives flagged ----------------------------
 I8DT="$TEST_TMPDIR/i8-dontthink.md"
 cat >"$I8DT" <<'EOF'
 Do not think before answering.
@@ -328,7 +308,6 @@ assert_not_contains "positive think instruction not flagged as I8-c" "$OUT" ":5:
 assert_contains "flags curly-apostrophe 'Don’t think'" "$OUT" "$I8DT:6:I8-c"
 assert_contains "positive think instruction flagged as I8-f" "$OUT" "$I8DT:5:I8-f"
 
-# --- Case 10b: I8-f think-carefully steers flagged, procedures not ------------
 I8TC="$TEST_TMPDIR/i8-thinkcarefully.md"
 cat >"$I8TC" <<'EOF'
 Think step by step before you answer.
@@ -342,11 +321,6 @@ assert_contains "flags 'ultrathink'" "$OUT" "$I8TC:2:I8-f"
 assert_not_contains "step-by-step procedure not flagged as I8-f" "$OUT" ":3:I8-f"
 assert_contains "flags 'think hard'" "$OUT" "$I8TC:4:I8-f"
 
-# --- Case 10c: I8-g keep-going exhortations flagged, checks and P6 lines not ---
-# Positives are the best-practices "What you can stop doing" row's three
-# phrases; line 4 is that page's own recommended check-to-pass prompt, line 5
-# this repository's P6 carry-on statement, line 6 the technical sense of "lazy",
-# line 8 this repository's heading for that statement.
 I8KG="$TEST_TMPDIR/i8-keepgoing.md"
 cat >"$I8KG" <<'EOF'
 Keep going.
@@ -368,7 +342,6 @@ assert_not_contains "lazy loading not flagged as I8-g" "$OUT" ":6:I8-g"
 assert_contains "flags 'continue until the task is complete'" "$OUT" "$I8KG:7:I8-g"
 assert_not_contains "a heading naming the topic not flagged as I8-g" "$OUT" ":8:I8-g"
 
-# --- Case 11: I8-b conservative-reporting directives flagged -----------------
 I8CV="$TEST_TMPDIR/i8-conservative.md"
 cat >"$I8CV" <<'EOF'
 Be conservative in what you report.
@@ -390,10 +363,6 @@ assert_contains "flags 'do not nitpick'" "$OUT" "$I8CV:6:I8-b"
 assert_contains "flags curly-apostrophe 'Don’t nitpick'" "$OUT" "$I8CV:7:I8-b"
 assert_contains "flags 'only report critical-severity'" "$OUT" "$I8CV:8:I8-b"
 
-# --- Case 12: advisory over-production — restraint-clause text still emitted -
-# The criteria fence (restraint-clause shape, quoted/meta surfaces) is owned by
-# criteria.md and adjudicated by the model lane; the scanner deliberately
-# over-produces, so tidyings-like "When NOT to apply" text IS a candidate row.
 I8FP="$TEST_TMPDIR/i8-fence-shape.md"
 cat >"$I8FP" <<'EOF'
 When NOT to apply this tidying: be conservative here and skip the change.
@@ -401,7 +370,6 @@ EOF
 OUT=$(bash "$SCRIPT" "$I8FP")
 assert_contains "restraint-clause text still emitted (advisory contract)" "$OUT" "$I8FP:1:I8-b"
 
-# --- Case 13: I23 self-estimated context-budget phrasing flagged -------------
 I23F="$TEST_TMPDIR/i23.md"
 cat >"$I23F" <<'EOF'
 Invoke this skill mid-task when context is heavy.
@@ -421,14 +389,8 @@ assert_contains "flags '/context output'" "$OUT" "$I23F:4:I23"
 assert_contains "flags 'final third of the window'" "$OUT" "$I23F:5:I23"
 assert_contains "flags 'approaching the context limit'" "$OUT" "$I23F:6:I23"
 assert_not_contains "a licensed trigger naming no budget is not an I23 row" "$OUT" ":7:I23"
-# Advisory over-production, same contract as Case 12: the counter-steer states
-# the budget phrase in order to forbid acting on it, and the scanner cannot see
-# polarity. criteria.md's inverted-polarity exemption is the model lane's.
 assert_contains "counter-steer text still emitted (advisory contract)" "$OUT" "$I23F:8:I23"
 
-# --- Case 14: I23 is not anchored to the bare term "context window" ----------
-# Matching it would return every surface that discusses sessions at all, which
-# is a corpus rather than a candidate set.
 I23N="$TEST_TMPDIR/i23-neutral.md"
 cat >"$I23N" <<'EOF'
 The subagent runs with its own context window and sees none of this conversation.
@@ -438,7 +400,6 @@ OUT=$(bash "$SCRIPT" "$I23N")
 assert_not_contains "bare 'context window' is not an I23 row" "$OUT" ":1:I23"
 assert_not_contains "compaction prose is not an I23 row" "$OUT" ":2:I23"
 
-# --- Case 15: I27 effort-for-brevity candidates ------------------------------
 I27F="$TEST_TMPDIR/i27.md"
 cat >"$I27F" <<'EOF'
 Lower the effort level to keep responses short.
@@ -472,11 +433,6 @@ assert_contains "flags third-person 'reduces effort … short'" "$OUT" "$I27F:12
 assert_contains "flags third-person 'lowers effort … briefer'" "$OUT" "$I27F:13:I27"
 assert_contains "flags third-person 'drops effort … concise'" "$OUT" "$I27F:14:I27"
 
-# --- Case 16: --body-only fences YAML frontmatter -----------------------------
-# The fence exists because check-skill.sh check 3 hard-FAILs a dropped
-# `'trigger phrase'` versus the base ref: a row pointing at a description or a
-# when_to_use invites a remediation that is an auto-invocation regression. It is
-# opt-in, so the default path must keep reporting frontmatter.
 FMF="$TEST_TMPDIR/frontmatter.md"
 cat >"$FMF" <<'EOF'
 ---
@@ -504,7 +460,6 @@ assert_eq "--count composes with --body-only" "2" "$OUT"
 OUT=$(bash "$SCRIPT" --body-only --count "$FMF")
 assert_eq "flag order does not matter" "2" "$OUT"
 
-# A file with no frontmatter must be unaffected by the fence.
 NOFM="$TEST_TMPDIR/nofrontmatter.md"
 cat >"$NOFM" <<'EOF'
 CRITICAL: run the linter first.
@@ -512,7 +467,6 @@ EOF
 OUT=$(bash "$SCRIPT" --body-only "$NOFM")
 assert_contains "--body-only is a no-op without frontmatter" "$OUT" "$NOFM:1:I28-a"
 
-# A `---` that is a thematic break, not frontmatter, opens no block.
 BREAKF="$TEST_TMPDIR/thematic.md"
 cat >"$BREAKF" <<'EOF'
 # Heading
@@ -524,8 +478,6 @@ EOF
 OUT=$(bash "$SCRIPT" --body-only "$BREAKF")
 assert_contains "a mid-document --- is not frontmatter" "$OUT" "$BREAKF:5:I28-a"
 
-# An UNCLOSED leading `---` fences the whole file: fail-safe, since the
-# alternative routes a malformed-frontmatter description to an apply relay.
 UNCLOSED="$TEST_TMPDIR/unclosed.md"
 cat >"$UNCLOSED" <<'EOF'
 ---
@@ -537,11 +489,6 @@ assert_not_contains "unclosed frontmatter fences the whole file" "$OUT" "$UNCLOS
 OUT=$(bash "$SCRIPT" "$UNCLOSED")
 assert_contains "unclosed frontmatter still reports in default mode" "$OUT" "$UNCLOSED:2:I28-a"
 
-# --- Case 17: CRLF files do not defeat the fence -----------------------------
-# `head`/`awk` leave a terminal CR, so a CRLF delimiter reads as "---\r" and
-# matched neither frontmatter test: the block was treated as body and the
-# description and when_to_use lines became candidates. The fence inverted on
-# exactly the Windows-authored files it most needs to hold for.
 CRLFF="$TEST_TMPDIR/crlf.md"
 printf -- '---\r\ndescription: "CRITICAL: you MUST not edit this."\r\nwhen_to_use: "if in doubt, use this"\r\n---\r\n\r\nCRITICAL: run the linter.\r\n' >"$CRLFF"
 OUT=$(bash "$SCRIPT" --body-only "$CRLFF")
@@ -551,16 +498,11 @@ assert_contains "CRLF: the body line is still a candidate" "$OUT" "$CRLFF:6:I28-
 OUT=$(bash "$SCRIPT" "$CRLFF")
 assert_contains "CRLF: default mode still reports the description" "$OUT" "$CRLFF:2:I28-a"
 
-# A CRLF file with an UNCLOSED leading `---` must still fence the whole file.
 CRLFU="$TEST_TMPDIR/crlf-unclosed.md"
 printf -- '---\r\ndescription: "IMPORTANT: x"\r\nCRITICAL: never terminated\r\n' >"$CRLFU"
 OUT=$(bash "$SCRIPT" --body-only "$CRLFU")
 assert_not_contains "CRLF: unclosed frontmatter fences the whole file" "$OUT" "$CRLFU:"
 
-# Trailing whitespace on a delimiter is real frontmatter to
-# skill_frontmatter::extract (^---[[:space:]]*$) and so must be here too — the
-# three implementations of "is this the fence" have to agree, or the fence is
-# only as strong as the loosest reader.
 WSF="$TEST_TMPDIR/trailing-ws.md"
 printf -- '---   \ndescription: "CRITICAL: you MUST not edit this."\nwhen_to_use: "if in doubt, use this"\n---\t\n\nCRITICAL: run the linter.\n' >"$WSF"
 OUT=$(bash "$SCRIPT" --body-only "$WSF")
@@ -568,7 +510,6 @@ assert_not_contains "trailing-space delimiter: description is fenced" "$OUT" "$W
 assert_not_contains "trailing-tab delimiter: when_to_use is fenced" "$OUT" "$WSF:3:"
 assert_contains "trailing-ws delimiter: the body line is still a candidate" "$OUT" "$WSF:6:I28-a"
 
-# --- Case 18: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"
@@ -577,10 +518,6 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" "$CLEAN" 2>&1) || rc=$?
 assert_exit "exit 2 when grep missing" 2 "$rc"
 assert_contains "grep required message" "$err_out" "grep required"
 
-# --- Case 19: filter markers at column 0 ---------------------------------------
-# The I6 rationale and I27 brevity filters run over grep -n output, where a
-# `N:` prefix precedes the line text. A marker at the start of the line must
-# still bound correctly against that prefix.
 COL0="$TEST_TMPDIR/column0.md"
 cat >"$COL0" <<'EOF'
 Since X, never Y.
@@ -590,12 +527,6 @@ OUT=$(bash "$SCRIPT" "$COL0")
 assert_not_contains "column-0 rationale suppresses I6" "$OUT" "$COL0:1:I6"
 assert_contains "column-0 brevity token keeps I27" "$OUT" "$COL0:2:I27"
 
-# --- Case 20: one scan over many files equals the per-file scans in order ------
-# Each family greps every file at once and the rows are regrouped, so the
-# combined output must equal each file scanned alone, concatenated in argument
-# order, with duplicates repeated and nonexistent paths skipped. A file name
-# with a space and, where cygpath resolves, a drive-letter path (a colon in the
-# path) ride along.
 SPACED="$TEST_TMPDIR/with space.md"
 cat >"$SPACED" <<'EOF'
 Never skip this step.
@@ -625,14 +556,6 @@ for flag in "" --body-only; do
 done
 assert_contains "a spaced file name is scanned" "$OUT" "$SPACED:2:I28-a"
 
-# --- Case 21: I40 this repository's history references in agent definitions ---
-# Expected rows come from the I40 row's Detect and its exemptions in
-# reference/criteria.md: a bare hash-number reference, alone, after a pull-request
-# word, or after "added in", in an agents/*.md file is a candidate; a code span, a
-# cross-repository owner/repo reference, a tracked-work marker's issue link,
-# fenced code, a reference whose block cites the same number upstream, and any
-# line inside a block carrying both an as-of date and a recheck trigger are not.
-# The same text outside agents/ is not this row's.
 mkdir -p "$TEST_TMPDIR/agents"
 I40F="$TEST_TMPDIR/agents/worker.md"
 cat >"$I40F" <<'EOF'
@@ -688,11 +611,6 @@ assert_eq "I40: exactly four agent candidates" "4" "$(printf '%s\n' "$OUT" | gre
 OUT=$(bash "$SCRIPT" --body-only "$I40F")
 assert_contains "I40: --body-only keeps body rows" "$OUT" "$I40F:6:I40"
 
-# --- Case 22: I40 multi-backtick code spans and indented code blocks ---------
-# The I40 row's Must NOT flag covers code spans and code: a span opened by two
-# backticks, and a CommonMark indented code block (four spaces or a tab after a
-# blank line), stay quiet. An indented line that continues a list item or a
-# paragraph is prose, and a reference after the block is still a candidate.
 I40C="$TEST_TMPDIR/agents/code.md"
 # shellcheck disable=SC2016 # the backticks are literal markdown code spans in the fixture
 printf '%s\n' \

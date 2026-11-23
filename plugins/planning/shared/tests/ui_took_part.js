@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Taking part, Pass, `for` and catch-up in a real browser, against `share.sh ensure-running` with the fake cloudflared.
-// Triage row 42: a guest who only gave someone's answer a 👍, or only voted for it, sees the question as Took part, not
-// Not answered, and the Host view's behind count says the same; once one other person answered, an untargeted question
-// goes optional ("<name> answered. 👍 if you agree, or Pass") and no count includes it; Pass works on every purpose,
-// with undo, and a Pass on a poll shows no results; a question asked of a person (`for`) stays open for them after a
-// reaction, and their Pass needs a reason; the owner sets `for` from the question. Triage row 43: a late joiner lands on
-// the current round and the welcome card and the rail say what an earlier closed round still wants, with a link to it.
-// #7852: the Host view's row shows the behind count, and a Behind chip lists those people. Follow-up 52: a round pick
-// that hides rounds says so above the rail, with Show all.
-//   node plugins/planning/shared/tests/ui_took_part.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values (states, sentences, counts) come from triage rows 42 and 43, never from the page itself.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -18,7 +6,6 @@ const text = (id, t, purpose, extra = {}) => ({ id, text: t, alternatives: [], d
 const poll = (id, t) => ({ id, text: t, alternatives: [], dependsOn: [], purpose: "poll", format: { kind: "choice", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "Wallet" }] } });
 const T = { g: "What worries you about the new checkout?", d: "Which step should come first?", p: "Which payment method by default?", f: "What does finance need from refunds?" };
 
-/** In the page: each rail question's text, data-stat and aria-label. */
 const rail = () => [...document.querySelectorAll(".vf-q")].map(b => ({ t: b.querySelector(".vf-qtxt")?.textContent, stat: b.dataset.stat, label: b.getAttribute("aria-label") }));
 const statOf = (page, t) => page.evaluate(t2 => [...document.querySelectorAll(".vf-q")].find(b => b.querySelector(".vf-qtxt")?.textContent === t2)?.dataset.stat ?? null, t);
 
@@ -37,7 +24,6 @@ async function main() {
     s.apply(A.dir, [{ op: "open-round", questions: [text("Q1", T.g, "gather"), text("Q2", T.d, "decide"), poll("Q3", T.p), text("Q4", T.f, "gather", { for: ["Cy"] })] }]);
     for (const p of [owner, bo, cy]) await until(p, () => document.querySelectorAll(".vf-q").length === 4, null, 10000);
 
-    // ---------- Q8: a 👍 or a vote alone is taking part ----------
     const say = async (page, t, answer) => {
       await page.locator(".vf-q", { hasText: t }).first().click();
       await page.fill("#vf-answer", answer);
@@ -58,13 +44,11 @@ async function main() {
     await bo.locator(".vf-alist .vf-card", { hasText: "Address first" }).locator(".vf-vote").first().click();
     ok("  and the decide question he only voted on is Took part too", await until(bo, t => [...document.querySelectorAll(".vf-q")].find(x => x.querySelector(".vf-qtxt")?.textContent === t)?.dataset.stat === "took", T.d, 10000),
       JSON.stringify(await bo.evaluate(rail)));
-    // Bo still owes the poll and Q4, which no one has answered yet: 2 open, and the two he took part in are not counted.
     ok("  the Questions count says 2 not answered yet", await until(bo, () => [...document.querySelectorAll("[aria-label]")].some(e => e.getAttribute("aria-label") === "Questions, 2 not answered yet"), null, 10000),
       await bo.evaluate(() => [...document.querySelectorAll("[aria-label^='Questions']")].map(e => e.getAttribute("aria-label")).join(" | ")));
     ok("  his rail shows 2 open", (await bo.evaluate(() => [...document.querySelectorAll(".vf-q")].filter(b => !b.dataset.stat).length)) === 2, JSON.stringify(await bo.evaluate(rail)));
     ok("  and the Host view's behind count for Bo is 2 as well", await until(owner, pid => window.Core.snapshot()?.behind?.[pid] === 2, boPid, 10000),
       JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.behind)));
-    // #7852: the Host view shows that count on Bo's row, and a Behind chip lists exactly the people the server counts
     const seg = async (page, label) => {
       const sb = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
       if (!(await sb.isVisible()) && (await more.isVisible())) await more.click();
@@ -80,7 +64,6 @@ async function main() {
     await owner.locator(".vf-pfilters .vf-fchip", { hasText: "All" }).click();
     await seg(owner, "Focus");
 
-    // ---------- the soft nudge ----------
     await cy.locator(".vf-q", { hasText: T.g }).first().click();
     ok("Cy, who has not acted on Q1 that the owner answered, sees it optional with the nudge", await until(cy, t => {
       const b = [...document.querySelectorAll(".vf-q")].find(x => x.querySelector(".vf-qtxt")?.textContent === t);
@@ -91,7 +74,6 @@ async function main() {
       return !!b && b.offsetParent !== null && b.classList.contains("vf-btn-ghost") && !b.classList.contains("vf-btn-primary");
     }));
 
-    // ---------- Pass on every purpose, with undo ----------
     const pass = async (page, t, reason) => {
       await page.locator(".vf-q", { hasText: t }).first().click();
       await page.locator(".vf-passbtn").click();
@@ -118,7 +100,6 @@ async function main() {
     ok("  and shows no results: no option counts Bo's pick", await cy.evaluate(() => [...document.querySelectorAll(".vf-opt")].filter(li => !/Something else|own/.test(li.textContent)).every(li => !li.querySelector(".vf-optn")?.textContent)),
       await cy.evaluate(() => [...document.querySelectorAll(".vf-optn")].map(n => n.textContent).join(" | ")));
 
-    // ---------- `for`: asked of Cy ----------
     await bo.locator(".vf-q", { hasText: T.f }).first().click();
     await bo.fill("#vf-answer", "The refund reason.");
     await bo.press("#vf-answer", "Control+Enter");
@@ -127,7 +108,6 @@ async function main() {
     await until(cy, () => [...document.querySelectorAll(".vf-alist .vf-card")].some(c => /The refund reason/.test(c.textContent) && c.querySelector(".vf-react")), null, 10000);
     await cy.locator(".vf-alist .vf-card", { hasText: "The refund reason" }).locator('.vf-react[data-r="heart"]').click();
     await until(cy, () => document.querySelector('.vf-react[data-r="heart"][aria-pressed="true"]'), null, 10000);
-    // Read once the server's answer holds the ❤️, not only the page's own guess: the check is what it does to Q4.
     await until(cy, pid => Object.entries(window.Core.snapshot()?.me?.reactions?.Q4 || {}).some(([ref, rs]) => ref.startsWith(`p:${pid}`) && rs.includes("heart")), boPid, 10000);
     ok("  a ❤️ alone leaves it open for Cy, never optional", (await statOf(cy, T.f)) === "", await statOf(cy, T.f));
     await cy.locator(".vf-passbtn").click();
@@ -137,7 +117,6 @@ async function main() {
     await cy.locator(".vf-passform button[type=submit]").click();
     ok("  with one it is Took part", await until(cy, t => [...document.querySelectorAll(".vf-q")].find(x => x.querySelector(".vf-qtxt")?.textContent === t)?.dataset.stat === "took", T.f, 10000));
 
-    // the owner asks Bo for Q2 from the question, as the purpose is set
     await owner.locator(".vf-q", { hasText: T.d }).first().click();
     await owner.locator(".vf-forbtn").click();
     // Each poll re-renders the list with the server's `for`, so a box a click ticks goes back to unticked until the
@@ -150,7 +129,6 @@ async function main() {
     ok("  and Bo sees it is asked of him", await until(bo, () => document.querySelector(".vf-forchip")?.textContent === "Asked of you", null, 10000),
       await bo.evaluate(() => document.querySelector(".vf-forchip")?.textContent));
 
-    // ---------- catch-up (row 43): Maude joins after round 1 closed ----------
     await owner.evaluate(() => window.Core.sendRound());
     s.apply(A.dir, [{ op: "ack-round", round: 1 }]);
     s.apply(A.dir, [{ op: "open-round", questions: [text("Q5", "Which receipt do we email?", "decide")] }]);
@@ -172,7 +150,6 @@ async function main() {
     ok("  Catch up on round 1 opens round 1's first open question", await until(maude, t => document.querySelector(".vf-qtext")?.textContent === t, T.g, 10000),
       await maude.evaluate(() => document.querySelector(".vf-qtext")?.textContent));
 
-    // ---------- follow-up 52: a filter that hides rounds says so in the rail ----------
     const railNote = () => owner.evaluate(() => { const n = document.querySelector(".vf-railfilter"); return n && !n.hidden ? n.textContent : ""; });
     ok("with no filter the rail says nothing about hidden questions", (await railNote()) === "", await railNote());
     await owner.evaluate(() => window.Core.savePrefs({ round: "2" }));

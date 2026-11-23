@@ -14,11 +14,6 @@
  * spawning a child process.
  */
 
-/**
- * Leading launcher flags, each mapped to the parsed-result key it fills and the
- * environment variable the extraction child reads it from. `valueLabel` shapes the
- * missing-value error message.
- */
 const LEADING_FLAGS = {
   "--data-dir": { key: "dataDir", env: "CLAUDE_PLUGIN_DATA", valueLabel: "directory value" },
   "--work-root": { key: "workRoot", env: "VIDEO_DIGEST_WORK_ROOT", valueLabel: "directory value" },

@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for fetch-annotations.sh.
-#
-# Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH.
-# Covers:
-#
-#   1. PR with mixed-conclusion check-runs — emits annotations for all
-#   2. --failed flag — filters to only failure/timed_out/cancelled/action_required
-#   3. PR with no check-runs — exits 0 with no output
-#   4. Missing PR number — exits 1
-#   5. gh pr view failure — exits 2
-#   6. JSONL output schema — every line is valid JSON with required fields
-#   7. check-runs API failure — exits 2
-#   8. per-check-run annotations API failure — exits 2
-#   9. --help output (full banner through the last documented exit code, and
-#      nothing past the header block)
 
 set -uo pipefail
 
@@ -29,9 +14,6 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
-# ---- Build fixtures ---------------------------------------------------------
-
-# check-runs response — three runs with different conclusions
 FIXTURE_CHECK_RUNS="$TEST_TMPDIR/check-runs.json"
 cat >"$FIXTURE_CHECK_RUNS" <<'JSON'
 {
@@ -44,7 +26,6 @@ cat >"$FIXTURE_CHECK_RUNS" <<'JSON'
 }
 JSON
 
-# Annotations per check-run id
 FIXTURE_ANNOT_100="$TEST_TMPDIR/annot-100.json"
 echo '[]' >"$FIXTURE_ANNOT_100"
 
@@ -84,8 +65,6 @@ cat >"$FIXTURE_ANNOT_300" <<'JSON'
 ]
 JSON
 
-# check-runs response with a single failure-conclusion run whose id (999)
-# the annotations stub treats as a simulated 403/rate-limit (Case 8).
 FIXTURE_ANNOTFAIL_CHECK_RUNS="$TEST_TMPDIR/check-runs-annotfail.json"
 cat >"$FIXTURE_ANNOTFAIL_CHECK_RUNS" <<'JSON'
 {
@@ -96,29 +75,10 @@ cat >"$FIXTURE_ANNOTFAIL_CHECK_RUNS" <<'JSON'
 }
 JSON
 
-# Empty check-runs response (Case 3)
 FIXTURE_EMPTY_CHECK_RUNS="$TEST_TMPDIR/check-runs-empty.json"
 cat >"$FIXTURE_EMPTY_CHECK_RUNS" <<'JSON'
 {"total_count": 0, "check_runs": []}
 JSON
-
-# ---- Stub `gh` --------------------------------------------------------------
-#
-# Dispatch table:
-#   pr view 1 --json headRefOid -q .headRefOid   → "abc1234"
-#   pr view 2 --json headRefOid -q .headRefOid   → echo nothing, exit 1 (failure case)
-#   pr view 3 --json headRefOid -q .headRefOid   → "empty5678"
-#   pr view 4 --json headRefOid -q .headRefOid   → "fail9999"
-#   pr view 5 --json headRefOid -q .headRefOid   → "annotfail99"
-#   api repos/.../commits/abc1234/check-runs     → fixture with 3 runs
-#   api repos/.../commits/empty5678/check-runs   → fixture with 0 runs
-#   api repos/.../commits/annotfail99/check-runs → fixture with 1 failure run (id 999)
-#   api repos/.../commits/fail9999/check-runs    → unrouted, falls to the catch-all, exit 1
-#   api repos/.../check-runs/100/annotations     → []
-#   api repos/.../check-runs/200/annotations     → 2 annotations
-#   api repos/.../check-runs/300/annotations     → 1 annotation
-#   api repos/.../check-runs/999/annotations     → simulated 403 rate-limit, exit 1
-#   repo view --json nameWithOwner ...           → example-org/example-repo
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
@@ -176,17 +136,11 @@ run_script() {
     bash "$SCRIPT" "$@" 2>&1
 }
 
-# Variant for cases that assert only the exit code: all output is discarded and
-# the exit code comes back via $?.
 run_script_silent() {
   run_script "$@" >/dev/null 2>&1
 }
 
-# ---- Cases ------------------------------------------------------------------
-
-# Case 1: PR with mixed conclusions — emits annotations for all 3 check-runs
 out=$(run_script 1)
-# build (id=100) had no annotations; test (200) has 2; lint (300) has 1 → 3 total
 line_count=$(printf '%s\n' "$out" | grep -c '^{' || true)
 if [[ "$line_count" -eq 3 ]]; then
   pass "all-mode emits annotations from every check-run with non-empty list"
@@ -194,7 +148,6 @@ else
   fail "all-mode emits annotations from every check-run with non-empty list" "3 JSONL lines" "$line_count lines: $out"
 fi
 
-# Case 2: --failed filter — only failure-conclusion check-runs (test, id=200)
 out=$(run_script 1 --failed)
 line_count=$(printf '%s\n' "$out" | grep -c '^{' || true)
 if [[ "$line_count" -eq 2 ]]; then
@@ -203,7 +156,6 @@ else
   fail "--failed filters to failure-conclusion only" "2 JSONL lines (test annotations)" "$line_count lines: $out"
 fi
 
-# Case 3: PR with no check-runs — exits 0 with no output
 out=$(run_script 3)
 ec=$?
 if [[ $ec -eq 0 && -z "${out//[[:space:]]/}" ]]; then
@@ -212,11 +164,9 @@ else
   fail "empty check-runs exits 0 with no output" "exit 0 + empty out" "exit $ec, out: $out"
 fi
 
-# Case 4: Missing PR number — exits 1
 run_script_silent
 assert_exit "missing pr-number exits 1" 1 "$?"
 
-# Case 5: gh pr view failure — exits 2
 run_script_silent 2
 assert_exit "gh pr view failure exits 2" 2 "$?"
 
@@ -230,7 +180,6 @@ assert_exit "annotations API failure exits 2" 2 "$?"
 run_script_silent 4
 assert_exit "check-runs API failure exits 2" 2 "$?"
 
-# Case 6: JSONL output schema — every line valid JSON with required keys
 out=$(run_script 1)
 schema_ok=1
 while IFS= read -r line; do
@@ -351,8 +300,6 @@ if [[ "${INTEGRATION:-0}" == "1" ]]; then
   elif [[ -z "${INTEGRATION_REPO:-}" ]]; then
     skip_case "INTEGRATION mode but INTEGRATION_REPO not set (owner/name)"
   else
-    # Default: query gh for the most recent merged PR. The script handles a
-    # zero-annotations PR by exiting 0 with empty output (Case 3 covers that).
     REAL_PR="${INTEGRATION_PR:-}"
     if [[ -z "$REAL_PR" ]]; then
       REAL_PR=$(gh pr list --repo "$INTEGRATION_REPO" --state merged --limit 1 --json number --jq '.[0].number' 2>/dev/null | tr -d '\r\n')

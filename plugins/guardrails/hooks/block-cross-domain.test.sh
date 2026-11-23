@@ -33,8 +33,6 @@ GUARD_UNDER_TEST="$HOOK"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v cygpath >/dev/null 2>&1; then HOOKS_JSON=$(cygpath -m "$HOOKS_JSON"); fi
 
-# This host's roots key, and another host's, whose roots are validated and
-# never used here.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32)
   OS_KEY=windows
@@ -58,13 +56,6 @@ G_ROOT="$HOME_DIR/gamma"
 NEUTRAL="$TEST_TMPDIR/neutral"
 mkdir -p "$A_ROOT/repo" "$B_ROOT/repo" "$D_ROOT/repo" "$G_ROOT" "$NEUTRAL"
 
-# The placeholder map: alpha and beta with owners and markers (shared-org in
-# both), delta nested in alpha, gamma below HOME, and epsilon and zeta on drive
-# Q, spelled as a Windows drive path for Windows and as its WSL mount elsewhere.
-# beta's root carries a trailing separator. No root of epsilon or zeta exists on
-# disk: only the text is read. alpha has a gh config directory below HOME and
-# beta an az one, so for gh beta uses the default, and for az alpha does.
-# epsilon's shared directory is open to zeta.
 GH_A="$HOME_DIR/.config/gh-alpha"
 if [[ "$OS_KEY" == windows ]]; then
   Q_HOST='Q:\placeholder'
@@ -75,8 +66,6 @@ else
 fi
 E_CWD="$Q_HOST${Q_SEP}epsilon${Q_SEP}repo"
 Z_CWD="$Q_HOST${Q_SEP}zeta${Q_SEP}repo"
-# shared_map <entry JSON>: the placeholder map with that one shared_exceptions
-# entry; a path below drive Q's placeholder directory is given as `@/<rest>`.
 shared_map() {
   MSYS_NO_PATHCONV=1 jq -c --arg q "$Q_HOST" --arg sep "$Q_SEP" --argjson e "$1" '
     def q: if startswith("@/") then $q + $sep + (.[2:] | gsub("/"; $sep)) else . end;
@@ -103,7 +92,7 @@ MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg
     messages: {cross_domain: "placeholder message"}
   }')
 
-write_map() { # <data dir> <map text>
+write_map() {
   mkdir -p "$1"
   printf '%s\n' "$2" >"$1/identity-domains.json"
 }
@@ -111,8 +100,6 @@ write_map() { # <data dir> <map text>
 DATA="$TEST_TMPDIR/data"
 write_map "$DATA" "$MAP"
 
-# call <data dir> <cwd> <command> [env word ...]: the guard alone on a Bash
-# payload, with the trace on and HOME at the fixture's.
 call() {
   local data="$1" cwd="$2" cmd="$3"
   shift 3
@@ -120,7 +107,6 @@ call() {
     GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR" "$@"
 }
 
-# --- No map: no domain, and a command that writes no identity is not parsed ---
 NO_MAP="$TEST_TMPDIR/no-map"
 mkdir -p "$NO_MAP"
 for via in direct dispatched; do
@@ -135,14 +121,12 @@ guard_invoke --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- GUARDRAILS_CROSS_DOM
 assert_exit "no plugin data directory: exit 0" 0 "$GUARD_RC"
 assert_silent "no plugin data directory: silent" "$GUARD_OUT$GUARD_ERR"
 
-# --- Kill switch --------------------------------------------------------------
 call "$DATA" "$A_ROOT/repo" "ls $B_ROOT" CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED=false
 assert_exit "kill switch off: exit 0" 0 "$GUARD_RC"
 assert_silent "kill switch off: stdout is empty" "$GUARD_OUT"
 assert_silent "kill switch off: no step traced" "$GUARD_ERR"
 assert_file_absent "kill switch off: the map is not compiled" "$DATA/identity-domains.cache"
 
-# --- The prefilter returns before the parser runs ----------------------------
 call "$DATA" "$A_ROOT/repo" 'git status --short'
 assert_exit "map, no root or marker named: exit 0" 0 "$GUARD_RC"
 assert_silent "map, no root or marker named: stdout is empty" "$GUARD_OUT"
@@ -159,9 +143,6 @@ assert_contains "the second call reads the cache" "$GUARD_ERR" "trace map-cached
 assert_absent "the second call does not compile" "$GUARD_ERR" "trace map-compile"
 assert_absent "the second call, nothing named: the parser does not run" "$GUARD_ERR" "trace parse"
 
-# --- What a command names, and what it denies ---------------------------------
-# verdict <label> <deny|allow>: what the last call decided. A deny is one
-# PreToolUse document on stdout, and the exit stays 0.
 verdict() {
   local reason
   if [[ "$2" == allow ]]; then
@@ -174,8 +155,6 @@ verdict() {
   assert_contains "$1: the reason says which guard denied it" "$reason" "block-cross-domain: denied"
   assert_contains "$1: the reason names the way off" "$reason" "block_cross_domain_enabled"
 }
-# hit <label> <command> [deny|allow]: the prefilter hits, the parser runs, and
-# the call from alpha's tree is denied or allowed.
 hit() {
   call "$DATA" "$A_ROOT/repo" "$2"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
@@ -183,8 +162,6 @@ hit() {
   assert_contains "$1: the parser runs" "$GUARD_ERR" "trace parse"
   [[ -z "${3-}" ]] || verdict "$1" "$3"
 }
-# miss <label> <command>: the prefilter misses, the parser does not run, and the
-# call is allowed.
 miss() {
   call "$DATA" "$A_ROOT/repo" "$2"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
@@ -215,7 +192,6 @@ miss "a marker inside a longer word" 'echo beta-orgs'
 miss "a relative path ending like a root below HOME" 'ls ./gamma/notes'
 miss "a neutral path" "ls $NEUTRAL/x"
 
-# Every spelling of a root on drive Q, from whichever form the host's map holds.
 E_WIN="Q:${BS}placeholder${BS}epsilon"
 hit "a drive path with backslashes" "ls '$E_WIN${BS}x'" deny
 hit "a drive path with escaped backslashes" "ls '${E_WIN//"$BS"/"$BS$BS"}'" deny
@@ -228,8 +204,6 @@ hit "a WSL drive path in another case" 'ls /MNT/Q/Placeholder/EPSILON' deny
 miss "a drive path that only starts like a root" 'ls /q/placeholder/epsilons'
 miss "a drive path on another drive" 'ls R:/placeholder/epsilon'
 
-# An owner's directory below ~/src/github.com or ~/worktrees/github.com is that
-# owner's domain's path.
 hit "another domain's owner below ~/src" 'ls ~/src/github.com/beta-org/repo' deny
 hit "another domain's owner below ~/worktrees" 'git -C ~/worktrees/github.com/beta-org/repo/wt status' deny
 hit 'another domain'"'"'s owner after $HOME' 'cat "$HOME/src/github.com/beta-org/repo/README.md"' deny
@@ -240,8 +214,6 @@ hit "another domain's owner below another host, a marker only" 'ls ~/src/gitlab.
 miss "an owner that only starts like another domain's" 'ls ~/src/github.com/beta-orgs/repo'
 miss "an owner no domain lists" 'ls ~/src/github.com/unlisted-org/repo'
 
-# Where the cwd is decides: from beta's tree alpha's paths are the other
-# domain's, and from a neutral cwd nothing is denied.
 call "$DATA" "$B_ROOT/repo" "ls $A_ROOT/repo ~/src/github.com/alpha-org"
 verdict "from beta's tree, alpha's root and owner" deny
 REASON=$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")
@@ -256,8 +228,6 @@ verdict "from a neutral cwd, two domains' paths" allow
 call "$DATA" "$A_ROOT/repo" "ls $B_ROOT" CLAUDE_CODE_SESSION_ATTENDED=1
 verdict "an attended session" deny
 
-# An owner's directory classifies the cwd as a root does: inside beta-org's
-# clone the session is beta's.
 OWNED="$HOME_DIR/src/github.com/beta-org/repo"
 call "$DATA" "$OWNED" "ls $A_ROOT/repo"
 verdict "from beta-org's clone, alpha's root" deny
@@ -267,9 +237,6 @@ call "$DATA" "$OWNED" "ls ~/worktrees/github.com/beta-org/repo/wt $B_ROOT/repo"
 assert_contains "from beta-org's clone, beta's own paths: the parser runs" "$GUARD_ERR" "trace parse"
 verdict "from beta-org's clone, beta's own paths" allow
 
-# --- A shared exception opens one directory one way ---------------------------
-# sp <form> <path below drive Q's placeholder directory>: one spelling of it,
-# the Windows one quoted so the parse keeps its backslashes.
 sp() {
   case "$1" in
   windows) printf "'Q:%splaceholder%s%s'" "$BS" "$BS" "${2//"$FS"/"$BS"}" ;;
@@ -277,10 +244,6 @@ sp() {
   *) printf '/mnt/q/placeholder/%s' "$2" ;;
   esac
 }
-# shared <label> <deny|allow> <data dir> <cwd> <command, each drive Q path as
-# `{<path below the placeholder directory>}`>: the call in the Windows, MSYS and
-# WSL spellings of every drive Q path. A group holding a comma is shell brace
-# syntax, never a path, and is sent as written.
 shared() {
   local form cmd rest
   for form in windows msys wsl; do
@@ -321,10 +284,7 @@ call "$DATA" "$Z_CWD" "ls $(sp msys epsilon/private/x)"
 assert_contains "a path the exception does not hold: the reason names its to domain" \
   "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ('epsilon')"
 
-# An entry that grants nothing leaves the map well formed and the user is told
-# once: a path that is not a path of its to domain, and a plain string.
 SHARED_N=0
-# no_grant <label> <entry JSON> <what the notice says>
 no_grant() {
   SHARED_N=$((SHARED_N + 1))
   local data="$TEST_TMPDIR/shared-$SHARED_N"
@@ -348,7 +308,6 @@ no_grant "an exception whose path is not in its to domain" '{"path": "@/epsilon/
 no_grant "a string entry" '"@/epsilon/shared"' "grants nothing: it is a plain path"
 call "$TEST_TMPDIR/shared-$SHARED_N" "$NEUTRAL" "ls $A_ROOT"
 assert_silent "a string entry, from a neutral cwd after the notice: silent" "$GUARD_OUT"
-# A path below a domain nested in `to` is that domain's, so `to` cannot open it.
 NESTED_DATA="$TEST_TMPDIR/shared-nested"
 write_map "$NESTED_DATA" "$(shared_map "$(MSYS_NO_PATHCONV=1 jq -nc --arg p "$D_ROOT/x" '{path: $p, from: ["beta"], to: "alpha"}')")"
 call "$NESTED_DATA" "$B_ROOT/repo" "ls $D_ROOT/x/f"
@@ -358,10 +317,8 @@ assert_contains "an exception below a domain nested in its to: the user is told"
 assert_contains "an exception below a domain nested in its to: the reason names the nested domain" \
   "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ('delta')"
 
-# --- Telemetry: the cwd's class, what the command names, and the decision -----
 TEL="$TEST_TMPDIR/tel.json"
 SINK="$(make_sink "cat >\"$TEL\"")"
-# tel <label> <cwd> <command> <form> <cwd class> <status> [tool]
 tel() {
   local data
   rm -f "$TEL"
@@ -403,7 +360,6 @@ tel "PowerShell: a drive path" "$A_ROOT/repo" 'Get-ChildItem Q:\placeholder\epsi
   other-domain domain blocked PowerShell
 tel "PowerShell: a marker only" "$A_ROOT/repo" 'Write-Output beta-org' other-domain domain ok PowerShell
 
-# PowerShell is read as text: the prefilter runs, the Bash parser does not.
 guard_invoke --tool PowerShell --cwd "$A_ROOT/repo" --command "Get-ChildItem '$B_ROOT'" -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
 assert_exit "PowerShell: exit 0" 0 "$GUARD_RC"
@@ -411,15 +367,12 @@ assert_contains "PowerShell: the prefilter hits" "$GUARD_ERR" "trace prefilter-h
 assert_absent "PowerShell: the Bash parser does not run" "$GUARD_ERR" "trace parse"
 verdict "PowerShell: another domain's root" deny
 
-# --- Identity positions (rule 4) ----------------------------------------------
-# deny <label> <command> [tool]: from alpha's tree, the call is denied.
 deny() {
   guard_invoke --tool "${3:-Bash}" --cwd "$A_ROOT/repo" --command "$2" -- \
     "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
   assert_eq "$1: denied" deny "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 }
-# allow <label> <command> [cwd] [tool]: the call is not denied.
 allow() {
   guard_invoke --tool "${4:-Bash}" --cwd "${3:-$A_ROOT/repo}" --command "$2" -- \
     "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
@@ -478,12 +431,9 @@ else
   bad "identity deny telemetry: no telemetry envelope"
 fi
 
-# --- Config directories (rule 5) ----------------------------------------------
 A_CWD="$A_ROOT/repo"
 B_CWD="$B_ROOT/repo"
 CONF_TOOL=Bash
-# conf <label> <deny|allow> <cwd> <command> [env word ...]: the call on
-# CONF_TOOL, denied or not. CONF_REASON is the deny's reason.
 conf() {
   local label=$1 want=$2 cwd=$3 cmd=$4
   shift 4
@@ -561,9 +511,6 @@ else
   bad "config deny telemetry: no telemetry envelope"
 fi
 
-# --- Auth switches --------------------------------------------------------------
-# alpha has a gh config directory, so from alpha's tree an account switch or a
-# GH_TOKEN removal is denied even when gh runs with that directory.
 conf "gh auth switch" deny "$A_CWD" 'gh auth switch' "GH_CONFIG_DIR=$GH_A"
 assert_contains "gh auth switch: the reason names the switch" "$CONF_REASON" "removes GH_TOKEN (gh auth switch)"
 assert_contains "gh auth switch: the auth prefilter hits" "$GUARD_ERR" "trace auth-hit"
@@ -624,9 +571,6 @@ else
   bad "auth deny telemetry: no telemetry envelope"
 fi
 
-# --- Git identity writes (rule 6) ---------------------------------------------
-# idw <label> <deny|allow> <cwd> <command> [data dir] [tool]: the call, denied
-# as an identity write or not denied at all.
 idw() {
   guard_invoke --tool "${6:-Bash}" --cwd "$3" --command "$4" -- "CLAUDE_PLUGIN_DATA=${5:-$DATA}" \
     GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
@@ -640,10 +584,8 @@ idw() {
   assert_contains "$1: the reason names an identity write" "$IDW_REASON" "writes this machine's git identity"
   assert_contains "$1: the reason names the way off" "$IDW_REASON" block_cross_domain_enabled
 }
-# Each cwd: a neutral one and one in a domain, both with the map, and a neutral
-# one on a host with no map.
 IDW_WHERE=("neutral cwd|$NEUTRAL|$DATA" "domain cwd|$A_ROOT/repo|$DATA" "no map|$NEUTRAL|$NO_MAP")
-idw_each() { # <deny|allow> <label> <command> [tool]
+idw_each() {
   local where label cwd data
   for where in "${IDW_WHERE[@]}"; do
     IFS='|' read -r label cwd data <<<"$where"
@@ -717,8 +659,6 @@ idw_each allow "perl -M and -n read" "perl -Mstrict -ne 'print' ~/.gitconfig"
 idw_each allow "rsync -t from ~/.gitconfig" 'rsync -t ~/.gitconfig /placeholder/kept'
 idw_each allow "scp to another host's ~/.gitconfig" 'scp ~/.gitconfig host.example.invalid:~/.gitconfig'
 idw_each allow "a redirection from ~/.gitconfig" 'grep email < ~/.gitconfig'
-# The map's identity_files: a path in the list, or below it, is an identity
-# file only where there is a map.
 idw "touch below a listed identity file, neutral cwd" deny "$NEUTRAL" 'touch /placeholder/identity/work'
 idw "touch below a listed identity file, domain cwd" deny "$A_ROOT/repo" 'touch /placeholder/identity/work'
 assert_contains "a listed identity file's name hits the prefilter" "$GUARD_ERR" "trace write-hit"
@@ -726,7 +666,6 @@ idw "git config --file <a listed identity file>" deny "$NEUTRAL" \
   'git config --file /placeholder/identity user.email dev@example.invalid'
 idw "touch below a listed identity file, no map" allow "$NEUTRAL" 'touch /placeholder/identity/work' "$NO_MAP"
 idw "a listed identity file's longer name" allow "$NEUTRAL" 'touch /placeholder/identityx'
-# The trace and the dispatcher.
 idw "no map, an identity write" deny "$NEUTRAL" 'git config --global user.email dev@example.invalid' "$NO_MAP"
 assert_contains "no map, an identity write: the write prefilter hits" "$GUARD_ERR" "trace write-hit"
 assert_contains "no map, an identity write: the parser runs" "$GUARD_ERR" "trace parse"
@@ -743,9 +682,7 @@ tel "an identity write from a neutral cwd" "$NEUTRAL" 'git config --global user.
 tel "an identity write from a domain cwd" "$A_ROOT/repo" 'echo x >> ~/.gitconfig' identity-write-deny domain blocked
 tel "an identity read" "$NEUTRAL" 'git config --global --get user.email' not-named neutral ok
 
-# --- A malformed map: no deny, the user told once -----------------------------
 BAD_N=0
-# malformed <label> <map text> <start of the reason>
 malformed() {
   BAD_N=$((BAD_N + 1))
   local data="$TEST_TMPDIR/bad-$BAD_N"
@@ -821,7 +758,6 @@ assert_exit "no domains configured: exit 0" 0 "$GUARD_RC"
 assert_silent "no domains configured: silent" "$GUARD_OUT"
 assert_contains "no domains configured: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
 
-# --- jq missing: one notice, never a deny -------------------------------------
 HIDE_JQ="$TEST_TMPDIR/hide-jq.sh"
 printf '%s\n' \
   'command() { local a; for a in "$@"; do [[ "$a" == jq ]] && return 1; done; builtin command "$@"; }' \
@@ -845,7 +781,6 @@ assert_absent "jq hidden, no map, an identity write: no deny" "$GUARD_OUT" permi
 assert_contains "jq hidden, no map, an identity write: the user is told jq is missing" \
   "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" "jq not on the hook PATH"
 
-# --- The cache follows the map ----------------------------------------------
 EDIT="$TEST_TMPDIR/edit"
 write_map "$EDIT" "$MAP"
 call "$EDIT" "$A_ROOT/repo" 'echo epsilon-org'
@@ -858,14 +793,11 @@ printf 'not a cache' >"$EDIT/identity-domains.cache"
 call "$EDIT" "$A_ROOT/repo" 'echo epsilon-org'
 assert_contains "a cache that is not this map's is compiled again" "$GUARD_ERR" "trace map-compile"
 assert_contains "after the recompile the marker is still named" "$GUARD_ERR" "trace prefilter-hit"
-# The owner directories sit below HOME, so the same map under another HOME is
-# compiled again, and the owner below the new HOME is the one denied.
 OTHER_HOME="$TEST_TMPDIR/other-home"
 call "$EDIT" "$A_ROOT/repo" "ls $OTHER_HOME/src/github.com/beta-org/repo" "HOME=$OTHER_HOME"
 assert_contains "the same map under another HOME is compiled again" "$GUARD_ERR" "trace map-compile"
 verdict "another domain's owner below the new HOME" deny
 
-# --- owner_roots: an owner's directories follow this host's roots -------------
 ROOTED="$TEST_TMPDIR/rooted"
 TREES="$TEST_TMPDIR/trees/github.com"
 mkdir -p "$HOME_DIR/repos/github.com/alpha-org/repo"
@@ -887,16 +819,12 @@ write_map "$OTHER_OS_ROOTS" "$(MSYS_NO_PATHCONV=1 jq --arg other "$OTHER_KEY" --
 call "$OTHER_OS_ROOTS" "$A_ROOT/repo" 'ls ~/src/github.com/beta-org/repo'
 verdict "owner_roots for another host only: the default directories still apply" deny
 
-# --- A flat owner root: <root>/<owner>-<repo>-<slug> names the owner ---------
-# labs's owner starts with beta's owner and a `-`, so its flat names read as
-# both until the longer owner wins.
 FLATMAP="$TEST_TMPDIR/flat-map"
 FLAT="$TEST_TMPDIR/flat"
 mkdir -p "$FLAT/alpha-org-repo" "$FLAT/beta-org-repo" "$FLAT/beta-org-labs-x" "$FLAT/unrelated-x" "$FLAT/beta-orgx-repo"
 write_map "$FLATMAP" "$(MSYS_NO_PATHCONV=1 jq --arg os "$OS_KEY" --arg f "$FLAT/" --arg h "$HOME_DIR/wt" \
   --arg q "$Q_HOST${Q_SEP}wt" '
   .owner_roots = {($os): [$f, $h, $q]} | .domains.labs = {roots: {}, owners: ["beta-org-labs"]}' <<<"$MAP")"
-# flat <label> <cwd> <command> <deny|allow> [<the deny reason's domain list>]
 flat() {
   call "$FLATMAP" "$2" "$3"
   assert_exit "flat root, $1: exit 0" 0 "$GUARD_RC"
@@ -922,7 +850,6 @@ flat "a longer listed owner's tree is that owner's alone" "$A_ROOT/repo" "ls $FL
 flat "a longer listed owner's directory is that owner's alone" "$A_ROOT/repo" "ls $FLAT/beta-org-labs" deny "'labs'"
 flat "both a shorter and a longer owner's trees" "$A_ROOT/repo" "ls $FLAT/beta-org-labs-repo $FLAT/beta-org-repo" deny "'labs', 'beta'"
 
-# Where the cwd is decides, by the same rule.
 flat "a cwd in an owner's tree is in that owner's domain" "$FLAT/beta-org-repo" "ls $A_ROOT/repo" deny "'alpha'"
 flat "a cwd in an owner's tree, its own owner's other tree" "$FLAT/beta-org-repo" "ls $FLAT/beta-org-other" allow
 flat "a cwd in a longer owner's tree, its own other tree" "$FLAT/beta-org-labs-x" "ls $FLAT/beta-org-labs-y" allow
@@ -930,7 +857,6 @@ flat "a cwd in a longer owner's tree, the shorter owner's" "$FLAT/beta-org-labs-
 flat "a cwd in an unrelated directory is neutral" "$FLAT/unrelated-x" "ls $B_ROOT" allow
 flat "a cwd in an owner-like directory is neutral" "$FLAT/beta-orgx-repo" "ls $A_ROOT" allow
 
-# A root and a marker stay exact: only an owner's directory takes the `-`.
 flat "a domain root followed by a hyphen" "$A_ROOT/repo" "ls ${B_ROOT}-x" allow
 flat "a marker followed by a hyphen" "$A_ROOT/repo" 'echo beta-org-x' allow
 assert_contains "flat root, a marker followed by a hyphen: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
@@ -942,9 +868,6 @@ flat "a cwd in a domain root's hyphenated sibling is neutral" "${B_ROOT}-x" "ls 
 call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/beta-org-unlisted/repo'
 verdict "an unlisted owner that starts with a listed owner and a hyphen" deny
 
-# Only an occurrence that names a path spends its text: a second name that merely
-# starts like the longer owner is still the shorter owner's, in separate words
-# and in one word, where the parse hands both names over together.
 flat "a longer owner's cwd, its own tree and a name only the shorter owner fits" \
   "$FLAT/beta-org-labs-x" "ls $FLAT/beta-org-labs-a $FLAT/beta-org-labsfoo" deny "'beta'"
 flat "a longer owner's cwd, the same two names in one word" \
@@ -956,8 +879,6 @@ flat "a shorter owner's cwd, the same two names in one word" \
 flat "a shorter owner's cwd, its own names alone" \
   "$FLAT/beta-org-repo" "ls $FLAT/beta-org-z $FLAT/beta-org-labsfoo" allow
 
-# holder <label> <data dir> <cwd> <command> <deny|allow> [<cwd's domain> <the
-# deny reason's domain list>]: the same check against any map.
 holder() {
   call "$2" "$3" "$4"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
@@ -969,8 +890,6 @@ holder() {
   assert_contains "$1: the reason names that domain alone" "$reason" "another domain ($7)"
 }
 
-# A root and a name inside it that only a `-` ties to another domain's owner:
-# the root keeps its claim and the owner adds one, so both are named.
 ANCESTOR="$TEST_TMPDIR/ancestor-map"
 write_map "$ANCESTOR" "$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg x "$HOME_DIR/src" '{
   domains: {xroot: {roots: {($os): [$x]}}, yowner: {roots: {}, owners: ["acme"]}}}')"
@@ -994,7 +913,6 @@ holder "ancestor root: an owner's directory stays inner, from the owner's domain
 holder "ancestor root: a cwd in the owner's directory is the owner's" "$ANCESTOR" "$OWNER_CWD" \
   'ls ~/src/other' deny yowner "'xroot'"
 
-# The same root and owner in one domain: the cwd and the name are that domain's.
 SAME_ROOT="$HOME_DIR/same"
 SAME_OTHER="$TEST_TMPDIR/same-other"
 SAMEMAP="$TEST_TMPDIR/same-map"
@@ -1006,8 +924,6 @@ holder "one domain's root and owner: a hyphen's cwd, its own other tree" "$SAMEM
 holder "one domain's root and owner: a hyphen's cwd, another domain" "$SAMEMAP" "$SAME_ROOT/acme-x" \
   "ls $SAME_OTHER" deny own "'other'"
 
-# A root spends only the occurrences it names: a longer sibling name inside an
-# outer root still names the outer root.
 SIBLING_OUTER="$TEST_TMPDIR/sibling"
 SIBLINGMAP="$TEST_TMPDIR/sibling-map"
 write_map "$SIBLINGMAP" "$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg o "$SIBLING_OUTER" --arg i "$SIBLING_OUTER/work" '{
@@ -1019,7 +935,6 @@ holder "the same two names in one word" "$SIBLINGMAP" "$SIBLING_OUTER/work/repo"
 holder "a root alone stays inner" "$SIBLINGMAP" "$SIBLING_OUTER/work/repo" \
   "ls $SIBLING_OUTER/work/x" allow
 
-# --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
 assert_exit "dispatched, another domain's root: exit 0" 0 "$GUARD_RC"
@@ -1056,22 +971,9 @@ assert_eq "the shipped row, another domain's root: denied" deny \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$row_out")"
 assert_contains "the shipped row, another domain's root: the guard parses it" "$(cat "$TEST_TMPDIR/row.err")" "trace parse"
 
-# --- Processes a call starts (#3529 instrument) -------------------------------
-# The kernel counts them: strace follows the dispatcher (-f) and reports each
-# clone/clone3/fork/vfork return and each execve that succeeded. The guard's
-# share is the count minus a no-op guard dispatched the same way on the same
-# payload. HOOK_TELEMETRY_SINK and the trace are cleared. A host without a
-# working strace (Windows Git Bash, macOS) skips visibly; the Linux CI lane is
-# where the pins hold.
-#
-# A call the guard parses pays one shfmt parse (lib/hook-utils.sh
-# hook::_bps_shfmt_to): 7 processes (the `$( )` subshell, the group that carries
-# fd 3, printf's pipeline element, the group that starts shfmt, shfmt, the
-# `read -t` group, and jq) and 2 execs, shfmt and jq. A call the guard's
-# prefilter passes pays nothing.
 PARSE_CREATIONS=7
 PARSE_EXECVE=2
-strace_census() { # <payload> <guard> <data dir> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+strace_census() {
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
   (cd "$NEUTRAL" && env -u HOOK_TELEMETRY_SINK -u GUARDRAILS_CROSS_DOMAIN_TRACE CLAUDE_PROJECT_DIR= \
@@ -1083,7 +985,7 @@ strace_census() { # <payload> <guard> <data dir> -> CENSUS_RC CENSUS_CREATIONS C
   CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }
-census_share() { # <command> <data dir> -> SHARE_RC SHARE_CREATIONS SHARE_EXECVE
+census_share() {
   local payload noop_cre noop_exe
   payload=$(MSYS_NO_PATHCONV=1 jq -nc --arg c "$1" --arg d "$A_ROOT/repo" \
     '{tool_name:"Bash",cwd:$d,tool_input:{command:$c}}')

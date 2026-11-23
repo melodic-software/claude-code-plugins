@@ -44,7 +44,6 @@ function Get-PnpProblemDevice {
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 
     foreach ($block in $blocks) {
-        # Rejoin the "Instance ID:" prefix for the first field.
         $text = 'Instance ID:' + $block
         $fields = @{}
         foreach ($line in $text -split "`r?`n") {

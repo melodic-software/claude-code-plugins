@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for lib/managed-scope.sh — the per-OS managed-policy surface
-# enumeration shared by harness-config's audit skills and harness-memory's scope
-# report.
-#
-# The library contract this protects is side-effect freedom: callers source it,
-# so a stray top-level command, output, or `exit` would run inside — and could
-# terminate — an unrelated script.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,20 +7,15 @@ LIB="$SCRIPT_DIR/managed-scope.sh"
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# --- Side-effect freedom -----------------------------------------------------
 rc=0
 bash -n "$LIB" || rc=$?
 assert_eq "parses under bash -n" "0" "$rc"
 
-# Sourcing must produce no output on either stream and must not exit the shell.
-# `echo SURVIVED` after the source is the exit probe: a top-level `exit` in the
-# library would swallow it.
 out=$(bash -c "source '$LIB' >/dev/null 2>&1; echo SURVIVED" 2>&1)
 assert_eq "sourcing does not exit the caller" "SURVIVED" "$out"
 noise=$(bash -c "source '$LIB'" 2>&1)
 assert_eq "sourcing writes nothing to stdout or stderr" "" "$noise"
 
-# --- Path resolution ---------------------------------------------------------
 assert_eq "macOS base file" \
   "/Library/Application Support/ClaudeCode/managed-settings.json" \
   "$(OSTYPE=darwin23 bash -c "source '$LIB'; mscope::base_file")"
@@ -43,7 +31,6 @@ assert_contains "Windows base file resolves through PROGRAMFILES" \
 assert_eq "legacy ProgramData path never emitted" "" \
   "$(OSTYPE=msys bash -c "source '$LIB'; mscope::base_file" | grep -i 'ProgramData' || true)"
 
-# --- Drop-in directory sits beside the base, override and all ----------------
 assert_eq "Linux drop-in dir" \
   "/etc/claude-code/managed-settings.d" \
   "$(OSTYPE=linux-gnu bash -c "source '$LIB'; mscope::dropin_dir")"
@@ -54,7 +41,6 @@ assert_eq "override relocates the drop-in dir with it" \
   "/tmp/fixture/managed-settings.d" \
   "$(bash -c "source '$LIB'; mscope::dropin_dir /tmp/fixture/managed-settings.json")"
 
-# --- Non-file surfaces, emitted only where they exist -------------------------
 win_keys="$(OSTYPE=msys bash -c "source '$LIB'; mscope::registry_keys")"
 # portability-ok: the `\S` below are literal first characters of SOFTWARE in
 # single-quoted Windows registry paths, not GNU regex escapes. The assertions are

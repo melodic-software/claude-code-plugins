@@ -134,7 +134,6 @@ function Get-ElevatedPassManifest {
     return $manifest
 }
 
-# Written into the launcher in this order; Invoke-ElevatedBootstrap calls the others.
 $script:ElevatedBootstrapFunctions = @('Test-ElevatedPassPath', 'Get-SystemEnvironmentVariable', 'Get-ElevatedPassEnvironment',
     'New-ElevatedStagingFolder', 'Invoke-ElevatedBootstrap')
 

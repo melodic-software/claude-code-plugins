@@ -1,35 +1,4 @@
 #!/usr/bin/env bash
-# Coverage:
-#   - the marker line in the ledger wins, and the default range runs from it to
-#     the newest release, oldest first, with [VSCode] lines excluded from the count
-#   - a marker at the newest release reports "up to date"
-#   - with no ledger, a Conventional Commits SUBJECT naming an applied release
-#     is the fallback, and the highest version across such subjects wins
-#   - a commit BODY mentioning a Claude Code version is never read as an apply
-#   - no ledger and no subject: last-applied none, whole feed, recommendation
-#   - the cap fires on releases and on items, with the marker-reset recommendation
-#   - --range A..B is inclusive at both ends and ignores the marker; --range X is
-#     one release; a malformed range exits 3
-#   - --no-fetch without --changelog reports the marker and "not computed", exit 0
-#   - the fetch reads the anthropics/claude-code CHANGELOG.md first (`## X.Y.Z`, `- `
-#     bullets) and falls back to the docs page when that read fails or its heading is
-#     foreign; both failing is not computed with both reasons
-#   - a body whose first heading is not a changelog's is refused, and a body
-#     with the heading but no release blocks is a parse failure, not "up to date"
-#   - the installed-version warn compares against the newest release IN THE RANGE
-#   - HARNESS_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
-#   - a PATH-stub `claude` older than the newest release produces the warn line
-#   - an unknown argument exits 3
-#   - the page's current `**X.Y.Z**` release headings parse like the older blocks:
-#     group headings are not items, the last release ends at end of file, and the
-#     shared parser's --blocks slice serves both forms
-#
-# Uses the fixtures under ../evals/fixtures (changelog-sample.md, changelog-current.md,
-# changelog-repo.md, ledger-marker.md),
-# per-case fixture git repositories, and a PATH-stub `claude` so no real CLI or
-# network is touched. Invocations pass --changelog or feed the fetcher through
-# FETCH_DOCS_FIXTURE_DIR, so the network is never reached.
-
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -46,7 +15,6 @@ LEDGER="$FIXTURES/ledger-marker.md"
 # colon and hide the claude stub below.
 TMP="$(mktemp -d)" && TMP="$(cd "$TMP" && pwd -P)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
-# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 
@@ -58,7 +26,6 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 
-# PATH stub for `claude --version`: the version is read from CLAUDE_STUB_VERSION.
 mkdir -p "$TMP/stub"
 cat >"$TMP/stub/claude" <<'STUB'
 #!/usr/bin/env bash
@@ -67,7 +34,6 @@ STUB
 chmod +x "$TMP/stub/claude"
 export PATH="$TMP/stub:$PATH"
 
-# A fixture repository with the given commits (subject, optional body), no ledger.
 make_repo() {
   local dir="$1"
   shift
@@ -85,7 +51,6 @@ make_repo() {
   done
 }
 
-# Run the script from inside a directory, capturing stdout and the exit code.
 run_in() {
   local dir="$1"
   shift
@@ -94,7 +59,6 @@ run_in() {
   ERR="$(cat "$TMP/stderr")"
 }
 
-# --- Case 1: marker line wins; default range from marker to newest ----------------
 EMPTY="$TMP/empty"
 mkdir -p "$EMPTY"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CHANGELOG"
@@ -109,7 +73,6 @@ assert_contains "marker: within budget at the defaults" "$OUT" "cap: within budg
 assert_not_contains "marker: no recommendation when a marker exists and the cap holds" "$OUT" "recommend:"
 assert_not_contains "marker: no warn when installed equals latest" "$OUT" "warn:"
 
-# --- Case 2: marker at the newest release -> up to date -----------------------------
 sed 's/2\.1\.260/2.1.263/' "$LEDGER" >"$TMP/ledger-current.md"
 run_in "$EMPTY" --ledger "$TMP/ledger-current.md" --changelog "$CHANGELOG"
 assert_eq "current: exit 0" 0 "$RC"
@@ -117,7 +80,6 @@ assert_contains "current: last-applied 2.1.263" "$OUT" "last-applied: 2.1.263"
 assert_contains "current: up to date" "$OUT" "range: up to date"
 assert_not_contains "current: no cap line" "$OUT" "cap:"
 
-# --- Case 3: no ledger; subject fallback; highest subject version wins --------------
 REPO_SUBJ="$TMP/repo-subject"
 make_repo "$REPO_SUBJ" \
   "chore(harness-config): address Claude Code v2.1.257..2.1.259 changelog" "" \
@@ -131,7 +93,6 @@ assert_contains "subject: source git-subject" "$OUT" "source: git-subject"
 assert_contains "subject: ledger absent at the default path" "$OUT" "ledger: $REPO_SUBJ/docs/upstream/claude-code.md (absent)"
 assert_contains "subject: range from the subject marker" "$OUT" "range: 2.1.261..2.1.263 (2 releases, 6 core items)"
 
-# --- Case 4: body mentions are never read --------------------------------------------
 REPO_BODY="$TMP/repo-body"
 make_repo "$REPO_BODY" \
   "docs(harness-config): refresh the permission stamps" "Verified against Claude Code v2.1.252 changelog on 2026-08-20." \
@@ -149,19 +110,16 @@ assert_contains "body: release list omitted beyond the release cap" "$OUT" "rele
 assert_contains "body: recommendation names the ledger and the reset version" "$OUT" "recommend: replay cost scales with items"
 assert_contains "body: recommendation sets the marker to the newest in range" "$OUT" "to 2.1.263 and diff only from there"
 
-# --- Case 5: no marker, cap holds -> recommend creating the ledger after the apply ----
 run_in "$REPO_BODY" --changelog "$CHANGELOG"
 assert_contains "no-marker: within budget at the defaults" "$OUT" "cap: within budget (10 releases / 300 items)"
 assert_contains "no-marker: recommend creating the ledger" "$OUT" "recommend: no read marker. After this range is applied, create $REPO_BODY/docs/upstream/claude-code.md with the marker line at 2.1.263"
 
-# --- Case 6: cap fires on items -----------------------------------------------------
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CHANGELOG" --cap-items 5
 assert_contains "cap-items: exceeded" "$OUT" "cap: exceeded (10 releases / 5 items)"
 assert_contains "cap-items: release list kept when only the item cap fires" "$OUT" "releases: 2.1.261 2.1.263"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CHANGELOG" --cap-items 6
 assert_contains "cap-items: boundary is inclusive" "$OUT" "cap: within budget (10 releases / 6 items)"
 
-# --- Case 7: explicit ranges ---------------------------------------------------------
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CHANGELOG" --range v2.1.258..v2.1.261
 assert_eq "range: exit 0" 0 "$RC"
 assert_contains "range: inclusive at both ends, marker ignored" "$OUT" "range: 2.1.258..2.1.261 (4 releases, 14 core items)"
@@ -175,7 +133,6 @@ run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CHANGELOG" --range 2.1.258-2.1.
 assert_eq "range: malformed exits 3" 3 "$RC"
 assert_contains "range: malformed names the form" "$ERR" "--range takes A..B or X"
 
-# --- Case 8: --no-fetch without a changelog ------------------------------------------
 run_in "$EMPTY" --ledger "$LEDGER" --no-fetch
 assert_eq "no-fetch: exit 0" 0 "$RC"
 assert_contains "no-fetch: marker still read" "$OUT" "last-applied: 2.1.260"
@@ -184,10 +141,6 @@ assert_contains "no-fetch: range not computed with the reason" "$OUT" "range: no
 run_in "$REPO_BODY" --no-fetch
 assert_contains "no-fetch: no marker still recommends the recheck" "$OUT" "recommend: no read marker. Run a docs-conformance recheck"
 
-# --- Case 8b: fetch through fetch-changelog.sh, fixture-fed ---------------------------
-# The repository file is read first; the docs page only when that read fails. Each
-# fixture variant gets its own docs cache: no cached title or quarantine from one
-# variant reaches the next.
 REPO_FX="raw-githubusercontent-com/anthropics/claude-code/main/changelog.md"
 REPO_FORMAT="$FIXTURES/changelog-repo.md"
 fixture_status() {
@@ -236,7 +189,6 @@ cp "$CHANGELOG" "$FX/changelog.md"
 fixture_status "$FX"
 assert_contains "fixture unlisted slug: not computed" "$OUT" "range: not computed (fetch of the changelog failed"
 
-# --- Case 9: wrong page identity is refused ------------------------------------------
 printf '# Extend Claude with skills\n\n<Update label="9.9.9" description="x">\n  * item\n</Update>\n' >"$TMP/other-page.md"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/other-page.md"
 assert_eq "identity: exit 0" 0 "$RC"
@@ -251,7 +203,6 @@ assert_contains "no-blocks: latest unknown" "$OUT" "latest: unknown"
 assert_contains "no-blocks: a parse failure is not an empty range" "$OUT" "range: not computed (no release markers parsed"
 assert_not_contains "no-blocks: never reports up to date" "$OUT" "up to date"
 
-# --- Case 10: env override and --ledger precedence ------------------------------------
 REPO_ENV="$TMP/repo-env"
 make_repo "$REPO_ENV"
 mkdir -p "$REPO_ENV/notes"
@@ -262,14 +213,12 @@ assert_contains "env: source names the override" "$OUT" "source: ledger:$REPO_EN
 OUT="$(cd "$REPO_ENV" && HARNESS_OPS_CHANGELOG_LEDGER="$REPO_ENV/notes/cc.md" bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_contains "env: --ledger wins over the env" "$OUT" "last-applied: 2.1.260"
 
-# --- Case 11: default ledger path under the repo root ---------------------------------
 mkdir -p "$REPO_ENV/docs/upstream"
 cp "$LEDGER" "$REPO_ENV/docs/upstream/claude-code.md"
 mkdir -p "$REPO_ENV/sub/dir"
 run_in "$REPO_ENV/sub/dir" --changelog "$CHANGELOG"
 assert_contains "default: found from a subdirectory via the repo root" "$OUT" "source: ledger:$REPO_ENV/docs/upstream/claude-code.md"
 
-# --- Case 12: installed older than latest -> warn --------------------------------------
 OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.259 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_contains "warn: installed read from claude --version" "$OUT" "installed: 2.1.259"
 assert_contains "warn: older installed warns against the newest in range" "$OUT" "warn: installed 2.1.259 is older than the newest release in the range 2.1.263"
@@ -280,7 +229,6 @@ assert_not_contains "warn: an explicit historical range within the installed ver
 OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.260 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" --range 2.1.259..2.1.261 2>/dev/null)"
 assert_contains "warn: an explicit range past the installed version warns against its top" "$OUT" "warn: installed 2.1.260 is older than the newest release in the range 2.1.261"
 
-# --- Case 13: argument errors ------------------------------------------------------------
 run_in "$EMPTY" --bogus
 assert_eq "args: unknown argument exits 3" 3 "$RC"
 assert_contains "args: unknown argument named" "$ERR" "unknown argument: --bogus"
@@ -293,10 +241,6 @@ run_in "$EMPTY" --help
 assert_eq "args: --help exits 0" 0 "$RC"
 assert_contains "args: --help prints the usage" "$OUT" "Usage:"
 
-# --- Case 14: the page's current release headings ---------------------------------------
-# changelog-current.md is a trimmed copy of the live page: 2.1.310 holds 26 bullets under
-# **Added** (3), **Changed** (3), **6 improvements** and **14 bug fixes**, two of them
-# [VSCode]; 2.1.308, 0.2.26 and 0.2.21 hold 1, 3 and 1, the last ending at end of file.
 CURRENT="$FIXTURES/changelog-current.md"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CURRENT"
 assert_eq "current format: exit 0" 0 "$RC"
@@ -308,7 +252,6 @@ assert_contains "current format: the last release ends at end of file" "$OUT" "r
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CURRENT" --range 0.2.26..2.1.308
 assert_contains "current format: an explicit range across both eras" "$OUT" "range: 0.2.26..2.1.308 (2 releases, 4 core items)"
 
-# --- Case 15: the fetch action's slice through the shared parser ------------------------
 PARSER="$SCRIPT_DIR/../../../scripts/changelog-releases.sh"
 OUT="$(bash "$PARSER" --blocks 2.1.308 "$CURRENT")"
 assert_eq "slice current: one release, marker to last line" "$(printf '%s\n' '**2.1.308**' '' 'October 22, 2026' '' '* Bug fixes and reliability improvements' '')" "$OUT"
@@ -320,7 +263,6 @@ assert_eq "slice repo format: one release, ## marker to last line" "$(printf '%s
 bash "$PARSER" --blocks 2.1 "$CURRENT" >/dev/null 2>&1
 assert_eq "slice: a malformed range exits 3" 3 "$?"
 
-# --- Summary ---------------------------------------------------------------------------
 if ((FAILED > 0)); then
   printf '\n%d of %d assertions failed\n' "$FAILED" "$CASE_NUM" >&2
   exit 1

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for tick.sh: a stub gh on PATH keeps the PR body in a temp file, so each edit is
-# read back the way the real round trip would.
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tick.sh"
@@ -33,7 +31,7 @@ body() { # <two-line> <three-line>: a CRLF body with no final newline, as GitHub
   printf '%s' '- [ ] four: p:q'
 }
 body '- [ ] two: p:b, p:c' '- [x] three: p:d' >"$TMP/body"
-run() { # sets out, rc
+run() {
   out=$(PATH="$TMP/bin:$PATH" GH_BODY="$TMP/body" bash "$SCRIPT" "$@" 2>"$TMP/err")
   rc=$?
 }

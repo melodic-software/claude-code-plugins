@@ -75,7 +75,7 @@ describe("config", () => {
 });
 
 describe("provider record", () => {
-  test("the bundled codex record loads and validates", () => {
+  test("the bundled codex and antigravity records load and validate with harness and usage declarations", () => {
     const codex = loadProvider("codex");
     assert.equal(codex.product, "codex");
     assert.equal(codex.binary.name, "codex");
@@ -84,6 +84,17 @@ describe("provider record", () => {
     assert.equal(codex.modes["read-only"].enforcement, "sandbox");
     assert.equal(codex.modes.write.enforcement, "sandbox");
     assert.ok(codex.soft_deny.length > 0);
+    assert.equal(codex.harness.image, true);
+    assert.ok(codex.harness.tools.length > 0);
+    assert.equal(codex.usage.kind, "jsonrpc_stdio");
+
+    const agy = loadProvider("antigravity");
+    assert.equal(agy.harness.image, true);
+    assert.ok(agy.harness.tools.includes("invoke_subagent"));
+    assert.ok(!agy.harness.tools.includes("swarm"));
+    assert.ok(agy.always_args.includes("--disable-slash-commands"));
+    assert.equal(agy.usage.kind, "json_envelope_lines");
+    assert.ok(!agy.usage.args.includes("--disable-slash-commands"));
   });
 
   test("an unknown product is refused", () => {
@@ -136,6 +147,23 @@ describe("provider record", () => {
     const record = valid();
     delete record.modes.write;
     assert.match(validateProvider(record).join("\n"), /modes\.write/);
+  });
+
+  test("malformed harness and usage declarations are named", () => {
+    const record = valid();
+    record.harness = { tools: [123], image: "yes", extra: true };
+    record.usage = { kind: "jsonrpc_stdio", args: [], timeout_ms: 0 };
+    const problems = validateProvider(record).join("\n");
+    assert.match(problems, /harness\.tools/);
+    assert.match(problems, /harness\.image/);
+    assert.match(problems, /harness\.extra/);
+    assert.match(problems, /usage\.args/);
+    assert.match(problems, /usage\.method/);
+    assert.match(problems, /usage\.timeout_ms/);
+
+    const badKind = valid();
+    badKind.usage = { kind: "magic", args: ["--usage"] };
+    assert.match(validateProvider(badKind).join("\n"), /usage\.kind/);
   });
 });
 

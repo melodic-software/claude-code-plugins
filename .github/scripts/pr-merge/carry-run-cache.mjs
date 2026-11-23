@@ -64,7 +64,7 @@ import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { onMain, writeAtomic } from "./head-ref-map.mjs";
 import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 

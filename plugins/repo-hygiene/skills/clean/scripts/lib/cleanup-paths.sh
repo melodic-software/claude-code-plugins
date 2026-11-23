@@ -3,18 +3,10 @@
 # SSOT: reference/cleanup-config.md — drift detected by cleanup-paths.test.sh
 # shellcheck disable=SC2034
 
-# Heavy trees that hold no cleanup targets we own — never descended by the
-# single-walk enumeration (`-prune`) and, symmetrically, never accepted from a
-# manifest at `--apply`, so both sides share one prune set. The caches/build/scan
-# tiers all enumerate through this engine; only preflight's narrow recent-build
-# probe still runs a standalone find (CLEAN_FIND_EXCLUDE_GIT below).
 CLEAN_PRUNE_DIRS=(.git node_modules .venv)
 
-# Standalone-find exclusion for preflight's recent-build probe (cleanup-config.md intro).
 CLEAN_FIND_EXCLUDE_GIT='*/.git/*'
 
-# caches — explicit repo-root paths (trailing slash = directory; no slash on files).
-# Generic across ecosystems; regenerated on the next tool run.
 CLEAN_CACHE_EXPLICIT=(
   .pytest_cache
   .ruff_cache
@@ -24,20 +16,16 @@ CLEAN_CACHE_EXPLICIT=(
   .codex/logs
 )
 
-# caches — explicit repo-root files (none generic by default).
 CLEAN_CACHE_EXPLICIT_FILES=()
 
-# caches — recursive directory name patterns (**/name/)
 CLEAN_CACHE_FIND_DIR_NAMES=(
   __pycache__
 )
 
-# caches — recursive file globs
 CLEAN_CACHE_FIND_FILE_GLOBS=(
   '*.tsbuildinfo'
 )
 
-# build — directory names for find -name
 CLEAN_BUILD_DIR_NAMES=(
   bin
   obj
@@ -52,16 +40,12 @@ CLEAN_BUILD_FILE_GLOBS=(
   '*.binlog'
 )
 
-# git — safe prune mutations
 GIT_PRUNE_OPS=(
   'git worktree prune'
   'git remote prune origin'
   'git gc --auto --quiet'
 )
 
-# Protected path segments / globs — never delete (substring match on normalized
-# path). Conservative universal set: deleting any of these risks losing a
-# consumer's dependencies, credentials, or IDE state.
 CLEAN_PROTECTED_SUBSTRINGS=(
   '/node_modules/'
   '/.venv/'
@@ -76,9 +60,6 @@ CLEAN_PROTECTED_SUBSTRINGS=(
   '/.codex/rules/'
 )
 
-# Skill data dirs: .claude/skills/*/data/ — checked in clean_path_is_protected
-
-# Protected branch name patterns (git-branch-cleanup.md §4.5)
 CLEAN_PROTECTED_BRANCH_EXACT=(
   main
   master
@@ -92,9 +73,6 @@ CLEAN_PROTECTED_BRANCH_GLOBS=(
 
 CLEAN_STALE_BRANCH_DAYS=90
 
-# Remote-branch retention windows in days, one per family (git-branch-audit.sh
-# --remote-families). A tip older than the window releases the branch; each is
-# overridable by the environment variable of the same name.
 CLEAN_RETENTION_PREWIPE_DAYS="${CLEAN_RETENTION_PREWIPE_DAYS:-30}"
 CLEAN_RETENTION_CLAUDE_DAYS="${CLEAN_RETENTION_CLAUDE_DAYS:-30}"
 CLEAN_RETENTION_PLAN_DAYS="${CLEAN_RETENTION_PLAN_DAYS:-90}"

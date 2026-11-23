@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Build the quiz-me report page: what was done, then the quiz, then the
-// answer key collapsed in a details element.
-//
-// Every interpolated field goes through escapeHtml from the synced helper.
-// The page is self-contained: inline style, no script, no image, no link.
-// stampPage adds the generator marker. validateRenderedPage refuses a page
-// this builder would not accept, including its own output if a template edit
-// breaks the allowlist.
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -98,9 +90,6 @@ function sectionBlocks(source) {
   ).join("\n");
 }
 
-// Authors tend to write the correct choice first, and an instruction does not
-// stop it, so the builder orders choices itself. The seed comes from the
-// question's own text, so rebuilding the same model gives the same page.
 function seededRandom(text) {
   let state = 2166136261;
   for (const char of text) state = Math.imul(state ^ char.codePointAt(0), 16777619);

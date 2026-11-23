@@ -246,7 +246,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, loadTrustedList, paginate, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { jobNames, laneJob } from "../lib/lane-registry.mjs";
+import { annotationsPath, firstAttemptJobsPath, graphqlCall, isObject, jobsKey, serveFirstAttemptJobs, slimJob } from "../lib/run-jobs.mjs";
+import { loadTrustedList, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
@@ -294,11 +297,7 @@ export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
-// The hosted review callers' check-kill-switch job, by its name (Kill Switch
-// before its rename to Check Kill Switch, kill-switch on a head tested before
-// an earlier rename), and the step that fails it while the upstream-status
-// gate skips the review.
-export const GATE_JOBS = new Set(["Kill Switch", "kill-switch", "Check Kill Switch"]);
+export const GATE_JOBS = new Set([...GATED_REVIEWS].flatMap((path) => jobNames(path.slice(".github/workflows/".length), "check-kill-switch")));
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
 // The step that job runs when a kill switch stops the review, and the caller's
 // job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;
@@ -336,16 +335,14 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
 // once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
-// intake-label-needs-triage names it on a run from before the rename.
-export const INTAKE_LABEL_JOBS = ["Intake Label Needs Triage", "intake-label-needs-triage"];
+export const INTAKE_LABEL_JOBS = jobNames("intake-triage.yml", "intake-label-needs-triage");
 const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
 // pr-dispatch-feedback's job that applies a pr-verify verdict to its PR, and
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
 // failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
-// post-verify-notes names it on a run from before the rename.
-export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
+export const VERDICT_JOBS = new Set(jobNames("pr-dispatch-feedback.yml", "post-verify-notes"));
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
 // A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
@@ -423,7 +420,7 @@ export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".gi
 export const RATER_SWITCH_STEP = "Check the kill switch";
 export const RATER_RESOLVE_STEP = "Resolve the pull request";
 /** The rater's legs by job name, in the order each hands off to the next. */
-export const RATER_LEGS = ["Rate Merge Risk", "Rate Merge Risk Subscription", "Rate Merge Risk Fallback"];
+export const RATER_LEGS = ["rate-merge-risk", "rate-merge-risk-subscription", "rate-merge-risk-fallback"].map((id) => laneJob("pr-rate-merge-risk.yml", id).name);
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.
@@ -466,8 +463,6 @@ const passRateLimit = (error) => {
   }
 };
 
-const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const jobsKey = (id, attempt) => `${id}:${attempt}`;
 // A carried job read, {id, attempt, head, updated_at, jobs}.
 const carriedJobsEntry = (e) =>
   Number.isSafeInteger(e?.id) &&
@@ -541,17 +536,6 @@ async function readSettled({ repo, runId, call, download }) {
 const wholeListing = (listing) =>
   Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
 
-// A job with only the fields the rules read (stepsKnown, infraCause and the
-// stop and contract checks), so a carried read decides as a live one does.
-const slimJob = (job) => ({
-  id: job.id,
-  name: job.name,
-  status: job.status,
-  conclusion: job.conclusion,
-  runner_id: job.runner_id,
-  steps: Array.isArray(job.steps) ? job.steps.map((s) => ({ name: s?.name, number: s?.number, status: s?.status, conclusion: s?.conclusion })) : job.steps,
-});
-
 // A workflow path's file name, as the per-workflow runs endpoint takes it.
 const workflowFile = (path) => path.slice(path.lastIndexOf("/") + 1);
 // A runs listing's `created` filter for runs created at or after `ms`, to the second.
@@ -559,98 +543,11 @@ const createdSince = (ms) => encodeURIComponent(`>=${new Date(ms).toISOString().
 
 // A run's first-attempt job listing, which must fit one page.
 async function firstAttemptJobs(call, repo, id) {
-  const listing = await call("GET", `/repos/${repo}/actions/runs/${id}/attempts/1/jobs?per_page=100`);
+  const listing = await call("GET", firstAttemptJobsPath(repo, id));
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
   }
   return listing;
-}
-
-/**
- * How many runs one GraphQL query answers: their first-attempt job listings
- * with each job's check-run annotations, the reads holdReason, faultHeld and
- * firstAttemptJobs send one REST call per run and per job for. Two step
- * connections, the first and the last 100, cover a job of up to 200 steps
- * (pr-verify's Check Intent lists 117). Measured: 5 runs answered in about
- * 2 s for 5 points, 10 in about 6 s, and 25 hit GraphQL's 10 s limit (504).
- */
-export const JOBS_BATCH = 5;
-const STEP_FIELDS = "totalCount nodes { name number status conclusion }";
-export const JOBS_QUERY = `query($ids: [ID!]!) { nodes(ids: $ids) { ... on WorkflowRun { databaseId runAttempt checkSuite { checkRuns(first: 30, filterBy: { checkType: ALL }) { totalCount nodes { databaseId name status conclusion head: steps(first: 100) { ${STEP_FIELDS} } tail: steps(last: 100) { ${STEP_FIELDS} } annotations(first: 100) { totalCount nodes { annotationLevel title message } } } } } } } }`;
-const jobsPath = (repo, id) => `/repos/${repo}/actions/runs/${id}/attempts/1/jobs?per_page=100`;
-const notesPath = (repo, id) => `/repos/${repo}/check-runs/${id}/annotations?per_page=100`;
-const lower = (value) => (typeof value === "string" ? value.toLowerCase() : value);
-const wholeConnection = (c) => Array.isArray(c?.nodes) && c.nodes.length === c.totalCount && c.nodes.every(isObject);
-
-/**
- * The REST answers one run's node stands in for, by path: its first-attempt
- * job listing and each job's annotations, in the shape REST gives the fields
- * the rules read. Undefined, so REST reads the run, unless the node answers
- * for the run's first attempt in full: every job, every step and every
- * annotation listed. A job with no steps stands in only when it was skipped,
- * since stepsKnown reads such a job's runner_id, which GraphQL does not give;
- * a skipped job never had a runner.
- */
-export function servedReads(repo, run, node) {
-  const checks = node?.checkSuite?.checkRuns;
-  if (node?.databaseId !== run?.id || node.runAttempt !== 1 || !wholeConnection(checks) || checks.nodes.length === 0) {
-    return undefined;
-  }
-  const reads = new Map();
-  const jobs = [];
-  for (const check of checks.nodes) {
-    const { head, tail, annotations } = check;
-    if (!Number.isSafeInteger(check.databaseId) || !Array.isArray(head?.nodes) || !Array.isArray(tail?.nodes) || head.totalCount !== tail.totalCount || !wholeConnection(annotations)) {
-      return undefined;
-    }
-    const steps = new Map([...head.nodes, ...tail.nodes].map((s) => [s?.number, s]));
-    if (steps.size !== head.totalCount || ![...steps.keys()].every(Number.isSafeInteger) || (steps.size === 0 && lower(check.conclusion) !== "skipped")) {
-      return undefined;
-    }
-    jobs.push({
-      id: check.databaseId,
-      name: check.name,
-      status: lower(check.status),
-      conclusion: lower(check.conclusion),
-      ...(steps.size === 0 ? { runner_id: null } : {}),
-      steps: [...steps.values()].sort((a, b) => a.number - b.number).map((s) => ({ name: s.name, number: s.number, status: lower(s.status), conclusion: lower(s.conclusion) })),
-    });
-    reads.set(
-      notesPath(repo, check.databaseId),
-      annotations.nodes.map((a) => ({ annotation_level: lower(a.annotationLevel), title: a.title, message: a.message })),
-    );
-  }
-  reads.set(jobsPath(repo, run.id), { total_count: jobs.length, jobs: jobs.sort((a, b) => a.id - b.id) });
-  return reads;
-}
-
-/**
- * Reads the runs' first-attempt jobs, JOBS_BATCH runs a query, into `cache`
- * by the REST path each answer stands in for. A batch of one run is left to
- * REST, where it costs the same one call. A run the answer does not cover in
- * full is read through REST; after a query fails, by error or GraphQL's own
- * rate limit, or answers for none of its runs, every later run this pass is
- * too (`state.failed`), so this never stops a pass REST would finish.
- */
-async function prefetchJobs(send, repo, runs, cache, state) {
-  const wanted = [...new Map(runs.filter((r) => Number.isSafeInteger(r?.id) && typeof r.node_id === "string" && !cache.has(jobsPath(repo, r.id))).map((r) => [r.id, r])).values()];
-  for (let at = 0; at + 1 < wanted.length && !state.failed; at += JOBS_BATCH) {
-    const batch = wanted.slice(at, at + JOBS_BATCH);
-    try {
-      const nodes = (await send("POST", "/graphql", { query: JOBS_QUERY, variables: { ids: batch.map((r) => r.node_id) } }))?.data?.nodes;
-      if (!batch.some((r, i) => Array.isArray(nodes) && nodes[i]?.databaseId === r.id && nodes[i].runAttempt === 1)) {
-        state.failed = true;
-        continue;
-      }
-      batch.forEach((r, i) => {
-        for (const [path, answer] of servedReads(repo, r, Array.isArray(nodes) ? nodes[i] : undefined) ?? []) {
-          cache.set(path, answer);
-        }
-      });
-    } catch {
-      state.failed = true;
-    }
-  }
 }
 
 // The Actions component's status, or undefined when the page has none.
@@ -990,7 +887,7 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
   Promise.all(
     jobs.map(async (job) =>
       wanted(job) && !stepsKnown(job) && Number.isSafeInteger(job?.id)
-        ? { ...job, annotations: await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`) }
+        ? { ...job, annotations: await call("GET", annotationsPath(repo, job.id)) }
         : job,
     ),
   );
@@ -1008,7 +905,7 @@ const floorFailed = async (call, repo, jobs) => {
   }
   const notes = [];
   for (const job of lanes) {
-    const annotations = job.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`));
+    const annotations = job.annotations ?? (await call("GET", annotationsPath(repo, job.id)));
     if (!floorNoted(annotations)) {
       return undefined;
     }
@@ -1098,7 +995,7 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
   const hit = carried?.head === run.head_sha && carried?.updated_at === run.updated_at;
   const listing = hit
     ? { total_count: carried.jobs.length, jobs: carried.jobs }
-    : await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
+    : await call("GET", firstAttemptJobsPath(repo, run.id));
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
   }
@@ -1173,7 +1070,7 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   }
   const whole = typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j));
   for (const job of deferring) {
-    const annotations = await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+    const annotations = await call("GET", annotationsPath(repo, job.id));
     const resets = (Array.isArray(annotations) ? annotations : []).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map((s) => Number(s) * 1000);
     if (resets.length > 0) {
       const reset = Math.max(...resets);
@@ -1187,7 +1084,7 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
     return { held: false, final: false };
   }
   for (const job of marked) {
-    const annotations = await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+    const annotations = await call("GET", annotationsPath(repo, job.id));
     if (heldNoted(annotations)) {
       const reset = heldReset(annotations) || undefined;
       if (whole) {
@@ -1329,7 +1226,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const batches = { failed: false };
   const send = call;
   call = async (method, apiPath, ...rest) => (method === "GET" && prefetchedReads.has(apiPath) ? prefetchedReads.get(apiPath) : send(method, apiPath, ...rest));
-  const prefetch = (runs) => prefetchJobs(send, repo, runs, prefetchedReads, batches);
+  const prefetch = (runs) => serveFirstAttemptJobs(graphqlCall(send), repo, runs, prefetchedReads, batches);
   const carriedHit = (r, held = false) => {
     const carried = carriedJobs.get(jobsKey(r.id, 1));
     return carried?.head === r.head_sha && carried?.updated_at === r.updated_at && (!held || carried.held === true);
@@ -1540,7 +1437,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           }
           const jobs = await readJobs(r);
           const stopped = reviewStopped(jobs);
-          const notesOf = (job) => job.annotations ?? call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+          const notesOf = (job) => job.annotations ?? call("GET", annotationsPath(repo, job.id));
           const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
           if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
             waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
@@ -1573,7 +1470,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // The tested run's jobs are reused when it is that run.
       if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
-        const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
+        const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
         // A lanes App PR's ci-status that failed on the kill switch.
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
         if (reviewStopNoted(notes) || rateHeldNoted(notes)) {

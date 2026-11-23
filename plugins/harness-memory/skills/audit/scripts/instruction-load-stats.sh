@@ -105,8 +105,6 @@ loaded_content() {
 count_lines() { loaded_content "$1" | grep -c '[^[:space:]]'; }
 count_bytes() { loaded_content "$1" | wc -c; }
 
-# One `<scope>\t<path>` per always-loaded root. The user scope loads in every
-# session of every project; a file both scopes reach is counted once, below.
 scope_roots() {
   local scope="$1" base="$2" f
   if [[ "$scope" == "project" ]]; then

@@ -38,11 +38,8 @@ $commands = @(
     'Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist'
 )
 
-# Permissions that let an extension read or change browsing data broadly or
-# reach outside the browser (judgment over Chrome's permission-warning list).
 $highAttentionApi = @('debugger', 'nativeMessaging', 'proxy', 'management')
 $allSitePatterns = @('<all_urls>', '*://*/*', 'http://*/*', 'https://*/*')
-# Locations that bypass store review.
 $developerKinds = @('unpacked', 'command-line')
 # Locations whose install path the browser keeps relative to the profile.
 $relativePathKinds = @('store', 'external', 'policy')
@@ -101,7 +98,6 @@ $CheckBody = {
     $installed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($read in $browserReads) { foreach ($ext in $read.Extensions) { [void]$installed.Add("$($ext.Browser)|$($ext.ExtId)") } }
 
-    # install_state rule: check-catalog.md section 23, "Policy entries".
     $offDomain = $policy.DomainJoined -eq $false
     $claimedBy = @{}
     $policyEntries = [System.Collections.Generic.List[object]]::new()

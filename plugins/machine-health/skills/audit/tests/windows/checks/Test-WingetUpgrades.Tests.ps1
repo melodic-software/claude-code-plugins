@@ -60,8 +60,6 @@ BeforeAll {
             [object[]] $Upgrades = @(),
             [string] $ErrorMessage = $null
         )
-        # The wrapper's contract is a hashtable tuple. A bare hashtable is enough here: Pester
-        # mocks forward the return value verbatim, so no comma-operator unwrap guard is needed.
         return @{ upgrades = $Upgrades; error = $ErrorMessage }
     }
 
@@ -79,8 +77,6 @@ BeforeAll {
     }
 
     function New-KevCache {
-        # Mirrors Get-CisaKevCache's return: the list plus its _cache_* annotations. The
-        # default is a usable list that matches nothing, so count-based tests stay count-based.
         param(
             [object[]] $Vulnerabilities = @(New-KevRecord -CveId 'CVE-2000-0000' -VendorProject 'Unrelated' -Product 'Thing'),
             [string] $State = 'fresh',
@@ -299,7 +295,6 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
 
 Describe 'Test-WingetUpgrades -- KEV data gaps never read as a clean KEV check (#6505)' -Tag 'check' {
     It 'emits UNKNOWN, not the count-based WARN, when the KEV fetch failed with no cached list' {
-        # The reported case: >10 upgrades would WARN on count alone and hide the KEV gap.
         Mock Get-WingetPackageUpdate {
             $upgrades = 1..15 | ForEach-Object { New-UpgradeRecord -Name "App$_" -Id "Pub.App$_" }
             New-WingetResult -Upgrades @($upgrades)

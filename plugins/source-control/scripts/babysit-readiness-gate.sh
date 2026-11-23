@@ -149,7 +149,6 @@ unproven() { # unproven <reason> <exit-code>
   exit "$2"
 }
 
-# Assert a flag's value argument is present and not itself a flag, else exit 3.
 require_value() {
   [[ -n "${2:-}" && "$2" != -* ]] || {
     printf 'babysit-readiness-gate: %s requires an argument\n' "$1" >&2
@@ -216,8 +215,6 @@ if [[ -n "$REPO_SLUG" ]]; then
   FETCH_COMMENTS_REPO="${REPO_SLUG#*/}"
   export FETCH_COMMENTS_OWNER FETCH_COMMENTS_REPO
 fi
-
-# --- Resolve comments JSON (fixture file OR live fetch) -----------------------
 
 COMMENTS=""
 if [[ -n "$COMMENTS_JSON" ]]; then
@@ -287,8 +284,6 @@ printf '%s' "$COMMENTS" | jq -e '
   unproven comments-unreadable 4
 }
 
-# --- Resolve self authors (whose replies are the classification rows) ---------
-
 SELF_LOGINS=()
 if [[ -n "$SELF_CSV" ]]; then
   IFS=',' read -r -a SELF_LOGINS <<<"$SELF_CSV"
@@ -312,8 +307,6 @@ if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
   unproven identity-unresolved 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -nR '[inputs]')"
-
-# --- Split bodies by author class --------------------------------------------
 
 # Matches BOTH reviewer severity vocabularies, counting ONE marker per finding,
 # PORTABLY. BSD grep on macOS does NOT support the `\b` word-boundary escape (it
@@ -460,8 +453,6 @@ classified=${classified:-0}
 # thread-state-free input.
 ((classified > findings)) && classified="$findings"
 
-# --- Prefer the shared Python classifier when available -----------------------
-
 # The bash counts above are the Python-free safe-tier degrade (reference/loop.md
 # is that path, and it runs this gate). When a Python 3.11+ interpreter is
 # present, re-count via the shared babysit_classify module instead: it owns the
@@ -522,8 +513,6 @@ if [[ -n "$CHECKLIST" ]]; then
   unticked=${unticked:-0}
   ((unticked == 0)) && checklist_state="clean" || checklist_state="incomplete"
 fi
-
-# --- Verdict ------------------------------------------------------------------
 
 blocked=""
 if ((findings > 0 && classified < findings)); then

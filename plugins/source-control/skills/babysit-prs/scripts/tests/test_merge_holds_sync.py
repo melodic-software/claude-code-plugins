@@ -1,6 +1,6 @@
 # test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/*
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
-# test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs
+# test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -402,6 +402,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         gate = [g for g, kind in FLOOR.classes if kind == "gate"]
         surface = {
             ".github/scripts/pr-review-main/**",
+            ".github/scripts/diff-chunking/**",
             "**/.claude/**",
             "**/.claude-lane/**",
             "docs/conventions/source-control.yaml",
@@ -426,7 +427,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 19)
+        self.assertEqual(len(FLOOR.author_review), 22)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -446,12 +447,13 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 89)
+        self.assertEqual(len(FLOOR.high), 94)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
         self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        self.assertIn(".github/scripts/lib/github-client.mjs", files)
         # The rate-limit defaults rate-guard.mjs reads decide when the lanes
         # stop short of GitHub's limits, so they are held like the module.
         self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)

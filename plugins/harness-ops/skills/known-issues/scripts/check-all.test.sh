@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Coverage:
-#   - reads <output-dir>/registry-snapshot.tsv (header
-#     written to OUT regardless of input rows)
-#   - per-row gh failure → FETCH_FAILED transition
-#   - per-row gh JSON success → OPEN/CLOSED transition computed correctly
-#   - empty snapshot → header-only results, exit 0
-#   - missing snapshot → exit 1
-#   - snapshot without trailing newline → last row still processed
-#   - the default output directory is KEYED: two repositories, and two
-#     worktrees of one repository, get distinct directories, and one project
-#     is never served another's rows
-#   - the joined key cannot be re-parsed two ways (separator safety)
-#   - an unkeyed leftover is named on stderr and never read
-#   - an underivable state key fails rather than falling back to unkeyed
-#
-# Uses a per-case fake output tree and a PATH-stub `gh`.
-
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -37,7 +20,6 @@ fail() {
 }
 assert_file_exists() { if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "file exists: $2" "absent"; fi; }
 
-# Build per-case CWD with snapshot.tsv + PATH-stub gh.
 make_case() {
   local case_dir="$1" snapshot_content="$2" gh_mode="$3"
   mkdir -p "$case_dir/check-all-output" "$case_dir/path-stub"
@@ -67,12 +49,10 @@ STUB
   chmod +x "$case_dir/path-stub/gh" 2>/dev/null || true
 }
 
-# Run the script for a case directory, with that case's output dir and gh stub.
 run_case() {
   (cd "$1" && CHECK_ALL_OUTPUT_DIR="$1/check-all-output" PATH="$1/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
 }
 
-# --- Case 1: gh always fails → FETCH_FAILED transition ---
 CASE_A="$TEST_TMPDIR/case-a"
 make_case "$CASE_A" $'1\texample-org/example-repo\topen\n' fail
 run_case "$CASE_A"
@@ -83,7 +63,6 @@ assert_file_exists "results.tsv written" "$OUT_FILE"
 RESULTS=$(cat "$OUT_FILE")
 assert_contains "FETCH_FAILED transition recorded" "$RESULTS" "FETCH_FAILED"
 
-# --- Case 2: tracked=open + state=CLOSED → OPEN->CLOSED transition ---
 CASE_B="$TEST_TMPDIR/case-b"
 make_case "$CASE_B" $'42\texample-org/example-repo\topen\n' closed
 run_case "$CASE_B"
@@ -92,7 +71,6 @@ assert_exit "open→closed → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_B/check-all-output/check-all-results.tsv")
 assert_contains "OPEN->CLOSED transition" "$RESULTS" "OPEN->CLOSED"
 
-# --- Case 3: tracked=closed + state=OPEN → CLOSED->OPEN transition ---
 CASE_C="$TEST_TMPDIR/case-c"
 make_case "$CASE_C" $'7\texample-org/example-repo\tclosed\n' open
 run_case "$CASE_C"
@@ -101,7 +79,6 @@ assert_exit "closed→open → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_C/check-all-output/check-all-results.tsv")
 assert_contains "CLOSED->OPEN transition" "$RESULTS" "CLOSED->OPEN"
 
-# --- Case 4: tracked=open + state=OPEN → UNCHANGED ---
 CASE_D="$TEST_TMPDIR/case-d"
 make_case "$CASE_D" $'5\texample-org/example-repo\topen\n' open
 run_case "$CASE_D"
@@ -110,7 +87,6 @@ assert_exit "unchanged → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_D/check-all-output/check-all-results.tsv")
 assert_contains "UNCHANGED transition" "$RESULTS" "UNCHANGED"
 
-# --- Case 5: empty snapshot → header only, exit 0 ---
 CASE_E="$TEST_TMPDIR/case-e"
 mkdir -p "$CASE_E/check-all-output"
 printf '' >"$CASE_E/check-all-output/registry-snapshot.tsv"
@@ -123,14 +99,12 @@ assert_not_contains "no FETCH_FAILED on empty input" "$RESULTS" "FETCH_FAILED"
 LOG_CONTENT=$(cat "$CASE_E/check-all-output/check-all.log")
 assert_contains "log ends DONE" "$LOG_CONTENT" "DONE"
 
-# --- Case 6: missing snapshot → exit 1 ---
 CASE_F="$TEST_TMPDIR/case-f"
 mkdir -p "$CASE_F/check-all-output"
 (cd "$CASE_F" && CHECK_ALL_OUTPUT_DIR="$CASE_F/check-all-output" bash "$SCRIPT") >/dev/null 2>&1
 RC=$?
 assert_exit "missing snapshot → exit 1" 1 "$RC"
 
-# --- Case 7: snapshot missing trailing newline → last row still processed ---
 CASE_G="$TEST_TMPDIR/case-g"
 make_case "$CASE_G" $'5\texample-org/example-repo\topen\n42\texample-org/example-repo\tclosed' open
 run_case "$CASE_G"
@@ -144,17 +118,10 @@ assert_contains "last row (no trailing newline) has issue number 42" "$LAST_ROW"
 LOG_G=$(cat "$CASE_G/check-all-output/check-all.log")
 assert_contains "no trailing newline → progress counts both rows" "$LOG_G" "[2/2]"
 
-# ---------------------------------------------------------------------------
-# Keying: the DEFAULT output directory (no CHECK_ALL_OUTPUT_DIR override).
-# Every case above pins the directory explicitly, so none of them exercises it.
-# ---------------------------------------------------------------------------
-
-# Named like the real per-plugin dir: an inherited CLAUDE_PLUGIN_DATA is used only
-# when it names harness-ops.
 KEY_DATA="$TEST_TMPDIR/harness-ops-test"
 mkdir -p "$KEY_DATA"
 
-make_repo() { # <dir> [remote-url]
+make_repo() {
   local dir="$1" remote="${2:-}"
   mkdir -p "$dir"
   git -C "$dir" init -q
@@ -163,7 +130,7 @@ make_repo() { # <dir> [remote-url]
   return 0
 }
 
-out_dir_for() { # <cwd>
+out_dir_for() {
   (cd "$1" && CLAUDE_PLUGIN_DATA="$KEY_DATA" bash "$SCRIPT" --print-output-dir 2>/dev/null)
 }
 
@@ -179,20 +146,12 @@ assert_contains "repo-a directory carries its remote identity" "$DIR_A" "/check-
 assert_contains "repo-b directory carries its remote identity" "$DIR_B" "/check-all-output/github.com/example/beta/"
 if [[ -d "$DIR_A" ]]; then pass "--print-output-dir creates the directory"; else fail "--print-output-dir creates the directory" "directory" "absent"; fi
 
-# Two worktrees of ONE repository. The registry is project-relative whenever
-# `registry_dir` is set, so two worktrees hold two registries and must
-# not share a scratch directory. state-key.sh splits them.
 git -C "$REPO_A" worktree add -q -b key-wt-second "$TEST_TMPDIR/key-repo-a-wt2" >/dev/null 2>&1
 DIR_A_WT2=$(out_dir_for "$TEST_TMPDIR/key-repo-a-wt2")
 assert_ne "two worktrees of one repository get distinct output directories" "$DIR_A" "$DIR_A_WT2"
 assert_contains "the second worktree keeps the same repo identity" "$DIR_A_WT2" "/check-all-output/github.com/example/alpha/"
 assert_eq "the same worktree resolves to the same directory twice" "$DIR_A" "$(out_dir_for "$REPO_A")"
 
-# Separator safety. The key joins `<identity>/<discriminator>`, and the identity
-# field can itself contain `/`. Build the ambiguous shape: repo-c's remote
-# normalizes to repo-a's identity followed by repo-a's own discriminator. The
-# discriminator is a fixed 8 hex characters, so the join is not re-parsable and
-# repo-c cannot land on repo-a's directory.
 DISC_A="${DIR_A##*/}"
 if [[ "$DISC_A" =~ ^[0-9a-f]{8}$ ]]; then pass "discriminator is exactly 8 hex characters"; else fail "discriminator is exactly 8 hex characters" "8 hex chars" "$DISC_A"; fi
 REPO_C="$TEST_TMPDIR/key-repo-c"
@@ -201,9 +160,6 @@ DIR_C=$(out_dir_for "$REPO_C")
 assert_ne "an identity that spells another key's prefix gets its own directory" "$DIR_A" "$DIR_C"
 assert_contains "the ambiguous identity nests rather than colliding" "$DIR_C" "/check-all-output/github.com/example/alpha/$DISC_A/"
 
-# End to end: the collision this fixes. Each project writes its OWN snapshot to
-# the directory the script names, then runs. Before keying, both snapshots went
-# to one path and the first project read the second's rows back.
 STUB_DIR="$TEST_TMPDIR/key-stub"
 mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\necho %s\n' \
@@ -215,7 +171,6 @@ printf '222\texample/beta\topen\n' >"$DIR_B/registry-snapshot.tsv"
 A_ROWS=$(tail -n +2 "$DIR_A/check-all-results.tsv" | cut -f1 | tr '\n' ' ')
 assert_eq "repo-a is served its own registry rows, not repo-b's" "111 " "$A_ROWS"
 
-# An unkeyed leftover from the older layout is NAMED and never read.
 LEGACY_DIR="$KEY_DATA/check-all-output"
 printf '999\texample/legacy\topen\n' >"$LEGACY_DIR/registry-snapshot.tsv"
 LEGACY_ERR=$( (cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$KEY_DATA" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" >/dev/null) 2>&1)
@@ -225,8 +180,6 @@ assert_eq "the unkeyed leftover is not read" "111 " "$A_ROWS_AFTER"
 assert_not_contains "the leftover's rows never reach the results" "$A_ROWS_AFTER" "999"
 rm -f "$LEGACY_DIR/registry-snapshot.tsv"
 
-# Fail closed. A copy of the script in a fake plugin tree whose lib/state-key.sh
-# fails: falling back to the unkeyed path would silently restore the collision.
 FAKE="$TEST_TMPDIR/fake-plugin"
 mkdir -p "$FAKE/lib" "$FAKE/skills/known-issues/scripts"
 cp "$SCRIPT" "$FAKE/skills/known-issues/scripts/check-all.sh"
@@ -236,7 +189,6 @@ RC=$?
 assert_exit "an underivable state key exits 2" 2 "$RC"
 assert_not_contains "an underivable state key prints no unkeyed path" "$FAKE_OUT" "$LEGACY_DIR"
 
-# An unknown argument is refused rather than silently ignored.
 (bash "$SCRIPT" --not-a-flag) >/dev/null 2>&1
 RC=$?
 assert_exit "an unknown argument exits 2" 2 "$RC"
@@ -244,8 +196,6 @@ UNKNOWN_ERR=$(bash "$SCRIPT" --not-a-flag 2>&1 >/dev/null)
 assert_contains "an unknown argument names --help" "$UNKNOWN_ERR" "(see --help)"
 assert_contains "--help lists the exit codes" "$(bash "$SCRIPT" --help)" "Exit  : 0"
 
-# No gh on PATH: every row would be FETCH_FAILED under exit 0, so the script
-# refuses up front; --print-output-dir needs neither tool and still works.
 NOGH_BIN="$TEST_TMPDIR/nogh-bin"
 mkdir -p "$NOGH_BIN"
 for tool in bash mkdir dirname; do cp "$(command -v "$tool")" "$NOGH_BIN/"; done
@@ -259,13 +209,9 @@ assert_eq "gh missing writes no results file" "no" "$([[ -e "$CASE_NOGH/check-al
 NOGH_DIR=$(cd "$CASE_NOGH" && CHECK_ALL_OUTPUT_DIR="$CASE_NOGH/check-all-output" PATH="$NOGH_BIN" "$NOGH_BIN/bash" "$SCRIPT" --print-output-dir 2>/dev/null)
 assert_eq "--print-output-dir works without gh" "$CASE_NOGH/check-all-output" "$NOGH_DIR"
 
-# A missing snapshot says how to make one.
 MISSING_ERR=$(cd "$CASE_F" && CHECK_ALL_OUTPUT_DIR="$CASE_F/check-all-output" bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "a missing snapshot names --print-output-dir" "$MISSING_ERR" "--print-output-dir"
 
-# mkdir failure is checked, not swallowed. Point CLAUDE_PLUGIN_DATA at a
-# regular file, so the resolved output directory cannot be created: mkdir -p
-# fails, and --print-output-dir must not print a directory it never made.
 BLOCKED_FILE="$TEST_TMPDIR/harness-ops-is-a-file"
 : >"$BLOCKED_FILE"
 BLOCKED_OUT=$(cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$BLOCKED_FILE" bash "$SCRIPT" --print-output-dir 2>/dev/null)
@@ -273,16 +219,11 @@ RC=$?
 assert_exit "an uncreatable output directory exits 2" 2 "$RC"
 assert_eq "an uncreatable output directory prints no path" "" "$BLOCKED_OUT"
 
-# Another plugin's SessionStart hook can export its own data dir into every Bash
-# call as CLAUDE_PLUGIN_DATA; the scratch directory must never land there.
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
 FOREIGN_OUT=$(cd "$REPO_A" && HOME="$TEST_TMPDIR/home" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --print-output-dir 2>/dev/null)
 assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$FOREIGN_OUT" "$TEST_TMPDIR/home/.claude/plugins/data/harness-ops/check-all-output/"
 assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no directory" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
 
-# $HOME is read only for that fallback. A value that already names this plugin
-# must still resolve when HOME is unset, which set -u would abort on if the
-# fallback were expanded first.
 NOHOME_OUT=$(cd "$REPO_A" && env -u HOME CLAUDE_PLUGIN_DATA="$KEY_DATA" bash "$SCRIPT" --print-output-dir 2>/dev/null)
 assert_contains "an unset HOME still uses a harness-ops CLAUDE_PLUGIN_DATA" "$NOHOME_OUT" "$KEY_DATA/check-all-output/"
 

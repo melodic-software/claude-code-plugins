@@ -69,7 +69,6 @@ out=$(read_doc $'evidence_inline_max_captures:\n  - 4\n')
 assert_eq "a list is not a threshold" \
   "$(lines 4 "invalid value at $REPO_LEVEL (fell back to 4)" false default)" "$out"
 
-# A repository level that cannot be read or trusted is skipped with a notice.
 out=$(printf 'evidence_record_fields: true\n' | bash "$SCRIPT" --base stack/layer-2 --default-branch main - 2>"$ERR")
 assert_eq "a base other than the default branch leaves the repository level unread" \
   "$(lines 4 default false default)" "$out"
@@ -82,7 +81,6 @@ assert_contains "the parse failure is named" "$(cat "$ERR")" "does not parse"
 out=$(printf 'evidence_record_fields: t\000rue\n' | bash "$SCRIPT" --base main --default-branch main - 2>"$ERR")
 assert_eq "a NUL byte leaves the repository level unread" "$(lines 4 default false default)" "$out"
 
-# --http-response reads a `gh api -i` response: the status line decides.
 read_response() { printf '%s' "$1" | bash "$SCRIPT" --base main --default-branch main --http-response 2>"$ERR"; }
 out=$(read_response $'HTTP/2.0 200 OK\r\nContent-Type: application/vnd.github.raw\r\n\r\nevidence_inline_max_captures: 2\n')
 assert_eq "a 200 response is read as the document" "$(lines 2 "$REPO_LEVEL" false default)" "$out"
