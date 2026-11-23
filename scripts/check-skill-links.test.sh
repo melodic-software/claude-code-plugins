@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: scripts/skill-links.json # check-skill-links.py reads the accepted table
+# test-scope: plugins/*/skills/*/SKILL.md plugins/*/.claude-plugin/plugin.json # the checkout case scans every skill and manifest
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
