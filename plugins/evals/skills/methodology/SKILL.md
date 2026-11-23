@@ -12,25 +12,24 @@ metadata:
 
 This page states the rules; answer from it. It runs, scores, scaffolds and edits nothing.
 
-- **Pointer**: when a specific must be current, fetch
-  [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria)
-  and [Build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#build-evaluations)
-  live; the evals cookbook is `anthropics/claude-cookbooks` `misc/building_evals.ipynb`.
-- **As of**: 2026-08-08 (distilled); pointer anchors verified 2026-10-11
-- **Recheck trigger**: either section is retitled, moves, or changes the guidance these rules rest
-  on.
+- **Pointer**: Anthropic's evaluation guidance is read live, never from a copy here:
+  [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria),
+  [Build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#build-evaluations)
+  and [Grade your evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#grade-your-evaluations);
+  the evals cookbook is `anthropics/claude-cookbooks` `misc/building_evals.ipynb`.
 
-## Background files
+## Where each topic lives
 
-Each is background for a human reader, with its own source stamp. For runnable code, or a
-specific that must be current, check the source page instead.
+Fetch the section for a specific; this repository's own decisions are in the files named below.
 
-| Topic | File |
+| Topic | Read |
 |---|---|
-| Success criteria: the four properties, quantifying hazy qualities, metric menu, dimensions | [success-criteria.md](reference/success-criteria.md) |
-| Eval anatomy, golden answers, edge-case taxonomy, volume over polish, generating cases, effort and model sweeps | [eval-design.md](reference/eval-design.md) |
-| Grading ladder, LLM-grader rubrics, constrained verdicts, testing the grader first | [grading.md](reference/grading.md) |
-| Recipes: exact match, cosine similarity, ROUGE-L, Likert, binary, ordinal | [recipes.md](reference/recipes.md) |
+| What makes a success criterion good, hazy qualities, metrics, dimensions | [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria) and [Common success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#common-success-criteria); the target rules are in the decision guide below |
+| Eval anatomy, golden answers, edge cases, volume, generating cases | [Eval design principles](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#eval-design-principles); this repository's reading, with effort and model sweeps: [eval-design.md](reference/eval-design.md) |
+| Grading ladder, LLM-grader rubrics, constrained verdicts, testing the grader first | [Grade your evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#grade-your-evaluations) and [Tips for LLM-based grading](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#tips-for-llm-based-grading) |
+| Recipes: exact match, similarity, ROUGE-L, Likert, binary, ordinal | [Example evals](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#example-evals) |
+| How many cases and repeats, paired comparison, error bars | [A statistical approach to model evaluations](https://www.anthropic.com/research/statistical-approach-to-model-evals) |
+| Regressions on a new model, a skill the model outgrows | [Improving skill-creator](https://claude.com/blog/improving-skill-creator-test-measure-and-refine-agent-skills) |
 | Improving against an existing suite with the bundled `hillclimb`: who starts it, the step map for a plugin suite, cost as the goal | [hillclimb.md](reference/hillclimb.md) |
 | This repository's defaults where sources disagree: train/test split, interval method, repeat count, rubric form, and their settings | [local-decisions.md](reference/local-decisions.md) |
 
@@ -128,10 +127,9 @@ Decide the kind from the repository, then name the route. The user starts `build
 
 - **Pointer**: for the subcommands, see
   <https://code.claude.com/docs/en/skills#work-on-claude-api-projects>; for their guides, see
-  [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md)
+  [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/eval-hillclimb.md)
   and
-  [`build-eval.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md)
-  at the pinned commit.
+  [`build-eval.md`](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/build-eval.md).
 - **As of**: 2026-10-01
 - **Recheck trigger**: the Claude API skill docs page
   (<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill>) lists
@@ -139,22 +137,22 @@ Decide the kind from the repository, then name the route. The user starts `build
 
 ## Maintainer `update` action
 
-`/evals:methodology update` is a maintainer-only drift check. Re-fetch the source page (raw
-markdown) and the cookbook notebook, diff against the four distilled files (success-criteria,
-eval-design, grading, recipes), apply content corrections, and refresh every "fetched YYYY-MM-DD"
-stamp. `local-decisions.md` and `hillclimb.md` are this repository's own records, outside the
-action, with their own recheck triggers. Keep the one pointer line to `local-decisions.md` in each
-distilled file through a refresh.
+`/evals:methodology update` is a maintainer-only drift check. Fetch each linked section, confirm
+the anchor still resolves and that this page's own decisions (the decision guide, `eval-design.md`,
+`local-decisions.md`) still follow from what the section says, and fix a moved anchor or a decision
+the section now contradicts. `local-decisions.md` and `hillclimb.md` carry their own recheck
+triggers.
 
 ## Next
 
 - Criteria settled and a suite is to be written: `/evals:design <target>`.
+- A suite's case files are written and not yet run: `/evals:validate <eval-dir>`.
 - A plugin suite exists and the question is what it measures: `/evals:plugin-eval run <target>`.
 
 ## Gotchas
 
-- The reference files are a distillation with fetch-date stamps, not the source: for runnable
-  recipe code or any detail that must be current, re-fetch the source page. Its code samples and
-  model names move with releases.
-- Do not "verify" a claim about the guidance against this skill's own spokes; the spokes are the
-  derived copy. Verification means fetching the upstream page.
+- This page holds decisions and pointers, not Anthropic's text. For runnable recipe code or any
+  detail that must be current, fetch the linked section: its code samples and model names move with
+  releases.
+- Verify a claim about Anthropic's guidance by fetching the upstream section, never against this
+  skill's own pages.

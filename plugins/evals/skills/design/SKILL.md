@@ -50,7 +50,7 @@ beside the build-eval route: give the grader a different model from the app unde
 ## Phase 1: success criteria (before any cases)
 
 Interview until each criterion is **specific, measurable, achievable, relevant**
-(background: [success-criteria.md](../methodology/reference/success-criteria.md)):
+(background: [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria)):
 
 1. What does success look like, concretely? Reject unmeasurable phrasings by proposing a
    measurable rewrite ("good answers" → "≥90% of answers judged correct against their rubric").
@@ -68,7 +68,7 @@ rationale line.
 ## Phase 2: eval suite
 
 Per criterion, pick the cheapest reliable grading method (background:
-[grading.md](../methodology/reference/grading.md), [recipes.md](../methodology/reference/recipes.md)):
+[Grade your evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#grade-your-evaluations), [Example evals](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#example-evals)):
 code-graded where the output can be constrained to allow it; LLM-graded otherwise, with a rubric
 of checkable pass/fail claims a grader can verify one by one and a constrained verdict (this
 repository's default; background:
@@ -103,8 +103,7 @@ A transcript source is subject to [Transcripts](#transcripts) before any of its 
 case.
 
 - **Pointer**: for the source order, see
-  [build-eval Step 1](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md#step-1-find-or-build-the-input-set)
-  at the pinned commit.
+  [build-eval Step 1](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/build-eval.md#step-1-find-or-build-the-input-set).
 - Correlate with <https://claude.dev/blog/automating-eval-design-and-hillclimbing#designing-examples>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: a commit to `anthropics/skills` changes Step 1 of `build-eval.md`, or a docs
@@ -125,7 +124,7 @@ case.
   can score lower without the rule. A suite with no such case cannot vouch for that cut.
 
 - **Pointer**: for task design checks on a case set, see
-  [eval-audit.md section 1](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#1-task-design).
+  [eval-audit.md section 1](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/eval-audit.md#1-task-design).
 - Correlate with <https://claude.dev/blog/automating-eval-design-and-hillclimbing#adversarial-sampling>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: a commit to `anthropics/skills` changes section 1 of `eval-audit.md`, or a
@@ -167,15 +166,16 @@ writes (a skill's `case.yaml` cases, an app's `cases.jsonl`).
    re-render, and ask again.
 
 - **Pointer**: for input approval, see
-  [build-eval, Get the inputs approved](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md#get-the-inputs-approved).
+  [build-eval, Get the inputs approved](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/build-eval.md#get-the-inputs-approved).
 - **As of**: 2026-10-01
 - **Recheck trigger**: a commit to `anthropics/skills` changes that section of `build-eval.md`.
 
 **Target = app:** scaffold `evals/<target>/cases.jsonl` (one JSON object per case: `id`, `input`,
 `golden_answer`, `grading` (`exact|string_match|llm_rubric|human`), optional `rubric`) plus a
 `README.md` documenting how the consumer's own tooling should run and grade them. For
-`llm_rubric` cases the README inlines the grader prompt skeleton from
-[grading.md](../methodology/reference/grading.md). Honor an existing
+`llm_rubric` cases the README inlines a grader prompt in the shape of
+[Tips for LLM-based grading](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#tips-for-llm-based-grading), with the rubric form of
+[local-decisions.md](../methodology/reference/local-decisions.md#rubric-form). Honor an existing
 consumer eval layout when one is already present. Extend, don't rename.
 
 **Target = skill:** emit one case directory per case, `<eval-dir>/<kebab-case-name>/`, in the
@@ -207,6 +207,10 @@ it from the with-arm `tool_used: Skill` indicator.
   and [How a case is scored](https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored)
   live, and read `claude plugin eval --help` (recorded in `docs/native-surfaces.md`, the
   `plugin eval` entry).
+- **Pointer**: for choosing between `claude plugin eval` and skill-creator for a skill's eval, fetch
+  [Evaluate and iterate on a skill](https://code.claude.com/docs/en/skills#evaluate-and-iterate-on-a-skill);
+  for grading an agent's outcome rather than its transcript, see
+  [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
 
 ## Phase 3: grading hygiene gate
 
@@ -236,9 +240,9 @@ consumer label a larger set pass or fail on their own, grade the same set, and r
 agreement rate and every disagreement in the criteria doc.
 
 - **Pointer**: for the grader check, see
-  [build-eval, Get the grading method approved](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md#get-the-grading-method-approved);
+  [build-eval, Get the grading method approved](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/build-eval.md#get-the-grading-method-approved);
   for an LLM judge, see
-  [eval-audit.md, When the grader is an LLM judge](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#when-the-grader-is-an-llm-judge).
+  [eval-audit.md, When the grader is an LLM judge](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/eval-audit.md#when-the-grader-is-an-llm-judge).
 - Correlate with <https://claude.dev/blog/automating-eval-design-and-hillclimbing#validating-the-grader>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: a commit to `anthropics/skills` changes either section, or a docs page starts
