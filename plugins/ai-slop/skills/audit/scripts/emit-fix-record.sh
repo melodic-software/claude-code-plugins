@@ -53,23 +53,23 @@ done
   exit 2
 }
 [[ "$ROWS" =~ ^[0-9]+$ ]] || {
-  echo "emit-fix-record.sh: --rows must be a non-negative integer" >&2
+  echo "$ME: --rows must be a non-negative integer" >&2
   exit 2
 }
 for f in "${CONSUMED[@]}"; do
   [[ -f "$f" ]] || {
-    echo "emit-fix-record.sh: --consumed file not found: $f" >&2
+    echo "$ME: --consumed file not found: $f" >&2
     exit 2
   }
 done
 [[ -z "$NA_ROWS" || -f "$NA_ROWS" ]] || {
-  echo "emit-fix-record.sh: --not-applied-rows file not found: $NA_ROWS" >&2
+  echo "$ME: --not-applied-rows file not found: $NA_ROWS" >&2
   exit 2
 }
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
-    echo "emit-fix-record.sh: no --branch and no current git branch" >&2
+    echo "$ME: no --branch and no current git branch" >&2
     exit 2
   }
 fi
