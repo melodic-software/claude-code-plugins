@@ -122,6 +122,7 @@ REGISTRY=(
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
   "check-skill-count-claims.sh|-|-|-"
+  "check-skill-links.sh|python3|-|-"
   "check-skill-leaf-names.sh|-|-|-"
   "check-skill-portability.sh|-|-|-"
   "check-skill-precompute-compose.sh|-|-|-"
@@ -131,9 +132,8 @@ REGISTRY=(
   "check-test-tmp-cleanup.sh|git|-|-"
   "check-upstream-drift.sh|gh|-|upstream_drift"
   "check-vendor-version-bump.sh|-|-|-"
+  "check-workflow-template-size.sh|node|-|-"
 )
-
-# --- running a member --------------------------------------------------------
 
 CAP_RC=0
 CAP_OUT=""
@@ -214,8 +214,6 @@ cleanup_hidden_paths() {
 # Installed BEFORE the first fixture_tree::build so the builder chains this trap
 # rather than replacing it: it records whatever trap it finds and runs it first.
 trap cleanup_hidden_paths EXIT
-
-# --- shared assertions -------------------------------------------------------
 
 assert_env_failure() { # <label>
   local label="$1"
@@ -526,8 +524,6 @@ declare -A VIOLATION_NEEDLE=(
   [upstream_drift]='docs/upstream/widgets.md:3: acme/widgets M a.md'
 )
 
-# --- 1. every member is registered, and every row names a member -------------
-
 registered=""
 for row in "${REGISTRY[@]}"; do
   registered+="${row%%|*}"$'\n'
@@ -551,8 +547,6 @@ if [[ -z "$stale" ]]; then
 else
   fail "STALE ROW: these rows name no script: $(printf '%s' "$stale" | tr '\n' ' ')"
 fi
-
-# --- 2. the environment dimension, over every member that declares one -------
 
 env_covered=0
 for row in "${REGISTRY[@]}"; do
@@ -579,8 +573,6 @@ if ((env_covered >= 11)); then
 else
   fail "the environment dimension covered only $env_covered members; a prerequisite row was dropped rather than a script"
 fi
-
-# --- 3. the clean and violation dimensions, over every member with a recipe --
 
 recipe_covered=0
 for row in "${REGISTRY[@]}"; do

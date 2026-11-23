@@ -304,9 +304,6 @@ test("a permission 403 is not waited on", async () => {
   assert.equal(gh.sent.length, 1);
 });
 
-// A GET answered 5xx is sent again after a backoff, as createGitHub's are
-// (check-trusted-trigger.mjs): run 39788855311 failed the feedback dispatch on
-// one 500 from GET /commits/{sha}/pulls.
 const PULLS = "https://api.example/repos/o/r/commits/db53ee51744631cd5ee03d76bf87873fe1ce59f9/pulls";
 
 test("a GET answered 500 is sent again after a backoff and the next answer returned", async () => {

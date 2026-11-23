@@ -1,6 +1,6 @@
 ---
 description: "Unattended lock whose request states the user's reason and where the work heads, and no tiebreak between goals: the Brief's Goal carries the Intent line in the user's own words, the Vision line, and 'When goals conflict, prefer: none stated'"
-tags: [interview, brief, goal, intent, vision]
+tags: [interview, brief, goal, intent, vision, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

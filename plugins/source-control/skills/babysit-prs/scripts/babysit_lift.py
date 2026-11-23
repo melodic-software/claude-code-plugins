@@ -46,12 +46,15 @@ def canary_lines(repo_dir: str, commits: list[str]) -> list[tuple[str, bytes]]:
     lines: list[tuple[str, bytes]] = []
     # Absolute: the scan runs with `repo_dir` as its working directory.
     script = str(Path(repo_dir).resolve() / "scripts/check-silent-revert.sh")
+    bash = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
+    if bash is None:
+        raise RuntimeError("no usable bash found to run the canary")
     with tempfile.TemporaryDirectory() as tmp:
         sink = Path(tmp) / "deleted"
         for commit in commits:
             sink.write_bytes(b"")
             proc = subprocess.run(
-                ["bash", script, "--commit", commit],
+                [bash, script, "--commit", commit],
                 cwd=repo_dir,
                 env=os.environ | {"DELETED_SINK": str(sink)},
                 capture_output=True,
@@ -146,7 +149,7 @@ def close_lifted(repo: str, identity: str | None) -> int:
             if (
                 not isinstance(number, int)
                 or number in seen
-                or not policy.LIFTABLE_RECORD.fullmatch(first)
+                or policy.liftable_record(first) is None
             ):
                 continue
             seen.add(number)

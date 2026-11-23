@@ -44,8 +44,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -54,7 +52,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .node-version
       - name: Report pinned upstream drift
@@ -141,7 +139,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           if grep ' status=unreachable ' "$RUNNER_TEMP/drift/records.txt"; then
-            echo "::error title=Upstream unreachable::An upstream refused both the token and an anonymous read; the page above was not checked."
+            echo "::error title=Upstream unreachable::An upstream refused the token and an anonymous git read failed; the page above was not checked. The Report Upstream Drift job's log names git's error."
             exit 1
           fi
       - name: Fail on a broken check-script contract

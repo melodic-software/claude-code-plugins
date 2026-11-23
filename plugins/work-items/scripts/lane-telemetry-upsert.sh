@@ -164,7 +164,6 @@ while (($#)); do
     ;;
   --lane | --instance | --repo | --issue | --body-file | --body-dir | --app-slug)
     require_value "$@"
-    # --body-file names BODY_FILE: drop the dashes, hyphens to underscores, upper-case.
     var="${1#--}"
     var="${var//-/_}"
     printf -v "${var^^}" '%s' "$2"

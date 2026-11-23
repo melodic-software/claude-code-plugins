@@ -3,6 +3,31 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The `binary_path` refusal for a personal file tracked by git checks the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [0.6.0] - 2026-11-23
+
+### Added
+
+- `external-agents models <product>` now includes product-level `tools`, headless `image` capability, optional per-model `context_window` when the CLI reports it, and live `breaker` state (`open`, `reason`, `reset_at`) while keeping schema version 1.
+- `external-agents usage <product>` reads current plan usage remaining as a normalized 0 to 1 fraction in a single JSON object outside delegated runs, driven by each provider record (`codex app-server` `account/rateLimits/read` for Codex; `agy --output-format json -p=/usage` without `--disable-slash-commands` for Antigravity) without printing account ids, emails or plan names.
+
+## [0.5.0] - 2026-11-22
+
+### Added
+
+- `external-agents run <antigravity|codex>` takes a repeatable `--add-dir <absolute dir>` on a write run, mapped to each CLI's own `--add-dir` through its provider record, so a task can write a named directory outside its workspace. It is refused with exit 2 on a read-only run, a review, a resumed Codex thread, a relative path or a directory that does not exist. The job records `add_dirs` and `fence`, and `status <job>` prints both.
+- `--unsandboxed auto` opts one antigravity write run into agy's `--mode auto`; on such a run the command reads agy's log for the run and, when it shows auto mode was applied, says so instead of reporting agy's auto-mode warning as a fallback. Codex declares no opt-in, so `--unsandboxed` is refused for it.
+
+### Changed
+
+- An antigravity write run is fenced by default: `--mode accept-edits` with agy's terminal sandbox on, sandboxed commands allowed and no access beyond the workspace, so a command that asks to leave the sandbox is refused and recorded `blocked-by-mode`. The `antigravity` and `codex` skills tell the delegating agent to decide every extra writable directory, and for agy whether an out-of-sandbox command is needed, before the run, and to name them in the prompt.
+
 ## [0.4.2] - 2026-11-22
 
 ### Fixed

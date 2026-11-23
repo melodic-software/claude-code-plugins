@@ -478,8 +478,8 @@ test("a failed budget read proceeds", async () => {
 // existing work (reviews, merges, verdicts, post-model writes, model legs that
 // take over a handed-off turn) and check the switches only.
 const GATES = {
-  "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch", "compare-prepare": "switch", "compare-record": "switch" },
-  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch" },
+  "pr-run-plugin-evals.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "compare-prepare": "switch", "compare-record": "switch" },
+  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
     "check-kill-switch": "start",
@@ -522,12 +522,13 @@ const GATES = {
   "pr-unblock.yml": {
     "resolve-conflicts-select": "switch",
     "sync-shared-copies-select": "switch",
+    "fix-test-scope-select": "switch",
     "address-feedback-select": "switch",
     "adjudicate-feedback": "switch",
     "review-dependency-select": "switch",
     "fix-ci-context": "switch",
   },
-  "pr-verify.yml": { "check-intent": "switch", "check-intent-subscription": "switch", "check-intent-fallback": "switch" },
+  "pr-verify.yml": { "check-intent": ["switch", "defer"], "check-intent-subscription": "switch", "check-intent-fallback": "switch" },
   "upstream-apply-changelog.yml": {
     "select-release": "start",
     "apply-changelog": "switch",
@@ -537,6 +538,9 @@ const GATES = {
     "verify-env-scrub-subscription": "switch",
     "verify-env-scrub-fallback": "switch",
     "check-claude-function-flags": "switch",
+    "check-native-surfaces": "switch",
+    "push-native-baseline": "switch",
+    "publish-native-baseline": "switch",
     "push-branches": "switch",
     publish: "switch",
   },
@@ -551,6 +555,7 @@ const DEFER_INPUTS = {
   "pr-merge.yml": /^ {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}$/m,
   "pr-review-hosted.yml": /^ {10}defer: "true"$/m,
   "pr-review-security-hosted.yml": /^ {10}defer: "true"$/m,
+  "pr-verify.yml": /^ {10}defer: "true"$/m,
 };
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
@@ -588,24 +593,32 @@ function gatesIn(file) {
   const jobsAt = lines.indexOf("jobs:");
   const found = [];
   let job = null;
+  let index = 0;
   lines.forEach((line, i) => {
     const id = i > jobsAt && /^ {2}([a-z][a-z0-9-]*):$/.exec(line);
-    if (id) job = id[1];
+    if (id) [job, index] = [id[1], 0];
     // Any path to the action, at any ref.
     if (!/^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch(?:@[^\s"'#]*)?["']?\s*(?:#.*)?$/.test(line)) return;
     const next = lines.findIndex((other, j) => j > i && /^ {6}- |^ {2}[a-z]/.test(other));
-    found.push({ job, step: lines.slice(i, next < 0 ? undefined : next).join("\n") });
+    found.push({ job, index, step: lines.slice(i, next < 0 ? undefined : next).join("\n") });
+    index += 1;
   });
   return found;
 }
 
+const kindsOf = (kind) => (Array.isArray(kind) ? kind : [kind]);
+const kindOf = (file, job, index) => {
+  const kind = GATES[file]?.[job];
+  return Array.isArray(kind) ? kind[index] : kind;
+};
+
 test("every gate in the workflows is classified, and only start gates read the budget", () => {
   const seen = new Set();
   for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith(".yml"))) {
-    for (const { job, step } of gatesIn(file)) {
-      const kind = GATES[file]?.[job];
+    for (const { job, index, step } of gatesIn(file)) {
+      const kind = kindOf(file, job, index);
       assert.ok(kind, `${file} ${job}: a gate this test does not classify as start or switch`);
-      seen.add(`${file} ${job}`);
+      seen.add(`${file} ${job} ${index}`);
       if (kind === "start") {
         assert.match(step, /^ {10}budget: "true"$/m, `${file} ${job} starts new work`);
         assert.doesNotMatch(step, /project:/, `${file} ${job}: the projection gate is the issue lane's alone`);
@@ -624,8 +637,8 @@ test("every gate in the workflows is classified, and only start gates read the b
     }
   }
   for (const [file, jobs] of Object.entries(GATES)) {
-    for (const job of Object.keys(jobs)) {
-      assert.ok(seen.has(`${file} ${job}`), `${file} ${job}: classified but has no gate`);
+    for (const [job, kind] of Object.entries(jobs)) {
+      kindsOf(kind).forEach((_, index) => assert.ok(seen.has(`${file} ${job} ${index}`), `${file} ${job}: classified gate ${index + 1} has no step`));
     }
   }
 });
@@ -637,7 +650,7 @@ test("only defer gates defer, and no CI Status or pr-dispatch-feedback gate does
       if (/^ {10}defer(?:-minutes)?:/m.test(step)) deferring.push(`${file} ${job}`);
     }
   }
-  const expected = Object.entries(GATES).flatMap(([file, jobs]) => Object.entries(jobs).filter(([, kind]) => kind === "defer").map(([job]) => `${file} ${job}`));
+  const expected = Object.entries(GATES).flatMap(([file, jobs]) => Object.entries(jobs).filter(([, kind]) => kindsOf(kind).includes("defer")).map(([job]) => `${file} ${job}`));
   assert.deepEqual(deferring.sort(), expected.sort());
   for (const file of ["pr-require-checks.yml", "pr-dispatch-feedback.yml"]) {
     assert.doesNotMatch(readFileSync(path.join(WORKFLOWS, file), "utf8"), /^\s+defer(?:-minutes)?:/m, `${file} is never paced`);
@@ -672,9 +685,13 @@ function stepsByJob(file) {
 const KILL_STEP = /^\s*(?:-\s+)?uses:\s*["']?[^\s"'#]*actions\/check-kill-switch\b/m;
 const budgetJobs = () =>
   Object.entries(GATES).flatMap(([file, jobs]) =>
-    Object.entries(jobs)
-      .filter(([, kind]) => kind === "start" || kind === "first-call" || kind === "defer")
-      .map(([job, kind]) => ({ file, job, cause: kind === "defer" ? "defer" : "budget", steps: stepsByJob(file)[job] })),
+    Object.entries(jobs).flatMap(([job, kind]) => {
+      const steps = stepsByJob(file)[job];
+      const gates = (steps ?? []).flatMap((step, at) => (KILL_STEP.test(step) ? [at] : []));
+      return kindsOf(kind)
+        .map((each, index) => ({ file, job, cause: each === "defer" ? "defer" : "budget", steps, at: gates[index] ?? gates[0], each }))
+        .filter(({ each }) => each === "start" || each === "first-call" || each === "defer");
+    }),
   );
 
 test("budget jobs are found", () => {
@@ -704,10 +721,10 @@ function splitTop(text, separator) {
 // Whether a step `if:` is false on a budget stop: every top-level disjunct
 // has a conjunct that needs the gate to proceed, the cause not to be budget,
 // or a success or a non-empty output from a step that was skipped.
-function falseOnBudget(condition, skipped, cause = "budget") {
+function falseOnBudget(condition, skipped, cause = "budget", gate = "kill") {
   const falseAtom = (atom) => {
-    if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped, cause);
-    if (atom === "steps.kill.outputs.proceed == 'true'" || atom === `steps.kill.outputs.cause != '${cause}'`) return true;
+    if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped, cause, gate);
+    if (atom === `steps.${gate}.outputs.proceed == 'true'` || atom === `steps.${gate}.outputs.cause != '${cause}'`) return true;
     const ref = /^steps\.([a-z0-9-]+)\.(?:(?:outcome|conclusion) (?:== 'success'|!= 'skipped')|outputs\.[a-z0-9-]+ (?:== '[^']+'|!= ''))$/.exec(atom);
     return Boolean(ref && skipped.has(ref[1]));
   };
@@ -716,11 +733,13 @@ function falseOnBudget(condition, skipped, cause = "budget") {
 }
 
 test("a budget stop ends neutral: no step it runs fails the job or writes ::error", () => {
-  for (const { file, job, cause, steps } of budgetJobs()) {
+  for (const { file, job, cause, steps, at } of budgetJobs()) {
     const skipped = new Set();
-    for (const step of steps.slice(steps.findIndex((s) => KILL_STEP.test(s)) + 1)) {
+    const gate = /^ {8}id: ([a-z0-9-]+)$/m.exec(steps[at])?.[1];
+    assert.ok(gate, `${file} ${job}: its budget gate has a step id`);
+    for (const step of steps.slice(at + 1)) {
       const condition = /^ {8}if: (?:>-\n)?([\s\S]*?)\n {8}[a-z-]+:/m.exec(`${step}\n        end:`)?.[1] ?? "";
-      if (falseOnBudget(condition, skipped, cause)) {
+      if (falseOnBudget(condition, skipped, cause, gate)) {
         const id = /^ {8}id: ([a-z0-9-]+)$/m.exec(step)?.[1];
         if (id) skipped.add(id);
         continue;

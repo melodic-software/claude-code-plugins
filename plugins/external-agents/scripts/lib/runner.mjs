@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, sep, win32 } from "node:path";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, isAbsolute, join, sep, win32 } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
 import { binaryNames, conventionHome, loadConfig, pluginRoot } from "./config.mjs";
@@ -100,12 +100,41 @@ function modeFor(record, settings, use, requested, notices) {
   return requested === "read-only" ? "read-only" : ceiling;
 }
 
+function checkAddDirs(dirs) {
+  for (const dir of dirs) {
+    if (!isAbsolute(dir)) throw refuse(`--add-dir ${JSON.stringify(dir)} is not an absolute path`);
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) throw refuse(`--add-dir ${JSON.stringify(dir)} is not an existing directory`);
+  }
+}
+
+function fenceFor(record, { mode, command, use, requested, addDirs = [], unsandboxed }) {
+  const spec = record.modes[mode];
+  const asked = [addDirs.length ? "--add-dir" : null, unsandboxed !== undefined ? "--unsandboxed" : null].filter(Boolean);
+  if (mode !== "write" && asked.length) {
+    const ceiling = requested === "write" ? ` because ${record.product}.uses.${use}.mode is read-only` : "";
+    throw refuse(`${asked.join(" and ")} needs a write run, and this run is read-only${ceiling}`);
+  }
+  if (addDirs.length && !spec.add_dir) throw refuse(`${record.product} takes no --add-dir`);
+  if (addDirs.length && !spec.add_dir.commands.includes(command)) throw refuse(`${record.product} takes --add-dir on ${spec.add_dir.commands.join(" and ")} only, and this is a ${command}`);
+  if (mode !== "write") return { spec, fence: null };
+  if (unsandboxed === undefined) return { spec, fence: "sandbox" };
+  const variant = spec.unsandboxed?.[unsandboxed];
+  if (!variant) {
+    const names = Object.keys(spec.unsandboxed ?? {});
+    throw refuse(`${record.product} has no --unsandboxed ${JSON.stringify(unsandboxed)}${names.length ? `; it takes ${names.join(", ")}` : ""}`);
+  }
+  const { unsandboxed: _variants, fallback_warning: _sandboxed, ...shared } = spec;
+  return { spec: { ...shared, ...variant }, fence: `unsandboxed ${unsandboxed}` };
+}
+
 function buildArgs(record, binary, p) {
-  const spec = record.modes[p.mode];
+  const spec = p.spec;
   const args = fill(fill(p.baseArgs ?? record[p.command]?.args ?? [], "{thread}", p.thread), "{base}", p.base);
   if (record.output.final_message_arg) args.push(record.output.final_message_arg, p.finalPath);
   args.push(...(spec.args?.[p.command] ?? []), ...(record.always_args ?? []));
   if (spec.settings) args.push(spec.settings_arg, p.settingsPath);
+  for (const dir of p.addDirs ?? []) args.push(spec.add_dir.arg, dir);
+  if (spec.fallback_warning?.log_arg) args.push(spec.fallback_warning.log_arg, p.cliLogPath);
   if (p.model && record.model_flag) args.push(record.model_flag, p.model);
   if (p.profile && record.profile_flag && (record.profile_on ?? COMMANDS).includes(p.command)) args.push(record.profile_flag, p.profile);
   if (p.effort && record.effort_flag) args.push(record.effort_flag, p.effort);
@@ -176,8 +205,8 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
 
   const id = newJobId(ctx.now());
   const folder = jobFolder(ctx.dataDir, ctx.key, id);
-  const paths = { final: join(folder, "final.txt"), log: join(folder, "stdout.log"), stderr: join(folder, "stderr.log"), prompt: join(folder, "prompt.txt"), settings: join(folder, "settings.json"), diff: join(folder, "review.diff") };
-  const spec = record.modes[plan.mode];
+  const paths = { final: join(folder, "final.txt"), log: join(folder, "stdout.log"), stderr: join(folder, "stderr.log"), prompt: join(folder, "prompt.txt"), settings: join(folder, "settings.json"), diff: join(folder, "review.diff"), cliLog: join(folder, "cli.log") };
+  const spec = plan.spec ?? record.modes[plan.mode];
   let prompt = plan.prompt;
   if (plan.diffBase) {
     writeFileSync(paths.diff, git(ctx.cwd, ["diff", "--end-of-options", `${plan.diffBase}...HEAD`], { maxBuffer: 256 * 1024 * 1024 }) ?? "");
@@ -188,7 +217,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   if (spec.settings) writeFileSync(paths.settings, `${JSON.stringify(spec.settings)}\n`);
 
   const args = buildArgs(record, binary, {
-    command: plan.command, baseArgs: plan.baseArgs, mode: plan.mode, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort,
+    command: plan.command, baseArgs: plan.baseArgs, spec, addDirs: plan.addDirs, cliLogPath: paths.cliLog, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort,
     finalPath: paths.final, settingsPath: paths.settings, dir: plan.diffBase ? folder : null, prompt: promptInArgv ? prompt : prompt === null ? null : "",
   });
   if (binary.shell) {
@@ -200,7 +229,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   const version = query(binary, record.version.args, { env: ctx.env, cwd: ctx.cwd });
   const timeoutSeconds = settings.timeout_seconds ?? 1800;
   const job = {
-    id, product, use: plan.use, mode: plan.mode, model: model ?? null, effort: effort ?? null, argv: [binary.path, ...(binary.args ?? []), ...args],
+    id, product, use: plan.use, mode: plan.mode, fence: plan.fence ?? null, ...(plan.addDirs?.length ? { add_dirs: plan.addDirs } : {}), model: model ?? null, effort: effort ?? null, argv: [binary.path, ...(binary.args ?? []), ...args],
     cli_version: version.code === 0 ? version.stdout.trim().split(/\r?\n/)[0] || null : null,
     cwd: ctx.cwd, started_at: new Date(ctx.now()).toISOString(), ended_at: null, exit_code: null, status: "running", reason: null,
     pid: null, pid_started_at: null, runner_pid: process.pid, runner_started_at: pidStartTime(process.pid), thread_id: plan.thread ?? null, final_message_path: paths.final, log_path: paths.log, stderr_path: paths.stderr, notices,
@@ -248,7 +277,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   const stdout = read(paths.log);
   const outcome = exit.error
     ? { status: "failed", reason: `could not start ${binary.path}: ${exit.error.message}`, thread_id: null, message: "", denied_commands: { count: 0, commands: [] }, failed_commands: { count: 0, commands: [] }, mcp_calls: { count: 0, tools: [] }, last_error: exit.error.message, unavailable: null, notices: [] }
-    : classify(record, { exitCode: exit.code, stdout, stderr: read(paths.stderr), finalMessage: read(paths.final), mode: plan.mode, now: ctx.now() });
+    : classify(record, { exitCode: exit.code, stdout, stderr: read(paths.stderr), finalMessage: read(paths.final), mode: plan.mode, spec, cliLog: read(paths.cliLog), now: ctx.now() });
   if (record.output.kind === "json_envelope") writeFileSync(paths.final, outcome.message);
 
   const cancelledByAnotherProcess = readJob(ctx.dataDir, ctx.key, id)?.status === "cancelled";
@@ -299,6 +328,8 @@ export async function run(opts) {
     if (!USES.includes(opts.use)) throw refuse(`--use takes ${USES.join(" or ")}`);
     if (opts.mode !== undefined && !MODES.includes(opts.mode)) throw refuse(`--mode takes ${MODES.join(" or ")}`);
     if (!opts.prompt?.trim()) throw refuse("no prompt was given");
+    const addDirs = opts.addDirs ?? [];
+    checkAddDirs(addDirs);
     state = setup(opts);
     const { ctx, record } = state;
     let thread = null;
@@ -310,7 +341,9 @@ export async function run(opts) {
       thread = match.thread_id;
     }
     const mode = modeFor(record, state.settings, opts.use, opts.mode, state.notices);
-    const { job, message } = await launch(state, { use: opts.use, mode, command: thread ? "resume" : "run", model: opts.model, effort: opts.effort, prompt: opts.prompt, thread });
+    const command = thread ? "resume" : "run";
+    const { spec, fence } = fenceFor(record, { mode, command, use: opts.use, requested: opts.mode, addDirs, unsandboxed: opts.unsandboxed });
+    const { job, message } = await launch(state, { use: opts.use, mode, spec, fence, addDirs, command, model: opts.model, effort: opts.effort, prompt: opts.prompt, thread });
     return { code: exitFor(job.status), stdout: `${runLine(job)}\n${body(message)}`, stderr: errLines(job, state), job };
   } catch (error) {
     return stopped(opts.product, error, false, state);
@@ -321,6 +354,7 @@ export async function review(opts) {
   let state = null;
   try {
     if (!opts.base) throw refuse("--base is required");
+    if (opts.addDirs?.length || opts.unsandboxed !== undefined) throw refuse("a review is read-only and takes no --add-dir or --unsandboxed");
     state = setup(opts);
     const { ctx, record } = state;
     if (!record.review) throw refuse(`${record.product} has no review form`);
@@ -370,7 +404,6 @@ const alive = (pid) => {
 
 const owns = (pid, startedAt) => Number.isInteger(pid) && alive(pid) && (!startedAt || pidStartTime(pid) === startedAt);
 
-/** A `running` job is over once both the CLI and the runner that writes its result are gone; the runner may still be recording a finished CLI. */
 function settle(ctx, job) {
   if (job.status !== "running") return job;
   if (owns(job.pid, job.pid_started_at) || owns(job.runner_pid, job.runner_started_at)) return job;
@@ -405,8 +438,8 @@ const guarded = (fn) => (opts = {}) => {
 export const status = guarded((opts) => {
   if (opts.jobId) {
     const { job } = find(opts);
-    const fields = ["id", "use", "mode", "model", "effort", "started_at", "ended_at", "exit_code", "thread_id", "cli_version", "log_path", "final_message_path"];
-    return { code: EXIT.ok, stdout: `${runLine(job)}\n${fields.map((f) => `${f}: ${job[f] ?? ""}`).join("\n")}\n`, stderr: "", job };
+    const fields = ["id", "use", "mode", "fence", "add_dirs", "model", "effort", "started_at", "ended_at", "exit_code", "thread_id", "cli_version", "log_path", "final_message_path"];
+    return { code: EXIT.ok, stdout: `${runLine(job)}\n${fields.map((f) => `${f}: ${[job[f] ?? ""].flat().join(", ")}`).join("\n")}\n`, stderr: "", job };
   }
   const ctx = context(opts);
   const jobs = listJobs(ctx.dataDir, ctx.key).map((job) => settle(ctx, job));

@@ -9,6 +9,14 @@ help:
 models:
   args: [debug, models]
   format: codex_catalog
+harness:
+  tools: [file, shell, web, mcp, image_generation]
+  image: true
+usage:
+  kind: jsonrpc_stdio
+  args: [app-server]
+  method: account/rateLimits/read
+  timeout_ms: 15000
 binary:
   name: codex
   candidates:
@@ -65,6 +73,9 @@ modes:
     args:
       run: [--sandbox, workspace-write]
       resume: [-c, 'sandbox_mode="workspace-write"']
+    add_dir:
+      arg: --add-dir
+      commands: [run]
 soft_deny:
   - kind: json_item_failed
     item_types: [command_execution, file_change]

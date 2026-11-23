@@ -475,7 +475,7 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, no
     transcript_bytes: gz.length,
     pulled_at: new Date(now).toISOString(),
   };
-  Object.assign(row, failureClassOf(row.trace_id, byTrace));
+  Object.assign(row, failureClassOf(row.trace_id, byTrace, row.job_id));
   row.transcript = transcriptPath(row);
   const file = path.join(sink, row.transcript);
   ensureDir(path.dirname(file));
@@ -618,7 +618,7 @@ function refreshRows(sink, fill = () => {}) {
     const before = JSON.stringify(row);
     fill(row);
     row.trace_id = traceIdOf(row.run_id, row.run_attempt);
-    Object.assign(row, failureClassOf(row.trace_id, byTrace));
+    Object.assign(row, failureClassOf(row.trace_id, byTrace, row.job_id));
     if (JSON.stringify(row) !== before) changed++;
   }
   if (changed > 0) writeRows(sink, rows);

@@ -3,6 +3,142 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.10.1] - 2026-11-23
+
+### Changed
+
+- `/source-control:pull-request merge` now says that where the guardrails `block-unresolved-pr-merge` hook is enabled, a head pr-verify has not passed stays held after the 30-minute verdict wait instead of merging with no verdict read.
+
+- Skills now list their context-dependent links under `## Related`, placed after `## Next`, and `setup` names its successors under `## Next`, matching the committed skill-link table.
+
+## [13.10.0] - 2026-11-23
+
+### Changed
+
+- `pull-request` `dependency --ci` tells the model that when `merge_clears_gate_hold` is true its `merge` alone clears the trust-gate hold on an action of an owner the repository does not trust by name, so it applies the review-only checks and reads the code between the old and new action commit before `merge`.
+
+- babysit-prs: `evidence --lane-link --lane-reviews` takes a lanes App pull request whose changed files are exactly the repository's new `merge.baseline-file` setting (`docs/conventions/pr-pipeline.yaml`) with no issue link and no verdict, and still scores its risk. Unset, it takes none; the base and the default branch head must name the same file. Only a missing or malformed link is set aside: an unreadable link or a trust hold on the linked issue still refuses. `babysit_merge_policy.baseline_only` is the rule.
+
+- The pull-request monitor's poll script (`monitor-poll.sh`) sends every REST read as a
+  conditional request and replays the cached body on a `304 Not Modified`, which GitHub does not
+  count against the primary rate limit. A poll where nothing changed now costs no REST requests,
+  down from seven; a read that did change costs one request per page, as before. Each page is read
+  conditionally on its own, a full page with no next link still reads the page after it, the
+  comment reads keep `since` fixed at the watch's start so their ETags hold, a read's answers are
+  cached only once the whole read succeeded, and a surface whose pages all answered 304 is not
+  re-reported. The cache needs no Bash 4 feature, so the script still runs on macOS Bash 3.2. The
+  event lines are unchanged.
+- The floor for any GitHub watch or poll is 90 seconds, up from 60: the monitor's default
+  interval, the API budget, and the merge, merge-queue, async-merge and babysit docs that gave a
+  60-second GitHub poll cadence now state 90, and the babysit merge gate polls an async merge
+  every 90 seconds for up to 90.
+- The pull-request skill and its monitor reference no longer restate how GitHub counts a
+  conditional request against the rate limit: they link GitHub's guidance on conditional requests.
+
+### Fixed
+
+- **babysit-prs runs Git Bash on Windows, never the WSL relay.** The post-merge lift's canary scan now runs bash by the full path the merge policy resolves.
+- **The job's stop and cause files end each line in LF on Windows.** A stop recorded on Windows was written with CRLF, which the stop-file reader skipped, so later steps did not see it.
+- **A stop file under a file holds every pool on Windows too.** Windows reports that path as not found; it now holds every pool, as it does on Linux, instead of reading as no stop.
+
+## [13.9.0] - 2026-11-23
+
+### Changed
+
+- `pull-request evidence` names the two sources of a `--before` report: the `/debugging:debug` reproduction run's drive report, or an `/app-control:drive` run on a worktree at the PR's base commit.
+
+- `pull-request` prep §1.5 is called the pre-PR check throughout, and `create` and `ready` name it the same way. Each SKIP it reports carries its reason, and a run where every check skipped is "not verified", never clean.
+
+### Fixed
+
+- **Review evidence and an earlier head's kill-switch failure.** A run on an earlier head whose kill-switch job failed before any lane job existed (a setup error, for one) reviewed nothing, so it no longer unbinds the lane with `no-lane-job`. At the pinned head such a run still unbinds.
+
+## [13.8.6] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+- The pull-request skill's dependency review sets owner reason `security` only for a HIGH or CRITICAL risk the update itself carries, named with its severity in `reasons`; a red `ci-status` from a repository hold, such as the trust-gate hold, never sets it.
+
+## [13.8.5] - 2026-11-23
+
+### Changed
+
+- babysit-prs: the hold-floor pins in `test_floor_paths.py` and `test_merge_holds_sync.py` count `.github/scripts/lib/lane-vocabulary.mjs`, a trust-class floor row, which the merge-arm script now loads. No behavior changes.
+
+## [13.8.4] - 2026-11-23
+
+### Fixed
+
+- `/source-control:pull-request merge` waits for pr-verify's verdict at the pinned head before it merges or enqueues, in a repository that runs pr-verify and for an author pr-verify judges. It reads the four pass names the merge queue's CI Status step reads, waits up to 30 minutes while pr-verify has not judged the head, and holds on a FAIL (the `pr-verify-failed` label), a moved head or a failed read. With still no verdict after 30 minutes (pr-verify down), it merges and reports that, so an outage stops no merge. A PR queued before its verdict was removed from the merge queue when pr-verify then failed it.
+
+## [13.8.3] - 2026-11-23
+
+### Changed
+
+- In a sandboxed git session, `/source-control:worktree create` uses `EnterWorktree(name:)` with the create hook's `fresh` base for new branches. It stops when the session needs `worktree.baseRef: head`. Cleanup runs the stranded-work and carried-file guards before removing the session's own worktree with `ExitWorktree` and leaves lock ownership to the remove hook. The skill links to the live Claude Code docs for native placement and removal behavior.
+
+- babysit-prs: `babysit_merge_policy.py` owns the post-merge record line (`record_marker`, `parse_record_marker`, `red_main_record`, `liftable_record`), and `babysit_postmerge.py` and `babysit_lift.py` call it. Its grammar and `failing_checks` run the shared vectors in `.github/scripts/post-merge-demotion-alert/demotion-record.vectors.json`, as babysit-loop's `publish-promotion-evidence.mjs` marker does. No behavior changes.
+
+## [13.8.2] - 2026-11-23
+
+### Changed
+
+- `/source-control:pull-request`, `/source-control:worktree` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+- `/source-control:commit` drops its four git gathers, which no step read; its config-layer probes stay as they were.
+
+## [13.8.1] - 2026-11-22
+
+### Changed
+
+- `create` retries a failed read of the owner's default pull request template once, then falls back to `briefing` and names the failed read in its report and the body, instead of stopping before the pull request opens.
+
+## [13.8.0] - 2026-11-22
+
+### Added
+
+- `scripts/provision-prerequisites.sh`, the provisioning step: it installs each lockfile an ecosystem record's `requires` entry declares with an `install` object (`{manager: npm, lockfile: <path>}`) by `npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory. It reads records from `docs/conventions/ecosystems/`, and a legacy `.claude/ecosystems/` file only for a name absent there, with a warning naming both when both exist. When no record declares any lockfile, it installs a root `npm-shrinkwrap.json` or `package-lock.json` the same way and prints a notice to declare it under `requires.<command>[].install`; that fallback ends at the ecosystem-commands contract's next major version, with the legacy-location read.
+
+### Changed
+
+- `create` takes the PR body's sections from an explicit `pr_body_required_sections` setting, else the `##` headings of the repository's own pull request template (`.github/`, the root, then `docs/`), else the owner's default template in its `.github` repository, else the `briefing` preset, and reports which level supplied them.
+- `create` writes every run's section prose in the project's glossary terms, through `/domain-driven-design:ubiquitous-language lookup` when that plugin is enabled, else the glossary file.
+- `setup check` reports an unset `pr_body_required_sections` as resolved from the repository template, the owner's default template, or `briefing`.
+
+- Worktree creation runs the provisioning step as its one install path, so its `npm ci` now runs with install scripts off. A lockfile that no record declares is installed only through the root fallback above. A repository declares its lockfiles in a record (`docs/contracts/ecosystem-commands/README.md`, "Provisioning").
+
+### Fixed
+
+- `push-branch.sh` reads the pull request's base from `gh pr view`'s stdout only, so a hint gh prints on stderr no longer skips the stale-base sync.
+
+## [13.7.1] - 2026-11-22
+
+### Changed
+
+- babysit-prs: `diff_risk.py`, `babysit_merge.py`, `babysit_merge_policy.py` and two test modules drop the comments the necessary comment posture does not keep, and the module links added only to pass the comment lint. No behavior changes.
+
+## [13.7.0] - 2026-11-22
+
+### Added
+
+- `create` runs one quick check of the changed files before it pushes and opens the pull request (§2.3.4), skipped when prep's check passed on the same head: the repository's affected-files check without its tests, plus guardrails `reference-verify` and bash-format `lint-full` where the repository has them.
+
+### Changed
+
+- Prep's verify gate (§1.5) is that same quick check and runs no test suite; CI runs the suites, and `ready` runs them only on a head CI has not tested.
+- Prep's class table sends a `code` branch to the §1.5 changed-files check instead of `verification:confirm`, which ran the test suites.
+- The babysit merge policy's carry refusals list `plugins/guardrails/git-hooks/reference-verify.sh` and `plugins/bash-format/git-hooks/lint-full.sh`, which CI now runs, so a push that changes either stops an approval carrying.
+
+## [13.6.3] - 2026-11-22
+
+### Changed
+
+- The babysit-prs diff risk scorer is now `scripts/diff_risk.py` (was `babysit_risk.py`), with its tests in `tests/test_diff_risk.py` and `tests/test_diff_risk_cost.py`, so the deterministic diff risk score is named apart from `/review:merge-risk`'s merge-risk rating. The hold floor lists the new path.
+
+- The babysit-prs rate guard's read floor is a share of the live `x-ratelimit-limit` header for every pool: GITHUB_TOKEN no longer plans to rate-limits.json's `limit-cap` of 1,000, and `BABYSIT_READ_FLOOR_HEADER_LIMIT` is gone.
+
 ## [13.6.2] - 2026-11-22
 
 ### Fixed

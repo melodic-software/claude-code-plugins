@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for finding-ids.sh (assertions from test-helpers.sh beside
-# this file). The identity assertions it pins are audit-pass's §1 as this skill
-# fills it: a re-run over an unchanged tree keeps every id, editing a flagged
-# sentence changes that finding's id, an unrelated edit does not, and an I15
-# conflict is one finding with two sites whatever order the lane met them in.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -76,7 +71,6 @@ EOF
 ids() { (cd "$REPO" && bash "$IDS" "$@"); }
 field() { printf '%s\n' "$1" | cut -f"$2"; }
 
-# --- Case 1: two runs over an unchanged tree yield identical ids -------------
 ROWS=$'skills/demo/reference/spoke.md:3:I33\nskills/demo/SKILL.md:10:I6\nskills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15'
 RUN1="$(printf '%s\n' "$ROWS" | ids)"
 RUN2="$(printf '%s\n' "$ROWS" | ids)"
@@ -90,7 +84,6 @@ assert_contains "the surface is repo-relative" "$RUN3" \
 
 I33_BEFORE="$(field "$(printf '%s\n' "$RUN1" | sed -n 1p)" 2)"
 
-# --- Case 2: an unrelated paragraph above the finding keeps its id -----------
 cp "$REPO/skills/demo/reference/spoke.md" "$TEST_TMPDIR/spoke.orig"
 {
   printf '# Spoke\n\nAn unrelated paragraph.\n\n'
@@ -100,7 +93,6 @@ I33_SHIFTED="$(printf '%s\n' 'skills/demo/reference/spoke.md:5:I33' | ids)"
 assert_eq "inserting an unrelated paragraph above an I33 opener keeps its id" \
   "$I33_BEFORE" "$(field "$I33_SHIFTED" 2)"
 
-# --- Case 3: editing the I33 opener changes that finding's id ----------------
 cp "$TEST_TMPDIR/spoke.orig" "$REPO/skills/demo/reference/spoke.md"
 sed -i.bak 's/names a breaking change/ships a breaking change/' \
   "$REPO/skills/demo/reference/spoke.md"
@@ -114,7 +106,6 @@ assert_eq "the group survives the edit" \
   "$(field "$(printf '%s\n' "$RUN1" | sed -n 1p)" 3)" "$(field "$I33_EDITED" 3)"
 cp "$TEST_TMPDIR/spoke.orig" "$REPO/skills/demo/reference/spoke.md"
 
-# --- Case 4: an I15 conflict is one finding with two sites -------------------
 FWD="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15' | ids)"
 REV="$(printf '%s\n' 'skills/demo/SKILL.md:14|skills/demo/SKILL.md:10|I15' | ids)"
 assert_eq "an I15 conflict met as (A, B) and (B, A) has one id" "$(field "$FWD" 2)" "$(field "$REV" 2)"
@@ -136,7 +127,6 @@ else
   echo "SKIP: python3 absent; the emitter-guard checks did not run" >&2
 fi
 
-# --- Case 5: anchors follow the heading path, and fences are not headings ----
 SAME_TEXT_A="$(printf '%s\n' 'skills/demo/SKILL.md:10:I6' | ids)"
 SAME_TEXT_B="$(printf '%s\n' 'skills/demo/reference/spoke.md:9:I6' | ids)"
 anchor_a="$(field "$SAME_TEXT_A" 4)"
@@ -160,7 +150,6 @@ sed -i.bak 's/^description: Demo skill\.$/description: Demo skill, reworded./' \
 FM_B="$(printf '%s\n' 'skills/demo/SKILL.md:10:I6' | ids)"
 assert_eq "editing frontmatter keeps a body finding's id" "$(field "$FM_A" 2)" "$(field "$FM_B" 2)"
 
-# --- Case 6: rows that cannot be identified are refused, never given an id ---
 REFUSED="$(printf '%s\n' \
   'skills/demo/SKILL.md:999:I6' \
   'skills/demo/SKILL.md:10:I99' \
@@ -190,7 +179,6 @@ USER_ROW="$(printf '%s\n' "$TEST_TMPDIR/home/.claude/CLAUDE.md:1:I6" |
   (cd "$REPO" && HOME="$TEST_TMPDIR/home" bash "$IDS"))"
 assert_contains "a user-scope surface takes the user: prefix" "$USER_ROW" $'\tuser:.claude/CLAUDE.md=e:'
 
-# --- Case 6b: under $HOME only instruction-file shapes are surfaces ----------
 H="$TEST_TMPDIR/home"
 mkdir -p "$H/.claude/plugins/cache/p/1.0/hooks" "$H/.claude/plugins/cache/p/1.0/skills/y" \
   "$H/.claude/skills/x/reference" "$H/.claude/projects/x" "$H/projects" \
@@ -221,7 +209,6 @@ RELOCATED="$(printf '%s\n' "$H/cc-alt/settings.json:1:I6" |
 assert_contains "settings.json in a relocated CLAUDE_CONFIG_DIR is a surface" "$RELOCATED" \
   $'\tuser:cc-alt/settings.json=e:'
 
-# Symlinks resolve to the physical file before the shape test.
 ln -s "$H/shared/rules.md" "$H/link-b.md"
 ln -s link-b.md "$H/link-a.md"
 assert_contains "a symlink chain inside home resolves to its target's user: surface" \
@@ -239,7 +226,6 @@ ln -s "$OUTSIDE" "$H/notes/out.md"
 assert_contains "a symlink from home to a file outside home and the repo is refused" \
   "$(surface_row notes/out.md)" $'\tsurface-outside-repository-and-home'
 
-# --- Case 7: the claim table mirrors the reference and the catalog -----------
 script_table="$(sed -n 's/^  \(I[0-9][0-9]*\(-[a-g]\)\{0,1\}\)) echo "\([^"]*\)" ;;$/\1 \3/p' "$IDS" | LC_ALL=C sort)"
 # shellcheck disable=SC2016 # the backticks are literal markdown code spans
 ref_table="$(sed -n 's/^| \(I[0-9][0-9]*\(-[a-g]\)\{0,1\}\) | `\([^`]*\)` | [12] |$/\1 \3/p' \

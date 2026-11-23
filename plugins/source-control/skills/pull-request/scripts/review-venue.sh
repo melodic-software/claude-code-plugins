@@ -101,13 +101,9 @@ REUSABLE=("$code_wfs" "$security_wfs")
 CLI_SECURITY=(false true)
 WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
-# Skipped-validation reds passed over per lane before it reads stale.
 MAX_PASSED=10
 READ_ATTEMPTS=3
 
-# read_runs <endpoint> <offset>: print one page of a run listing that starts
-# <offset> runs in. Returns 0 when the page is whole, 1 when no read of
-# READ_ATTEMPTS was, and 2 when gh failed or returned something unparsable.
 read_runs() {
   local out whole attempt
   for ((attempt = 1; attempt <= READ_ATTEMPTS; attempt++)); do

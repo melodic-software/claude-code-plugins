@@ -36,10 +36,6 @@ project settings present /proj/.claude/settings.json
 local settings present /proj/.claude/settings.local.json
 startdir-local settings present /start/.claude/settings.local.json'
 
-# --- C2: three dead-config gates, reported SEPARATELY -------------------------
-# The plan requires these never merge into one finding: they have different
-# scope sets and different version histories, so an operator who fixed one
-# would believe they had fixed all three.
 C2=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -56,8 +52,6 @@ assert_contains "the auto finding says the built-in default replaces a user-scop
 assert_contains "the auto finding says to remove the value from the file" "$OUT" "remove it here"
 assert_contains "the plan-mode finding names the scope restriction" "$OUT" "not read from shared project settings"
 
-# autoMode in LOCAL settings says it was live before v2.1.207 rather than
-# implying it never worked.
 C2_LOCAL=$(
   printf '%s\n' "$SURFACES"
   printf 'conf local settings autoModePresent true\n'
@@ -66,7 +60,6 @@ OUT=$(lint "$C2_LOCAL")
 assert_contains "a local autoMode section fires" "$OUT" "[C2-autoMode] local"
 assert_contains "and carries its version history" "$OUT" "v2.1.207"
 
-# The scopes the classifier DOES read are silent.
 C2_LIVE=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -79,8 +72,6 @@ EOF
 OUT=$(lint "$C2_LIVE")
 assert_eq "no C2 finding on a scope the classifier reads" 0 "$(count_matching "$OUT" '\[C2-')"
 
-# acceptEdits, plan, dontAsk, default, and manual apply from any settings file.
-# auto and bypassPermissions do not take effect from project or local settings.
 for mode in acceptEdits plan dontAsk default manual; do
   C2_OTHER=$(
     printf '%s\n' "$SURFACES"
@@ -101,8 +92,6 @@ assert_contains "the finding says the session starts in Manual" "$OUT" "starts i
 assert_contains "the finding says to remove the value from the file" "$OUT" "remove it here"
 assert_contains "the Manual start is conditional on nothing higher-ranked setting a mode" "$OUT" "Unless a higher-ranked settings file or --permission-mode sets a mode"
 
-# The restriction names project and local settings, so the local file and the
-# pre-v2.1.211 start-directory copy of it are dead too.
 for scope in local startdir-local; do
   C2_BYPASS_LOCAL=$(
     printf '%s\n' "$SURFACES"
@@ -112,7 +101,6 @@ for scope in local startdir-local; do
   assert_contains "$scope bypassPermissions fires the defaultMode gate" "$OUT" "[C2-defaultMode] $scope"
 done
 
-# User and managed settings are read: managed policy may pin bypassPermissions.
 C2_BYPASS_USER=$(
   printf '%s\n' "$SURFACES"
   printf 'conf user settings defaultMode "bypassPermissions"\n'
@@ -121,8 +109,6 @@ C2_BYPASS_USER=$(
 OUT=$(lint "$C2_BYPASS_USER")
 assert_eq "user and managed bypassPermissions are not dead" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
 
-# The page restricts useAutoModeDuringPlan to SHARED PROJECT settings by name.
-# Claiming a local occurrence is dead would assert a restriction no page states.
 C2_PLAN_LOCAL=$(
   printf '%s\n' "$SURFACES"
   printf 'conf local settings useAutoModeDuringPlan false\n'
@@ -130,9 +116,6 @@ C2_PLAN_LOCAL=$(
 OUT=$(lint "$C2_PLAN_LOCAL")
 assert_eq "a local useAutoModeDuringPlan is not claimed dead" 0 "$(count_matching "$OUT" '\[C2-planMode\]')"
 
-# --- C5: disableAutoMode must be the STRING "disable" -------------------------
-# The worst failure mode in this file: an operator believes auto mode is locked
-# out and it is not.
 C5=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -148,7 +131,6 @@ assert_contains "the boolean at the top-level key fires" "$OUT" "[C5-disableType
 assert_contains "the boolean under permissions fires too" "$OUT" "[C5-disableType] project permissions.disableAutoMode is false"
 assert_contains "the finding states the consequence, not just the type" "$OUT" "auto mode is NOT disabled here"
 
-# It is not managed-only: every scope is checked.
 C5_MANAGED=$(
   printf '%s\n' "$SURFACES"
   printf 'conf managed file permissions.disableAutoMode true\n'
@@ -156,8 +138,6 @@ C5_MANAGED=$(
 OUT=$(lint "$C5_MANAGED")
 assert_contains "managed scope is checked like any other" "$OUT" "[C5-disableType] managed"
 
-# The reader's two project files are two files: below the repository root it
-# reports both, and a value in one must not hide the other's, in either order.
 TWO_FILES=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -176,7 +156,6 @@ assert_contains "two project files: the root's ignored mode survives this direct
 assert_contains "two project files: the root's dead autoMode is named as the root's" "$OUT" "[C2-autoMode] project:toplevel an autoMode section here is never read"
 assert_not_contains "two project files: it carries no local-settings history" "$(grep -F '[C2-autoMode]' <<<"$OUT")" "before v2.1.207"
 assert_contains "two project files: the root's plan key is named as the root's" "$OUT" "[C2-planMode] project:toplevel"
-# A rule finding names the root file the same way.
 ROOT_RULE=$(
   printf '%s\n' "$SURFACES"
   printf 'rule project toplevel allow Bash(git:* push)\n'
@@ -186,7 +165,6 @@ OUT=$(lint "$ROOT_RULE")
 assert_contains "two project files: a root rule finding is named as the root's" "$OUT" "[C6-colonStar] project:toplevel"
 assert_contains "two project files: this directory's rule finding stays project" "$OUT" "[C6-colonStar] project "
 assert_eq "two project files: one finding each" 2 "$(count_matching "$OUT" '\[C6-colonStar\]')"
-# A later managed drop-in replaces an earlier value, so that scope stays last-wins.
 LAST_WINS=$(
   printf '%s\n' "$SURFACES"
   printf 'conf managed file disableAutoMode true\n'
@@ -194,7 +172,6 @@ LAST_WINS=$(
 )
 assert_not_contains "managed: a later drop-in's value is the one in force" "$(lint "$LAST_WINS")" "[C5-disableType]"
 
-# --- C6: rules that cannot match ---------------------------------------------
 C6=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -212,8 +189,6 @@ assert_eq "both content-field rules fire" 2 "$(count_matching "$OUT" '\[C6-conte
 assert_eq "the uncovered path rule fires once" 1 "$(count_matching "$OUT" '\[C6-uncoveredPath\]')"
 assert_contains "the winPath finding gives the working form" "$OUT" "//c/**"
 
-# Legitimate rule shapes that MUST NOT fire. Each of these is a false positive
-# the checks were specifically written to avoid.
 C6_CLEAN=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -231,8 +206,6 @@ EOF
 OUT=$(lint "$C6_CLEAN")
 assert_eq "no finding on any legitimate rule shape" 0 "$(count_matching "$OUT" '^finding ')"
 
-# A bare tool-name rule is legitimate AT THE TOOL LEVEL and is the single most
-# common rule shape there is; flagging it would drown every real finding.
 C6_BARE=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings deny Write\nrule user settings deny NotebookEdit\nrule user settings deny MultiEdit\n'
@@ -240,8 +213,6 @@ C6_BARE=$(
 OUT=$(lint "$C6_BARE")
 assert_eq "bare tool-name rules never fire the uncovered-path check" 0 "$(count_matching "$OUT" '\[C6-uncoveredPath\]')"
 
-# `:*` AT the end is the documented working form; only mid-pattern use is a
-# literal-colon command wildcard.
 C6_COLON=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Bash(npm:*)\nrule user settings allow Bash(git:* push)\n'
@@ -250,7 +221,6 @@ OUT=$(lint "$C6_COLON")
 assert_eq "only the mid-pattern colon-star fires" 1 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 assert_contains "and it is the mid-pattern one" "$OUT" "Bash(git:* push)"
 
-# A parameter rule on a NON-content field is the documented working form.
 C6_PARAM=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow WebFetch(domain:example.com)\nrule user settings allow WebFetch(url:https://x)\n'
@@ -259,22 +229,15 @@ OUT=$(lint "$C6_PARAM")
 assert_eq "only the content-field parameter rule fires" 1 "$(count_matching "$OUT" '\[C6-contentField\]')"
 assert_contains "and it is the url one" "$OUT" "WebFetch(url:https://x)"
 
-# --- Reporting shape ----------------------------------------------------------
 OUT=$(lint "$C6")
 assert_contains "every finding carries a severity" "$OUT" "finding error ["
 assert_eq "every finding line has a bracketed check id" \
   "$(count_matching "$OUT" '^finding ')" "$(count_matching "$OUT" '^finding [a-z]+ \[C[0-9]')"
 assert_contains "the summary states how many checks ran" "$OUT" "checks_run=12"
 
-# A clean plane is reported as clean, with the check count, not as silence.
 OUT=$(lint "$SURFACES")
 assert_contains "a clean run still reports its summary" "$OUT" "lint summary findings=0"
 
-# --- C6-winPath fires on SHAPE, not on the backslash character ---------------
-# This check has been wrong in both directions: first testing the doubled JSON
-# source spelling (dead in the real pipeline), then a bare backslash (worse than
-# dead -- backslashes are ordinary in shell rules, so every escape became a
-# severity-error finding and the one true finding drowned).
 WINSHAPE=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -299,10 +262,6 @@ OUT=$(lint "$WINREAL")
 assert_eq "a drive-letter path still fires" 1 "$(count_matching "$OUT" '\[C6-winPath\]')"
 assert_contains "with the POSIX remedy" "$OUT" "//c/** form instead"
 
-# A UNC path is a real finding, but //c/** is the wrong advice for it.
-#
-# A quoted heredoc, not printf: printf interprets backslash escapes, so the
-# doubled prefix that MAKES this a UNC path collapses before the lint sees it.
 UNCREAL=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -313,10 +272,6 @@ OUT=$(lint "$UNCREAL")
 assert_eq "a UNC path fires" 1 "$(count_matching "$OUT" '\[C6-winPath\]')"
 assert_contains "and is named as UNC rather than given drive-letter advice" "$OUT" "a UNC path in a rule cannot match"
 
-# --- C6-colonStar is about COMMAND PREFIX patterns ---------------------------
-# "WebFetch rules use a `domain:` prefix… supports `*` wildcards", so a wildcard
-# mid-value there is documented and working. Firing on it called a working rule
-# broken. The documented mechanic names Bash prefix patterns specifically.
 COLON_PARAM=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -329,21 +284,6 @@ assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-
 assert_contains "and it is the Bash one" "$OUT" "Bash(git:* push)"
 assert_not_contains "a documented domain wildcard is not called broken" "$OUT" "WebFetch(domain:*.example.com)"
 
-# --- A literal-colon command wildcard fires in EVERY kind, not just allow -----
-# The gap that let a fail-open defect through: no case here covered a
-# mid-pattern `:*` in a DENY rule, so exempting the parameter form by grammar
-# silenced `deny Bash(git:* push)` -- the literal-colon example the page itself
-# gives -- and the suite stayed 58/58.
-#
-# The direction matters. An ALLOW in this form fails closed: the operator is
-# denied something they thought they had, and finds out. A DENY in this form
-# fails OPEN: they believe they blocked `git push` and did not, and nothing
-# says so.
-#
-# The discriminator is the SPACE. "Each rule names one parameter" and its value
-# is one scalar, so a parameter value never carries space-separated trailing
-# words; a literal-colon command wildcard is precisely a prefix followed by
-# more words.
 DEAD_PREFIX=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -359,8 +299,6 @@ assert_eq "every literal-colon command wildcard fires, whatever its kind" 5 "$(c
 assert_contains "including the deny form of the page's own example" "$OUT" "[C6-colonStar] user Bash(git:* push)"
 assert_contains "and an ask on PowerShell" "$OUT" "PowerShell(Get:* -Force)"
 
-# The parameter forms stay exempt in the same kinds -- the space predicate must
-# not undo the grammar exemption it refines.
 PARAM_KINDS=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -374,8 +312,6 @@ EOF
 OUT=$(lint "$PARAM_KINDS")
 assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 
-# A body that starts with `*` has no command prefix, so its colon is the literal
-# it means to match (`$env:LEFTHOOK...`), not a misplaced `:*` suffix.
 NO_PREFIX=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -391,11 +327,6 @@ assert_contains "a leading wildcard before prefix-shaped words still fires" "$OU
 assert_contains "a leading wildcard glued to a prefix still fires" "$OUT" "[C6-colonStar] user Bash(*foo:* rm -rf /)"
 assert_not_contains "a leading-wildcard literal colon is not called broken" "$OUT" "PowerShell(*env:*lefthook*)"
 
-# --- One rule, one explanation -----------------------------------------------
-# `allow Agent(model:*-haiku)` drew BOTH colonStar and allowParam, with two
-# different mechanics -- and colonStar explains it as a literal-colon Bash
-# COMMAND wildcard, which Agent does not take. The rule does not do what it
-# looks like either way; only one of the two findings says why.
 DOUBLE=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Agent(model:*-haiku)\n'
@@ -405,8 +336,6 @@ assert_eq "the parameter-form allow draws exactly one finding" 1 "$(count_matchi
 assert_contains "and it is the one that explains it correctly" "$OUT" "[C6-allowParam]"
 assert_not_contains "not a command-prefix explanation for a tool with no command prefixes" "$OUT" "[C6-colonStar]"
 
-# Suppression is scoped to the parameter shape: a real literal-colon command
-# wildcard in an allow rule still fires colonStar.
 NOT_SUPPRESSED=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Bash(git:* push)\n'
@@ -414,7 +343,6 @@ NOT_SUPPRESSED=$(
 OUT=$(lint "$NOT_SUPPRESSED")
 assert_contains "an allow-rule command prefix still fires colonStar" "$OUT" "[C6-colonStar]"
 
-# --- C6-colonStarAmbiguous: mid-pattern :* with no space ---------------------
 C6_AMBIG=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -427,11 +355,6 @@ assert_eq "no-space mid-pattern on an unknown prefix warns once" 1 "$(count_matc
 assert_contains "names the undecidability" "$OUT" "[C6-colonStarAmbiguous] user Bash(git:*push)"
 assert_not_contains "documented parameter forms stay silent" "$OUT" "[C6-colonStarAmbiguous] user Agent(model:*-haiku)"
 
-# --- Parameter matching is deny/ask only -------------------------------------
-# "Deny and ask rules can match a top-level input parameter... An allow rule for
-# one parameter value would not establish that the call is safe overall, so
-# allow rules continue to use each tool own specifier syntax." An operator who
-# writes one believes they narrowed a grant and did not.
 ALLOW_PARAM=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -447,9 +370,6 @@ assert_contains "the Agent allow fires" "$OUT" "[C6-allowParam] user Agent(model
 assert_contains "the Bash parameter allow fires too" "$OUT" "[C6-allowParam] user Bash(run_in_background:true)"
 assert_contains "the finding cites the deny/ask restriction" "$OUT" "documented for deny and ask rules only"
 
-# Shapes that are a tool own syntax, not the parameter form, must stay silent --
-# `WebFetch(domain:host)` is documented as the WebFetch form and `Bash(npm:*)`
-# is a command prefix, so neither is distinguishable from a parameter by shape.
 PARAM_CLEAN=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -461,20 +381,11 @@ EOF
 OUT=$(lint "$PARAM_CLEAN")
 assert_eq "a tool own specifier syntax never fires allowParam" 0 "$(count_matching "$OUT" '\[C6-allowParam\]')"
 
-# --- C6-winPath must fire on what the READER actually emits ------------------
-# It did not. The check tested for a doubled backslash -- the JSON SOURCE
-# spelling -- but `jq -r` decodes the escape, so the reader emits a single
-# backslash and the check was dead in the real pipeline. It passed its own suite
-# only because every other case here feeds a hand-written record that bypasses
-# the reader. This one drives the reader.
 if command -v jq >/dev/null 2>&1; then
   WPFX="$TEST_TMPDIR/wpfx"
   mkdir -p "$WPFX/proj/.claude" "$WPFX/home/.claude" "$WPFX/pol" "$WPFX/sd/.claude"
   jq -n '{}' >"$WPFX/proj/.claude/settings.json"
   jq -n '{}' >"$WPFX/pol/managed-settings.json"
-  # Doubled in the jq SOURCE so the file carries single backslashes -- which is
-  # exactly the point: the reader decodes them, and the check has to match what
-  # the reader emits rather than the source spelling.
   jq -n '{permissions:{allow:["Read(C:\\Users\\alice\\**)","Read(//c/**/.env)"]}}' >"$WPFX/home/.claude/settings.json"
   E2E_WP=$(env -u CLAUDE_CONFIG_DIR HOME="$WPFX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$WPFX/proj" \
@@ -489,7 +400,6 @@ else
   pass "winPath end-to-end (skipped -- jq not installed)"
 fi
 
-# --- Fail-loud: no input is never a clean bill --------------------------------
 rc=0
 err=$(printf '' | bash "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 on empty input" 2 "$rc"
@@ -509,7 +419,6 @@ help=$(bash "$SCRIPT" --help </dev/null 2>&1) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help states the advisory contract" "$help" "never \"nothing found\""
 
-# --- End to end: real reader into the lint ------------------------------------
 if command -v jq >/dev/null 2>&1; then
   FX="$TEST_TMPDIR/fx"
   mkdir -p "$FX/proj/.claude" "$FX/home/.claude" "$FX/policy" "$FX/startdir/.claude"
@@ -521,7 +430,6 @@ if command -v jq >/dev/null 2>&1; then
   jq -n '{permissions: {disableAutoMode: true, allow: ["Bash(npm test)"]}}' >"$FX/home/.claude/settings.json"
   jq -n '{}' >"$FX/policy/managed-settings.json"
 
-  # e2e_lint <root>: the real reader over <root>/{proj,home,policy,startdir}, into the lint.
   e2e_lint() {
     env -u CLAUDE_CONFIG_DIR \
       HOME="$1/home" \
@@ -541,9 +449,6 @@ if command -v jq >/dev/null 2>&1; then
   assert_contains "end to end: the never-consulted path rule is found" "$E2E" "[C6-uncoveredPath] project"
   assert_not_contains "end to end: the narrow allow rule is not flagged" "$E2E" "Bash(npm test)"
 
-  # A mode pin is often the only key under `permissions`. The reader must scan
-  # that file, so the finding comes from the real files and not only from
-  # hand-written records.
   FX2="$TEST_TMPDIR/fx2"
   mkdir -p "$FX2/proj/.claude" "$FX2/home/.claude" "$FX2/policy" "$FX2/startdir/.claude"
   for f in proj/.claude/settings.json proj/.claude/settings.local.json home/.claude/settings.json policy/managed-settings.json; do
@@ -561,9 +466,6 @@ if command -v jq >/dev/null 2>&1; then
   assert_eq "end to end: acceptEdits and plan pins in project and local are not flagged" 0 "$(count_matching "$E2E_OTHER" '\[C2-defaultMode\] (project|local)')"
   assert_contains "end to end: that silence is a read plane, not an unread one" "$E2E_OTHER" "status=read"
 
-  # A session started in the home directory has the home directory as its
-  # project root, so the project path is the user file. Keys legal in user
-  # settings must not come back as project-scope findings.
   FX3="$TEST_TMPDIR/fx3"
   mkdir -p "$FX3/home/.claude" "$FX3/policy"
   jq -n '{autoMode: {classifyAllShell: true}, permissions: {defaultMode: "auto"}}' >"$FX3/home/.claude/settings.json"
@@ -582,10 +484,6 @@ else
   pass "end-to-end reader lint (skipped — jq not installed)"
 fi
 
-# --- An unread scope must not summarize as a clean plane ----------------------
-# `findings=0` on a plane where nothing could be opened is byte-identical to
-# `findings=0` on a fully-read clean one. status= carries the difference, and
-# LINT-NOTE names the scopes so the operator knows what was not linted.
 UNREAD_IN=$(
   cat <<'EOF'
 managed file unreadable <managed>/managed-settings.json
@@ -610,13 +508,8 @@ EOF
 OUT_READ=$(printf '%s\n' "$READ_IN" | bash "$SCRIPT")
 assert_contains "a fully-read plane reports status=read" "$OUT_READ" "status=read"
 assert_not_contains "and emits no unread note" "$OUT_READ" "LINT-NOTE:"
-# `absent` is a real answer; only skipped/unreadable/invalid-json are not.
 assert_not_contains "an absent surface is not treated as unread" "$OUT_READ" "status=incomplete"
 
-# --- Unreadness is per surface, and sticky ------------------------------------
-# `managed` emits four surface records. A scope-keyed status keeps only the last,
-# so a skipped registry followed by a not-applicable plist read as fully-read --
-# the same false-clean summary the status token was added to prevent.
 MULTI_SURFACE=$(
   cat <<'EOF'
 managed file absent <managed>/managed-settings.json
@@ -630,8 +523,6 @@ OUT_MULTI=$(printf '%s\n' "$MULTI_SURFACE" | bash "$SCRIPT")
 assert_contains "a skipped surface is not erased by a later surface in the same scope" "$OUT_MULTI" "status=incomplete"
 assert_contains "and the note names the surface, not just the scope" "$OUT_MULTI" "registry:skipped"
 
-# The reverse order must behave identically: the unread record is sticky whether
-# it arrives first or last.
 REVERSED=$(
   cat <<'EOF'
 managed plist not-applicable -
@@ -642,7 +533,6 @@ EOF
 OUT_REV=$(printf '%s\n' "$REVERSED" | bash "$SCRIPT")
 assert_contains "order does not change the verdict" "$OUT_REV" "status=incomplete"
 
-# not-applicable and absent are answers, so a scope made only of them is read.
 ALL_ANSWERED=$(
   cat <<'EOF'
 managed file absent <managed>/managed-settings.json
@@ -655,9 +545,6 @@ OUT_ANSWERED=$(printf '%s\n' "$ALL_ANSWERED" | bash "$SCRIPT")
 assert_contains "absent and not-applicable surfaces keep the plane read" "$OUT_ANSWERED" "status=read"
 assert_not_contains "and emit no unread note" "$OUT_ANSWERED" "LINT-NOTE:"
 
-# Parentheses inside a specifier are literal. Text after the closing parenthesis
-# is a malformed Tool(content) rule. An unclosed '[' on a deny guards the literal
-# path and does not fail every edit.
 MALFORMED=$(
   printf '%s\n' "$SURFACES"
   printf '%s\n' \

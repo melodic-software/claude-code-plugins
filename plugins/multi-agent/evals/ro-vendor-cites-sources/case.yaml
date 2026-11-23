@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: 'ro-vendor-cites-sources'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ran-fetch-boards'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?fetch-boards\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'dispatched-board-reader'
+    type: 'tool_used'
+    tool: 'Agent'
+    input_match: '"subagent_type"\s*:\s*"(?:multi-agent:)?board-reader"'
+    min: 1
+    arm: 'with-only'
+  - name: 'ran-vendor-decide'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?vendor-decide\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'cites-both-sources'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\bterminal-bench\b)(?=[\s\S]*\bcursorbench\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'claude-line-present'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+\s*@\s*effort\s+\S+[^\n]*basis:'
+    flags: 'mi'
+    target: 'last_message'

@@ -59,7 +59,6 @@ sha256() {
   fi
 }
 
-# Read nested metadata.<field> from the local SKILL.md frontmatter.
 local_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
@@ -67,7 +66,6 @@ local_metadata_field() {
     "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
-# Read top-level version: from a fetched upstream file's frontmatter block.
 upstream_version_from_file() {
   awk 'NR==1 && /^---/{f=1;next} f && /^---/{exit} f && /^version:/{print $2;exit}' "$1" |
     tr -d "\"'\r"
@@ -107,7 +105,6 @@ file_sha() {
   sha256 "$path" | awk '{print $1}' | tr -d '\r'
 }
 
-# Set metadata.<field>, inserting it after metadata.synced when absent.
 set_metadata_field() {
   local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.ins"
   if [[ -n "$(local_metadata_field "$field")" ]]; then
@@ -239,7 +236,6 @@ Source: https://howborisusesclaudecode.com/api/install-thariq
 EOF
 }
 
-# Source-guard: only run main when executed directly, not when sourced (tests).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi

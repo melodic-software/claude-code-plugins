@@ -93,25 +93,23 @@ import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
-import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPLIT_PENDING, splitItemsLine, unrunnableReason } from "./admit.mjs";
+import { bodyVersion, loadRules, ownedLines, SCOPE_PREFIX, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, splitChildHeader, taskItems, taskText, unrunnableCriteria } from "./issue-spec.mjs";
+import { partitionProblem, renderSplitRecord, SIZE_SPLIT_MARKER, splitDigest, splitRecord, splitTaskLines, subsetProblem } from "./size-split.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
+import { AGENT_READY, NEEDS_DECISION, NEEDS_HUMAN, READY } from "../lib/lane-vocabulary.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
-const NEEDS_DECISION = "needs-owner-decision";
-const READY = "status: ready";
-const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
-const AGENT_READY = "agent-ready";
-// The holds besides needs-decision a not-exact refinement could overwrite.
 const PERSON_HOLDABLE = [...INFO_LABELS, "needs-spec"];
-// The id of whoever last added label `name` in `events`, or undefined.
 const newestLabeler = (events, names) => events.filter((event) => event.event === "labeled" && names.includes(String(event.label?.name).toLowerCase())).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
@@ -124,13 +122,10 @@ const CANDIDATES = 10;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// The issue as the model reads it.
 const issueContext = (number, issue) => ({ number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) });
 
-// Whether the lanes App, by its account id, posted `item`.
 const byApp = (item, appId) => appId !== undefined && item?.user?.id === appId;
 
-// The one intake lane comment, if this run (from `startedAt`) wrote it; else null.
 const laneComment = (comments, startedAt) => {
   const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
   return lane.length === 1 && Date.parse(lane[0].updated_at) >= startedAt ? lane[0] : null;
@@ -195,9 +190,6 @@ export function splitOf({ body, laneBody, verdict, labels, admission, rules, web
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
 }
 
-// Why the split may not lift the issue's status, or null: admission parks a
-// split at `status: confirmed` (admit.mjs admissionParked); any other status
-// stays.
 const splitStays = (labels, comments, appId) => (admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`);
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
@@ -314,11 +306,8 @@ const DECLINES = {
 };
 const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
 
-// The issue's labels each part carries: whether a part can run unattended
-// is the issue's call, which the split does not restate.
 const ROUTING_LABELS = [HOST_RUN, ATTENDED];
 
-// A task line that brings what it names into being; any other line checks it.
 const CREATES =
   /\b(?:add|adds|added|create|creates|created|new|scaffold|scaffolds|scaffolded|introduce|introduces|introduced|exist|exists|write|writes|generate|generates|generated|move|moves|moved|rename|renames|renamed|extract|extracts|extracted|port|ports|ported)\b/i;
 const PLUGIN_NAME = "[a-z0-9][a-z0-9-]*";
@@ -328,7 +317,6 @@ const PLUGIN_PATTERNS = [
   new RegExp(`\`(${PLUGIN_NAME})\`\\s+[Pp]lugin\\b`, "g"),
   new RegExp(`\\b[Pp]lugin\\s+\`(${PLUGIN_NAME})\``, "g"),
 ];
-// A bare kebab-case word before the word plugin, read only when quoted.
 const BARE = new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g");
 const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
 
@@ -422,8 +410,6 @@ export function unbuiltPart({ parts, order }, texts, absent, quoted) {
   return null;
 }
 
-// Posts decline `code` on the issue unless the lanes App already posted it
-// for this body. The text is fixed; no model or issue text is rendered.
 async function postDecline({ github, base, appId, body, code, log }) {
   const head = `${declineMarker(code)}\n${bodyVersion(body)}\n`;
   if ((await paginate(github, `${base}/comments`)).some((item) => byApp(item, appId) && String(item.body ?? "").startsWith(head))) {
@@ -449,12 +435,6 @@ export async function applySizeDecline({ github, repository, number, appId, cont
   return { outcome: "declined" };
 }
 
-// The split record's `items`: the digest of the lines split, and of the
-// refinement they copy when they copy one, so a newer refinement with the
-// same lines files no second set of sub-issues. Pure.
-export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
-
-// The body of the lanes App's admission comment, or undefined.
 const admissionComment = (comments, appId) => comments.find((comment) => byApp(comment, appId) && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
 
 // Whether the lanes App's admission comment waits on a SPLIT_PENDING reason.
@@ -464,7 +444,6 @@ export function sizeSplitPending(comments, appId) {
   return body.startsWith(prefix) && body.slice(prefix.length).replace(/\.$/, "").split("; ").some((reason) => SPLIT_PENDING.has(reason));
 }
 
-// The lanes App's split record on the issue: {comment, record}, or null.
 const ownSplit = (comments, appId) => {
   const comment = comments.find((item) => byApp(item, appId) && splitRecord(item.body) !== null);
   return comment ? { comment, record: splitRecord(comment.body) } : null;
@@ -510,7 +489,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     // runs on its lines at the next triage.
     return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
-  // The units the lines name that the default branch lacks, for applySizeSplit's unbuiltPart.
   const { rules, held } = splitConfig();
   const texts = lines.map((line) => taskText(line, rules["task-list"]));
   const quoted = quotedNames([issue.body, ...texts]);
@@ -526,108 +504,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
       triage: String(lane.body),
     },
   };
-}
-
-// Why `output` is no partition of `count` items, or null: exactly `parts`
-// and `order`; 2 to `maxParts` parts, none empty, covering items 1..count
-// once each; order pairs of distinct part numbers, none repeated, with no
-// cycle. Pure.
-export function partitionProblem(output, count, maxParts = 10) {
-  if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== "order,parts") {
-    return "the output must hold exactly parts and order";
-  }
-  const { parts, order } = output;
-  if (!Array.isArray(parts) || parts.length < 2 || parts.length > maxParts || parts.length > count) {
-    return `parts must be a list of 2 to ${Math.min(maxParts, count)} parts`;
-  }
-  const seen = new Set();
-  for (const part of parts) {
-    if (!Array.isArray(part) || part.length === 0) {
-      return "each part must be a non-empty list";
-    }
-    for (const n of part) {
-      if (!Number.isInteger(n) || n < 1 || n > count || seen.has(n)) {
-        return `each item 1 to ${count} must be in exactly one part`;
-      }
-      seen.add(n);
-    }
-  }
-  if (seen.size !== count) {
-    return `each item 1 to ${count} must be in exactly one part`;
-  }
-  return orderProblem(order, parts.length);
-}
-
-// Why `groups` and `order` are no target-subset split over task lines
-// `lines`, or null: 2 to `maxParts` non-empty groups, each target an
-// admit.mjs scopeTarget over the lines' texts after their `taskList`
-// marker, named once and inside no other target (two parts would own the
-// same work), every line's text holding one of the targets (none left out
-// of every part), an order as partitionProblem takes it, and groups the
-// split record holds: they must
-// come back from renderSplitRecord through splitRecord, so the record's
-// cap and its parser stay one source. Pure.
-export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
-  const texts = lines.map((line) => taskText(line, taskList));
-  if (!Array.isArray(groups) || groups.length < 2 || groups.length > maxParts) {
-    return `groups must be a list of 2 to ${maxParts} groups`;
-  }
-  const seen = new Set();
-  for (const group of groups) {
-    if (!Array.isArray(group) || group.length === 0) {
-      return "each group must be a non-empty list";
-    }
-    for (const name of group) {
-      if (!scopeTarget(name, texts) || seen.has(name)) {
-        return "each target must be text copied from one task-list line, named once";
-      }
-      seen.add(name);
-    }
-  }
-  const names = [...seen];
-  if (names.some((name) => names.some((other) => other !== name && other.includes(name)))) {
-    return "no target may be text inside another target";
-  }
-  if (!texts.every((text) => names.some((name) => text.includes(name)))) {
-    return "the targets must cover every task-list line";
-  }
-  const problem = orderProblem(order, groups.length);
-  if (problem !== null) {
-    return problem;
-  }
-  const every = lines.map((_, index) => index + 1);
-  const record = renderSplitRecord({ items: "0".repeat(64), parts: groups.map(() => every), order, groups });
-  return isDeepStrictEqual(splitRecord(`${SIZE_SPLIT_MARKER}\n${record}`)?.groups, groups) ? null : "the groups are too long for the split record";
-}
-
-// Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
-function orderProblem(order, count) {
-  const pairs = new Set();
-  if (!Array.isArray(order)) {
-    return "order must be a list of pairs";
-  }
-  for (const pair of order) {
-    const valid = Array.isArray(pair) && pair.length === 2 && pair.every((p) => Number.isInteger(p) && p >= 1 && p <= count) && pair[0] !== pair[1];
-    if (!valid || pairs.has(pair.join(">"))) {
-      return "each order pair must name two different parts, once";
-    }
-    pairs.add(pair.join(">"));
-  }
-  // Kahn's algorithm: every part leaves the queue only when the order has no cycle.
-  const waits = Array.from({ length: count }, (_, index) => order.filter(([, b]) => b === index + 1).length);
-  const ready = waits.flatMap((w, index) => (w === 0 ? [index + 1] : []));
-  let done = 0;
-  while (ready.length > 0) {
-    const a = ready.pop();
-    done += 1;
-    for (const [, b] of order.filter(([from]) => from === a)) {
-      waits[b - 1] -= 1;
-      if (waits[b - 1] === 0) {
-        ready.push(b);
-      }
-    }
-  }
-  return done === count ? null : "the order has a cycle";
 }
 
 // {refine, reason, context}. Reads only.
@@ -700,9 +576,6 @@ const list = (value, key, check) => {
   return value;
 };
 
-// The model's `external`, checked: `none`; `iac` with an owner/name `repo`;
-// or `manual` with a `class` of `classes` (pr-pipeline.yaml attended.classes,
-// from the context) and a `what`. Throws on any other shape.
 function externalOf(value, classes) {
   const keys = ["state", "repo", "class", "what"];
   if (value === null || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== [...keys].sort().join() || !keys.every((key) => isText(value[key]))) {
@@ -751,8 +624,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   );
   let moved = list(output.split, "split", Number.isInteger);
   let exact = output.exact;
-  // A duplicate or fixing change makes it not exact, whatever else it holds:
-  // ask whether to close the issue.
   const closing = exact ? related.filter((item) => item.relation !== "related") : [];
   if (exact && closing.length === 0) {
     if ((split === null && criteria.length === 0) || questions.length > 0 || output.outcome.trim() === "") {
@@ -772,7 +643,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
     throw new Error("a refinement that is not exact asks at least one question");
   }
   if (exact && split !== null) {
-    // The held items, no more and no fewer; the rest stays for the lane.
     const sorted = (numbers) => [...numbers].sort((a, b) => a - b).join();
     if (criteria.length > 0 || sorted(moved) !== sorted(split.items.map(({ n }) => n)) || moved.length >= split.count) {
       throw new Error("a split moves exactly the held done-when items, leaves the rest, and drafts no criteria");
@@ -945,7 +815,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (splitStays(labels, comments, appId) !== null) {
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
-    // confirmed is a queue state the needs-triage field write replaces.
     const held = await retriage();
     if (held) {
       return held;
@@ -971,14 +840,11 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
-  // An exact refinement that leaves the labels as they are.
   const exactStays = async (why) => {
     await post();
     log(`refine: #${number} is exact; ${why}`);
     return { outcome: "exact", redispatch: false };
   };
-  // An exact refinement admission can read: needs-triage, then `lift`, then
-  // the comment, which asks for triage again.
   const exactRetriage = async (why, lift = async () => {}) => {
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
@@ -1110,8 +976,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const settings = sizeSplitSettings(rules);
-  // A skip with a decline `code` leaves the issue parked for good, so the
-  // lanes App says why on it (postDecline).
   const skip = async (why, code = null) => {
     log(`refine: #${number} ${why}; nothing filed`);
     note(`#${number} stays parked for its size split: ${why}`);
@@ -1233,8 +1097,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   for (const [a, b] of record.order) {
     await edge({ issue: children[b - 1], blocker: children[a - 1] });
   }
-  // The issue's open blockers hold the parts nothing precedes; what waits on
-  // the issue waits on the parts nothing follows instead.
   const first = children.filter((_, index) => !record.order.some(([, b]) => b === index + 1));
   const last = children.filter((_, index) => !record.order.some(([a]) => a === index + 1));
   for (const blocker of (await paginate(github, `${base}/dependencies/blocked_by`)).filter((item) => item?.state === "open" && Number.isInteger(item.id))) {
@@ -1277,7 +1139,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const env = process.env;
-  // A size split left parked says why in the step summary.
   const summary = (text) => (env.GITHUB_STEP_SUMMARY ? appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`) : console.log(text));
   try {
     if (env.KILL_SWITCH !== "proceed") {

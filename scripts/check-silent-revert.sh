@@ -536,6 +536,12 @@ append_deleted_ranges() {
        }' "$2")
 }
 
+print_added_lines() {
+  awk '/^diff --git /{ in_hunk = 0; next }
+       /^@@ /{ in_hunk = 1; next }
+       in_hunk && /^\+/ { print substr($0, 2) }' "$1"
+}
+
 attribute_file() {
   local parent="$1" commit="$2" file="$3"
   local -a ranges=()
@@ -640,6 +646,9 @@ attribute_file() {
     --diff-algorithm=myers -M "$parent" "$commit" -- "$file"
 
   append_deleted_ranges ranges "$diff_out"
+  local added_out
+  added_out="$(mktemp)" || die "mktemp failed"
+  print_added_lines "$diff_out" >"$added_out"
 
   # `-diff` / `binary` attributes make the path-limited diff emit
   # "Binary files differ" and no @@ hunks (gitattributes(5): Unset on
@@ -690,6 +699,7 @@ attribute_file() {
             diff --no-ext-diff --no-textconv --unified=0 --no-color \
             --diff-algorithm=myers "$old_blob" "$new_blob"
           append_deleted_ranges ranges "$blob_out"
+          print_added_lines "$blob_out" >>"$added_out"
           rm -f "$blob_out"
         fi
         ;;
@@ -701,7 +711,10 @@ attribute_file() {
   fi
   rm -f "$diff_out"
 
-  [[ "${#ranges[@]}" -gt 0 ]] || return 0
+  [[ "${#ranges[@]}" -gt 0 ]] || {
+    rm -f "$added_out"
+    return 0
+  }
 
   # --line-porcelain repeats the header for every line, so sha and text stay
   # paired without tracking porcelain's abbreviated continuation form.
@@ -759,11 +772,42 @@ attribute_file() {
     "git blame failed attributing $file at $parent" \
     blame --no-ignore-revs-file --no-textconv --line-porcelain \
     "${ranges[@]}" "$parent" -- "$file"
-  awk '
+  awk -v added_file="$added_out" '
+    function sha_normalized(s,   out, run, after_last_sha) {
+      had_sha = 0
+      out = ""
+      while (match(s, /[0-9a-fA-F]+/)) {
+        run = substr(s, RSTART, RLENGTH)
+        out = out substr(s, 1, RSTART - 1)
+        if (RLENGTH == 40) { run = "<sha>"; had_sha = 1; after_last_sha = length(out) + 5 }
+        out = out run
+        s = substr(s, RSTART + RLENGTH)
+      }
+      out = out s
+      # A re-pin also rewrites the version comment after the SHA
+      # (`@<sha> # v0.82.1`), so fold that tail too, and ONLY a bare version
+      # tag: free comment text (`# keep: needed for X`) must come back
+      # verbatim to cancel a removal. No ERE interval, so it stays mawk-safe.
+      if (had_sha && substr(out, after_last_sha + 1) ~ /^[ \t]+#[ \t]*v?[0-9]+(\.[0-9]+)*[ \t]*$/)
+        out = substr(out, 1, after_last_sha) " #<ref>"
+      return out
+    }
+    BEGIN {
+      while ((getline line < added_file) > 0) {
+        key = sha_normalized(line)
+        if (had_sha) re_added[key]++
+      }
+    }
     /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
-    /^\t/ { if (sha != "") printf "%s\t%s\n", sha, substr($0, 2) }
+    /^\t/ {
+      if (sha == "") next
+      text = substr($0, 2)
+      key = sha_normalized(text)
+      if (had_sha && re_added[key] > 0) { re_added[key]--; next }
+      printf "%s\t%s\n", sha, text
+    }
   ' "$blame_out"
-  rm -f "$blame_out"
+  rm -f "$blame_out" "$added_out"
 }
 
 # run_attributing_git <stdout-file> <fail-label> <git-args...>

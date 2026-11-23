@@ -15,8 +15,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { bodyVersion, REFINE_MARKER, splitChildHeader, splitItemsLine } from "../intake-triage/admit.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
+import { bodyVersion, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
+import { splitChildHeader } from "../intake-triage/size-split.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";

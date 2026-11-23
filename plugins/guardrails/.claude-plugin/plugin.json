@@ -97,7 +97,7 @@
     "block_unresolved_pr_merge_enabled": {
       "type": "boolean",
       "title": "Block-unresolved-PR-merge guard",
-      "description": "Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default.",
+      "description": "Blocks a pull-request merge while the PR has unresolved review threads, a changes-requested review, failing checks or, where pr-verify judges it, no PASS at its head; also blocks removing the pr-verify-failed label. Fails open, visibly, when the PR state cannot be read. On by default.",
       "default": true
     },
     "merge_guard_ignored_checks": {
@@ -246,5 +246,5 @@
       "default": ""
     }
   },
-  "version": "3.12.4"
+  "version": "4.1.0"
 }

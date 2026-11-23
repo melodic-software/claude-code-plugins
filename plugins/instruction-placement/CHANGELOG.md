@@ -3,6 +3,36 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.6] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [1.10.5] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [1.10.4] - 2026-11-22
+
+### Changed
+
+- The example finding in `context/findings-artifact.md` and the first suppression entry in `reference/consumer-config.md` use a generic `Test conventions` section in place of a C# heading and a `.cs` glob. Their `anchor/v1` and `finding_id` values, and the golden vectors in `scripts/detect.test.sh`, are re-derived from the new heading.
+
+## [1.10.3] - 2026-11-22
+
+### Fixed
+
+- The load probe and the adherence experiment use the repository's `node_modules/.bin/claude` only when it runs, and fall back to `claude` on PATH otherwise, so a root install with scripts off no longer leaves them on a stub that does not run.
+
+## [1.10.2] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [1.10.1] - 2026-11-22
 
 ### Changed

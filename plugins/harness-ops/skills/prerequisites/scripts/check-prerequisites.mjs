@@ -60,7 +60,6 @@ function gitToplevel(cwd) {
   return r.status === 0 ? r.stdout.trim() : "";
 }
 
-// The text of `claude plugin list --json`, or "" when claude is absent or fails.
 function claudeListing(env, platform) {
   const claude = which("claude", env, platform);
   if (!claude) return "";
@@ -98,7 +97,6 @@ function parseArgs(argv) {
   return { help: false, roots };
 }
 
-// run(argv, ctx, io) -> exit code. ctx and io are injectable.
 export function run(argv, ctx = {}, io = {}) {
   const env = ctx.env ?? process.env;
   const platform = ctx.platform ?? process.platform;

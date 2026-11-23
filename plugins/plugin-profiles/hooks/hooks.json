@@ -1,12 +1,12 @@
 {
-  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface; prints nothing in a folder with no applied profile unless the session was resumed without the profile it ran in, records the profile a one-session start runs in by session id, reads installed plugins from disk and never starts a nested claude. The module answers /plugin-profile, the in-session switch, and runs its one /reload-plugins when the turn ends.",
+  "description": "At session start, names the folder's plugin profile, the entries that differ from it, plugins installed since it was applied, an unfinished switch and the surface; prints nothing in a folder with no applied profile unless the session was resumed without the profile it ran in, records the profile a one-session start runs in by session id and every session's profile, or none, as its folder's last so claude -c continues in the last session's profile, names a resumed session's profile change, and in a one-session profile tells the model, again after compaction, how to reopen the conversation with a plugin the profile switched off; reads installed plugins from disk and never starts a nested claude. The module answers /plugin-profile, the in-session switch, and runs its one /reload-plugins when the turn ends.",
   "modules": [
     "./register.tsx"
   ],
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",

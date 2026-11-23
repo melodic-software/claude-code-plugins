@@ -3,6 +3,33 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.0] - 2026-11-23
+
+### Changed
+
+- `codify rules` gives each `delete` a reason (derivable, no-op, duplicate or stale) with what shows it, holds a misplaced rule with a hand-off to `/instruction-placement:audit`, and points stale and conflicting rules to `/harness-config:audit-instructions`.
+- `codify`'s `## Next` names `/toolchain:ratchet` and `/architecture:enforce-boundaries`.
+
+## [1.9.2] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+
+## [1.9.1] - 2026-11-22
+
+### Changed
+
+- The finding classes point at `docs/conventions/ecosystems/<ecosystem>.yaml`. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [1.9.0] - 2026-11-22
+
+### Changed
+
+- Codify's `automated-review` rung writes to the repository's review-criteria index when it has
+  one, else a repository-owned `CODING_STANDARDS.md`, else `REVIEW.md`, and skips a file a
+  standards-sync bot owns (enforcement-ladder 3.4.0).
+
 ## [1.8.5] - 2026-11-21
 
 ### Changed

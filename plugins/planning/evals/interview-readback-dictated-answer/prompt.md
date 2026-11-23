@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the per-answer read-back. Why hard: the dictated reply reads 'fee chair flag' for 'feature flag' and departs from two recommendations, so recording the answers as typed, or echoing them verbatim, both look like progress."
-tags: [interview, read-back, dictation]
+tags: [interview, read-back, dictation, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

@@ -72,10 +72,12 @@ import { appendFileSync, closeSync, existsSync, lstatSync, mkdtempSync, openSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { laneBranch, laneBranchPattern } from "../lib/lane-branch.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, installScriptPinRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
+import { declarationRefusal } from "../pr-unblock/test-scope.mjs";
 import { NOTE_ID, sharedCopyPairs, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
@@ -264,13 +266,13 @@ const blobText = (git, sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob",
 
 // The mode of `path` in the tree `treeSha`, walked one directory at a time
 // through the Git trees API; null when it is absent.
-async function modeAt(api, treeSha, path) {
+async function entryAt(api, treeSha, path) {
   const parts = path.split("/");
   let sha = treeSha;
   for (const [i, name] of parts.entries()) {
     const item = ((await api.getTree(sha))?.tree ?? []).find((row) => row?.path === name);
     if (i === parts.length - 1) {
-      return item?.type === "blob" ? item.mode : null;
+      return item ?? null;
     }
     if (item?.type !== "tree") {
       return null;
@@ -278,6 +280,11 @@ async function modeAt(api, treeSha, path) {
     sha = item.sha;
   }
   return null;
+}
+
+async function modeAt(api, treeSha, path) {
+  const item = await entryAt(api, treeSha, path);
+  return item?.type === "blob" ? item.mode : null;
 }
 
 // A row's content rule: what each changed file's bytes must also meet, read
@@ -336,6 +343,18 @@ export const CONTENT_RULES = {
     const [entry] = entries;
     const scope = await CONTENT_RULES["dependency-version-change"]({ entries, git, context });
     return scope ?? installScriptPinRefusal(blobText(git, entry.oldSha), blobText(git, entry.newSha));
+  },
+  "test-scope-lines": async ({ entries, git }) => {
+    for (const entry of entries) {
+      if (entry.status?.[0] !== "M" || entry.oldMode !== entry.newMode || ![REGULAR, EXECUTABLE].includes(entry.newMode)) {
+        return `${entry.path} is not a file modified in place`;
+      }
+      const why = declarationRefusal(entry.path, blobText(git, entry.oldSha), blobText(git, entry.newSha));
+      if (why) {
+        return `${entry.path}: ${why}`;
+      }
+    }
+    return null;
   },
 };
 
@@ -560,8 +579,6 @@ export function loadRules(baseDir) {
   return JSON.parse(readFileSync(join(baseDir, RULES_PATH), "utf8"));
 }
 
-const laneBranch = (lane, issue) => new RegExp(`^${lane}/issue-${issue}-[1-9][0-9]*-[1-9][0-9]*$`);
-
 const movedFrom = (head, tip) => `the PR branch moved from ${head} to ${tip}; the patch is superseded`;
 
 // Where a target's commit goes. `row` names the row it reads; `number` the
@@ -603,7 +620,7 @@ export const TARGETS = {
     number: "issue",
     env: ["ISSUE_NUMBER", "REQUIRED_LABELS", "PATCH_BASE_SHA"],
     movedHead: false,
-    checkRef: (ref, { lane, issue }) => (laneBranch(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${lane}/issue-${issue}-<run id>-<attempt> branch`),
+    checkRef: (ref, { lane, issue }) => (laneBranchPattern(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${laneBranch(lane, issue, "<run id>", "<attempt>")} branch`),
     // A hold label added, or a required label (agent-ready) removed, while
     // the model worked stops the commit.
     async held(api, number, { holds, required }) {
@@ -726,6 +743,19 @@ export function checkRow(row) {
   // Lane-Thread lines name kept threads, so only a kept-threads row writes them.
   if (row["thread-trailer"] !== undefined && (row["thread-trailer"] !== true || !row.allow.includes("kept-threads"))) {
     fail("sets thread-trailer but does not allow kept-threads");
+  }
+  if (
+    row["api-only"] !== undefined &&
+    (row["api-only"] !== true ||
+      row.target !== "pr" ||
+      isMerge(row) ||
+      row["skip-moved-head"] !== true ||
+      row["script-exec-bit"] === true ||
+      row["thread-trailer"] !== undefined ||
+      row["reads-report"] !== null ||
+      !Object.hasOwn(CONTENT_RULES, String(row["content-rule"])))
+  ) {
+    fail("sets api-only but is not a pull request row that skips a moved head and checks content with a refusing rule");
   }
   return row;
 }
@@ -1200,6 +1230,151 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
   }
 }
 
+const DEPENDABOT_LOGIN = "dependabot[bot]";
+
+function numstatPaths(git, patchFile) {
+  const fields = git(["apply", "--numstat", "-z", patchFile]).toString("utf8").split("\0");
+  const paths = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const path = fields[i].split("\t")[2];
+    if (path === "") {
+      paths.push(fields[i + 1], fields[i + 2]);
+      i += 2;
+    } else if (path !== undefined) {
+      paths.push(path);
+    }
+  }
+  return [...new Set(paths)];
+}
+
+async function pushApiOnly({ api, gitBin, row, context, allow, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log }) {
+  const problem = patchProblem(patchFile, patchSha256);
+  if (problem) {
+    return escalate(problem.kind, problem.why);
+  }
+  if (patchHeadSha !== headSha) {
+    log("the head moved since the producer's run; the row takes no moved head");
+    return { outcome: "superseded" };
+  }
+  const head = await api.getCommit(headSha);
+  const headTree = head?.tree?.sha;
+  if (!SHA.test(String(headTree ?? ""))) {
+    throw new Error(`the head commit ${headSha} names no tree`);
+  }
+  const trailer = message.split("\n")[2];
+  if (String(head.message ?? "").split("\n").some((line) => line.trim() === trailer)) {
+    log(`the head is this activity's own commit (${trailer}); nothing is pushed`);
+    return { outcome: "not-applicable" };
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "apply-patch-api-"));
+  try {
+    const git = gitRunner(scratch, gitBin, { GIT_DIR: join(scratch, "git"), GIT_INDEX_FILE: join(scratch, "index"), GIT_LITERAL_PATHSPECS: "1" });
+    git(["init", "-q"]);
+    git(["read-tree", "--empty"]);
+    let paths;
+    try {
+      paths = numstatPaths(git, patchFile);
+    } catch {
+      return escalate("not-applied", "the patch does not parse");
+    }
+    const records = [];
+    for (const path of paths) {
+      const item = await entryAt(api, headTree, path);
+      if (item === null) {
+        continue;
+      }
+      if (item.type !== "blob") {
+        return escalate("invalid", `${path} is not a file at the head`);
+      }
+      const bytes = Buffer.from(String((await api.getBlob(item.sha))?.content ?? ""), "base64");
+      const sha = git(["hash-object", "-w", "--no-filters", "--stdin"], { input: bytes, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim();
+      if (sha !== item.sha) {
+        throw new Error(`the head blob of ${JSON.stringify(path)} reads as ${sha}, not ${item.sha}`);
+      }
+      records.push(`${item.mode} ${item.sha}\t${path}\0`);
+    }
+    if (records.length > 0) {
+      git(["update-index", "--add", "-z", "--index-info"], { input: records.join(""), stdio: ["pipe", "pipe", "pipe"] });
+    }
+    const partial = git(["write-tree"]).toString("utf8").trim();
+    let tree;
+    try {
+      git(["apply", "--cached", "--check", patchFile]);
+      git(["apply", "--cached", patchFile]);
+      tree = git(["write-tree"]).toString("utf8").trim();
+    } catch {
+      return escalate("not-applied", "the patch does not apply to the gated head");
+    }
+    const entries = diffEntries(git, partial, tree);
+    if (entries.length === 0) {
+      return escalate("empty", "the patch changes nothing");
+    }
+    const leaked = leakedBlob(git, entries);
+    if (leaked) {
+      return escalate("credential", leakWhy(leaked));
+    }
+    const refuse = [...row.refuse, ...ALWAYS];
+    const renames = diffEntries(git, partial, tree, ["-M", "--diff-filter=R"]);
+    const refused = firstRefusal([...renames.map((entry) => [entry, ["rename-into-refused"]]), ...entries.map((entry) => [entry, refuse])]);
+    if (refused) {
+      return escalate(refused.kind, refused.why);
+    }
+    if (row["max-files"] !== null && entries.length > row["max-files"]) {
+      return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
+    }
+    const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
+    if (outside) {
+      return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
+    }
+    const written = entries.filter((entry) => !ZERO.test(entry.newSha));
+    const oversize = oversizeBlobs(git, written);
+    if (oversize) {
+      return escalate("invalid", oversize);
+    }
+    const contentRefusal = await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr: number, headSha });
+    if (contentRefusal) {
+      return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
+    }
+    if ((await api.getPull(number))?.user?.login === DEPENDABOT_LOGIN) {
+      log("Dependabot opened the pull request; the patch is dropped");
+      return { outcome: "held" };
+    }
+    if (await target.held(api, number, { holds: new Set(holdLabels), required: [], repository })) {
+      log(`the ${row.target} is held; the patch is dropped`);
+      return { outcome: "held" };
+    }
+    const movedEarly = await target.ready(api, headRef, headSha);
+    if (movedEarly) {
+      log(movedEarly);
+      return { outcome: "superseded" };
+    }
+    const treeEntries = entries.filter((entry) => ZERO.test(entry.newSha)).map((entry) => ({ path: entry.path, mode: entry.oldMode, type: "blob", sha: null }));
+    for (const entry of written) {
+      const sha = await api.createBlob(git(["cat-file", "blob", entry.newSha]).toString("base64"));
+      if (sha !== entry.newSha) {
+        throw new Error(`GitHub stored a blob as ${sha}, not ${entry.newSha}`);
+      }
+      treeEntries.push({ path: entry.path, mode: entry.newMode, type: "blob", sha });
+    }
+    const built = await buildTree(api, headTree, treeEntries);
+    for (const entry of entries) {
+      const item = await entryAt(api, built, entry.path);
+      const ok = ZERO.test(entry.newSha) ? item === null : item?.sha === entry.newSha && item?.mode === entry.newMode;
+      if (!ok) {
+        throw new Error(`GitHub built tree ${built} without the patched ${JSON.stringify(entry.path)}; nothing is committed`);
+      }
+    }
+    const commit = await api.createCommit(message, built, [headSha]);
+    if (!(await landed(target, api, headRef, commit, headSha, log))) {
+      return { outcome: "superseded" };
+    }
+    log(`pushed ${commit} (${entries.length} path(s)) onto ${headRef} over the API`);
+    return { outcome: "pushed", commit, branch: headRef };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 export async function push({
   api,
   cwd,
@@ -1254,6 +1429,9 @@ export async function push({
   }
   if (isMerge(row)) {
     return pushMerge({ api, cwd, gitBin, row, context, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log });
+  }
+  if (row["api-only"] === true) {
+    return pushApiOnly({ api, gitBin, row, context, allow, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log });
   }
   const problem = patchProblem(patchFile, patchSha256);
   if (problem) {
@@ -1492,6 +1670,8 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sl
     // The merge base and a tree, for the pr-mode-revert content rule (contents read).
     compare: async (base, head) => (await request(`compare/${base}...${head}`)).data,
     getTree: async (sha) => (await request(`git/trees/${sha}`)).data,
+    getCommit: async (sha) => (await request(`git/commits/${sha}`)).data,
+    getBlob: async (sha) => (await request(`git/blobs/${sha}`)).data,
     async listLabels(pr) {
       const { data, link } = await request(`issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {

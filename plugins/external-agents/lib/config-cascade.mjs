@@ -69,7 +69,7 @@
 // This module reads files only. File contents are data; error messages quote them as JSON strings.
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
 import { parse } from "./yaml-subset.mjs";
 
 const PLUGIN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -101,11 +101,45 @@ function fileLayersOf(plugin, projectRoot, home) {
   const homeDir = resolvePath(projectRoot, home);
   // A relative home is inside the checkout by intent; a committed symlink must not carry it out.
   const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
+  const outside = homeEscapes ? homeDir : null;
+  let local = [join(homeDir, `${plugin}.local`), outside];
+  const main = !homeEscapes && !isAbsolute(home) && !hasLayerFile(local[0]) && mainCheckoutOfLinkedWorktree(projectRoot);
+  if (main) {
+    const mainHome = resolvePath(main, home);
+    local = [join(mainHome, `${plugin}.local`), escapes(mainHome, main) ? mainHome : null];
+  }
   const stems = [
-    ["team", join(homeDir, plugin)],
-    ["local", join(homeDir, `${plugin}.local`)],
+    ["team", join(homeDir, plugin), outside],
+    ["local", ...local],
   ];
   return { homeDir, homeEscapes, stems };
+}
+
+const exists = (path) => {
+  const state = fileState(path);
+  return Boolean(state.ok || state.refused);
+};
+const hasLayerFile = (stem) => exists(`${stem}.yaml`) || exists(`${stem}.md`);
+const isDirectory = (path) => {
+  try {
+    return lstatSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+function mainCheckoutOfLinkedWorktree(root) {
+  const gitFile = join(root, ".git");
+  const pointer = fileState(gitFile).ok && readText(gitFile)?.match(/^gitdir: *(.+?)\s*$/m)?.[1];
+  if (!pointer) return null;
+  const gitDir = resolvePath(root, pointer);
+  const commonFile = join(gitDir, "commondir");
+  const common = fileState(commonFile).ok && readText(commonFile)?.trim();
+  if (!common) return null;
+  const commonDir = resolvePath(gitDir, common);
+  if (basename(commonDir) !== ".git" || !isDirectory(commonDir)) return null;
+  const main = dirname(commonDir);
+  return resolvePath(main) === resolvePath(root) ? null : main;
 }
 
 const escapedLayer = (name, stem, homeDir) =>
@@ -468,9 +502,9 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   take(d.layer, d.ok && fileLeaves(defaults, true));
   const u = shaped("userConfig", userConfig);
   take(u.layer, u.ok && ((fail) => userConfigLeaves(userConfig, names, only, fail)));
-  for (const [name, stem] of stems) {
-    if (homeEscapes) {
-      take(escapedLayer(name, stem, homeDir));
+  for (const [name, stem, outside] of stems) {
+    if (outside) {
+      take(escapedLayer(name, stem, outside));
       continue;
     }
     const read = readLayer(name, stem);
@@ -565,13 +599,13 @@ export function readLayers({ plugin, projectRoot = null, home = "docs/convention
   if (isMapping(userConfig)) add(newLayer("userConfig", null, "loaded"), (fail) => userConfigLeaves(userConfig, flatNames(schema, only), only, fail));
   if (!projectRoot) return { layers, legacy: legacyOf(plugin, userHome, null, false) };
   const { homeDir, homeEscapes, stems } = fileLayersOf(plugin, projectRoot, home);
-  for (const [name, stem] of stems) {
+  for (const [name, stem, outside] of stems) {
     const fileLeaves = (data) => data && ((fail) => leaves(data, schema, { teamOnly: only, allowTeamOnly: name === "team", fail }));
     if (name === "team" && team) {
       const layer = newLayer(name, team.path, "absent");
       add(layer, typeof team.text === "string" && fileLeaves(parseInto(layer, () => team.text)));
-    } else if (homeEscapes) {
-      add(escapedLayer(name, stem, homeDir));
+    } else if (outside) {
+      add(escapedLayer(name, stem, outside));
     } else {
       const read = readLayer(name, stem);
       add(read.layer, fileLeaves(read.data));

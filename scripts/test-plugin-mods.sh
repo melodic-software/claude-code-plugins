@@ -113,24 +113,35 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! version_at_least "$versio
   exit 0
 fi
 
-# The mods' tests run in parallel; each one's output is buffered and printed in
-# order.
 buf="$(mktemp -d)" || exit 2
 trap 'rm -rf "$buf"' EXIT
 pids=()
 for i in "${!mods[@]}"; do
-  claude plugin test "${mods[i]}" >"$buf/$i.out" 2>"$buf/$i.err" &
+  claude plugin test "${mods[i]}" >"$buf/$i.out" 2>&1 &
   pids[i]=$!
 done
-failed=0
+failed=()
 for i in "${!mods[@]}"; do
   echo "=== claude plugin test ${mods[i]} ==="
-  wait "${pids[i]}" || failed=1
+  rc=0
+  wait "${pids[i]}" || rc=$?
   cat "$buf/$i.out"
-  cat "$buf/$i.err" >&2
+  ((rc == 0)) && continue
+  failed+=("${mods[i]}")
+  tests=""
+  while IFS= read -r line; do
+    [[ $line =~ ^\(fail\)\ (.+)$ ]] || continue
+    line="${BASH_REMATCH[1]}"
+    [[ $line =~ ^(.+)\ \[[0-9.]+m?s\]$ ]] && line="${BASH_REMATCH[1]}"
+    tests+="${tests:+; }$line"
+  done <"$buf/$i.out"
+  msg="${mods[i]}: ${tests:-exit $rc with no (fail) line; see the log above}"
+  msg="${msg//'%'/%25}"
+  echo "::error title=Mod tests failed::$msg"
 done
-if [[ $failed -ne 0 ]]; then
+if [[ ${#failed[@]} -gt 0 ]]; then
   echo "Mod tests failed." >&2
+  echo "Failing mod plugins: ${failed[*]}" >&2
   exit 1
 fi
 echo "All mod tests passed."

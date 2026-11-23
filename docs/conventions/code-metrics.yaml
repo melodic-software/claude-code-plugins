@@ -8,20 +8,9 @@ scope:
     - "**/build/**"
     - "**/package-lock.json"
     - "**/CHANGELOG.md"
-    # Generated from lights.glsl by glsl2dsl.mjs, not edited by hand: see the first line of
-    # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/themes/hooks/bedroom/lights.ts
     - "plugins/themes/hooks/bedroom/lights.ts"
     - "scripts/shared-copies.txt"
-  # The files this repository vendors into several plugins on purpose. An audit
-  # collapses their rows to one per function with a replica count instead of
-  # counting each copy, and a clone across the copies is an exclusion, not debt.
+    - "scripts/skill-links.json"
   registries: [scripts/cross-plugin-source-registry.txt]
-  # A whole-tree duplication audit still lists per-suite shell test scaffolding
-  # (the pass/fail helpers, counters, and result footer that lib/*.test.sh and
-  # plugins/**/*.test.sh each define) as its largest surviving classes. Those
-  # rows are expected: docs/contracts/shell-test-helpers/README.md keeps the
-  # helpers per file on purpose, and no sync script declares them, so the
-  # registry above carries no cluster line for them and the audit cannot
-  # exclude them. Decided in #4125; reopen through that convention, not here.
 size:
   check: crossing

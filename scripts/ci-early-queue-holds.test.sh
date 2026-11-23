@@ -50,10 +50,6 @@ RULES="$TMP_ROOT/rules"
 mkdir -p "$RULES"
 cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$ROOT/.github/actions/log-api-budget/api-budget.bash" "$RULES/"
 
-# The gh stub logs its arguments and, under GH_DEBUG, the request line the
-# api-budget wrapper counts. A pulls read answers STUB_PULL, after a header
-# block when the wrapper added -i. A statuses read applies the step's --jq to
-# STUB_STATUSES (newest first). STUB_FAIL=pulls|statuses fails that read.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -67,8 +63,8 @@ case "$*" in
   ;;
 */statuses*)
   [[ "${STUB_FAIL:-}" != statuses ]] || exit 1
-  while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
-  jq -r "$2" <<<"${STUB_STATUSES:-[]}"
+  [[ "$2" != -i ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 3999\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  printf '%s\n' "${STUB_STATUSES:-[]}"
   ;;
 *) exit 1 ;;
 esac
@@ -105,13 +101,25 @@ expect() {
 
 expect "an unheld pull request passes" 0 "$(pull)" "[$(status pr-unblock/fix-ci success)]" \
   "#7: no hold label or kill switch holds it before the lanes." "::error::"
-if grep -q "^api -i repos/o/r/pulls/7$" "$TMP_ROOT/log" && ! grep -q "/statuses" "$TMP_ROOT/log"; then
-  ok "it reads #7 and no statuses"
+if [[ "$(cat "$TMP_ROOT/log")" == "api -i repos/o/r/pulls/7"$'\n'"api -i repos/o/r/commits/$HEAD/statuses?per_page=100" ]]; then
+  ok "it reads #7 and its head's statuses, once each"
 else
   fail "unexpected reads: '$(cat "$TMP_ROOT/log")'"
 fi
-expect "the step ends with its api-calls notice: the pull" 0 "$(pull)" "[]" \
-  "::notice title=api-calls::github-token=1 not-modified=0"
+if [[ "$(jq -r '.[0].context' "$TMP_ROOT/queued-head-statuses.json" 2>&1)" == pr-unblock/fix-ci ]]; then
+  ok "the head's statuses are kept for the merge-group scope step"
+else
+  fail "queued-head-statuses.json does not hold the statuses read: '$(cat "$TMP_ROOT/queued-head-statuses.json" 2>&1)'"
+fi
+expect "the step ends with its api-calls notice: the pull and the statuses" 0 "$(pull)" "[]" \
+  "::notice title=api-calls::github-token=2 not-modified=0"
+STUB_FAIL=statuses expect "an unreadable statuses page leaves the holds judged" 1 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
+  "::error::#7 carries the 'do-not-merge' label"
+if [[ ! -e "$TMP_ROOT/queued-head-statuses.json" ]]; then
+  ok "an unreadable statuses page leaves no statuses file"
+else
+  fail "a failed statuses read left '$(cat "$TMP_ROOT/queued-head-statuses.json")'"
+fi
 expect "do-not-merge fails before the lanes" 1 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
   "::error::#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge. The lanes do not run"
 expect "needs-human fails before the lanes" 1 "$(pull '[{"name":"needs-human"}]')" "[]" "::error::#7 carries 'needs-human'"

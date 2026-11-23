@@ -24,9 +24,11 @@ Sources, one adapter each:
   settings    .claude/settings.json: each permissions.deny entry is a
               harness-setting; each PreToolUse or PermissionRequest handler is
               an action-guard
-  ecosystems  .claude/ecosystems/*.yaml: each command line of check-cmd is an
-              analyzer-pack-rule, of test-cmd a behavior-test, of build-cmd a
-              compiler-setting, of fix-cmd a formatter
+  ecosystems  docs/conventions/ecosystems/*.yaml, and a legacy
+              .claude/ecosystems/*.yaml of a name not there: each command line
+              of check-cmd is an analyzer-pack-rule, of test-cmd a
+              behavior-test, of build-cmd a compiler-setting, of fix-cmd a
+              formatter
   test files  tracked files named *.test.*, *.spec.*, *_test.*, test_*.* or
               *Tests.*, outside fixtures and testdata directories, one
               behavior-test row per file (a unit of files, not of test cases)
@@ -251,8 +253,12 @@ unreadable) note "settings: $settings unreadable" ;;
 esac
 
 eco_n=0
-for f in .claude/ecosystems/*.yaml; do
+for f in docs/conventions/ecosystems/*.yaml .claude/ecosystems/*.yaml; do
   [[ -e "$f" ]] || continue
+  if [[ "$f" == .claude/* && -e "docs/conventions/ecosystems/${f##*/}" ]]; then
+    note "ecosystems: $f is not read: docs/conventions/ecosystems/${f##*/} takes its place; delete it"
+    continue
+  fi
   if [[ ! -r "$f" ]]; then note "ecosystems: $f unreadable"; continue; fi
   eco_n=$((eco_n + 1))
   name="${f##*/}"; name="${name%.yaml}"
@@ -283,7 +289,7 @@ for f in .claude/ecosystems/*.yaml; do
   ' "$f")
 done
 if [[ "$eco_n" -eq 0 ]]; then
-  note "ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
+  note "ecosystems: no docs/conventions/ecosystems/*.yaml or .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
 else
   note "ecosystems: $eco_n record(s) read"
 fi

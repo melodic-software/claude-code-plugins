@@ -57,7 +57,6 @@ run_gate() {
   (cd "$repo" && bash scripts/check-fixture-git-isolation.sh "$@" 2>&1)
 }
 
-# --- usage -------------------------------------------------------------------
 new_repo
 r="$REPO"
 commit_all "$r"
@@ -69,7 +68,6 @@ else
   fail "unknown flag: rc=$rc out='$out'"
 fi
 
-# --- a fixture-building suite with no isolation is a VIOLATION ---------------
 new_repo
 r="$REPO"
 cat >"$r/leaky.test.sh" <<'SH'
@@ -87,7 +85,6 @@ else
   fail "unisolated suite: rc=$rc out='$out'"
 fi
 
-# --- the same suite clearing the environment itself PASSES -------------------
 new_repo
 r="$REPO"
 cat >"$r/clean.test.sh" <<'SH'
@@ -129,7 +126,6 @@ else
   fail "discovery-only clear: rc=$rc out='$out'"
 fi
 
-# --- clearing only GIT_DIR is NOT enough -------------------------------------
 new_repo
 r="$REPO"
 cat >"$r/half.test.sh" <<'SH'
@@ -148,7 +144,6 @@ else
   fail "half-clearing suite: rc=$rc out='$out'"
 fi
 
-# --- sourcing a harness that clears the environment PASSES -------------------
 new_repo
 r="$REPO"
 mkdir -p "$r/lib"
@@ -173,7 +168,6 @@ else
   fail "harness-sourcing suite: rc=$rc out='$out'"
 fi
 
-# --- a harness that STOPS clearing re-exposes every suite that sources it ----
 new_repo
 r="$REPO"
 mkdir -p "$r/lib"
@@ -195,7 +189,6 @@ else
   fail "regressed harness: rc=$rc out='$out'"
 fi
 
-# --- a baselined violation is grandfathered ----------------------------------
 new_repo
 r="$REPO"
 cat >"$r/leaky.test.sh" <<'SH'
@@ -215,7 +208,6 @@ else
   fail "baselined violation: rc=$rc out='$out'"
 fi
 
-# --- a STALE baseline entry fails --------------------------------------------
 new_repo
 r="$REPO"
 cat >"$r/fixed.test.sh" <<'SH'
@@ -235,7 +227,6 @@ else
   fail "stale baseline: rc=$rc out='$out'"
 fi
 
-# --- a suite that builds no fixture is ignored -------------------------------
 new_repo
 r="$REPO"
 cat >"$r/pure.test.sh" <<'SH'
@@ -253,7 +244,6 @@ else
   fail "non-fixture suite: rc=$rc out='$out'"
 fi
 
-# --- prose about `git init` in a comment does not conscript a suite ----------
 new_repo
 r="$REPO"
 cat >"$r/prose.test.sh" <<'SH'
@@ -271,7 +261,6 @@ else
   fail "prose-only suite: rc=$rc out='$out'"
 fi
 
-# --- --list reports a verdict per suite without failing ----------------------
 new_repo
 r="$REPO"
 cat >"$r/leaky.test.sh" <<'SH'
@@ -431,7 +420,6 @@ else
   fail "python cleared: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: popping only GIT_DIR is NOT enough ------------------------------
 new_repo
 r="$REPO"
 cat >"$r/test_half.py" <<'PY'
@@ -450,7 +438,6 @@ else
   fail "python half-cleared: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: popping the discovery pair without GIT_CONFIG is NOT enough -----
 new_repo
 r="$REPO"
 cat >"$r/test_no_config.py" <<'PY'
@@ -715,7 +702,6 @@ else
   fail "shell continued fixture: rc=$rc out='$out'"
 fi
 
-# --- SHELL: a backslash-continued unset of all three PASSES ----------
 new_repo
 r="$REPO"
 cat >"$r/continued-unset.test.sh" <<'SH'
@@ -758,7 +744,6 @@ else
   fail "shell env -u clear: rc=$rc out='$out'"
 fi
 
-# --- SHELL: every fixture command wrapped with env -u PASSES -----------------
 new_repo
 r="$REPO"
 cat >"$r/env-all.test.sh" <<'SH'
@@ -815,7 +800,6 @@ else
   fail "shell env -u semicolon: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u of the discovery pair without GIT_CONFIG is NOT enough ----
 new_repo
 r="$REPO"
 cat >"$r/env-half.test.sh" <<'SH'
@@ -832,7 +816,6 @@ else
   fail "shell env -u discovery-only: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a module-level constant iterated into pop PASSES --------
 new_repo
 r="$REPO"
 cat >"$r/test_const_clear.py" <<'PY'
@@ -855,7 +838,6 @@ else
   fail "python const clear: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a constant that only NAMES the vars does not credit -------------
 new_repo
 r="$REPO"
 cat >"$r/test_const_mention.py" <<'PY'
@@ -874,7 +856,6 @@ else
   fail "python const mention: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a REBOUND constant does not carry a stale binding ---------------
 new_repo
 r="$REPO"
 cat >"$r/test_const_rebound.py" <<'PY'
@@ -896,7 +877,6 @@ else
   fail "python const rebound: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: rebinding a constant to a CALL drops the earlier literal --------
 new_repo
 r="$REPO"
 cat >"$r/test_const_rebind_call.py" <<'PY'
@@ -920,7 +900,6 @@ else
   fail "python const rebind-call: rc=$rc out='$out'"
 fi
 
-# --- SCOPE: a declared counter-fixture is exempt -----------------------------
 new_repo
 r="$REPO"
 cat >"$r/counter.test.sh" <<'SH'

@@ -10,7 +10,6 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S"
@@ -24,7 +23,6 @@ assert_usage_error "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/ENG#12"
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-# --- both ends face the authorization boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#1" --blocked-by "linear:acme/ENG#4")"
 assert_eq "out-of-scope target → exit 2" "2" "$rc"
@@ -49,12 +47,10 @@ assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
 assert_eq "id is the blocked item" "linear:acme/ENG#12" "$(jq -r '.id' <<<"$(lin_out)")"
 assert_eq "blocked_by is the blocker" "linear:acme/ENG#4" "$(jq -r '.blocked_by' <<<"$(lin_out)")"
 assert_eq "linked" "true" "$(jq -r '.linked' <<<"$(lin_out)")"
-# The BLOCKER is the relation's source and the blocked item is its target.
 assert_contains "the blocker is the relation source" "$(lin_bodies)" '"issueId":"uuid-issue-4"'
 assert_contains "the blocked item is the relation target" "$(lin_bodies)" '"relatedIssueId":"uuid-issue-12"'
 assert_contains "the relation type is blocks" "$(lin_bodies)" '"type":"blocks"'
 
-# --- cross-team edges are allowed within the declared scope ---
 lin_write_binding '{"scopes":["acme/ENG","acme/OPS"]}'
 lin_reset
 lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
@@ -66,13 +62,11 @@ assert_eq "cross-team link → exit 0" "0" "$rc"
 assert_eq "blocked_by names the other team" "linear:acme/OPS#7" "$(jq -r '.blocked_by' <<<"$(lin_out)")"
 lin_write_binding
 
-# --- a missing endpoint is exit 5 ---
 lin_reset
 lin_data 'issues(filter:' '{"issues":{"nodes":[]}}'
 rc="$(lin_run "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/ENG#4")"
 assert_eq "missing target issue → exit 5" "5" "$rc"
 
-# --- GraphQL errors inside a 200 still fail ---
 lin_reset
 lin_seed 'issueRelationCreate' 200 '{"errors":[{"message":"nope","extensions":{"type":"AuthenticationError"}}]}'
 lin_seed_issue 12 started

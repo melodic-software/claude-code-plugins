@@ -19,8 +19,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import babysit_review_evidence as evidence
-import babysit_risk as risk
-from babysit_risk import ChangedFile, FloorRowError, LaneEvidence, floor_for, floor_rows
+import diff_risk as risk
+from diff_risk import ChangedFile, FloorRowError, LaneEvidence, floor_for, floor_rows
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 PIPELINE = (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
@@ -48,6 +48,7 @@ SHARED = {
 }
 REVIEW_SURFACE = (
     ".github/scripts/pr-review-main/**",
+    ".github/scripts/diff-chunking/**",
     "docs/conventions/instruction-exception-register/**",
     "docs/conventions/untrusted-content/**",
     "docs/standards/**",
@@ -57,6 +58,10 @@ PROMPT_TEXT = (
     ".github/scripts/intake-triage/triage-rubric.txt",
     ".github/scripts/intake-triage/refine-schema.json",
     ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+)
+LANE_SCRIPTS = (
+    ".github/scripts/pr-unblock/test-scope.mjs",
+    ".github/scripts/pr-unblock/declare-test-scope.mjs",
 )
 
 
@@ -91,25 +96,25 @@ def _score(path: str, rows, reviewed: bool):
 
 
 class TheEffectiveFloorDidNotMove(unittest.TestCase):
-    """Computed from babysit_risk.py on main before the rows moved. A floor
+    """Computed from the floor on main before the rows moved. A floor
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 153)
+        self.assertEqual(len(FLOOR.classes), 167)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "1eae4679d3b4014bdac1b13894384430c670072d37d9f0d0469acb2527aae94c",
+            "700e7029e0ee4fa0e5197bb9912c1dbb1ca43b0b9fa98a52518d3dd4d6c585b0",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "5100a7b58dc7e278786c01caee509a523f472285ed6e286c522d2c030b35591e",
-            FLOOR.review: "3a4f09674325df7c18de2011f4933c02da302be76d69f38154de325c408374f1",
-            FLOOR.author_review: "ee05c62fe22aff1975c0bf1c655310f7b6d234fb24061a1d3791cef3aeb4287f",
+            FLOOR.high: "945bd54b1ad8d56e4602cedef8c10153954e011e5227018be34a981e5eee2f76",
+            FLOOR.review: "569b3a4dbbceceed73017600dd42ee834a40a53e8a59c9fb151f116aa09259c2",
+            FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (89, 64, 19),
+            (100, 67, 24),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -175,7 +180,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 153 - 32)
+        self.assertEqual(len(ROWS), 167 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
@@ -199,26 +204,29 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
     """Owner decision Q11 (A): a person clears these whatever the author did."""
 
     def test_they_stay_gate_rows_marked_no_lift(self):
-        for glob in REVIEW_SURFACE + PROMPT_TEXT:
+        for glob in REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS:
             with self.subTest(glob):
                 self.assertIn((glob, "gate", False), ROWS)
                 self.assertNotIn(glob, FLOOR.author_review)
 
     def test_only_those_rows_refuse_the_lift(self):
         self.assertEqual(
-            {g for g, _, lift in ROWS if not lift}, {*REVIEW_SURFACE, *PROMPT_TEXT}
+            {g for g, _, lift in ROWS if not lift},
+            {*REVIEW_SURFACE, *PROMPT_TEXT, *LANE_SCRIPTS},
         )
 
     def test_an_author_reviewed_path_on_one_still_holds_for_a_person(self):
         for glob, sample in zip(
-            REVIEW_SURFACE + PROMPT_TEXT,
+            REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS,
             (
                 ".github/scripts/pr-review-main/record.mjs",
+                ".github/scripts/diff-chunking/diff_chunking.py",
                 "docs/conventions/instruction-exception-register/README.md",
                 "docs/conventions/untrusted-content/README.md",
                 "docs/standards/REVIEW.md",
                 "docs/review/README.md",
                 *PROMPT_TEXT,
+                *LANE_SCRIPTS,
             ),
             strict=True,
         ):

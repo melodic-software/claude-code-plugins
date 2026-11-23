@@ -31,7 +31,6 @@ skip() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
-# A repository where a path-scoped rule genuinely covers the trigger file.
 build_fixture() {
   local dir
   dir="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
@@ -56,9 +55,6 @@ build_fixture() {
   printf '%s' "$dir"
 }
 
-# --------------------------------------------------------------------------
-# Usage
-# --------------------------------------------------------------------------
 out="$(run --help)"
 assert_contains "--help prints usage" "$out" "verify-load.sh"
 
@@ -84,15 +80,12 @@ else
   pass "an unmeasurable run never reports PASS"
 fi
 
-# --------------------------------------------------------------------------
-# Live probe — the reason this script exists
-# --------------------------------------------------------------------------
 CLI=""
 for candidate in \
   "${VERIFY_LOAD_CLAUDE_BIN:-}" \
   "$SCRIPT_DIR/../../../node_modules/.bin/claude" \
   "$(command -v claude 2>/dev/null || true)"; do
-  [[ -n "$candidate" && -x "$candidate" ]] && {
+  [[ -n "$candidate" && -x "$candidate" ]] && "$candidate" --version >/dev/null 2>&1 && {
     CLI="$candidate"
     break
   }
@@ -120,15 +113,12 @@ else
       "$(printf 'EXPECTED\tAGENTS.md\tMET')"
     assert_contains "the load reason is reported" "$out" "path_glob_match"
 
-    # The negative direction is the one that proves scoping actually defers:
-    # reading a .cs file must NOT pull in the TypeScript rule.
     if [[ "$out" == *"typescript.md"* ]]; then
       fail "a non-matching rule does NOT load" "no typescript.md in the load set" "$out"
     else
       pass "a non-matching rule does NOT load"
     fi
 
-    # An expectation that cannot be met must fail, not pass quietly.
     out_fail="$(run --root "$repo" --trigger src/Invoice.cs --claude "$CLI" \
       --expect .claude/rules/typescript.md --timeout 300)"
     rc_fail=$?
@@ -142,14 +132,6 @@ else
   fi
 fi
 
-# --------------------------------------------------------------------------
-# --expect must anchor on a path-component boundary
-#
-# An unanchored substring search marks `rules/csharp.md` MET when the only
-# loaded path is `.../old-rules/csharp.md`. For a tool whose whole job is not
-# lying about what loaded, a false MET is the worst possible defect, so the
-# near-miss is asserted directly.
-# --------------------------------------------------------------------------
 if [[ -n "$CLI" ]]; then
   near="$(build_fixture)"
   mkdir -p "$near/.claude/rules"
@@ -169,9 +151,6 @@ else
   skip "a near-miss expectation is MISSING, not MET" "no Claude Code CLI found"
 fi
 
-# --------------------------------------------------------------------------
-# The probe must never modify the repository under test
-# --------------------------------------------------------------------------
 dirty="$(git -C "$repo" status --porcelain | wc -l | tr -d ' ')"
 assert_eq "the probe leaves the repository under test untouched" "0" "$dirty"
 

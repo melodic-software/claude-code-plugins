@@ -1,20 +1,12 @@
 const MAX_PATTERN_LENGTH = 200
 const MAX_DEPTH = 64
-// A user pattern runs over windows of this many characters, each overlapping the next by half, so
-// its cost grows with the text's length, not its square; a match up to half a window is whole in one.
-const WINDOW = 1024
-// The guard's bound on the lengths a pattern tries at each start: one unbounded quantifier (a
-// window) times a small factor.
+export const WINDOW = 1024
 const MAX_COST = 4 * WINDOW
 const QUANTIFIER_BRACE = /^\{(\d+)(?:(,)(\d*))?\}/
 
-// Each built-in is anchored on a run start (a lookbehind) so a long run of word characters is
-// scanned once, not once per start position. Open-ended tails (`*`) mask a token still streaming.
 const BUILTIN_SOURCES = [
-  // An address with its TLD anywhere, or one still streaming at the end of the text.
   '(?<![\\p{L}\\p{M}\\p{N}._%+-])[\\p{L}\\p{M}\\p{N}._%+-]+@(?:[\\p{L}\\p{M}\\p{N}-]+(?:\\.[\\p{L}\\p{M}\\p{N}-]+)*\\.\\p{L}[\\p{L}\\p{M}]+|[\\p{L}\\p{M}\\p{N}-]*(?:\\.[\\p{L}\\p{M}\\p{N}-]*)*(?![\\s\\S]))',
   '(?<![A-Za-z0-9])sk-[\\w-]*',
-  // Markdown source can escape an underscore that the screen draws plain.
   '(?<![A-Za-z0-9_])gh[pousr]\\\\?_(?:\\w|\\\\_)*',
   '(?<![A-Za-z0-9_])github\\\\?_pat\\\\?_(?:\\w|\\\\_)*',
   '(?<![A-Za-z0-9])xox[abprs]-[\\w-]*',
@@ -23,11 +15,8 @@ const BUILTIN_SOURCES = [
   '-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\\s\\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|(?![\\s\\S]))',
 ]
 
-// The user patterns, which run per window.
 const EXTRA = new WeakSet<RegExp>()
 
-// A CSI sequence (colors, erase-line) or a two-character escape; OSC text such as a hyperlink
-// target is matched like any other text.
 const ANSI = /\u001b(?:\[[0-?]*[ -/]*[@-~]|[@-Z\\^_])/g
 
 const NOREPLY = /^noreply@/i
@@ -39,14 +28,10 @@ const isAllowed = (match: string, offset: number, text: string): boolean =>
 type Group = { quantified: boolean; alternates: boolean }
 type Quantifier = { range: number; length: number; repeats: boolean }
 
-// How many lengths a pattern can try at one start: the product of its quantifiers' ranges, an
-// unbounded one counted as a window. Infinity for a shape that backtracks without bound: a
-// quantified group holding a quantifier or an alternation, or a backreference.
 const backtrackCost = (source: string): number => {
   const groups: Group[] = [{ quantified: false, alternates: false }]
   let cost = 1
   let inClass = false
-  // The range of the quantifier at `i`, its length, and whether it repeats without a small bound.
   const quantifierAt = (i: number): Quantifier | undefined => {
     const c = source[i]
     let q: Quantifier | undefined
@@ -59,7 +44,6 @@ const backtrackCost = (source: string): number => {
       const max = m[2] === undefined ? min : m[3] === '' ? Infinity : Number(m[3])
       q = { range: Math.min(max - min + 1, WINDOW), length: m[0].length, repeats: true }
     }
-    // A lazy marker belongs to the quantifier.
     if (q && source[i + q.length] === '?') q.length++
     return q
   }
@@ -127,13 +111,8 @@ export function compilePatterns(extra: readonly string[]): { patterns: RegExp[];
 
 type Range = [number, number]
 
-// The spans every pattern matches, overlapping or touching ones joined, sorted. Patterns run over
-// the text with each escape sequence replaced by as many NUL characters, so a token right after a
-// color code starts a match and no escape becomes part of one; and, when it has escapes, over the
-// text without them, so an escape inside a token does not cut its match short.
 function findRanges(text: string, patterns: readonly RegExp[]): Range[] {
   const ranges: Range[] = []
-  // `origin(i)` is the offset in `text` of the view's character `i`.
   const scan = (view: string, origin: (i: number) => number) => {
     const collect = (pattern: RegExp, from: number, to: number) => {
       for (const m of view.slice(from, to).matchAll(pattern)) {
@@ -176,7 +155,6 @@ function findRanges(text: string, patterns: readonly RegExp[]): Range[] {
 export function maskText(text: string, patterns: readonly RegExp[], mask: string): string {
   const ranges = findRanges(text, patterns)
   if (ranges.length === 0) return text
-  // Escape sequences inside a match are kept, so the colors after it stay as the text set them.
   const escapes = [...text.matchAll(ANSI)].map((m): Range => [m.index, m.index + m[0].length])
   let out = ''
   let at = 0
@@ -204,7 +182,6 @@ export function maskText(text: string, patterns: readonly RegExp[], mask: string
   return out + text.slice(at)
 }
 
-// The text around each range and the ranges, as `text.split(re)` and `text.match(re)` give them.
 const cut = (text: string, ranges: readonly Range[]): { parts: string[]; hidden: string[] } => {
   const parts: string[] = []
   let at = 0
@@ -216,8 +193,6 @@ const cut = (text: string, ranges: readonly Range[]): { parts: string[]; hidden:
   return { parts, hidden: ranges.map(([start, end]) => text.slice(start, end)) }
 }
 
-// The text around each match and the matches: `parts` has one more entry than `hidden`.
-// Overlapping or touching matches join into one.
 export function splitMatches(text: string, patterns: readonly RegExp[]): { parts: string[]; hidden: string[] } {
   return cut(text, findRanges(text, patterns))
 }
@@ -225,8 +200,6 @@ export function splitMatches(text: string, patterns: readonly RegExp[]): { parts
 const FENCE = /^ {0,3}(```|~~~)/
 const BLANK = /^[ \t]*$/
 
-// Markdown blocks as [start, end) offsets: runs of lines split at blank lines, a fenced block kept
-// whole (to the end of the text when it is not closed).
 function blockSpans(text: string): Range[] {
   const out: Range[] = []
   let start = -1
@@ -253,8 +226,6 @@ export function blocks(text: string): string[] {
   return blockSpans(text).map(([start, end]) => text.slice(start, end))
 }
 
-// Each block with the text around its matches and the matches. Matching runs over the whole text,
-// so a match that crosses a blank line is hidden in every block it reaches.
 export function splitBlocks(
   text: string,
   patterns: readonly RegExp[],
@@ -274,9 +245,6 @@ const isPlain = (value: object): boolean => {
   return proto === null || proto === Object.prototype
 }
 
-// Every string in `value` passed through `str` and every object key through `key`; arrays and plain
-// objects are walked (their keys kept distinct), any other object is replaced whole by the mask, so
-// nothing in it draws.
 const walk = (
   value: unknown,
   str: (s: string) => string,
@@ -294,8 +262,6 @@ const walk = (
   return Object.fromEntries(entries.map(([, v], i) => [keys[i], walk(v, str, key, mask, depth + 1)]))
 }
 
-// Keeps values distinct where a schema requires it: when masking made two equal, each value's masks
-// are numbered by its position, and if that is not enough the position is appended to every value.
 export function distinct(values: readonly string[], mask: string): string[] {
   const isDistinct = (list: readonly string[]) => new Set(list).size === list.length
   if (isDistinct(values)) return [...values]
@@ -331,9 +297,6 @@ export function maskProps<P extends object>(
 
 const FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
 
-// The fail-closed rendering: every string under the named keys replaced whole by the mask, no user
-// pattern run, so it finishes in time whatever they cost. An object key stays when it reads as a
-// field name the built-ins find nothing in (a schema needs it); any other key is masked.
 export function blankProps<P extends object>(
   props: P,
   keys: readonly (keyof P)[],

@@ -48,10 +48,12 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ACTIONS_BOT_ID } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
+import { loadTrustedList, readRawTrustedActors, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
@@ -76,8 +78,7 @@ export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
 // The activity select decides, as escalation-routes.json names it.
 const ACTIVITY = "address-feedback";
-// github-actions[bot], the author of the review lanes' reviewed-head markers.
-export const MARKER_AUTHOR_ID = 41898282;
+export const MARKER_AUTHOR_ID = ACTIONS_BOT_ID;
 // Listed review bots no comment can summon: github-advanced-security[bot],
 // which posts code scanning (CodeQL) alerts after each analysis of a pushed
 // head. requestSkip asks only that a trusted person or the lanes App opened
@@ -1218,9 +1219,9 @@ export async function linkedSpec(env, log) {
   }
   try {
     const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
-    const { createGitHub, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
+    const { createGitHub } = await import("../lib/github-client.mjs");
     const { loadRules } = await import("../intake-triage/admit.mjs");
-    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
     const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
     const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
@@ -1348,9 +1349,6 @@ export async function select({
     // The merge gate refuses the head verify:earlier-fail, so a round must
     // move it; the FAIL's notes come from its verdict artifact, since their
     // threads are resolved (#12809).
-    // Its feedback-already-addressed stop releases the head (a reply job's
-    // lane-stopped), so a stop of this head already queued for a session
-    // builder stands down here too, before any read or model turn.
     if (earlierFailHeads.length > 0 && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
       return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
@@ -1638,6 +1636,68 @@ export function refreshableSections(body, names = []) {
     )
     .slice(0, BODY_LIMITS.sections)
     .map(({ heading, text }) => ({ heading, text }));
+}
+
+const TEMPLATE_DIRS = [".github", "", "docs"];
+const TEMPLATE_NAME = "pull_request_template.md";
+
+export function templateHeadings(text) {
+  return bodySections(String(text ?? "").replace(/<!--[\s\S]*?-->/g, ""))
+    .sections.map((section) => section.heading.trim())
+    .filter((heading) => HEADING_NAME.test(heading));
+}
+
+export function localTemplate(root) {
+  for (const dir of TEMPLATE_DIRS) {
+    let names;
+    try {
+      names = readdirSync(join(root, dir));
+    } catch {
+      continue;
+    }
+    const name = names.find((entry) => entry.toLowerCase() === TEMPLATE_NAME);
+    if (name && lstatSync(join(root, dir, name)).isFile()) {
+      return readFileSync(join(root, dir, name), "utf8");
+    }
+  }
+  return null;
+}
+
+export async function orgTemplate(readPath, owner) {
+  const base = `/repos/${encodeURIComponent(owner)}/.github/contents`;
+  for (const dir of TEMPLATE_DIRS) {
+    let entries;
+    try {
+      entries = await readPath(dir ? `${base}/${dir}` : base);
+    } catch (error) {
+      if (error.status === 404) {
+        continue;
+      }
+      throw error;
+    }
+    const entry = Array.isArray(entries) ? entries.find((item) => item.type === "file" && String(item.name).toLowerCase() === TEMPLATE_NAME) : undefined;
+    if (entry) {
+      return Buffer.from((await readPath(`${base}/${entry.path}`)).content ?? "", "base64").toString("utf8");
+    }
+  }
+  return null;
+}
+
+export async function bodySectionNames({ listed, root, readPath, owner, log = () => {} }) {
+  const names = String(listed ?? "").split("\n").filter((name) => name.trim() !== "");
+  if (names.length > 0) {
+    return names;
+  }
+  const local = templateHeadings(localTemplate(root));
+  if (local.length > 0) {
+    return local;
+  }
+  try {
+    return templateHeadings(await orgTemplate(readPath, owner));
+  } catch (error) {
+    log(`body refresh off: the ${owner}/.github pull request template is unreadable (${error.message})`);
+    return null;
+  }
 }
 
 /** The read-only body view's caps: code points per section, and sections. A PR body holds at most 65,536 characters, so the view stays far under the thread file's 1 MiB cap. */
@@ -2111,7 +2171,7 @@ export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "REVIEW_ROUNDS");
 }
 
-const readActors = (path) => JSON.parse(readFileSync(path, "utf8")).actors ?? [];
+const readActors = (path) => readRawTrustedActors(path).actors ?? [];
 
 // The ids of the people on the base's trusted-actors list.
 export function trustedHumansFrom(trustedActorsPath) {
@@ -2152,7 +2212,7 @@ export async function ownerAdoption(env, log = () => {}) {
     if (idleHours === undefined) {
       return NO_ADOPTION;
     }
-    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH)), idleHours };
   } catch (error) {
     log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
     return NO_ADOPTION;
@@ -2305,7 +2365,8 @@ export async function main(argv, env, { api, actions, plan, log = (line) => cons
     // pr_body_refresh from the base's source-control.yaml (unset is on), and
     // its pr_body_required_sections list.
     if (result.file && env.BODY_REFRESH !== "false") {
-      const sections = refreshableSections(result.body, String(env.BODY_SECTIONS ?? "").split("\n"));
+      const names = await bodySectionNames({ listed: env.BODY_SECTIONS, root: ".base", readPath: client.readPath, owner: env.GITHUB_REPOSITORY.split("/")[0], log });
+      const sections = names === null ? [] : refreshableSections(result.body, names);
       if (sections.length > 0) {
         result.file.body_sections = sections;
       }

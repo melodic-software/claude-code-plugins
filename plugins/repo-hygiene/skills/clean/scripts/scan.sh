@@ -63,9 +63,6 @@ fi
 
 cd "$REPO_ROOT" || exit 0
 
-# Enumeration shares the single pruned-walk engine with the mutating caches/build
-# tiers (clean-common.sh) so the read-only inventory and the tiers that act on it
-# report the same targets from one walk that never descends .git/node_modules/.venv.
 emit_tier "Caches" "caches" < <(clean_caches_candidates "$REPO_ROOT")
 emit_tier "Build artifacts" "build" < <(clean_build_candidates "$REPO_ROOT")
 

@@ -14,24 +14,16 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
 With `--worktree <path>`, run both as `git -C <path> ...` ("Shared inputs").
-
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-comes too late for whatever the command has already returned inline. What a result returns inline,
-and when it arrives as a saved file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines. Pointer: the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation", which holds the dated record and its recheck
-trigger.
 
 ## Purpose
 
@@ -52,7 +44,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
   Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Find it with `/source-control:pull-request list --head <current-branch>`, invoked via the Skill tool when the `source-control` plugin is enabled, or the forge's own list of open PRs by head branch otherwise. One row gives the base; an empty array means no open PR. A failed read is not "no PR": the base is unresolved, so stop and report it rather than substitute another base. With no PR, `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary**, the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Criteria resolution**. Review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
-- **Loosened checks**. Every mode that reviews a diff (`self`, `code`, `code-design`, `pr`, `slice`, and `criteria` given `--base` or `--worktree`) applies the bundled criterion [context/loosened-check.md](context/loosened-check.md). It always applies; consumer criteria apply in addition. Before the first dispatch, resolve its settings with `node "${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs" --root <repository root> --ref origin/<default> --verdict-option '${user_config.loosened_check_verdict}' --patterns-file <memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json --spec-issue <number of the issue the change resolves>` (first write that file, in the "Findings location" below, with the Write tool, its content exactly `${user_config.loosened_check_patterns}`, so the free-form value never passes through a shell; omit `--spec-issue` when no issue is known; when the run fails and the patterns option is not empty, run it once more without `--patterns-file` so the repository's entries still apply, and say the user's entries were dropped), the default branch checked and fetched as for `downstream_probe` ([context/downstream.md](context/downstream.md)), and put its three value lines in every brief. The `code-reviewer` agent reads the criterion on its own; a `review:brief-reviewer` brief lists it as a file to read. Every brief hands the reviewer the text of the issue the change resolves as the spec, since only that text gives a reason for a loosening, and only when the run's `loosened_check_spec:` line says `counts` (a trusted person wrote the issue); otherwise the brief hands no spec, so no loosening has a reason. Never the pull request body, and never a plan the change's author wrote.
+- **Loosened checks**. Every mode that reviews a diff (`self`, `code`, `code-design`, `pr`, `slice`, and `criteria` given `--base` or `--worktree`) applies the bundled criterion [context/loosened-check.md](context/loosened-check.md). It always applies; consumer criteria apply in addition. Before the first dispatch, resolve its settings with `node "${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs" --root <repository root> --ref origin/<default> --verdict-option '${user_config.loosened_check_verdict}' --patterns-file <memory_dir>/reviews/<branch-slug>/loosened-check-patterns.json --spec-issue <number of the issue the change resolves>` (first write that file, in the "Findings location" below, with the Write tool, its content exactly `${user_config.loosened_check_patterns}`, so the free-form value never passes through a shell; omit `--spec-issue` when no issue is known; when the run fails and the patterns option is not empty, run it once more without `--patterns-file` so the repository's entries still apply, and say the user's entries were dropped), the default branch checked and fetched as for `downstream_probe` ([context/downstream.md](context/downstream.md)), and put its three value lines in every brief. The `code-reviewer` agent reads the criterion on its own; a `review:brief-reviewer` brief lists it as a file to read. Every brief hands the reviewer the two texts that can give a loosening its reason, each quoted as data: the text of the issue the change resolves as the spec, only when the run's `loosened_check_spec:` line says `counts` (a trusted person wrote the issue), otherwise no spec; and, when the change has a pull request, the `## Loosened checks` section of its body (`gh pr view <number> --json body`), which gives a reason for an ordinary check only. Never the rest of the body, and never a plan the change's author wrote.
 - **Finding class**. Every reviewer brief this skill writes names the class of finding it wants (for example correctness gaps) and what to leave out (for example style). Pointer: [best practices: review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec).
 - **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths. Under `--report-only` no artifact is written.
 - **Reviewer handback**. Every dispatch of `review:code-reviewer` or `review:security-reviewer` follows [`${CLAUDE_PLUGIN_ROOT}/reference/reviewer-handback.md`](${CLAUDE_PLUGIN_ROOT}/reference/reviewer-handback.md): pass a findings path under the findings location, then read the report from that file, not from the reply. Under `--report-only` pass no path. That path is the reviewer's own file, not the gate's artifact: name it `<UTC-timestamp>-<agent>.md` (`code-reviewer` or `security-reviewer`, never the mode; `<UTC-timestamp>-<agent>-<n>.md` when that name is taken) and pass it absolute in the dispatch prompt, as that file says; the reviewer refuses a file name of any other shape.
@@ -176,6 +168,11 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 `/verification:confirm`, when it is among the available skills, after an all-clear verdict, then
 PR creation; after fixes, a `self` re-run of this skill (Step 4).
+
+## Related
+
+- Multi-surface breadth review into one ranked report: /review:fanout.
+- Multi-model reviewer panel with fix rounds: /review:council.
 
 ## Gotchas
 

@@ -1,6 +1,3 @@
-"""Whole-review requests: when one is wanted, the per-sweep limits, the
-draft toggle and the recovery of a draft a toggle left behind."""
-
 from __future__ import annotations
 
 import contextlib
@@ -18,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_risk as risk
+import diff_risk as risk
 import babysit_whole_review as wr
 
 HEAD = "a" * 40
@@ -73,9 +70,6 @@ class Wanted(unittest.TestCase):
         self.assertFalse(wr.wanted(None, result(), (CLEAN,)))
 
 
-# A `review-path:` hold (owner decision Q26 option B) stands while the bound
-# security review counts any open finding (babysit_risk.security_review_clean),
-# as pull request #10908's did with no CRITICAL one among them.
 PATH = risk.Reason("review-path:.github/x.mjs", risk.Risk.HIGH, ".github/x.mjs")
 BELOW = risk.LaneEvidence("claude-security-review", True, None, 2, True, 0)
 

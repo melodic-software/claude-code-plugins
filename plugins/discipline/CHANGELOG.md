@@ -5,6 +5,28 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.0] - 2026-11-23
+
+### Added
+
+- route do-your-research's fan-out through the route caller contract
+
+  The fan-out tier's per-item claim checkers now point at the caller
+  contract of /multi-agent:route (if enabled); otherwise they run here as
+  before. This is the third pilot site of #18503.
+
+## [0.30.3] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [0.30.2] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
 ## [0.30.1] - 2026-11-21
 
 ### Changed

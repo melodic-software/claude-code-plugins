@@ -1,5 +1,6 @@
 # test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/*
-# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
+# test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -17,7 +18,7 @@ workflow change after auto-merge is armed.
   blocks as it writes them from api-budget.bash.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
-  matches over `babysit_risk.Floor.high` (its `trust` and `gate` globs), case
+  matches over `diff_risk.Floor.high` (its `trust` and `gate` globs), case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate` or, for the scripts that apply the
@@ -25,9 +26,9 @@ workflow change after auto-merge is armed.
   the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
-  lift (`babysit_risk.Floor.author_review`) is exactly the `gate` class, and
+  lift (`diff_risk.Floor.author_review`) is exactly the `gate` class, and
   `pathHold`, which judges only lanes App pull requests, holds all of it.
-- The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
+- The cost paths: the same paths matched as `diff_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
@@ -66,8 +67,9 @@ os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
-import babysit_risk as risk
+import diff_risk as risk
 
+BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 # This repository's effective floor: the built-in rows joined to its config.
 ROWS = policy.floor_paths_in(
@@ -136,9 +138,6 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
     return sorted(seen)
 
 
-# The Python that decides the holds: babysit_risk, and every script a floored
-# JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
-# babysit-prs/scripts/ they import.
 SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
 # A script path in a quoted string, or a bare one a `python`/`python3` command
 # runs, with or without a `.base/` checkout prefix.
@@ -161,7 +160,7 @@ def py_runs(text: str) -> list[str]:
 
 
 def python_closure(js_files: list[str]) -> list[str]:
-    todo = [SCRIPTS / "babysit_risk.py"]
+    todo = [SCRIPTS / "diff_risk.py"]
     # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | {n for n in js_files if (ROOT / n).is_file()}):
@@ -262,7 +261,7 @@ FLOOR_PATHS = [
     ".github/scripts/pr-merge/rotation.mjs",
     ".github/scripts/pr-merge/rotation.test.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py",
     ".github/scripts/work-resolve-issue/report-outcome.mjs",
     "Docs/Conventions/PR-Pipeline.yaml",
     ".github/actions/other/action.yml",
@@ -305,7 +304,7 @@ def _glob_samples(glob: str) -> list[str]:
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
-@unittest.skipUnless(shutil.which("bash"), "bash not installed")
+@unittest.skipUnless(BASH, "bash not installed")
 class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     """merge-holds.mjs's matchesHoldPath and ci-status's bash `hold_patterns`
     judge each sample path alike (bash's `*` crosses `/`, Node's does not),
@@ -323,12 +322,13 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
                 "--input-type=module",
                 "-e",
                 "import { HOLD_PATH_CLASSES, matchesHoldPath } from %s;"
-                " const [paths, extra] = JSON.parse(process.argv[1]);"
+                ' let text = ""; for await (const chunk of process.stdin) text += chunk;'
+                " const [paths, extra] = JSON.parse(text);"
                 " const globs = [...extra, ...HOLD_PATH_CLASSES.map(([g]) => g)];"
                 " console.log(JSON.stringify(paths.map((p) => globs.some((g) => matchesHoldPath(p, g)))));"
                 % json.dumps(MODULE.as_uri()),
-                json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             ],
+            input=json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             capture_output=True,
             text=True,
             check=True,
@@ -336,20 +336,19 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
         line = _hold_patterns_line()
         bash = subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 line + "\nshopt -s nocasematch\nwhile IFS= read -r path; do"
                 ' held=false; for pattern in "${hold_patterns[@]}"; do'
                 ' [[ $path != $pattern ]] || held=true; done; echo "$held";'
                 " done",
             ],
-            input="\n".join(paths) + "\n",
+            input=("\n".join(paths) + "\n").encode(),
             capture_output=True,
-            text=True,
             check=True,
         )
         node_held = json.loads(node.stdout)
-        bash_held = [v == "true" for v in bash.stdout.split()]
+        bash_held = [v == b"true" for v in bash.stdout.split()]
         for path, py, js, sh in zip(paths, python, node_held, bash_held, strict=True):
             with self.subTest(path):
                 self.assertEqual(js, sh)
@@ -404,6 +403,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         gate = [g for g, kind in FLOOR.classes if kind == "gate"]
         surface = {
             ".github/scripts/pr-review-main/**",
+            ".github/scripts/diff-chunking/**",
             "**/.claude/**",
             "**/.claude-lane/**",
             "docs/conventions/source-control.yaml",
@@ -419,6 +419,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/intake-triage/triage-rubric.txt",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+            ".github/scripts/pr-unblock/test-scope.mjs",
+            ".github/scripts/pr-unblock/declare-test-scope.mjs",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -428,7 +430,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 19)
+        self.assertEqual(len(FLOOR.author_review), 24)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -437,8 +439,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk `Floor.high`, entry
-        # for entry and in order: the trust and gate globs a person clears.
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
             % json.dumps(MODULE.as_uri())
@@ -450,12 +450,14 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 89)
+        self.assertEqual(len(FLOOR.high), 100)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
         self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        self.assertIn(".github/scripts/lib/github-client.mjs", files)
+        self.assertIn(".github/scripts/lib/trusted-actors.mjs", files)
         # The rate-limit defaults rate-guard.mjs reads decide when the lanes
         # stop short of GitHub's limits, so they are held like the module.
         self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)
@@ -517,7 +519,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 # review clears.
                 name = pathlib.PurePosixPath(path).name
                 gate = name.startswith("babysit_merge") or name in {
-                    "babysit_risk.py",
+                    "diff_risk.py",
                     "babysit_review_evidence.py",
                 }
                 self.assertEqual(held, gate)
@@ -687,6 +689,50 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
             check=True,
         )
         self.assertEqual(json.loads(proc.stdout), list(policy.MERGE_HOLD_LABELS))
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheNativeBaselineIsTheGates(unittest.TestCase):
+    """Owner decision Q152 (B): ci-status (`baselineOnly`) and the arm's
+    reader (`baseline_only`) take the same lanes App pull requests, those
+    changing exactly the configured `merge.baseline-file`, with no link or
+    verdict, and none when it is unset."""
+
+    def test_both_take_the_same_pull_requests(self) -> None:
+        file = "docs/upstream/claude-code-native-surfaces.min.json"
+        lanes = {"login": "melodic-automation-lanes[bot]", "id": 9, "type": "Bot"}
+        cases = [
+            (lanes, [file], file),
+            (lanes, [file], None),
+            (lanes, [file], ""),
+            (lanes, [file], "docs/upstream/other.json"),
+            (lanes, [file, "docs/a.md"], file),
+            (lanes, [file, "docs/upstream/old.json"], file),
+            (lanes, ["docs/upstream/claude-code.md"], file),
+            (lanes, [], file),
+            ({**lanes, "type": "User"}, [file], file),
+            ({**lanes, "login": "melodic-agent[bot]"}, [file], file),
+        ]
+        script = (
+            f"const {{ baselineOnly }} = await import({json.dumps(MODULE.as_uri())});"
+            "const cases = JSON.parse(process.argv[1]);"
+            "console.log(JSON.stringify(cases.map(([user, files, file]) => baselineOnly(user, files, 9, file ?? undefined))));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        py = [
+            policy.baseline_only(
+                {"user": user}, "melodic-automation-lanes[bot]", baseline, files
+            )
+            for user, files, baseline in cases
+        ]
+        self.assertEqual(answers, py)
+        self.assertEqual(answers.count(True), 1)
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
@@ -1240,7 +1286,9 @@ def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
 
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [body, comment, issue, heads, answers, activity] = JSON.parse(text);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   const tip = "3".repeat(40);
@@ -1278,22 +1326,17 @@ def js_decision(
 ) -> str | None:
     script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD))
     proc = subprocess.run(
-        [
-            "node",
-            "--input-type=module",
-            "-e",
-            script,
-            json.dumps(
-                [
-                    body,
-                    comment,
-                    ISSUE,
-                    DEFAULT_HEADS | heads,
-                    _answers(DEFAULT_HEADS | heads),
-                    _activity(DEFAULT_HEADS | heads),
-                ]
-            ),
-        ],
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps(
+            [
+                body,
+                comment,
+                ISSUE,
+                DEFAULT_HEADS | heads,
+                _answers(DEFAULT_HEADS | heads),
+                _activity(DEFAULT_HEADS | heads),
+            ]
+        ),
         capture_output=True,
         text=True,
         check=True,
@@ -1911,7 +1954,7 @@ def loaded_closure() -> list[str]:
         if (ROOT / p).is_file()
     ]
     py: set[str] = set()
-    todo = [SCRIPTS / "babysit_risk.py", *run]
+    todo = [SCRIPTS / "diff_risk.py", *run]
     while todo:
         file = todo.pop()
         name = file.relative_to(ROOT).as_posix()

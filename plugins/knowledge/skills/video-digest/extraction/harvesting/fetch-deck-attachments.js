@@ -21,7 +21,6 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
 /** Default cap on a single fetched attachment; links come from attacker-controlled video descriptions. */
 export const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
 
-/** Link kinds this fetcher downloads; any other kind is recorded as skipped. */
 const FETCHABLE_KINDS = new Set(["deck", "doc", "attachment"]);
 
 /**

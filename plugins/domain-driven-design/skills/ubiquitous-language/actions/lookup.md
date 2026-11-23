@@ -14,9 +14,10 @@ covers the scope.
 2. Read each glossary it found with the Read tool (and the glossary index when terms may span
    contexts). Read the whole file; entries are short.
 3. For each requested term, or for every entry when none was requested, take the canonical term, its
-   definition, its states, its `Actions:` line, its `Avoid:` list and its `Shown to users as:` line.
-   A requested word that appears only as a rejected word (on an `Avoid:` line or in an `Actions:`
-   line's parentheses) resolves to the entry that rejected it.
+   definition, its states, its `Actions:` line, its `Also called:` names, its `Avoid:` list and its
+   `Shown to users as:` line. A requested word that is an `Also called:` name resolves to its entry,
+   and so does one that appears only as a rejected word (on an `Avoid:` line or in an `Actions:`
+   line's parentheses).
 
 ## Output
 

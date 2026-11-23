@@ -1,0 +1,8 @@
+# Shell in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+globs: ["*.sh", "*.bash"]
+build-cmd: null
+test-cmd: null
+check-cmd: 'shellcheck --rcfile "$REPO_ROOT/.shellcheckrc" <files>'
+fix-cmd: "shfmt -w <files>"
+opt-in: "shellcheck always applies to shell files"
+install-hint: "winget install ShellCheck.ShellCheck mvdan.shfmt | brew install shellcheck shfmt"

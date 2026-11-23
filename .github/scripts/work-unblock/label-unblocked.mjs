@@ -380,12 +380,15 @@ import { pathToFileURL } from "node:url";
 
 import { notBornTriaged, readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
-import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, graphqlQuery, isFault, paginate } from "../lib/github-client.mjs";
+import { isTrustedClose as closedByHumanOrMerge, loadTrustedList, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, BODY_EDITED, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, BODY_EDITED, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { splitLeftOpen, splitParentClosed } from "../intake-triage/size-split.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 import { parseReason, personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
@@ -470,12 +473,12 @@ const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit co
 // serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
 // names. A raw job log shows a titled annotation as `##[error]<message>`,
 // the title dropped, as it shows an untitled one.
-const RATE_LIMITED = stamped(
+export const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 const ERROR_LINE = stamped(String.raw`##\[error\]`);
 const STEP_EDGE = stamped(String.raw`##\[(?:group\]Run |start-action |end-action )`);
-const HELD_UNTIL = stamped(
+export const HELD_UNTIL = stamped(
   String.raw`##\[error\].* was not sent: GitHub(?:'s .+ rate limit holds until| answered HTTP (?<status>5\d\d) with a Retry-After; no call to it before) (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)(?: \(.*\))?$`,
 );
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
@@ -527,7 +530,6 @@ const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // the lane PR it names at the verify cap and restarted or parked the issue
 // itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // The lane never starts on these (report-outcome.mjs LANE_HOLDS). Only a
 // person removes the outside-actor label, so its issue is never handed to triage.
 const HOLDS = LANE_HOLDS;
@@ -1800,7 +1802,6 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
     }
   }
-  // An unreadable open time sorts last.
   const opened = (number) => (Number.isFinite(seen.get(number)) ? seen.get(number) : Number.POSITIVE_INFINITY);
   const order = [...seen.keys()].sort((a, b) => opened(a) - opened(b) || a - b);
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: order, humans, appId });
@@ -2063,7 +2064,6 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const budgetSteps = calls.flatMap((job) => (job?.steps ?? []).filter((step) => step?.conclusion === "success" && BUDGET_STEP.test(String(step?.name))));
     const budget = budgetSteps.length > 0;
     for (const step of budgetSteps) {
-      // A name whose reset is not a plain epoch second names none.
       const until = BUDGET_STEP.exec(step.name)[1] ?? "";
       const seconds = /^[0-9]{1,12}$/.test(until) ? Number(until) : 0;
       if (seconds > 0) {
@@ -2578,7 +2578,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
-  // The re-fire records on workflow files `key` other than a breaker trip's.
   const firedOn = (key) => markers.filter((marker) => marker.outcome === "refired" && !marker.breaker && marker.key === key);
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
@@ -2802,7 +2801,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
-  // When an agent-ready add that `by` passes last happened.
   const addedSince = (by) =>
     events.filter((event) => isLabel(event, "labeled") && by(event)).reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   const since = addedSince((event) => event.actor?.login !== bot);
@@ -2854,7 +2852,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
 async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus, maps = NO_MAPS }) {
   let failed = 0;
   const ready = [];
-  // Main's blob SHAs of the lane workflow files, read once per run.
   let key;
   const workflowKey = () =>
     (key ??= (async () => {
@@ -2920,7 +2917,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // opened it, is work done off the lane: admission's own check, read only
   // for an issue about to be re-fired, and as none when the read fails.
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
-  // Each issue's comments and events, listed once a sweep.
   const listings = new Map();
   const readsOf = (issue) => {
     if (!listings.has(issue.number)) {
@@ -2939,8 +2935,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
     return listings.get(issue.number);
   };
-  // The lane runs of each agent-ready issue's newest label, from listings
-  // shared by the issues whose labels fall in the same span (sharedLaneRuns).
   const runsOf = sharedLaneRuns(actions, repo);
   // Least recently decided first (the carried `decided` times; one never
   // decided goes first), so issues a sweep's budget leaves out lead the next
@@ -3244,7 +3238,6 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
   const children = await paginate(github, `${base}/sub_issues`);
-  // The field is read once, for the comment refresh, and reused when the parent stays open.
   let names;
   const namesOf = async () => (names ??= fieldNamesOf(statusOf, parent));
   // A failed refresh never holds back the close below; the sweep's rotation
@@ -3512,12 +3505,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
     const limits = readLimits(resolved);
     const wip = readWip(resolved);
-    // The issue lane's status, read once per run and only when asked.
     let read;
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus, routing }));
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing, maps }) : 0;
-    // One close check per issue this run, shared by both passes below.
     const closes = new Map();
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo, maps });
     // Before readmitReady, so a split parent whose last sub-issue closed is
@@ -3526,8 +3517,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
     } else {
-      // One listing of the open issues, oldest updated first, for the parent
-      // rescan and readmitReady.
       let listed;
       try {
         listed = (await paginate(github, `/repos/${repo}/issues?state=open&sort=updated&direction=asc`)).filter((item) => !item.pull_request && NUMBER.test(String(item.number)));

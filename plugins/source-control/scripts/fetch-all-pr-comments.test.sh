@@ -15,8 +15,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
-# ---- Build fixtures ---------------------------------------------------------
-
 # Surface 1: issue-level comments
 FIXTURE_GENERAL="$TEST_TMPDIR/general.json"
 cat >"$FIXTURE_GENERAL" <<'JSON'
@@ -76,8 +74,6 @@ cat >"$FIXTURE_INLINE" <<'JSON'
 ]
 JSON
 
-# ---- Build gh stub ----------------------------------------------------------
-
 PR_NUM=42
 
 GH_STUB="$TEST_TMPDIR/bin/gh"
@@ -107,8 +103,6 @@ case "\$*" in
 esac
 STUB
 chmod +x "$GH_STUB"
-
-# ---- Tests ------------------------------------------------------------------
 
 # Case 1: missing PR number — capture exit code via subshell
 rc=$(
@@ -356,8 +350,6 @@ assert_eq "an empty --dir is a usage error" "1 " "$(run_outside "$PR_NUM" --dir 
 assert_eq "--dir naming no directory is a usage error" "1 " "$(run_outside "$PR_NUM" --dir "$TEST_TMPDIR/missing")"
 assert_eq "--dir given twice is a usage error" "1 " \
   "$(run_outside "$PR_NUM" --dir "$CHECKOUT" --dir "$FORK")"
-
-# ---- Summary ----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

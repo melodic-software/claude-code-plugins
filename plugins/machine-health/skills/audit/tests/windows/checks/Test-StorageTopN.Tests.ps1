@@ -122,7 +122,6 @@ Describe 'Test-StorageTopN' -Tag 'check' {
 
         $null = Invoke-StorageTopNAsObject
 
-        # 15 per root, 10,000 files and 60 s: check-catalog.md section 20.
         Should -Invoke Measure-FolderSize -Times 1 -Exactly -ParameterFilter {
             ($Root -contains $env:USERPROFILE) -and ($Root -contains $env:TEMP) -and
             (@($Root | Where-Object { $_ -like '*\Windows.old' }).Count -eq 1) -and
@@ -177,7 +176,6 @@ Describe 'Test-StorageTopN' -Tag 'check' {
 
         $result = Invoke-StorageTopNAsObject
 
-        # 1000 (profile, which holds the 300 of Temp) + 50 (Windows.old).
         $result.detail.scanned_bytes | Should -Be 1050
     }
 

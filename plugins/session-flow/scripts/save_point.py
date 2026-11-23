@@ -141,6 +141,8 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     HOP_FILE_SHAPES,
     RETIRED_PREFIX,
     SHAPES,
+    STANDING_PREFIX,
+    STANDING_SECTIONS,
     IdSpec,
     MovePointer,
     entry_text,
@@ -155,7 +157,10 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     read_frontmatter,
     retired_in,
     retired_listings,
+    section_of,
     section_spans,
+    standing_pointer,
+    standing_rel,
 )
 import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
@@ -226,6 +231,7 @@ FRONTMATTER_KEYS_3 = (
     "hop",
     "archive",
     "archive_from",
+    "standing_rules",
     *(spec.floor_key for spec in S3.id_specs),
     "repo",
 )
@@ -414,6 +420,9 @@ DIRECTIVE_TAIL = (
     "them. For the next save-point invoke /session-flow:handoff via the Skill tool; "
     "never write a handoff file free-hand."
 )
+STANDING_THEN = " then @"
+STANDING_PAGED = " in pages with the Read tool's offset and limit (over one Read page)"
+STANDING_TYPE = "handoff-standing-rules"
 PRIOR_SESSION_RE = re.compile(r"^Prior session: ([0-9A-Fa-f-]{36})\.$")
 THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
@@ -477,9 +486,6 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-# --- I/O ----------------------------------------------------------------------
-
-
 def _die(code: int, message: str) -> int:
     print(f"error: {message}", file=sys.stderr)
     return code
@@ -516,9 +522,6 @@ def _same_file(a: str, b: Path) -> bool:
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(
         os.path.realpath(b)
     )
-
-
-# --- Document model -------------------------------------------------------------
 
 
 class _UnparsableShape:
@@ -651,9 +654,6 @@ def _ends_opening_ask(line: str) -> bool:
     return line.startswith("**") or bool(BULLET_RE.match(line))
 
 
-# --- Cumulative-section entries ---------------------------------------------------
-
-
 @dataclass
 class Entry:
     first_index: int  # index into the section body
@@ -733,9 +733,6 @@ def parse_entries(body: list[str]) -> list[Entry]:
     return entries
 
 
-# --- Findings -------------------------------------------------------------------
-
-
 class CheckKind(Enum):
     SIZE = "size"
     ORDER = "order"
@@ -787,9 +784,6 @@ class Findings:
         return bool(self.fails)
 
 
-# --- validate -------------------------------------------------------------------
-
-
 def _parse_prior_rows(body: list[str] | None) -> list[str]:
     if body is None:
         return []
@@ -823,6 +817,41 @@ def _resolve_transcript(session_id: str, projects_root: Path) -> str:
     return (
         f"unresolved (session {session_id}, projects-root {projects_root.as_posix()})"
     )
+
+
+def _directive_paths(directive: str) -> tuple[str | None, str]:
+    """The standing-rules path a `Read @` directive loads first (None when it
+    loads none) and the hot-file path, both as stored. A role chain's directive
+    reads `Read @<standing-rules file> then @<hot file>, <tail>`; neither joint
+    holds a comma, so the text before the first comma names both paths."""
+    head = directive[len("Read @") :].split(",", 1)[0].strip()
+    if STANDING_THEN not in head:
+        return None, head
+    first, hot = head.split(STANDING_THEN, 1)
+    return first.removesuffix(STANDING_PAGED).strip(), hot.strip()
+
+
+def _check_standing_directive(doc: Doc, f: Findings, standing: str | None) -> None:
+    """A role chain's directive loads the file its `standing_rules` key names,
+    and only a role chain's directive loads one."""
+    held = doc.frontmatter.get("standing_rules")
+    if held and standing is None:
+        f.fail(
+            f"Resume prompt: standing_rules is set, so the 'Read @' directive loads {held} first ('Read @<standing-rules file>{STANDING_THEN}<this file>, …')"
+        )
+    elif standing is not None and not held:
+        f.fail(
+            "Resume prompt: the 'Read @' directive loads a standing-rules file, but no standing_rules frontmatter key names one"
+        )
+    elif standing is not None and not _same_file(standing, doc.path.parent / held):
+        if standing.endswith("/" + held):
+            f.warn(
+                f"Resume prompt: 'Read @' standing-rules path {standing!r} is under another directory (relocated chain; emit substitutes the real path)"
+            )
+        else:
+            f.fail(
+                f"Resume prompt: 'Read @' standing-rules path {standing!r} does not name this chain's {held}"
+            )
 
 
 def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
@@ -893,7 +922,8 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
         )
         return
     directive = between[0]
-    path_part = directive[len("Read @") :].split(",", 1)[0].strip()
+    standing_part, path_part = _directive_paths(directive)
+    _check_standing_directive(doc, f, standing_part)
     if "\\" in path_part or not (
         path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)
     ):
@@ -1119,11 +1149,12 @@ def validate_doc(
     strict_transcript: bool,
     shallow: bool = False,
     hop_text: str | None = None,
+    standing: str | None = None,
 ) -> tuple[Findings, int]:
     """Return findings plus the exit code (0/1/3). `shallow` skips the
     predecessor walk (used when a successor validates its own predecessor);
-    `hop_text` stands in for this hop's file on disk (`amend` validates
-    before it writes)."""
+    `hop_text` and `standing` stand in for this hop's file and the chain's
+    standing-rules file on disk (`amend` validates before it writes)."""
     f = Findings()
     fm = doc.frontmatter
     shape = doc.shape
@@ -1211,13 +1242,16 @@ def validate_doc(
                     pred = parse_doc(pred_path)
                 except (OSError, UnicodeDecodeError) as exc:
                     f.fail(f"predecessor {previous!r} unreadable: {exc}")
+    content = doc
     if shape in HOP_FILE_SHAPES:
-        _validate_shape3(doc, f, previous, pred, projects_root, hop_text)
+        content = _validate_shape3(
+            doc, f, previous, pred, projects_root, hop_text, standing
+        )
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
     if (_fm_int(doc, "checks") or 0) >= UNVERIFIED_SETTLE_FROM:
         unread = shallow and previous is not None and gone is None
-        _check_unverified(doc, f, SHAPES[shape].carried, pred, unread, hop_text)
+        _check_unverified(content, f, SHAPES[shape].carried, pred, unread, hop_text)
 
     for i, line in enumerate(doc.lines, 1):
         if FILL_MARK in line:
@@ -1570,9 +1604,6 @@ def _pred_failed(
             f"predecessor {previous!r} failed validation ({culprit.text}); predecessor-derived checks downgraded to WARN"
         )
     return culprit is not None
-
-
-# --- shape 3 ----------------------------------------------------------------------
 
 
 def _fm_int(doc: Doc, key: str) -> int | None:
@@ -2049,6 +2080,186 @@ def _check_decision_fields(doc: Doc, f: Findings) -> None:
             )
 
 
+def _standing_pointed(doc: Doc) -> dict[str, tuple[str, str]]:
+    """Each standing section of `doc` whose body is only a standing-rules
+    pointer, to the `(file, heading)` it names."""
+    found: dict[str, tuple[str, str]] = {}
+    for title, start, end in doc.sections:
+        if title not in STANDING_SECTIONS:
+            continue
+        pointer = standing_pointer(doc.lines[start + 1 : end])
+        if pointer is not None:
+            found[title] = pointer
+    return found
+
+
+def _standing_doc(doc: Doc, text: str) -> Doc | None:
+    """`doc` with each standing-rules pointer replaced by the section of the
+    same name in `text` (the standing-rules file, or a hop file's verbatim copy
+    of the hot file it follows); None when `text` lacks a pointed section."""
+    pointed = _standing_pointed(doc)
+    if not pointed:
+        return doc
+    lines = list(doc.lines)
+    for title, start, end in sorted(doc.sections, key=lambda s: -s[1]):
+        if title not in pointed:
+            continue
+        held = section_of(text, title)
+        if held is None:
+            return None
+        lines[start + 1 : end] = ["", *_trim_blank(held), ""]
+    return replace(_doc_from_lines(doc.path, lines), size=doc.size)
+
+
+def _standing_text(doc: Doc) -> tuple[str | None, str]:
+    """The text a hot file's standing-rules pointers read, and where it lives.
+    Once a successor exists its `fill` has rewritten the shared file, so the
+    successor's hop file, which holds this file's sections verbatim, is read
+    instead."""
+    handoffs = doc.path.parent
+    successor = _successor(doc.path)
+    nxt = None
+    if successor is not None:
+        try:
+            nxt = parse_doc(successor)
+        except (OSError, UnicodeDecodeError):
+            nxt = None
+    if nxt is not None and nxt.shape in HOP_FILE_SHAPES:
+        source = hop_file_path(
+            handoffs,
+            nxt.frontmatter.get("chain_root", ""),
+            _fm_int(nxt, "hop") or 0,
+            nxt.frontmatter.get("session_id", ""),
+        )
+    else:
+        source = handoffs / doc.frontmatter.get("standing_rules", "")
+    rel = source.relative_to(handoffs).as_posix()
+    try:
+        return source.read_text(encoding="utf-8"), rel
+    except (OSError, UnicodeDecodeError):
+        return None, rel
+
+
+def _standing_header(doc: Doc) -> list[str]:
+    fm = doc.frontmatter
+    return [
+        "---",
+        f"type: {STANDING_TYPE}",
+        f"chain_root: {fm.get('chain_root', '')}",
+        f"hop: {fm.get('hop', '')}",
+        f"written_by: {doc.basename}",
+        "---",
+    ]
+
+
+def _split_standing(
+    hot: list[str], rel: str, term: str, header: list[str]
+) -> tuple[list[str], str]:
+    """Move the standing sections out of the hot file's lines into the
+    standing-rules file's text, each leaving a pointer to its heading there.
+    Hot lines keep their terminators; the file's text is LF."""
+    content = [_line_parts(line)[0] for line in hot]
+    out = list(hot)
+    held: dict[str, list[str]] = {}
+    for title, at, end in sorted(section_spans(content, 0), key=lambda s: -s[1]):
+        if title not in STANDING_SECTIONS:
+            continue
+        held[title] = _trim_blank(content[at + 1 : end])
+        out[at + 1 : end] = [term, f"{STANDING_PREFIX}{rel}#{title}{term}", term]
+    text = list(header)
+    for title in STANDING_SECTIONS:
+        text += ["", f"## {title}", "", *held.get(title, [])]
+    return out, "\n".join(text) + "\n"
+
+
+def _join_standing(hot: list[str], text: str, term: str) -> list[str] | None:
+    """The hot file's lines with each standing-rules pointer replaced by its
+    section from `text`; None when `text` lacks one."""
+    content = [_line_parts(line)[0] for line in hot]
+    out = list(hot)
+    for title, at, end in sorted(section_spans(content, 0), key=lambda s: -s[1]):
+        if title not in STANDING_SECTIONS:
+            continue
+        if standing_pointer(content[at + 1 : end]) is None:
+            continue
+        held = section_of(text, title)
+        if held is None:
+            return None
+        out[at + 1 : end] = [
+            term,
+            *(line + term for line in _trim_blank(held)),
+            term,
+        ]
+    return out
+
+
+def _page_standing(hot: list[str], held: int) -> list[str]:
+    """The hot lines with each Resume prompt directive telling the reader to
+    page the standing-rules file when it is over one Read page, and not
+    otherwise."""
+    content = [_line_parts(line)[0] for line in hot]
+    span = next(
+        (
+            (at, end)
+            for name, at, end in section_spans(content, 0)
+            if name == "Resume prompt"
+        ),
+        None,
+    )
+    if span is None:
+        return hot
+    out = list(hot)
+    for i in range(span[0] + 1, span[1]):
+        line = content[i]
+        if not line.startswith("Read @") or STANDING_THEN not in line:
+            continue
+        line = line.replace(STANDING_PAGED + STANDING_THEN, STANDING_THEN, 1)
+        if held > READ_CAP_BYTES:
+            line = line.replace(STANDING_THEN, STANDING_PAGED + STANDING_THEN, 1)
+        out[i] = line + _line_parts(hot[i])[1]
+    return out
+
+
+def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> Doc:
+    """A role chain's checks: its `standing_rules` key names the chain's
+    standing-rules file, each standing section is only a pointer to its own
+    heading there, and the pointed text exists. Returns `doc` with the
+    standing sections read from that text (`standing` when given, as `amend`
+    gives it before writing), for the content checks."""
+    held = doc.frontmatter.get("standing_rules")
+    pointed = _standing_pointed(doc)
+    if not held and not pointed:
+        return doc
+    want = standing_rel(root) if root else None
+    if held and want and held != want:
+        f.fail(f"frontmatter: standing_rules must be '{want}' (got {held!r})")
+        return doc
+    if not held:
+        f.fail(
+            f"frontmatter: {', '.join(pointed)} point at a standing-rules file, but no standing_rules key names one"
+        )
+        return doc
+    for title in STANDING_SECTIONS:
+        if title in doc.titles and pointed.get(title) != (held, title):
+            f.fail(
+                f"{title}: standing_rules is set, so this section holds only '{STANDING_PREFIX}{held}#{title}'",
+                CheckKind.POINTER,
+            )
+            return doc
+    if standing is not None:
+        text, rel = standing, held
+    else:
+        text, rel = _standing_text(doc)
+    resolved = _standing_doc(doc, text) if text is not None else None
+    if resolved is None:
+        f.fail(
+            f"standing rules: {rel} is not on disk or lacks '## {STANDING_SECTIONS[0]}' and '## {STANDING_SECTIONS[1]}'",
+            CheckKind.POINTER,
+        )
+        return doc
+    return resolved
+
+
 def _validate_shape3(
     doc: Doc,
     f: Findings,
@@ -2056,11 +2267,13 @@ def _validate_shape3(
     pred: Doc | None,
     projects_root: Path | None,
     hop_text: str | None = None,
-) -> None:
+    standing: str | None = None,
+) -> Doc:
     """The shape-3 checks: chain position, the fixed section order, the raw goal
     prefix, rule ids, the hop files on the chain path, nothing dropped between
     the hot file and this hop's file, the last Prior-sessions rows, the byte
-    cap, and the GitHub state WARN."""
+    cap, and the GitHub state WARN. Returns the file with a role chain's
+    standing rules read in, for the checks that follow."""
     fm = doc.frontmatter
     for key in ("chain_root", "hop", "archive", "archive_from", "repo"):
         if not fm.get(key):
@@ -2099,6 +2312,8 @@ def _validate_shape3(
     if doc.shape == 4:
         _check_moves(doc, f, spec)
     _check_original_goal(doc, f, hop or 1)
+    raw = doc
+    doc = _check_standing(doc, f, root, standing)
 
     prompt = doc.section("Resume prompt") or []
     origin = next(
@@ -2141,7 +2356,7 @@ def _validate_shape3(
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
-        return
+        return doc
 
     handoffs = doc.path.parent
     own = hop_file_path(handoffs, root, hop, fm.get("session_id", ""))
@@ -2179,20 +2394,29 @@ def _validate_shape3(
             report(
                 f"frontmatter: after {previous!r} (chain_root, hop, archive_from) is {want} (got {(root, hop, start)})"
             )
-        _check_carry_3(doc, f, pred, start, hop == start, rel, archived, report)
+        held = pred
+        if archived is not None and _standing_pointed(pred):
+            held = _standing_doc(pred, archived)
+            if held is None:
+                f.fail(
+                    f"standing rules: {rel} holds no copy of the predecessor's {' and '.join(STANDING_SECTIONS)}, so its carried rules cannot be checked",
+                    CheckKind.POINTER,
+                )
+                held = pred
+        _check_carry_3(doc, f, held, start, hop == start, rel, archived, report)
         _check_hop_path(f, pred, start)
     _check_retire_pointers(doc, f, pred, rel, archived, report)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
-    slots = _check_slot_sizes(doc, f)
-    if doc.shape == 4 and _cap_state(doc)[0] > READ_CAP_BYTES:
+    slots = _check_slot_sizes(raw, f)
+    if raw.shape == 4 and _cap_state(raw)[0] > READ_CAP_BYTES:
         f.warn(
-            f"size: {_cap_state(doc)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
+            f"size: {_cap_state(raw)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
             CheckKind.SIZE,
         )
-    verdict = _size_finding(doc, rel)
+    verdict = _size_finding(raw, rel)
     if verdict is None:
-        return
+        return doc
     level, message = verdict
     if level == "FAIL":
         f.fail(message, CheckKind.SIZE)
@@ -2203,6 +2427,7 @@ def _validate_shape3(
     else:
         f.unvalidated = True
         f.warn(f"UNVALIDATED: {message}", CheckKind.SIZE)
+    return doc
 
 
 def _check_slot_sizes(doc: Doc, f: Findings) -> int:
@@ -2589,9 +2814,6 @@ def cmd_chain(args: argparse.Namespace) -> int:
     return 0
 
 
-# --- emit -------------------------------------------------------------------------
-
-
 def cmd_emit(args: argparse.Namespace) -> int:
     doc, code = _open_handoff(args.file)
     if doc is None:
@@ -2629,16 +2851,25 @@ def cmd_emit(args: argparse.Namespace) -> int:
             head = message if message.startswith(f"{level}:") else f"{level}: {message}"
             print(f"{head}; {tail}; the prompt is emitted", file=sys.stderr)
     real = _posix(path)
+    held = doc.frontmatter.get("standing_rules")
     out: list[str] = []
     for line in _trim_blank(body):
         if line.startswith("Read @"):
-            stored = line[len("Read @") :].split(",", 1)[0].strip()
+            standing, stored = _directive_paths(line)
+            if standing is not None and held:
+                real_standing = _posix(path.parent / held)
+                if not _same_file(standing, path.parent / held):
+                    print(
+                        f"WARN: stored standing-rules path {standing} is not this chain's; substituting {real_standing} on stdout only (file untouched)",
+                        file=sys.stderr,
+                    )
+                    line = line.replace("@" + standing, "@" + real_standing, 1)
             if not _same_file(stored, path):
                 print(
                     f"WARN: stored 'Read @' path {stored} is not this file; substituting {real} on stdout only (file untouched)",
                     file=sys.stderr,
                 )
-                line = "Read @" + real + line[len("Read @") + len(stored) :]
+                line = line.replace("@" + stored, "@" + real, 1)
         out.append(line)
     if getattr(args, "format", "rails") == "markdown":
         out = _markdown_prompt(out)
@@ -2667,9 +2898,6 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
         out.append(swap.get(line, line))
         i += 1
     return out
-
-
-# --- retire -----------------------------------------------------------------------
 
 
 def _locate_ref(
@@ -2893,9 +3121,6 @@ def _write_atomic(path: Path, payload: bytes) -> OSError | None:
     return None
 
 
-# --- fill -------------------------------------------------------------------------
-
-
 def cmd_fill(args: argparse.Namespace) -> int:
     """Replace every slot in one pass and one write. Substitution only, with the
     single exception the closing handoff needs: a `next` value of exactly
@@ -3090,7 +3315,16 @@ def cmd_fill(args: argparse.Namespace) -> int:
         for position, part in enumerate(parts):
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
-    writes: list[tuple[Path, str, bytes]] = []
+    writes: list[tuple[Path, str, bytes | None]] = []
+    standing_key = doc.frontmatter.get("standing_rules") if shape == 4 else None
+    want = standing_rel(doc.frontmatter.get("chain_root", ""))
+    if standing_key and standing_key != want:
+        return _die(
+            1,
+            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({want}); nothing written",
+        )
+    if standing_key and (code := _forked(path, doc)) is not None:
+        return code
     if retire or shape == 4:
         hop_number = _fm_int(doc, "hop") or 0
         own = hop_file_path(
@@ -3116,6 +3350,22 @@ def cmd_fill(args: argparse.Namespace) -> int:
                 return _die(1, f"{moved}; nothing written")
             out, hop_lines = moved
         if shape == 4:
+            term = (_line_parts(lines[0])[1] if lines else "") or "\n"
+            if standing_key:
+                out, standing = _split_standing(
+                    out, standing_key, term, _standing_header(doc)
+                )
+                target = path.parent / standing_key
+                try:
+                    prior = target.read_bytes()
+                except FileNotFoundError:
+                    prior = None
+                except OSError as exc:
+                    return _die(
+                        1,
+                        f"cannot read the standing-rules file {standing_key} ({exc}); nothing written",
+                    )
+                writes.append((target, standing, prior))
             out, hop_lines, _ = handoff_fit.fit(
                 out,
                 hop_lines,
@@ -3123,20 +3373,25 @@ def cmd_fill(args: argparse.Namespace) -> int:
                 cap=SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES,
                 rel=rel,
                 hop_number=hop_number,
-                term=(_line_parts(lines[0])[1] if lines else "") or "\n",
+                term=term,
             )
             out = handoff_fit.paged(out, READ_CAP_BYTES)
+            if standing_key:
+                out = _page_standing(out, len(standing.encode("utf-8")))
         writes.append((own, "".join(hop_lines), before))
     # Every value was encode-checked above and the source decoded cleanly, so
     # the encodes below cannot raise. The hop file is written before the hot
     # file and restored when the hot file's write fails.
     writes.append((path, "".join(out), text.encode("utf-8")))
-    done: list[tuple[Path, bytes]] = []
+    done: list[tuple[Path, bytes | None]] = []
     for target, payload, before in writes:
         exc = _write_atomic(target, payload.encode("utf-8"))
         if exc is not None:
             for written, original in done:
-                _write_atomic(written, original)
+                if original is None:
+                    written.unlink(missing_ok=True)
+                else:
+                    _write_atomic(written, original)
             return _die(2, f"cannot write {target} ({exc}); nothing written")
         done.append((target, before))
     try:
@@ -3151,9 +3406,6 @@ def cmd_fill(args: argparse.Namespace) -> int:
     sys.stdout.flush()
     cmd_emit(argparse.Namespace(file=str(path), format="rails", notice=False))
     return 0
-
-
-# --- amend ------------------------------------------------------------------------
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
@@ -3203,6 +3455,40 @@ def _successor(path: Path) -> Path | None:
         ):
             return candidate
     return None
+
+
+def _fork_sibling(path: Path, doc: Doc) -> Path | None:
+    """Another session's handoff beside `path` that follows `doc`'s
+    predecessor: a fork, which a role chain's one standing-rules file cannot
+    serve. A retry by the same session is not a fork."""
+    previous = doc.frontmatter.get("previous_handoff")
+    if not previous:
+        return None
+    session_id = doc.frontmatter.get("session_id", "").lower()
+    for candidate in sorted(path.parent.glob("*.md")):
+        if (
+            candidate.name in (path.name, previous)
+            or not HANDOFF_NAME_RE.match(candidate.name)
+            or _previous_of(candidate) != previous
+        ):
+            continue
+        try:
+            other = parse_doc(candidate).frontmatter.get("session_id", "").lower()
+        except (OSError, UnicodeDecodeError):
+            other = ""
+        if other != session_id:
+            return candidate
+    return None
+
+
+def _forked(path: Path, doc: Doc) -> int | None:
+    sibling = _fork_sibling(path, doc)
+    if sibling is None:
+        return None
+    return _die(
+        1,
+        f"{sibling.name} also follows {doc.frontmatter.get('previous_handoff')}: a role chain keeps one standing-rules file, so it continues from one tip only; nothing written",
+    )
 
 
 def _not_tip(path: Path, successor: Path, payload: str) -> int:
@@ -3412,6 +3698,34 @@ def cmd_amend(args: argparse.Namespace) -> int:
     hot = text.splitlines(keepends=True)
     hop = hop_text.splitlines(keepends=True)
     term = (_line_parts(hot[0])[1] if hot else "") or "\n"
+    standing_key = fm.get("standing_rules") if doc.shape == 4 else None
+    standing_path: Path | None = None
+    standing_before: bytes | None = None
+    standing_text: str | None = None
+    if standing_key:
+        if standing_key != standing_rel(fm.get("chain_root", "")):
+            return _die(
+                1,
+                f"standing_rules {standing_key!r} is not this chain's standing-rules file; nothing written",
+            )
+        if (code := _forked(path, doc)) is not None:
+            return code
+        standing_path = path.parent / standing_key
+        try:
+            standing_before = standing_path.read_bytes()
+            standing_text = standing_before.decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return _die(
+                1,
+                f"cannot read the standing-rules file {standing_key} ({exc}); nothing written",
+            )
+        joined = _join_standing(hot, standing_text, term)
+        if joined is None:
+            return _die(
+                1,
+                f"the standing-rules file {standing_key} lacks a section this file points at; nothing written",
+            )
+        hot = joined
     if retire:
         refs = [(item["ref"], item["reason"].strip()) for item in retire]
         moved = _apply_retire(hot, hop, refs, rel)
@@ -3522,6 +3836,8 @@ def cmd_amend(args: argparse.Namespace) -> int:
         if fm.get("previous_handoff")
         else None
     )
+    if pred is not None:
+        pred = _standing_doc(pred, _universal(hop_text)) or pred
     amended = _resolved(hot, hop, rel)
     for title in sections:
         if title in S3.retired_entry_sections:
@@ -3560,14 +3876,26 @@ def cmd_amend(args: argparse.Namespace) -> int:
                 hop_term,
                 *(line + hop_term for line in old),
             ]
+    new_standing = standing_text
+    if standing_key:
+        hot, new_standing = _split_standing(
+            hot, standing_key, term, _standing_header(doc)
+        )
+        hot = _page_standing(hot, len(new_standing.encode("utf-8")))
     new_hot, new_hop = "".join(hot), "".join(hop)
-    if new_hot == text and new_hop == hop_text:
+    if new_hot == text and new_hop == hop_text and new_standing == standing_text:
         return _die(1, f"nothing to amend: {_posix(path)} would not change")
 
     old_findings, _ = validate_doc(doc, None, False)
     built = _doc_from_lines(path, _text_lines(new_hot))
     built.size = len(new_hot.encode("utf-8"))
-    findings, code = validate_doc(built, None, False, hop_text=_universal(new_hop))
+    findings, code = validate_doc(
+        built,
+        None,
+        False,
+        hop_text=_universal(new_hop),
+        standing=_universal(new_standing) if new_standing is not None else None,
+    )
     introduced = _fail_keys(findings) - _fail_keys(old_findings)
     if introduced:
         for x in findings.fails:
@@ -3578,12 +3906,15 @@ def cmd_amend(args: argparse.Namespace) -> int:
             f"the amend adds a FAIL the file did not have; nothing written: {_posix(path)}",
         )
 
+    originals: dict[Path, bytes | None] = {own: hop_before, path: before}
+    changed = [(own, new_hop, hop_text)]
+    if standing_path is not None and new_standing is not None:
+        originals[standing_path] = standing_before
+        changed.append((standing_path, new_standing, standing_text))
+    changed.append((path, new_hot, text))
     writes = [
         (target, payload.encode("utf-8"))
-        for target, payload, original in (
-            (own, new_hop, hop_text),
-            (path, new_hot, text),
-        )
+        for target, payload, original in changed
         if payload != original
     ]
     staged: list[tuple[Path, str]] = []
@@ -3606,8 +3937,10 @@ def cmd_amend(args: argparse.Namespace) -> int:
         try:
             os.replace(tmp, target)
         except OSError as exc:
-            if index:
-                _write_atomic(own, hop_before)
+            for written, _ in staged[:index]:
+                original = originals[written]
+                if original is not None:
+                    _write_atomic(written, original)
             _unstage(staged[index:])
             return _die(2, f"cannot write {target} ({exc}); nothing written")
     _print_verdict(built, findings, code)
@@ -3625,9 +3958,6 @@ def _unstage(staged: list[tuple[Path, str]]) -> None:
             os.unlink(tmp)
         except OSError:
             pass
-
-
-# --- new --------------------------------------------------------------------------
 
 
 def _git_stdout(directory: Path, *args: str) -> str | None:
@@ -3825,9 +4155,13 @@ def _resume_prompt(
     origin_path: str,
     settings_file: str | None = None,
     start_command: str | None = None,
+    standing: Path | None = None,
 ) -> list[str]:
-    """The `## Resume prompt` skeleton lines, shape 2 and shape 3 alike."""
+    """The `## Resume prompt` skeleton lines, shape 2 and shape 3 alike; a role
+    chain's directive loads its standing-rules file `standing` first."""
     read_path = _posix(target)
+    if standing is not None:
+        read_path = f"{_posix(standing)}{STANDING_THEN}{read_path}"
     settings = f' --settings "{settings_file}"' if settings_file else ""
     relaunch = [relaunch_line(start_command)] if start_command else []
     return [
@@ -3917,7 +4251,6 @@ def build_skeleton(
     def section(title: str, lines: list[str]) -> None:
         body.extend(["", f"## {title}", "", *_trim_blank(lines)])
 
-    # 1. Original goal
     goal: list[str] = []
     pred_goal = pred.section("Original goal") if pred is not None else None
     amended = "**Amended:** " + _fill(
@@ -3985,7 +4318,6 @@ def build_skeleton(
     )
     section("Original goal", goal)
 
-    # 2..14
     for title in SECTIONS_14[1:]:
         if title in CUMULATIVE:
             name = CUMULATIVE_SLOT[title]
@@ -4023,7 +4355,6 @@ def build_skeleton(
 
     section("This session", _this_session_lines())
 
-    # Prior sessions
     if gone is not None:
         section("Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, _gone_row(*gone)])
     elif pred is None:
@@ -4087,6 +4418,7 @@ def build_skeleton_3(
     start_command: str | None = None,
     gone: tuple[str, str] | None = None,
     shape: int = 3,
+    standing: bool = False,
 ) -> str:
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
@@ -4112,6 +4444,7 @@ def build_skeleton_3(
         f"hop: {hop}",
         f"archive: {ARCHIVE_DIR}/{_stem(root)}/",
         f"archive_from: {start}",
+        *([f"standing_rules: {standing_rel(root)}"] if standing else []),
         *(f"{key}: {value}" for key, value in floors.items()),
         f"repo: {origin}",
         "---",
@@ -4366,7 +4699,13 @@ def build_skeleton_3(
     section(
         "Resume prompt",
         _resume_prompt(
-            target, session_id, origin, origin_path, settings_file, start_command
+            target,
+            session_id,
+            origin,
+            origin_path,
+            settings_file,
+            start_command,
+            target.parent / standing_rel(root) if standing else None,
         ),
     )
     body = [line for title in SHAPES[shape].names for line in bodies[title]]
@@ -4537,6 +4876,25 @@ def cmd_new(args: argparse.Namespace) -> int:
             )
     if args.shape is None:
         args.shape = HANDOFF_SHAPE
+    standing = bool(args.standing_rules) or (
+        pred is not None
+        and pred.shape == 4
+        and bool(pred.frontmatter.get("standing_rules"))
+    )
+    if standing and args.shape != 4:
+        return _die(
+            2,
+            f"a standing-rules file belongs to a shape-4 chain; this hop is shape {args.shape}",
+        )
+    if pred is not None and _standing_pointed(pred):
+        text, rel = _standing_text(pred)
+        resolved = _standing_doc(pred, text) if text is not None else None
+        if resolved is None:
+            return _die(
+                1,
+                f"predecessor's standing rules are unreadable: {rel} is not on disk or lacks a section the predecessor points at; restore it, then re-run",
+            )
+        pred = resolved
 
     if repo_root is not None:
         origin = origin_identity(_git_origin(repo_root), repo_root.name)
@@ -4566,7 +4924,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.shape == 2:
         content = build_skeleton(**common, pred_failed=pred_failed)
     else:
-        content = build_skeleton_3(**common, shape=args.shape)
+        content = build_skeleton_3(**common, shape=args.shape, standing=standing)
         root, hop, _ = _chain_position(pred, target.name)
         # The root comes from the predecessor's frontmatter: hold it to a bare
         # handoff name so no `../` lands the hop file outside the archive.
@@ -4616,7 +4974,13 @@ def cmd_new(args: argparse.Namespace) -> int:
         pass
     print(_posix(target))
     if args.shape == 4:
-        print(_budget_line(content), file=sys.stderr)
+        skeleton = content
+        if standing:
+            split, _ = _split_standing(
+                content.splitlines(keepends=True), standing_rel(root), "\n", []
+            )
+            skeleton = "".join(split)
+        print(_budget_line(skeleton), file=sys.stderr)
     return 0
 
 
@@ -4641,9 +5005,6 @@ def _parse_now(raw: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
-
-
-# --- CLI --------------------------------------------------------------------------
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -4698,6 +5059,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=WRITABLE_SHAPES,
         default=None,
         help=f"shape to write (default {HANDOFF_SHAPE}, or the predecessor's shape when newer; shape 2 builds no hot file or archive)",
+    )
+    p_new.add_argument(
+        "--standing-rules",
+        action="store_true",
+        help="role chain: `fill` keeps Current rules and Standing preferences in the chain's archive/<chain>/standing-rules.md, the hot file holds a pointer to each, and the resume prompt loads that file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 

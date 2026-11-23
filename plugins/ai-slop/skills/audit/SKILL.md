@@ -10,17 +10,6 @@ metadata:
   summary: Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>&1`
@@ -378,6 +367,13 @@ forms are documented in the plugin README and managed by `/ai-slop:setup`. The d
 legitimately needs em dashes, the remedy is `em_dash_allowed_paths` or the file marker, never a
 threshold. The em-dash rule is zero-tolerance by design; the catalog's `rule-em-dash` entry
 carries the reason.
+
+## Related
+
+- Work through findings in a fix pass: /review:fanout fix.
+- Deliberate house style tripped rules: /ai-slop:setup.
+- Code comments instead of prose: /code-tidying:audit-comment-residue.
+- Reshape prose for conciseness: /writing:be-concise.
 
 ## What this skill does not do
 

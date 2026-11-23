@@ -1,5 +1,71 @@
 # Changelog: evals
 
+## [0.25.0] - 2026-11-23
+
+### Added
+
+- `/evals:audit` reports an eval suite's health and edits nothing: skills with no case or no deterministic triggering case, judged graders with no labeled samples, legacy-only skills and missing should-not-fire cases, then judged findings on gate pairs, duplicates, grader fit and drift, each naming where its fix goes.
+
+## [0.24.2] - 2026-11-23
+
+### Added
+
+- **`apply_step`, `plugin_cli_write` and `plugin_cli_write_with_help` grader fragments.** The shared matchers now hold the git-hooks apply-step command and the `claude plugin` write command, each in its own file with must-pass and must-fail samples, and every `no-apply-step` and `no-plugin-cli-write` grader in this repository builds from them instead of carrying its own copy.
+
+## [0.24.1] - 2026-11-23
+
+### Changed
+
+- `/evals:plugin-eval select` counts a meaning-flipping word (`not`, `never`, `no`, `only`, `except`, `unless` and their contractions) inserted into an existing instruction line as a cut, so it runs the affected cases; other added words still run nothing.
+
+## [0.24.0] - 2026-11-23
+
+### Added
+
+- `/evals:plugin-eval select <diff-base>` names the eval cases a change affects, split into the cases to run (the eval workflows' `cases` input), judged cases, cases to run after merge, and affected cases that need no run, with the agent-run count. It reads which skill a case tests through the shared `case_skills.py` rule and makes no model call.
+
+## [0.23.2] - 2026-11-23
+
+### Changed
+
+- `/evals:validate` reads which skill a case tests from a shared `plugins/evals/scripts/case_skills.py`, with the same findings.
+
+## [0.23.1] - 2026-11-23
+
+### Added
+
+- **`install_command` grader fragment.** The shared matchers now hold one list of package and tool install commands, with must-pass and must-fail samples, and every `no-install` grader in this repository builds from it instead of carrying its own copy.
+
+## [0.23.0] - 2026-11-23
+
+### Added
+
+- `/evals:validate` fails a dangling reference: a prompt whose leading `/<plugin>:<skill>` names no skill, a `context.scaffold_script`, `history_file` or `add_dirs` entry missing from the case directory, a `tool_used` grader on `Skill` or `Agent` whose `input_match` names a skill or agent that does not exist as a literal token, and a `<plugin>:<skill>` tag that names no skill. The name checks resolve skills and agents under the nearest `plugins/` directory above the suite.
+
+- **Run start prunes stale run roots.** A new `scripts/prune-run-roots.py` removes a run root
+  under `$HOME/.ev` only when it is a real directory directly under `$HOME/.ev`, holds
+  `claude-eval-*` sandboxes, has had nothing change for 3 days, and no process has a file open
+  under it. It opens each `sealed/` with `chmod 700` before removing and refuses any path outside
+  `$HOME/.ev`, or the whole pass when `$HOME/.ev` resolves to a shared temp directory. Run step 3
+  calls it before creating the run directory; preflight still removes nothing. Its age check reads
+  every entry under the root, so it can keep a root that preflight's `stale_run_roots` lists by
+  the root's own mtime.
+
+### Changed
+
+- `/evals:validate` grades a suite's JavaScript regex checks in one `node` and one `bun` process per suite instead of two per case, with the same findings.
+
+- **`leftover_sandboxes` counts nested sandboxes.** The preflight probe now finds `claude-eval-*`
+  directories at any depth under the temp directory, not only its direct children.
+
+## [0.22.2] - 2026-11-23
+
+### Changed
+
+- `methodology` points at Anthropic's evaluation guidance instead of carrying a copy: the success-criteria, grading and recipes reference files are gone, `eval-design.md` keeps only this repository's decisions, and the skill links the statistical-approach post and the skill-creator post. Its `## Next` now names `/evals:validate`.
+- `design` and `plugin-eval` link the skills docs section on evaluating a skill and Demystifying evals where they decide graders and runs.
+- Links into `anthropics/skills` follow `main` instead of a pinned commit.
+
 ## [0.22.1] - 2026-11-21
 
 ### Changed

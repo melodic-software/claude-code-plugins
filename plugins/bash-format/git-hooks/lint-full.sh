@@ -1,5 +1,4 @@
 #!/bin/sh
-# POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
 */*) here="${0%/*}" ;;
@@ -29,7 +28,22 @@ if [[ "${1:-}" == --resolve ]]; then
   rt_print lint "$PWD" ${resolve[@]+"${resolve[@]}"}
   exit 0
 fi
-checks_init pre-push "$@" || exit 0
+if [[ "${1:-}" == --base ]]; then
+  base_ref="${2:-}"
+  shift 2 2>/dev/null || shift
+  if [[ -z "$base_ref" ]]; then
+    printf '%s\n' 'lint-full.sh: --base needs a ref' >&2
+    exit 2
+  fi
+  checks_init pre-push "$@" </dev/null || exit 0
+  if ! fork="$(git merge-base "$base_ref" HEAD 2>/dev/null)"; then
+    printf 'lint-full.sh: no merge-base of HEAD and %s, so nothing was checked\n' "$base_ref" >&2
+    exit 1
+  fi
+  printf '%s %s\n' "$fork" "$(git rev-parse HEAD)" >"$CHECKS_TMP/push-ranges"
+else
+  checks_init pre-push "$@" || exit 0
+fi
 
 candidates=()
 while IFS= read -r -d '' f; do

@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Compose a conforming review-findings file from detect.sh output.
-#
-#   emit-findings.sh --from <detect-output> [--from <detect-output> ...] --out <path> [--branch <b>]
-#
-# --from is repeatable: a chunked detector run (detect.sh --offset/--limit)
-# writes one Summary block per chunk, and this script SUMS the per-rule counts
-# across every --from file. A rule is reported as returning no result only
-# when every chunk reported zero findings for it; a rule is reported disabled
-# when any chunk said so (the config is the same for every chunk of one run).
-#
-# The FINDINGS HOME is never resolved here: the caller (the audit skill)
-# resolves it from the memory root per the detector-findings convention and its
-# fetch-and-refuse gate, then hands the resolved path in as --out. This script
-# owns only the deterministic composition: at repo scale a findings file runs
-# to thousands of rows, which is script work, not prose work.
-#
-# The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/contracts/detector-findings/README.md ("The severity crosswalk");
-# that table is the source of truth. A tier change lands there first and is
-# copied here, never the reverse.
-#
 # Exit: 0 on success, 2 on usage error, 3 when a --from file carries no
 # detect.sh Summary rows at all (not detector output; refusing beats composing
 # from garbage). Zero findings with Summary rows present still WRITES the file:
@@ -29,11 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+ME="emit-findings.sh"
 
-# No `tier:` frontmatter is emitted. Both owner docs (context/persist-findings.md
-# and the detector-findings adopter row) say this producer omits it, and nothing
-# here computes a value: the retired --tier flag defaulted to a hardcoded
-# "medium" that described no property of the run.
 FROM_FILES=()
 OUT=""
 BRANCH=""
@@ -54,11 +30,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --from) require_opt_value "emit-findings.sh" "$@"; FROM_FILES+=("$2"); shift 2 ;;
-  --out) require_opt_value "emit-findings.sh" "$@"; OUT="$2"; shift 2 ;;
-  --branch) require_opt_value "emit-findings.sh" "$@"; BRANCH="$2"; shift 2 ;;
+  --from) require_opt_value "$ME" "$@"; FROM_FILES+=("$2"); shift 2 ;;
+  --out) require_opt_value "$ME" "$@"; OUT="$2"; shift 2 ;;
+  --branch) require_opt_value "$ME" "$@"; BRANCH="$2"; shift 2 ;;
   --help | -h) usage; exit 0 ;;
-  *) echo "emit-findings.sh: unknown argument: $1" >&2; exit 2 ;;
+  *) echo "$ME: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
@@ -68,23 +44,22 @@ done
 }
 for from in "${FROM_FILES[@]}"; do
   [[ -f "$from" ]] || {
-    echo "emit-findings.sh: --from file not found: $from" >&2
+    echo "$ME: --from file not found: $from" >&2
     exit 2
   }
   if ! LC_ALL=C grep -q '^Summary rule=' "$from"; then
-    echo "emit-findings.sh: $from has no detect.sh Summary rows; not detector output" >&2
+    echo "$ME: $from has no detect.sh Summary rows; not detector output" >&2
     exit 3
   fi
 done
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
-    echo "emit-findings.sh: no --branch and no current git branch" >&2
+    echo "$ME: no --branch and no current git branch" >&2
     exit 2
   }
 fi
 
-# Non-overwrite naming: never clobber an unconsumed findings file.
 if [[ -e "$OUT" ]]; then
   n=2
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done
@@ -92,24 +67,8 @@ if [[ -e "$OUT" ]]; then
 fi
 mkdir -p "$(dirname "$OUT")"
 
-# ISO-8601 EXTENDED, colons in the time portion. The consumer parses this field:
-# fix-pass-mode.md "Step 1" reads a value only if it is "a full ISO-8601
-# date-time carrying an explicit UTC designator (Z) or a numeric offset", and
-# calls anything else UNREADABLE. The colon-free rule this convention states
-# elsewhere binds the FILE NAME (Windows-safe), never this frontmatter field.
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Repo root, for relativizing Location when detect.sh handed us an absolute
-# path. One directory has several SPELLINGS on Git Bash, and matching the
-# wrong one leaves every Location absolute. An absolute path is still a
-# well-formed cell, so the fail-open producer never reports it. Measured:
-# `git rev-parse --show-toplevel` answers Git Bash's Windows spelling of the same temp repo
-# while the caller reached the same directory as `/tmp/t/repo`.
-#
-# The PRIMARY anchor is derived from the caller's own `pwd` by removing the
-# sub-path git reports for it. The git-reported forms stay as fallbacks.
-# (This producer FAILs OPEN: a path that matches no spelling is left as-is.
-# The harness-config sibling fails closed on the same mismatch.)
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 REPO_ROOT_PWD=""
@@ -329,4 +288,4 @@ cat "${FROM_FILES[@]}" | LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC
   }
 ' >"$OUT"
 
-echo "emit-findings.sh: wrote $OUT"
+echo "$ME: wrote $OUT"

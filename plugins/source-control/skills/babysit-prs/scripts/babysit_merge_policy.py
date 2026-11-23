@@ -75,7 +75,7 @@ from babysit_gh import (
     record_pull_request_total,
     single_attempt,
 )
-from babysit_risk import (
+from diff_risk import (
     FLOOR_ROW_CLASSES,
     MEDIA_SUFFIXES,
     ChangedFile,
@@ -159,7 +159,14 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
-DEMOTION_MARKER = "<!-- babysit-merge-demotion"
+DEMOTION_KIND = "babysit-merge-demotion"
+FAILURE_KIND = "post-merge-failure"
+RECORD_SIGNALS = ("schedule", "dispatch", "canary", "revert", "read-back")
+_RECORD_LINE = re.compile(
+    rf"<!-- ({DEMOTION_KIND}|{FAILURE_KIND}) sha=([0-9a-f]{{40}}) "
+    rf"signal=({'|'.join(RECORD_SIGNALS)}) -->"
+)
+DEMOTION_MARKER = f"<!-- {DEMOTION_KIND}"
 DEMOTION_FILER = "github-actions[bot]"
 LEASE_MARKER = "<!-- work-item-lease v1 "
 
@@ -917,7 +924,7 @@ class PipelineConfig:
     queue_ejection_infra_causes: tuple[str, ...] = QUEUE_EJECTION_INFRA_CAUSES
     # `merge.risk-escalation-minutes`: how long a reasons comment must have
     # stood unchanged at the head before the gate adds the human-gated label
-    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # for a reason only a person clears (`diff_risk.person_reasons`); 0 is
     # no minimum. Absent, or anything but a whole number, is
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
@@ -981,6 +988,7 @@ class PipelineConfig:
     # also held on (`issue_status`). None when the file sets none, which
     # reads labels alone. `stricter_config` takes main's when set.
     issue_status: IssueStatusConfig | None = None
+    baseline_file: str | None = None
 
 
 # The Work status states that hold an issue for a person (read-status.mjs
@@ -1187,6 +1195,7 @@ def read_config_at(
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
             ("merge.lane-prs", False),
+            ("merge.baseline-file", False),
             (ISSUE_HOLDS_KEY, True),
         ],
     )
@@ -1387,6 +1396,7 @@ def read_config_at(
         lane_prs=lane_prs,
         issue_holds=tuple(values[ISSUE_HOLDS_KEY]),
         issue_status=issue_status,
+        baseline_file=scalar("merge.baseline-file") or None,
     )
 
 
@@ -1471,6 +1481,9 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         self_merging_apps=main.self_merging_apps,
         issue_holds=_union(base.issue_holds, main.issue_holds),
         issue_status=main.issue_status or base.issue_status,
+        baseline_file=base.baseline_file
+        if base.baseline_file == main.baseline_file
+        else None,
     )
 
 
@@ -1514,7 +1527,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and c.rung in RUNG_RANK
             and all(
                 v is None or isinstance(v, str)
-                for v in (c.authority, c.agent_identity, c.loop_merge)
+                for v in (c.authority, c.agent_identity, c.loop_merge, c.baseline_file)
             )
             and all(
                 v is None or count(v, 0)
@@ -1934,12 +1947,28 @@ DEMOTION_RECORD = (
 )
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
-# A record of a red full run on main, the one kind a later green clears
-# (`_recovered_at`). Canary, revert and read-back records lift on their own
-# evidence (`_lift`).
-RED_MAIN_RECORD = re.compile(
-    r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
-)
+
+
+def record_marker(kind: str, sha: str, signal: str) -> str:
+    return f"<!-- {kind} sha={sha} signal={signal} -->"
+
+
+def parse_record_marker(line: str) -> tuple[str, str, str] | None:
+    """A record line's kind, SHA and signal; None for any other line."""
+    match = _RECORD_LINE.fullmatch(line)
+    return None if match is None else (match[1], match[2], match[3])
+
+
+def red_main_record(line: str) -> str | None:
+    """The SHA of a record of a red full run on main, the one kind a later
+    green clears (`_recovered_at`). Canary, revert and read-back records lift
+    on their own evidence (`_lift`)."""
+    record = parse_record_marker(line)
+    if record is None or record[0] != DEMOTION_KIND or record[2] not in ("schedule", "dispatch"):
+        return None
+    return record[1]
+
+
 # The holds a red-main record's later green, or a revert or read-back
 # record's lift, clears: how it was closed, never what its edit history or a
 # failed read says.
@@ -1970,13 +1999,18 @@ LISTED_MARGIN = timedelta(minutes=1)
 _RECOVERY_KEY = re.compile(
     r"[1-9][0-9]{0,15}\|[0-9TZ:-]{20}\|(?:OPEN|CLOSED)\|(?:[0-9TZ:-]{20})?\|[0-9a-f]{40}"
 )
-# A canary, revert or read-back record, which `_lift` lifts. A canary record
-# may be a post-merge-failure one, which holds nothing but is closed the same
-# way (babysit_lift.py close).
-LIFTABLE_RECORD = re.compile(
-    r"<!-- (babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) "
-    r"signal=(canary|revert|read-back) -->"
-)
+
+
+def liftable_record(line: str) -> tuple[str, str] | None:
+    """The SHA and signal of a canary, revert or read-back record, which
+    `_lift` lifts. A canary record may be a post-merge-failure one, which
+    holds nothing but is closed the same way (babysit_lift.py close)."""
+    record = parse_record_marker(line)
+    if record is None or record[2] not in ("canary", "revert", "read-back"):
+        return None
+    return record[1], record[2]
+
+
 # The content a canary or revert record's lift checks on main: per path, the
 # hash and count of each line the merge deleted (`lift_block`), on one line of
 # the record's body, or of an unedited comment by a filer on a canary record
@@ -2370,11 +2404,11 @@ def _recovered_at(
     non-human edited (the SHA comes from its body), or no such run; a failed
     read raises."""
     first = str(issue.get("body") or "").lstrip().split("\n", 1)[0].rstrip()
-    marker = RED_MAIN_RECORD.fullmatch(first)
-    if marker is None or _edits_refusal(issue, human):
+    sha = red_main_record(first)
+    if sha is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
-    key = _recovery_key(issue, created, marker[1])
+    key = _recovery_key(issue, created, sha)
     if key in green.carried:
         green.proven[key] = green.carried[key]
         return _time(green.carried[key])
@@ -2382,7 +2416,7 @@ def _recovered_at(
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])
-        if green.ahead(marker[1], head) and green.on_main(head):
+        if green.ahead(sha, head) and green.on_main(head):
             recovered = _time(run.get("created_at"))
             if (
                 key
@@ -2650,10 +2684,10 @@ def _lift(
     body or a filer's unedited comment, or no such evidence; a failed read, or
     more than 100 references, raises."""
     body = str(issue.get("body") or "").lstrip()
-    marker = LIFTABLE_RECORD.fullmatch(body.split("\n", 1)[0].rstrip())
+    marker = liftable_record(body.split("\n", 1)[0].rstrip())
     if marker is None or _edits_refusal(issue, human):
         return None
-    sha, signal = marker[2], marker[3]
+    sha, signal = marker
     owner, name = green.owner, green.name
     number = None
     if signal == "read-back":
@@ -3439,6 +3473,28 @@ def _lane_authored(pr: dict[str, Any], agent_identity: str | None) -> bool:
         agent_identity
         and author.get("__typename") == "Bot"
         and _login_key(author.get("login")) == _login_key(agent_identity)
+    )
+
+
+def baseline_only(
+    pr: Mapping[str, Any],
+    agent_identity: str | None,
+    baseline_file: str | None,
+    paths: Sequence[str] | None,
+) -> bool:
+    """Whether the REST pull request `pr` is `agent_identity`'s Bot and
+    `paths`, every changed path with renamed-from paths, read whole, is
+    exactly `baseline_file` (`merge.baseline-file`; merge-holds.mjs
+    baselineOnly, which test_merge_holds_sync.py keeps equal). An unset file
+    takes no pull request."""
+    user = json_object(pr.get("user"))
+    return bool(
+        agent_identity
+        and baseline_file
+        and user.get("type") == "Bot"
+        and _login_key(user.get("login")) == _login_key(agent_identity)
+        and paths is not None
+        and list(paths) == [baseline_file]
     )
 
 
@@ -4351,6 +4407,8 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/formal-verification/schemas/**",
     "plugins/code-metrics/scripts/**",
     _skill_scripts("code-metrics:audit"),
+    "plugins/guardrails/git-hooks/reference-verify.sh",
+    "plugins/bash-format/git-hooks/lint-full.sh",
 )
 
 
@@ -6768,7 +6826,7 @@ def merged_since_floor(
 
 
 def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
-    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    """`diff_risk.RiskInput.pulumi_dirs`: each directory holding a
     Pulumi project file (`Pulumi.yaml`, `Pulumi.yml` or `Pulumi.json`) at
     the base ("" for the root); None when the base tree cannot be listed
     whole."""

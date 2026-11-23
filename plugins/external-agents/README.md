@@ -10,20 +10,24 @@ none of its text or code is copied).
 
 ## Status
 
-In progress: `run`, `review`, `status`, `result`, `cancel`, `update` and `models` work, and
+In progress: `run`, `review`, `status`, `result`, `cancel`, `update`, `models` and `usage` work, and
 `/external-agents:codex` and `/external-agents:antigravity` drive them.
 
 ## Surface
 
 - **`external-agents`**, on the Bash `PATH` while the plugin is enabled: `run`, `review`, `status`,
-  `result`, `cancel`, `update` and `models`. `review:council` calls `external-agents review <product>`
-  and `/multi-agent:route` calls `external-agents models <product>`; nothing outside this plugin
-  reads its install path, its scripts or its cache files.
+  `result`, `cancel`, `update`, `models` and `usage`. `review:council` calls
+  `external-agents review <product>` and `/multi-agent:route` calls `external-agents models <product>`
+  and `external-agents usage <product>`; nothing outside this plugin reads its install path, its
+  scripts or its cache files.
 - **`/external-agents:codex`**: hands a task, an investigation or a review to Codex
   as a background job, and reads back, resumes or cancels its jobs.
 - **`/external-agents:antigravity`**: the same for Google's Antigravity CLI (`agy`). agy runs
-  read-only unless you opt in to writes with `antigravity.uses.task.mode: write`, because agy's
-  write mode has no network isolation.
+  read-only unless you opt in to writes with `antigravity.uses.task.mode: write`. A write run is
+  fenced by agy's terminal sandbox (`--mode accept-edits`); `--unsandboxed auto` opts one run into
+  agy's auto mode instead.
+- **Extra writable directories:** a write run of either CLI takes a repeatable
+  `--add-dir <absolute dir>`; without it the run writes only inside its workspace.
 - No hooks, no agents and no `commands/` folder: nothing runs until you or a council run asks.
 
 claude.ai organization plugin sync skips this plugin, because it ships a top-level `bin/`
@@ -43,9 +47,12 @@ any change a consumer could notice bumps `schema`.
 | `status` | `ok`; else `unavailable` (exit 4, for example the CLI is missing), `refused` (exit 2, for example an unknown product) or `failed` (exit 1), with a `reason` and no other field. |
 | `cli` | `name` and `version` of the installed binary. |
 | `unset_model` | What runs when no model is passed: `cli-default` means the CLI's own default. |
-| `models` | Each model as the CLI lists it: `id` (the value `--model` takes), `name` when the CLI gives one, and, when the CLI reports them per model, `efforts` and `default_effort`. |
+| `models` | Each model as the CLI lists it: `id` (the value `--model` takes), `name` when the CLI gives one, optional `context_window` when the CLI reports it, and, when the CLI reports them per model, `efforts` and `default_effort`. |
 | `models_source` | The command the list came from. |
 | `efforts`, `efforts_source` | The effort levels the CLI's help lists for its effort flag, and that help command; absent when the CLI reports effort per model instead. A help whose effort line lists no choices this plugin can read makes the result `failed`, never `ok` without levels. |
+| `tools` | List of tool names the harness offers (from the provider record when the CLI does not list them itself). |
+| `image` | Boolean: whether the harness can generate images headless. |
+| `breaker` | `{ open, reason, reset_at }` read from the product's breaker file (`open: false` and `null` fields when closed or absent). |
 | `docs_index` | The vendor's docs index, for facts no command reports. |
 
 The plugin ships no model names: every value comes from the installed CLI. The output of each
@@ -54,10 +61,37 @@ only for its version.
 
 - **agy**: `agy models` gives the models; agy's `--help` gives the `--effort` levels. agy's model
   ids can carry an effort word of their own (`<model>-high`); both are reported as agy prints them.
-- **Codex**: `codex debug models` gives the catalog, each model with its own effort levels and
-  default. It is a debugging subcommand the Codex docs do not describe, so a Codex release can
-  change it; `external-agents update codex` runs it every time and reports `check: cli facts` when
-  it fails. Models the catalog marks hidden are left out.
+  Delegated agy runs keep `--disable-slash-commands` (so `/swarm` and `/teamwork` stay unoffered)
+  while agy's print-mode subagent tools remain available.
+- **Codex**: `codex debug models` gives the catalog, each model with its own effort levels,
+  default and optional `context_window`. It is a debugging subcommand the Codex docs do not
+  describe, so a Codex release can change it; `external-agents update codex` runs it every time and
+  reports `check: cli facts` when it fails. Models the catalog marks hidden are left out.
+
+## The usage command
+
+`external-agents usage <product>` prints one JSON object reporting current plan usage remaining,
+running one call outside delegated runs and never printing account ids, emails or plan names. Exit
+`0` when `status` is `ok`, `4` when `unavailable` (missing CLI, timeout, exit code 2 or unparsable
+output), and `2` for an unknown product.
+
+| Field | Meaning |
+|---|---|
+| `status` | `ok` or `unavailable`. |
+| `remaining` | Remaining plan quota as a fraction from `0` to `1` (absent when `unavailable`). |
+| `window` | Window label for `remaining` (for example `5h`, `Five Hour` or `Weekly`), when reported. |
+| `resets_at` | ISO-8601 reset timestamp for `remaining`, when reported. |
+| `windows` | All parsed window entries (`group`, `window`, `remaining`, optional `resets_at`) when the CLI reports multiple windows. |
+| `source` | The command and method the reading came from. |
+| `reason` | Present when `status` is `unavailable`. |
+
+- **Codex**: queries `codex app-server` over stdio (`account/rateLimits/read`), reads
+  `result.rateLimits.primary` and `secondary`, and reports the one with less left (`usedPercent`
+  as a remaining fraction, `resetsAt` epoch seconds as ISO-8601). With both present, `windows`
+  lists each with `group` `primary` or `secondary`.
+- **agy**: runs `agy --output-format json -p=/usage` directly without `--disable-slash-commands`,
+  parses the tab-delimited lines in `response`, reports the lowest remaining fraction with its
+  window and reset, and keeps every parsed line in `windows`.
 
 ## Requirements
 

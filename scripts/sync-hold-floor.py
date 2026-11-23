@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the lane hold-floor copies from babysit_risk and pr-pipeline.yaml.
+"""Generate the lane hold-floor copies from diff_risk and pr-pipeline.yaml.
 
     python3 -I scripts/sync-hold-floor.py           rewrite every copy
     python3 -I scripts/sync-hold-floor.py --check   print the diff and exit 1 if a copy is stale
 
-The table is `babysit_risk.FLOOR_CLASSES` joined to pr-pipeline.yaml's
+The table is `diff_risk.FLOOR_CLASSES` joined to pr-pipeline.yaml's
 `merge.diff-check.floor-paths` rows (with `COST_PATHS`). This script derives the config's workflow
-rows from the workflow files with `babysit_risk.gated_workflow` and writes them into its
+rows from the workflow files with `diff_risk.gated_workflow` and writes them into its
 `GATE_WORKFLOWS` block. Row order has no effect on what holds. Each copy below sits between
 `BEGIN hold-floor <name>` and `END hold-floor <name>` comment lines and is never edited by
 hand: change the table, then run this script. test_merge_holds_sync.py runs `--check`.
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -35,25 +36,25 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugins/source-control/skills/babysit-prs/scripts"))
 
 import babysit_merge_policy  # noqa: E402
-import babysit_risk  # noqa: E402
+import diff_risk  # noqa: E402
 
 WORKFLOWS = ROOT / ".github/workflows"
 PIPELINE = "docs/conventions/pr-pipeline.yaml"
 
 
 def gate_workflows() -> list[str]:
-    """Each top-level workflow `babysit_risk.gated_workflow` gates, read from
+    """Each top-level workflow `diff_risk.gated_workflow` gates, read from
     the files, so a workflow that gains a secret joins the gate."""
     return sorted(
         f".github/workflows/{f.name}"
         for f in WORKFLOWS.iterdir()
         if f.is_file()
         and f.suffix in (".yml", ".yaml")
-        and babysit_risk.gated_workflow(f.stem, f.read_text(encoding="utf-8"))
+        and diff_risk.gated_workflow(f.stem, f.read_text(encoding="utf-8"))
     )
 
 
-def config_rows() -> babysit_risk.FloorRows:
+def config_rows() -> diff_risk.FloorRows:
     """pr-pipeline.yaml's `merge.diff-check.floor-paths` rows."""
     text = (ROOT / PIPELINE).read_text(encoding="utf-8")
     return babysit_merge_policy.floor_paths_in(text)
@@ -64,7 +65,7 @@ def floor_classes() -> list[tuple[str, str]]:
     config's, with the workflow rows derived again from the files."""
     rows = [
         (g, c)
-        for g, c in babysit_risk.floor_for(config_rows()).classes
+        for g, c in diff_risk.floor_for(config_rows()).classes
         if not (c == "gate" and g.startswith(".github/workflows/") and "*" not in g)
     ]
     return rows + [(g, "gate") for g in gate_workflows()]
@@ -100,7 +101,7 @@ def bash_patterns(glob: str) -> list[str]:
 
 
 def cost_rows(indent: str) -> list[str]:
-    return [f"{indent}{json.dumps(g)}," for g in babysit_risk.COST_PATHS]
+    return [f"{indent}{json.dumps(g)}," for g in diff_risk.COST_PATHS]
 
 
 def class_rows(indent: str) -> list[str]:
@@ -113,8 +114,11 @@ def hold_paths(indent: str) -> list[str]:
 
 def path_holds() -> bool:
     """pr-pipeline.yaml's `merge.diff-check.path-holds`: absent is false."""
+    bash = babysit_merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
+    if bash is None:
+        raise SystemExit("sync-hold-floor: no usable bash found")
     found = subprocess.run(
-        ["bash", str(ROOT / "lib/parse-concern-value.sh"), "--strict"]
+        [bash, str(ROOT / "lib/parse-concern-value.sh"), "--strict"]
         + [str(ROOT / PIPELINE), "merge.diff-check.path-holds", "false"],
         capture_output=True,
         text=True,
@@ -161,8 +165,6 @@ def api_budget_sh(indent: str) -> list[str]:
 
 
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
-# Each block's full marker label: its lines sit between `BEGIN <label>` and
-# `END <label>`.
 BLOCKS = {
     PIPELINE: {"hold-floor GATE_WORKFLOWS": gate_workflow_rows},
     MERGE_HOLDS: {

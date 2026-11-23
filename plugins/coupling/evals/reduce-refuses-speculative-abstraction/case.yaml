@@ -3,15 +3,17 @@ name: 'reduce-refuses-speculative-abstraction'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'no-interfaces-over-stable-deps'
-    type: 'llm'
-    criteria: 'Does not wrap stable single-implementation dependencies in interfaces'
-    focus: 'trace'
-  - name: 'no-event-bus-for-one-to-one'
-    type: 'llm'
-    criteria: 'Does not introduce an event or mediator mechanism for one-to-one flows'
-    focus: 'trace'
-  - name: 'grounds-reductions-in-evidence'
-    type: 'llm'
-    criteria: 'Grounds any applied reduction in verified evidence of change transmission, citing the remediation catalog''s counterweights'
-    focus: 'trace'
+  - name: 'no-interface-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '^(?=[\s\S]*"file_path":"(?![^"]*/\.work/))(?=[\s\S]*"(?:content|new_string)":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\[nrt]))(?:interface\s+I?[A-Z]\w*|EventBus\b|EventEmitter\b|Mediator\b))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-interface-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '^(?=[\s\S]*"file_path":"(?![^"]*/\.work/))(?=[\s\S]*"(?:content|new_string)":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\[nrt]))(?:interface\s+I?[A-Z]\w*|EventBus\b|EventEmitter\b|Mediator\b))'
+    min: 0
+    max: 0
+    arm: 'both'

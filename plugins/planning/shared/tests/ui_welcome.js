@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// The first-join welcome card (follow-up item 6), against `share.sh ensure-running` with the fake cloudflared: a new
-// guest's first view opens with the welcome card, its first line "You're in. Answer this round's
-// questions.", the session goal and the first step, and a visible Skip; Skip closes the card and the tour offer at
-// once (the `tour` pref says skipped) and the card stays closed after a reload on that device; "Show the tour again"
-// in the person's settings brings the card and the tour offer back; on a 390x844 phone Skip is a whole 44 px target.
-// Also: the goal in one closable line on a return visit (follow-up 39), About you in the person's card, read only by
-// the owner (follow-up 46) on the guest's row and in their card, which keeps it when a long list goes compact (#8698), and the in-app browser banner in Instagram's browser (follow-up 45).
-//   node plugins/planning/shared/tests/ui_welcome.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (follow-up item 6) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -33,7 +23,6 @@ async function main() {
     const ann = await rec.open(A.localUrl, desk);
     await joinAs(ann, "Ann");
 
-    // ---------- shown by default on the first view ----------
     ok("a new guest's first view opens with the welcome card", await until(ann, shown));
     const card = await ann.evaluate(() => {
       const c = document.querySelector(".vf-orient"), lead = c.querySelector(".vf-orient-lead"), h = c.querySelector(".vf-orient-h"), skip = c.querySelector(".vf-orient-x");
@@ -46,7 +35,6 @@ async function main() {
     ok("it shows a visible Skip", card.skip === "Skip" && card.skipShown, JSON.stringify(card));
     ok("it offers the optional tour after it", await until(ann, () => { const t = document.querySelector(".vf-orient-tour"); return !!t && !t.hidden && t.textContent === "Show me around"; }));
 
-    // ---------- Skip closes the card and the tour at once ----------
     await ann.click(".vf-orient-x");
     ok("Skip closes the card", await until(ann, () => document.querySelector(".vf-orient").hidden));
     ok("Skip closes the tour too: the tour pref says skipped and no tour shows", await until(ann, () => window.Core.snapshot()?.me?.prefs?.tour === "skipped", null, 5000)
@@ -54,7 +42,6 @@ async function main() {
     const goalLine = page => page.evaluate(() => { const g = document.querySelector(".vf-goalback"); return g && !g.hidden && g.getClientRects().length > 0 ? g.querySelector(".vf-goalback-t").textContent : ""; });
     ok("follow-up 39: the first visit shows no goal line after Skip", (await goalLine(ann)) === "", await goalLine(ann));
 
-    // ---------- once per person per device ----------
     await ann.reload();
     await until(ann, () => !!window.Core.snapshot()?.me && !!document.querySelector(".vf-qtext")?.textContent);
     await ann.waitForTimeout(1000);
@@ -69,7 +56,6 @@ async function main() {
     const ann2 = await ann.context().newPage();
     await ann2.goto(ann.url());
     ok("  a new visit shows it again", await until(ann2, g => document.querySelector(".vf-goalback-t")?.textContent === `Goal: ${g}` && !document.querySelector(".vf-goalback").hidden, GOAL, 10000), await goalLine(ann2));
-    // review: a removed person reads the session without the goal line
     const annPid = await ann.evaluate(() => window.Core.me.cid);
     await owner.evaluate(p => window.Core.removePerson(p, true), annPid);
     ok("  a removed person never sees it", await until(ann2, () => window.Core.state.youRemoved === true && document.querySelector(".vf-goalback").hidden, null, 10000), await goalLine(ann2));
@@ -77,11 +63,9 @@ async function main() {
     await until(ann, () => !window.Core.state.youRemoved, null, 10000);
     await ann2.close();
 
-    // ---------- Show the tour again ----------
     await ann.click(".vf-person-me");
     await until(ann, () => !!document.querySelector(".vf-pcard .vf-tour-again"));
     ok("my settings hold \"Show the tour again\"", (await ann.textContent(".vf-pcard .vf-tour-again")).trim() === "Show the tour again");
-    // ---------- follow-up 46: About you, optional, for the owner only ----------
     ok("my card offers About you, optional", await ann.evaluate(() => /About you \(optional/.test(document.querySelector(".vf-pcard").textContent) && !!document.querySelector(".vf-pcard .vf-about")));
     await ann.fill(".vf-pcard .vf-about-note", "I use a screen reader");
     await ann.locator(".vf-pcard .vf-about .vf-seg-btn", { hasText: "Not very" }).click();
@@ -103,7 +87,6 @@ async function main() {
     ok("it brings the welcome card back", await until(ann, shown));
     ok("and the tour offer: the tour pref is cleared", await until(ann, () => !("tour" in (window.Core.snapshot()?.me?.prefs || {})) && !document.querySelector(".vf-orient-tour").hidden, null, 5000));
 
-    // ---------- a phone: Skip is a whole target ----------
     const pia = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(pia, "Pia");
     await until(pia, shown);
@@ -112,7 +95,6 @@ async function main() {
     await pia.locator(".vf-orient-x").tap();
     ok("on a phone Skip closes it too", await until(pia, () => document.querySelector(".vf-orient").hidden));
 
-    // ---------- follow-up 45: Instagram's in-app browser gets a banner that never blocks the page ----------
     const IG_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 339.0.3.12.91 (iPhone14,5; iOS 17_5; en_US; en; scale=3.00; 1170x2532; 618423011)";
     const ig = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: IG_UA } });
     const banner = () => ig.evaluate(() => { const b = document.querySelector(".vf-banner"); return b && !b.hidden ? b.querySelector(".vf-banner-txt").textContent + " | " + b.querySelector("button").textContent : ""; });

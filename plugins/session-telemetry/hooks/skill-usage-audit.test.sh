@@ -30,7 +30,6 @@ else
   bad "second store not written (unconditional)"
 fi
 
-# --- skill_usage_dir userConfig override -----------------------------------
 PROJ2="$TEST_TMPDIR/proj2"
 mkdir -p "$PROJ2"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ2" \
@@ -60,7 +59,6 @@ assert_contains "invalid override advisory is user-visible (systemMessage)" \
 assert_eq "invalid override advisory does not reach the model" "" \
   "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$INVALID_OUTPUT" 2>/dev/null)"
 
-# --- Envelope emitted when a sink is wired ---------------------------------
 PROJ3="$TEST_TMPDIR/proj3"
 mkdir -p "$PROJ3"
 TEL="$TEST_TMPDIR/tel.json"
@@ -78,7 +76,6 @@ else
   bad "no envelope written when sink wired"
 fi
 
-# --- Non-Skill tool is skipped (no store, no envelope) ---------------------
 PROJ4="$TEST_TMPDIR/proj4"
 mkdir -p "$PROJ4"
 TELN="$TEST_TMPDIR/teln.json"
@@ -117,7 +114,6 @@ if git -C "$PROJG" init -q 2>/dev/null; then
     "$(jq -r '.branch' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
 fi
 
-# --- user scope writes under HOME ------------------------------------------
 PROJU="$TEST_TMPDIR/proju"
 mkdir -p "$PROJU"
 HOMEU="$TEST_TMPDIR/homeu"
@@ -130,7 +126,6 @@ assert_eq "user scope writes under HOME" "research" \
 assert_file_absent "user scope leaves the project tree untouched" \
   "$PROJU/.claude/observability/skill-usage.jsonl"
 
-# --- data-dir scope writes under CLAUDE_PLUGIN_DATA, keyed by repo slug -----
 PROJD="$TEST_TMPDIR/projd"
 mkdir -p "$PROJD"
 DATAD="$TEST_TMPDIR/datad"
@@ -164,7 +159,6 @@ assert_eq "unknown scope advisory does not reach the model" "" \
 assert_eq "unknown scope falls back to repo store" "research" \
   "$(jq -r '.skill' "$PROJS/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
 
-# --- data-dir scope without a data dir names the missing variable ----------
 NODATA_OUTPUT=$(env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_DATA CLAUDE_PROJECT_DIR="$PROJS" \
   CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE="data-dir" \
   bash "$HOOK" <<<"$INPUT" 2>/dev/null)
@@ -187,7 +181,6 @@ assert_contains "uncreatable destination emits a user advisory" \
 assert_eq "uncreatable destination advisory does not reach the model" "" \
   "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$NODEST_OUTPUT" 2>/dev/null)"
 
-# --- Kill switch suppresses both outputs -----------------------------------
 PROJ5="$TEST_TMPDIR/proj5"
 mkdir -p "$PROJ5"
 TELK="$TEST_TMPDIR/telk.json"

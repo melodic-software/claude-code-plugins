@@ -48,7 +48,7 @@ from typing import Any
 
 import babysit_lane_binding as lane_binding
 import babysit_merge_settings as settings
-from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
+from diff_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, status job names), read only from the
 # operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
@@ -381,8 +381,6 @@ def _lane_comment(
 
 
 def _lane_body(login: object, body: str) -> str:
-    """The body a parser reads: a github-actions[bot] comment's without its
-    binding line."""
     return lane_binding.without_binding(body) if login in ACTIONS_LOGINS else body
 
 
@@ -933,8 +931,6 @@ def _check_yaml_tree(node: Any, yaml: Any) -> None:
 
 
 def _yaml_names(node: Any, yaml: Any) -> list[str]:
-    """The event names an `on:` node lists, or [] when its shape is not one
-    GitHub reads (a name, a list of names, or a mapping keyed by name)."""
     if isinstance(node, yaml.ScalarNode):
         return [str(node.value)] if node.value else []
     if isinstance(node, yaml.SequenceNode):
@@ -1280,7 +1276,6 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
 
 
 def _failures(job: Mapping[str, Any]) -> list[str]:
-    """The messages of the job's failure-level annotations."""
     return [
         str(a.get("message") or "")
         for a in job["annotations"]
@@ -1289,7 +1284,6 @@ def _failures(job: Mapping[str, Any]) -> list[str]:
 
 
 def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
-    """Whether `message` opens with `pattern` for this lane."""
     found = pattern.match(message)
     return found is not None and found["lane"] == lane
 
@@ -1516,12 +1510,26 @@ def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
 
 
 def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
-    """Whether an outage lost this attempt before its lane job existed."""
     jobs = attempt.get("jobs")
     return (
         attempt.get("conclusion") in LOST_CONCLUSIONS
         and isinstance(jobs, list | tuple)
         and not _has_lane_job(lane, jobs)
+    )
+
+
+def _kill_switch_failed(lane: str, attempt: Mapping[str, Any]) -> bool:
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") == "failure"
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+        and [
+            job.get("conclusion")
+            for job in jobs
+            if isinstance(job, Mapping) and job.get("name") in KILL_SWITCH_JOBS
+        ]
+        == ["failure"]
     )
 
 
@@ -1544,7 +1552,6 @@ def _caller_skipped(lane: str, attempt: Mapping[str, Any]) -> bool:
 
 
 def _poster(comments: Any, threads: Any) -> Poster:
-    """`lane_posted` over this pull request's comments and threads."""
     return lambda lane, head, since, until: lane_posted(
         lane, head, since, until, comments, threads
     )
@@ -1875,11 +1882,8 @@ def _open_findings(
     all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
-    # The covering review's job window, to place its summary comments.
     span: tuple[datetime | None, datetime | None] | None = None
-    # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
-    # The tree per window, to count missing ones on the chain.
     window_trees: list[str] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
@@ -1895,7 +1899,6 @@ def _open_findings(
     # (head sha, job started, job completed, summary findings) of the last.
     summary_reviews: dict[str, int] = {}
     reporter: dict[str, tuple[str, datetime | None, datetime | None, int]] = {}
-    # The trees any review of which was whole or reported a finding.
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
@@ -1915,6 +1918,7 @@ def _open_findings(
                 )
                 or _lost_before_lane_job(lane, attempt)
                 or _caller_skipped(lane, attempt)
+                or (item["head_sha"] != reviewed and _kill_switch_failed(lane, attempt))
             ):
                 continue
             job = _lane_job(lane, item["id"], attempt)
@@ -2139,7 +2143,6 @@ def _edited_by_another(author: Mapping[str, Any], record: Any) -> bool:
 
 
 def _bare_login(login: Any) -> str | None:
-    """A login without REST's `[bot]` suffix, which GraphQL drops."""
     if not isinstance(login, str) or not login:
         return None
     return login.removesuffix("[bot]")

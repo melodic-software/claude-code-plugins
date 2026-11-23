@@ -276,9 +276,9 @@ them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gai
 | guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell` | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
 | disk-hygiene | `PreToolUse` `Bash(*hygiene.py*)` and `PowerShell(*hygiene.py*)` | The command names the clean engine. With no Python, the launcher already denies such a call. `block` also denies it when `node` or bash is missing, when the guard crashes, and on a timeout |
 | discovery | `PreToolUse` `Bash`, the docs-fetcher gate | If the gate fails, `discovery:docs-fetcher`, the agent that reads untrusted pages, gets a `Bash` with no gate on it |
-| multi-agent | `PreToolUse` `Bash`, the docs-fetcher gate; `PreToolUse` `WebFetch`, the drift-checker gate | The same holds for `multi-agent:docs-fetcher`. If the fetch gate fails, the drift checker can fetch any URL |
+| multi-agent | `PreToolUse` `Bash`, the docs-fetcher gate; `PreToolUse` `Bash`, the registry-fetcher gate; `PreToolUse` `WebFetch`, the drift-checker gate | The same holds for `multi-agent:docs-fetcher` and `multi-agent:registry-fetcher`. If the fetch gate fails, the drift checker can fetch any URL |
 
-The docs-fetcher and drift-checker gates match every `Bash` or `WebFetch` call in every session,
+The docs-fetcher, registry-fetcher and drift-checker gates match every `Bash` or `WebFetch` call in every session,
 and outside their agent they allow every call. With `block`, a gate that cannot start or times out
 (10 s) denies the main thread's call too. A host with no `node` loses its guardrails `Bash` the
 same way. With harness-ops enabled, its `SessionStart` node notice says `node` is missing and names

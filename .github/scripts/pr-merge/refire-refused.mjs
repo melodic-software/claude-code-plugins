@@ -62,15 +62,15 @@ import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError, createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { callers, listedJob } from "../lib/lane-registry.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
+import { ACTIONS_BOT_ID, LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 
 const DEPENDABOT_ID = 49699333;
-// github-actions[bot], the actor of a run a GITHUB_TOKEN dispatch started.
-const ACTIONS_BOT_ID = 41898282;
 // A marker at the current head whose push has not landed within this long is
 // left to a person, so a push that keeps failing is not retried for days.
 const RETRY_MS = 60 * 60_000;
@@ -95,24 +95,7 @@ const LANES = Object.freeze({
       ".github/workflows/pr-unblock-dispatch.yml",
       ".github/workflows/pr-dispatch-feedback.yml",
     ],
-    // The jobs that call the write runner, as [display name, job id], whose
-    // `run` job alone requests the lane token; the jobs API names each
-    // `<display name> / Run`, or `<job id> / run` on a head tested before the
-    // rename.
-    writeCallers: [
-      ["Apply Conflict Patch", "apply-conflict-patch"],
-      ["Apply Feedback Patch", "apply-feedback-patch"],
-      ["Publish Feedback", "publish-feedback"],
-      ["Resolve Feedback Threads", "resolve-feedback-threads"],
-      ["Apply Dependency Patch", "apply-dependency-patch"],
-      ["Apply Dependency Verdict", "apply-dependency-verdict"],
-      ["Apply Dependency Pin", "apply-dependency-pin"],
-      ["Apply Dependency Relock", "apply-dependency-relock"],
-      ["Apply Patch", "apply-patch"],
-      ["Apply Patch Rung Up", "apply-patch-rung-up"],
-      ["Apply Shared Copies", "apply-shared-copies"],
-      ["Report Escalation", "report-escalation"],
-    ],
+    writeCallers: callers("pr-unblock.yml", `./${WRITE_RUNNER}`).map((id) => listedJob("pr-unblock.yml", id, "run")),
     // The activities the pr-unblock-dispatch tick does not dispatch: it
     // dispatches resolve-conflicts, review-dependency, fix-ci and
     // sync-shared-copies itself
@@ -290,7 +273,7 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
     // Only a write runner job requests the token. The jobs API can list a
     // completed job's steps empty or cut short: such a job whose list lacks
     // the token step is judged by its annotations.
-    const writer = lane.writeCallers.some(([name, id]) => job.name === `${name} / Run` || job.name === `${id} / run`);
+    const writer = lane.writeCallers.some(({ id, name }) => job.name === name || job.name === id);
     const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
     const failedAtToken = writer && job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {
@@ -427,15 +410,10 @@ async function pushEmptyCommit(github, repo, pull, why, tree) {
   return commit.sha;
 }
 
-// The job token's client (ACTIONS_TOKEN). The step's API_BUDGET_TOKEN names the
-// lane token, so this client is pinned to github-token: its readings and its
-// read-floor plan (github-token's limit-cap) are the job token's.
 export const actionsClient = (env, { latch = rateLimitLatch, fetchImpl } = {}) =>
   createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("github-token", latch), ...(fetchImpl ? { fetchImpl } : {}) });
 
 export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
-  // The outcome counts, logged when the PRs were listed, whether or not the
-  // run then stopped.
   let outcome = null;
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -487,9 +465,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       }
     }
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
-    // A lane's run listing failing fails the step after the other lanes.
     let listingFailed = false;
-    // One refused file per PR, the first found.
     const refused = new Map();
     for (const [file, lane] of Object.entries(LANES)) {
       let runs;
@@ -515,7 +491,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         }
       }
     }
-    // Main's blob SHA of each named file, read once per run.
     const blobs = new Map();
     const blobOf = async (path) => {
       if (!blobs.has(path)) {

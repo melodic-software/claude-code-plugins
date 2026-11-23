@@ -8,27 +8,6 @@ metadata:
   summary: Audit for drift between docs, config, code, and architecture via verified findings
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Working tree status (empty = clean), `git status --porcelain | head -20`
-- Changed files (staged+unstaged), `git diff --name-only HEAD`
-
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the cap applies only after the command's output has come back. What a large output
-returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines
-([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
-Pointer for how injected commands run:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -269,7 +248,8 @@ Discovery runs as a **parallel subagent fan-out. One agent per primary-source fi
 sequential pass. A single context skips claims as it fills, which is the most common way an audit
 misses drift; a fresh context per file does not. Each agent applies the claim-extraction method
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
-the scope-fencing rules of the discovery method linked below.
+the scope-fencing rules of the discovery method linked below. Route these per-file agents per the
+caller contract of `/multi-agent:route` (if enabled); otherwise run them here as before.
 
 **Scope first (cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before

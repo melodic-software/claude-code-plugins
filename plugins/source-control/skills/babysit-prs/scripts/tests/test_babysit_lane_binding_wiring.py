@@ -1,8 +1,4 @@
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
-"""The merge gate's trust in github-actions[bot] lane comments: a footed
-comment is its lane's only when the lane-binding check accepts it, a legacy
-one (no binding) by the legacy rule, and every parser reads the body without
-its binding line. Claude App comments keep their handling."""
 
 from __future__ import annotations
 
@@ -195,7 +191,7 @@ class LaneEvidenceReadTests(unittest.TestCase):
                 frozenset(),
                 lambda login: "write",
                 (),
-                merge.babysit_risk.floor_for(),
+                merge.diff_risk.floor_for(),
             )
 
     def test_a_failed_check_read_raises_before_bind(self) -> None:

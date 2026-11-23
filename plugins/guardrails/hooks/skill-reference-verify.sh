@@ -34,30 +34,14 @@
 
 set -uo pipefail
 
-# High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
-# enforced here, so the loss on an abort is the advisory itself.
 guard::abort_boundary skill-reference-verify PostToolUse open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -71,21 +55,11 @@ hook::require jq "PostToolUse" guardrails "$INPUT"
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
-# A CHANGELOG is an append-only historical record: an entry saying a skill was
-# renamed MUST keep naming the old command, so every rename permanently adds an
-# unresolvable reference to one. Measured on this repo: 56 of 63 findings (89%)
-# were CHANGELOG rename entries, all correct as written, and excluding them moves
-# the guard from 3.4% of files firing at 6% precision to 0.5% firing at 57%.
-#
-# Deliberately narrow: a broader "historical by contract" rule would cost real signal.
 */CHANGELOG.md | CHANGELOG.md) exit 0 ;;
 *.md) ;;
 *) exit 0 ;;
 esac
 
-# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
-# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
-# which hook::repo_root would read as `.`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
@@ -93,15 +67,7 @@ REPO_ROOT="" REPO_ROOT_RESOLVED=1
 hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 PLUGINS_DIR="$REPO_ROOT/plugins"
 
-# PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
-# It runs before the payload read below: the structuredPatch filter is one the
-# builtin parser cannot answer, so reading first spent a jq process on every
-# .md edit in a repo this guard then leaves alone.
 [[ -d "$PLUGINS_DIR" ]] || exit 0
-# A Codex or Cursor marketplace keeps its manifest in .codex-plugin/ or
-# .cursor-plugin/, with the same `name` and `skills` keys. One manifest per
-# plugin directory, the Claude one first, so a plugin shipped for several hosts
-# is indexed once.
 shopt -s nullglob
 manifests=()
 declare -A manifest_dirs=()
@@ -137,49 +103,6 @@ hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '[(.tool_response | objects | .structuredPatch)[]?.lines[]?
     | select(type == "string" and startswith("+")) | .[1:]] | join("\n")' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
-# Edit's `replace_all`. Reconstruction needs it: with `replace_all` the same
-# `new_string` lands in several places on purpose, so several matches are the
-# edit's own footprint rather than an ambiguity. Absent or false on every
-# ordinary Edit. This record also serves stale-path-verify.sh. Pointer: when
-# the uniqueness gate's premise is in doubt, read
-# https://code.claude.com/docs/en/tools-reference#edit-tool-behavior live.
-#
-# `replace_all` alone cannot say WHICH occurrences this call wrote, and that is
-# the whole of the residual reported in #2129: after `ghost` replaces `setup`
-# everywhere, the `ghost` inside a pre-existing `ghost-old` reads exactly like one
-# the edit produced. Nothing in `tool_input` separates them — but the premise
-# "nothing in the PAYLOAD does" is false. `tool_response` carries the Edit tool's
-# structured output, whose `structuredPatch` marks the lines the call actually
-# wrote with a leading `+`.
-#
-# Both halves rest on upstream pages, read live rather than restated here.
-# Pointers: what a PostToolUse payload carries,
-# https://code.claude.com/docs/en/hooks#posttooluse-input; the Edit tool's
-# structured output and its `structuredPatch` shape, the Edit entry under
-# https://code.claude.com/docs/en/agent-sdk/typescript#tool-output-types.
-#
-# OBSERVED, not merely documented: an independent reviewer captured a live
-# PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
-# claude 2.1.225 session) and `tool_response` arrived as an OBJECT carrying
-# `filePath newString oldString originalFile replaceAll structuredPatch
-# userModified`. An object, not the serialized string `PostToolBatch` passes — the
-# distinction the hooks reference draws, and the one shape that would have broken
-# the filter below. `structuredPatch` was complete rather than truncated at 42
-# replacement sites in a 300-line file.
-#
-# The read is SHAPE-TOLERANT anyway (`objects` in the jq filter): a non-object
-# `tool_response` yields an empty witness and leaves the filter inert, instead of
-# erroring hook::jq_fields into its `|| exit 0` and silencing the whole guard —
-# a risk the pre-gate code did not carry, because it never touched the field.
-#
-# Kept as the LINE TEXTS rather than line numbers on purpose. Numbers would be
-# wrong the moment another PostToolUse hook reformats the file between the write
-# and this read — the case the reconstruction fallback below already exists for —
-# and mapping a character offset back to a line number costs a whole-prefix scan
-# per occurrence, which is the quadratic term this hook spent a release removing.
-# Matching the physical line by text is a hash lookup and survives renumbering.
-# Its one imprecision is conservative: an untouched line whose text is identical
-# to an edited one still passes, which keeps a finding rather than dropping one.
 EDIT_WROTE_LINES=""
 REPLACE_ALL=false
 case "$TOOL" in
@@ -189,9 +112,6 @@ Edit)
   case "$REPLACE_ALL" in
   true | false) ;;
   *)
-    # Advisory guard: a malformed replace_all extraction must not wear the permissive
-    # "false" branch. Well-formed payloads always stringify to true/false; anything
-    # else is an unreadable field — skip verification rather than guess.
     exit 0
     ;;
   esac
@@ -202,8 +122,6 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
-# srv_git_dir_to <var>
-# Checkout git dir, so the manifest index can be cached beside it.
 srv_git_dir_to() {
   local g="$REPO_ROOT/.git" line
   if [[ -d "$g" ]]; then
@@ -225,39 +143,6 @@ srv_git_dir_to() {
   return 1
 }
 
-# A plugin's command namespace is its manifest `name`, which need not equal its
-# directory name. Build the name → directory map from the manifests themselves so
-# a renamed directory or a name override resolves correctly.
-#
-# The manifest also decides WHERE that plugin's skills live. We treat the paths
-# its `skills` key declares as extra skill directories beside the conventional
-# `skills/`, and collect them per plugin so a skill loaded from a declared
-# location resolves like any other. Pointer:
-# https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location.
-#
-# One documented exception is NOT modeled: for a marketplace entry whose `source`
-# resolves to the marketplace root, declared subdirectories REPLACE the default
-# `skills/` scan. Modeling it would mean reading marketplace.json to learn how
-# each entry resolves, and the cost of not modeling it is bounded — the default
-# stays in the search set, so at worst a reference resolves that Claude Code would
-# not offer and this advisory stays quiet. Staying quiet is the failure this guard
-# is allowed to have; a false alarm is not.
-# BUILT ON DEMAND, IN ONE PROCESS. Nothing below the reference scan reads the
-# index, and the scan needs no plugin knowledge to find its candidates, so the
-# index is built once, only when a candidate exists. The gates above stay where
-# they are: their `exit 0` paths deliberately skip telemetry, and moving them
-# would change that.
-#
-# When it is built, one jq reads every manifest. The previous shape spawned two
-# jq and two tr per manifest, and this marketplace carries 74 of them: 296
-# processes, 468 ms on a Linux host and 11.4 s on Windows Git Bash, for work one
-# process finishes in 6 ms. Each output line is
-# `<manifest>\x1e<name>\x1e<paths>`, the declared skill paths joined by \x1f.
-# Raw strings, not @tsv: @tsv backslash-escapes its fields, and the values are
-# used as paths, so they must arrive byte-identical. The two separators are
-# non-whitespace so `read` keeps an EMPTY field in place (tab is IFS
-# whitespace and would collapse a nameless manifest's fields together); neither
-# byte can appear in a manifest name or path.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
@@ -266,8 +151,6 @@ build_plugin_index() {
   local m pdir pname paths line body git_dir="" cache_file="" use_cache=0 i start last
   local -a rows=() hdr=()
   local -A seen=()
-  # A repeat reference at an unchanged manifest set skips jq. The cache is
-  # used only when it is strictly newer than every manifest.
   if srv_git_dir_to git_dir; then
     cache_file="$git_dir/guardrails-skill-index"
   fi
@@ -282,10 +165,6 @@ build_plugin_index() {
         [[ "$cache_file" -nt "${manifests[i]}" ]] || use_cache=0
       done
       [[ "${hdr[${#manifests[@]} + 1]-}" == '---' ]] || use_cache=0
-      # The rows end with `end <count>`. A parallel fire can be rewriting this
-      # file, and two writers that both truncate leave a mix of their bytes, so
-      # the count must equal the rows read and no row may look like a sentinel.
-      # Anything else is a miss and jq rebuilds it.
       ((last >= start)) && [[ "${hdr[last]}" == "end $((last - start))" ]] || use_cache=0
       if ((use_cache && last > start)); then
         rows=("${hdr[@]:start:last-start}")
@@ -306,8 +185,6 @@ build_plugin_index() {
                 else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
     )
     if [[ -n "$cache_file" ]]; then
-      # Built in memory and written by one printf, sentinel last: a temp file
-      # plus mv would add a process to every cold write.
       printf -v body '%s\n' "${#manifests[@]}" "${manifests[@]}" '---' ${rows[@]+"${rows[@]}"}
       printf '%send %d\n' "$body" "${#rows[@]}" 2>/dev/null >"$cache_file" || :
     fi
@@ -317,13 +194,6 @@ build_plugin_index() {
     IFS=$'\x1e' read -r m pname paths <<<"$line"
     m="${m//$'\r'/}"
     [[ -n "$m" ]] || continue
-    # `input_filename` echoes the argument as jq received it, and on Windows
-    # Git Bash a native jq receives the MSYS-converted form (`C:/…` or
-    # `C:\…`), not the string in manifests[]. Only the plugin directory NAME
-    # is taken from the echo; the directory itself is rebuilt from
-    # PLUGINS_DIR, so neither the index nor the seen[] check below depends on
-    # the echoed form (a mismatch there would re-read every manifest through
-    # the fallback, four processes each, on every reference-bearing write).
     m="${m%[/\\]plugin.json}"
     m="${m%[/\\].*-plugin}"
     m="${m##*/}"
@@ -336,11 +206,6 @@ build_plugin_index() {
     PLUGIN_SKILL_PATHS["$pname"]="${paths//$'\x1f'/$'\n'}"
     seen["$pdir"]=1
   done
-  # jq stops the batch at the first manifest it cannot parse, so every manifest
-  # behind a malformed one comes back unread. Those, and the malformed one, take
-  # the per-manifest read the batch replaced: exact for the readable ones, and
-  # the directory name for the broken one. On a tree where every manifest
-  # parses (this one, gated by CI) the residue is empty and this spawns nothing.
   for m in "${manifests[@]}"; do
     pdir="${m%/.*-plugin/plugin.json}"
     [[ -n "${seen[$pdir]:-}" ]] && continue
@@ -353,10 +218,6 @@ build_plugin_index() {
   done
 }
 
-# Extract a plugin skill's frontmatter `name`, or nothing when it declares none.
-# Tolerates quoting and a trailing YAML comment (`name: renamed # public
-# command`); comments are stripped first so the value pattern stays anchored to
-# end-of-line.
 skill_frontmatter_name() {
   sed -n '1,40p' "$1" 2>/dev/null |
     sed -nE 's/[[:space:]]+#.*$//; s/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
@@ -392,31 +253,13 @@ skill_roots() {
   return 0
 }
 
-# A plugin skill's command segment comes from its frontmatter `name` when set,
-# and from the directory name ONLY when it does not.
-#
-# The directory name is not an alias. A `skills/legacy-dir/SKILL.md` declaring
-# `name: renamed` answers to `/plugin:renamed` and NOT to `/plugin:legacy-dir` —
-# treating the directory as a second valid spelling would suppress the advisory
-# for exactly the stale pre-rename references this guard exists to catch.
-#
-# A directory alone is also not a skill: it must carry a SKILL.md, or a leftover
-# empty `skills/<name>/` would suppress the advisory for a command that never
-# existed.
-#
-# A root may BE a skill directory rather than a directory of them — a declared
-# path can point straight at a directory holding SKILL.md — so each root is tried
-# both ways.
 skill_resolves() {
   local pdir="$1" skill="$2" declared="$3" root sd sdir fname
   local -a roots=()
   skill_roots "$pdir" "$declared"
-  # $skill is never empty (emit_refs' pattern requires a segment), so an empty
-  # $fname never matches it.
   for root in "${roots[@]}"; do
     if [[ -f "$root/$skill/SKILL.md" ]]; then
       fname=$(skill_frontmatter_name "$root/$skill/SKILL.md")
-      # No declared name → the directory name IS the command segment.
       [[ -z "$fname" || "$fname" == "$skill" ]] && return 0
     fi
     if [[ -f "$root/SKILL.md" ]]; then
@@ -433,16 +276,6 @@ skill_resolves() {
   return 1
 }
 
-# Candidate references: `/<plugin>:<skill>` inside inline-code spans only. Prose
-# is not scanned — an unbackticked `/a:b` is as likely to be a URL fragment, a
-# Windows drive path, or a time range as a command.
-#
-# The reference need not be the whole span: an invocation commonly carries
-# arguments (`/plugin:skill --apply`, `/plugin:skill <target>`). Take the leading
-# command token from each span rather than requiring the span to match exactly,
-# or argument-bearing invocations — the common form in this repo — go unchecked.
-#
-# Call as: emit_refs <text>
 emit_refs() {
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
   printf '%s' "$1" | grep -oE '`[^`]+`' 2>/dev/null |
@@ -450,60 +283,6 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
-# Reconstruction is bounded on four axes, because this hook has a 30s timeout
-# (hooks.json) and a guard that loses its advisory to a timeout has stopped
-# guarding. Two of the four are set from a measured cost curve rather than a
-# round number, because the cost they bound is QUADRATIC and a linear estimate
-# of it is wrong by orders of magnitude at the sizes that matter.
-#
-# One anchor_offsets scan, measured on the slowest host available (Windows/Git
-# Bash, quiescent, best of three) IN THE C LOCALE: 0.07 s at 32 KiB, 0.24 s at
-# 64 KiB, 0.53 s at 96 KiB, 1.07 s at 128 KiB, 2.18 s at 192 KiB, 3.94 s at
-# 256 KiB. That is ~0.065 s x (KiB/32)^2 — bash's `%%` pattern strip walks the
-# string it searches rather than indexing it, so the scan is quadratic in FILE
-# size no matter how short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18
-# minutes at 4 MiB.
-#
-# The locale label is not a footnote: under a UTF-8 locale the same scans cost
-# ~6.5x more. reconstruct_partial_edit pins LC_ALL=C for its own scanning, so C
-# IS the locale these figures describe.
-# Re-checked rather than re-measured, on a second host of the same shape
-# (lightly loaded, not quiescent — ~18% CPU across 32 cores): 0.054 s at 32 KiB,
-# 0.221 s at 64 KiB, 0.880 s at 128 KiB, 3.410 s at 256 KiB — the same curve
-# within host-to-host spread.
-#
-# Those figures are the FLOOR, not the cost: they time an anchor that matches near
-# the end, so one strip walks the file and the second is free. A no-match strip
-# walks it twice (2.31 s at 200 KiB, measured the same way), and the whole-hunk
-# probe pays a scan of its own before the fallback runs at all. Both bounds below
-# are therefore calibrated end to end against the hook, not from that table.
-#
-#   * RECONSTRUCT_MAX_CHARS — above this, reconstruction does not run at all,
-#     because scanning a larger file already spends the hook's budget. Complete
-#     references in the hunk are still reported by the direct scan; only
-#     partial-edit recovery is skipped, which is this guard's permitted failure
-#     direction. 128 KiB is far above any real markdown file this guard reads
-#     (CHANGELOGs, the one shape that grows without bound, are excluded upstream).
-#   * RECONSTRUCT_FALLBACK_SCAN_BUDGET — the per-line fallback scans once per
-#     anchor, so its cap must fall as the file grows, on the same curve: the
-#     anchor cap is this budget divided by (KiB)^2. 60000 holds the whole
-#     invocation near 7 s at every file size on that host — 58 anchors at 32 KiB,
-#     14 at 64 KiB, 3 at 128 KiB. A flat anchor count cannot do this, and neither
-#     can a total-characters budget, which assumes the linear cost this scan does
-#     not have. The end-to-end scale case in the test suite is what holds these
-#     two numbers honest; an earlier pair passed the same case at 21 s of a 30 s
-#     budget, which is a bound in name only.
-#
-# The other two are ordinary counts: a hunk stops contributing once it has
-# yielded this many code spans, far above any real edit given that only spans the
-# anchor reaches are kept; and an anchor stops being counted one occurrence past
-# the cap, which is all the uniqueness gate needs to know.
-#
-# Deferred alternative, with its trigger: replacing the bash search with a
-# linear-time locate would retire the file cap instead of living under it. It is
-# not done here because every portable option is a subprocess whose offsets are
-# BYTES where these are characters, or a line-oriented tool that cannot match a
-# multi-line hunk at all. Revisit if a real markdown file ever exceeds the cap.
 RECONSTRUCT_MAX_CHARS=131072
 RECONSTRUCT_MAX_SPANS=40
 RECONSTRUCT_MAX_OCCURRENCES=40
@@ -525,21 +304,16 @@ collect_overlapping_spans() {
   while :; do
     rest="${region:i}"
     pre="${rest%%\`*}"
-    # No backtick left in the region — nothing further can open a span.
     [[ "$pre" == "$rest" ]] && return 0
     a=$((i + ${#pre}))
     after="${region:a+1}"
     inner="${after%%\`*}"
-    # No closing backtick anywhere after this one: no span can open here or later.
     [[ "$inner" == "$after" ]] && return 0
-    # An empty inner (an adjacent pair) or one spanning a newline is not a match
-    # for grep either; it retries from the next character, so this walk does too.
     if [[ -z "$inner" || "$inner" == *$'\n'* ]]; then
       i=$((a + 1))
       continue
     fi
     b=$((a + 1 + ${#inner}))
-    # The span occupies [a, b] inclusive of both backticks; the hunk [hs, he).
     if ((a < he && b >= hs)); then
       ctx+="\`$inner\`"$'\n'
       ((++nspan >= RECONSTRUCT_MAX_SPANS)) && return 0
@@ -668,20 +442,6 @@ anchor_line() {
   line="${content:off-hs:he+${#tail}}"
 }
 
-# Whitespace-normalized form of <text>, for comparing a line on disk against the
-# line `structuredPatch` recorded at edit time. Tabs become spaces, runs collapse,
-# ends are trimmed.
-#
-# Comparing raw text made Gate 3 undo the reformatting tolerance the fallback
-# above exists to provide: a downstream PostToolUse hook that reflows whitespace
-# leaves the anchor locatable (a literal substring search does not care what
-# surrounds it) while changing the physical line, so a genuinely written reference
-# was dropped. Whitespace is what formatters move; normalizing it keeps the
-# witness usable without weakening what it discriminates, since a DIFFERENT
-# reference's line differs by far more than spacing.
-#
-# No subshell: this runs once per occurrence, and `$(…)` here would fork per line.
-# Call as: norm_ws <text> -> $NORM_WS
 norm_ws() {
   local s="${1//$'\t'/ }"
   while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done
@@ -691,99 +451,30 @@ norm_ws() {
 
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # Pin the locale this function's own scanning runs in, so its matcher semantics
-  # and its cost are the consumer's ambient locale's business no longer. Every
-  # search below is LITERAL, so a multibyte locale buys this function nothing and
-  # charges it ~6.5x: one no-match scan, measured on a lightly-loaded Windows/Git
-  # Bash host (bash 5.3, 32 logical cores at ~18%), costs 0.054 s at 32 KiB / 0.221 s
-  # at 64 KiB / 0.880 s at 128 KiB under C, against 0.395 s / 1.447 s / 5.786 s
-  # under en_US.UTF-8. That ratio is the reason for the pin; no wall-clock BOUND
-  # is claimed from it, and the caps above are calibrated end to end against the
-  # hook rather than off that table, so this is not a correction to them.
-  #
-  # `+x` is load-bearing, not decoration. The whole ~6.5x is bash's OWN `%%`
-  # walk; the child processes are locale-insensitive here (`grep -oE` on the same
-  # 64 KiB measured 0.139 s under BOTH locales), so exporting the pin would buy
-  # nothing and cost real behavior: `[[:space:]]` is ASCII-only under C but admits
-  # some non-ASCII spaces under a UTF-8 locale, so an exported pin would make
-  # emit_refs below drop a reference whose argument separator is one of them, and
-  # would make the blank-line filter keep an anchor line it used to discard.
-  # Un-exported, children run in the caller's locale exactly as before, and nothing
-  # they emit changes. Nothing needs them pinned either: no offset ever crosses a
-  # process boundary — the fallback's grep yields anchor STRINGS and emit_refs
-  # consumes a context STRING.
-  #
-  # WHICH separators those are is the host C library's table, not this hook's, and
-  # it is not portable: glibc dropped U+00A0 and U+202F from `space` in 2.26, while
-  # Cygwin/MSYS still classifies them; U+3000 and U+2028 are admitted by both.
-  # Measured. The regression case DISCOVERS a separator this host actually
-  # classifies differently rather than hardcoding one: a hardcoded byte (U+00A0,
-  # say) passes on one platform and fails on another, asserting a libc's table
-  # rather than this hook's behavior.
-  #
-  # Scope and lifetime were verified rather than assumed: assigning LC_ALL re-runs
-  # setlocale even for a `local` (and even with `+x`), and bash restores the
-  # previous value AND its export attribute on return, including when the consumer
-  # exported LC_ALL itself.
-  #
-  # Safe because every offset this function computes is also consumed by it: the
-  # unit is bytes here and characters outside, and the two never meet. Slices are
-  # taken only at a literal match or at a newline, and no UTF-8 multibyte sequence
-  # contains an ASCII byte, so a byte slice never splits a character.
-  # RECONSTRUCT_MAX_CHARS is therefore read as bytes, the stricter of the two
-  # readings, so it cannot raise the ceiling it exists to set, and the fallback's
-  # KiB estimate stops understating a multibyte file and over-granting its anchor
-  # cap. Both shifts are toward less work, never more.
   local +x LC_ALL=C
   local content
   content=$(<"$FILE") || return 0
-  # Gate on the size BEFORE touching the string: every step past this point is a
-  # whole-string operation, so a gate that runs after one of them has left that one
-  # unbounded. Measuring the raw text rather than the normalized text also errs
-  # toward not reconstructing, which is the safe direction here.
   ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
-  # new_string arrived with CR stripped, so a CRLF file must be searched the same
-  # way or no anchor would ever locate. Offsets are read back off this normalized
-  # text only, never off the bytes on disk.
   content=${content//$'\r'/}
 
   local ctx="" nspan=0 anchor alen off hs he line cap kib located_whole=0
   local -a offs=() anchors=() keep=()
 
-  # Gate 3's witness set: the physical lines `structuredPatch` reports this call as
-  # having written, as a hash. Built only where it is consulted — under
-  # `replace_all`, whose suspended uniqueness rule is the reason an external
-  # witness is needed at all. Empty (no `tool_response`, or a patch with no added
-  # lines) leaves the filter inert, which is the pre-existing behavior.
   local -A wrote=()
   local filter_wrote=0 wl NORM_WS
   if [[ "$REPLACE_ALL" == "true" && -n "$EDIT_WROTE_LINES" ]]; then
     while IFS= read -r wl; do
-      # Keys are whitespace-normalized, matching how the on-disk line is compared,
-      # and carry a literal prefix so a patch line reading `@` or `*` cannot alias
-      # bash's own array subscripts on lookup.
       norm_ws "$wl"
       wrote["L$NORM_WS"]=1
     done <<<"$EDIT_WROTE_LINES"
     ((${#wrote[@]})) && filter_wrote=1
   fi
 
-  # The hunk is written to disk CONTIGUOUSLY, so locate it WHOLE first — one scan
-  # for the entire edit instead of one per line. The loop below is then driven by a
-  # single anchor, and the span set it produces is the same one the per-line walk
-  # produced: an anchor's extent is the text the edit wrote on its own line, and the
-  # whole hunk's extent is the union of exactly those. Multi-line is no obstacle —
-  # the extent is bounded by offset, and a code span never crosses a newline.
   anchor_offsets "$SCAN_CONTENT"
   if ((${#offs[@]})) && { [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)); }; then
     anchors=("$SCAN_CONTENT")
-    # $offs already holds this anchor's offsets; the loop must not pay for them twice.
     located_whole=1
   else
-    # FALLBACK, for a hunk that is no longer on disk verbatim — another PostToolUse
-    # hook may have reformatted the file between the write and this read — or one
-    # whose whole text repeats. Individual lines can still locate, so walk them; the
-    # budget is what keeps that walk from costing anchors TIMES file size.
     mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
     ((${#anchors[@]})) || return 0
     kib=$(((${#content} + 1023) / 1024))
@@ -793,7 +484,6 @@ reconstruct_partial_edit() {
     ((${#anchors[@]} > cap)) && anchors=("${anchors[@]:0:cap}")
   fi
 
-  # A repeated anchor line resolves identically every time, so scan each once.
   declare -A seen=()
   for anchor in "${anchors[@]}"; do
     alen=${#anchor}
@@ -802,17 +492,8 @@ reconstruct_partial_edit() {
     seen["$anchor"]=1
     if ((located_whole)); then located_whole=0; else anchor_offsets "$anchor"; fi
     ((${#offs[@]})) || continue
-    # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
-    # dropped rather than unioned. Cost: a missed advisory when an edit lands in
-    # text that repeats verbatim elsewhere in the file. For a detect-then-judge
-    # guard that is the right side of the trade — it is degraded far worse by being
-    # wrong when it speaks than by staying quiet.
     [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)) || continue
 
-    # Gate 3, applied BEFORE the span walk so it can abstain as a whole.
-    #
-    # A MULTI-LINE anchor's extent is not a single physical line and can match no
-    # patch line, so that shape is never filtered.
     keep=("${offs[@]}")
     if ((filter_wrote)) && [[ "$anchor" != *$'\n'* ]]; then
       keep=()
@@ -821,13 +502,6 @@ reconstruct_partial_edit() {
         norm_ws "$line"
         [[ -n "${wrote[L$NORM_WS]:-}" ]] && keep+=("$off")
       done
-      # ABSTAIN. If the witness recognized NOTHING, it is stale rather than
-      # discriminating — a downstream PostToolUse hook rewrote the lines between
-      # the write and this read, which is the very case the fallback above exists
-      # for. Letting a stale witness exclude every occurrence would turn this gate
-      # into a silent mute. Falling back to the unfiltered set is exactly the
-      # behavior that shipped before this gate, so the gate can only ever remove
-      # occurrences when it can positively identify at least one the call wrote.
       ((${#keep[@]})) || keep=("${offs[@]}")
     fi
 
@@ -845,11 +519,6 @@ declare -A CHECKED=()
 UNRESOLVED=()
 REFS=()
 mapfile -t REFS < <(emit_refs "$SCAN_CONTENT")
-# Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
-# hunk can both carry a complete reference and change a substring inside another
-# (`setup and placeholder` -> `ghost` plus a literal `/alpha:setup`), so gating on
-# an empty REFS would miss the partial half. Duplicates are harmless — CHECKED
-# dedupes below.
 if [[ "$TOOL" == "Edit" ]]; then
   mapfile -t -O "${#REFS[@]}" REFS < <(reconstruct_partial_edit)
 fi
@@ -863,7 +532,6 @@ for ref in "${REFS[@]}"; do
   plugin="${ref#/}"
   plugin="${plugin%%:*}"
   skill="${ref##*:}"
-  # PLUGIN-SCOPE GATE: only adjudicate a plugin this repo owns.
   pdir="${PLUGIN_DIR[$plugin]:-}"
   [[ -n "$pdir" ]] || continue
   skill_resolves "$pdir" "$skill" "${PLUGIN_SKILL_PATHS[$plugin]:-}" && continue
@@ -873,9 +541,6 @@ done
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # The helper carries the redaction: a path it could not make repo-relative
-  # comes back as the basename, never an absolute path, which would embed the
-  # developer's username.
   local findings_json="[]" file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#UNRESOLVED[@]} > 0)); then
@@ -889,18 +554,9 @@ emit_tel() {
 }
 
 if ((${#UNRESOLVED[@]} > 0)); then
-  # The file as the model names it: repo-relative when it sits under the root
-  # spelled the same way, else as given. Outside a repo the root is the file's
-  # own directory, and a bare name would name a different file.
   show_file="$FILE"
   ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
   lines=""
-  # Name the directories the search ACTUALLY covered, from the same skill_roots
-  # the resolution used. Naming only `skills/` understates the search for a plugin
-  # whose manifest declares paths, and the advisory ends by telling the reader to
-  # confirm against the tree — pointing them at the wrong part of it is the one
-  # thing that instruction cannot survive. For the conventional layout this still
-  # renders exactly `plugins/<plugin>/skills/`.
   declare -a roots=()
   for r in "${UNRESOLVED[@]}"; do
     plugin="${r#/}"

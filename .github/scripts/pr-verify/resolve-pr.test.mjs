@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { createHash } from "node:crypto";
 
-import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
@@ -119,8 +119,12 @@ const ciStatusJobs = (draftStep) => ({
 const DRAFT_JOBS = ciStatusJobs("success");
 const READY_JOBS = ciStatusJobs("skipped");
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {} } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {}, changed, texts = {}, prFiles = [{ filename: "docs/a.md", status: "modified" }] } = {}) {
   const github = async (method, apiPath, body) => {
+    if (apiPath === `/repos/${REPO}/pulls/41/files?per_page=100`) {
+      if (prFiles === null) throw new Error(`GET ${apiPath} failed with status 502`);
+      return prFiles;
+    }
     // GET /compare/{base}...{head}: the pull request's changed files, as
     // `files` holds them; with none given the read fails.
     if (apiPath === `/repos/${REPO}/compare/${BASE}...${HEAD}`) {
@@ -1376,6 +1380,20 @@ test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
 });
 
+test("the lanes App's PR changing only merge.baseline-file is not judged; any other file or author, or no file set, is", async () => {
+  const file = "docs/upstream/claude-code-native-surfaces.min.json";
+  const baseline = { filename: file, status: "modified" };
+  const app = { laneAppId: 337595936, baselineFile: file };
+  assert.equal(await reason({ prFiles: [baseline] }, app), "native-baseline");
+  assert.equal(await reason({ prFiles: [baseline, { filename: "docs/a.md", status: "added" }] }, app), "ok");
+  assert.equal(await reason({ prFiles: [{ ...baseline, status: "renamed", previous_filename: "docs/upstream/old.json" }] }, app), "ok");
+  assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: LANE, type: "Bot" } })], prFiles: [baseline] }, app), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { laneAppId: 337595936 }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "" }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "docs/upstream/other.json" }), "ok");
+  await assert.rejects(resolve({ prFiles: null }, app), /pulls\/41\/files/);
+});
+
 test("a PR the lanes App opened is judged, matched across login spellings", async () => {
   assert.equal(await reason({ pulls: [pull()] }), "ok");
   const spelled = pull({ user: { id: 337595936, login: "Melodic-Automation-Lanes", type: "Bot" } });
@@ -2290,6 +2308,58 @@ test("a split record holds only under the issue lane's configured web hosts", as
   }
 });
 
+test("a done-when item an owner's body starts with `Person check:` reaches the verifier as a person check", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const outsider = { __typename: "User", login: "outsider", databaseId: 200 };
+  const marked = "Person check: the owner reads the summary and agrees.";
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", `- [ ] ${marked}`, "- [ ] Tests pass."].join("\n");
+  const entry = async (overrides = {}, nodes = []) =>
+    (await resolve({ issues: [{ ...ISSUE, body, ...overrides, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+  const edited = (editor) => ({ lastEditedAt: "2026-10-16T00:00:00Z", editor });
+
+  assert.deepEqual((await entry()).person_checks, [marked], "an owner's never-edited body");
+  assert.deepEqual((await entry(edited(ISSUE.author))).person_checks, [marked], "an owner's body an owner last edited");
+  for (const [why, overrides] of [
+    ["a body another User wrote", { author: outsider }],
+    ["an owner's body another User last edited", edited(outsider)],
+    ["an owner's body the lanes App last edited", edited(lanes)],
+    ["a body the lanes App filed", { author: lanes }],
+  ]) {
+    assert.equal((await entry(overrides)).person_checks, undefined, why);
+  }
+  for (const text of ["Line 9 says 27 checks.", "person check: the owner reads the summary.", "Then, Person check: the owner reads the summary.", "Person check the owner reads the summary."]) {
+    assert.equal((await entry({ body: `## Done when\n\n- [ ] ${text}` })).person_checks, undefined, `not marked: ${text}`);
+  }
+});
+
+test("owner-marked person checks join the refinement's, once each, in body order", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const marked = "Person check: the owner reads the summary and agrees.";
+  const split = (text, items) => ({
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine(items)}\n**Refinement.**`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+  });
+  const entry = async (body, nodes) =>
+    (await resolve({ issues: [{ ...ISSUE, body, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+
+  const both = ["## Done when", "", `- [ ] ${marked}`, "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const merged = await entry(both, [split(both, [3])]);
+  assert.deepEqual(merged.person_checks, [marked, "Run it on a Windows 11 host."]);
+  assert.equal(merged.comments.length, 1, "the standing split refinement still reaches the verifier");
+
+  const same = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Person check: run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  assert.deepEqual((await entry(same, [split(same, [2])])).person_checks, ["Person check: run it on a Windows 11 host."], "an item both name is listed once");
+
+  const stale = await entry(both, [split(`${both}\n- [ ] Added since.`, [3])]);
+  assert.deepEqual(stale.person_checks, [marked], "a split record for another body adds nothing");
+  assert.deepEqual(stale.comments, [], "the owner's mark does not let a split refinement that does not stand reach the verifier");
+});
+
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
   const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
@@ -2546,11 +2616,7 @@ for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
     const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
-    const { child } = vector;
-    const ownAgent =
-      (child.labels ?? []).filter((name) => /^source:/i.test(name)).length === 1 &&
-      appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
-    assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
 

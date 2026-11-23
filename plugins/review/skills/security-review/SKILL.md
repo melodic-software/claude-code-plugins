@@ -68,6 +68,12 @@ Return the findings in the conversation, in the same severity vocabulary
 GitHub: no review, no comment, no label. The inline-comment MCP server is a wrapper grant the
 CI lane alone gets, so it is not used here; on the seat the transcript is the report.
 
+## Related
+
+- Correctness and maintainability PR review lane: /review:code-review.
+- Codify uncovered rules from review summary: /corrections:codify.
+- Local single-lens security review: /review:quality-gate.
+
 ## Gotchas
 
 - This skill's frontmatter does not install the inline-comment MCP server; the action's
@@ -219,7 +225,7 @@ through:
   `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, the
   ci-status hold steps in `.github/workflows/pr-require-checks.yml`, the steps in
   `.github/workflows/pr-merge.yml` that run those scripts and set their environment,
-  `/source-control:babysit-prs`'s `babysit_risk.py` and `babysit_verify_evidence.py` and the
+  `/source-control:babysit-prs`'s `diff_risk.py` and `babysit_verify_evidence.py` and the
   modules they import from that skill's `scripts/` directory, and the `merge`
   settings in `docs/conventions/pr-pipeline.yaml`);
 - it widens what any other action under `.github/actions/` lets through: who is trusted

@@ -81,7 +81,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch
@@ -94,14 +94,13 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-upstream-status/
             /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
-            /.github/actions/setup-pinned-node/
             /.node-version
             /.github/actions/log-api-budget/
             /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -192,7 +191,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch
@@ -206,14 +205,15 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
-            /.github/actions/setup-pinned-node/
+            /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -305,7 +305,7 @@ jobs:
         **/CODEOWNERS
         docs/conventions/pr-pipeline.yaml
         **/.gitmodules
-        plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
+        plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py
@@ -335,6 +335,8 @@ jobs:
         **/AGENTS.md
         REVIEW.md
         .github/actions/check-trusted-trigger/**
+        .github/scripts/lib/github-client.mjs
+        .github/scripts/lib/trusted-actors.mjs
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
@@ -345,6 +347,7 @@ jobs:
         .github/actions/log-api-budget/rate-limits.json
         .github/scripts/pr-merge/merge-holds.mjs
         .github/scripts/pr-merge/enable-auto-merge.mjs
+        .github/scripts/lib/lane-vocabulary.mjs
         .github/scripts/pr-merge/superseded.mjs
         .github/scripts/pr-merge/clear-escalations.mjs
         .github/scripts/pr-merge/release-eval-hold.mjs
@@ -362,10 +365,15 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/lib/run-title.mjs
+        .github/scripts/lib/lane-branch.mjs
+        .github/scripts/lib/lane-registry.mjs
+        .github/lane-registry.json
         .github/scripts/pr-merge/merge-risk-line.mjs
         .github/scripts/pr-merge-risk/input.mjs
         .github/scripts/pr-merge-risk/write-rating.mjs
         .github/actions/report-check-run/posting-run.mjs
+        .github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
+        .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
         scripts/sync-hold-floor.py
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
@@ -382,8 +390,11 @@ jobs:
         .github/scripts/pr-unblock/resolve-threads.mjs
         .github/scripts/pr-unblock/request-budget.mjs
         .github/scripts/pr-verify/resolve-pr.mjs
+        .github/scripts/pr-verify/spec-source.mjs
         .github/scripts/pr-verify/write-verdict.mjs
         .github/scripts/intake-triage/admit.mjs
+        .github/scripts/intake-triage/size-split.mjs
+        .github/scripts/intake-triage/issue-spec.mjs
         .github/actions/select-trusted-text/select-trusted-text.mjs
         lib/publish-gate.mjs
         .github/recurring-schedule.json
@@ -417,6 +428,7 @@ jobs:
         .github/scripts/lib/admission-record.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
+        .github/scripts/diff-chunking/**
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**
@@ -424,6 +436,8 @@ jobs:
         .github/scripts/intake-triage/triage-rubric.txt
         .github/scripts/intake-triage/refine-schema.json
         .github/scripts/plugin-eval/policy-probe-prompt.txt
+        .github/scripts/pr-unblock/test-scope.mjs
+        .github/scripts/pr-unblock/declare-test-scope.mjs
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml

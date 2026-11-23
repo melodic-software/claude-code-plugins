@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { carrySteps, DEADLINE_UNREADABLE, EARLIER_FAIL, EARLIER_FAILS, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, SUPERSEDED_AT_HEAD, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader, verifyReader } from "./verify-cap.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -238,15 +239,7 @@ const readerEnv = (name) => {
   assert.ok(match, name);
   return match[1];
 };
-const dispatchSteps = (workflow) => {
-  const text = readFileSync(new URL(`../../workflows/${workflow}`, import.meta.url), "utf8");
-  const job = /\n {2}dispatch:\n([\s\S]*?)(?=\n {2}[a-z-]+:\n|$)/.exec(text);
-  assert.ok(job, `${workflow} dispatch job`);
-  return job[1]
-    .split(/\n(?= {6}- name: )/)
-    .slice(1)
-    .map((block) => ({ name: /^ {6}- name: (.*)$/m.exec(block)[1], block }));
-};
+const dispatchSteps = (workflow) => workflowText(readFileSync(new URL(`../../workflows/${workflow}`, import.meta.url), "utf8")).steps("dispatch");
 const stepEnv = (block) => {
   const env = {};
   const body = /\n {8}env:\n((?: {10}.*\n?)*)/.exec(block)?.[1] ?? "";
@@ -264,7 +257,7 @@ for (const [workflow, dispatchName] of [
   test(`${workflow}: the carry is fetched on the first FAIL-cap read only and every read shares one saved listing`, async () => {
     const steps = dispatchSteps(workflow);
     assert.deepEqual(
-      steps.filter((s) => s.block.includes(".base/.github/scripts/pr-merge/")).map((s) => s.name),
+      steps.filter((s) => s.text.includes(".base/.github/scripts/pr-merge/")).map((s) => s.name),
       [],
       "no step fetches the carry before the dispatch knows it reads a FAIL cap",
     );
@@ -272,7 +265,7 @@ for (const [workflow, dispatchName] of [
     assert.ok(dispatch, dispatchName);
 
     const LISTING = readerEnv("LISTING_ENV");
-    const env = stepEnv(dispatch.block);
+    const env = stepEnv(dispatch.text);
     assert.ok(env.VERIFY_EVIDENCE_SCRIPT, "the dispatch builds its FAIL-cap reader");
     assert.equal(env.GITHUB_TOKEN, "${{ github.token }}", "the carry is fetched with the job's token");
     const order = [];
@@ -297,7 +290,7 @@ for (const [workflow, dispatchName] of [
   });
 
   test(`${workflow}: every FAIL-cap read takes the run cache and head-ref map pr-merge carried`, async () => {
-    const env = stepEnv(dispatchSteps(workflow).find((s) => s.name === dispatchName).block);
+    const env = stepEnv(dispatchSteps(workflow).find((s) => s.name === dispatchName).text);
     const CACHE = "BABYSIT_RUN_CACHE";
     const REFS = readerEnv("HEAD_REFS_ENV");
     const spawned = [];

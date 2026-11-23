@@ -52,6 +52,7 @@ import { parseArgs } from "node:util";
 
 import { loadTrustedList } from "../../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { buildTrustedContext } from "../../../actions/select-trusted-text/select-trusted-text.mjs";
+import { renderPrompt } from "../render-prompt.mjs";
 import { resolvePull } from "../resolve-pr.mjs";
 import { jobsFile, upstreamJobs } from "../upstream-jobs.mjs";
 import { buildVerdict, structuredOutput } from "../write-verdict.mjs";
@@ -121,13 +122,6 @@ export const JUDGE = Object.freeze({
   ],
   legTimeoutMinutes: 15,
   stepEnv: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" },
-  promptSubstitutions: [
-    ["CONTEXT_FILE", "context.json"],
-    ["PR_FILE", "pr.json"],
-    ["SPEC_TEXT_FILE", "spec-text.json"],
-    ["SPEC_FILE", "spec.json"],
-    ["JOBS_FILE", "upstream-jobs.json"],
-  ],
   schema: {
     type: "object",
     properties: {
@@ -173,18 +167,8 @@ export function cliArgs({ model, effort, maxTurns, settingsFile }) {
   ];
 }
 
-// The prompt as the step writes it (bash $(<file) drops trailing newlines,
-// printf adds one), with lane.cjs promptText's preamble in front.
 export function promptText(source, dataDir) {
-  // A fixture's diff is one part of one chunk, so it has no chunk note.
-  let prompt = source
-    .replace(/\n+$/, "")
-    .replaceAll("DIFF_PARTS", () => `  - \`${dataDir}/diff.patch\``)
-    .replaceAll("CHUNK_NOTE", "");
-  for (const [token, file] of JUDGE.promptSubstitutions) {
-    prompt = prompt.replaceAll(token, () => `${dataDir}/${file}`);
-  }
-  return `${JUDGE.preamble.trim()}\n\n${prompt}\n`;
+  return `${JUDGE.preamble.trim()}\n\n${renderPrompt({ template: source, parts: [`${dataDir}/diff.patch`], dataDir })}`;
 }
 
 // A runner-like PATH: this node and the system directories, none of the
@@ -288,6 +272,11 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
     head,
     base,
     pull,
+    files: [...testCase.diff.matchAll(/^--- (.+)\n\+\+\+ (.+)$/gm)].map(([, from, to]) => {
+      const [before, after] = [from.replace(/^a\//, ""), to.replace(/^b\//, "")];
+      const filename = to === "/dev/null" ? before : after;
+      return from === "/dev/null" || to === "/dev/null" || before === after ? { filename } : { filename, previous_filename: before };
+    }),
     run: {
       id: runId,
       path: ".github/workflows/pr-require-checks.yml",
@@ -364,6 +353,7 @@ export function stubGitHub(s) {
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
     [`${R}/pulls/${s.number}/comments?`, page([])],
+    [`${R}/pulls/${s.number}/files?`, () => s.files],
     [`${R}/pulls/${s.number}`, () => s.pull],
     [`${R}/issues/${s.number}/comments?`, page(s.prComments)],
     [`${R}/issues/${s.issueNumber}/comments?`, page(s.issueComments)],
@@ -429,7 +419,7 @@ let baseTree;
 // The six data files, written as resolve-pr.mjs, select-trusted-text.mjs,
 // upstream-jobs.mjs and the "Write the diff" step write them. Returns the
 // resolved PR facts.
-export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity }) {
+export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity, baselineFile }) {
   const s = scenario(testCase, index, actorsFrom(trustedActorsPath, laneIdentity));
   const github = stubGitHub(s);
   const trusted = loadTrustedList(trustedActorsPath);
@@ -441,6 +431,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
     verifyAuthors,
     laneIdentity,
     laneAppId: trusted.logins.get(String(laneIdentity ?? "").toLowerCase()),
+    baselineFile,
   });
   if (!resolved.proceed) {
     throw new Error(`${testCase.id}: resolvePull did not proceed (${resolved.reason})`);
@@ -772,6 +763,7 @@ export async function main(argv = process.argv.slice(2)) {
     trustedActorsPath: path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
     verifyAuthors: sh("yq", ['.merge."verify-authors" // "lane"', pipelineFile]),
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
+    baselineFile: sh("yq", ['.merge."baseline-file" // ""', pipelineFile]),
   };
   const models = resolveModels();
   // A dry run never starts the CLI, so it needs none installed.

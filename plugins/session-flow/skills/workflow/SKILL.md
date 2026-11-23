@@ -10,13 +10,6 @@ metadata:
 
 **Arguments.** `[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]`. e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto
 
-## Repository context. Gather first
-
-Take `branch`, `status`, and `recent-commits` at `-5`. No session id, this skill stamps no ledger.
-Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
-rationale for gathering at run time rather than pre-computing:
-[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
-
 ## Purpose
 
 The reference and navigator for a staged development workflow. Individual stages are executed by
@@ -252,6 +245,14 @@ the menu. When a request could be either, "what comes next" is a stage question 
   known, don't re-run it here
 - **Verify stage completion from artifacts**. A stage is done when its output exists, not when it
   was mentioned
+
+## Related
+
+- Full ranked menu of installed skills: /session-flow:recommend-skills.
+- Read-only current-state briefing: /session-flow:orient.
+- Save-point before /clear at phase boundary: /session-flow:handoff.
+- Background continuation at phase boundary: /session-flow:continue-in-background.
+- End-of-session retrospective: /session-flow:retro.
 
 ## Gotchas
 

@@ -44,8 +44,7 @@ fail() {
 }
 assert_match() { if [[ "$2" =~ $3 ]]; then pass "$1"; else fail "$1" "matches: $3" "$2"; fi; }
 
-# Build a git repository with one commit and (optionally) a remote URL.
-make_repo() { # <dir> [remote-url]
+make_repo() {
   local dir="$1" remote="${2:-}"
   mkdir -p "$dir"
   git -C "$dir" init -q
@@ -54,7 +53,7 @@ make_repo() { # <dir> [remote-url]
   return 0
 }
 
-resolve() { # <cwd> [extra args...]
+resolve() {
   local cwd="$1"
   shift
   (cd "$cwd" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "$DATE" "$@" 2>/dev/null)

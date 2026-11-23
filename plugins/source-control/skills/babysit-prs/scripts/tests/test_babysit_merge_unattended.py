@@ -51,7 +51,7 @@ from test_babysit_merge import (
     STRAY_MERGE_COMPARES,
 )
 import test_babysit_merge_async as async_fixtures
-from babysit_risk import ChangedFile, LaneEvidence
+from diff_risk import ChangedFile, LaneEvidence
 from repo_config_fake import RepoConfigFake
 
 HEAD = fixtures.HEAD
@@ -63,7 +63,6 @@ IDENTITY = "agent-lanes[bot]"
 PERSON_ID = 4242
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
-# Captured before setUpModule stubs `_role_label` for the rest of the module.
 REAL_ROLE_LABEL = postmerge._role_label
 
 # The report keys `evaluate()` returned before the unattended path existed,
@@ -242,7 +241,6 @@ class RemappedHumanGatedLabel(unittest.TestCase):
         self.assertEqual(
             prefilter.hold({"labels": ["Human-Review"]}, self.LABEL), self.LABEL
         )
-        # The unmapped default no longer holds.
         free = _evaluate(
             fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, None, permits
         )
@@ -355,7 +353,6 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
             any("'needs-human' label" in b for b in unattended["blockers"]),
             unattended["blockers"],
         )
-        # The pr-merge prefilter drops what the unattended gate refuses.
         self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
 
     def test_needs_human_holds_the_autopilot_merge_tier(self) -> None:
@@ -673,8 +670,6 @@ class EvaluateWithARefusingPolicyHolds(unittest.TestCase):
         self.assertIs(result["unattended"]["enabled"], True)
 
     def test_other_blockers_are_still_reported(self) -> None:
-        # The freshness hold is evaluated only once no other hold stands, so a
-        # refusal added before it would hide a behind head.
         plain = _evaluate(fixtures._pr(), HEAD, None, compare=BEHIND)
         result = _evaluate(fixtures._pr(), HEAD, None, INERT, compare=BEHIND)
         self.assertEqual(plain["blockers"], [BEHIND_BLOCKER])
@@ -683,8 +678,6 @@ class EvaluateWithARefusingPolicyHolds(unittest.TestCase):
 
 class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
     def test_no_merge_block_resolves_authority_unconfigured(self) -> None:
-        # The default branch head, then the two config files at it: neither
-        # exists in a readable tree, so there is no merge block.
         sha = "a" * 40
         answers = {
             "repos/owner/repo": {"default_branch": "main"},
@@ -705,8 +698,6 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
                 )
             raise AssertionError(f"unexpected gh call: {args}")
 
-        # The process seams every real gh read reaches, whichever module makes
-        # it; no local clone holds the SHA, so the config comes from the API.
         with (
             mock.patch.object(policy, "_history_checkouts", return_value=[]),
             mock.patch.object(policy, "gh_capture", side_effect=fake_gh),
@@ -732,8 +723,6 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
     def test_a_policy_without_a_refusal_is_enabled(self) -> None:
         self.assertIs(policy.UnattendedPolicy(reason=None).enabled, True)
 
-
-# --- main() end to end --------------------------------------------------------------------------
 
 QUEUE_RULES = [*fixtures.RULES, {"type": "merge_queue", "parameters": {}}]
 LOW_FILE = ChangedFile(
@@ -920,11 +909,8 @@ class Unattended(unittest.TestCase):
         return self.lanes, self.comments
 
     def _paginated(self, endpoint: str, label: str, **kwargs: Any) -> Any:
-        # The comments a write reads itself when no lane evidence was read
-        # (a verifier refusal skips it).
         if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
             return self.comments
-        # The pr-merge human-veto scan reads the inline review comments too.
         if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
             return []
         if (
@@ -932,13 +918,11 @@ class Unattended(unittest.TestCase):
             and self.pr_commits is not None
         ):
             return self.pr_commits
-        # The timeline an escalation reads for a person's removal of its label.
         if endpoint == f"repos/owner/repo/issues/{PR}/timeline?per_page=100":
             self.timeline_reads.append(kwargs)
             if self.timeline_error is not None:
                 raise self.timeline_error
             return self.timeline
-        # The linked issue's label history the trust hold reads: none.
         if endpoint == "repos/owner/repo/issues/41/timeline?per_page=100":
             return []
         return self._real_paginated(endpoint, label, **kwargs)
@@ -1071,7 +1055,6 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
-            # None runs the real lane eligibility over the stubbed reads.
             *(
                 [
                     mock.patch.object(
@@ -1124,8 +1107,6 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 merge, "fetch_paginated_api", side_effect=self._paginated
             ),
-            # The comment readers `babysit_merge` imports from `babysit_gh`
-            # page through that module's own reader.
             mock.patch.object(gh, "fetch_paginated_api", side_effect=self._paginated),
             mock.patch.object(
                 policy,
@@ -1219,8 +1200,6 @@ class LaneMode(Unattended):
             require_verifier_verdict=True, path_holds=True,
             floor_paths=evidence_tests.FLOOR_ROWS,
         )  # fmt: skip
-        # A passing verdict at every head (test_babysit_verify_evidence covers
-        # the reader).
         passing = merge.verify_evidence.Evidence(
             refusal=None, head=HEAD, verdicts=(), ignored=0
         )
@@ -1229,12 +1208,9 @@ class LaneMode(Unattended):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
-        # The local opt-in re-read is not a lane rule: reaching it would hold.
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
         # D16 replaces the local promotion read: an unpromoted cell must not hold.
         self.promotion = policy.Promotion(None, "resolver-failed")
-        # The lane never reads the variables kill switch: a read would pop
-        # from an empty list and fail the test.
         self.kill = []
 
     def lane(self, *flags: str) -> tuple[int, dict[str, Any]]:
@@ -1267,7 +1243,6 @@ class LaneMode(Unattended):
             ):
                 _, out = self.lane()
                 self.assertEqual(out["unattended"]["risk"]["score"], score)
-        # A lane PR is scored whole like the lanes App's own.
         self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
         with mock.patch.object(
             policy, "foreign_paths", side_effect=AssertionError("read")
@@ -1366,7 +1341,6 @@ class LaneMode(Unattended):
         )
 
     def test_an_in_flight_refusal_skips_the_risk_and_verifier_reads(self) -> None:
-        # Another pull request's lane entry is queued; this one is not.
         self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
         self.queued = [9]
         self.lane_error = AssertionError("risk evidence read")
@@ -1385,7 +1359,6 @@ class LaneMode(Unattended):
             code, out = self.lane("--merge")
         self.assert_no_merge(code)
         later.assert_not_called()
-        # Only the sweep's read of the queued entry, never this pull request's.
         self.assertEqual(verdicts, [9])
         self.assertIn(
             merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
@@ -1393,7 +1366,6 @@ class LaneMode(Unattended):
         )
         self.assertNotIn("risk", out["unattended"])
         self.assertNotIn("riskComment", out["unattended"]["writes"])
-        # The queue sweep still judges the queued entry.
         self.assertIn(9, self.hold_reads)
 
     def shared_rules(self) -> None:
@@ -1423,9 +1395,6 @@ class LaneMode(Unattended):
         )
 
     def test_rules_shared_for_another_landing_base_are_read_again(self) -> None:
-        # The gate read the rules of a landing base other than the pull
-        # request's base (a `rules_base` override): that base is the one
-        # read again before the enqueue.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = str(pathlib.Path(tmp.name, "run.json"))
@@ -1488,9 +1457,6 @@ class LaneMode(Unattended):
         self.assertEqual(self.log, [])
 
     def test_the_pin_names_the_rung_the_lane_enqueued_under(self) -> None:
-        # The publisher credits a merge to its rung's cells, read
-        # from the pin. merge.rung C2 under c2-mechanical is rung C2; merge.rung
-        # C3 under c3-autonomous or full-autonomy is C3, and a C2 cap lowers it.
         for config_rung, loop, cap, expected in (
             ("C2", "c2-mechanical", "", "C2"),
             ("C3", "c3-autonomous", "", "C3"),
@@ -1563,8 +1529,6 @@ class LaneMode(Unattended):
                 self.assertEqual(token, "lane-tok")
 
     def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
-        # A stop like the switch itself: no enqueue, and the identity's own
-        # queued entries leave the queue.
         code, out = self.run_main("--authority", "pr-merge")
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "kill-switch:lane-value-missing")
@@ -1633,7 +1597,6 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        # No `labels-absent` list in the config: the human-gated label holds.
         self.assertEqual(
             self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
         )
@@ -1663,7 +1626,6 @@ class LaneMode(Unattended):
             "unattended merge refused: ineligible:base-not-default:release",
             out["blockers"],
         )
-        # Read fresh at the recheck.
         self.assertEqual([(o, n) for o, n, _ in self.base_reads], [("owner", "repo")])
 
     def test_an_ineligible_pr_is_refused(self) -> None:
@@ -1808,7 +1770,6 @@ class DependabotLane(Unattended):
         self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
         self.pr_view = fixtures._pr(author={"login": "app/dependabot"})
         self.dependabot_reads = [DEPENDABOT_AUTO]
-        # The class is not scored: reading the review evidence would fail.
         self.lane_error = AssertionError("the Dependabot class was scored")
         self.lane_eligible = policy.Eligibility(False, "lane-eligibility-read")
 
@@ -1833,8 +1794,6 @@ class DependabotLane(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
     def test_an_in_flight_refusal_still_reads_the_dependabot_class(self) -> None:
-        # Off the queue and refused in flight: the class is still read, so
-        # the gate keeps no dependency-manager hold it would not keep anyway.
         self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
         self.queued = [9]
         code, out = self.lane()
@@ -1934,8 +1893,6 @@ class DependabotLane(Unattended):
                 self.assertEqual(
                     [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
                 )
-                # The gate reads main's Dependabot inputs at the head its
-                # merge config came from; the recheck at the head read now.
                 self.assertEqual(self.dependabot_kwargs[0]["branch"], "main")
                 self.assertEqual(self.dependabot_kwargs[1]["main_sha"], self.main_head)
 
@@ -1944,7 +1901,6 @@ class DependabotLane(Unattended):
         self.pr_view = fixtures._pr()
         self.lane_eligible = policy.Eligibility(True, None, "C2")
         self.lane_error = None
-        # A lane PR needs the verdict required; Dependabot's do not.
         self.config = dataclasses.replace(self.config, require_verifier_verdict=True)
         passing = merge.verify_evidence.Evidence(None, HEAD, (), 0)
         with mock.patch.object(
@@ -1992,9 +1948,6 @@ class AllInputsGood(Unattended):
         self.assertIs(out["enqueued"], True)
 
     def test_a_cached_head_config_is_read_again_before_the_enqueue(self) -> None:
-        # The gate took main's config from the run cache, read at head B.
-        # Main moved to D before the enqueue: D's config is read again, and a
-        # tightening there holds; an unmoved head enqueues on one head read.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         for main_head, d_lines, enqueued in (
@@ -2049,8 +2002,6 @@ class AllInputsGood(Unattended):
         self.capture.assert_not_called()
 
     def test_a_landed_entry_read_back_at_its_pin_dispatches_the_full_run(self) -> None:
-        # A later run: the recorded queue entry merged at the pinned head (the
-        # read-back held). The merge is now an unverified auto-merge in flight.
         self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
         self.pr_view = fixtures._pr(state="MERGED")
         self.prior = {
@@ -2071,8 +2022,6 @@ class AllInputsGood(Unattended):
     def test_a_landed_entry_read_back_dispatches_with_the_pr_read_as_merged(
         self,
     ) -> None:
-        # The REST record says merged too: a state directory can hold a
-        # recorded request, so the closed stop stays off and the dispatch runs.
         self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
         self.pr_view = fixtures._pr(state="MERGED")
         self.pr_rest_state = ("closed", True)
@@ -2091,8 +2040,6 @@ class AllInputsGood(Unattended):
         self.assertEqual(code, 10)
 
     def test_a_merged_pr_with_no_state_dir_still_sweeps_the_queue(self) -> None:
-        # The run's last candidate may be the merged one: its gate is then the
-        # only one left to dequeue a held entry the identity queued.
         self.pr_view = fixtures._pr(state="MERGED")
         self.pr_rest_state = ("closed", True)
         self.queued = [5]
@@ -2115,7 +2062,6 @@ class AllInputsGood(Unattended):
         self.dequeue.assert_not_called()
 
     def test_a_landed_entry_read_back_under_a_cap_with_room_exits_zero(self) -> None:
-        # At a cap of 5 the landed merge leaves room, so no refusal stands.
         self.config = dataclasses.replace(self.config, max_in_flight=5)
         self.flight = policy.InFlight(True, None, frozenset(), 1)
         self.pr_view = fixtures._pr(state="MERGED")
@@ -2135,8 +2081,6 @@ class AllInputsGood(Unattended):
     def test_a_failed_dispatch_is_reported_and_left_to_the_remediate_check(
         self,
     ) -> None:
-        # The pending record is already cleared, so the next cycle's
-        # `babysit-postmerge.sh --remediate` is what dispatches again.
         self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
         self.pr_view = fixtures._pr(state="MERGED")
         self.prior = {
@@ -2157,8 +2101,6 @@ class AllInputsGood(Unattended):
     def test_an_enqueue_is_recorded_at_the_pin_for_the_later_read_back(
         self,
     ) -> None:
-        # The enqueue returns before the queue lands it: the merge and its
-        # verifying dispatch come from a later run reading this record back.
         self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
         with tempfile.TemporaryDirectory() as state:
             code, out = self.run_main("--state-dir", state)
@@ -2372,7 +2314,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         )
 
     def test_a_lane_run_listing_at_the_search_cap_binds_no_lane(self) -> None:
-        # collect_lane_runs raises on a listing at the search cap.
         self.lane_error = RuntimeError(
             "pr-review-hosted.yml runs: total_count 1000, 1000 returned, "
             "at the 1000-run search cap"
@@ -2385,8 +2326,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         )
 
     def test_a_rate_limited_evidence_read_holds_the_candidate(self) -> None:
-        # A rate-limited evidence read binds no lane, so the candidate holds
-        # until a later run reads again.
         self.lane_error = RuntimeError(
             "gh api repos/owner/repo/issues/1/timeline failed: gh: API rate limit"
             " exceeded for installation ID 4242. (HTTP 403)"
@@ -2457,7 +2396,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertIn(url, body)
         self.assertIn("A push resets the count.", body)
         self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "created")
-        # A rerun finds the same comment and writes nothing.
         self.comments = [
             {
                 "id": 91,
@@ -2652,8 +2590,6 @@ class BaseConfigParseError(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
     def test_the_floor_is_read_from_the_default_branch_head_history(self) -> None:
-        # The real `enabled_since` walks the history of the commit the config
-        # came from; the base's own history holds only unparsable configs.
         self.real_enabled_since = True
         local = mock.patch.object(policy, "_local_history", return_value=None)
         local.start()
@@ -2796,8 +2732,6 @@ class CheckInputsChangedOnTheBase(Unattended):
         )
 
     def test_a_standards_sync_head_is_never_updated(self) -> None:
-        # The sync App is the branch's only writer: a merge commit from the
-        # base fails the managed-files guard, so the head enqueues as before.
         self.pr_labels = [{"name": "Standards-Sync"}]
         code, out = self.run_main()
         self.assertEqual(code, 0, out["blockers"])
@@ -2816,7 +2750,6 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.pr_labels = [{"name": "sync-managed"}]
             self.run_main()
             self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
-            # The unmapped default no longer skips the update.
             self.log = []
             self.pr_labels = [{"name": "standards-sync"}]
             self.run_main()
@@ -2852,10 +2785,6 @@ class CheckInputsChangedOnTheBase(Unattended):
     def test_a_carried_canonical_changed_on_the_base_is_refused_and_escalated(
         self,
     ) -> None:
-        # Updating merges the base's canonical but leaves the copies the PR
-        # generated from its own, so only a merge plus a regeneration clears
-        # it: the refusal is escalated once, for pr-unblock's
-        # sync-shared-copies on a lanes App PR and a person on any other.
         code, out = self.refuse_shared_copy()
         self.assert_no_merge(code)
         (comment,) = [e for e in self.log if "/issues/" in e and "/comments" in e]
@@ -2910,7 +2839,6 @@ class CheckInputsChangedOnTheBase(Unattended):
         self.assertIn("may have landed", blocker)
 
     def test_an_update_that_times_out_holds(self) -> None:
-        # The update may have landed, so the old head is not pinned.
         self.update_failure = RuntimeError("gh api timed out after 30s")
         code, out = self.run_main()
         self.assert_held_after_update(code, out)
@@ -2940,9 +2868,6 @@ class CheckInputsChangedOnTheBase(Unattended):
     )
 
     def dependabot_head(self, *commits: dict[str, Any]) -> None:
-        # The local lane admits a Dependabot pull request through the opt-in,
-        # so its eligibility carries no Dependabot class: not an eligible
-        # Dependabot head, which enqueues as before.
         self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
         self.pr_head_ref = "dependabot/npm_and_yarn/plugins/x/server/ip-address-10.7.4"
         self.pr_commits = list(commits) or [DEPENDABOT_COMMIT]
@@ -2989,7 +2914,6 @@ class CheckInputsChangedOnTheBase(Unattended):
                 )
 
     def test_a_second_run_at_the_same_base_does_not_ask_again(self) -> None:
-        # The identity's own request, or a writer's.
         posters = (
             {"user": {"login": IDENTITY, "type": "Bot"}, "author_association": "NONE"},
             {"user": {"login": "a-member"}, "author_association": "MEMBER"},
@@ -3021,7 +2945,6 @@ class CheckInputsChangedOnTheBase(Unattended):
         )
 
     def earlier_request(self, minutes_ago: int) -> None:
-        # A writer's request at an older base tip.
         posted = datetime.now(UTC) - timedelta(minutes=minutes_ago)
         self.comments = [
             {
@@ -3034,7 +2957,6 @@ class CheckInputsChangedOnTheBase(Unattended):
         ]
 
     def test_a_new_base_tip_within_the_hour_waits(self) -> None:
-        # A head that stays behind gets one request an hour, not one per merge.
         self.dependabot_head()
         self.earlier_request(minutes_ago=10)
         code, out = self.run_main()
@@ -3185,8 +3107,6 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertIs(out["enqueued"], False)
 
     def test_a_cap_of_five_keeps_an_entry_within_the_room(self) -> None:
-        # Three earlier entries and one unverified merge: four in flight, so
-        # this fifth entry stays; with two unverified merges it leaves.
         self.config = dataclasses.replace(self.config, max_in_flight=5)
         earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
         self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
@@ -3204,8 +3124,6 @@ class OneUnattendedMergeInFlight(Unattended):
     def test_the_room_check_reads_the_cap_again_not_from_the_run_cache(
         self,
     ) -> None:
-        # Another gate process saved a cap of 1; the head's is 5, so the
-        # fifth entry stays only on a fresh read.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = str(pathlib.Path(tmp.name, "run.json"))
@@ -3225,8 +3143,6 @@ class OneUnattendedMergeInFlight(Unattended):
     def test_the_room_check_reads_the_cap_at_the_default_branch_head(
         self,
     ) -> None:
-        # Three earlier entries and one unverified merge: the fifth entry
-        # stays only at a cap of 5, read at main's head, not at the base.
         self.main_head = "d" * 40
         earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
         self.flight = policy.InFlight(True, None, frozenset(), 1)
@@ -3350,8 +3266,6 @@ class OneUnattendedMergeInFlight(Unattended):
                 self.queued = [PR]
                 self.eligible = policy.Eligibility(True, None, work_class, 40)
                 _, out = self.run_main()
-                # The only refusal left is the in-flight one its own entry
-                # sets up.
                 self.assertEqual(
                     out["unattended"]["reason"],
                     f"in-flight:identity-entry-queued:#{PR}",
@@ -3430,7 +3344,6 @@ class TheQueueSweepIsSharedPerRun(Unattended):
     def test_a_kept_entry_is_judged_once_across_candidates(self) -> None:
         self.candidates(3)
         self.assertEqual(self.hold_reads.count(5), 1)
-        # A gate always judges its own entry.
         self.assertEqual(self.hold_reads.count(PR), 3)
         self.assertEqual(self.log, [])
 
@@ -3458,9 +3371,6 @@ class TheQueueSweepIsSharedPerRun(Unattended):
         self.assertEqual(self.hold_reads.count(5), 2)
 
     def test_a_kept_entry_is_dated_by_its_oldest_shared_read(self) -> None:
-        # The hold read uses a permission another process shared 90 s before
-        # the judgment, so the entry is kept as of then and judged again by
-        # the candidate 31 s later.
         self.permission_reader = policy.permission_reader
         self.hold_hook = lambda kwargs: kwargs["permission"](OPERATOR_LOGIN) and None
         start = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
@@ -3476,7 +3386,7 @@ class TheQueueSweepIsSharedPerRun(Unattended):
                 clock[0] = start - timedelta(seconds=90) + timedelta(seconds=seconds)
                 self.candidates(1)
         self.assertEqual(self.hold_reads.count(5), 2)
-        self.assertEqual(self.log, [])  # kept both times, never dequeued
+        self.assertEqual(self.log, [])
 
     def test_each_entry_is_judged_under_the_runs_authority(self) -> None:
         seen: list[dict[str, Any]] = []
@@ -3518,7 +3428,7 @@ class GateReviewFixes(Unattended):
         self.rerun.assert_called_once()
 
     def test_an_unreadable_queue_re_read_still_dequeues_by_node_id(self) -> None:
-        self.entries_total = 5  # the read is truncated
+        self.entries_total = 5
         code, out = self.run_main()
         self.assertEqual(code, 10)
         self.assertIn("dequeue-self:id=PR_self", self.log)
@@ -3606,7 +3516,6 @@ class CostHold(Unattended):
         self.assertEqual(out["costDecision"], link)
 
     def test_a_raised_timeout_holds_only_on_a_model_workflow(self) -> None:
-        # The gate reads the workflow's head text, floor off, to see its legs.
         workflow = ChangedFile(
             ".github/workflows/x.yml",
             None,
@@ -3626,7 +3535,6 @@ class CostHold(Unattended):
             with self.subTest(held=held):
                 policy._TEXT_AT.clear()
                 self.addCleanup(policy._TEXT_AT.clear)
-                # Base text first, then head: the patch's 30 -> 45 at its key.
                 sides = iter(
                     f"jobs:\n  a:\n    timeout-minutes: {m}\n    steps:\n{text}"
                     for m in ("30", "45")
@@ -3732,12 +3640,12 @@ class ReasonsComment(Unattended):
 
     def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
         # A trusted-actor widening waits for the owner.
-        gate = merge.babysit_risk.Reason(
-            merge.babysit_risk.TRUST_GATE_CODE,
-            merge.babysit_risk.Risk.HIGH,
+        gate = merge.diff_risk.Reason(
+            merge.diff_risk.TRUST_GATE_CODE,
+            merge.diff_risk.Risk.HIGH,
             "x",
         )
-        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (gate,))
+        risk = merge.diff_risk.RiskResult(merge.diff_risk.Risk.HIGH, (gate,))
         self.assertIn(
             "a human merges it in person, never an agent or a lane",
             merge.risk_comment_body(risk, HEAD),
@@ -3748,17 +3656,15 @@ class ReasonsComment(Unattended):
 
     def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
         # A symlink or unreadable list scores this code with the floor off.
-        unsafe = merge.babysit_risk.Reason(
-            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        unsafe = merge.diff_risk.Reason(
+            merge.diff_risk.UNSAFE_PATH_CODE, merge.diff_risk.Risk.HIGH, "x"
         )
-        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        risk = merge.diff_risk.RiskResult(merge.diff_risk.Risk.HIGH, (unsafe,))
         self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
 
     LABEL = (
         f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
     )
-    # The earlier sweep's comment was written at 10:00; by default this run
-    # is two hours on, past the 60-minute minimum.
     WRITTEN = datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
 
     def setUp(self) -> None:
@@ -3796,8 +3702,6 @@ class ReasonsComment(Unattended):
         ]
 
     def test_a_review_still_running_reaches_the_score_as_med(self) -> None:
-        # A review job in progress at the head binds no evidence, so the
-        # pull request is scored, MED, not held back before scoring.
         running = {
             "path": merge.review_evidence.LANES["claude-review"][0],
             "event": "pull_request",
@@ -3808,7 +3712,7 @@ class ReasonsComment(Unattended):
             "created_at": "2026-10-12T10:00:00Z",
         }
         lanes = merge.review_evidence.bind(
-            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=(), floor=merge.babysit_risk.floor_for())
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=(), floor=merge.diff_risk.floor_for())
         self.assertEqual(lanes[0].unbound_reason, "run-not-success")
         self.lanes = lanes
         _, out = self.run_main()
@@ -3816,8 +3720,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.log, ["risk-comment:POST"])
 
     def test_a_review_pending_med_ten_minutes_on_gets_no_label(self) -> None:
-        # A review still running scores MED on every
-        # sweep; two sweeps minutes apart must not label it for good.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
@@ -3849,8 +3751,6 @@ class ReasonsComment(Unattended):
         )
 
     def test_a_self_merging_author_gets_no_comment_or_label(self) -> None:
-        # The App merges its own pull request, so the reasons comment and its
-        # escalation are writes no one acts on; the score still holds.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
@@ -3925,7 +3825,6 @@ class ReasonsComment(Unattended):
         self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_an_escalated_comment_is_not_extended_again(self) -> None:
-        # A rerun after a failed label write retries only the label.
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
@@ -4049,7 +3948,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.log, [self.LABEL])
 
     def test_a_tie_goes_to_the_later_removal(self) -> None:
-        # Same second: the person's removal, then the lanes App's.
         self.escalated_earlier()
         at = self.WRITTEN + timedelta(minutes=30)
         self.timeline = [
@@ -4089,7 +3987,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.log, [self.LABEL])
 
     def test_the_newest_removal_decides(self) -> None:
-        # A person removed it; the lanes App put it back and took it off again.
         self.escalated_earlier()
         self.timeline = [
             self.unlabeled(
@@ -4185,8 +4082,6 @@ class ReasonsComment(Unattended):
         )
 
     def test_a_removal_before_a_new_escalation_does_not_lift_it(self) -> None:
-        # The reasons comment says the refusal for the first time at this
-        # head, so a person's earlier removal lifted some other escalation.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
@@ -4213,7 +4108,6 @@ class ReasonsComment(Unattended):
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_recent_rewrite_of_the_reasons_resets_the_age(self) -> None:
-        # Written two hours ago, its reasons rewritten ten minutes ago.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, updated=self.now - timedelta(minutes=10))
@@ -4304,7 +4198,6 @@ class ReasonsComment(Unattended):
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
     ) -> None:
-        # The rewrite restarts the age the next sweep measures.
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
         self.lanes = PERSON_HELD
         _, out = self.run_main()
@@ -4345,7 +4238,6 @@ class ReasonsComment(Unattended):
     def test_changed_reasons_on_an_escalated_comment_keep_the_escalation(
         self,
     ) -> None:
-        # The label stays on, so the comment beside it must still say why.
         self.earlier_sweep(
             f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`."
             f"\n\n{merge.RISK_ESCALATION_LINE}"
@@ -4384,8 +4276,6 @@ class ReasonsComment(Unattended):
         return [e for e in self.log if e.startswith("risk-comment")]
 
     def test_a_low_score_after_an_earlier_sweep_clears_the_comment(self) -> None:
-        # The refusal ended at this head: a later MED or HIGH with the same
-        # reasons must not read the old comment's age as its own.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
@@ -4405,7 +4295,6 @@ class ReasonsComment(Unattended):
         self.assertNotIn("riskComment", out["unattended"]["writes"])
 
     def test_a_low_score_leaves_an_escalated_comment(self) -> None:
-        # The label it explains stands; the head-moved clear pairs the two.
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
@@ -4422,7 +4311,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.comment_writes(), [])
 
     def test_a_low_score_leaves_a_comment_at_an_old_head(self) -> None:
-        # A later refusal at this head renders a different body anyway.
         old = self.body().replace(HEAD, "d" * 40)
         self.setUp()
         self.earlier_sweep(old)
@@ -4430,8 +4318,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.comment_writes(), [])
 
     def test_a_refusal_after_a_cleared_comment_restarts_the_time(self) -> None:
-        # MED, then LOW, then MED again with the same reasons: the cleared
-        # comment has stood two hours, but the refusal is new.
         self.earlier_sweep(merge.risk_cleared_body(HEAD))
         self.lanes = PERSON_HELD
         _, out = self.run_main()
@@ -4576,8 +4462,6 @@ class WholeReviewRequest(Unattended):
         )
 
     def test_a_third_whole_review_is_never_toggled(self) -> None:
-        # The lane resolved its threads and pushed a trivial commit; the new
-        # head's clean incremental review would buy a third whole review.
         self.earlier_sweep(self.two_toggles())
         _, out = self.run_main()
         self.assertNotIn("toggle", self.log)
@@ -4798,7 +4682,7 @@ class AttachEdits(unittest.TestCase):
             [],
             is_human=evidence_tests.is_human,
             changed_paths=(),
-            floor=merge.babysit_risk.floor_for(),
+            floor=merge.diff_risk.floor_for(),
         )
         reasons = {lane.lane: lane.unbound_reason for lane in lanes}
         self.assertEqual(reasons["claude-security-review"], "comment-edited")
@@ -4824,9 +4708,6 @@ class HeadFileFailure(unittest.TestCase):
         self.assertEqual(capture.call_count, 1)
 
     def test_a_path_the_comparison_cannot_prove_latches_nothing(self) -> None:
-        # old.py 404s and the comparison shows it renamed: a verdict about
-        # old.py alone. app.py, read next, still reads and its thread, whose
-        # flagged line is gone at the head, clears.
         ev_tests = evidence_tests
         bot = {"__typename": "Bot", "login": "someone-else"}
 
@@ -4868,7 +4749,7 @@ class HeadFileFailure(unittest.TestCase):
                         is_human=ev_tests.is_human,
                         changed_paths=(),
                         head_file=merge._head_file("owner/repo", ev_tests.S),
-                        floor=merge.babysit_risk.floor_for(),
+                        floor=merge.diff_risk.floor_for(),
                     )
                 )
             return lanes["claude-review"], [c.args[0][-1] for c in read.call_args_list]
@@ -4876,16 +4757,11 @@ class HeadFileFailure(unittest.TestCase):
         alone, _ = bind([outdated("old.py")])
         both, reads = bind([outdated("old.py"), outdated("app.py")])
         self.assertTrue(any("contents/app.py" in r for r in reads), reads)
-        # The app.py thread cleared: the count is old.py's alone.
         self.assertEqual(both.open_findings, alone.open_findings)
 
     def test_the_bind_and_its_carried_pass_send_one_read_after_a_rate_limit(
         self,
     ) -> None:
-        # claude-review binds at S and reads the head for its outdated
-        # thread; the security lane's newest marker names a later head whose
-        # review failed, so it unbinds and the carried pass judges S again,
-        # which would read the head for its own outdated thread.
         ev_tests = evidence_tests
         sec = "claude-security-review"
         later = "c2" * 20
@@ -4928,12 +4804,11 @@ class HeadFileFailure(unittest.TestCase):
                     is_human=ev_tests.is_human,
                     changed_paths=(),
                     head_file=merge._head_file("owner/repo", ev_tests.S),
-                    floor=merge.babysit_risk.floor_for(),
+                    floor=merge.diff_risk.floor_for(),
                 )
             )
         self.assertTrue(lanes["claude-review"].bound)
         self.assertEqual(lanes[sec].unbound_reason, "no-marker")
-        # The carried pass still ran and carried a blocking count.
         self.assertGreater(lanes[sec].blocking_findings or 0, 0)
         self.assertEqual(capture.call_count, 1)
 
@@ -4964,7 +4839,7 @@ class HeadPushers(unittest.TestCase):
                 frozenset(),
                 lambda login: "write",
                 (),
-                merge.babysit_risk.floor_for(),
+                merge.diff_risk.floor_for(),
             )
 
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
@@ -5055,7 +4930,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.babysit_risk.floor_for())
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.diff_risk.floor_for())
         return calls
 
     def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
@@ -5076,8 +4951,6 @@ class LaneEvidenceReadToken(unittest.TestCase):
         for kind in kinds:
             with self.subTest(kind):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
-        # Two lanes: listing, run, jobs and one annotations read each; the run
-        # read is the latest attempt's record.
         self.assertEqual(len(carried), 2 + 2 * 4)
         # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
@@ -5155,7 +5028,6 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                 return [{"workflow_runs": [item]}]
             base = f"repos/owner/repo/actions/runs/{run}"
             if endpoint == base:
-                # The run read is the latest attempt's record.
                 return {"id": run, "run_attempt": 1, **done}
             if endpoint == f"{base}/attempts/1/jobs?per_page=100":
                 return [
@@ -5239,7 +5111,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     frozenset(),
                     lambda login: "write",
                     (),
-                    merge.babysit_risk.floor_for(),
+                    merge.diff_risk.floor_for(),
                 )
             except RuntimeError as exc:
                 result = exc
@@ -5318,7 +5190,7 @@ class CandidateReadsOnce(unittest.TestCase):
         ):
             pr = policy.pull_request("owner/repo", PR)
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.babysit_risk.floor_for())
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.diff_risk.floor_for())
             reader = merge.verify_evidence.Reader("owner/repo", "main")
             self.assertEqual(
                 reader._commits(PR, HEAD), {str(row["sha"]) for row in rows}
@@ -5354,10 +5226,7 @@ class CandidateReadsOnce(unittest.TestCase):
         self.assertEqual(self.counts(endpoints), (1, 1, 0))
 
     def test_a_list_not_ending_at_the_head_is_read_again(self) -> None:
-        # Read while the head moved: no reader reuses it.
         endpoints = self.run_readers(self.signed("a" * 40, "c" * 40), scoped=True)
-        # The record's count is for the head, so the signature check reads a
-        # count alongside rows that do not end there.
         self.assertEqual(self.counts(endpoints), (3, 1, 1))
 
     def test_a_moved_head_at_the_cap_is_refused_on_a_live_count(self) -> None:
@@ -5918,7 +5787,6 @@ class DependabotMajorEscalation(unittest.TestCase):
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:
-        # With no agent identity no escalation comment is the identity's.
         comments = [
             {
                 "id": 90,
@@ -5991,7 +5859,6 @@ class DependabotMajorEscalation(unittest.TestCase):
             }
         ]
         out = self.writes("ineligible:dependabot-major-held:x")
-        # A changed escalation is a new comment, as at a new head.
         (comment,) = self.calls
         self.assertIn("POST", comment)
         self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
@@ -6026,7 +5893,6 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertEqual(
             out["majorEscalation"], {"label": "added", "comment": "created"}
         )
-        # The next run finds both and writes nothing.
         self.calls.clear()
         self.pr_labels = [{"name": "needs-owner-decision"}]
         self.comments = [

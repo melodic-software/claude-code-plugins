@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# ui-run.sh passes a browser skip locally and fails it under CI=true, and refuses to run a part until every
-# ui_*.js beside it is in exactly one part that has its ui-<part>.test.sh. It runs here against copies of
-# ui-run.sh and ui-a.test.sh in a throwaway folder holding stub suites, the first printing the skip line a
-# browser-less machine produces, and the part check also runs on the live ui-parts.txt.
 # test-scope: plugins/planning/shared/tests/ui-run.sh plugins/planning/shared/tests/ui-parts.txt plugins/planning/shared/tests/ui-*.test.sh
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -10,7 +6,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "${tmp:?}"' EXIT
 cp "$here/ui-run.sh" "$here/ui-a.test.sh" "$tmp/"
 pass=0 failed=0
-check() { # <name> <expected exit> <actual exit>
+check() {
   if [[ $2 == "$3" ]]; then
     pass=$((pass + 1))
     echo "PASS $1"

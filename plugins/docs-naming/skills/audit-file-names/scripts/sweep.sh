@@ -115,8 +115,6 @@ fi
 
 load_config
 
-# --- the searchable file set -------------------------------------------------
-
 search_pathspec=()
 while IFS= read -r p; do
   [[ -n "$p" ]] || continue
@@ -126,31 +124,12 @@ done < <(cfg '.file_names.sweep_exclude[]')
 GENERATED=" $(cfg '.file_names.generated[].path' | tr '\n' ' ')"
 EXCLUDE_SITES="$(cfg '.file_names.sweep_exclude_sites[]')"
 
-# --- tier resolution ---------------------------------------------------------
-#
-# A file belongs to the declared tier whose matching pathspec has the most path
-# segments, ties going to the earlier entry. A file no tier claims belongs to the
-# implicit `current` tier, whose form is `all`, so a tree declaring no tier at
-# all still gets every reference repointed.
-#
-# THE POLICY FLOOR IS HELD HERE, PER FILE. An AUTHORITATIVE tier (bundled or the
-# tracked team layer) always beats a personal one, whatever their pathspecs say.
-# Specificity decides only among tiers of equal authority. Without that, a
-# personal layer could append `{paths: ["docs/adr/deep/**"], forms: "all"}`,
-# win on segment count, and make a subtree the team froze editable from one
-# machine: an addition that removes a protection. A personal tier still
-# classifies any file no authoritative tier claims, which is the adding the
-# floor exists to allow.
-
 TIER_MAP=""
 tier_count="$(cfg '.file_names.tiers | length')"
 i=0
 while [[ "$i" -lt "$tier_count" ]]; do
   tname="$(cfg ".file_names.tiers[$i].name")"
   tforms="$(cfg ".file_names.tiers[$i].forms")"
-  # An unstamped tier is treated as authoritative: a hand-written or older
-  # document carries no `_layer`, and the safe reading of "unknown origin" is
-  # the one that cannot silently loosen anything.
   tlayer="$(cfg ".file_names.tiers[$i]._layer")"
   case "$tlayer" in
   user-global | userConfig | personal-override) tauth=0 ;;
@@ -171,9 +150,6 @@ while [[ "$i" -lt "$tier_count" ]]; do
   i=$((i + 1))
 done
 
-# Reduce to one winning tier per file.
-# Authority first, then specificity, then declaration order. A personal tier
-# never displaces an authoritative one, whichever pathspec is deeper.
 TIER_WINNER="$(printf '%s' "$TIER_MAP" | awk -F'\t' 'NF==6 {
   f = $1
   if (!(f in best) ||
@@ -188,20 +164,12 @@ tier_of() {
     END { if (!found) print "current\tall" }'
 }
 
-# --- classification ----------------------------------------------------------
-
-# The form patterns are anchored on the SHAPE AROUND the name, not merely on
-# both appearing somewhere on the line. One line often carries two forms (a
-# markdown link to one file and a code span naming another), and a ladder that
-# asked only "does this line contain `](` and the name" would label the second
-# one a link and rewrite it in the wrong shape.
 RE_RAW=""
 RE_GH=""
 RE_LINK=""
 RE_TICK=""
 RE_TABLE=""
 
-# ere_escape <text>: the text with every ERE metacharacter escaped.
 ere_escape() {
   printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
 }
@@ -211,42 +179,16 @@ set_form_patterns() {
   RE_RAW="raw\\.githubusercontent\\.com[^ )\"']*$esc"
   RE_GH="github\\.com[^ )\"']*$esc"
   RE_LINK="\\]\\([^)]*$esc"
-  # A code span is CLOSED as well as opened. Without the trailing backtick the
-  # pattern also matches from a closing one: in `` [`Alpha-One`](Alpha-One.md) ``
-  # the second backtick opens a run that reaches the link target, and the target
-  # would be recorded as a code span it is not part of.
   RE_TICK="\`[^\`]*${esc}[^\`]*\`"
   RE_TABLE="(^\\|.*$esc|${esc}[[:space:]]*:)"
 }
 
 classify_forms() {
-  # classify_forms <line> <basename>; the patterns come from set_form_patterns.
-  # Prints every form the line carries, one per line, most specific first.
-  #
-  # ONE LINE, ONE ROW PER FORM. A ladder that stopped at the first match made
-  # the tier verdict wrong in both directions on a line carrying the same name
-  # twice in two shapes. `[CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)` is a markdown
-  # link AND a bare basename in the label: recorded as a link alone, a current
-  # tier leaves the label stale, and a historical tier that rewrote every
-  # occurrence would edit narrative it promised to preserve.
-  #
-  # TWO KINDS OF FORM, AND ONLY ONE KIND REPEATS. A SPAN form wraps the name in
-  # a delimiter (a URL, a link target, a code span), and a line can carry
-  # several of them. The RESIDUE forms, `table-or-key` and `plain`, both mean
-  # "the name, unwrapped" and differ only in what the rest of the line looks
-  # like, so exactly one of them is emitted, for the occurrences no span
-  # covered. Emitting both would make one occurrence two sites, and the second
-  # would find nothing left to rewrite and be counted as drift.
-  #
-  # bash's own =~ keeps this in-process: one subprocess per site would multiply
-  # by the thousands of sites a real tree carries.
   if [[ $1 =~ $RE_RAW ]]; then printf 'raw-url\n'; fi
   if [[ $1 =~ $RE_GH ]]; then printf 'github-url\n'; fi
   if [[ $1 =~ $RE_LINK ]]; then printf 'md-link\n'; fi
   if [[ $1 =~ $RE_TICK ]]; then printf 'backtick-path\n'; fi
 
-  # Strip the spans and ask what is left. The same three shapes the realign
-  # excludes when it applies a residue form, so the two stay in step.
   residue="$1"
   while [[ "$residue" =~ \][(][^\)]*[)] ]]; do
     residue="${residue/"${BASH_REMATCH[0]}"/]}"
@@ -268,7 +210,6 @@ classify_forms() {
 }
 
 action_for() {
-  # action_for <forms> <form>
   case "$1" in
   all) printf 'edit' ;;
   none) printf 'report' ;;
@@ -283,7 +224,6 @@ action_for() {
 }
 
 is_excluded_site() {
-  # is_excluded_site <file> <line-text>
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
     efile="${entry%%:*}"
@@ -303,8 +243,6 @@ trim() {
   printf '%s' "$1" | tr '\t' ' ' | cut -c1-160
 }
 
-# read_hit <git-grep-line>: split a `file:line:text` hit into file, lineno and
-# text.
 read_hit() {
   file="${1%%:*}"
   rest="${1#*:}"
@@ -312,15 +250,12 @@ read_hit() {
   text="${rest#*:}"
 }
 
-# read_tier: resolve the hit's file to its tier's name and forms.
 read_tier() {
   tinfo="$(tier_of "$file")"
   tname="${tinfo%%	*}"
   tforms="${tinfo#*	}"
 }
 
-# override_action: a generated file is regenerated and a sweep_exclude_sites
-# entry skipped, whatever the tier allows the site's form.
 override_action() {
   case "$GENERATED" in
   *" $file "*) action='regenerate' ;;
@@ -329,24 +264,14 @@ override_action() {
   if is_excluded_site "$file" "$text"; then action='skip'; fi
 }
 
-# --- the sweep ---------------------------------------------------------------
-#
-# Pairs are swept longest old basename first, so a map for `CATALOG` can never
-# consume a site that belongs to `CATALOG-TAXONOMY`.
-
 sites=0
 sorted_pairs="$(printf '%s' "$PAIRS" | awk -F'\t' 'NF>=2 {print length($1) "\t" $0}' | sort -rn | cut -f2-)"
 
-# The new name is read and discarded: the sweep locates sites by the OLD name,
-# and the realign is what applies the new one.
 while IFS="$(printf '\t')" read -r old _new; do
   [[ -n "$old" ]] || continue
   base="${old##*/}"
   set_form_patterns "$base"
   stem="${base%.*}"
-  # The stem goes into an ERE below, so its own metacharacters are escaped: a
-  # stem like `v1.2.schema` carries dots that would otherwise match any
-  # character, widening the sweep to lines that name no file at all.
   stem_esc="$(ere_escape "$stem")"
   seen=""
 
@@ -365,17 +290,6 @@ while IFS="$(printf '\t')" read -r old _new; do
     done < <(classify_forms "$text" "$base")
   done < <(git -C "$ROOT" grep -n -F -- "$base" "${search_pathspec[@]+"${search_pathspec[@]}"}" 2>/dev/null)
 
-  # Bare stems. A line the basename pass already reported is still eligible: one
-  # line can carry BOTH forms, and the common shape is a markdown link whose
-  # LABEL is the old name and whose target is the old path,
-  # `[`PLUGIN-PHILOSOPHY`](../plugin-philosophy.md)`. Reporting only the first
-  # match leaves the label reading the old name after the rename, which is a
-  # current-tier site the rule says must change.
-  #
-  # The test is exact rather than a re-scan: remove every occurrence of the
-  # basename from the line and ask whether the stem still stands on its own in
-  # what is left. A line whose only stem occurrences ARE the basename adds
-  # nothing and is skipped, as before.
   stem_pattern="(^|[^A-Za-z0-9_-])$stem_esc([^A-Za-z0-9_-]|\$)"
   stem_outside_basename() {
     residue="${1//"$base"/}"
@@ -393,8 +307,6 @@ $file:$lineno
     esac
     read_tier
     action="$(action_for "$tforms" bare-stem)"
-    # A stem that is one plain word is also an ordinary English word, so it is
-    # never edited on the strength of a text match alone.
     case "$stem" in
     *-* | *[0-9]*) ;;
     *) [[ "$action" == "edit" ]] && action='review' ;;

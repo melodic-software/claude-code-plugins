@@ -24,8 +24,8 @@ Shown to users as: bill
 ```
 
 - **Header sentence:** a new glossary says once, under its title, what `Avoid:` means. The line is
-  plain on purpose; a hard ban belongs in a check (a spelling or lint rule generated from the
-  rejected words on `Avoid:` and `Actions:` lines), not in emphatic wording.
+  plain on purpose: `audit` reports rejected words in use, and a check is added only when an audit
+  shows one crept back.
 - **Canonical term:** one preferred name for the concept within this bounded context.
 - **Definition:** 1–2 sentences stating what the term is. Define its conceptual boundary, not its
   implementation, behavior backlog, or storage representation.
@@ -40,6 +40,12 @@ Shown to users as: bill
   syntax; otherwise use the plain `Avoid:` line above. Omit the line when no synonym was rejected.
   The line holds only other names for the same concept: a word with a meaning of its own (a credit
   note beside an invoice) gets its own entry when the context uses it, or stays off the glossary.
+- **Also called:** optional, only for a synonym a person accepted for the same concept. `audit` and
+  [Counting a term](#counting-a-term) count it as the term itself. It is not `Avoid:`, which holds
+  rejected names. Omit the line when no synonym was accepted.
+- **No history:** an entry never records history ("formerly", "renamed from", an old name); rename
+  history lives in version control. `Avoid:` stays because it states a current rule (do not use
+  this word), not a past name.
 - **Shown to users as:** optional, only when the wording on screens, emails and error messages
   deliberately differs from the term. Checks for rejected words treat this wording as intended.
   When tenants rename the concept on their own screens, the line reads `Shown to users as:
@@ -66,13 +72,14 @@ because it is already written.
 
 ## Counting a term
 
-`audit` and `curate` count a term, a rejected synonym or a rejected verb one way, and a question
-and its recap give the same numbers:
+`seed`, `audit`, `curate` and `prune` count a term, a rejected synonym or a rejected verb one way,
+and a question and its recap give the same numbers:
 
 - Split identifiers at camelCase, PascalCase and snake_case boundaries, so `createShipment`,
   `ShipmentStatus` and `shipment_id` each hold the word `shipment`.
 - Match whole words, case-insensitive; a multi-word term matches as consecutive words, so
   `paymentRequest` matches "payment request".
+- A use of an `Also called:` name counts as a use of the term.
 - Uses in the glossary and the glossary index do not count.
 - Report the uses and the number of files: `Shipment: 7 uses in 3 files`.
 

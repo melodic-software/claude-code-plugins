@@ -3,6 +3,24 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.1] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [2.5.0] - 2026-11-23
+
+### Changed
+
+- `audit` gains a `## Next` naming `/corrections:codify rules <file>` for a rule a check can enforce.
+
+## [2.4.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
 ## [2.4.2] - 2026-11-21
 
 ### Changed

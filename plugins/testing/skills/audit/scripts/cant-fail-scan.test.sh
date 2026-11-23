@@ -70,7 +70,6 @@ assert_finding_count() {
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
-# --- usage / environment gaps -------------------------------------------------
 rc=0
 bash "$SCAN" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -128,7 +127,6 @@ else
   fail "parallel scan output is byte-identical to the serial scan" "$(diff <(printf '%s\n' "$serial") <(printf '%s\n' "$out"))"
 fi
 
-# --- negative fixtures: the false-positive guard ------------------------------
 run_scan "$FIX/negative" --check
 assert_exit "--check on negative fixtures passes (exit 0)" 0 "$rc"
 assert_not_contains "negative fixtures yield zero findings (discriminating-js.test.js, discriminating-ava.test.js, test_discriminating_py.py, DiscriminatingTests.cs)" "$out" "finding ["
@@ -145,7 +143,6 @@ assert_exit "--check on one-assertion-free.test.js fails (exit 1)" 1 "$rc"
 assert_finding_count "sanity fixture yields exactly one finding" 1
 assert_contains "sanity finding is the zero-assertion rule" "$out" "testing/audit/rule-zero-assertion"
 
-# --- exemption annotation ------------------------------------------------------
 run_scan "$FIX/exempt"
 assert_exit "exempt fixture report completes" 0 "$rc"
 assert_not_contains "exempted-js.test.js emits no finding" "$out" "finding ["
@@ -160,7 +157,6 @@ rc=0
 CANT_FAIL_SCAN_ROOT="$FIX/mock-only" bash "$SCAN" --check --strict >/dev/null 2>&1 || rc=$?
 assert_exit "--strict gates mock-only-oracle (exit 1)" 1 "$rc"
 
-# --- findings mode: detector-findings conformance -----------------------------
 REPO="$TMP_ROOT/repo"
 mkdir -p "$REPO/tests"
 git -C "$TMP_ROOT" init -q -b findings-branch repo
@@ -330,7 +326,6 @@ run_scan "$SUBREPO/sub"
 assert_exit "subdir-root scan completes" 0 "$rc"
 assert_contains "Location keeps the repo prefix under a subdir scan root" "$out" "sub/vacuous.test.js:1:"
 
-# --- CRLF input ---------------------------------------------------------------
 CRLF="$TMP_ROOT/crlf"
 mkdir -p "$CRLF"
 printf 'test("crlf case", () => {\r\n  run();\r\n});\r\n' >"$CRLF/crlf-case.test.js"
@@ -2226,7 +2221,6 @@ while IFS= read -r slug; do
   assert_contains "(e) an audit eval case expects testing/audit/rule-$slug" "$expected" "testing/audit/rule-$slug"
 done <<<"$emitted"
 
-# --- corpus grid: GRID.md rows and pair cells ---------------------------------
 GRIDCHK="$SCRIPT_DIR/check-corpus-grid.sh"
 rc=0
 out="$(bash "$GRIDCHK" 2>&1)" || rc=$?
@@ -2439,7 +2433,6 @@ assert_contains "and the ignored old file" "$out" "/.claude/testing.local.yaml b
 rm -f "$CFG/.claude/testing.local.yaml"
 rm -rf "$CFG/docs"
 
-# --- project context: owning project, CI membership and kind (C#) -------------
 PJX="$TMP_ROOT/pjx"
 mkdir -p "$PJX/.github/workflows"
 git -C "$TMP_ROOT" init -q -b pjx-branch pjx

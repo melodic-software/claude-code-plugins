@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Public entry surface for the ai-briefing build-pipeline suite. The Node
-# package under output/build/ is skill-private; external consumers (CI, docs)
-# invoke this facade instead of reaching into it.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../output/build"

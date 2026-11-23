@@ -101,7 +101,6 @@ threshold=""
 notes=""
 root=""
 
-# What a value flag's missing-value message asks for; empty for an unknown flag.
 value_noun() {
   case "$1" in
   --graph | --out | --notes) printf 'a path' ;;
@@ -205,7 +204,6 @@ message="$(sed -n 's/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".
 generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 [[ -n "$generated_on" ]] || generated_on="unknown"
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
-# Record text lands in markdown prose: drop control bytes, backticks, and quotes.
 # shellcheck disable=SC1003 # the backslash is a tr operand, not an escape
 prose() { printf '%s' "$1" | tr -d '\000-\037`"\\'; }
 generated_on="$(prose "$generated_on")"
@@ -243,7 +241,6 @@ md_notes() {
   fi
 }
 
-# $1 names what /architecture:improve looks inside.
 md_rungs() {
   printf 'Neighboring rungs:\n\n'
   printf '%s\n' '- `/architecture:map-landscape` charts the repositories this one sits among.'

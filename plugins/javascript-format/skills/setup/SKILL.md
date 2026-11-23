@@ -45,7 +45,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. JavaScript, TypeScript and JSON formatting and linting are two concerns.
 The hooks run only the plugin's shipped adapter, where that tool's own config governs the file, and
 otherwise nothing; they never run a command from the repository's typescript, javascript or json
-record (`.claude/ecosystems/<id>.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+record (`docs/conventions/ecosystems/<id>.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
 (`apply install-git-hooks`); a record is written by `/toolchain:setup apply <id>`, never here. The
 tunables are the native `userConfig` options (the on/off toggle, the gitignored-file switch and the
@@ -270,8 +270,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-/toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a
-tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- /toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants
+  a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do
 

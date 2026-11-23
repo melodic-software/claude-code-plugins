@@ -56,21 +56,29 @@ lib="$here/check-lib.sh"
 . "$lib" || exit 1
 set -uo pipefail
 
-# A declined entry checks nothing, whichever path registered it: a lefthook
-# remote runs this script from the fetched copy, where no installer removed it.
-# The keys read as install.mjs reads them: the entry's key at git's precedence,
-# unset falling back to the master key, a non-boolean value not declining.
 declined="$(git config --type=bool --get checks.guardrails.reference-verify.declined 2>/dev/null)"
 [[ $? -eq 1 ]] && declined="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
 [[ "$declined" == true ]] && exit 0
 
-checks_init pre-push "$@" || exit 0
+base_ref=""
+if [[ "${1:-}" == --base ]]; then
+  base_ref="${2:-}"
+  shift 2 2>/dev/null || shift
+  if [[ -z "$base_ref" ]]; then
+    printf '%s\n' 'reference-verify.sh: --base needs a ref' >&2
+    exit 2
+  fi
+  checks_init pre-push "$@" </dev/null || exit 0
+  if ! fork="$(git merge-base "$base_ref" HEAD 2>/dev/null)"; then
+    printf 'reference-verify.sh: no merge-base of HEAD and %s, so nothing was checked\n' "$base_ref" >&2
+    exit 1
+  fi
+  printf '%s %s\n' "$fork" "$(git rev-parse HEAD)" >"$CHECKS_TMP/push-ranges"
+else
+  checks_init pre-push "$@" || exit 0
+fi
 checks_require_tool jq "https://jqlang.org/download/"
 
-# The dispatcher and the verifiers: beside an installed copy, else the
-# plugin's own hooks/. cli-flag-verify finds its verifier under
-# $CLAUDE_PLUGIN_ROOT/lib/verification/, so an installed copy gets a scratch
-# root holding the two verifier assets.
 if [[ -f "$here/run-guards.sh" ]]; then
   run_guards="$here/run-guards.sh"
   root="$CHECKS_TMP/root"
@@ -85,16 +93,10 @@ else
 fi
 [[ -f "$run_guards" ]] || exit 0
 
-# The tip and base of the range being checked; both empty for --worktree.
-# MERGE_BASES holds the tip's merge-bases with the remote's tracking refs when
-# the range carries commits merged in from them (see pushed_merge_bases), else
-# nothing.
 TIP=""
 BASE=""
 MERGE_BASES=()
 
-# is_new <path>: the range adds the file rather than changing it: neither BASE
-# nor any of MERGE_BASES holds it.
 is_new() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
     ! git ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 ||
@@ -108,10 +110,6 @@ is_new() {
   return 0
 }
 
-# changed_lines: the lib's ranges, except that a file the range adds as a copy
-# of a file it also changes (a doc moved with a stub left at its old path) gets
-# the lines a copy-detecting diff adds to it, not the whole file: it is judged
-# like a rename's destination. The lib's diff detects renames, not copies.
 changed_lines() {
   local d s
   checks_changed_lines
@@ -120,7 +118,6 @@ changed_lines() {
     printf '%s\n' "$d" >>"$CHECKS_TMP/copies"
   done < <(checks_diff --name-status -C --diff-filter=C -z 2>/dev/null)
   [[ -s "$CHECKS_TMP/copies" ]] || return 0
-  # The hunk parse is checks_added_ranges' own: see its comment.
   checks_diff -U0 --text -C --diff-filter=C --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
     awk '
       left > 0 || right > 0 {
@@ -151,8 +148,6 @@ changed_lines() {
     checks_tool_failed awk "${st[1]}" 'listing the lines a copy adds'
     return 1
   fi
-  # A copy keeps its place in the table only when the lib listed it (a binary
-  # file it dropped stays out); a copy that adds no line keeps no range.
   awk -F '\t' -v OFS='\t' '
     FILENAME == ARGV[1] { copy[$0] = 1; next }
     FILENAME == ARGV[2] { add[$1] = add[$1] $0 "\n"; next }
@@ -167,11 +162,6 @@ changed_lines() {
   mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
 }
 
-# narrow_to_branch: a range whose tip merged a pushed branch since the last push
-# holds the lines that merge brought in, which the branch did not write. Keep
-# only the lines added both since the last push and against each of
-# MERGE_BASES, so a check never judges more than the plain range. A line the
-# branch adds that a merged base already holds at the same place is dropped too.
 narrow_to_branch() {
   local m s
   ((${#MERGE_BASES[@]})) || return 0
@@ -183,7 +173,6 @@ narrow_to_branch() {
     mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.merged"
     checks_intersect_ranges "$CHECKS_TMP/ranges.merged" "$CHECKS_TMP/ranges.kept" >"$CHECKS_TMP/ranges"
     s=$?
-    # A failed awk fails the hook and keeps the plain range, never fewer lines.
     if ((s != 0)); then
       printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
       checks_tool_failed awk "$s" 'narrowing the changed lines to the branch'
@@ -194,9 +183,6 @@ narrow_to_branch() {
   printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
 }
 
-# nearest_pushed_base: moves BASE to the commit of a tracking ref of $remote
-# that the tip holds and that holds BASE, the one fewest commits behind the tip.
-# Those commits are on the remote already, so they are not judged again.
 nearest_pushed_base() {
   local r n best="" min=0
   while IFS= read -r r; do
@@ -210,14 +196,6 @@ nearest_pushed_base() {
   [[ -z "$best" ]] || BASE="$best"
 }
 
-# pushed_merge_bases: sets MERGE_BASES for the current BASE..TIP to the commits
-# already on the remote that the tip merged in: pre-push-content's rule, that a
-# commit one of the remote's tracking refs holds is on the remote already. One
-# walk lists the commits the remote lacks and, as its boundary, the held
-# commits they sit on, the default branch's included; BASE and any held commit
-# BASE or another one holds are dropped. With no commit the remote lacks, the
-# remote holds the tip itself, so the tip is the one base. A git failure
-# leaves no base, which narrows nothing and judges the plain range.
 pushed_merge_bases() {
   local walk line own=0
   local -a held=()
@@ -241,7 +219,6 @@ pushed_merge_bases() {
   done <<<"$walk"
 }
 
-# added_lines <path>: the lines the range adds, in order.
 added_lines() {
   awk -v want="$1" -v ranges="$CHECKS_TMP/ranges" '
     BEGIN { while ((getline l < ranges) > 0) { split(l, r, "\t"); if (r[1] == want) { n++; s[n] = r[2] + 0; e[n] = r[3] + 0 } } }
@@ -311,15 +288,10 @@ report() {
     END { if (head != "") row(first, head, kind) }'
 }
 
-# finding <path> <message>: a blocking row at the path's first judged line, for
-# a file this check could not judge.
 finding() {
   printf '%s:%s: reference-verify: %s\n' "$1" "$(first_line "$1")" "$2" >>"$out"
 }
 
-# verified_type <path>: an extension the verifiers read, outside an eval
-# suite's samples/ folder. A sample is recorded model output: a flag, skill
-# reference or path in it is data, not a claim the repository makes.
 verified_type() {
   local f="$1"
   case "$f" in
@@ -329,21 +301,16 @@ verified_type() {
   esac
 }
 
-# Blocking findings, which fail the push, and advisory ones, which are printed
-# and leave it passing.
 out="$CHECKS_TMP/findings"
 advisory="$CHECKS_TMP/advisory"
 : >"$out"
 : >"$advisory"
 
-# check_range: every file the current range (or the worktree) changes.
 check_range() {
   local f ctx whole s _
   local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload" guards="$CHECKS_TMP/guards"
   changed_lines
   narrow_to_branch
-  # A rename's or a copy's destination is missing from the base but is no new
-  # text: only the lines the range adds to it are judged.
   while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' f; do
     derived+="$f"$'\n'
   done < <(checks_diff --name-status -C --diff-filter=RC -z 2>/dev/null)
@@ -407,8 +374,6 @@ check_range() {
   done < <(checks_files)
 }
 
-# tip_is_checkout: the checkout is the tip's tree (HEAD is $TIP, nothing changed
-# or untracked), so the verifiers can read it directly.
 tip_is_checkout() {
   [[ "$TIP" == "$(git rev-parse --verify --quiet HEAD 2>/dev/null)" && -z "$(git status --porcelain 2>/dev/null)" ]]
 }
@@ -416,8 +381,6 @@ tip_is_checkout() {
 if [[ "$CHECKS_MODE" == worktree ]]; then
   check_range
 else
-  # The lib's diff helpers read $CHECKS_TMP/push-ranges; narrow it to one range
-  # at a time so each file's text and added lines come from that range's tip.
   top="$PWD"
   tip_tree="$CHECKS_TMP/tip"
   mkdir -p "$CHECKS_TMP/no-hooks"
@@ -428,18 +391,13 @@ else
   remote="${CHECKS_ARGS%% *}"
   [[ -n "$remote" ]] || remote=origin
   while read -r BASE TIP <&3; do
-    nearest_pushed_base
+    [[ -n "$base_ref" ]] || nearest_pushed_base
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-    pushed_merge_bases
+    [[ -n "$base_ref" ]] || pushed_merge_bases
     if tip_is_checkout; then
       check_range
       continue
     fi
-    # The verifiers read the tree around a file (cited paths, the plugins
-    # tree, an edited file's other lines), so they run in a detached checkout
-    # of the tip. An empty hooks path keeps post-checkout hooks from firing.
-    # A tip it cannot check out is a blocking finding: its range went
-    # unchecked.
     if git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1 &&
       cd "$tip_tree"; then
       check_range
@@ -453,8 +411,6 @@ else
   done 3<"$CHECKS_TMP/all-ranges"
 fi
 
-# The exit status follows the blocking findings alone: a stale path can be
-# correct as written (a deletion record), so the author may have nothing to fix.
 cat "$out" "$advisory" >&2
 if [[ -s "$advisory" ]]; then
   printf '%s\n' 'guardrails: a deleted path above is advisory and does not fail the push: correct it if the citation is wrong, and keep it if it records the deletion.' >&2
@@ -463,8 +419,8 @@ fi
 printf 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.\n' >&2
 if grep -q ': cli-flag-verify: ' "$out"; then
   printf '%s\n' \
-    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, run /guardrails:setup to stop this' \
-    'entry in this clone: it declines it (install.mjs decline --entry reference-verify) and removes its registration.' >&2
+    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, stop this check in this clone:' \
+    'git config checks.guardrails.reference-verify.declined true' >&2
 fi
 printf '%s\n' 'guardrails: git -c checks.skipmissing=jq skips this check only while jq is missing; it never skips a finding.' >&2
 exit 1

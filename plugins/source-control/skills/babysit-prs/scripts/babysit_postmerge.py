@@ -530,7 +530,7 @@ class PostMergeVerdict:
 
 
 def demotion_marker(sha: str, signal: str) -> str:
-    return f"<!-- babysit-merge-demotion sha={sha} signal={signal} -->"
+    return policy.record_marker(policy.DEMOTION_KIND, sha, signal)
 
 
 def quarantine_marker(suite: str) -> str:
@@ -553,9 +553,6 @@ def check_key(check: str) -> str:
     job, colon, gate = check.partition(": ")
     name, paren, leg = job.partition(" (")
     return f"{name.lower().replace(' ', '-')}{paren}{leg}{colon}{gate}"
-
-
-# --- GitHub access ------------------------------------------------------------------
 
 
 def _split_repo(repo: str) -> tuple[str, str]:
@@ -1200,8 +1197,6 @@ def load_attempt_jobs(path: str, repo: str, now: datetime) -> dict[str, dict[str
         if _attempt_jobs_entry_usable(key, entry, now)
     }
 
-
-# --- Judging runs -------------------------------------------------------------------
 
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -3453,9 +3448,6 @@ def check(
     )
 
 
-# --- Writes -------------------------------------------------------------------------
-
-
 def dispatch_full_run(repo: str, *, ref: str) -> None:
     """Dispatch the full `pr-require-checks` run on `ref`; called by
     `--remediate` when the verdict needs a dispatch, and by the unattended
@@ -4568,9 +4560,6 @@ def remediate(
     if record_telemetry is not None:
         record_telemetry(created)
     return report
-
-
-# --- CLI ----------------------------------------------------------------------------
 
 
 def _default_is_human(

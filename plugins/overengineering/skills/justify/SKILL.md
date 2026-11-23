@@ -13,13 +13,16 @@ metadata:
 
 ## Repository context. Gather first
 
-Run this as its own Bash call, never combined with another command:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Branch, `git symbolic-ref --quiet --short HEAD`
 
 It prints the branch on stdout, or fails with no output on a detached checkout or outside a
 repository. Read the exit status to decide whether there is a branch, and take the name from stdout.
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
 
 ## Purpose
 
@@ -204,6 +207,12 @@ summary states whether anything was persisted.
 
 - Findings filed on an artifact: /overengineering:realign.
 - A proposal judged: /planning:plan.
+
+## Related
+
+- Auditing the whole enforcement surface: /overengineering:audit.
+- Hunting unreachable dead code: /code-tidying:audit-dead-code.
+- Auditing derivable documentation: /docs-hygiene:audit-derivability.
 
 ## Gotchas
 

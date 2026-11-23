@@ -1,7 +1,0 @@
-{
-  "name": "scan-upload",
-  "private": true,
-  "scripts": {
-    "test": "node --test"
-  }
-}

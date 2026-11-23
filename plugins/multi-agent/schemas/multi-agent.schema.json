@@ -54,12 +54,73 @@
       "type": "object",
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
       "description": "Per-skill verification level, keyed by skill name (for example audit-defaults); an entry beats this file's verification value."
+    },
+    "vendors": {
+      "description": "Vendor routing switches, tiebreak order, trial counts, per-vendor availability and ranking, and per-source enable overrides.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "routing": {
+          "description": "When false, /multi-agent:route vendors reports routing is off and recommends nothing.",
+          "type": "boolean",
+          "default": true
+        },
+        "trials": {
+          "description": "When true with trials_prove and trials_fail set, unproven vendor pairs run through trials.",
+          "type": "boolean",
+          "default": false
+        },
+        "auto_delegation": {
+          "description": "When true, eligible routed work delegates automatically; false recommends without delegating.",
+          "type": "boolean",
+          "default": false
+        },
+        "tiebreak": {
+          "description": "Ordered tiebreak steps on a tie across trusted sources. Empty or omitted keeps the caller's vendor.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["vendor-order", "fewest-tokens", "most-usage-left"] }
+        },
+        "trials_prove": {
+          "description": "Accepted trial results required to mark a pair proven. Unset by default.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "trials_fail": {
+          "description": "Rejected trial results required to mark a pair failed. Minimum 2; unset by default.",
+          "type": "integer",
+          "minimum": 2
+        },
+        "claude": { "$ref": "#/$defs/vendor_entry" },
+        "codex": { "$ref": "#/$defs/vendor_entry" },
+        "antigravity": { "$ref": "#/$defs/vendor_entry" },
+        "sources": {
+          "description": "Per-registry-row enable overrides, keyed by benchmark registry row id.",
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
     "alias": { "enum": ["opus", "sonnet", "haiku", "fable"] },
     "model": { "enum": ["inherit", "opus", "sonnet", "haiku", "fable"] },
     "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] },
+    "vendor_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "in_use": { "type": "boolean" },
+        "rank": { "type": "integer" }
+      }
+    },
     "role": {
       "type": "object",
       "additionalProperties": false,

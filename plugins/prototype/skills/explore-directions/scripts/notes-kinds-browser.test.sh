@@ -83,7 +83,7 @@ printf '%s\n' '</body>' '</html>' >>"$d/explore-directions.html"
 browser_serve
 url="http://127.0.0.1:$port/"
 
-lines() { # script and prefix: report each PASS or FAIL line the script returned
+lines() {
   while IFS= read -r line; do
     case "$line" in
       PASS\ *) ok "$2: ${line#PASS }" ;;
@@ -116,7 +116,6 @@ e = r["events"][3]
 assert e["anchor"]["testid"] == "shipments-row" and e["anchor"]["testidIndex"] == 57, e
 assert e["data"]["log"][-1] == {"op": "seed", "n": 100}, e' "$status"
 
-# One relocation of note $1; prints the script's JSON result.
 relocate() {
   local made script raw got
   made=$(node "$bridge/relocate-note.mjs" --dir "$d" --seq "$1" --url "$url")
@@ -147,8 +146,6 @@ print("async page => { const p = await page.context().newPage(); try { return aw
   code "$tmp/share.js" | result
 }
 
-# The first text note was taken before Seed, Clear and Reset ran in the open page; its quote still
-# finds its text there, now that Clear emptied the list and Reset rebuilt it.
 python3 -c '
 import json, sys
 e = json.loads(sys.argv[1])["events"][0]
@@ -187,7 +184,6 @@ else
   bad "no shot at shots/4.png"
 fi
 
-# The server stops under the open page.
 bash "$bridge/notes-bridge.sh" --dir "$d" stop >/dev/null
 offline=$(code "$here/notes-kinds-browser-offline.js" | result | tr -d '\r')
 lines "$offline" offline

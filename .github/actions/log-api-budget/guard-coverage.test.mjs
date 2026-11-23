@@ -1,4 +1,4 @@
-// test-scope: .github/*.mjs .github/*.cjs
+// test-scope: .github/*.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -61,6 +61,10 @@ const UNGUARDED = {
     reason: "reads only /rate_limit, which no pool counts (https://docs.github.com/en/rest/rate-limit/rate-limit), to decide the start gate",
     found: ["fetchImpl defaults to the global fetch", "fetchImpl defaults to the global fetch"],
   },
+  ".github/scripts/maintenance-reconcile-lost-runs/reset-tick.mjs": {
+    reason: "reads only /rate_limit, which no pool counts (https://docs.github.com/en/rest/rate-limit/rate-limit), to pick the tick after the reset",
+    found: ["fetchImpl defaults to the global fetch"],
+  },
   ".github/scripts/apply-patch/apply-patch.mjs": { reason: "its main runs from a directory copy after the head checkout replaced .base", found: ["globalThis.fetch"] },
   ".github/scripts/pr-unblock/address-feedback.mjs": {
     reason: "createGitHubApi's default fetch is for importers run from a directory copy; its base-checkout mains pass guardedFetch",
@@ -79,7 +83,7 @@ const UNGUARDED = {
 
 test("every lane script that reaches GitHub gets its fetch from the rate guard, or is listed with its reason and exactly its raw fetches", () => {
   const root = new URL("../../../", import.meta.url).pathname;
-  const files = spawnSync("git", ["-C", root, "ls-files", ".github/*.mjs", ".github/*.js", ".github/*.cjs"], { encoding: "utf8" })
+  const files = spawnSync("git", ["-C", root, "ls-files", ".github/*.mjs", ".github/*.js"], { encoding: "utf8" })
     .stdout.split("\n")
     .filter((file) => file && !/\.test\.[cm]?js$/.test(file) && !file.includes("/node_modules/") && !file.includes("/fixtures/") && !file.includes("/probe/"));
   const raw = Object.fromEntries(

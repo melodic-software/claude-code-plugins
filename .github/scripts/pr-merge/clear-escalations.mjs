@@ -175,7 +175,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate, retryServerErrors } from "../lib/github-client.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {
@@ -266,9 +267,9 @@ const REFUSAL_CLEARED = "refusal-cleared";
 // this script lifts at the same head, and the only ones a lift tolerates
 // refusing now. Every other code, an unknown one included, is a person's. The
 // list is explicit, so it fails closed; lane-causes-person-codes.test.mjs pins
-// it against babysit_risk.PERSON_CODES and PERSON_PREFIXES (#10249) and
+// it against diff_risk.PERSON_CODES and PERSON_PREFIXES (#10249) and
 // babysit_verify_evidence.NEEDS_HUMAN.
-// - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
+// - risk (an entry ending in ":" is a prefix): diff_risk.py's holding MED
 //   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
 //   the manifest review (:598). Not the reader's `unreadable: …` score.
 //   files-incomplete and the manifest review join their items with "; ", so
@@ -350,7 +351,6 @@ const reportError = (number, error) =>
 // finding, a merge-risk hold, an owner reason, an unknown one) keeps it for a
 // person or a trusted push (owner direction on the security finding).
 export const LANE_ONLY = Object.freeze(["feedback-not-landed"]);
-// Any lane's escalation line.
 const ANY_ESCALATION = "<!-- work-items:escalation";
 
 // The first escalation recorded against the label since it was last removed
@@ -502,7 +502,7 @@ async function checksHeld(read, repo, head) {
 // names it, under the caller's display name first; the lower-case caller is a
 // head tested before the rename, `Status` its Title Case job name and
 // `Publish Review` its planned one), and whether only a whole review counts.
-const LANE_RECORDS = Object.freeze([
+export const LANE_RECORDS = Object.freeze([
   {
     file: "pr-review-hosted.yml",
     lane: "claude-review",
@@ -801,8 +801,7 @@ function pairedWithPrMerge(appComments, since) {
 // A read that fails, or a listing that may be cut short, keeps the hold.
 
 export const STALE_HOLD = "stale-review-hold";
-// Each review caller's lane id, as its notices and comments name it.
-const LANE_OF = Object.freeze({ "pr-review-hosted.yml": "claude-review", "pr-review-security-hosted.yml": "claude-security-review" });
+const LANE_OF = Object.freeze(Object.fromEntries(LANE_RECORDS.map(({ file, lane }) => [file, lane])));
 const SECURITY_LANE = "claude-security-review";
 // The security lane's per-finding severity line (/review:security-review
 // "Reporting"; babysit_review_evidence's SEVERITY_RE); its summary line is
@@ -1984,7 +1983,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     // history; without it, or without the trusted list, no stop clears on a
     // trusted move.
     reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? client(env.BABYSIT_VERIFY_GH_TOKEN)) : null;
-    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     // MAIN_TIP_SHA is the step's git ls-remote of refs/heads/main.
     const tip = SHA.test(env.MAIN_TIP_SHA ?? "") ? null : await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip === null ? env.MAIN_TIP_SHA : tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;

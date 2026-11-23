@@ -157,7 +157,6 @@ if [[ -n "${data_root_file+x}" ]]; then
   data_root="$(read_root_file "$data_root_file")" || exit 2
 fi
 
-# --- Repository discovery: the fleet audit's scope, without its CLI ----------
 SKIP_NAMES=()
 SKIP_APPEND_NAMES=()
 FLEET_CONFIG_ROOTS=()
@@ -200,7 +199,6 @@ for r in ${search_roots[@]+"${search_roots[@]}"}; do
   fleet_discover_root "$r"
 done
 
-# --- Canonical repositories, keyed by common dir -----------------------------
 repos=()
 # owner_of <dir>: the canonical repository owning <dir>, or fail. A linked
 # worktree maps to its main checkout; a bare hub maps to its common dir.
@@ -233,7 +231,6 @@ for c in ${candidates[@]+"${candidates[@]}"}; do
   owner="$(owner_of "$c")" && add_repo "$owner"
 done
 
-# --- Worktree roots ----------------------------------------------------------
 roots=()
 rungs=()
 add_root() {

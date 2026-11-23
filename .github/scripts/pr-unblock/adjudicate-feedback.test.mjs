@@ -136,7 +136,6 @@ const verifierThread = (id) => {
 test("disputes never adjudicates a CRITICAL code-review finding or a verifier note, and they take no slot", () => {
   const { slots } = disputes(fileOf(criticalThread("PRRT_c"), verifierThread("PRRT_v"), thread("PRRT_a")), [incorrect("PRRT_c"), incorrect("PRRT_v"), incorrect("PRRT_a")].join("\n"));
   assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a"]);
-  // A severity line other than CRITICAL is adjudicable as before.
   const important = thread("PRRT_i", [{ id: 1, author: "reviewer", lane: "claude-review", body: "x\n\nseverity: IMPORTANT\nclaude-lane: claude-review" }]);
   assert.deepEqual(disputes(fileOf(important), incorrect("PRRT_i")).slots.map((slot) => slot.thread), ["PRRT_i"]);
 });
@@ -813,7 +812,6 @@ test("a quote that is the linked issue's own text settles an intent or design qu
   assert.match(posted[0], /^<!-- pr-unblock adjudicate-feedback: finding-stands -->/);
   assert.ok(posted[0].includes(`The linked issue settles this intent question (${ISSUE_URL_7}):`));
   assert.ok(posted[0].includes(`> ${DONE_WHEN}`));
-  // A comment's text settles too.
   assert.equal(checkQuote({ verdict: "reviewer", question: "design", quote: ISSUE.comments[0] }, [{ ...ISSUE, url: ISSUE_URL_7 }]).url, ISSUE_URL_7);
 });
 
@@ -832,7 +830,6 @@ test("a quote never dismisses a finding: a lane verdict on an intent or design q
   const verdicts = parseVerdicts(JSON.stringify(collected), HEAD);
   assert.deepEqual(verdicts.get("PRRT_a"), { verdict: "human", question: "design" });
   assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", verdicts), { escalationReason: "feedback-question-design", skipReason: "" });
-  // A verdict file that carries the lane's quote with its URL is read the same way.
   const text = JSON.stringify({ version: 1, head_sha: HEAD, threads: [{ thread: "PRRT_a", verdict: "lane", question: "intent", quote: DONE_WHEN, url: ISSUE_URL_7 }] });
   assert.deepEqual(parseVerdicts(text, HEAD).get("PRRT_a"), { verdict: "human", question: "intent" });
 });
@@ -853,7 +850,6 @@ test("with no contract text no quote settles: the question stays a person's", as
   assert.deepEqual(checkQuote({ verdict: "reviewer", question: "intent", quote: DONE_WHEN }, []), { verdict: "human", question: "intent" });
   assert.equal(quoteSource(DONE_WHEN, [{ number: 7, url: ISSUE_URL_7, body: null, comments: [] }]), null);
   assert.deepEqual(contractIssues(undefined, "o/r"), []);
-  // A lane or reviewer verdict on a question with no quote is malformed.
   assert.equal(verdictOf({ verdict: "lane", question: "intent", quote: "" }), null);
   // A security question never settles by quote.
   assert.equal(verdictOf({ verdict: "lane", question: "security", quote: DONE_WHEN }), null);
@@ -1096,7 +1092,6 @@ const marketplaceWith = (extra) =>
   JSON.stringify({ ...JSON.parse(FLAG_FILES[MARKETPLACE]), plugins: JSON.parse(FLAG_FILES[MARKETPLACE]).plugins.map((entry) => (entry.name === "work-items" ? { ...entry, ...extra } : entry)) });
 
 test("hardRequire settles only a dependency that adds nothing Claude Code runs, read at the PR base and head", async () => {
-  // A manifest of metadata and userConfig, and a tree of skills, scripts and docs, settles.
   assert.equal((await settleFlag()).resolved, true);
   const cases = [
     ["head manifest declares hooks", { files: withManifest({ hooks: "./x.json" }) }],
@@ -1159,7 +1154,6 @@ test("a call under a `## Next` section is a successor mention, not a call site, 
   // A heading inside a fenced block does not end the section.
   const fenced = ["# probe", "", "## Next", "", "```bash", "# a comment", "```", "", "", "Run `/work-items:track add`.", ""].join("\n");
   assert.equal((await settleProbe(fenced, 10)).resolved, false);
-  // The next level-2 heading ends it.
   const after = ["# probe", "", "## Next", "", "", "## Steps", "", "", "Run `/work-items:track add`.", ""].join("\n");
   assert.equal((await settleProbe(after, 9)).resolved, true);
   // The head call holds up, but the base file's only call sits under `## Next`.

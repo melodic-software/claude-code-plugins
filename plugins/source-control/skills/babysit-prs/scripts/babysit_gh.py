@@ -107,11 +107,7 @@ _ROUTE_WORDS = frozenset(
     | {"stacks", "status", "timeline", "trees", "update-branch", "user"}
     | {"users", "variables", "workflows", "zip"}
 )
-# Everything after one of these is a single value that may hold slashes (a
-# branch, a file path), so the rest of the route is one `{}`.
 _REST_IS_VALUE_WORDS = frozenset({"contents", "heads"})
-# The segment after one of these is always a value (an owner, a branch, a
-# commit-ish, a range), even when it spells a route word.
 _VALUE_AFTER_WORDS = frozenset({"orgs", "users", "branches", "commits", "compare"})
 _gh_call_counts: dict[str, int] = {}
 
@@ -407,8 +403,6 @@ def _send_once(
     env_overrides: Mapping[str, str] | None,
     binary: bool,
 ) -> tuple[subprocess.CompletedProcess[Any], dict[str, str], int | None]:
-    """One guarded gh invocation, its response headers (empty unless the call
-    ran with -i) and the status those headers carry."""
     guarded = bool(args) and args[0] not in _LOCAL_SUBCOMMANDS
     pool = _call_pool(args)
     limits_pool = _limits_pool(args, env_overrides)
@@ -467,8 +461,8 @@ def _send_once(
 # the process exits red naming the reset, with no retry and no wait. The
 # signals are the documented ones below; the shares of each pool's limit
 # (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
-# fields filled from .github/actions/log-api-budget/rate-limits.json (with
-# github-token's `limit-cap`), and an unreadable block or defaults file
+# fields filled from .github/actions/log-api-budget/rate-limits.json, and an
+# unreadable block or defaults file
 # refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
 # consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
 # port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
@@ -526,7 +520,6 @@ TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
 # The YAML reader's runner, bound at import: a test that fakes `gh` through
 # `run_command` still reads the real limits.
 _reader_run = run_command
-# Subcommands that send no request at all.
 _LOCAL_SUBCOMMANDS = frozenset({"--version", "version", "help", "config"})
 # Subcommand verbs that only read; any other subcommand verb writes.
 _READ_VERBS = frozenset({"checks", "diff", "download", "list", "status", "view"})
@@ -632,10 +625,7 @@ _headroom_reset: dict[str, int] = {}
 _floored: dict[str, int | None] = {}
 _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
-# The job's stop file, read once before the first call; None until then.
 _job_stops: dict[str, int] | None = None
-# Why the job's stop file exists but could not be read; None when it was read
-# or is missing.
 _job_stops_error: str | None = None
 # One line of it, as rate-guard.mjs reads one: `<pool> <reset epoch>`, ASCII
 # digits only. Lines split on \n alone, so a line holding a \r is skipped, and
@@ -706,6 +696,18 @@ def stop_server_status(pool: str, *, now: float | None = None) -> int | None:
     return status
 
 
+def _under_a_file(path: str | None) -> bool:
+    """Whether the nearest existing ancestor of `path` is a file, not a
+    directory: the ENOTDIR case, which Windows reports as not found."""
+    if path is None:
+        return False
+    parent = Path(path).parent
+    for ancestor in (parent, *parent.parents):
+        if ancestor.exists():
+            return not ancestor.is_dir()
+    return False
+
+
 def _read_job_stops() -> dict[str, int]:
     """Each pool's latest reset in the job's stop file. A missing file holds no
     stop and a malformed line is skipped, as rate-guard.mjs `readStops` reads
@@ -716,9 +718,9 @@ def _read_job_stops() -> dict[str, int]:
     try:
         # Bytes, not read_text: universal newlines would turn \r into \n.
         text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
-    except FileNotFoundError:
-        text = ""
     except OSError as exc:
+        if isinstance(exc, FileNotFoundError) and not _under_a_file(path):
+            return {}
         _job_stops_error = (
             f"the job's stop file {path} cannot be read ({exc.strerror or exc})"
         )
@@ -749,7 +751,6 @@ def stopped_until(pool: str, *, now: float | None = None) -> int | None:
 
 
 def _pool_label(pool: str) -> str:
-    """`every` for `ALL_POOLS`, else `the <pool>`, as an `::error` names it."""
     return "every" if pool == ALL_POOLS else f"the {pool}"
 
 
@@ -764,12 +765,15 @@ def _record_stop(pool: str, reset: float, server_status: int | None = None) -> N
     cause = "limit" if server_status is None else f"server-{server_status}"
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a", encoding="utf-8") as handle:
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
             handle.write(f"{pool} {int(reset)}\n")
         with (
             contextlib.suppress(OSError),
             open(
-                os.path.join(os.path.dirname(path), "cause"), "a", encoding="utf-8"
+                os.path.join(os.path.dirname(path), "cause"),
+                "a",
+                encoding="utf-8",
+                newline="\n",
             ) as handle,
         ):
             handle.write(f"{pool} {int(reset)} {cause}\n")
@@ -791,8 +795,6 @@ def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
 
 
 def _body_and_errors(body: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """A response body as an object (its text parsed; anything else empty)
-    and its `errors` entries."""
     if isinstance(body, str):
         try:
             body = json.loads(body)
@@ -833,12 +835,10 @@ def evaluate_rate_response(
     body: Any,
     now: float,
     read_floor: float,
-    limit_cap: int | None = None,
 ) -> dict[str, Any]:
     """One response against the decision table: `latched`, `low`, `pool`,
     `reset` (epoch seconds) and `reset_source`. `headers` are lowercase.
-    `low` measures what is left of the planned budget, the header's limit at
-    most `limit_cap`, as rate-guard.mjs planOf does."""
+    `low` measures the header's remaining against `read_floor` of its limit."""
     remaining = _int_header(headers, "x-ratelimit-remaining")
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
@@ -857,10 +857,7 @@ def evaluate_rate_response(
     gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
     too_many = status == 429
     latched = remaining == 0 or ra is not None or msg or gql or too_many
-    low = False
-    if limit and remaining is not None:
-        planned = limit if limit_cap is None else min(limit, limit_cap)
-        low = planned - (limit - remaining) < read_floor * planned
+    low = bool(limit) and remaining is not None and remaining < read_floor * limit
     result: dict[str, Any] = {
         "latched": latched,
         "low": low,
@@ -894,7 +891,6 @@ def evaluate_rate_response(
 
 
 def _endpoint(args: list[str]) -> str:
-    """The URL an `api` call names; empty for any other subcommand."""
     if args[:1] != ["api"]:
         return ""
     rest = iter(args[1:])
@@ -935,8 +931,6 @@ def _limits_pool(args: list[str], env_overrides: Mapping[str, str] | None) -> st
 
 
 def _budget_token_name(env_overrides: Mapping[str, str] | None) -> str:
-    """The token name the job gives for a call: API_BUDGET_OVERRIDE_TOKEN for a
-    call carrying its own GH_TOKEN, else API_BUDGET_TOKEN; empty when unset."""
     own = bool(env_overrides and "GH_TOKEN" in env_overrides)
     return os.environ.get(
         "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
@@ -944,8 +938,8 @@ def _budget_token_name(env_overrides: Mapping[str, str] | None) -> str:
 
 
 def pool_limits(pool: str) -> dict[str, float] | str:
-    """`limits.api.<pool>`'s shares, unset ones from rate-limits.json, with the
-    pool's default `limit-cap` when it has one, or why they cannot be read. Read through the pipeline config's own reader;
+    """`limits.api.<pool>`'s shares, unset ones from rate-limits.json, or why
+    they cannot be read. Read through the pipeline config's own reader;
     only a read that succeeded is kept, so a failure is read again next call."""
     limits = _limits.get(pool) or _read_pool_limits(pool)
     if not isinstance(limits, str):
@@ -992,12 +986,6 @@ def _read_pool_limits(pool: str) -> dict[str, float] | str:
         if isinstance(raw, bool) or not typed or not 0 <= share <= 1:
             return f"limits.api.{pool}.{name} is not a share: {raw!r}"
         shares[name] = share
-    # The default cap alone, as before any config could set one.
-    cap = dig(defaults, pool, "limit-cap")
-    if cap is not None:
-        if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
-            return f"{LIMITS_DEFAULTS.name}: {pool}.limit-cap is not a count: {cap!r}"
-        shares["limit-cap"] = cap
     return shares
 
 
@@ -1101,19 +1089,8 @@ def _guard_response(
         raise trip
 
 
-# Set to 1, the read floor is a share of the header's limit, not of the pool's
-# `limit-cap`: ci-status's merge-group verdict reader, whose refusal ejects the
-# queue entry, plans to the token's live limit (owner decision D418; run
-# https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120
-# refused with 2,766 of 5,000 left).
-READ_FLOOR_HEADER_LIMIT_ENV = "BABYSIT_READ_FLOOR_HEADER_LIMIT"
-
-
 def _below(pool: str | None, field: str) -> bool:
     pools = list(_headroom) if pool is None else [pool]
-    capped = (
-        field == "read-floor" and os.environ.get(READ_FLOOR_HEADER_LIMIT_ENV) != "1"
-    )
     for name in pools:
         limits = pool_limits(name)
         if isinstance(limits, str):
@@ -1122,9 +1099,6 @@ def _below(pool: str | None, field: str) -> bool:
         if not reading:
             continue
         remaining, limit = reading
-        cap = limits.get("limit-cap") if capped else None
-        if cap is not None and cap < limit:
-            remaining, limit = max(0, cap - (limit - remaining)), cap
         if remaining < limits[field] * limit:
             return True
     return False
@@ -1132,10 +1106,8 @@ def _below(pool: str | None, field: str) -> bool:
 
 def low_headroom(pool: str | None = None) -> bool:
     """Whether `pool` (any pool read so far, when None) last read below its
-    `read-floor` share (of the pool's default `limit-cap` in rate-limits.json
-    when the header reports more, unless `READ_FLOOR_HEADER_LIMIT_ENV` is
-    set), or its limits are unreadable. Report-only reads
-    are skipped then."""
+    `read-floor` share of the header's limit, or its limits are unreadable.
+    Report-only reads are skipped then."""
     return _below(pool, "read-floor")
 
 
@@ -1165,7 +1137,6 @@ RATE_LIMIT_EXIT = 75
 
 
 def _report_trip(exc: RateLimitExhausted) -> None:
-    """Print the one `::error` naming the pool and the reset."""
     global _trip_reported
     if not _trip_reported:
         _trip_reported = True
@@ -2565,7 +2536,6 @@ def fetch_pull_request_review_comments(repo: str, number: int) -> list[dict[str,
     )
 
 
-# What `fetch_review_threads` requires of every comment it returns.
 _REVIEW_COMMENT_KEYS = frozenset(
     {"body", "path", "url", "createdAt", "updatedAt", "databaseId"}
 )

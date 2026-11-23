@@ -1,11 +1,16 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 import assert from "node:assert/strict";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+
+import { evaluate as evalIf } from "../lib/gate-expression.mjs";
+import { ifOf as ifOfIndented, workflowText } from "../lib/workflow-text.mjs";
 
 import {
   alreadyProcessed,
@@ -45,6 +50,9 @@ import {
   validatePlan,
 } from "./upstream-apply-changelog.mjs";
 import { BODY_HOLD } from "../intake-triage/admit.mjs";
+
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -302,25 +310,38 @@ test("the done marker uploads only when publish says the release is done", () =>
 // credential-legs.test.mjs holds every leg's start and credential to the
 // expressions before the action.
 const WORKFLOW = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
-const jobOf = (id) => {
-  const match = new RegExp(`^ {2}${id}:\\n[\\s\\S]*?(?=^ {2}\\S|(?![\\s\\S]))`, "m").exec(WORKFLOW);
-  assert.ok(match, id);
-  return match[0];
-};
-const stepsOf = (id) => jobOf(id).split(/\n(?= {6}- name: )/).slice(1);
-const stepIn = (id, name) => {
-  const found = stepsOf(id).filter((s) => s.startsWith(`      - name: ${name}\n`));
-  assert.equal(found.length, 1, name);
-  return found[0];
-};
-const indexIn = (id, name) => stepsOf(id).findIndex((s) => s.startsWith(`      - name: ${name}\n`));
-const ifOf = (text) => /^ {8}if: (.*)$/m.exec(text)?.[1];
+const wf = workflowText(WORKFLOW);
+const jobOf = wf.job;
+const stepIn = (id, name) => wf.stepNamed(id, name).text;
+const indexIn = (id, name) => wf.steps(id).findIndex((s) => s.name === name);
+const ifOf = (step) => ifOfIndented(step, 8);
 const MARKER = "key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY";
 
 // The scrub probe (#12836): capture-probe.mjs on run-claude-cli, on the release.
 const PROBE_JOB = "verify-env-scrub";
 const PROBE_STEP = "Probe what a Bash child can reach";
 const CHECK_STEP = "Check the probe";
+
+test("native surfaces compare read-only and the two writers mint separately", () => {
+  const check = jobOf("check-native-surfaces");
+  assert.match(check, /^    permissions:\n      contents: read\n    outputs:/m);
+  assert.match(check, /npm audit signatures/);
+  assert.match(check, /python3 "\$inventory" --binary "\$binary" --self-check/);
+  assert.match(check, /--previous docs\/upstream\/claude-code-native-surfaces\.min\.json/);
+  assert.doesNotMatch(check, /request-lane-token|secrets\.|upload-artifact/);
+  for (const [job, activity, command] of [
+    ["push-native-baseline", "push-native-baseline-branch", "push"],
+    ["publish-native-baseline", "publish-native-baseline-pr", "publish"],
+  ]) {
+    assert.match(jobOf(job), /^    permissions:\n      contents: read\n      id-token: write/m);
+    assert.ok(stepIn(job, "Request the lane token").includes(`activity: ${activity}`));
+    assert.ok(stepIn(job, "Resolve the config").includes(`activity: ${activity}`));
+    assert.match(jobOf(job), new RegExp(`native-baseline-publish\\.mjs ${command}$`, "m"));
+    assert.doesNotMatch(jobOf(job), /secrets\./);
+  }
+  assert.match(jobOf("push-native-baseline"), /if: needs\.check-native-surfaces\.outputs\.summary != ''/);
+  assert.match(jobOf("publish-native-baseline"), /if: needs\.push-native-baseline\.outputs\.head != ''/);
+});
 
 test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
   const job = jobOf(PROBE_JOB);
@@ -354,9 +375,8 @@ test("the scrub probe runs on each credential a model leg may use, after the sam
     assert.match(stepIn(job, CHECK_STEP), new RegExp(`^ {10}KEY_NAME: ${name}$`, "m"), job);
     assert.equal(ifOf(stepIn(job, CHECK_STEP)), "always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'", job);
   }
-  const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim();
-  assert.match(folded("verify-env-scrub-subscription"), /\(needs\.verify-env-scrub\.outputs\.next-leg == 'subscription' \|\| needs\.select-release\.outputs\.next-leg == 'subscription'\)/);
-  assert.match(folded("verify-env-scrub-fallback"), /needs\.verify-env-scrub-subscription\.outputs\.next-leg == 'fallback'/);
+  assert.match(wf.jobIf("verify-env-scrub-subscription"), /\(needs\.verify-env-scrub\.outputs\.next-leg == 'subscription' \|\| needs\.select-release\.outputs\.next-leg == 'subscription'\)/);
+  assert.match(wf.jobIf("verify-env-scrub-fallback"), /needs\.verify-env-scrub-subscription\.outputs\.next-leg == 'fallback'/);
 });
 
 test("the key reaches the probe's run-claude-cli step alone, and that step runs the release's CLI after isolation", () => {
@@ -514,7 +534,8 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   const scan = stepIn("apply-changelog", "Scan the key's credit-stop marker for credentials");
   assert.match(scan, /^ {8}id: credit-marker-scan$/m);
   assert.equal(ifOf(scan), "always() && steps.credit-marker.outcome == 'success'");
-  assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
   assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
   const upload = stepIn("apply-changelog", "Upload the key's credit-stop marker");
   assert.equal(ifOf(upload), "(always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'");
@@ -526,17 +547,6 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   assert.equal(row.scan, "upload");
 });
 
-// A step condition of the shapes this workflow uses (string compares joined
-// by && and ||, parentheses, always()), evaluated over `values`; an unset
-// context reads as "", as GitHub reads a missing output or a step not run.
-const evalIf = (expr, values) =>
-  Function(
-    `"use strict"; return (${expr
-      .replace(/'([^']*)'/g, (_, s) => JSON.stringify(s))
-      .replace(/always\(\)/g, "true")
-      .replace(/\b(?:steps|needs)\.[\w.-]+/g, (ref) => JSON.stringify(values[ref] ?? ""))
-      .replace(/([!=])=/g, "$1==")});`,
-  )();
 // The steps that write the start record, one per leg: the cap counts one
 // record per such write, and only one leg of a run writes it.
 const LEGS = ["apply-changelog", "apply-changelog-subscription", "apply-changelog-fallback"];
@@ -614,7 +624,8 @@ test("each leg writes, scans and uploads the start record after the leg", () => 
     assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
     const scan = stepIn(job, "Scan the start record for credentials");
     assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
-    assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+    assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+    assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
     const upload = stepIn(job, "Upload the start record");
     assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");
     assert.match(upload, /^ {10}name: upstream-apply-changelog-started$/m);
@@ -651,7 +662,7 @@ test("a key handoff writes a job summary line naming the subscription leg that t
 });
 
 test("the subscription leg runs after a key handoff, an empty key or a credit-gate skip, and the fallback leg after a subscription handoff", () => {
-  const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim().replace(/^\$\{\{ (.*) \}\}$/, "$1");
+  const folded = (job) => wf.jobIf(job).replace(/^\$\{\{ (.*) \}\}$/, "$1");
   // Each leg starts on the leg the one before it names (credential-legs.test.mjs
   // drives these through every state).
   assert.equal(folded("apply-changelog-subscription"), "!cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription')");
@@ -673,22 +684,10 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
   for (const job of ["apply-changelog-subscription", "apply-changelog-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
 });
 
-// The legs are the key leg's steps but for the credential, the marker, the
-// handoff report, the leg record's fallback reason, the seal's job id and the
-// next-leg call the fallback leg, the last, does not make.
-test("the subscription and fallback legs repeat the key leg's steps", () => {
-  const shape = (job) =>
-    stepsOf(job)
-      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential|Pick the next leg)\n/.test(s))
-      .map((s) =>
-        s
-          .replace(/^ *#.*(?:\n|$)/gm, "")
-          .trimEnd()
-          .replace(/^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|JOB_ID): .*(?:\n|$)/gm, "")
-          .replace(/ && steps\.run\.outputs\.handoff != 'true'/, ""),
-      );
-  assert.deepEqual(shape("apply-changelog-subscription"), shape("apply-changelog"));
-  assert.deepEqual(shape("apply-changelog-fallback"), shape("apply-changelog"));
+test("the subscription and fallback legs of both chains are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {
@@ -737,7 +736,7 @@ test("a commit outside its plugin, or writing a link or submodule, is refused", 
 });
 
 const SECURITY_SKILL = "plugins/review/skills/security-review/SKILL.md";
-const RISK_SCORER = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+const RISK_SCORER = "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py";
 
 test("the hold paths come from the security review's generated hold-paths block, and a missing or empty block throws", () => {
   const globs = loadHoldPaths();

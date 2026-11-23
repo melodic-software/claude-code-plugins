@@ -45,19 +45,6 @@ run-name: >-
 # whose tree holds no symlink or submodule and whose cases load only the
 # plugin itself or an unchanged directory inside it. Anything else is refused.
 #
-# The eval runs on the maintenance role's credential chain, one credential per
-# job: `run-eval` on MAINTENANCE_CLAUDE_API_KEY, then `run-eval-subscription` on
-# MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, then `run-eval-fallback` on
-# FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. A leg hands off on the stops run-claude-cli
-# hands off on (eval-handoff.mjs reads the probe's stream and every errored
-# run's kept trace with run-claude-cli's own classifier): the key leg on a
-# credit stop or a 401 or 402, the subscription leg, when the fallback token is
-# set, also on a limit stop; an empty credential hands off too. The leg that
-# hands off summarizes and uploads nothing. Each leg's credential and the leg
-# after it come from ci-workflows select-model-credential; check-key-credit's
-# start call skips the key after a recent credit stop. With every credential
-# empty the last leg that starts ends with a warning and runs nothing.
-#
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
 # of 2026-10-10), so PLAYWRIGHT_BROWSERS_PATH does not. A case's scaffold gets
@@ -74,6 +61,11 @@ on:
         default: plugins/testing
       case:
         description: Optional --case name glob.
+        required: false
+        type: string
+        default: ""
+      cases:
+        description: Exact case names, space-separated; stages a suite copy with only these cases. Not with case.
         required: false
         type: string
         default: ""
@@ -129,9 +121,9 @@ on:
       mode:
         description: >-
           suite runs the target's suite as above. compare runs the target's
-          deterministic cases that case or tag selects (one is required) on pull request pr's
+          deterministic cases that case, cases or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
-          harness, on the API key only, and posts the eval-pair record on a
+          harness, with-plugin arm only, on the credential input, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
         required: false
         type: choice
@@ -152,6 +144,17 @@ on:
         required: false
         type: string
         default: ""
+      credential:
+        description: >-
+          api-key runs on the maintenance API key. subscription runs on the
+          maintenance subscription token with no fallback: a suite run only
+          on the default branch and with case, cases or tag set; a compare
+          run only when the pull request's author is a trusted actor
+          (docs/review/evals.md).
+        required: false
+        type: choice
+        options: [api-key, subscription]
+        default: api-key
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
@@ -177,21 +180,15 @@ env:
   EVAL_JUDGE_MODEL: claude-opus-5-5
 
 jobs:
-  # The key's credit gate (ci-workflows select-model-credential, its start
-  # call: check-key-credit's one artifact-list call for the marker the key leg
-  # uploads after a credit stop). A credit stop inside the window names the
-  # subscription leg, and the eval starts on the subscription, with no
-  # refused key attempt first. No secret, no model, no checkout; every
-  # failure runs the key. Probing is off.
   check-key-credit:
     name: Check Key Credit
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
-      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+      vars.CLAUDE_EVALS_DISABLED == 'false' && ((github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
+      && inputs.credential != 'subscription' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || (github.event_name == 'workflow_run'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.head_repository.full_name == github.repository)
+      && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -205,7 +202,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: start
           role: maintenance
@@ -214,19 +211,17 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: skipped
           lane: eval-browser-dispatch
           lane-id: eval-browser-dispatch
           credential: MAINTENANCE_CLAUDE_API_KEY
           known-failure-class: credit-stop
-          handoff: "true"
+          handoff: "false"
 
   # The key leg, on the maintenance role's API key alone. A dispatch on any
   # ref but the default branch skips before any step runs, so every case it
@@ -250,9 +245,6 @@ jobs:
       pull-requests: read # check-trusted-trigger reads the pull request
       issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
       actions: read # check-trusted-trigger reads this run's re-runner
-    outputs:
-      next-leg: ${{ steps.next.outputs.next-leg }}
-      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -264,7 +256,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: github.event_name == 'workflow_run'
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       # The default branch tip; on a dispatch, the dispatched commit, which the
@@ -278,7 +270,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -370,12 +362,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
 
-      # Only whether each secret is set reaches the action, never its value.
-      # `present` is whether this leg runs the eval: the key is set and the
-      # gate did not name the subscription leg.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: key
           role: maintenance
@@ -418,6 +407,7 @@ jobs:
           LIST: ${{ steps.plugins.outputs.list }}
           ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
           DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
+          CASES: ${{ inputs.cases }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       # The tools and Chromium go under /opt, outside HOME, which each eval
@@ -528,7 +518,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+          ref: c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -663,6 +653,7 @@ jobs:
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
           MAX_COST: ${{ inputs.max-cost-usd || 5 }}
@@ -695,6 +686,11 @@ jobs:
             fi
             IFS=, read -ra tools <<< "$ALLOW_TOOLS"
             read -ra tags <<< "$TAGS"
+            read -ra cases <<< "$CASES"
+            if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+              echo "::error::case and cases cannot both be set"
+              exit 1
+            fi
             for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
               case "$value" in
                 -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
@@ -897,8 +893,9 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/eval-results/
 
       - name: Upload the eval results
@@ -929,8 +926,9 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
@@ -946,12 +944,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -962,21 +958,13 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ""
 
-      # The leg the next job runs, from this job's credential decision and
-      # the leg's handoff (select-model-credential). always(), so a step that
-      # failed, or a job that hit its own timeout, after a handoff or an empty
-      # credential still hands on; the next job's own !cancelled() still
-      # stops a cancelled run.
-      - name: Pick the next leg
-        id: next
-        if: ${{ always() }}
-        continue-on-error: true
+      - name: Stop at the key's stop
+        id: stop
+        if: ${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          state: ${{ steps.credential.outputs.state }}
-          handoff: ${{ steps.judge.outputs.handoff }}
-          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+        env:
+          REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}
+        run: echo "::warning::The API key stopped ($REASON), so no case ran; evals never fall back to subscription tokens (docs/review/evals.md)"
 
       - name: Log the API budget at the end
         if: always()
@@ -986,44 +974,46 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription leg: the key leg's steps, commented there, on a fresh
-  # runner, on the maintenance role's subscription token alone, with no
-  # credit-stop marker. With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit
-  # stop, a credit stop, or a 401 or 402 hands off to run-eval-fallback, and so
-  # does an empty token. With both tokens empty the leg ends with a warning
-  # and runs nothing. callers.test.mjs holds its steps, and run-eval-fallback's,
-  # equal to the key leg's but for the credential, the LEG the probe and
-  # judge pass on, the leg record's fallback reason and the fallback leg's
-  # lack of a next-leg call.
   run-eval-subscription:
     name: Run Eval Subscription
-    needs: [check-key-credit, run-eval]
     if: >-
-      ${{ !cancelled() && needs.check-key-credit.result == 'success'
-      && (needs.run-eval.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.next-leg == 'subscription') }}
+      vars.CLAUDE_EVALS_DISABLED == 'false' && github.event_name == 'workflow_dispatch'
+      && inputs.mode != 'compare' && inputs.credential == 'subscription'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the repository; nothing in this job writes
-      pull-requests: read # check-trusted-trigger reads the pull request
-      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
-      actions: read # check-trusted-trigger reads this run's re-runner
-    outputs:
-      next-leg: ${{ steps.next.outputs.next-leg }}
-      next-reason: ${{ steps.next.outputs.next-reason }}
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
+      - name: Refuse a run off the default branch or without a case filter
+        env:
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
+          TAGS: ${{ inputs.tag }}
+        run: |
+          if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::the subscription token runs a suite only when dispatched on the default branch; no case runs"
+            exit 1
+          fi
+          read -ra cases <<<"$CASES"
+          read -ra tags <<<"$TAGS"
+          if [ -z "${CASE//[*?[:space:]]/}" ] && [ "${#cases[@]}" -eq 0 ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::a suite run on the subscription token must name case, cases or tag, never the whole suite; no case runs"
+            exit 1
+          fi
+
       - name: Resolve main's tip
         id: tip
         if: github.event_name == 'workflow_run'
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch
@@ -1035,7 +1025,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1117,17 +1107,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
 
-      # Only whether each secret is set reaches the action, never its value.
-      # `present` is whether this leg runs the eval.
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: subscription
           role: maintenance
           credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.run-eval.outputs.next-reason || needs.check-key-credit.outputs.next-reason }}
 
       - name: Check out the pull request head
         if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
@@ -1155,6 +1141,7 @@ jobs:
           LIST: ${{ steps.plugins.outputs.list }}
           ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
           DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
+          CASES: ${{ inputs.cases }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       - name: Create the tool directories
@@ -1231,7 +1218,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+          ref: c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -1254,7 +1241,7 @@ jobs:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
           LEG: subscription
-          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          FALLBACK_READY: "true"
           CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
         run: |
           if [ -n "${LANE_API_KEY:-}" ]; then
@@ -1317,13 +1304,11 @@ jobs:
         if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
-          # Strips credentials from Bash subprocesses inside each eval run.
-          # The env-scrub input set false gives "0", the opt-out value Claude
-          # Code's own messages name.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
           MAX_COST: ${{ inputs.max-cost-usd || 5 }}
@@ -1356,6 +1341,11 @@ jobs:
             fi
             IFS=, read -ra tools <<< "$ALLOW_TOOLS"
             read -ra tags <<< "$TAGS"
+            read -ra cases <<< "$CASES"
+            if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+              echo "::error::case and cases cannot both be set"
+              exit 1
+            fi
             for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
               case "$value" in
                 -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
@@ -1397,7 +1387,7 @@ jobs:
         if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
         env:
           LEG: subscription
-          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
+          FALLBACK_READY: "true"
           CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
           SUITES: ${{ steps.stage.outputs.suites }}
           OUT: ${{ runner.temp }}/eval-results
@@ -1530,8 +1520,9 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/eval-results/
 
       - name: Upload the eval results
@@ -1543,10 +1534,11 @@ jobs:
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
           retention-days: 3
+
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -1555,586 +1547,17 @@ jobs:
           credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+          fallback-reason: ""
 
-      - name: Pick the next leg
-        id: next
-        if: ${{ always() }}
-        continue-on-error: true
+      - name: Stop at the token's stop
+        id: stop
+        if: ${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          state: ${{ steps.credential.outputs.state }}
-          handoff: ${{ steps.judge.outputs.handoff }}
-          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-
-  # The fallback leg: the key leg's steps, commented there, on a fresh runner,
-  # on the central fallback token, after the subscription leg handed off or
-  # found its token empty, and only when the fallback token is set. It is the
-  # last leg and never hands off.
-  run-eval-fallback:
-    name: Run Eval Fallback
-    needs: [check-key-credit, run-eval-subscription]
-    if: ${{ !cancelled() && needs.run-eval-subscription.outputs.next-leg == 'fallback' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    cache-mode: read
-    permissions:
-      contents: read # check out the repository; nothing in this job writes
-      pull-requests: read # check-trusted-trigger reads the pull request
-      issues: read # check-label-sender.sh reads https://docs.github.com/en/rest/issues/events
-      actions: read # check-trusted-trigger reads this run's re-runner
-    env:
-      API_BUDGET_TOKEN: github-token
-      npm_config_audit: "false"
-      npm_config_fetch_timeout: "60000"
-      npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
-      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-    steps:
-      - name: Resolve main's tip
-        id: tip
-        if: github.event_name == 'workflow_run'
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          branch: ${{ github.event.repository.default_branch }}
-      - name: Check out the default branch
-        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && steps.tip.outputs.sha || github.sha }}
-          path: .base
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
-        with:
-          node-version-file: .base/.node-version
-
-      - name: Check the kill switch
-        id: kill
-        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
-        with:
-          value: ${{ vars.CLAUDE_LANES_DISABLED }}
-          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
-      - name: Check upstream status
-        id: upstream
-        if: steps.kill.outputs.proceed == 'true'
-        continue-on-error: true
-        timeout-minutes: 2
-        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
-
-      - name: Stop when the kill switch is on
-        if: steps.kill.outputs.proceed != 'true'
         env:
-          REASON: ${{ steps.kill.outputs.reason }}
+          REASON: ${{ steps.judge.outputs.handoff-reason || 'no-token' }}
         run: |
-          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          echo "::error::The subscription token stopped ($REASON), so no case ran; no fallback leg runs (docs/review/evals.md)"
           exit 1
-
-      - name: Stop while upstream is degraded
-        if: steps.upstream.outputs.degraded == 'true'
-        env:
-          REASON: ${{ steps.upstream.outputs.reason }}
-        run: |
-          echo "::error::upstream-degraded: ${REASON} on its status page stops this run; dispatch it again once it recovers"
-          exit 1
-
-      - name: Check the dispatcher is a trusted human
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-          ACTOR_ID: ${{ github.actor_id }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-        run: |
-          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
-            echo "::error::rerun-refused: a re-run of this workflow is not supported; dispatch it again"
-            exit 1
-          fi
-          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
-            exit 1
-          fi
-          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
-            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
-            exit 1
-          fi
-          if ! jq -e --argjson id "$ACTOR_ID" '
-              .version == 1
-              and any(.actors[]; .id == $id and .kind == "human")
-            ' "$LIST" >/dev/null; then
-            echo "::error::untrusted-actor: the dispatcher is not a listed human"
-            exit 1
-          fi
-
-      - name: Check the pull request trigger
-        id: gate
-        if: github.event_name == 'workflow_run'
-        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
-        with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
-          triggering-actor: ${{ github.triggering_actor }}
-
-      - name: Stop on an untrusted pull request trigger
-        if: github.event_name == 'workflow_run'
-        env:
-          PROCEED: ${{ steps.gate.outputs.proceed }}
-          REASON: ${{ steps.gate.outputs.reason }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
-          RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
-          RUN_PATH: ${{ github.event.workflow_run.path }}
-          GH_TOKEN: ${{ github.token }}
-        run: bash .base/.github/scripts/plugin-eval/check-label-sender.sh
-
-      # Only whether the fallback token is set reaches the action, never its
-      # value. `present` is whether this leg runs the eval.
-      - name: Check the credential
-        id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          leg: fallback
-          role: maintenance
-          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.run-eval-subscription.outputs.next-reason }}
-
-      - name: Check out the pull request head
-        if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          path: .head
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Choose the plugins
-        id: plugins
-        if: steps.credential.outputs.present == 'true'
-        env:
-          EVENT: ${{ github.event_name }}
-          TARGET: ${{ inputs.target }}
-          BASE_SHA: ${{ steps.gate.outputs.pr-base-sha }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: bash .base/.github/scripts/plugin-eval/choose-plugins.sh
-
-      - name: Validate and stage the suites
-        id: stage
-        if: steps.plugins.outputs.go == 'true'
-        env:
-          LIST: ${{ steps.plugins.outputs.list }}
-          ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
-          DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
-        run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
-
-      - name: Create the tool directories
-        if: steps.stage.outputs.go == 'true'
-        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
-
-      - name: Deny the eval's reads of process and runner state
-        id: deny
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
-        run: |
-          runner_root="" pid=$$
-          while [ "${pid:-0}" -gt 1 ]; do
-            exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
-            case "$exe" in */bin/Runner.Worker) runner_root=${exe%/bin/Runner.Worker}; break ;; esac
-            pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)
-          done
-          if [ -z "$runner_root" ]; then
-            echo "::error::no Runner.Worker process above this step, so the runner's directory cannot be denied"
-            exit 1
-          fi
-          work=$(dirname "$RUNNER_WORKSPACE")
-          policy=$(mktemp)
-          jq -n --arg runner "Read(/$runner_root/**)" --arg temp "Read(/$work/_temp/**)" --arg actions "Read(/$work/_actions/**)" \
-            '{permissions: {deny: [
-            "Read(//proc/**)",
-            "Read(//sys/**)",
-            "Read(//etc/claude-code/**)",
-            $runner,
-            "Read(//home/runner/runners/**)",
-            "Read(//home/runner/actions-runner/**)",
-            $temp,
-            $actions,
-            "Read(//home/runner/.config/**)",
-            "Read(//home/runner/.ssh/**)",
-            "Read(//home/runner/.docker/**)",
-            "Read(~/.claude/**)",
-            "Read(~/.claude.json)"
-          ]}}' >"$policy"
-          sudo install -D -m 0644 -o root -g root "$policy" /etc/claude-code/managed-settings.json
-          jq -e '.permissions.deny | index("Read(//proc/**)")' /etc/claude-code/managed-settings.json >/dev/null
-          echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
-          echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
-
-      - name: Isolate the runner
-        if: steps.stage.outputs.go == 'true'
-        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: "true"
-
-      - name: Install the locked root toolchain
-        timeout-minutes: 5
-        if: steps.stage.outputs.go == 'true'
-        run: |
-          cp .base/package.json .base/package-lock.json /opt/tools/
-          npm ci --prefix /opt/tools
-          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
-
-      - name: Install ffmpeg for eval scaffolds
-        if: >-
-          steps.stage.outputs.go == 'true' &&
-          (contains(steps.plugins.outputs.list, 'plugins/explainer-video') ||
-          contains(steps.plugins.outputs.list, 'plugins/knowledge'))
-        timeout-minutes: 3
-        run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
-
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
-        uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
-        with:
-          bin-dir: /opt/tools/bin
-
-      - name: Check out the launcher's classifier
-        if: steps.stage.outputs.go == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: melodic-software/ci-workflows
-          ref: bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-          path: .ci-workflows
-          persist-credentials: false
-          sparse-checkout: |
-            .github/actions/run-claude-cli/contract-files.txt
-            .github/actions/run-claude-cli/contract.cjs
-            .github/actions/check-key-credit/gate.cjs
-            .github/actions/report-lane-outcome/classify.cjs
-            .github/actions/run-claude-cli/lane.cjs
-            .github/actions/run-claude-cli/managed-settings.cjs
-            .github/actions/run-claude-cli/otlp-receiver.cjs
-            .github/actions/select-model-credential/select.cjs
-            .github/scripts/resolve-npm-tool-version.cjs
-          sparse-checkout-cone-mode: false
-
-      - name: Probe that the policy denies those reads
-        id: probe
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          RUNNER_ROOT: ${{ steps.deny.outputs.runner-root }}
-          LEG: fallback
-          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
-          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
-        run: |
-          if [ -n "${LANE_API_KEY:-}" ]; then
-            export ANTHROPIC_API_KEY="$LANE_API_KEY"
-            unset LANE_API_KEY
-          fi
-          credential=${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}
-          [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
-          out=$(mktemp)
-          trap 'rm -f "$out"' EXIT
-          probe_prompt=$(<.base/.github/scripts/plugin-eval/policy-probe-prompt.txt)
-          probe_prompt=${probe_prompt//RUNNER_ROOT/"$RUNNER_ROOT"}
-          for attempt in 1 2 3; do
-            status=0
-            claude -p "$probe_prompt" \
-              --model "$EVAL_MODEL" --allowedTools Read Grep Glob --max-turns 8 --output-format stream-json --verbose >"$out" 2>/dev/null || status=$?
-            if grep -qF "$credential" "$out"; then
-              echo "::error::the probe's result holds the credential, so no pull request case runs"
-              exit 1
-            fi
-            verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
-              { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
-            if grep -qx 'handoff=true' <<<"$verdict"; then
-              printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-              echo "::notice::the probe ended on the credential's own stop; the next leg runs the eval"
-              exit 0
-            fi
-            judged=0
-            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
-            [ "$judged" -eq 3 ] || break
-            echo "::notice::$reason (attempt $attempt of 3)"
-          done
-          printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          case $judged in
-            0) echo "$reason" ;;
-            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no pull request case runs (last attempt: $reason)"; exit 1 ;;
-            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no pull request case runs"; exit 1 ;;
-          esac
-
-      - name: Install Chromium
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
-        run: |
-          node /opt/tools/node_modules/playwright/cli.js install chromium
-          command -v playwright-cli claude
-
-      - name: Check bwrap starts a sandbox
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        run: bash .base/.github/scripts/plugin-eval/check-bwrap.sh
-
-      - name: Record that env scrub is off
-        if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
-        env:
-          DISPATCHER: ${{ github.actor }}
-        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
-
-      - name: Run the plugin eval
-        id: eval
-        if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
-          # Strips credentials from Bash subprocesses inside each eval run.
-          # The env-scrub input set false gives "0", the opt-out value Claude
-          # Code's own messages name.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
-          SUITES: ${{ steps.stage.outputs.suites }}
-          DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
-          CASE: ${{ inputs.case }}
-          TAGS: ${{ inputs.tag }}
-          RUNS: ${{ inputs.runs }}
-          MAX_COST: ${{ inputs.max-cost-usd || 5 }}
-          ALLOW_TOOLS: ${{ inputs.allow-tools }}
-          REAL_SERVERS: ${{ inputs.allow-real-servers }}
-          OUT: ${{ runner.temp }}/eval-results
-        run: |
-          if [ -n "${LANE_API_KEY:-}" ]; then
-            export ANTHROPIC_API_KEY="$LANE_API_KEY"
-            unset LANE_API_KEY
-          fi
-          export TMPDIR="$HOME/.ev"
-          mkdir -p "$TMPDIR"
-          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
-            echo "::error::max-cost-usd must be a whole number from 1 to 12"
-            exit 1
-          fi
-          args=(
-            --trust-plugin
-            --no-publish
-            --model "$EVAL_MODEL"
-            --judge-model "$EVAL_JUDGE_MODEL"
-            --max-cost-usd "$MAX_COST"
-            --keep-temp
-          )
-          if [ "$DISPATCH" = true ]; then
-            if ! [[ $RUNS =~ ^[1-9][0-9]*$ ]]; then
-              echo "::error::runs must be a positive integer"
-              exit 1
-            fi
-            IFS=, read -ra tools <<< "$ALLOW_TOOLS"
-            read -ra tags <<< "$TAGS"
-            for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
-              case "$value" in
-                -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
-              esac
-            done
-            args+=(--scaffold --runs "$RUNS")
-            if [ "$REAL_SERVERS" = true ]; then
-              args+=(--allow-real-servers)
-            fi
-            if [ "${#tools[@]}" -gt 0 ]; then
-              args+=(--allow-tools "${tools[@]}")
-            fi
-            if [ "${#tags[@]}" -gt 0 ]; then
-              args+=(--tag "${tags[@]}")
-            fi
-            if [ -n "$CASE" ]; then
-              args+=(--case "$CASE")
-            fi
-          fi
-          while IFS=$'\t' read -r dir eval_dir; do
-            [ -n "$dir" ] || continue
-            out="$OUT/$(basename "$dir")"
-            mkdir -p "$out"
-            echo "== claude plugin eval $dir --eval-dir $eval_dir"
-            status=0
-            if [ "$DISPATCH" = true ]; then
-              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" || status=$?
-            else
-              # A pull request run's console output can carry model text from
-              # the PR's cases, and the job log is public: it goes to a file
-              # that nothing uploads.
-              claude plugin eval "$dir" --eval-dir "$eval_dir" --output-dir "$out" --json "$out/results.json" "${args[@]}" >"$out/console.log" 2>&1 || status=$?
-            fi
-            echo "exit $status" >"$out/exit-code"
-          done <<<"$SUITES"
-
-      - name: Judge the leg
-        id: judge
-        if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
-        env:
-          LEG: fallback
-          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}
-          CI_WORKFLOWS: ${{ github.workspace }}/.ci-workflows
-          SUITES: ${{ steps.stage.outputs.suites }}
-          OUT: ${{ runner.temp }}/eval-results
-          LEG_RESULT: ${{ runner.temp }}/leg-result.json
-          PROBE_HANDOFF: ${{ steps.probe.outputs.handoff }}
-          PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
-          PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
-        run: |
-          results=""
-          while IFS=$'\t' read -r dir _; do
-            [ -n "$dir" ] || continue
-            results+="$OUT/$(basename "$dir")/results.json"$'\n'
-          done <<<"$SUITES"
-          verdict=$(RESULTS="$results" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
-            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
-          if [ "$PROBE_HANDOFF" = true ]; then
-            verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
-          fi
-          printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
-          echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
-
-      - name: Summarize the results
-        if: always() && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
-        env:
-          SUITES: ${{ steps.stage.outputs.suites }}
-          OUT: ${{ runner.temp }}/eval-results
-          REDACT: ${{ github.event_name == 'workflow_run' && '--redact' || '' }}
-          DISPATCHED: ${{ github.event_name == 'workflow_dispatch' }}
-          RUNS: ${{ inputs.runs }}
-        run: |
-          failed=0
-          redact=()
-          if [ -n "$REDACT" ]; then redact=("$REDACT"); fi
-          while IFS=$'\t' read -r dir _; do
-            [ -n "$dir" ] || continue
-            name=$(basename "$dir")
-            results="$OUT/$name/results.json"
-            if [ ! -f "$results" ]; then
-              why=$(cat "$OUT/$name/exit-code" 2>/dev/null || echo "the run did not start")
-              printf '### Plugin eval: %s\n\nNo result was written (%s).\n\nResult: NOT COMPARABLE\n\n' \
-                "$name" "$why" >>"$GITHUB_STEP_SUMMARY"
-              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::No result was written (${why//[$'\r\n%']/ })."
-              failed=1
-              continue
-            fi
-            summary="$OUT/$name/summary.md"
-            annotation="$OUT/$name/annotation.txt"
-            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" --annotation "$annotation" >"$summary" || failed=1
-            # A dispatched run uploads its results, but not the traces --keep-temp
-            # keeps here, so the validity verdict is read here and only its
-            # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
-            # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
-            # noise-report reads only results.json, which the upload already
-            # holds. A dispatched run always scaffolds.
-            if [ "$DISPATCHED" = true ]; then
-              validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
-              bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
-              verdict=$(printf '%s\n' "$validity" | tail -n 1)
-              printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
-              python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
-              printf '\nValidity: %s\n' "$verdict" >>"$summary"
-              if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
-            fi
-            cat "$summary" >>"$GITHUB_STEP_SUMMARY"
-            echo >>"$GITHUB_STEP_SUMMARY"
-            token=$(openssl rand -hex 16)
-            echo "::stop-commands::$token"
-            cat "$summary"
-            echo "::$token::"
-            # summarize.mjs escapes the command it writes; it prints outside
-            # the stop-commands block so the runner reads it.
-            # No file at all: summarize.mjs could not read the result (exit 2).
-            if [ -s "$annotation" ]; then
-              head -n 1 "$annotation"
-            elif [ ! -e "$annotation" ]; then
-              echo "::error title=Plugin eval did not run%3A ${name//[$'\r\n%:,']/_}::The result could not be read."
-            fi
-          done <<<"$SUITES"
-          exit "$failed"
-
-      - name: Print Bash error excerpts
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
-        env:
-          OUT: ${{ runner.temp }}/eval-results
-        run: |
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::$token"
-          for RESULTS in "$OUT"/*/results.json; do
-            if [ ! -f "$RESULTS" ]; then
-              echo "no results.json, so no traces to read"
-              continue
-            fi
-            jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
-              | .value // [] | to_entries[]
-              | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
-              | @tsv' "$RESULTS" |
-              while IFS=$'\t' read -r name arm run trace; do
-                echo "== $name, $arm arm, run $run"
-                if [ ! -f "$trace" ]; then
-                  echo "   trace not found"
-                  continue
-                fi
-                jq -nrR '
-                  def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
-                  def key_lines:
-                    [split("\n")[]
-                      | select(test("FATAL|Check failed|ERROR:|No usable sandbox|Permission denied|Operation not permitted|EACCES|EPERM|ENOENT|errno")
-                               and (contains(".bashrc: Permission denied") | not))
-                      | .[:300]]
-                    | reduce .[] as $l ([]; if index([$l]) then . else . + [$l] end)
-                    | .[:15] | join("\n");
-                  [inputs | fromjson? | objects] as $m
-                  | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
-                      | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
-                      | {key: .id, value: (.input.command // "" | tostring)}] | from_entries) as $bash
-                  | [$m[] | select(.type == "user") | .message.content[]? | objects
-                      | select(.type == "tool_result" and .is_error == true)
-                      | (.tool_use_id // "" | tostring) as $id
-                      | select($bash | has($id))
-                      | {cmd: $bash[$id],
-                         out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
-                  | "   \(length) Bash error(s), showing up to 20",
-                    (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
-                ' "$trace" || echo "   could not read the trace"
-              done || echo "could not read $RESULTS"
-          done
-          echo "::$token::"
-
-      - name: Scan the upload for credentials
-        id: scan-upload
-        if: >-
-          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
-        with:
-          path: ${{ runner.temp }}/eval-results/
-
-      - name: Upload the eval results
-        if: >-
-          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true') && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/eval-results/
-          if-no-files-found: warn
-          retention-days: 3
-      - name: Record the leg
-        if: always() && steps.judge.outcome == 'success'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          outcome: ${{ steps.judge.outputs.outcome }}
-          execution-file: ${{ steps.judge.outputs.leg-result }}
-          lane: eval-browser-dispatch
-          lane-id: eval-browser-dispatch
-          credential: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-          handoff: ${{ steps.judge.outputs.handoff }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Log the API budget at the end
         if: always()
@@ -2148,23 +1571,28 @@ jobs:
   # https://github.com/melodic-software/claude-code-plugins/issues/17854): the
   # pull request's merge base and head reach the eval only as plugin text,
   # patched onto this branch by compare-arms.sh from git objects; no script,
-  # hook, workflow or manifest of either runs. Each arm runs on the API key
-  # alone. The record job is the only one that writes: it holds issues: write,
-  # checks out only this branch, and posts nothing unless every job before it
-  # passed and the head has not moved. A run whose jobs all skipped (a dispatch
-  # on a tag, which compare-prepare's ref gate skips) still concludes success,
-  # so release-eval-hold.mjs trusts the record only by reading this run back
-  # and finding its Compare Record job (that name, RECORD_JOB there) succeeded.
+  # hook, workflow or manifest of either runs. Each arm runs on the credential
+  # input's one secret: the API key, or the subscription token when
+  # compare-prepare found the pull request's author on the trusted-actor list
+  # (docs/review/evals.md). The record job is the only one that writes: it
+  # holds issues: write, checks out only this branch, and posts nothing unless
+  # every job before it passed and the head has not moved. A run whose jobs
+  # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
+  # still concludes success, so release-eval-hold.mjs trusts the record only by
+  # reading this run back and finding its Compare Record job (that name,
+  # RECORD_JOB there) succeeded.
   compare-prepare:
     name: Compare Prepare
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+      vars.CLAUDE_EVALS_DISABLED == 'false'
+      && github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       base-sha: ${{ github.sha }}
       plugin: ${{ steps.inputs.outputs.plugin }}
@@ -2184,7 +1612,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -2237,6 +1665,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           COST_CAP: ${{ inputs.cost-cap-usd }}
           CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
           TAGS: ${{ inputs.tag }}
         run: |
           [[ $PR =~ ^[1-9][0-9]{0,9}$ ]] || { echo "::error::pr must be a pull request number"; exit 1; }
@@ -2248,12 +1677,17 @@ jobs:
             exit 1
           fi
           read -ra tags <<<"$TAGS"
-          if [ -z "$CASE" ] && [ "${#tags[@]}" -eq 0 ]; then
-            echo "::error::compare mode runs the registered cases: set case or tag, so the whole suite never runs twice"
+          read -ra cases <<<"$CASES"
+          if [ -z "$CASE" ] && [ "${#cases[@]}" -eq 0 ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::compare mode runs the registered cases: set case, cases or tag, so the whole suite never runs twice"
             exit 1
           fi
-          for value in "${tags[@]}" "$CASE"; do
-            case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
+          if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+            echo "::error::case and cases cannot both be set"
+            exit 1
+          fi
+          for value in "${tags[@]}" "${cases[@]}" "$CASE"; do
+            case "$value" in -*) echo "::error::a case, cases name or tag must not start with -"; exit 1 ;; esac
           done
           echo "plugin=${target#plugins/}" >>"$GITHUB_OUTPUT"
 
@@ -2264,6 +1698,23 @@ jobs:
           HEAD_SHA: ${{ inputs.head-sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: bash .base/.github/scripts/plugin-eval/compare-head.sh
+
+      - name: Check the pull request author
+        id: author
+        if: inputs.credential == 'subscription'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          pr-number: ${{ inputs.pr }}
+          triggering-actor: ${{ github.triggering_actor }}
+
+      - name: Stop on an untrusted pull request author
+        if: inputs.credential == 'subscription' && steps.author.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.author.outputs.reason }}
+        run: |
+          echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
+          exit 1
 
       - name: Fetch the pull request's commits as data
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2286,15 +1737,17 @@ jobs:
       - name: Scan the before patch for credentials
         id: scan-before
         if: steps.arms.outputs.before-sha256 != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/arms/before/edit.patch
 
       - name: Scan the after patch for credentials
         id: scan-after
         if: steps.arms.outputs.after-sha256 != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/arms/after/edit.patch
 
       - name: Stop on a patch the scan did not clear
@@ -2348,14 +1801,18 @@ jobs:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}
       tags: ${{ inputs.tag }}
       case: ${{ inputs.case }}
+      cases: ${{ inputs.cases }}
       pass: compare-before
+      credential: ${{ inputs.credential }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-after:
     name: Compare After
@@ -2372,14 +1829,18 @@ jobs:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}
       tags: ${{ inputs.tag }}
       case: ${{ inputs.case }}
+      cases: ${{ inputs.cases }}
       pass: compare-after
+      credential: ${{ inputs.credential }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-verdict:
     name: Compare Verdict
@@ -2399,7 +1860,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -2473,7 +1934,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 

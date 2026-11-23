@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/persist-report.sh (no external test lib — ships with the plugin).
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -46,7 +45,6 @@ REPORT2="$TEST_TMPDIR/report2.md"
 printf 'Resolved root: alpha\nfirst\n' >"$REPORT1"
 printf 'Resolved root: alpha\nsecond\n' >"$REPORT2"
 
-# --- 1. first write lands at <plugin-data>/<component>/<state-key>/last-audit.md
 DATA="$TEST_TMPDIR/data"
 mkdir -p "$DATA"
 EXPECTED="$DATA/audit-prompting-postures/$KEY_A/last-audit.md"
@@ -56,7 +54,6 @@ assert_eq "first write exits 0" "0" "$rc"
 assert_eq "first write prints the final path" "$EXPECTED" "$out"
 assert_eq "first write carries the report body" "$(cat "$REPORT1")" "$(cat "$EXPECTED" 2>/dev/null)"
 
-# --- 2. a second write to the same key replaces the file and leaves no staging file
 out="$(bash "$SCRIPT" --plugin-data "$DATA" --component audit-prompting-postures --report "$REPORT2" --root "$REPO_A")"
 rc=$?
 assert_eq "overwrite exits 0" "0" "$rc"
@@ -65,24 +62,16 @@ assert_eq "overwrite replaces the body" "$(cat "$REPORT2")" "$(cat "$EXPECTED" 2
 assert_eq "overwrite leaves exactly one file in the keyed directory" "last-audit.md" \
   "$(ls -A "$DATA/audit-prompting-postures/$KEY_A")"
 
-# --- 3. the body can come from stdin
 out="$(printf 'from stdin\n' | bash "$SCRIPT" --plugin-data "$DATA" --component audit-instructions --report - --root "$REPO_A")"
 rc=$?
 assert_eq "stdin write exits 0" "0" "$rc"
 assert_eq "stdin write lands under its own component" "$DATA/audit-instructions/$KEY_A/last-audit.md" "$out"
 assert_eq "stdin write carries the body" "from stdin" "$(cat "$DATA/audit-instructions/$KEY_A/last-audit.md" 2>/dev/null)"
 
-# --- 4. two repositories get two keys, so neither overwrites the other
 out="$(bash "$SCRIPT" --plugin-data "$DATA" --component audit-prompting-postures --report "$REPORT1" --root "$REPO_B")"
 assert_eq "a second repository writes under its own key" "$DATA/audit-prompting-postures/$KEY_B/last-audit.md" "$out"
 assert_eq "the first repository's report is untouched" "$(cat "$REPORT2")" "$(cat "$EXPECTED" 2>/dev/null)"
 
-# --- 5. rejected arguments exit 2 and write nothing
-# Each case gets a fresh case directory holding one empty `data` root, and runs
-# from inside that root. A write that escaped the checks would land in the case
-# directory: under `data` for a relative --plugin-data or a '..' --plugin-data,
-# beside it for a '..' component. So the case directory must still hold only
-# an empty `data`.
 expect_rejected() {
   local name="$1"
   shift

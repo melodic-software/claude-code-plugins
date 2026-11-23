@@ -16,8 +16,11 @@ import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { statusBotSetters } from "./issue-status.mjs";
-import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase } from "./resolve-config.mjs";
+import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase, testScopeFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
+
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -172,6 +175,8 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-patch",
       "sync-shared-copies",
       "apply-shared-copies",
+      "fix-test-scope",
+      "apply-test-scope",
       "report-escalation",
     ],
   );
@@ -383,6 +388,8 @@ test("live config: report-escalation follows every pr-unblock activity", () => {
     "apply-patch",
     "sync-shared-copies",
     "apply-shared-copies",
+    "fix-test-scope",
+    "apply-test-scope",
   ]);
 });
 
@@ -687,14 +694,18 @@ test("live config: label-unblocked and sync-status may only write issues", () =>
 
 test("live config: upstream-apply-changelog pushes with contents write only and publishes without it", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "upstream-apply-changelog", activity, configPath: CONFIG_PATH });
-  assert.deepEqual(grant("apply-changelog-branches"), {
-    effect: "mutate-branch",
-    grant: { contents: "write", "pull-requests": "read", issues: "read" },
-  });
-  assert.deepEqual(grant("publish-changelog-intake"), {
-    effect: "publish-artifact",
-    grant: { contents: "read", "pull-requests": "write", issues: "write" },
-  });
+  for (const activity of ["apply-changelog-branches", "push-native-baseline-branch"]) {
+    assert.deepEqual(grant(activity), {
+      effect: "mutate-branch",
+      grant: { contents: "write", "pull-requests": "read", issues: "read" },
+    }, activity);
+  }
+  for (const activity of ["publish-changelog-intake", "publish-native-baseline-pr"]) {
+    assert.deepEqual(grant(activity), {
+      effect: "publish-artifact",
+      grant: { contents: "read", "pull-requests": "write", issues: "write" },
+    }, activity);
+  }
 });
 
 test("live config: the skill-edit lane pushes with contents write only, publishes without it, and may not merge or label (AL-Q11)", () => {
@@ -966,4 +977,11 @@ test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () =
     .split("\n")
     .filter((line) => line.startsWith("error\t"));
   assert.deepEqual(errors, []);
+});
+
+test("live config: test-scope.apply is off, so fix-test-scope uploads its patch and apply-test-scope never runs", () => {
+  assert.deepEqual(testScopeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }), { apply: false });
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.equal(grant("fix-test-scope").effect, "read");
+  assert.deepEqual(grant("apply-test-scope"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
 });

@@ -1,5 +1,63 @@
 # Changelog: session-flow plugin
 
+## [9.22.5] - 2026-11-23
+
+### Changed
+
+- Skills now list their context-dependent links under `## Related`, and `find-handoff`, `orient` and `reanchor` name their successor under `## Next`, matching the committed skill-link table.
+
+## [9.22.4] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [9.22.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [9.22.2] - 2026-11-23
+
+### Changed
+
+- `/session-flow:workflow` no longer gather repository context that no step read.
+
+## [9.22.1] - 2026-11-23
+
+### Changed
+
+- **The workflow navigator points at `/planning:interview` for its own rules.** The interview stage in `context/steps.md` and the ladder in `context/pre-implementation-order.md` no longer restate how the interview paces its questions or when explore, research, a PRD or a prototype runs around it; both name `/planning:interview` as the owner of those rules.
+
+## [9.22.0] - 2026-11-22
+
+### Added
+
+- `save_point.py new --standing-rules` starts a role chain on a shape-4 handoff. Its `fill` moves Current rules and Standing preferences into one gitignored `archive/<chain>/standing-rules.md` beside the chain's hop files, and the hot file keeps a pointer to each in their usual place, so the binding section order stays as it is. The resume prompt loads the standing-rules file before the hot file and tells the reader to page it when it is over one Read page. A successor hop keeps the file without the flag. `amend` edits, retires and adds rules in it, `read --section` follows the pointer, and `validate` checks the carried rules against the frozen copy in each hop file, so a rule that disappears from the standing-rules file without a retirement still fails.
+
+## [9.21.1] - 2026-11-22
+
+### Changed
+
+- `/session-flow:workflow` stage definitions name the interview's glossary-and-rename change, landed before plan and decompose when a term is added or renamed, and state that glossary and decision-record pruning are maintenance run on request or after a repo sweep's audit, not task stages.
+- The Retrospective stage adds a skill as its own stage when a `/session-flow:retro` "Missed or hard-to-find skill" finding marks it a workflow step candidate.
+
+## [9.21.0] - 2026-11-22
+
+### Added
+
+- Retro reports a "Reviewer missed it" finding, routed to `/corrections:codify`, and a "Missed or
+  hard-to-find skill" finding, routed to `/harness-ops:audit-skill-visibility` or reported as a
+  `/session-flow:workflow` step candidate.
+- Retro's `## Next` names `/session-flow:recommend-skills`.
+
+### Changed
+
+- The no-op steering-file finding also covers the repository's review-criteria files.
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
 ## [9.20.2] - 2026-11-22
 
 ### Changed

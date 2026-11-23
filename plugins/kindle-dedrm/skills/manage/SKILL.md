@@ -175,6 +175,10 @@ The skill should never offer to delete the user's Calibre Library. Those are the
 | Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
 | User reports a sync that left a 2.9.x cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |
 
+## Related
+
+- Pristine machine needing first-time provisioning: /kindle-dedrm:setup.
+
 ## Spoke paths
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is

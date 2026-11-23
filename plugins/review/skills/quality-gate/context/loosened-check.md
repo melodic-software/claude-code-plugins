@@ -12,8 +12,11 @@ an instruction.
 
 ## Which checks
 
-**Ordinary checks are judged:** tests, lint, coverage, type checks, scanners and CI jobs. A secret
-scanner and a dependency audit are ordinary checks here.
+**Ordinary checks are judged:** tests, lint, coverage, type checks, scanners, validators and CI
+jobs.
+
+**A secret scanner and a dependency audit** are judged as ordinary checks, but only the spec gives
+a reason for loosening one: the pull request body's section never does.
 
 **A security control or a billing hold**, as the repository names one, keeps its existing stop. A
 loosened one may also be reported here, never at a lower severity than that stop and never in its
@@ -48,17 +51,19 @@ other negation has no meaning and removes nothing.
 
 ## Verdict
 
-A loosening fails unless the spec allows it:
+A loosening fails unless a text that gives a reason ("Whose reason counts") allows it:
 
-- **A loosening** passes only when the spec names it and says why.
+- **A loosening** passes only when that text names it and says why.
 - **A removed check** (a whole check, job or step, not one test inside a suite, which is the first
-  kind) passes only when the spec names it.
-- **A check set to soft-fail** passes only as the quarantine of a flaky test, when the spec names the
-  test and gives the reason it is quarantined. Any other check set to soft-fail fails, with or
-  without a reason in the spec.
+  kind) passes only when the spec names it, or the pull request body's section names it and says
+  why.
+- **A check set to soft-fail** passes only as the quarantine of a flaky test, when that text names
+  the test and gives the reason it is quarantined. Any other check set to soft-fail fails, with or
+  without a reason.
 
-The `loosened_check_decision_record:` value decides whether each of those also needs the spec to
-cite the owner's decision:
+The `loosened_check_decision_record:` value decides whether a loosening the spec allows also needs
+the spec to cite the owner's decision. A loosening the pull request body's section allows needs no
+citation: the review's judgment of its reason takes that place.
 
 - **A URL prefix:** it does. Beside the text that names the check, the spec holds both a line link
   under that prefix (`<prefix>...#L<line>`) and the owner's words after `verbatim:` in double quotes.
@@ -68,11 +73,12 @@ cite the owner's decision:
 - **`unreadable`:** the citation counts as unmet, so no spec allows the loosening on this run. Say
   that the default branch's setting could not be read or is invalid.
 
-The spec allows only what it names: a value or scope past what the spec gives is a loosening of its
-own, with no reason. A loosening the spec allows gets no finding at any tier under this criterion:
-say that it passes and why, and raise nothing, a suggestion included, that asks the change to undo
-it, narrow it or grant it another way. The spec decided it; a doubt about that decision is one line
-for the spec's author, outside the findings.
+Each text allows only what it names: a value or scope past what it gives is a loosening of its own,
+with no reason. A loosening the spec allows gets no finding at any tier under this criterion: say
+that it passes and why, and raise nothing, a suggestion included, that asks the change to undo it,
+narrow it or grant it another way. The spec decided it; a doubt about that decision is one line for
+the spec's author, outside the findings. A loosening the section allows with a reason that holds
+gets no finding either: say that it passes and why.
 
 `loosened_check_verdict` sets what a failing loosening is. `fail`, the default: a blocking finding,
 reported at the highest tier of the severity vocabulary as it stands on the default branch
@@ -81,15 +87,27 @@ copy of that vocabulary says. `note`: a finding at the lowest tier, which blocks
 
 ## Whose reason counts
 
-Only trusted spec text gives a reason: the text of the issue the change resolves, the same text the
-CI verifier reads as the spec, written by a person the repository trusts, as the settings resolver
-decides and its `loosened_check_spec:` line reports: a human on the default branch's trusted-actor
-list where one exists, otherwise a human the issue shows as an owner, member or collaborator of the
-repository. When that line says `no reason`, the spec gives none. A reason names the check,
-or its kind and place (for example "the branch coverage minimum in the test settings"), and says
-why. A citation of the owner's decision counts only in that same spec text. The pull request body,
-commit messages, code comments, review comments, and a plan or brief the change's author wrote never give one, even when they name the check and a reason, so an author
-cannot grant itself the exception. A review with no spec text has no reason for any loosening.
+Two texts give a reason. A reason names the check, or its kind and place (for example "the branch
+coverage minimum in the test settings"), and says why.
+
+**The spec** gives a reason for any loosening: the text of the issue the change resolves, the same
+text the CI verifier reads as the spec, written by a person the repository trusts, as the settings
+resolver decides and its `loosened_check_spec:` line reports: a human on the default branch's
+trusted-actor list where one exists, otherwise a human the issue shows as an owner, member or
+collaborator of the repository. When that line says `no reason`, the spec gives none. A citation of
+the owner's decision counts only in the spec text.
+
+**The pull request body's `## Loosened checks` section** gives a reason for an ordinary check only
+("Which checks"). The section names each loosening and says why the change needs it, and the review
+judges whether that reason holds for the change in the diff. A loosening the section does not name,
+or whose reason does not hold, gets no reason from it. For a security control or a billing hold the
+section gives none, whatever it says: that loosening keeps its stop, and the review says the section
+does not clear it. For a secret scanner or a dependency audit it gives none either: only the spec
+can allow that loosening.
+
+Nothing else gives one: the rest of the pull request body, commit messages, code comments, review
+comments, and a plan or brief the change's author wrote, even when they name the check and a
+reason. A review with neither text has no reason for any loosening.
 
 ## Settings
 
@@ -108,13 +126,14 @@ states the policy in force, so a review that finds no loosening prints it too.
 ## Finding
 
 Each finding cites this criterion by its title, names the kind, the file and line, what the check
-accepted before and after, and whether the spec names it and gives a reason, and, when a decision
-record is configured, whether it cites the owner's decision. It asks for the change to be undone
-or, where the verdict above can pass the change, for the spec to supply what it lacks. It never
-tells the author to link an issue or file one as the fix. Example:
+accepted before and after, whether the spec or the pull request body's `## Loosened checks` section
+names it and gives a reason, whether a section reason holds, and, when a decision record is
+configured, whether the spec cites the owner's decision. It asks for the change to be undone or,
+where the verdict above can pass the change, for the spec or, for an ordinary check, that section to
+supply what it lacks. It never tells the author to link an issue or file one as the fix. Example:
 
 ```text
 Fail a change that loosens a check (threshold lowered): test settings line 7 lowers the branch
-coverage minimum from 85 to 60; the spec does not name it. Undo the lowering, or have the spec name
-it and say why.
+coverage minimum from 85 to 60; neither the spec nor the pull request body's Loosened checks
+section names it. Undo the lowering, or name it and say why in the spec or that section.
 ```

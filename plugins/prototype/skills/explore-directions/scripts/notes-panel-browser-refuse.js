@@ -1,6 +1,4 @@
 async page => {
-  // Send all drafts with the session taking the first note and refusing the second: the status
-  // keeps the reason beside what was sent, and the refused draft stays a draft.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   try {
     const inFrame = page.frameLocator("#page");

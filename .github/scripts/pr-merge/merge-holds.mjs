@@ -4,63 +4,6 @@
 // hold, and ci-status runs this file alone, fetched from the base commit, on
 // every lanes App pull request, so it imports no other file of the repository.
 //
-// - A body hold (babysit_merge_policy.BODY_MERGE_HOLD_RE): a line opening with
-//   `Hold:`, or "do not merge" anywhere, in a body a person wrote
-//   (personWrote), or the lane's own hold line (LANE_HOLD, report-outcome's
-//   HOLD_LINE for untrusted-provenance work, a person's `merge: human` and a
-//   denied path) in any body. Other lanes App text holds nothing. Removing
-//   that text lifts it.
-// - A member veto (babysit_merge.human_veto_logins): each OWNER, MEMBER or
-//   COLLABORATOR person's newest comment, review or inline comment with text
-//   decides, and holds when it says "do not merge"
-//   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
-//   lifts it; an item with no text lifts nothing.
-// - A hold path: a changed file, or a renamed file's old path, matching the
-//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
-//   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
-//   which a clean security review clears). A person on the trusted-actor
-//   list lifts it by approving the head (their newest review of the head
-//   that approves, requests changes or was dismissed must approve), or by
-//   approving an earlier head that carries to it (liftersOf): their newest
-//   review approves that head, or is that approval GitHub dismissed as stale
-//   on a later push (autoDismissed), and every change since is a merge of the
-//   base that leaves the net change against the base's tip the same over
-//   every file, or that brought exactly the base's changes (approvalCarry).
-//   No other path is held for being trusted alone: the review lanes judge it.
-// - A trusted-actor list widening (actorsHold, the rule of
-//   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
-//   (BASE_SHA) and the head and compared; only removing entries passes. The
-//   approval that lifts a hold path lifts it.
-// - A cost path (COST_PATHS): a changed file the gate holds for the owner's
-//   cost decision. An approval does not lift it; only the decision the gate
-//   reads does (costDecision), linked from the body and carrying a link to
-//   its owner-decisions row and a verbatim owner quote: on the pull request,
-//   or on its linked issue naming it, for the head it decided or a later one
-//   whose every change since is a base merge with the same net change
-//   (baseMergeCarry).
-// - No verifier pass, when a verdicts file is given (ci-status gives one in
-//   the merge queue only): the head merges on a PASS or PASS-NOTES that
-//   pr-verify.yml uploaded from a completed, successful run on main
-//   (verdictHold). The same approval of the head lifts it, the human merge
-//   path for a pull request pr-merge's gate sends to a person; an approval
-//   carried from an earlier head does not.
-// - A FAIL the gate's reader counts, when an evidence file is given with the
-//   verdicts: babysit_verify_evidence.py `evidence`'s report for the head,
-//   which ci-status runs from main's checkout in the merge queue
-//   (evidenceHold). It holds on every refusal but the three a pass decides
-//   (verify:missing, verify:spec-changed, verify:untrusted-spec, which
-//   verdictHold and linkHold judge here): the FAIL classes, verify:unreadable,
-//   verify:too-old and any refusal this module does not know. A report that
-//   does not read, or is for another head, holds. The same approval lifts it.
-// - A changed issue link, when a link file is given with the verdicts: the
-//   pass binds only while the live link is the one its verdict judged
-//   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
-//   `_pass_refusal`), so a body edited after arming to close or name another
-//   issue does not merge on a pass for the old one. The same approval lifts it.
-// - A head the arm never judged, when a verdicts file is given: the lanes
-//   App's newest read-back pin names another head, or was edited (pinHold), so
-//   a push after the arm left GitHub's auto-merge on. The same approval lifts it.
-//
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
 // [<verdicts-file> <link-file> [<evidence-file>]]. The link file holds {record, closing}: the
@@ -103,6 +46,24 @@ export const HUMAN_VETO =
 // The lanes App's bot login. A `Hold:` line on its own pull request holds the
 // merge, not a fix pushed to it (apply-patch.mjs's held()).
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
+// Whether the lanes App's pull request changes exactly `baselineFile`,
+// pr-pipeline.yaml's merge.baseline-file: the one file such a pull request may
+// change and merge with no linked issue and no pr-verify verdict (owner
+// decision Q152 (B), https://github.com/melodic-software/architecture/pull/197).
+// An unset file takes none. babysit_merge_policy.baseline_only, which
+// test_merge_holds_sync.py keeps equal.
+export const baselineOnly = (author, files, appId, baselineFile) =>
+  typeof baselineFile === "string" &&
+  baselineFile !== "" &&
+  author?.type === "Bot" &&
+  String(author.login).toLowerCase() === LANES_APP_LOGIN &&
+  /^[1-9][0-9]*$/.test(String(appId)) &&
+  String(author.id) === String(appId) &&
+  Array.isArray(files) &&
+  files.length === 1 &&
+  files[0] === baselineFile;
+export const baselineNote = (baselineFile) =>
+  `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
 // report-outcome.mjs HOLD_LINE on a line of its own, which
 // enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
 export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
@@ -214,8 +175,6 @@ export function personWrote(pull) {
   return [pull.author, ...edits.nodes.map((edit) => edit?.editor)].some((who) => who?.__typename !== "Bot");
 }
 
-// babysit_risk.COST_PATHS, matched case-folded as its glob_match does. Each
-// one is a real charge.
 export const COST_PATHS = Object.freeze([
   // BEGIN hold-floor COST_PATHS: generated by scripts/sync-hold-floor.py
   "**/Pulumi.yaml",
@@ -337,34 +296,12 @@ export async function withPinEdit(github, items) {
 const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
-// The narrow floor every hold path check adds to the configured globs, each
-// glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
-// option B): `trust`, what mints and scopes lane tokens and judges triggers
-// (request-lane-token, resolve-config with the rule files the token broker
-// loads, the pipeline config, check-trusted-trigger, check-kill-switch), code
-// owners, submodules, and the code that computes the author lift and the hold
-// tables (babysit_merge*, babysit_risk.py and babysit_review_evidence.py,
-// which compute the review's clear condition, this module, and
-// scripts/sync-hold-floor.py, which writes this list); `gate`, the rest of the
-// merge gate's own code (the other pr-merge scripts and the rate guard), and
-// the review's own surface, which never takes the author lift: every workflow
-// holding a secret or a lane token or granting `actions: write`, the review
-// workflows and ci-status among them, the main-run review's scripts, and the
-// agent settings and instruction files; `enforcement`, the other modules the
-// floored scripts import and the Python that decides the holds
-// (test_merge_holds_sync.py derives both closures and requires them here),
-// and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
-// adjudicate-feedback.mjs, publish-feedback.mjs, apply-patch.mjs) with every
-// module they import and the routing table they read.
-// the floor, written here by scripts/sync-hold-floor.py. A
-// constant of the module ci-status and enable-auto-merge run from the base
-// commit, so a pull request cannot rewrite it.
 export const HOLD_PATH_CLASSES = Object.freeze([
   // BEGIN hold-floor HOLD_PATH_CLASSES: generated by scripts/sync-hold-floor.py
   ["**/CODEOWNERS", "trust"],
   ["docs/conventions/pr-pipeline.yaml", "trust"],
   ["**/.gitmodules", "trust"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
@@ -394,6 +331,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["**/AGENTS.md", "gate"],
   ["REVIEW.md", "gate"],
   [".github/actions/check-trusted-trigger/**", "trust"],
+  [".github/scripts/lib/github-client.mjs", "trust"],
+  [".github/scripts/lib/trusted-actors.mjs", "trust"],
   [".github/actions/resolve-config/**", "trust"],
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
@@ -404,6 +343,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/log-api-budget/rate-limits.json", "gate"],
   [".github/scripts/pr-merge/merge-holds.mjs", "trust"],
   [".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"],
+  [".github/scripts/lib/lane-vocabulary.mjs", "trust"],
   [".github/scripts/pr-merge/superseded.mjs", "trust"],
   [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
   [".github/scripts/pr-merge/release-eval-hold.mjs", "trust"],
@@ -421,10 +361,15 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/lib/run-title.mjs", "gate"],
+  [".github/scripts/lib/lane-branch.mjs", "gate"],
+  [".github/scripts/lib/lane-registry.mjs", "gate"],
+  [".github/lane-registry.json", "gate"],
   [".github/scripts/pr-merge/merge-risk-line.mjs", "gate"],
   [".github/scripts/pr-merge-risk/input.mjs", "gate"],
   [".github/scripts/pr-merge-risk/write-rating.mjs", "gate"],
   [".github/actions/report-check-run/posting-run.mjs", "gate"],
+  [".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh", "gate"],
+  [".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh", "gate"],
   ["scripts/sync-hold-floor.py", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
@@ -441,8 +386,11 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-unblock/resolve-threads.mjs", "enforcement"],
   [".github/scripts/pr-unblock/request-budget.mjs", "enforcement"],
   [".github/scripts/pr-verify/resolve-pr.mjs", "enforcement"],
+  [".github/scripts/pr-verify/spec-source.mjs", "enforcement"],
   [".github/scripts/pr-verify/write-verdict.mjs", "enforcement"],
   [".github/scripts/intake-triage/admit.mjs", "enforcement"],
+  [".github/scripts/intake-triage/size-split.mjs", "enforcement"],
+  [".github/scripts/intake-triage/issue-spec.mjs", "enforcement"],
   [".github/actions/select-trusted-text/select-trusted-text.mjs", "enforcement"],
   ["lib/publish-gate.mjs", "enforcement"],
   [".github/recurring-schedule.json", "enforcement"],
@@ -476,6 +424,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/lib/admission-record.mjs", "enforcement"],
   [".github/scripts/lib/done-evidence.mjs", "trust"],
   [".github/scripts/pr-review-main/**", "gate"],
+  [".github/scripts/diff-chunking/**", "gate"],
   ["docs/conventions/instruction-exception-register/**", "gate"],
   ["docs/conventions/untrusted-content/**", "gate"],
   ["docs/standards/**", "gate"],
@@ -483,6 +432,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/intake-triage/triage-rubric.txt", "gate"],
   [".github/scripts/intake-triage/refine-schema.json", "gate"],
   [".github/scripts/plugin-eval/policy-probe-prompt.txt", "gate"],
+  [".github/scripts/pr-unblock/test-scope.mjs", "gate"],
+  [".github/scripts/pr-unblock/declare-test-scope.mjs", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
@@ -516,10 +467,6 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/work-unblock.yml", "gate"],
   // END hold-floor HOLD_PATH_CLASSES
 ]);
-// The `trust` and `gate` globs (babysit_risk `Floor.high`), which hold for a
-// person. An `enforcement` glob (`Floor.review`) holds nothing here: the merge
-// gate holds it (babysit_risk `review-path:`) until a clean security review
-// binds to the head, and enable-auto-merge arms only a head the gate passed.
 export const HOLD_PATH_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
 export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
 
@@ -575,11 +522,6 @@ export function costHold(files, decision) {
   return held === undefined || decision ? null : `it changes ${held}, a cost path`;
 }
 
-// babysit_risk._manifest: the parsed object as a node tree, or null when the
-// text is not a string, not JSON, not an object, or repeats a key. A node is
-// { object: Map }, { array: [] } or { text }, a scalar's text telling values
-// apart as Python's json.loads does: an integer and a float differ (1 and
-// 1.0), so canonical (json.dumps with sort_keys) compares them as the gate.
 function parseStrict(text) {
   if (typeof text !== "string") {
     return null;
@@ -659,15 +601,8 @@ const canonical = (node) =>
     : node.array
       ? `[${node.array.map(canonical).join(",")}]`
       : node.text;
-// babysit_risk.TRUSTED_ACTORS_PATH, matched case-folded as glob_match does.
 export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
-// babysit_risk._actors_widened: why one change of the trusted-actor list
-// widens trust, or null when it only removes entries; test_merge_holds_sync.py
-// checks the two agree. `change` is { status, previous, contents }, contents
-// [base text, head text]. Anything but a file modified in place, a side that
-// does not read or parse or repeats a key, an `actors` that is no list, or a
-// change to any other key holds, and so does an entry added or changed.
 export function actorsWidened({ status, previous = null, contents } = {}) {
   if (status !== "modified" || previous !== null) {
     return `${status ?? "unknown"} trusted-actor list`;
@@ -1112,7 +1047,7 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
 // The trusted-actor list and the pipeline config are read too: a widening the
 // approver never saw is lifted by the same approval (actorsHold).
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
 // hold path loads, old paths of renames included: pathHold with `holdPaths`
@@ -1753,6 +1688,14 @@ export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {
   return [...labelHolds(pull.labels, tracker, pull.number), switchHold(pull, lanes)].filter(Boolean);
 }
 
+function pullAuthor(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"))?.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
   const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile, evidenceFile] = argv;
   try {
@@ -1820,7 +1763,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     // The verifier's holds, recorded under their own annotation title
     // (VERIFIER_TITLE): they share this step with the path holds.
     const verifier = [];
-    if (verdictsFile) {
+    if (verdictsFile && baselineOnly(pullAuthor(env.BABYSIT_VERIFY_PULL), files, env.LANES_APP_ID, env.BASELINE_FILE)) {
+      console.log(`#${number}: no verifier hold: ${baselineNote(env.BASELINE_FILE)}.`);
+      console.log(`#${number}: no pr-verify FAIL hold: ${baselineNote(env.BASELINE_FILE)}.`);
+    } else if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
       // The reader's report; undefined when no evidence file is given or it

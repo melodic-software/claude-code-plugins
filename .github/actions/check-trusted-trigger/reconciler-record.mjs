@@ -10,7 +10,8 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, reconcilerRecordVouches, REPOSITORY } from "./check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
+import { loadTrustedList, reconcilerRecordVouches, REPOSITORY } from "./check-trusted-trigger.mjs";
 
 export async function main({ env = process.env, github, sleep } = {}) {
   const repository = env.GITHUB_REPOSITORY ?? "";

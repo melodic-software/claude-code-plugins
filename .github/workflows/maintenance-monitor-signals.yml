@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -117,8 +117,9 @@ jobs:
           ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
         # A hit withholds only the carry: the next run reads every run's jobs.
         continue-on-error: true
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/monitor-jobs/jobs.json
 
       - name: Carry the job reads

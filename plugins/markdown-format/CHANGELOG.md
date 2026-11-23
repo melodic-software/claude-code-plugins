@@ -3,6 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.0] - 2026-11-23
+
+### Changed
+
+- `setup`'s `## Next` names `/performance:target` for a hook stage over its time budget in `setup check inspect`.
+
+## [2.2.3] - 2026-11-22
+
+### Changed
+
+- Setup names `docs/conventions/ecosystems/<ecosystem>.yaml` as the record it drafts commands for, in place of `.claude/ecosystems/`. The hook library's record note also finds a record at `docs/conventions/ecosystems/`; hooks still never run a record's command. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [2.2.2] - 2026-11-21
 
 ### Changed

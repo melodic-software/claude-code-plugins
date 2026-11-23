@@ -866,8 +866,8 @@ def split_child_header(
     source: tuple[int, str] | None = None,
     scoped: bool = False,
 ) -> str:
-    """admit.mjs splitChildHeader: the fixed header of part `part` of
-    `parts` a size split files from issue `parent`, with admit.mjs
+    """size-split.mjs splitChildHeader: the fixed header of part `part` of
+    `parts` a size split files from issue `parent`, with size-split.mjs
     splitSourceLine when `source` (id, updated_at) is given, and the
     target-subset wording when `scoped`."""
     also = " and intake's refinement comment on it" if source else ""
@@ -889,7 +889,7 @@ def split_child_header(
 
 
 def ticked_forms(line: str, task_list: str) -> list[str]:
-    """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
+    """size-split.mjs tickedForms: `line`, a task-list line, with its box ticked,
     the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
     unchanged. Empty when `task_list` does not hold exactly one `[ ]`."""
     if task_list.count("[ ]") != 1:
@@ -1445,7 +1445,7 @@ def split_child_body(
 ) -> str | None:
     """The body of `issue` (as `SPLIT_CHILD_QUERY` reads it) when it counts
     as the text a size split copied into it, else None: the split-child trust
-    rule, whose one home is admit.mjs splitChildBody, read the way
+    rule, whose one home is size-split.mjs splitChildBody, read the way
     resolve-pr.mjs reads it (a parent in this repository with every comment
     read). The lanes App (`app_id`) wrote it, a listed human filed its native
     parent, and it opens with `split_child_header` for that parent. A header
@@ -1581,7 +1581,7 @@ SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
 
 
 def task_text(line: str, task_list: str) -> str:
-    """admit.mjs taskText: `line` without its indent and task-list marker."""
+    """size-split.mjs taskText: `line` without its indent and task-list marker."""
     return line.lstrip(JS_SPACE)[len(task_list) :]
 
 
@@ -1589,7 +1589,7 @@ def scope_target(name: str, texts: set[str]) -> bool:
     """2 to 100 characters, no comma, angle bracket, backtick, at sign,
     number sign or line break, no outer space, and verbatim text of one of
     `texts` (task_text). Length and outer space are JavaScript's (UTF-16 code units,
-    and the JS_SPACE String.prototype.trim strips), since admit.mjs
+    and the JS_SPACE String.prototype.trim strips), since size-split.mjs
     scopeTarget is the rule's one home."""
     units = len(name.encode("utf-16-le", "surrogatepass")) // 2
     return (
@@ -5401,9 +5401,9 @@ def lane_risk_refusal(
     humans: Callable[[], frozenset[int]] = frozenset,
 ) -> tuple[str, bool, bool] | None:
     """Why pr-merge's gate would hold the pull request on its risk score,
-    whether only a person clears it (`babysit_risk.person_reasons`), and
+    whether only a person clears it (`diff_risk.person_reasons`), and
     whether a clean whole review of the head would clear it
-    (`babysit_whole_review.wanted`, as the gate asks it), or None: `babysit_risk.score` and `holding` over the inputs the gate builds
+    (`babysit_whole_review.wanted`, as the gate asks it), or None: `diff_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
@@ -5419,7 +5419,7 @@ def lane_risk_refusal(
     its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
-    import babysit_risk  # noqa: PLC0415
+    import diff_risk  # noqa: PLC0415
     import babysit_whole_review  # noqa: PLC0415
 
     try:
@@ -5443,7 +5443,7 @@ def lane_risk_refusal(
         files = merge_policy.with_contents(repo, pr, files)
         base = json_object(pr.get("base"))
         private = json_object(base.get("repo")).get("private")
-        risk_input = babysit_risk.RiskInput(
+        risk_input = diff_risk.RiskInput(
             files=files,
             files_complete=complete,
             files_capped=merge_policy.files_capped(pr),
@@ -5459,20 +5459,20 @@ def lane_risk_refusal(
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
-        risk = babysit_risk.score(risk_input)
-        if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+        risk = diff_risk.score(risk_input)
+        if any(r.code == diff_risk.COST_CODE for r in risk.reasons):
             decision = merge_policy.cost_decision(
                 repo, pr, issue, permission=permission, agent_identity=identity
             )
             if decision:
-                risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
+                risk = diff_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         return f"unreadable: {type(exc).__name__}: {exc}", False, False
-    held = babysit_risk.holding(risk)
+    held = diff_risk.holding(risk)
     paths = [
         r
         for r in held
-        if r.code.startswith("high-path:") and r.code != babysit_risk.UNSAFE_PATH_CODE
+        if r.code.startswith("high-path:") and r.code != diff_risk.UNSAFE_PATH_CODE
     ]
     if paths:
         head = str(json_object(pr.get("head")).get("sha") or "")
@@ -5502,7 +5502,7 @@ def lane_risk_refusal(
     # Scored without the high paths an approval lifted.
     kept = tuple(r for r in risk.reasons if r in held or r not in paths)
     whole = babysit_whole_review.wanted(None, replace(risk, reasons=kept), lanes)
-    return (text, bool(babysit_risk.person_reasons(held)), whole) if text else None
+    return (text, bool(diff_risk.person_reasons(held)), whole) if text else None
 
 
 def lane_queue(
@@ -7247,12 +7247,46 @@ def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]
     return report
 
 
+def baseline_detail(baseline_file: str) -> str:
+    return f"changes only {baseline_file} (merge.baseline-file): no issue link or verdict is read"
+
+
+def _link_shape(refusal: str | None) -> bool:
+    """Whether `refusal` is about the link's shape alone (no single issue
+    here, `merge_policy._linked_issue`), the one kind a baseline pull request
+    sets aside. A failed read or the linked issue's trust hold is not."""
+    return refusal is not None and (
+        merge_policy.no_issue_here(refusal) or refusal.startswith("linked-issues:")
+    )
+
+
+def _native_baseline(
+    repo: str, pr: dict[str, Any], identity: str | None, baseline_file: str | None
+) -> bool:
+    """Whether `pr` is the lanes App's and changes only `baseline_file`
+    (`merge_policy.baseline_only`), its files read whole; a read that fails
+    is not. Any other author, an unset file, or a record that does not count
+    one changed file, reads no files."""
+    if pr.get("changed_files") != 1 or not merge_policy.baseline_only(
+        pr, identity, baseline_file, [str(baseline_file)]
+    ):
+        return False
+    try:
+        files, complete = merge_policy.changed_files(repo, pr)
+    except Exception:  # noqa: BLE001 - any doubt keeps the link refusal
+        return False
+    paths = [p for f in files for p in (f.path, f.previous_path) if p]
+    return complete and merge_policy.baseline_only(pr, identity, baseline_file, paths)
+
+
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
     """`evidence`'s answer for one pull request, read in full (`main`)."""
     link: dict[str, Any] = {}
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
-        if link["ineligible"] is not None:
+        if link["ineligible"] is not None and not (
+            args.lane_reviews and _link_shape(link["ineligible"])
+        ):
             refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
             return refusal.report() | link
     try:
@@ -7277,8 +7311,24 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         pr = merge_policy.cached_pull_request(
             os.environ.get(PULL_ENV), args.repo, args.number, args.head
         )
-    evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved and not args.shared_listing:
+    native_baseline = (
+        args.lane_link
+        and args.lane_reviews
+        and _native_baseline(
+            args.repo, json_object(pr), config.agent_identity, config.baseline_file
+        )
+    )
+    if native_baseline:
+        link["ineligible"] = None
+        evidence = Evidence(
+            None, args.head, (), 0, baseline_detail(str(config.baseline_file))
+        )
+    elif link.get("ineligible") is not None:
+        refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+        return refusal.report() | link
+    else:
+        evidence = reader.evidence(args.number, args.head, pr)
+    if evidence.refusal is None and reader.saved and not args.shared_listing and not native_baseline:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

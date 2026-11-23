@@ -6,6 +6,7 @@ export default {
   id: 'page',
   reportName: 'page',
   aliases: ['local page', 'browser'],
+  offerName: 'local page',
   available(ctx) {
     const missing = [!python(ctx) && 'Python 3', !ctx.has('curl') && 'curl', !ctx.has('bash') && 'bash'].filter(Boolean)
     return missing.length ? { ok: false, reason: `missing ${missing.join(', ')}` } : { ok: true, reason: 'Python 3, curl and bash found' }

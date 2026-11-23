@@ -49,7 +49,7 @@ name: Intake Label Outside Actor Activity
 on:
   # Runs from the default branch; checks out main only and passes no event
   # text to a shell.
-  issues: # zizmor: ignore[dangerous-triggers]
+  issues:
     types: [opened, edited, reopened, unlabeled]
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created, edited]
@@ -105,7 +105,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -116,7 +116,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 

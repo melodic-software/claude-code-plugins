@@ -86,8 +86,6 @@ cr_is_sanctioned_todo() {
   [[ "$1" =~ $re ]]
 }
 
-# A line whose first non-blank characters are a comment leader. A trailing comment on a code
-# line is NOT one, so a license block never runs on through code.
 cr_is_comment_line() {
   [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
 }
@@ -103,7 +101,6 @@ cr_has_license_cue() {
   return 1
 }
 
-# The comment names a workaround: the cue words, whole, in the comment text.
 cr_has_workaround_cue() {
   local lc="${1,,}"
   [[ "$lc" =~ (^|[^[:alnum:]_])(work[-[:space:]]?arounds?|works[[:space:]]+around|working[[:space:]]+around|worked[[:space:]]+around)([^[:alnum:]_]|$) ]]
@@ -159,7 +156,6 @@ cr_justified_run_lines() {
   cr_run_lines_with cr_has_workaround_justification "$1"
 }
 
-# Set REPLY to zero or more shape names, newline-separated.
 cr_detect_shapes() {
   cr_comment_text "$1"
   cr_detect_shapes_text "$REPLY" "${2:-0}" "${3:-0}"

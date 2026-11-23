@@ -84,7 +84,7 @@
 //   naming each one still armed because its disarm failed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
-//   (babysit_risk.score, holding) over the inputs the gate builds, the
+//   (diff_risk.score, holding) over the inputs the gate builds, the
 //   review lanes' evidence bound to the head included. So an open CRITICAL
 //   security finding or a review not bound to the head (whether or not the
 //   lane applied its hold label), a symlink, submodule or other non-regular
@@ -234,7 +234,8 @@ import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -264,7 +265,6 @@ import {
   LANE_HOLD,
   liftersOf,
   MEMBERS,
-  OUTSIDE_ACTOR_LABEL,
   pathHoldKind,
   pathLifters,
   personWrote,
@@ -274,6 +274,7 @@ import {
   unblockStops,
   vetoers,
 } from "./merge-holds.mjs";
+import { ARM_HOLDS } from "../lib/lane-vocabulary.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -281,7 +282,7 @@ const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
-export const HOLD_LABELS = Object.freeze(["do-not-merge", "pr-verify-failed", OUTSIDE_ACTOR_LABEL]);
+export const HOLD_LABELS = ARM_HOLDS;
 // 100 pull requests a page; more than this many open is a listing the run
 // holds on (ListingFull) rather than one it reads only part of.
 const MAX_PAGES = 10;
@@ -679,7 +680,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 // decision clears.
 function trustedHumans(env) {
   try {
-    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    const { actors } = readRawTrustedActors(env.TRUSTED_ACTORS || trustedActorsPath());
     return humansOf(actors);
   } catch {
     return new Set();
@@ -778,15 +779,6 @@ export function verifyHold(evidence, head) {
 // read whole, more than the 100 the read lists, which no later read changes.
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
-// Who clears the refusal verifyHold reads in `evidence` at `head`
-// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner;
-// cost and trust holds stay a person's): `person`
-// for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
-// refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
-// or a risk hold it marks `reviewsPerson` (babysit_risk.person_reasons),
-// `lane` for every other refusal, which gets the comment and no label, and
-// null for an unread answer, which the next run reads again. An answer
-// without its flag is a person's, as any doubt holds.
 export function verifyClears(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || evidence.head !== head) {
     return null;
@@ -873,14 +865,6 @@ export function refusalReasons(body, person, head, label, { since = null, partia
 // when it is not one.
 const personReasons = (body, head, label) => refusalReasons(body, true, head, label, { partial: isPartial(body, head), records: recordLines(body) });
 
-// A person's refusal at `head` whose every reason is a hold path
-// (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
-// escalation a trusted person's approval of the head lifts, so the lane may
-// take its label off. A cost, risk or verifier reason, a label a person set
-// with no refusal, or a comment at another head is not one, except that with
-// `pathHolds` false a risk reason whose every code is a path hold
-// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
-// `review-path:`) is one too.
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
 const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
 const pathOnlyRisk = (line) =>
@@ -1471,7 +1455,6 @@ export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 // timeout still reads as unreadable, which holds the lane.
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
-// The reasons a pull request whose verdict this run does not read is left.
 const NO_TIME_LEFT = "no time left in this run to read its verifier verdict";
 const READER_RUNS_ARM = "only a scheduled or hand-started run arms it, on the gate's verifier verdict";
 
@@ -1700,7 +1683,7 @@ const SKIP_CHUNK = 20;
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   "docs/conventions/work-items.yaml",
-  ".github/standards/trusted-actors/trusted-actors.json",
+  TRUSTED_ACTORS_PATH,
   ".github/workflows/pr-merge.yml",
   ".github/actions",
   ".github/scripts",
@@ -2329,12 +2312,10 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       // A widening read finding no partial comment reads nothing past the discussion.
       let unmarked = false;
       const judged = widen ? { ...pull, labels: unlabeledAs(pull.labels, humanGated) } : pull;
-      // Whether a widening read got the verifier's answer.
       let answered = false;
       if (widen) {
         action = "read";
       }
-      // This pull request's skip key, when its outcome may be kept or skipped.
       const key = skipMain !== null && action === "read" && !widen && held === null && stopped === null && pull.autoMergeRequest == null && rollups.has(pull.number) ? skipKey(pull, rollups.get(pull.number), skipMain) : null;
       const prior = key === null ? undefined : skipStore[pull.number];
       if (prior !== undefined && prior.key === key && prior.head === pull.headRefOid) {
@@ -2558,7 +2539,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         }
         continue;
       }
-      // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {
         ({ action, reason, clears, comment, withdraw } = { action: "none", reason: "its verifier verdict is not read yet" });
       }

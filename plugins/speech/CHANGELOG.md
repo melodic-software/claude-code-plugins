@@ -3,6 +3,12 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.14] - 2026-11-23
+
+### Changed
+
+- `narrate` gains a `## Related` section per the accepted skill-link table.
+
 ## [1.2.13] - 2026-11-21
 
 ### Changed

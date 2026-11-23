@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
 """`collect_lane_runs` takes a completed lane run's attempts from the run cache.
 
 A read saved in one pr-merge run is carried to the next by
@@ -27,7 +28,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import babysit_gh as gh
 import babysit_review_evidence as review_evidence
-import babysit_risk
+import diff_risk
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXTURE = HERE / "fixtures" / "lane_runs" / "run_and_latest_attempt.json"
@@ -46,7 +47,7 @@ def carry(source: pathlib.Path, target: pathlib.Path) -> None:
     subprocess.run(
         ["node", str(CARRY)],
         env={
-            "PATH": os.environ["PATH"],
+            **{k: os.environ[k] for k in ("PATH", "SYSTEMROOT") if k in os.environ},
             "CARRY_FROM": str(source),
             "CARRY_TO": str(target),
             "GITHUB_REPOSITORY": REPO,
@@ -154,7 +155,7 @@ class LaneRunCarryTests(unittest.TestCase):
             [],
             is_human=lambda actor: False,
             changed_paths=[],
-            floor=babysit_risk.floor_for(),
+            floor=diff_risk.floor_for(),
         )
 
     def warm(self) -> pathlib.Path:

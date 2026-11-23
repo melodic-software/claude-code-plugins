@@ -99,8 +99,6 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && PREFIX_ARGS+=(--prefix-strip "$line")
 done < <(config_list path_prefix_strip)
 
-# An explicitly named artifact that does not exist is a usage error, so a
-# stale path never degrades silently into "no coverage".
 ARTIFACT_PATHS=()
 SEARCHED=()
 for named in ${NAMED[@]+"${NAMED[@]}"}; do
@@ -173,10 +171,6 @@ for entry in ${SEARCHED[@]+"${SEARCHED[@]}"}; do
   SEARCHED_ARGS+=(--searched "$entry")
 done
 
-# The complexity rows come uncollapsed so every copy of a replicated file
-# gets its coverage looked up; the joined document is collapsed below. They
-# come cwd-relative too, because the join keys them against the artifacts and
-# the scope; the joined document is anchored once, after the collapse.
 bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse --no-anchor ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
 rc=$?
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then

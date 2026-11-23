@@ -85,8 +85,6 @@ exits() {
   fi
 }
 
-# --- a finding in changed markdown is annotated on its line -----------------
-
 REPO="$(mkfixture)"
 printf 'A sentence with an em dash %s right here in the middle of it.\n' "$EM_DASH" \
   >"$REPO/docs.md"
@@ -98,8 +96,6 @@ contains "a finding is annotated as a warning on its file and line" "$RUN_OUT" \
   "::warning file=docs.md,line=1::ai-slop/audit/rule-em-dash:"
 contains "the total is reported" "$RUN_OUT" "1 ai-slop finding(s) in 1 changed markdown file(s)"
 
-# --- clean changed markdown annotates nothing -------------------------------
-
 CLEAN_REPO="$(mkfixture)"
 printf 'A plain sentence with nothing to report in it at all.\n' >"$CLEAN_REPO/clean.md"
 git_test_config "$CLEAN_REPO" add -A >/dev/null
@@ -108,8 +104,6 @@ run "$CLEAN_REPO" main
 exits "a clean file exits 0" 0 "$RUN_CODE"
 lacks "a clean file annotates nothing" "$RUN_OUT" "::warning"
 contains "a clean file says so" "$RUN_OUT" "no ai-slop findings in 1 changed markdown file(s)"
-
-# --- an unchanged markdown file is never scanned ----------------------------
 
 SEED_REPO="$(mkfixture)"
 printf 'A sentence with an em dash %s in a file nobody changed.\n' "$EM_DASH" \
@@ -127,16 +121,12 @@ exits "a diff with no markdown exits 0" 0 "$RUN_CODE"
 lacks "a diff with no markdown annotates nothing" "$RUN_OUT" "::warning"
 contains "a diff with no markdown says so" "$RUN_OUT" "changes no markdown file"
 
-# --- a deleted markdown file is not scanned ---------------------------------
-
 DEL_REPO="$(mkfixture)"
 git_test_config "$DEL_REPO" rm -q README.md >/dev/null
 git_test_config "$DEL_REPO" commit -qm delete >/dev/null
 run "$DEL_REPO" main
 exits "a deletion exits 0" 0 "$RUN_CODE"
 lacks "a deletion annotates nothing" "$RUN_OUT" "::warning"
-
-# --- the annotation cap holds, and the total names what it hid --------------
 
 CAP_REPO="$(mkfixture)"
 : >"$CAP_REPO/many.md"
@@ -155,8 +145,6 @@ else
   bad "no more than 50 findings are annotated" "annotated $CAP_COUNT"
 fi
 contains "the summary names the total, not the cap" "$RUN_OUT" "60 ai-slop finding(s)"
-
-# --- declines ---------------------------------------------------------------
 
 REPO2="$(mkfixture)"
 RUN_OUT="$(cd "$REPO2" && env GITHUB_EVENT_NAME=push bash "$SCRIPT" main 2>&1)"

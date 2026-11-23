@@ -39,9 +39,6 @@ commit_all() {
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
 }
 
-# ==========================================================================
-# Usage
-# ==========================================================================
 out="$(run --help)"
 assert_has "--help prints usage" "$(printf '%s' "$out" | head -1)" "detect.sh — deterministic fact emitter for instruction-placement's audit."
 
@@ -50,9 +47,6 @@ assert_eq "an unknown --tier is a usage error" "2" "$?"
 run --root /nonexistent-xyz >/dev/null 2>&1
 assert_eq "an unusable --root is a usage error" "2" "$?"
 
-# ==========================================================================
-# Section segmentation — exact line ranges
-# ==========================================================================
 repo="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$repo" init -q .
 cat >"$repo/CLAUDE.md" <<'EOF'
@@ -82,9 +76,6 @@ assert_has "a level-2 section is recorded with its level" "$out" "$(printf 'SECT
 assert_has "a section ends where the next heading begins" "$out" "$(printf 'SECTION\tCLAUDE.md\t9\t13\t2\tC# naming')"
 assert_has "the final section runs to end of file" "$out" "$(printf 'SECTION\tCLAUDE.md\t14\t16\t3\tNested detail')"
 
-# ==========================================================================
-# Normative signal
-# ==========================================================================
 assert_has "normative markers are counted and named" "$out" "$(printf 'SIGNAL\tCLAUDE.md\t9\t2\tmust')"
 assert_lacks_sub "a section with no normative language emits no SIGNAL" \
   "$(printf '%s\n' "$out" | grep '^SIGNAL' | grep "$(printf '\t5\t')" || true)" "SIGNAL"
@@ -102,9 +93,6 @@ out_sig="$(run --root "$sig" -- AGENTS.md)"
 markers="$(printf '%s\n' "$out_sig" | awk -F'\t' '$1=="SIGNAL"{print $5}')"
 assert_eq "markers are emitted in deterministic sorted order" "always,do-not,must,never,prefer" "$markers"
 
-# ==========================================================================
-# Frontmatter and fenced blocks are excluded
-# ==========================================================================
 fence="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$fence" init -q .
 cat >"$fence/AGENTS.md" <<'EOF'
@@ -128,9 +116,6 @@ out_f="$(run --root "$fence" -- AGENTS.md)"
 assert_lacks_sub "frontmatter words do not count as normative signal" "$out_f" "$(printf 'SIGNAL\tAGENTS.md\t')"
 assert_lacks_sub "an extension inside a fence is not a hint" "$out_f" ".fake"
 
-# ==========================================================================
-# Glob-derivation hints
-# ==========================================================================
 hint="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$hint" init -q .
 cat >"$hint/AGENTS.md" <<'EOF'
@@ -153,9 +138,6 @@ assert_has "a second named language also maps" "$out_h" "$(printf 'HINT\tAGENTS.
 assert_lacks_sub "a dot inside a word is not an extension" "$out_h" "$(printf 'ext\t.md')"
 assert_lacks_sub "an abbreviation like e.g. is not an extension" "$out_h" "$(printf 'ext\t.g')"
 
-# ==========================================================================
-# Rule inventory
-# ==========================================================================
 rules="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$rules" init -q .
 mkdir -p "$rules/.claude/rules" "$rules/pkg/.claude/rules" "$rules/ext"
@@ -173,9 +155,6 @@ assert_has "an unscoped rule is inventoried as unscoped" "$out_r" "$(printf 'RUL
 assert_has "a nested rules tree is inventoried" "$out_r" "$(printf 'RULE\tpkg/.claude/rules/nested.md\tscoped\tpkg/**')"
 assert_has "a symlinked rule is inventoried" "$out_r" "$(printf 'RULE\t.claude/rules/linked.md\tscoped\t**/*.cs')"
 
-# ==========================================================================
-# Corpus exclusions and tiering
-# ==========================================================================
 corp="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$corp" init -q .
 mkdir -p "$corp/docs" "$corp/vendor/x" "$corp/node_modules/y" "$corp/skills/s/evals/fixtures"
@@ -196,13 +175,6 @@ assert_has "node_modules is skipped" "$out_c" "$(printf 'SKIP\tnode_modules/y/CL
 assert_has "a named contributor surface is tiered" "$out_c" "$(printf 'FILE\tCONTRIBUTING.md\tnamed\t1')"
 assert_has "a docs tree file is tiered" "$out_c" "$(printf 'FILE\tdocs/guide.md\tdocs\t1')"
 
-# An excluded path that ALSO lives in a `.claude/rules` tree reaches the file
-# list by two routes: the tracked walk (which skips it) and the symlink backfill
-# from ip_discover_rules (which would re-add it if it only asked "is this
-# already in FILES"). The result would be a SKIP row and a FILE row for one
-# path, and a double count in the summary. `context/corpus.md` says exclusions
-# are absolute and applied before any classification, so this pins BOTH halves:
-# skipped, and not silently re-admitted.
 excl="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$excl" init -q .
 mkdir -p "$excl/vendor/pkg/.claude/rules"
@@ -222,9 +194,6 @@ assert_has "core tier keeps the instruction layer" "$out_core" "$(printf 'FILE\t
 assert_has "core tier skips ordinary documentation" "$out_core" "$(printf 'SKIP\tdocs/guide.md\toutside the core tier')"
 assert_lacks_sub "core tier emits no FILE row for docs" "$out_core" "$(printf 'FILE\tdocs/guide.md')"
 
-# ==========================================================================
-# Determinism, and no silent awk failure
-# ==========================================================================
 a="$(run --root "$rules")"
 b="$(run --root "$rules")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
@@ -246,9 +215,9 @@ assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 idr="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$idr/docs"
 cat >"$idr/CLAUDE.md" <<'EOF'
-## C# naming
+## Test conventions
 
-Interfaces must be prefixed with I.
+Name each test after the behavior it checks.
 EOF
 cat >"$idr/docs/deployment.md" <<'EOF'
 ## Deployment
@@ -274,7 +243,7 @@ ident() { bash "$SCRIPT" identity --root "$idr" "$@" 2>&1; }
 
 out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
 assert_eq "identity: demote golden vector" \
-  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t4b322d9c\t6e9976d9d2e2c5a4\tC# naming')" "$out"
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
 out="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
 assert_eq "identity: nested promote golden vector" \
@@ -285,16 +254,16 @@ b="$(ident --file docs/deployment.md --start 3 --lane promote --destination nest
 assert_eq "identity: output is byte-identical across runs" "$a" "$b"
 
 cat >"$idr/CLAUDE.md" <<'EOF'
-## C# naming
+## Test conventions
 
-Interfaces must be prefixed with I, and a paragraph
+Name each test after the behavior it checks, and a paragraph
 was rewritten and lengthened inside the section.
 
 Another paragraph appeared.
 EOF
 out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
 assert_eq "identity: editing a paragraph inside the section leaves the anchor and id unchanged" \
-  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t4b322d9c\t6e9976d9d2e2c5a4\tC# naming')" "$out"
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
 ident --file CLAUDE.md --start 1 --lane bogus --destination path-scoped-rule >/dev/null
 assert_eq "identity: a bad lane is a usage error" "2" "$?"
@@ -319,8 +288,6 @@ assert_eq "identity: no sha256 utility is a usage error, not a bogus id" "2" "$?
 out="$(ident --file CLAUDE.md --start 1 --lane bogus --destination skill)"
 assert_has "identity: a usage error prints usage text" "$out" "  detect.sh identity [--root <dir>] --file <path> --start <n>"
 
-# Skipped levels: an H3 sits directly under the H1, and a later H4 skips the earlier
-# H3 sibling (Deep) and takes the H2 above its own H3 parent.
 out="$(ident --file skipped.md --start 3 --lane demote --destination skill)"
 assert_eq "identity: an H3 directly under an H1 takes the H1 as its parent" \
   "Top > Deep" "$(printf '%s' "$out" | cut -f8)"

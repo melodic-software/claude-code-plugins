@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// The Phase 4b formats in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner and a
-// guest on desktops, and a guest on a 390x844 phone with touch, in a session past its first round (so the phone's
-// Questions tab must take taps on the round toggle and the questions with two rounds listed). Covered: multi (checkboxes), scale (keyboard and touch),
-// rank (keyboard, and a touch drag), None of these on a multi that asks for it (exclusive both ways, on the page and
-// the server), "Something else…" on choice, multi and rank (the person's own option becomes a card
-// others back), Disagree with a reason, the 👎 reaction, a diagram reference's alt text, the digest numbers where the
-// page shows results, no Something else on confirm and prototype questions, no 429 and no CSP violation. ux-review-3:
-// the confirm mark is drawn inside a phone-width picture, a pixel-sized rect from an earlier build is clamped into it,
-// picture options keep both Choose buttons above the phone tab bar, and tapping an option's name picks it.
-//   node plugins/planning/shared/tests/ui_formats.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Phase 4b amendment (formats, Borda: first n-1, last 0; mean and median), the server
-// contract (session.py pick, vote and disagree), and numbers worked out by hand below, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png } = require("./browser_harness");
 
@@ -31,7 +18,6 @@ async function main() {
     const shot = s.asset(A.dir, "shot.png", PNG), svg = s.asset(A.dir, "flow.svg", SVG);
     const v1 = s.asset(A.dir, "v1.html", "<!doctype html><html><body><p>One</p></body></html>");
     const v2 = s.asset(A.dir, "v2.html", "<!doctype html><html><body><p>Two</p></body></html>");
-    // Two rounds, as in a live session past its first: round 1 sent and closed, round 2 holds the formats.
     s.apply(A.dir, [{ op: "set-title", title: "Checkout formats" }, { op: "open-round", questions: [q("Q20", "Which browsers do your customers use?", { kind: "text" })] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -64,7 +50,6 @@ async function main() {
       return until(p, t => document.querySelector(".vf-qtext")?.textContent === t, text);
     }
 
-    // ---------- the phone's Questions tab in a two-round session ----------
     await pia.locator(".vf-tab", { hasText: "Questions" }).tap();
     const r1 = pia.locator(".vf-round:not(.vf-round-cur) .vf-rtoggle");
     const tapped = async loc => loc.tap({ timeout: 5000 }).then(() => true, e => String(e.message).split("\n").find(x => /intercepts|Timeout/.test(x)) || "tap failed");
@@ -77,7 +62,6 @@ async function main() {
     const cardOf = async (page, qid, ref) => (await snap(page))?.cards?.[qid]?.find(c => c.ref === ref);
     const server = (fn, arg, t) => until(owner, fn, arg, t);
 
-    // ---------- choice: Something else… ----------
     const qs = (await snap(owner)).questions;
     const lastOpt = id => qs.find(x => x.id === id).format.options?.at(-1);
     ok("choice, multi and rank questions end with the server's Something else… option",
@@ -122,7 +106,6 @@ async function main() {
     await ownCardOwner.locator(".vf-btn-brass-ghost", { hasText: "Lock this one" }).click();
     ok("Lock this one on the own option locks that person card", await server(g => window.Core.snapshot()?.locks?.Q1?.source?.card === "p:" + g, gusPid));
 
-    // ---------- multi ----------
     await go(gus, "Q2", "Which payment methods should checkout offer?");
     for (const label of ["Card", "PayPal"]) await gus.locator(".vf-check-row", { hasText: label }).locator("input").check();
     await gus.click(".vf-fmt-save");
@@ -145,14 +128,12 @@ async function main() {
     await owner.locator(".vf-alist .vf-card", { hasText: "Gift cards" }).locator(".vf-vote").click();
     ok("multi: backing Pia's own option is a separate vote; the owner's picks stay",
       await server(p => { const s2 = window.Core.snapshot(); return (s2.cards.Q2.find(c => c.ref === "p:" + p)?.votes || []).includes("host") && JSON.stringify(s2.cards.Q2.find(c => c.ref === "p:host")?.picks) === '["opt-3"]'; }, piaPid));
-    // By hand: Card {Gus} 1, PayPal {Gus, Pia} 2, Apple Pay {owner} 1, Bank transfer 0; 3 people picked.
     const res = (page, k) => page.evaluate(id => document.querySelector(`.vf-fmtres-row[data-k="${id}"] .vf-fmtres-n`)?.textContent, k);
     ok("multi results: counts per option where results show", await until(owner, () => {
       const t = id => document.querySelector(`.vf-fmtres-row[data-k="${id}"] .vf-fmtres-n`)?.textContent;
       return t("opt-1") === "1 picked" && t("opt-2") === "2 picked" && t("opt-3") === "1 picked" && t("opt-4") === "0 picked" && document.querySelector(".vf-fmtres-sum")?.textContent === "3 people picked.";
     }), JSON.stringify(await Promise.all(["opt-1", "opt-2", "opt-3", "opt-4"].map(k => res(owner, k)))));
 
-    // ---------- scale ----------
     await go(gus, "Q3", "How urgent is the checkout redesign?");
     ok("scale shows its end and middle labels", await until(gus, () => /1: Not urgent/.test(document.querySelector(".vf-scale-ends")?.textContent) && /3: Somewhat/.test(document.querySelector(".vf-scale-ends")?.textContent) && /5: Very urgent/.test(document.querySelector(".vf-scale-ends")?.textContent)));
     const before = picks.gus;
@@ -171,12 +152,10 @@ async function main() {
     ok("scale by touch: the phone guest chooses 2", await server(p => (window.Core.snapshot().cards.Q3 || []).find(c => c.ref === "p:" + p)?.value === 2, piaPid));
     await go(owner, "Q3", "How urgent is the checkout redesign?");
     await owner.locator(".vf-scale-btn", { hasText: "5" }).click();
-    // By hand: 2, 4, 5: mean 11 / 3 = 3.67 (2 places), median 4.
     ok("scale results: mean and median where results show", await until(owner, () => document.querySelector(".vf-fmtres-sum")?.textContent === "Mean 3.67, median 4, from 3 people."),
       await owner.evaluate(() => document.querySelector(".vf-fmtres-sum")?.textContent));
     ok("scale results: the count per value", await until(owner, () => document.querySelector('.vf-fmtres-row[data-k="4"] .vf-fmtres-n')?.textContent === "1 person" && document.querySelector('.vf-fmtres-row[data-k="1"] .vf-fmtres-n')?.textContent === "0 people"));
 
-    // ---------- rank ----------
     await go(gus, "Q4", "Rank the checkout steps by importance");
     const item = (p, label) => p.locator(".vf-rank-item", { hasText: label });
     await item(gus, "Payment").locator(".vf-rank-grip").focus();
@@ -193,8 +172,6 @@ async function main() {
       JSON.stringify(await cardOf(owner, "Q4", `p:${gusPid}`)));
 
     await go(pia, "Q4", "Rank the checkout steps by importance");
-    // Gus is on Q4, and his presence lands after the question renders: measure the handles once it shows, or the
-    // drag starts on whatever moved under the finger.
     ok("rank by touch: the phone shows Gus on the question before the drag", await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].some(a => a.offsetParent && a.dataset.name === "Gus")));
     const grip = item(pia, "Review").locator(".vf-rank-grip");
     await grip.scrollIntoViewIfNeeded();
@@ -204,7 +181,6 @@ async function main() {
     const from = { x: g.x + g.width / 2, y: g.y + g.height / 2 }, to = { x: from.x, y: top.y + 4 };
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(from.x, from.y) });
     for (let i = 1; i <= 12; i++) { await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(from.x, from.y + (to.y - from.y) * i / 12) }); await pia.waitForTimeout(20); }
-    // The finger rests before it lifts, as a person's does: a lift mid-move is a fling, and the next tap only stops it.
     await pia.waitForTimeout(200);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(to.x, to.y) });
     await pia.waitForTimeout(150);
@@ -220,15 +196,11 @@ async function main() {
     await go(owner, "Q4", "Rank the checkout steps by importance");
     await owner.click(".vf-fmt-save");
     ok("rank: the owner saves the order as given", await server(() => JSON.stringify((window.Core.snapshot().cards.Q4 || []).find(c => c.ref === "p:host")?.order) === '["opt-1","opt-2","opt-3","opt-4"]'));
-    // By hand, Borda with 4 options (3, 2, 1, 0), own options left out (opt-1 Address, opt-2 Shipping, opt-3 Payment, opt-4 Review):
-    //   Gus Payment,Address,Shipping,Review; Pia Review,Address,Shipping,Payment; owner Address,Shipping,Payment,Review
-    //   Address 2+2+3 = 7, Shipping 1+1+2 = 4, Payment 3+0+1 = 4, Review 0+3+0 = 3; a tie keeps the given order.
     const rankRows = () => owner.evaluate(() => [...document.querySelectorAll(".vf-fmtres-row")].map(r => `${r.dataset.k}:${r.querySelector(".vf-fmtres-n").textContent}`).join(","));
     ok("rank results: Borda totals, highest first", await until(owner, () => [...document.querySelectorAll(".vf-fmtres-row")].map(r => `${r.dataset.k}:${r.querySelector(".vf-fmtres-n").textContent}`).join(",")
       === "opt-1:7 points,opt-2:4 points,opt-3:4 points,opt-4:3 points"), await rankRows());
     ok("rank results: the summary names the rule", await until(owner, () => document.querySelector(".vf-fmtres-sum")?.textContent === "Borda points from 3 rankings: first place gets 3, last gets 0."));
 
-    // ---------- decide: Disagree; a diagram reference ----------
     await go(owner, "Q5", "Where should the order summary sit?");
     await owner.fill("#vf-answer", "Below the total, collapsed.");
     await owner.press("#vf-answer", "Control+Enter");
@@ -256,7 +228,6 @@ async function main() {
     ok("the diagram opens in the viewer with its alt text", await until(gus, a => { const i = document.querySelector(".vf-lb-img"); return !!i?.offsetParent && i.alt === a; }, DIAGRAM_ALT));
     await gus.keyboard.press("Escape");
 
-    // ---------- gather: the four reactions, 👎 included ----------
     await go(owner, "Q6", "What worries you about the new checkout?");
     await owner.fill("#vf-answer", "Losing the saved card.");
     await owner.press("#vf-answer", "Control+Enter");
@@ -267,13 +238,10 @@ async function main() {
     await gatherCard.locator('.vf-react[data-r="down"]').click();
     ok("👎 reaches the server", await server(() => window.Core.snapshot()?.cards?.Q6?.find(c => c.ref === "p:host")?.reactions?.down === 1));
 
-    // ---------- no Something else on confirm and prototype questions ----------
     await go(gus, "Q7", "Did you mean this button?");
-    // Only what shows counts: innerText and offsetParent skip the hidden controls of other formats.
     const shown = sel => `[...document.querySelectorAll("${sel}")].filter(e => e.offsetParent)`;
     ok("a confirm question shows no Something else… option or own-option box", await until(gus, new Function(`return !document.querySelector(".vf-fmt").hidden
       && ${shown(".vf-opt-other, .vf-check-other, .vf-rank-own")}.length === 0 && !/Something else…/.test(document.querySelector(".vf-fmt").innerText) && !document.getElementById("vf-other").offsetParent`)));
-    // Answer first (the session default) hides others' picks until you pick, in the picture viewer as on the card.
     await owner.evaluate(() => window.Core.pick("Q7", "opt-yes"));
     await until(gus, () => window.Core.snapshot()?.cards?.Q7?.some(c => c.votes?.length));
     await gus.locator(".vf-confirm-fig .vf-imgbtn").click();
@@ -288,9 +256,6 @@ async function main() {
     ok("a prototype question shows its variants and no Something else…", await until(gus, new Function(`return ${shown(".vf-opts .vf-opt")}.length === 2
       && ${shown(".vf-opt-other")}.length === 0 && !/Something else…/.test(document.querySelector(".vf-fmt").innerText)`)));
 
-    // ---------- ux-review-3: the confirm mark and size, picture options on a phone, tapping an option's name ----------
-    // A 390x844 phone screenshot with a dark "button" band over rows 700-760; in percent of the picture that is
-    // y 82.9-90.0 (700 / 844, 760 / 844), so the rect below marks it.
     const B = await s.start("ux3");
     const phoneShot = s.asset(B.dir, "phone.png", png(390, 844, [700, 760]));
     const pa = s.asset(B.dir, "a.png", png(1440, 900)), pb = s.asset(B.dir, "b.png", png(1440, 900, [100, 200]));
@@ -311,8 +276,6 @@ async function main() {
     const tabs = await tabTop();
     ok("phone, picture options: both Choose buttons are above the tab bar at first view", firstStill && chooseBottoms.length === 2 && chooseBottoms.every(b => b <= tabs),
       `${chooseBottoms} vs tab bar ${tabs}${firstStill ? "" : ", not settled"}`);
-    // The mark is inside the picture and inside the part of it on screen; the picture uses the column's width.
-    // Measured once the page holds still; a page that does not counts as neither inside nor seen.
     const markIn = async page => { const still = await settled(page, { rects: true }), m = await page.evaluate(() => {
       const f = document.querySelector(".vf-confirm-fig"), r = e => e.getBoundingClientRect();
       const box = r(f.querySelector(".vf-confirm-box")), img = r(f.querySelector(".vf-confirm-img")), m = r(f.querySelector(".vf-confirm-mark"));
@@ -326,15 +289,12 @@ async function main() {
     let mk = await markIn(nia);
     ok("confirm on a phone: the marked area is drawn inside the picture and on screen", mk.ok, JSON.stringify(mk));
     ok("confirm on a phone: the picture spans the column (at least 90% of it), not a 115 px strip", mk.box[0] >= 0.9 * mk.col, JSON.stringify(mk));
-    // By hand: 80% of the box width marks the band; a 60 px band in 844 at the box's scale is at least 40 px tall.
     ok("confirm on a phone: the marked band is big enough to see (at least 40 px tall)", mk.m[3] >= 40, JSON.stringify(mk));
-    // Tapping an option's name picks it (Q3 has no pictures, so the name is the card's only text).
     await nia.locator(".vf-tab", { hasText: "Questions" }).tap();
     await nia.locator(".vf-q", { hasText: "Which default payment method?" }).first().tap();
     await until(nia, () => document.querySelector(".vf-qtext")?.textContent === "Which default payment method?");
     await nia.locator(".vf-opt .vf-optlabel", { hasText: "Saved method" }).tap();
     ok("tapping an option's name picks that option", await until(nia, p => (window.Core.snapshot()?.cards?.Q3?.find(c => c.ref === "o:opt-2")?.votes || []).includes(p), niaPid));
-    // A poll closes only as a whole: the owner sees Close poll and no Lock this one, on an option or on a person's own option.
     await nia.evaluate(() => window.Core.pick("Q4", "other", undefined, { other: "Next day" }));
     const bOwner = await rec.open(B.ownerUrl);
     await until(bOwner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -347,13 +307,11 @@ async function main() {
     ok("poll, as the owner: Close poll shows and no Lock this one shows on any option or answer card",
       await until(bOwner, () => [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Close poll")) && (await pollLocks()) === 0,
       `${await pollLocks()} Lock this one visible`);
-    // Standard 1 (the owner), Nia's own option 1: a tie, and a poll still closes as a tally with no winner.
     await closePoll.click();
     ok("poll, as the owner: Close poll closes a tied poll as a tally (no card), and Unlock shows",
       await until(bOwner, () => JSON.stringify(window.Core.snapshot()?.locks?.Q4?.source) === '{"kind":"poll"}' && [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Unlock")),
       JSON.stringify((await snap(bOwner))?.locks?.Q4));
 
-    // ---------- multi: None of these, which the server adds when the format asks and keeps apart from every other pick ----------
     const q5 = (await snap(bOwner)).questions.find(x => x.id === "Q5").format.options;
     ok("multi with none: the server adds None of these after Something else…", JSON.stringify(q5.slice(-2).map(o => [o.id, o.label, !!o.other, !!o.none])) === '[["other","Something else…",true,false],["none","None of these",false,true]]', JSON.stringify(q5));
     await bOwner.locator(".vf-q", { hasText: "Which wallets do you already use?" }).first().click();
@@ -371,12 +329,9 @@ async function main() {
     ok("ticking another option clears None of these on the page", !(await row5("None of these").locator("input").isChecked()) && await row5("Google Wallet").locator("input").isChecked());
     await bOwner.click(".vf-fmt-save");
     ok("the saved picks no longer hold None of these", await saved5('["opt-2"]'), await picks5());
-    // The server enforces it too: a page that sends both keeps the pick just made.
     const both = await bOwner.evaluate(() => window.Core.pickWith("Q5", { options: ["opt-2", "none"] }, {}).then(() => "", e => String(e)));
     ok("the server keeps None of these alone when it is the pick just made", !both && await saved5('["none"]'), both || await picks5());
     await bOwner.close();
-    // A state.json the 6579f21 build wrote can hold a pixel-sized rect (it took any number); it loads as it is and
-    // the page clamps the mark into the picture.
     await nia.close();
     s.share(B.dir, "stop");
     const statePath = require("node:path").join(B.dir, "state.json"), fsx = require("node:fs");
@@ -392,7 +347,6 @@ async function main() {
     ok("a pixel-sized rect from an earlier build loads and the page clamps its mark into the picture",
       (await snap(ola)).questions.find(x => x.id === "Q2").format.rect?.y === 700 && (mk = await markIn(ola)).seen, JSON.stringify(mk));
 
-    // ---------- the phone layout and the page rules ----------
     await go(pia, "Q2", "Which payment methods should checkout offer?");
     ok("on the phone the options fit the width", await pia.evaluate(() => { const f = document.querySelector(".vf-fmt"); return f.scrollWidth <= f.clientWidth + 1; }));
     ok("no request was answered 429 (slow down)", rec.too.length === 0, rec.too.slice(0, 5).join(", "));

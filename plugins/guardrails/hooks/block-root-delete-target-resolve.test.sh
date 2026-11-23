@@ -42,7 +42,6 @@ alive() {
   done
 }
 
-# shim <name> <body>: an executable named <name> in the test's shim directory.
 SHIMS="$TEST_TMPDIR/shims"
 mkdir -p "$SHIMS"
 shim() {
@@ -50,7 +49,6 @@ shim() {
   chmod +x "$SHIMS/$1"
 }
 
-# same_as_subst <label> <body>: the helper's value and status equal `$(...)`'s.
 same_as_subst() {
   local want want_rc=0 got got_rc=0
   shim emit "$2"
@@ -84,7 +82,6 @@ rc=0
 rdt_bounded_to got 10 "$SHIMS/no-such-command" || rc=$?
 if ((rc == 127)); then ok 'a missing command answers 127'; else no 'a missing command answers 127' "rc=$rc"; fi
 
-# Expiry: 124, and the process is gone.
 shim slow 'echo $$ >"$1"; exec sleep 60'
 rc=0
 start=$SECONDS
@@ -98,7 +95,6 @@ else
   ok 'expiry kills the command'
 fi
 
-# A command that closes stdout and keeps running is still bounded.
 shim closes 'echo hi; exec >&-; echo $$ >"$1"; exec sleep 60'
 rc=0
 start=$SECONDS
@@ -115,8 +111,6 @@ else
   ok 'a closed stdout command is killed'
 fi
 
-# A child the command starts without exec is killed too, and does not hold the
-# bound open past its time.
 shim wraps 'sleep 60 & echo $! >"$1"; wait'
 rc=0
 start=$SECONDS
@@ -133,7 +127,6 @@ else
   ok 'a child started without exec is killed'
 fi
 
-# RDT_BOUND_UNSET reaches the command and not the caller.
 shim showenv 'printf "%s" "${RDT_T_VAR-unset}"'
 export RDT_T_VAR=set
 RDT_BOUND_UNSET=(RDT_T_VAR)
@@ -146,9 +139,6 @@ else
 fi
 unset RDT_T_VAR
 
-# Many calls leak no descriptor into their caller. A subshell compares its own
-# descriptor table, which only its calls change, so a process substitution of an
-# earlier case closing late in this shell cannot show up.
 leak=$(
   before=(/proc/$BASHPID/fd/*)
   for ((i = 0; i < 20; i++)); do rdt_bounded_to got 10 "$SHIMS/showenv"; done
@@ -157,7 +147,6 @@ leak=$(
 )
 if [[ "$leak" == same ]]; then ok 'no descriptor leaks'; else no 'no descriptor leaks' "$leak"; fi
 
-# --- The guard refuses when a resolver outlives the time left --------------
 unset CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 GUARD="$HOOK_DIR/block-root-delete-target.sh"
@@ -166,12 +155,8 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 REPO_TOP=$(git -C "$REPO" rev-parse --show-toplevel)
 REPO_TOP="${REPO_TOP//$'\r'/}"
-# The `~` keeps the operand off the in-shell resolver on Windows, so realpath
-# runs on every host.
 PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_TOP" '{tool_name:"Bash",tool_input:{command:"rm -rf ./x~1/build"},cwd:$d}')
 
-# judge <path prefix>: the guard's status and output for PAYLOAD, in rc and out,
-# starting 40 s into the hook's 50 s, so 10 s are left.
 judge() {
   rc=0
   start=$SECONDS
@@ -182,7 +167,6 @@ judge() {
 judge ""
 if ((rc == 0)); then ok 'control: the same delete is allowed with no slow process'; else no 'control: the same delete is allowed with no slow process' "rc=$rc: $out"; fi
 
-# too_slow <tool>: a <tool> that sleeps past the time left is refused and killed.
 too_slow() {
   local bin=$SHIMS-$1 pidfile="$TEST_TMPDIR/$1.pid"
   mkdir -p "$bin"
@@ -205,12 +189,6 @@ too_slow() {
 too_slow git
 too_slow realpath
 
-# --- On Git Bash, the in-shell resolvers give the processes' answers ---------
-# Each path goes through realpath -m and the guard's cygpath rule (nearest
-# existing ancestor, a symlink leaf by its parent), and through rdt_phys_to and
-# rdt_win_to. A helper may decline (status 1); an answer must match: the
-# physical one exactly, the Windows one in the spelling the guard compares
-# (rdt_canon_to: slashes squeezed, no trailing slash, lower case).
 skips=0
 case "${OSTYPE:-}" in
   msys* | cygwin*) on_windows=1 ;;
@@ -290,9 +268,6 @@ else
     done
   done
   unset CDPATH
-  # Declines this suite pins: each answer would differ from the processes', or
-  # the path is on a drive that is not local. A host whose `ln -s` copies
-  # instead of linking (Git Bash without native symlinks) has no link to decline.
   free=""
   for l in Q R S T U V W X Y Z; do [[ -e "$l:/" ]] || {
     free="$l"

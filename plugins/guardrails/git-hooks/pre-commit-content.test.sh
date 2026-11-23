@@ -18,7 +18,6 @@
 # test-scope: plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,9 +32,6 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 # shellcheck source=../lib/git-hooks-test-helpers.sh
 source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
-# Fixtures are assembled at run time, so no real-shape token or machine path
-# sits in this file's own bytes for a scanner to find. Never fold them into
-# literals.
 SL='/'
 FAKE_GHP="ghp_$(printf 'A%.0s' {1..36})"
 FAKE_OPENAI="sk-$(printf 'A%.0s' {1..20})"
@@ -53,7 +49,7 @@ new_repo() {
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stderr>"
+check() {
   local repo="$1" err rc
   shift
   err="$(cd "$repo" && bash "$CHECK" "$@" 2>&1 >/dev/null)"
@@ -61,7 +57,7 @@ check() { # <repo> [args...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-rc_of() { # <repo> [args...] -> rc
+rc_of() {
   local got
   got="$(check "$@")"
   printf '%s' "${got%%|*}"
@@ -93,7 +89,6 @@ printf 'line one\nline two\n"cwd": "%s"\nsee %s here\n' "${SL}home${SL}runner" "
 git -C "$REPO" add notes.md
 expect "the hosted runner's home on an added line passes" "0|" "$(check "$REPO")"
 
-# The Edit semantics check-bash-file-changes used: only the lines the change adds.
 new_repo
 printf 'line one\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
@@ -169,9 +164,6 @@ printf 'see %s\n' "$FAKE_LINUX" >"$REPO/tests/fixtures/path.txt"
 git -C "$REPO" add -A
 expect "tests/fixtures is still scanned for machine paths" 1 "$(rc_of "$REPO")"
 
-# The repository's exemption list, read from the default branch (origin/HEAD):
-# a listed file or directory is skipped, an unlisted file is still judged, and
-# a list only staged or in the work tree exempts nothing.
 new_repo
 mkdir -p "$REPO/docs/conventions" "$REPO/vendor/copies"
 printf '# path<TAB>reason\nvendor/copies/\tvendored copies\nlisted.md\tfixture\n' \
@@ -193,15 +185,12 @@ expect "a listed file and directory are skipped, an unlisted file is still flagg
 $HINT" "$(check "$REPO")"
 git -C "$REPO" rm -q --cached unlisted.md
 expect "with only listed paths staged, the commit passes" "0|" "$(check "$REPO")"
-# The list exempts path findings only: a secret in a listed file still blocks.
 printf 'see %s\ntoken=%s\n' "$FAKE_LINUX" "$FAKE_GHP" >"$REPO/listed.md"
 git -C "$REPO" add listed.md
 expect "a secret in a listed file still blocks, its machine path still exempt" \
   "1|listed.md:2: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
 
-# A force-added ignored file is what the commit holds, and .env is the usual
-# secret carrier.
 new_repo
 printf '.env\n' >"$REPO/.gitignore"
 printf 'token=%s\n' "$FAKE_GHP" >"$REPO/.env"
@@ -213,8 +202,6 @@ expect "--worktree: a tracked gitignored file is judged" 1 "$(rc_of "$REPO" --wo
 git -C "$REPO" rm -q --cached .env
 expect "--worktree: an untracked gitignored file is not judged" "0|" "$(check "$REPO" --worktree)"
 
-# secret-pattern-detection's path options exempt a Write, never a commit: an
-# ignored file under an allowed root, force-added, still blocks with both set.
 new_repo
 mkdir -p "$REPO/notes"
 printf 'notes/\n' >"$REPO/.gitignore"
@@ -259,10 +246,6 @@ $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/loose.md"
 expect "--worktree: no uncommitted change passes" "0|" "$(check "$REPO" --worktree)"
 
-# One commit of many files judged together gives each file's own findings: a
-# secret, machine paths, a Windows path a .ps1 may hold beside a Linux path it
-# may not, a NUL-byte file, a name git quotes, and clean text the path scan
-# still has to read (ASCII and not).
 new_repo
 BS="\\"
 FAKE_WIN="C:${BS}Users${BS}alice${BS}build.log"
@@ -289,9 +272,6 @@ git -C "$REPO" add -A
 expect "files judged together keep each file's findings" "$want
 $HINT" "$(check "$REPO")"
 
-# A merge in progress is judged on the lines it adds against every parent, its
-# conflict resolution: what the merged branch already holds, in a file of its
-# own, a NUL-byte file or a line of a file both sides changed, does not block.
 new_repo
 git -C "$REPO" checkout -q -b side
 printf 'line one\nside change\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
@@ -335,9 +315,6 @@ printf '%s\n' "$side" >"$REPO/.git/MERGE_HEAD"
 expect "a merge: a symlink target turned into a regular file with the same bytes is judged" "1|t.txt:1: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
 
-# A commit that turns HEAD's symlink into a regular file adds every line of it;
-# one that turns a regular file into a symlink adds no content. Built with
-# plumbing, as above.
 new_repo
 blob="$(printf 'elsewhere' | git -C "$REPO" hash-object -w --stdin)"
 git -C "$REPO" update-index --add --cacheinfo "120000,$blob,t.txt"
@@ -347,8 +324,6 @@ git -C "$REPO" update-index --cacheinfo "100644,$blob,t.txt"
 expect "a symlink turned into a regular file is judged whole" "1|t.txt:2: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
 
-# The same type change in a merge: only what the merge adds against the other
-# parent, which holds the regular file, is judged.
 notes="$(git -C "$REPO" rev-parse HEAD:notes.md)"
 tree="$(printf '100644 blob %s\tnotes.md\n100644 blob %s\tt.txt\n' "$notes" "$blob" | git -C "$REPO" mktree)"
 side="$(git -C "$REPO" commit-tree -p "$(git -C "$REPO" rev-parse HEAD~1)" -m side "$tree")"
@@ -366,10 +341,6 @@ blob="$(printf 'token=%s' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
 git -C "$REPO" update-index --cacheinfo "120000,$blob,t.txt"
 expect "a regular file turned into a symlink is not judged" "0|" "$(check "$REPO")"
 
-# A text tool that fails mid-scan (gawk's "fatal error: internal error" on a
-# large merge) blocks the commit instead of leaving content unscanned. Each case
-# fails the calls whose arguments hold its marker, so each site is proved on
-# its own, and the staged change holds a finding that site carries.
 SHIMS="$WORK/shims"
 mkdir "$SHIMS"
 for t in awk grep sed sort cut; do
@@ -378,7 +349,7 @@ for t in awk grep sed sort cut; do
     "$t" "$(command -v "$t")" >"$SHIMS/$t"
   chmod +x "$SHIMS/$t"
 done
-check_failing() { # <repo> <marker> -> "<rc>|<last stderr line>"
+check_failing() {
   local err rc
   err="$(cd "$1" && PATH="$SHIMS:$PATH" SHIM_FAIL="$2" bash "$CHECK" 2>&1 >/dev/null)"
   rc=$?
@@ -405,8 +376,6 @@ for c in \
   git -C "$REPO" add notes.md
   expect "a failing scan tool blocks: $label" "1|$SCAN_ERR" "$(check_failing "$REPO" "$marker")"
 done
-# The library greps send their stderr to /dev/null, so the hook names the tool
-# that failed itself.
 new_repo
 printf 'line one\nline two\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
@@ -422,7 +391,6 @@ printf 'line one\nline two\nclean\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "a scan whose tools all succeed passes through the shims" "0|" "$(check_failing "$REPO" 'no-such-marker')"
 
-# End to end through the plugin's vendored installer and a real commit.
 new_repo
 status="$(node "$INSTALL" copy --scope local --entry pre-commit-content --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"pre-commit-content","status":"installed"}]' "$status"
@@ -443,8 +411,6 @@ expect "a clean commit passes through the installed entry" 0 "$?"
 expect "verify reports the entry ok" "ok	pre-commit-content" \
   "$(node "$INSTALL" verify --repo "$REPO" | grep 'pre-commit-content')"
 
-# A shared install commits the copies under .githooks/guardrails/; the copies'
-# own pattern text must not trip the check that ships them.
 new_repo
 node "$INSTALL" copy --scope shared --manager plain --entry pre-commit-content --repo "$REPO" >/dev/null
 git -C "$REPO" config core.hooksPath .githooks

@@ -13,7 +13,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 | Class | Which files | What it owes | Where it runs |
 |---|---|---|---|
-| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then the comment pass (`code-tidying:remove-comments`), then `verification:confirm` | §1.2 to §1.5 |
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then the comment pass (`code-tidying:remove-comments`), then the §1.5 changed-files check, which runs no test suite | §1.2 to §1.5 |
 | `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
 | `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
 | `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |
@@ -27,7 +27,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 Every skill named below is invoked through the Skill tool when its plugin is enabled, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
 
-**No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits: a docs-only branch owes the prose audits in 1.2.1. Satisfy any extra prep requirements (hooks, gates) the consuming project layers on PR creation, per its own docs.
+**No `code` class?** Skip 1.2 to 1.4; the pre-PR check (1.5) reduces to lint. The other classes still owe their audits: a docs-only branch owes the prose audits in 1.2.1. Satisfy any extra prep requirements (hooks, gates) the consuming project layers on PR creation, per its own docs.
 
 ## 1.2 Review the changes (the `code` class)
 
@@ -85,28 +85,36 @@ Unless `quick` or `review-only` scope:
 2. **Run the comment pass** over the branch's changed code files, after simplify and before any review of the result: `/code-tidying:remove-comments --pipeline --base <remote>/<base-branch>` when the `code-tidying` plugin is enabled. Its default posture, `necessary`, deletes warnings about this repository's own code, a security warning included, and stages each in its report. An unattended run (invoked with `--unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk` session, a dispatched worker) applies no comment edit unless the consuming project's instructions pre-approve applied comment edits in unattended runs: without that, run `/code-tidying:remove-comments report --pipeline --base <remote>/<base-branch>` and put its proposals in the 1.6 report. Without the plugin, put `comment pass not run: code-tidying plugin not enabled` in the 1.6 report
 3. **Show the simplify and comment-pass diff**: run `git diff` and present what changed. Automated simplification fixes and comment deletions are not research-verified; treat them like any code-review finding: inspect each change, approve or revert
 4. **Pause for user review**: let the user approve/reject simplify and comment-pass changes before proceeding
-5. Re-run tests on approved changes
-6. Run the verify gate (1.5)
+5. Run the pre-PR check (1.5) on the approved changes
 
-## 1.5 Verify gate (hard: blocks PR creation)
+## 1.5 Pre-PR check (hard: blocks PR creation)
 
-Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the build, test and lint commands the repository's own CI workflows, ecosystem records or project instructions name for every ecosystem the branch touches; an ecosystem none of them names a command for is reported as unresolved. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
+The pre-PR check is one quick check of the branch's changed files, never a test suite: CI runs the suites, and the ready step runs them only on a head CI has not tested ([ready-for-review.md](ready-for-review.md) §2.5.3, **CI's test lanes**). The check is, in order:
 
-**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that looks like it touches one ecosystem can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
+1. **The repository's affected-files check, without its tests.** `scripts/check-affected.sh` when the repository ships it, run from the worktree root without `--tests`. Otherwise the lint and build commands the repository's CI workflows, ecosystem records or project instructions name for each ecosystem the branch touches, leaving out test suites; an ecosystem none of them names a command for is reported as unresolved. It covers every file the branch changes, not only the "obvious" ecosystem: a touched README, an unmarked `.sh` script or a workflow file can fail CI too.
+2. **guardrails `reference-verify` and bash-format `lint-full`, where the repository has them and item 1 does not already run them** (this marketplace's `scripts/check-affected.sh` does, as `plugins/guardrails/git-hooks/reference-verify.sh` and `plugins/bash-format/git-hooks/lint-full.sh`). Both are over the 3 s git-hook budget, so no hook runs them. Run each with `--base` and the default branch's remote-tracking ref, so it judges every commit from the merge-base, pushed ones included, from the checkout being opened, a literal absolute path, never one derived from the shell's directory:
+
+   ```bash
+   (cd "<checkout>" && sh "<script>" --base "<remote>/<default-branch>")
+   ```
+
+**All results must be clean before proceeding to PR creation.** Record the head the check ran on (`git rev-parse HEAD`) in the 1.6 report: [create.md](create.md) §2.3.4 skips the check on that head.
 
 **Decision rule:**
 
 - Any FAIL → stop. Address each before reattempting. Do not proceed to PR creation
 - Any skip due to "tool missing" → install the tool or document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
 - Any unresolved ecosystem → name it and the files it covers in the PR body as not verified locally, so CI is its only check
-- All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
+- Every SKIP is reported with its reason
+- Every check skipped, "not applicable" skips included → the result is "not verified", never clean: name it in the PR body as not verified locally, so CI is its only check
+- At least one check ran, and every result is clean or a non-applicable skip like "no `.md` changes" → proceed to PR creation
 
-**This gate runs last**, so nothing that edits the tree may run after it.
+**This check runs last**, so nothing that edits the tree may run after it.
 
-**Why this gate is hard:** cost asymmetry. A mechanical issue caught locally costs seconds; in CI it costs a multi-minute round trip plus rebase/repush overhead, and one sloppy PR can waste half a dozen CI cycles on issues all catchable locally.
+**Why this check is hard:** cost asymmetry. A mechanical issue caught locally costs seconds; in CI it costs a multi-minute round trip plus rebase/repush overhead, and one sloppy PR can waste half a dozen CI cycles on issues all catchable locally.
 
 ## 1.6 Report
 
-Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), pre-PR check pass/fail per ecosystem, each SKIP with its reason, and the head it ran on, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
-**Prep before create is the developer loop.** The branch updates in [create.md](create.md) §2.2 and [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the verify gate on the head it flips.
+**Prep before create is the developer loop.** The branch updates in [create.md](create.md) §2.2 and [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the pre-PR check on the head it flips.

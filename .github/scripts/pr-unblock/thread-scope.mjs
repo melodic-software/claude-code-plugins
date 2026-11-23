@@ -42,7 +42,6 @@ export const isInstructionPath = (path) => INSTRUCTION_PATH.test(String(path));
 
 const PLUGIN_DIR = /^plugins\/[^/]+\//;
 const pluginOf = (path) => PLUGIN_DIR.exec(path)?.[0];
-// A plugin's or a skill's eval cases, fixtures and scaffolds.
 const EVAL_PATH = /^plugins\/[^/]+\/(skills\/[^/]+\/)?evals\//;
 const TEST_FILE = /^(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(test|spec)\.[^/]+)$/;
 const dirOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
@@ -52,7 +51,6 @@ const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
 // ASCII letters, digits and _@+.- in /-separated segments: no backslash,
 // space, control or non-ASCII character.
 const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
-// Plain and in normal form.
 const isPlainPath = (path) => PLAIN_PATH.test(path) && !BAD_SEGMENT.test(path);
 
 // Control-plane and agent-instruction surfaces outside plugins/<p>/: anything

@@ -79,7 +79,6 @@ async function lookup(entry, { dataDir, now, fetchJson }) {
   } catch {}
   const checkedAt = now.toISOString()
   const save = rec => writeFileSync(file, `${JSON.stringify({ checkedAt, ...rec })}\n`)
-  // Claim the slot before asking: a cache that cannot be written means no lookup at all.
   try {
     mkdirSync(dirname(file), { recursive: true })
     save({ error: 'lookup in progress' })
@@ -106,7 +105,7 @@ export function freshness(lastCommit, now) {
 }
 
 const offerText = (e, date) =>
-  `${e.name}, an optional ${e.kind} that ${e.helps}${date ? `, last updated ${date}` : ''}, is not installed; say "install ${e.name}" to add it`
+  `${e.name} ${e.helps}${date ? ` (last updated ${date})` : ''}. Say "install ${e.name}" to add it`
 
 export async function findOffers({
   entries = loadOfferable(),

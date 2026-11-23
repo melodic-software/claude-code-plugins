@@ -56,7 +56,9 @@ Options:
 
 JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
 {"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
-{"model", "fanout_model", "effort"}}}, "layers": [{"layer", "path", "state"}],
+{"model", "fanout_model", "effort"}}}, "vendors": {"routing", "trials",
+"auto_delegation", "tiebreak", "trials_prove", "trials_fail", "claude", "codex",
+"antigravity", "sources", "source"}, "layers": [{"layer", "path", "state"}],
 "notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
 basis is `upstream` or `judgment` as the bundled layer records it
 (basis_<field> in reference/defaults.yaml), `config` when a consumer layer
@@ -81,6 +83,8 @@ EOF
 # level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable "
 EFFORTS=" low medium high xhigh max "
+TIEBREAK_STEPS=" vendor-order fewest-tokens most-usage-left "
+SOURCE_ID_RE='^[a-z0-9][a-z0-9-]*$'
 
 die() {
   printf 'resolve-roles: %s\n' "$1" >&2
@@ -182,6 +186,9 @@ LAYERS_JSON=()
 WL_NAMES=()
 WL_KEYS=()
 WL_NAME_RE='^[A-Za-z0-9_][A-Za-z0-9_-]*$'
+V_TIEBREAK=()
+V_TIEBREAK_SRC=""
+V_SOURCE_IDS=()
 
 while IFS=$'\t' read -r key value; do
   [[ -n "$key" ]] || continue
@@ -190,6 +197,16 @@ while IFS=$'\t' read -r key value; do
   if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then WL_NAMES+=("${BASH_REMATCH[1]}"); fi
   if [[ "$key" =~ ^roles\.[^.]+\.workloads\.([^.]+)\.(model|effort)$ ]]; then
     WL_KEYS+=("bundled"$'\t'"$key"$'\t'"${BASH_REMATCH[1]}")
+  fi
+  if [[ "$key" =~ ^vendors\.tiebreak\.[0-9]+$ ]]; then
+    V_TIEBREAK+=("$value")
+    V_TIEBREAK_SRC=bundled
+  fi
+  if [[ "$key" =~ ^vendors\.sources\.([^.]+)\.enabled$ ]]; then
+    sid="${BASH_REMATCH[1]}"
+    if [[ " ${V_SOURCE_IDS[*]+"${V_SOURCE_IDS[*]}"} " != *" $sid "* ]]; then
+      V_SOURCE_IDS+=("$sid")
+    fi
   fi
 done <<<"$bundled"
 
@@ -203,7 +220,10 @@ valid_value() { # valid_value <field> <value>
   model) [[ "$2" == inherit || "$ALIASES" == *" $2 "* ]] ;;
   fanout_model) [[ "$ALIASES" == *" $2 "* ]] ;;
   effort) [[ "$EFFORTS" == *" $2 "* ]] ;;
-  frontier_guard | declared) [[ "$2" == true || "$2" == false ]] ;;
+  frontier_guard | declared | bool) [[ "$2" == true || "$2" == false ]] ;;
+  trials_prove) [[ "$2" =~ ^[1-9][0-9]*$ ]] ;;
+  trials_fail) [[ "$2" =~ ^[1-9][0-9]*$ ]] && ((10#$2 >= 2)) ;;
+  vendor_rank) [[ "$2" =~ ^-?(0|[1-9][0-9]*)$ ]] ;;
   frontier)
     local a parts=()
     # read drops one trailing empty field, so a trailing comma is refused here,
@@ -223,7 +243,8 @@ layer_state() { # layer_state <label> <path> <state>
 
 # apply_layer <label> <path> <records>
 apply_layer() {
-  local label="$1" path="$2" records="$3" key value field role w
+  local label="$1" path="$2" records="$3" key value field role w sid=""
+  local layer_tb=() layer_tb_seen=0 layer_tb_bad=0
   if [[ "$(awk -F '\t' '$1=="schema"{print $2}' <<<"$records")" != 1 ]]; then
     NOTES+=("$label layer skipped: $path does not declare schema: 1")
     layer_state "$label" "$path" skipped
@@ -233,12 +254,29 @@ apply_layer() {
   while IFS=$'\t' read -r key value; do
     [[ -n "$key" && "$key" != schema ]] || continue
     role=""
+    sid=""
     case "$key" in
     frontier) field=frontier ;;
     # Not a role-map key: lib/read-verification.sh reads it from the team file at the default branch.
     verification | verification_skills.*) continue ;;
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
+    vendors.auto_delegation)
+      if [[ "$label" != user-config && "$label" != user-global ]]; then
+        NOTES+=("$label: vendors.auto_delegation ignored: only the user layer (role_map_file) sets it, never a file inside a repository")
+        continue
+      fi
+      field=bool
+      ;;
+    vendors.routing | vendors.trials) field=bool ;;
+    vendors.trials_prove) field=trials_prove ;;
+    vendors.trials_fail) field=trials_fail ;;
+    vendors.tiebreak)
+      value="${value//[^[:print:]]/?}"
+      NOTES+=("$label: vendors.tiebreak rejected: '${value:0:40}' is not a list of allowed tiebreak steps; the layer below supplies it")
+      layer_tb_bad=1
+      continue
+      ;;
     *)
       if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then
         w="${BASH_REMATCH[1]}" field=declared
@@ -254,6 +292,32 @@ apply_layer() {
           NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
           continue
         fi
+      elif [[ "$key" =~ ^vendors\.tiebreak\.[0-9]+$ ]]; then
+        layer_tb_seen=1
+        if [[ "$TIEBREAK_STEPS" != *" $value "* ]]; then
+          value="${value//[^[:print:]]/?}"
+          NOTES+=("$label: vendors.tiebreak rejected: '${value:0:40}' is not an allowed value; the layer below supplies it")
+          layer_tb_bad=1
+        elif [[ " ${layer_tb[*]+"${layer_tb[*]}"} " == *" $value "* ]]; then
+          NOTES+=("$label: vendors.tiebreak rejected: duplicate step '$value'; the layer below supplies it")
+          layer_tb_bad=1
+        else
+          layer_tb+=("$value")
+        fi
+        continue
+      elif [[ "$key" =~ ^vendors\.(claude|codex|antigravity)\.(in_use|rank)$ ]]; then
+        if [[ "${BASH_REMATCH[2]}" == in_use ]]; then
+          field=bool
+        else
+          field=vendor_rank
+        fi
+      elif [[ "$key" =~ ^vendors\.sources\.([^.]+)\.enabled$ ]]; then
+        sid="${BASH_REMATCH[1]}"
+        if [[ ! "$sid" =~ $SOURCE_ID_RE ]]; then
+          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a source id holds only lowercase letters, digits and -, and does not start with -")
+          continue
+        fi
+        field=bool
       elif [[ "$key" =~ ^(roles\.[^.]+|fanout)\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$ ]]; then
         NOTES+=("$label: $key ignored: provenance keys are read from the bundled layer only")
         continue
@@ -277,8 +341,16 @@ apply_layer() {
       WL_NAMES+=("$w")
     elif [[ "$key" == *.workloads.* ]]; then
       WL_KEYS+=("$label"$'\t'"$key"$'\t'"$w")
+    elif [[ -n "$sid" ]]; then
+      if [[ " ${V_SOURCE_IDS[*]+"${V_SOURCE_IDS[*]}"} " != *" $sid "* ]]; then
+        V_SOURCE_IDS+=("$sid")
+      fi
     fi
   done <<<"$records"
+  if ((layer_tb_seen && !layer_tb_bad)); then
+    V_TIEBREAK=("${layer_tb[@]+"${layer_tb[@]}"}")
+    V_TIEBREAK_SRC="$label"
+  fi
 }
 
 # read_layer <label> <path>
@@ -443,6 +515,55 @@ join() {
   printf '%s' "$*"
 }
 
+json_or_null() {
+  if [[ -n "$1" ]]; then json_str "$1"; else printf 'null'; fi
+}
+
+raw_or_null() {
+  if [[ -n "$1" ]]; then printf '%s' "$1"; else printf 'null'; fi
+}
+
+vendors_json() {
+  local r t ad tp tf tb_items=() step vn v_parts=() vs_parts=() s_parts=() ss_parts=() sorted_sids sid
+  r="$(val vendors.routing)"
+  [[ -n "$r" ]] || r=true
+  t="$(val vendors.trials)"
+  [[ -n "$t" ]] || t=false
+  ad="$(val vendors.auto_delegation)"
+  [[ -n "$ad" ]] || ad=false
+  tp="$(raw_or_null "$(val vendors.trials_prove)")"
+  tf="$(raw_or_null "$(val vendors.trials_fail)")"
+
+  for step in "${V_TIEBREAK[@]+"${V_TIEBREAK[@]}"}"; do
+    tb_items+=("$(json_str "$step")")
+  done
+
+  for vn in claude codex antigravity; do
+    v_parts+=("$(json_str "$vn"):{\"in_use\":$(raw_or_null "$(val "vendors.$vn.in_use")"),\"rank\":$(raw_or_null "$(val "vendors.$vn.rank")")}")
+    vs_parts+=("$(json_str "$vn"):{\"in_use\":$(json_or_null "$(src "vendors.$vn.in_use")"),\"rank\":$(json_or_null "$(src "vendors.$vn.rank")")}")
+  done
+
+  if ((${#V_SOURCE_IDS[@]} > 0)); then
+    sorted_sids="$(printf '%s\n' "${V_SOURCE_IDS[@]}" | LC_ALL=C sort)"
+    while IFS= read -r sid; do
+      [[ -n "$sid" ]] || continue
+      s_parts+=("$(json_str "$sid"):{\"enabled\":$(raw_or_null "$(val "vendors.sources.$sid.enabled")")}")
+      ss_parts+=("$(json_str "$sid"):{\"enabled\":$(json_or_null "$(src "vendors.sources.$sid.enabled")")}")
+    done <<<"$sorted_sids"
+  fi
+
+  printf '{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":[%s],"trials_prove":%s,"trials_fail":%s,%s,"sources":{%s},"source":{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":%s,"trials_prove":%s,"trials_fail":%s,%s,"sources":{%s}}}' \
+    "$r" "$t" "$ad" "$(join "${tb_items[@]+"${tb_items[@]}"}")" "$tp" "$tf" \
+    "$(join "${v_parts[@]}")" "$(join "${s_parts[@]+"${s_parts[@]}"}")" \
+    "$(json_or_null "$(src vendors.routing)")" \
+    "$(json_or_null "$(src vendors.trials)")" \
+    "$(json_or_null "$(src vendors.auto_delegation)")" \
+    "$(json_or_null "$V_TIEBREAK_SRC")" \
+    "$(json_or_null "$(src vendors.trials_prove)")" \
+    "$(json_or_null "$(src vendors.trials_fail)")" \
+    "$(join "${vs_parts[@]}")" "$(join "${ss_parts[@]+"${ss_parts[@]}"}")"
+}
+
 out_roles=()
 for r in "${ROLES[@]}"; do
   if [[ "$TARGET" == all || "$TARGET" == "$r" ]]; then
@@ -460,6 +581,6 @@ session='null'
 [[ -n "$SESSION_MODEL" ]] && session="$(json_str "$SESSION_MODEL")"
 workload='null'
 [[ -n "$WORKLOAD" ]] && workload="$(json_str "$WORKLOAD")"
-printf '{"session_model":%s,"session_frontier":%s,"workload":%s,"roles":{%s},"layers":[%s],"notes":[%s]}\n' \
-  "$session" "$SESSION_FRONTIER" "$workload" "$(join "${out_roles[@]}")" "$(join "${LAYERS_JSON[@]+"${LAYERS_JSON[@]}"}")" \
+printf '{"session_model":%s,"session_frontier":%s,"workload":%s,"roles":{%s},"vendors":%s,"layers":[%s],"notes":[%s]}\n' \
+  "$session" "$SESSION_FRONTIER" "$workload" "$(join "${out_roles[@]}")" "$(vendors_json)" "$(join "${LAYERS_JSON[@]+"${LAYERS_JSON[@]}"}")" \
   "$(join "${notes_json[@]+"${notes_json[@]}"}")"

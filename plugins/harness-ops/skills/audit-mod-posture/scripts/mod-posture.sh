@@ -11,7 +11,12 @@
 # Prints names only: plugin ids, hook event names and mods API method names, each filtered
 # through a strict grammar, plus fixed words. Never prints a settings or env value, a path,
 # or any `claude auth status` field but the derived guard state. From managed settings it
-# reads only `prependPlugins` and the guard's `allowModsToOverrideDenyRules`, printed as words.
+# reads only `prependPlugins`, the guard's `allowModsToOverrideDenyRules`, `disableSideloadFlags`
+# and `permissions.defaultMode`, and from user, project and local settings only
+# `permissions.defaultMode` (user settings being the one other file whose auto and
+# bypassPermissions values take effect; a lower mode in project or local settings still
+# overrides the user's), each printed as words:
+# https://code.claude.com/docs/en/settings-reference#permissions-defaultmode
 #
 # Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
 #                       [--overview <file> | --no-fetch] [--managed-file <file>]
@@ -67,16 +72,16 @@ TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf -- "${TMP:?}"' EXIT
 NOT_READ=()
 
-# The grammars every printed name must fully match; anything else prints as a fixed word:
-# `<event>{redacted}` when only a hook's filter fails, else `redacted`. Nothing is dropped.
 ID_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}@[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
 EVENT_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*$'
 HOOK_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*(\{[a-z][A-Za-z]*=[A-Za-z0-9._:-]{1,40}\})?$'
 CALL_RE='^\$\.[a-z][A-Za-z]*\.[a-z][A-Za-z]*$'
+NOUN_RE='^[A-Za-z_][A-Za-z0-9_]{0,63}$'
+MODE_WORD='def mode_word: if type == "string" then
+    (if IN("default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions", "manual") then . else "other" end)
+  else "unset" end;'
 
 safe_id() { [[ "$1" =~ $ID_RE ]] && printf '%s' "$1" || printf 'redacted-id'; }
-# filter_list <regex>: comma-separated names on stdin -> each name that matches, or its redacted
-# form, deduplicated in order, joined by commas; `-` when the list is empty.
 filter_list() {
   local re="$1" out="" item seen=","
   local IFS=','
@@ -104,25 +109,29 @@ ROWS=()
 WITHHELD=0
 row() {
   local f item items
-  for f in "$5" "$6"; do
+  for f in "$5" "$6" "$8"; do
     IFS=',' read -r -a items <<<"$f"
     for item in "${items[@]}"; do [[ "$item" == *redacted* ]] && WITHHELD=$((WITHHELD + 1)); done
   done
-  ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$@")")
+  ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$@")")
 }
-# after_marker <marker>: lines on stdin -> the text after the first occurrence of the marker, so a
-# module path with spaces never hides the names after it.
 after_marker() { awk -v m="$1" '{ i = index($0, m); if (i) print substr($0, i + length(m)) }'; }
+declare -A NOUN_MARKER=([add]=' adds to $: ' [withhold]=' withholds from $: ' [replace]=' replaces on $: ')
+nouns_of() {
+  local verb list out=""
+  for verb in add withhold replace; do
+    list="$(printf '%s\n' "$1" | after_marker "${NOUN_MARKER[$verb]}" | sed -E 's/ \([^)]*\)//g; /^nothing( on \$)?$/d' |
+      paste -sd, - | filter_list "$NOUN_RE")"
+    [[ "$list" == "-" ]] || out+="${out:+,}$(printf '%s' "$list" | sed "s/[^,]*/$verb:&/g")"
+  done
+  printf '%s' "${out:--}"
+}
 
-# --- Guard -----------------------------------------------------------------------------
-# Seated when the machine has managed settings or a managed-mcp.json, or the account is on a
-# Team or Enterprise plan (mods admin page, "Know what happens by default"). managed-mcp.json
-# sits beside managed-settings.json on each OS (managed MCP page, "Deploy managed-mcp.json").
 managed="unknown"
 base="$(mscope::base_file "$MANAGED_FILE")"
 dropin="$(mscope::dropin_dir "$MANAGED_FILE")"
 prepend_omits=0 override=0
-# An OS policy store can set prependPlugins too, and this script reads none.
+managed_read=0 managed_mode="unset" managed_sideload="unset"
 note_os_store() {
   [[ -z "$MANAGED_FILE" && -n "$(mscope::registry_keys)$(mscope::plist_domain)" ]] &&
     NOT_READ+=("guard: prependPlugins and guard options are read from the managed files only, not an OS policy store")
@@ -143,6 +152,14 @@ if [[ -f "$base" ]] || compgen -G "$dropin/*.json" >/dev/null 2>&1; then
         | booleans] | last // false)' "${files[@]}" 2>/dev/null)"; then
     [[ "${guard_keys%%$'\n'*}" == "omits" ]] && prepend_omits=1
     [[ "${guard_keys##*$'\n'}" == "true" ]] && override=1
+    if sideload_keys="$(jq -rs "$MODE_WORD"'
+        ([.[] | .permissions?.defaultMode? | strings] | last | mode_word),
+        ([.[] | .disableSideloadFlags? | booleans] | if length == 0 then "unset" else (last | tostring) end)' \
+      "${files[@]}" 2>/dev/null)"; then
+      managed_read=1
+      managed_mode="${sideload_keys%%$'\n'*}"
+      managed_sideload="${sideload_keys##*$'\n'}"
+    fi
   else
     managed="unreadable"
   fi
@@ -201,16 +218,43 @@ if ((GUARD_ONLY)); then
   exit 0
 fi
 
-# --- Installed tier --------------------------------------------------------------------
+mode_of() {
+  [[ -f "$1" ]] || {
+    printf 'unset'
+    return 0
+  }
+  jq -r "$MODE_WORD"' .permissions?.defaultMode? | mode_word' "$1" 2>/dev/null || printf 'unreadable'
+}
+mode="$managed_mode" mode_from="managed"
+if [[ "$mode" == "unset" ]]; then
+  mode="$(mode_of "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json")" mode_from="user"
+  # https://code.claude.com/docs/en/settings-reference#permissions-defaultmode
+  for scope in project local; do
+    file="$PROJECT/.claude/settings.json"
+    [[ "$scope" == "local" ]] && file="$PROJECT/.claude/settings.local.json"
+    scope_mode="$(mode_of "$file")"
+    case "$scope_mode" in unset | auto | bypassPermissions) ;; *) mode="$scope_mode" mode_from="$scope" ;; esac
+  done
+fi
+if [[ "$managed_sideload" == "true" ]]; then
+  written="not-unasked (managed disableSideloadFlags true)"
+elif ((!managed_read)) && [[ "$managed" != "absent" && "$managed" != "mcp" ]]; then
+  written="unknown (managed settings not read)"
+else
+  case "$mode" in
+  auto | bypassPermissions)
+    written="load-unasked (defaultMode $mode in $mode_from settings; disableSideloadFlags $managed_sideload)"
+    ;;
+  default | acceptEdits | plan | dontAsk | manual | other | unset) written="not-unasked (defaultMode $mode)" ;;
+  *) written="unknown ($mode_from settings unreadable)" ;;
+  esac
+fi
+NOT_READ+=("claude-written mods: --permission-mode, --dangerously-skip-permissions and --settings are not read; managed values come from the managed files only")
+
 project_real="$(cd "$PROJECT" 2>/dev/null && pwd -P)" || project_real=""
 if ! "$CLAUDE" plugin list --json >"$TMP/list.json" 2>/dev/null || ! jq -e 'type == "array"' "$TMP/list.json" >/dev/null 2>&1; then
   NOT_READ+=("installed tier: claude plugin list --json did not return a list")
 else
-  # One line per installPath: path, id, tier, enabled. An entry counts toward `enabled` when it
-  # applies to this project: user or managed scope, or a project or local entry for --project.
-  # A path no such entry names is `elsewhere`: skipped, and counted in a footer. `tier` is the
-  # first scope among those entries in the order managed, local, project, user. A missing id is
-  # `-`, never empty: IFS=$'\t' is whitespace, so read would merge an empty field into the next.
   jq -r --arg proj "$project_real" '
     [.[] | select((.installPath | type) == "string")]
     | group_by(.installPath)[]
@@ -235,27 +279,26 @@ else
     if "$CLAUDE" plugin validate --json "$path" >"$TMP/validate.json" 2>/dev/null || jq -e '.contents' "$TMP/validate.json" >/dev/null 2>&1; then
       notes="$(jq -r '[.contents[]?.notes[]? | strings] | .[]' "$TMP/validate.json" 2>/dev/null)"
       hooks="$(printf '%s\n' "$notes" | after_marker ' hooks: ' | paste -sd, - | filter_list "$HOOK_RE")"
-      calls="$(printf '%s\n' "$notes" | after_marker ' calls: ' | sed 's/ (via [^)]*)//g' | paste -sd, - | filter_list "$CALL_RE")"
+      calls="$(printf '%s\n' "$notes" | after_marker ' calls: ' | sed 's/ (via [^)]*)//g; /^nothing on \$$/d' | paste -sd, - | filter_list "$CALL_RE")"
+      nouns="$(nouns_of "$notes")"
       source="validate"
       if ! jq -e '.success == true' "$TMP/validate.json" >/dev/null 2>&1; then
         source="validate-errors"
-        # Errors can stop the analysis before it notes anything: no note is not "none".
         [[ "$hooks" == "-" ]] && hooks="unknown"
         [[ "$calls" == "-" ]] && calls="unknown"
+        [[ "$nouns" == "-" ]] && nouns="unknown"
       fi
     else
-      hooks="unknown" calls="unknown" source="validate-failed"
+      hooks="unknown" calls="unknown" nouns="unknown" source="validate-failed"
     fi
     can_disable="yes"
     [[ "$tier" == "managed" ]] && can_disable="unknown"
     [[ "$id" == "-" ]] && id=""
-    row "$(safe_id "$id")" "$tier" "$enabled" "$can_disable" "$hooks" "$calls" "$source"
+    row "$(safe_id "$id")" "$tier" "$enabled" "$can_disable" "$hooks" "$calls" "$source" "$nouns"
   done <"$TMP/paths.tsv"
   ((elsewhere)) && NOT_READ+=("installed tier: $elsewhere install path(s) only other projects enable, skipped")
 fi
 
-# --- Built-in tier ---------------------------------------------------------------------
-# can_disable per built-in name from the overview table's last column: "You can't..." is no.
 overview_file=""
 if [[ -n "$OVERVIEW" ]]; then
   [[ -f "$OVERVIEW" ]] && overview_file="$OVERVIEW" || NOT_READ+=("can_disable: --overview file not found")
@@ -284,18 +327,13 @@ elif ! jq -e '(.builtin_plugins | type) == "object"' "$BUILTIN_JSON" >/dev/null 
   NOT_READ+=("built-in tier: --builtin-json has no builtin_plugins section")
 else
   NOT_READ+=("built-in enabled: managed settings and --settings are not read, so on/off is partial")
-  # enabled: the setting (else default_enabled) AND the gate. A gate flag's value is its cached
-  # value, or its default when the cache lacks the key; a cache not read leaves it unknown. Any
-  # false flag closes the gate. gate_flags lists only the gate's tengu_ flag terms, its other
-  # terms are runtime state the report does not list, so a gated built-in never reads on. A
-  # missing id is `-` (see the installed tier) and falls back to name@builtin.
   while IFS=$'\t' read -r name id enabled hooks; do
     [[ "$name" =~ ^cc-plugin-[a-z0-9-]+$ ]] || continue
     if [[ "$hooks" != "unknown" && "$hooks" != "-" ]]; then
       hooks="$(printf '%s' "$hooks" | filter_list "$HOOK_RE")"
     fi
     [[ "$id" == "-" ]] && id="$name@builtin"
-    row "$(safe_id "$id")" builtin "$enabled" "${CAN_DISABLE[$name]:-unknown}" "$hooks" unknown builtin-lane
+    row "$(safe_id "$id")" builtin "$enabled" "${CAN_DISABLE[$name]:-unknown}" "$hooks" unknown builtin-lane unknown
   done < <(jq -r 'def flag: if .cached_present == true then .cached
                             elif .cached_present == false then .default else null end;
     (.builtin_plugin_state.plugins // {}) as $st
@@ -321,21 +359,21 @@ else
     | @tsv' "$BUILTIN_JSON" 2>/dev/null)
 fi
 
-# --- Surface ---------------------------------------------------------------------------
 version="$("$CLAUDE" --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
 if [[ -z "$SURFACE" ]]; then
   case "${CLAUDE_CODE_ENTRYPOINT:-}" in *desktop*) SURFACE=desktop ;; *) SURFACE=terminal ;; esac
 fi
 
 printf '# mod-posture inventory %s\n' "$DATE"
-printf 'id\ttier\tenabled\tcan_disable\thooks\tcalls\tsource\n'
+printf 'id\ttier\tenabled\tcan_disable\thooks\tcalls\tsource\tnouns\n'
 ((${#ROWS[@]})) && printf '%s\n' "${ROWS[@]}"
 printf '# guard: %s\n' "$guard"
+printf '# claude-written mods: %s\n' "$written"
 if [[ "$SURFACE" == "terminal" ]]; then
   printf '# surface: terminal (%s); the Desktop app bundles its own copy, which may differ: check it by running this skill in a Desktop Code-tab session\n' "${version:-unknown}"
 else
   printf '# surface: desktop (%s, the claude on PATH)\n' "${version:-unknown}"
 fi
-((WITHHELD)) && NOT_READ+=("names: $WITHHELD hook or call name(s) outside the grammar withheld (printed as redacted; repeats count once)")
+((WITHHELD)) && NOT_READ+=("names: $WITHHELD hook, call or noun name(s) outside the grammar withheld (printed as redacted; repeats count once)")
 for reason in "${NOT_READ[@]}"; do printf '# not read: %s\n' "$reason"; done
 exit 0

@@ -10,16 +10,13 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected commands:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-Why they stay separate: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
 
 ## Variables
 
@@ -84,6 +81,7 @@ Validation needs a complete answer set. If the interview is already fully answer
 - a Deferred question tagged **`USER-RESERVED`** stays **deferred**. It is a carry-forward item whose arbiter re-confirms at the `/planning:plan` approval gate *with plan-time context*, so it is not auto-accepted, not validated, and **not turned into an audit question here**; it passes through untouched, arbiter tag intact.
 - a decision the interview's **auto-guard** class covers, a genuine user choice with real tradeoffs and no codebase answer, is held out of the auto-accept and routed to the human as a real question in the confirm round (Step 4).
 - an open row asking a fact no self-answer source settled (the shared step's **Needs the user** outcome) is held out of the auto-accept with the auto-guard decisions and routed to the human the same way. The orchestrator's recommendation never becomes the fact, and no validator supplies one.
+- an open row whose resolution carries **`kind:: discovery`** (a question about what only the user knows, asked with no recommendation) is held out of the auto-accept, since it has no recommended answer to accept, and routed to the human the same way.
 - a register row at **`superseded-by-plan`** (a plan change displaced the user's answer) is held out of the auto-accept, never validated into `answered`, and routed to the human as a real question showing both the proposed and the displaced answer. Only the user's reply to that row moves it.
 - a register row whose resolution carries `hedged:` anywhere (including the page's `hedged:` answer and the legacy `free-text: hedged:` export) is validated, but it never closes on a CONFIRMED verdict: it is routed to the human in the Step 4 confirm round whatever the validators return. Its `open` commitment rows are held out of the auto-accept like any other floor item.
 
@@ -144,7 +142,7 @@ Merge the validators' verdicts. Independence means one dissent is signal: any CH
 
 - **CONFIRMED by all** → collapse to a one-line summary per answer. The human skims, does not re-decide. A `free-text:` row in this block keeps its flag.
 - **`hedged:` rows** → real questions whatever the verdict, restating what the headline commits to and which of its rows are still open.
-- **CHALLENGED / RECLASSIFIED / auto-guard-held / unsettled-fact / `superseded-by-plan` rows** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
+- **CHALLENGED / RECLASSIFIED / auto-guard-held / unsettled-fact / open `kind:: discovery` / `superseded-by-plan` rows** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
 - **USER-RESERVED deferred questions** → listed as carry-forward items (arbiter tag intact), NOT resolved here. They re-confirm at the `/planning:plan` approval gate with plan-time context, so asking them now would strip that context and rewrite the Brief prematurely.
 
 ### Step 5. Human confirmation

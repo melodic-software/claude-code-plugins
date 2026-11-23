@@ -1,6 +1,7 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 // Expected values come from the invariant in clear-escalations.mjs's LANE_CAUSES
 // comment: the causes the lanes lift are never ones only a person clears. The
-// person sets are read from babysit_risk.py (PERSON_CODES, PERSON_PREFIXES) and
+// person sets are read from diff_risk.py (PERSON_CODES, PERSON_PREFIXES) and
 // babysit_verify_evidence.py (NEEDS_HUMAN), the lists the merge gate reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -11,7 +12,7 @@ import { LANE_CAUSES } from "./clear-escalations.mjs";
 
 const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
 const read =
-  "import json,sys\nsys.path.insert(0, sys.argv[1])\nimport babysit_risk as b\nimport babysit_verify_evidence as v\n" +
+  "import json,sys\nsys.path.insert(0, sys.argv[1])\nimport diff_risk as b\nimport babysit_verify_evidence as v\n" +
   "print(json.dumps({'codes': sorted(b.PERSON_CODES), 'prefixes': list(b.PERSON_PREFIXES), 'verdicts': list(v.NEEDS_HUMAN)}))";
 
 function personSets() {
@@ -20,7 +21,7 @@ function personSets() {
   return JSON.parse(python.stdout);
 }
 
-test("the person set was read from babysit_risk", () => {
+test("the person set was read from diff_risk", () => {
   const { codes, prefixes } = personSets();
   assert.ok(codes.length > 0 && codes.every((code) => code !== ""), "PERSON_CODES is empty");
   assert.ok(prefixes.length > 0 && prefixes.every((prefix) => prefix !== ""), "PERSON_PREFIXES is empty");

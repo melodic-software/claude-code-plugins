@@ -1,7 +1,7 @@
 # lane-transcripts
 
 The transcript puller. CI keeps each lane leg's transcript for 7 days as a sealed artifact
-([`upload-lane-transcript`](../../.github/actions/upload-lane-transcript/README.md)); this copies
+(ci-workflows' [`upload-lane-transcript`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/upload-lane-transcript/action.yml)); this copies
 them to a private sink outside CI, opens them with the private key, and keeps the sink's retention.
 It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in, and `unzip`.
 
@@ -27,8 +27,8 @@ node scripts/lane-transcripts/pull.mjs backfill
 
 `query` filters: `--lane` (the workflow file's stem, or `lane/job-id`), `--model` (a substring of
 any model the leg used), `--outcome`, `--class` (a failure class), `--trace` (a trace id),
-`--since` and `--until` (`YYYY-MM-DD`, inclusive). For
-anything else, read `metrics.jsonl` with `jq`. No command prints transcript text.
+`--since` and `--until` (`YYYY-MM-DD`, inclusive). To count runs that ran at once, see
+[Counting runs at once](#counting-runs-at-once). For anything else, read `metrics.jsonl` with `jq`. No command prints transcript text.
 
 `--outcome` takes `error` (every leg whose result has `is_error: true`), `success` (a `success`
 subtype on a leg that did not error), another result `subtype` such as `error_max_turns`, or
@@ -72,12 +72,13 @@ to other issues; the owner's observability decision covers keeping them in this 
 `trace_id` is the first 32 hex digits of SHA-256 over `lane-outcome:<run id>:<attempt>`, the trace
 id every lane-outcome record of that run attempt carries (ci-workflows `docs/lane-outcome.md`,
 "Run context"), so a row joins its records, and any span exported under that trace, by run
-attempt. `failure_class` comes from those records, never from the transcript: it is set when every
-record of the run attempt names the same class (null when they all succeeded), and null otherwise.
-`failure_class_source` says which held: `lane-outcome`, `disagree` (the records differ; a record
-names its lane and credential, not the leg's job-id, so a leg cannot pick its own), or `none` (no
-record held yet). A row pulled before its records is set by the next `pull-outcomes` or
-`backfill`. The `lane_runs` and `lane_outcomes` DuckDB views in
+attempt. `failure_class` comes from those records, never from the transcript. When a record's
+`jobId` equals the row's `job_id`, only the records with that `jobId` count. Otherwise only the
+records with no `jobId` count: an older record names its lane and credential but not the leg's
+job-id, so it counts for every leg of the attempt. The class is set when every counted record names
+the same class (null when they all succeeded), and null otherwise. `failure_class_source` says which
+held: `lane-outcome`, `disagree` (the counted records differ), or `none` (no record counted yet).
+A row pulled before its records is set by the next `pull-outcomes` or `backfill`. The `lane_runs` and `lane_outcomes` DuckDB views in
 `plugins/harness-ops/skills/observability/otel/lane-runs.sql` read both files.
 
 ## What a pull takes
@@ -163,6 +164,39 @@ the same retries and rate-limit stop, a run whose jobs or annotations still fail
 `fetch_failed` and holds its last success, and a budget of `OUTCOME_CALL_BUDGET` (1,000) `gh`
 calls of its own, stopping with `budget_exhausted`, `resume_cutoff_at` and `resume_workflow` and
 resuming at that workflow. It records each run attempt it finished reading as `read_runs`, so a resumed pass skips them at no call, and drops the entries older than its next cutoff. A re-run attempt of a run created before its window is not reached.
+
+## Counting runs at once
+
+`overlap.mjs` reads the sink's metrics rows and reports the most lane agent runs that ran at the
+same time, across all lanes. It is the count a cap on concurrent agents is set from.
+
+```bash
+node scripts/lane-transcripts/overlap.mjs --since 2026-11-16 --until 2026-11-22
+```
+
+It takes `--sink`, resolved as the pull resolves it, and `--since` and `--until` (`YYYY-MM-DD`,
+inclusive, on each row's `date`); with neither, the window is every row. A window whose counted
+rows span fewer than 7 days, from the first row's date to the last row's, is refused: it exits 1
+and names how many days it has. Otherwise it prints one JSON object and exits 0. A usage error, or
+a sink it cannot read, exits 2.
+
+| Field | Holds |
+|---|---|
+| `window` | The flags given, the first and last counted row dates, and `days` between them, inclusive |
+| `runs`, `uncounted_rows` | Rows counted, and rows left out for having no `duration_ms` above 0 or no `created_at` |
+| `peak` | The most runs running at once |
+| `peak_at`, `peak_hour` | When the peak was first reached, and that hour in UTC |
+| `peak_lanes` | At that moment, how many of the running runs each lane held |
+| `peak_occurrences`, `peak_hours` | How many times the count rose to the peak from below it, and each UTC hour it did |
+| `limits` | The two limits below, so they travel with the number |
+
+A run spans from `created_at` less `duration_ms` to `created_at`. `created_at` is when the
+transcript artifact was created, so the start is inferred, not read. A run that ends at the moment
+another starts does not overlap it. A lane leg that uploads no transcript is not counted. State
+both limits when presenting the number.
+
+The report proposes no cap. The owner records the cap as a decision from the report before any
+change adds the setting or enforces it.
 
 ## Retention
 

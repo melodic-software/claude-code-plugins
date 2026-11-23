@@ -17,8 +17,6 @@ BeforeAll {
         try { (Get-FileIdentity -Handle $handle).FileId } finally { $handle.Dispose() }
     }
 
-    # Every entry under $Root: relative name, size, creation time. Write times are
-    # left out because filling the result file changes its write time by design.
     function Get-TreeListing {
         param([string] $Root)
         @(Get-ChildItem -LiteralPath $Root -Recurse -Force | Sort-Object FullName | ForEach-Object {
@@ -117,8 +115,6 @@ Describe 'Write-ElevatedResult' -Tag 'lib' {
     }
 
     It 'refuses a junction swapped in for the parent folder without writing into the same-named file it reaches' {
-        # Only the last path component is opened without following reparse points; a
-        # junction higher up is followed, so the file ID check is what refuses this.
         $elsewhere = Join-Path $TestDrive "elsewhere-$([guid]::NewGuid())"
         New-Item -ItemType Directory -Path $elsewhere | Out-Null
         $decoy = Join-Path $elsewhere 'elevated-result.json'
@@ -148,9 +144,6 @@ Describe 'Invoke-MachineHealthCheck -ResultPath' -Tag 'orchestrator' {
     }
 
     BeforeEach {
-        # A StateBase with no state folder and no mutes.json, a proposals file holding a
-        # checked approval the approvals migration would read, an overlay that switches
-        # every check off, and the pre-created result file.
         $script:root = Join-Path $TestDrive ([guid]::NewGuid())
         $script:stateBase = Join-Path $script:root 'state-base'
         $script:outputBase = Join-Path $script:root 'output'

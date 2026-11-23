@@ -36,11 +36,15 @@ interfaces and contracts wait for design, files and symbols for plan.
   changes behavior, structure, or contracts
 - Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
   on-ramp), or follow-ups where the Brief is the conversation
-- Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
-  time, highest architectural blast radius first
-- Calls explore, research or a PRD (stages 2-4), or a prototype, only when a question it asks
-  needs one, then resumes; none of them runs before it
-- **Effort:** scoping in question rounds the human answers one at a time
+- How its questions are paced, and when explore, research, a PRD (stages 2-4) or a prototype runs
+  around it, are `/planning:interview`'s rules
+- When the interview adds or renames a domain term, the glossary change, and for a renamed term the
+  code rename, land as their own change before plan and decompose, so the spec and tickets name
+  only the settled terms: through a glossary capability (if enabled, e.g.
+  /domain-driven-design:ubiquitous-language) and a rename sweep (if enabled, e.g.
+  /docs-hygiene:rename-references); without them, edit the glossary file and sweep the old name by
+  hand. With no term added or renamed, this step is skipped
+- **Effort:** scoping in question rounds the human answers
 
 ## 2. Explore (conditional: a question needs the code read)
 
@@ -216,6 +220,10 @@ Session analysis and learning codification: the self-improvement loop. Invoke th
 skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure). Score trends
 across sessions are `/session-flow:audit-sessions trends`.
 
+- When the `/session-flow:retro` report lists a "Missed or hard-to-find skill" finding marked as a
+  workflow step candidate, add that skill to the workflow as its own stage at the point in the
+  sequence the finding names, with the trigger that should bring it up, so the next session
+  reaches it without the user naming it
 - **Effort:** reviewing the session's own record, every finding going to the human to accept or
   reject
 
@@ -232,6 +240,11 @@ the consuming repo's choice. A stage is named by its heading above without the n
 anything after a colon or a parenthesis. A conditional stage listed here still runs only on its
 trigger, and a skipped stage is marked SKIPPED with this row's reason. The retrospective is
 optional after any kind.
+
+Pruning the glossary and pruning architecture decisions are maintenance, not stages, and no task
+kind enters them: they run on request, or after a repo sweep's read-only audit finds candidates,
+through a glossary capability (if enabled, e.g. /domain-driven-design:ubiquitous-language prune)
+and an architecture-decision capability (if enabled, e.g. /architecture:adr prune).
 
 | Kind | Stages, in order | Skips | Why |
 | --- | --- | --- | --- |

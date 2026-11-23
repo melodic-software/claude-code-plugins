@@ -86,9 +86,14 @@ trusted-actors list, not posted through an App, unedited or last edited by a lis
 `status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
 a decision, whether admission parked it there or a person confirmed it, or on a
 `needs-reporter-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
-nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `needs-owner-decision`, removing that label the same way. A listed human's change of the Work
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human`, on its
+label or its Work status field, re-enters nothing and gets one reply from `github-actions[bot]`
+saying how a listed human releases the hold; a listed human's removal of `needs-human` re-enters an
+issue with no `status:` label or at `needs-owner-decision`, removing that label the same way. A
+listed human's comment whose first line opens with "decision recorded" in any other case or
+punctuation, and that answered nothing else, gets one reply naming the exact first line. Each reply
+opens with a marker (`<!-- intake-reenter:needs-human-decision -->`,
+`<!-- intake-reenter:decision-form -->`) and is posted once per issue. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
 `needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
 event that left the hold, which a re-run of that release finds, and the field is set to
@@ -198,8 +203,9 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
-reconciler tick), and on a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
+:34 ticks; the reconciler's one pass per token window runs on the first of its quarter-hour ticks
+after the reset), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -358,7 +364,9 @@ counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`
 `verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
 or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
 named note ends as any fix round; no push with every note already addressed stops
-`feedback-already-addressed` for a session builder.
+`feedback-already-addressed` with no label: pr-verify judges the head on its own. The next sweep
+run on that head clears the failing status, and the `verify:earlier-fail` refusal keeps holding
+the merge until pr-verify passes the head.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -368,8 +376,10 @@ pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
 its one marker in place when it reviews the pushed fix. `publish-feedback` also brings the body
 sections a landed fix made stale up to date, unless the base's `pr_body_refresh` is `false`: the
-select job offers the `##` sections the base's `pr_body_required_sections` lists (every one when it
-lists none) whose text holds no gate-read line, never `## Follow-ups` or the body's last section,
+select job offers the `##` sections the base's `pr_body_required_sections` lists, else the headings
+of the base's pull request template, else those of the owner's `.github` repository template (every
+one when none of them names any, and none when that template cannot be read) whose text holds no
+gate-read line, never `## Follow-ups` or the body's last section,
 and pins each by SHA-256 in `run.json`; the model job records replacement text with the
 review-thread tool; and `publish-feedback` puts it in place of an offered section still unchanged,
 leaving every other byte, or drops the refresh alone, naming why in its log and round marker, when
@@ -1220,7 +1230,9 @@ no stop standing on its head, whether or not one ever did), `awaiting-session` (
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
 again), `owned-branch` (a fix-ci select job on a pull request whose head branch
 `merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
-would race the rebuild), or, for an issue run under
+would race the rebuild), `gate-hold` (a review-dependency select job whose head's only CI Status
+failure is the trust-gate hold only a person clears: no model turn ran, and the dispatcher sends
+the head again once CI Status passes on it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -1441,7 +1453,7 @@ the rules that only tighten in
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **Narrow path floor.** A set of globs, each with a class: `babysit_risk.FLOOR_CLASSES`, the paths
+- **Narrow path floor.** A set of globs, each with a class: `diff_risk.FLOOR_CLASSES`, the paths
   every consumer shares, joined to the repository's `merge.diff-check.floor-paths` rows
   (`glob`, `class`, and on a `gate` row an optional `author-lift: false`, which keeps the row with a
   person). A row can add to the floor and never drop or loosen a built-in row, and a row the loader
@@ -1456,10 +1468,11 @@ the rules that only tighten in
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
     which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
-    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
+    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**` with the
+    GitHub client it loads (`.github/scripts/lib/github-client.mjs`),
     `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
     `**/.gitmodules`, and the code that computes the author lift and the hold tables:
-    `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py` and
+    `babysit_merge.py`, `babysit_merge_policy.py`, `diff_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition,
     `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
@@ -1481,7 +1494,7 @@ the rules that only tighten in
     `pr-dispatch-feedback.yml` among them: a logic edit inside scopes it already holds trips no
     patch hold, so a model verdict alone never clears it. 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
-    `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
+    `diff_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
     only is off the gate: the main-run review binds it, and a gained write scope, trigger, secret
     or model leg holds by its patch. Also what changes
@@ -1496,11 +1509,11 @@ the rules that only tighten in
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
-    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.Floor.author_review`). A lanes App
+    (`babysit_merge_policy.author_reviewed_paths`, `diff_risk.Floor.author_review`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
     lane changing its own powers is still merged by a person. The review's own surface above
-    never takes this lift (`babysit_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
+    never takes this lift (`diff_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
     waits for a person. The token-scope files and the lift
     and hold-table code and the scripts that apply the holds are `trust`, never `gate`, so they
     never take this lift: agents commit as the trusted owner, so a pull request that widens a lane
@@ -1518,7 +1531,7 @@ the rules that only tighten in
     they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
     `protected-paths.mjs` in `apply-patch/`, and `.github/scripts/lib/run-main.mjs`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
-    `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
+    `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `diff_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
     the gate. A lane source is a
@@ -1527,7 +1540,7 @@ the rules that only tighten in
     changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
-    (`babysit_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
+    (`diff_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem or that stem in Title Case. A deleted
     workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
@@ -1556,7 +1569,7 @@ the rules that only tighten in
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole, except that a file over 300000 bytes is cut at its hunks into
-  pieces, each under the file's header and no two in one chunk (`split-diff.py`); each chunk is
+  pieces, each under the file's header and no two in one chunk (`diff_chunking.py`); each chunk is
   reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
@@ -1579,7 +1592,7 @@ the rules that only tighten in
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
   leg, which reviews every chunk again. Read may cut a long line short, so a diff line over 1800
-  bytes (`babysit_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
+  bytes (`diff_chunking.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
   inside a UTF-8 character, as pr-verify's `chunk-diff.sh` folds; the prompt says each such line
   is the rest of the line before it and adds no line to the file's numbering. Every byte reaches a
   whole Read, and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
@@ -1998,7 +2011,7 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal when a holding reason is one only a person clears
-(`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a
+(`diff_risk.person_reasons`: a CRITICAL security finding, bound or not, a
 trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner));
 any other reason, such as review evidence not bound to the head, keeps its comment and is judged
 again each run. An escalation
@@ -2117,7 +2130,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.Floor.high`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `diff_risk.Floor.high`), read on the files the head changes at each
 run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
@@ -2129,7 +2142,7 @@ after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed
 `issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
 issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
-gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
+gate's risk score (`diff_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
 review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
@@ -2304,14 +2317,14 @@ back to them:
 The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
 reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
 score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
-on `babysit_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
+on `diff_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
 (`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
 holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
 approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
 trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
 does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
+(`diff_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:` and that carries an owner-decisions row link and a
@@ -2365,8 +2378,7 @@ pages, each with a top-up of at most 7, at most 24 pages near expiry read again 
 1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
 read floor (`limits.api` `read-floor` of the header's limit, inlined in the job env), left. The
-reader plans its own floor to that live limit too, not github-token's `limit-cap` (owner decision
-D418).
+reader plans its own floor to that live limit too (owner decision D418).
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
@@ -2401,7 +2413,9 @@ pull request. The linked issue is its closing issues here, or with none, the one
 containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
 one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
 lanes App pull request that does not link exactly one issue here also fails, so dropping the link
-after arming does not skip the check; another automation's pull request that links none passes. An
+after arming does not skip the check, unless its files, read whole, are exactly the base's
+`merge.baseline-file` (`merge-holds.mjs` `baselineOnly`, owner decision Q152 (B)); another automation's pull
+request that links none passes. An
 unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
 the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
@@ -2767,7 +2781,13 @@ before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
-such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml` filed
+such a pass as any closing one. A done-when item only a person can prove, such as an eval run
+whose results stay in `.work/`, is a person check when its text, after the task-list marker,
+starts with `Person check:` (owner decision 2026-11-22 on #18277): resolve-pr lists it in the
+entry's `person_checks` beside the items intake's split refinement records, in body order, and the
+verifier judges the diff without it. The mark counts only in a body a trusted person wrote and, if
+it was ever edited, last edited; in any other body it is ignored, so an edit by anyone else drops
+every mark. An issue `maintenance-file-recurring-issues.yml` filed
 (github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
 from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
 it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`
@@ -2789,7 +2809,7 @@ label or body-edit re-run skips `select-tests` and every suite, so its list is n
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole but one over 300000 bytes, cut at its hunks into pieces the manifest lists as
-`piece <i> of <n>` (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`),
+`piece <i> of <n>` (`chunk-diff.sh`, `diff_chunking.py`; the same chunk budget as `pr-review-main`),
 and a file with one hunk over a chunk gets no verdict; each chunk
 gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
@@ -3383,12 +3403,20 @@ them on every `pull_request` run, contract-only runs included:
   (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
   workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
   of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
-  (this repository: `anthropics` and `melodic-software`), read from the diff in the broker step's file pages. Both refs
+  (this repository: `anthropics`, `melodic-software` and the major vendors' GitHub-verified
+  organizations, owner decision 2026-11-23), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
-  owner list fails closed. The same holds a same-repository PR that changes a trust-gate
+  owner list fails closed. The same shape and tag check for an owner the list leaves out
+  (owner decision 2026-11-23, dependency review verdict for any owner) clears the hold once the
+  lanes App's newest pr-unblock review-dependency round marker on the PR names the head with
+  `verdict=merge`; until then ci-status fails with `#<n> by Dependabot swaps only action refs,
+  each to a tagged commit, on trust-gate paths`, which review-dependency reviews instead of
+  skipping, and the pr-unblock dispatcher re-runs ci-status after the verdict. A marker by any
+  other account, for another head, a newer non-merge marker, or unreadable comments keep the
+  hold. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the
@@ -3630,6 +3658,15 @@ jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job'
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
+On the daily run, the same job's
+[`done-check.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/done-check.mjs) lists the
+open issues at Work status confirmed that a merged `Refs:` pull request parked for a done-check
+(the admission rule below), in one digest issue from `github-actions[bot]` whose first line is
+`<!-- intake-done-check-digest -->`. It creates the digest when the list first fills, rewrites its
+body when the list changes, closes it as completed when the list is empty and reopens it when the
+list fills again; closing it as not planned mutes it. It closes no listed issue and writes no Work
+status. A read that fails fails the step and writes nothing.
+
 ## The monitoring lane
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
@@ -3653,7 +3690,7 @@ Its scripts and tests are in
 | 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `stop-resolved` skip since: its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 | 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `dispatch-post-merge-runs` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |
 | 12 listing held | each of the newest 4 `pr-merge-summary` artifacts of trusted scheduled or manual `pr-merge` runs on `main` has `listing_held: true`: the merge job could not list the open pull requests, so it gated nothing while its runs stayed green; the issue names the newest summary's `listing_held_reason`, and it only notifies and clears on a sweep that listed. A run that kept no summary neither counts nor resets. The 4 must be unbroken: a fault that lets one sweep in 4 list never fires, and that sweep does gate. A 4-of-8 rule would read 8 summaries on every monitoring run in place of 1 | `listing-held` |
-| 13 lane holds | one lane has `monitor.lane-holds.threshold` held runs or more (default 4) over the last `monitor.lane-holds.window-hours` (default 24). A held run is a green run of this repository's head, on an event that runs the default branch's code, whose hold job succeeded with a hold notice: work-resolve-issue's `report-outcome / run` job naming a fault stop whose retries were all faults, work-unblock's `label-unblocked` job naming a listing it could not read, pr-refine's `fix-docs-handoff` or `fix-docs-subscription-handoff` job naming a `fix-docs` read that failed, and, on a green or red pr-refine run, its `record-passes` job's `refine-failed` warning naming a Refine pass that failed, intake-triage's `apply-verdict` job naming a `held:` fault, pr-verify's `check-intent`, `check-intent-subscription` or `check-intent-fallback` job and pr-review-main's `trigger`, `review`, `review-subscription` or `review-fallback` job each with a `held:` notice from a `Note the hold` step that ran, and pr-merge's `merge` or `enable-auto-merge` job naming a `Lane token hold`. Each monitoring run reads the newest green runs per lane that completed in its window, up to the lane's cap (`holdRuns` in `.github/scripts/maintenance-monitor-signals/signals.mjs` `HOLD_LANES`, else the default 6 in `collect.mjs` `LIMITS.holdRuns`: pr-verify and pr-merge set 80, pr-review-main to 70, intake-triage to 40 and work-unblock to 20; for pr-refine, its failed runs are listed and read as well, and the 6 covers its green and red runs together), or since the time the last run read through when that is earlier, and carries the held runs it has found to the next run in its `monitor-signals-jobs` artifact, with the span it read them over. Each of those hold jobs also keeps a `lane-hold-<lane>` artifact for a day when it held (`.github/scripts/lib/lane-hold-marker.mjs`, its body the lane and the run id); each monitoring run lists them, one call per lane, and counts a marked run that its lane's run list holds and the read found no hold in, so a run past the cap still counts. A marker list that fails leaves the signal partly read, as below. An issue held that often is one of its lane's held runs, and the finding names each issue held more than once. It only notifies, adds no stop and no cap, and clears once the count drops below the threshold. A rule that was not read leaves the signal unread. A lane over its cap, or a span shorter than the window, leaves it partly read: a lane whose read runs reach the threshold still files or keeps the incident, since holds read in part of the window are a floor on the whole, but only a whole read clears it. The span starts again when a monitoring run finds no carry, or one that read through a time more than 6 hours before its window, and after a failed read | `lane-hold:work-resolve-issue`, `lane-hold:work-unblock`, `lane-hold:pr-refine`, `lane-hold:intake-triage`, `lane-hold:pr-verify`, `lane-hold:pr-review-main`, `lane-hold:pr-merge` |
+| 13 lane holds | one lane has `monitor.lane-holds.threshold` held runs or more (default 4) over the last `monitor.lane-holds.window-hours` (default 24). A held run is a green run of this repository's head, on an event that runs the default branch's code, whose hold job succeeded with a hold notice: work-resolve-issue's `report-outcome / run` job naming a fault stop whose retries were all faults, work-unblock's `label-unblocked` job naming a listing it could not read, pr-refine's `fix-docs-handoff` or `fix-docs-subscription-handoff` job naming a `fix-docs` read that failed, and, on a green or red pr-refine run, its `record-passes` job's `refine-failed` warning naming a Refine pass that failed, intake-triage's `apply-verdict` job naming a `held:` fault, pr-verify's `check-intent`, `check-intent-subscription` or `check-intent-fallback` job and pr-review-main's `trigger`, `review`, `review-subscription` or `review-fallback` job each with a `held:` notice from a `Note the hold` step that ran, and pr-merge's `merge` or `enable-auto-merge` job naming a `Lane token hold`. Each monitoring run reads the newest green runs per lane that completed in its window, up to the lane's cap (`holdRuns` in `.github/scripts/maintenance-monitor-signals/signals.mjs` `HOLD_LANES`, else the default 6 in `collect.mjs` `LIMITS.holdRuns`: pr-verify and pr-merge set 80, pr-review-main to 70, intake-triage to 40, work-unblock to 20 and pr-refine to 12; pr-refine lists and reads its failed runs too, and its cap covers green and red runs together), or since the time the last run read through when that is earlier, and carries the held runs it has found to the next run in its `monitor-signals-jobs` artifact, with the span it read them over. Each of those hold jobs also keeps a `lane-hold-<lane>` artifact for a day when it held (`.github/scripts/lib/lane-hold-marker.mjs`, its body the lane and the run id); each monitoring run lists them, one call per lane, and counts a marked run that its lane's run list holds and the read found no hold in, so a run past the cap still counts. A marker list that fails leaves the signal partly read, as below. An issue held that often is one of its lane's held runs, and the finding names each issue held more than once. It only notifies, adds no stop and no cap, and clears once the count drops below the threshold. A rule that was not read leaves the signal unread. A lane over its cap, or a span shorter than the window, leaves it partly read: a lane whose read runs reach the threshold still files or keeps the incident, since holds read in part of the window are a floor on the whole, but only a whole read clears it. The span starts again when a monitoring run finds no carry, or one that read through a time more than 6 hours before its window, and after a failed read | `lane-hold:work-resolve-issue`, `lane-hold:work-unblock`, `lane-hold:pr-refine`, `lane-hold:intake-triage`, `lane-hold:pr-verify`, `lane-hold:pr-review-main`, `lane-hold:pr-merge` |
 | 14 lane variables | a failed scheduled `work-unblock.yml` run of `main` that completed in the window (its own read, up to 10 runs, apart from the failed-runs read and its cap of 12; more, or a failed read, leaves the signal unread) has a failed `publish-lane-level` job with a failure annotation starting `lane-variables-changed:` or `lane-variables-unread:`, or one of its two variable check steps ended without success and with no such annotation (a timeout): `work-unblock.yml`'s `publish-lane-level` job listed every repository variable with the lane token before its publish and again after, and a variable other than the level variable was created, changed (value or `updated_at`) or deleted, or a listing was missing or incomplete ([pr-run-activity.md](pr-run-activity.md), the Variables mitigations). The incident opens at once, at critical priority: a repository variable can shadow an organization variable such as the lanes kill switch. It closes on its own only after 168 hours clear, since the next hour's check passes whether or not anyone set the variable back | `lane-variables` |
 
 Every run's job summary lists every signal's state (clear, on with how long, the incident it holds,
@@ -3791,7 +3828,7 @@ those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
 its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
-text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
+text (`size-split.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
 sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
 as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
@@ -3862,7 +3899,7 @@ and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
-(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+(`size-split.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
 for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
 up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
 number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
@@ -3988,8 +4025,8 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch `refine` run sends for its PR's event; 0 to 20. Each event offers one PR, so 0 turns CI fix-docs off and any other value turns it on. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause`, `breaker` and `stop-floor` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads `read-floor` and `limit-cap`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 11, the p90 of 418 hosted review runs of 2 minutes or more, 10.4 minutes, read 2026-11-21): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
-| `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's planned budget, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the header's limit: `plan` by what the window has used; `read-floor`, `writer-pause`, `breaker` and `stop-floor` by the header's remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `classify`) reads `read-floor`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 11, the p90 of 418 hosted review runs of 2 minutes or more, 10.4 minutes, read 2026-11-21): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
+| `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's header limit, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-dispatch-feedback, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -4128,7 +4165,9 @@ comment, or since it opened when it has neither. The issue is parked at `status:
 An agent checks the work: it closes the issue when the pull request finished it, or posts a
 `**Decision recorded.**` comment saying what is left, which intake-reenter sends back through
 intake with the cutoff past that pull request. Each pass reads its issues in one GraphQL call (at
-most 50 issues a call); a read that fails admits as though no such pull request merged.
+most 50 issues a call); a read that fails admits as though no such pull request merged. The lane
+sweep's daily triage-sweep job lists the issues parked this way in one digest issue, so a session
+finds them.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,

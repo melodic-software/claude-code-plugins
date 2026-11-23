@@ -3,6 +3,30 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1] - 2026-11-23
+
+### Changed
+
+- `implement` and `implement-dispatch` now list their context-dependent links under `## Related`, matching the committed skill-link table.
+
+## [0.48.0] - 2026-11-23
+
+### Changed
+
+- `implement`'s `## Next` names `/testing:write` for survivors the advisory mutation run persisted.
+
+## [0.47.3] - 2026-11-23
+
+### Changed
+
+- `/implementation:implement` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+## [0.47.2] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [0.47.1] - 2026-11-22
 
 ### Changed

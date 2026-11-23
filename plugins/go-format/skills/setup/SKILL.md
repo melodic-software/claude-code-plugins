@@ -44,7 +44,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Go formatting and linting are two concerns. The hooks run only the
 plugin's shipped format adapter (goimports, formatting and import ordering only) and never run a
-command from the repository's go record (`.claude/ecosystems/go.yaml`), which `/toolchain:lint`
+command from the repository's go record (`docs/conventions/ecosystems/go.yaml`), which `/toolchain:lint`
 and `/toolchain:check` run on request. The plugin ships no lint adapter, so the hooks run nothing
 for Go linting. The only consumer-project files this plugin owns are its git-hook entry copies,
 which `apply install-git-hooks` writes; the record is written by `/toolchain:setup apply go`,
@@ -245,8 +245,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-/toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go;
-/toolchain:lint then runs it on request.
+- /toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go;
+  /toolchain:lint then runs it on request.
+- A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do
 

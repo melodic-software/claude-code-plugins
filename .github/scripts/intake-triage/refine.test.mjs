@@ -7,9 +7,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
-import { applySizeDecline, applySizeSplit, baseHolds, namedUnits, partitionProblem, quotedNames, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { linesDigest, partitionProblem, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitDigest, splitRecord, splitSourceLine } from "./size-split.mjs";
+import { applySizeDecline, applySizeSplit, baseHolds, namedUnits, quotedNames, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings } from "./refine.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
@@ -475,8 +475,6 @@ describe("applyRefinement", () => {
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
   });
 
-  // The issue carries no status label and no label event: its hold and who
-  // set it come from the Work status field alone.
   test("an exact refinement lifts the App's needs-owner-decision that exists only on the field", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields: onField(APP, "needs-owner-decision") });
     assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
@@ -735,7 +733,6 @@ describe("applyRefinement", () => {
     await assert.rejects(apply({ github: fake.github, calls: fake.calls, setStatus }, EXACT), /transient/);
     assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"), "the issue keeps needs-decision when setting needs-triage fails");
-    // The retry sees the labels the failed run left: the App's needs-decision, no marker.
     const retry = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const result = await apply(retry, EXACT);
     assert.equal(result.redispatch, true);
@@ -1213,27 +1210,6 @@ describe("size split", () => {
     assert.equal(sizeSplitPending([parked("Size medium is fine")], APP), false);
   });
 
-  test("partitionProblem accepts only a partition of every item into 2 or more parts with an acyclic order", () => {
-    assert.equal(partitionProblem({ parts: [[1, 3], [2]], order: [[1, 2]] }, 3), null);
-    assert.equal(partitionProblem({ parts: [[1], [2], [3]], order: [] }, 3), null);
-    const bad = {
-      "an item left out": [{ parts: [[1], [2]], order: [] }, 3],
-      "an item twice": [{ parts: [[1, 2], [2, 3]], order: [] }, 3],
-      "one part": [{ parts: [[1, 2, 3]], order: [] }, 3],
-      "no parts": [{ parts: [], order: [] }, 3],
-      "an empty part": [{ parts: [[1, 2, 3], []], order: [] }, 3],
-      "a number past the items": [{ parts: [[1], [4]], order: [] }, 2],
-      "an order naming no part": [{ parts: [[1], [2]], order: [[1, 3]] }, 2],
-      "a cycle": [{ parts: [[1], [2], [3]], order: [[1, 2], [2, 3], [3, 1]] }, 3],
-      "a part waiting on itself": [{ parts: [[1], [2]], order: [[2, 2]] }, 2],
-      "a key beyond parts and order": [{ parts: [[1], [2]], order: [], exact: true }, 2],
-      "a fraction": [{ parts: [[1.5], [2]], order: [] }, 2],
-    };
-    for (const [name, [output, count]] of Object.entries(bad)) {
-      assert.notEqual(partitionProblem(output, count), null, name);
-    }
-  });
-
   const select = (fake, notes = []) =>
     selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), note: (text) => notes.push(text) });
 
@@ -1305,36 +1281,6 @@ describe("size split", () => {
     const file = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
     assert.deepEqual(sizeSplitSettings(file), { onDecline: "subset", maxParts: 10 });
     assert.notEqual(partitionProblem({ parts: [[1], [2], [3]], order: [] }, 3, 2), null, "max-parts bounds the parts");
-  });
-
-  test("subsetProblem takes only 2 or more groups of distinct targets that are verbatim task-line text, with an acyclic order", () => {
-    assert.equal(subsetProblem({ groups: [["L1"], ["L2", "L3"]], order: [[1, 2]] }, LINES, 10, rules["task-list"]), null);
-    const bad = {
-      "one group": { groups: [["L1"]], order: [] },
-      "an empty group": { groups: [["L1"], []], order: [] },
-      "a name not in the lines": { groups: [["L1"], ["L9"]], order: [] },
-      "a name twice": { groups: [["L1"], ["L1"]], order: [] },
-      "a one-character name": { groups: [["L1"], ["L"]], order: [] },
-      "a name with a comma": { groups: [["L1"], ["L2, L3"]], order: [] },
-      "a cycle": { groups: [["L1"], ["L2"]], order: [[1, 2], [2, 1]] },
-      "too many groups": { groups: [["L1"], ["L2"], ["L3"]], order: [], max: 2 },
-      "a task line no target covers": { groups: [["L1"], ["L2"]], order: [] },
-      "the task-list marker as a target": { groups: [["- [ ]"], ["L1"]], order: [] },
-    };
-    for (const [name, { max = 10, ...output }] of Object.entries(bad)) {
-      assert.notEqual(subsetProblem(output, LINES, max, rules["task-list"]), null, name);
-    }
-    // A target inside another would give two parts the same work.
-    const overlap = ["- [ ] Port alpha and alpha-tools", "- [ ] Update alpha docs"];
-    assert.match(subsetProblem({ groups: [["alpha"], ["alpha-tools"]], order: [] }, overlap, 10, rules["task-list"]) ?? "", /another target/);
-    assert.match(subsetProblem({ groups: [["alpha", "alpha-tools"], ["docs"]], order: [] }, overlap, 10, rules["task-list"]) ?? "", /another target/);
-    // Groups the split record cannot hold would leave it unreadable, and
-    // the next triage would file the parts again (splitRecord round trip).
-    const long = Array.from({ length: 80 }, (_, i) => `target-${String(i).padStart(2, "0")}-${"x".repeat(90)}`);
-    const wide = long.map((name) => `- [ ] Update ${name}.`);
-    const fits = [long.slice(0, 2), long.slice(2, 4)];
-    assert.equal(subsetProblem({ groups: fits, order: [] }, wide.slice(0, 4), 10, rules["task-list"]), null);
-    assert.match(subsetProblem({ groups: [long.slice(0, 40), long.slice(40)], order: [] }, wide, 10, rules["task-list"]) ?? "", /split record/);
   });
 
   test("applySizeDecline posts the reason once per reason and body version, and nothing on a changed body", async () => {

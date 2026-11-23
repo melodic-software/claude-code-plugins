@@ -3,7 +3,7 @@
 // refused by its Content-Length or as it streams.
 import { Buffer } from "node:buffer";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const TIMEOUT_MS = 20_000;

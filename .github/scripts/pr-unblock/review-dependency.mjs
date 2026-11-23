@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
+import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
 import { guardedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
@@ -96,7 +97,7 @@ export function countCheckRounds(checkRunsByCommit) {
   ).length;
 }
 
-const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
+export const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
 
 // The newest gate run GitHub Actions posted on the head: its conclusion once
 // completed, else pending.
@@ -118,6 +119,26 @@ export function supersededOnly(annotations, headSha) {
   return failures.some(marks) && failures.every((message) => marks(message) || EXIT_LINE.test(message));
 }
 
+export const GATE_HOLD_SKIP = "gate-hold";
+const GATE_HOLDS = [
+  ["person", /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/],
+  ["verdict", /^#([1-9][0-9]*) by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:/],
+];
+export function gateHoldOnly(annotations, pr) {
+  const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
+  const kindOf = (message) => GATE_HOLDS.find(([, pattern]) => pattern.exec(message)?.[1] === String(pr))?.[0];
+  const kinds = failures.map(kindOf).filter(Boolean);
+  if (kinds.length === 0 || !failures.every((message) => kindOf(message) || EXIT_LINE.test(message))) return false;
+  return kinds.includes("person") ? "person" : "verdict";
+}
+
+export function newestRound(issueComments, appId) {
+  const mine = issueComments.filter((comment) => comment.user?.id === appId && firstLine(comment.body).startsWith(ROUND_PREFIX));
+  const newest = mine.reduce((a, b) => (a === null || String(b.created_at) > String(a.created_at) || (b.created_at === a.created_at && b.id > a.id) ? b : a), null);
+  const match = newest && ROUND_LINE.exec(firstLine(newest.body));
+  return match ? { head: match[1], verdict: match[2], run: match[3], createdAt: String(newest.created_at) } : null;
+}
+
 // The gate's check runs on a head, listed by `list(name)`: CI Status's, else
 // ci-status's on a head tested before the rename. Never its ci-status alias's
 // beside CI Status's: only CI Status carries the gate's annotations. Literals,
@@ -129,16 +150,17 @@ export async function gateCheckRuns(list) {
 
 // ciStatusOf, with a superseded contract-only failure read as pending. A
 // failed annotations read leaves the failure standing.
-export async function readCiStatus(api, headSha) {
+export async function readCiStatus(api, headSha, pr) {
   const runs = await gateCheckRuns((name) => api.listCheckRuns(headSha, name));
   const status = ciStatusOf(runs);
   if (status !== "failure") {
-    return status;
+    return { status, gateHold: false };
   }
   try {
-    return supersededOnly(await api.listAnnotations(newestOf(runs).id), headSha) ? "pending" : status;
+    const annotations = await api.listAnnotations(newestOf(runs).id);
+    return supersededOnly(annotations, headSha) ? { status: "pending", gateHold: false } : { status, gateHold: gateHoldOnly(annotations, pr) };
   } catch {
-    return status;
+    return { status, gateHold: false };
   }
 }
 
@@ -245,9 +267,10 @@ export async function select({
   }
   const files = await api.listPullFiles(pr);
   const commits = await api.listPullCommits(pr);
+  const gate = await readCiStatus(api, headSha, pr);
   const classification = await classifyPull({
     pull,
-    ciStatus: await readCiStatus(api, headSha),
+    ciStatus: gate.status,
     commits,
     files,
     config,
@@ -280,6 +303,9 @@ export async function select({
   } catch (error) {
     relockError = error.message;
   }
+  if (gate.gateHold === "person") {
+    return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError };
+  }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
   const checkRuns = [];
@@ -311,6 +337,7 @@ export async function select({
       classification,
       rounds: done,
       files_truncated: files.length >= FILES_CAP,
+      merge_clears_gate_hold: gate.gateHold === "verdict",
       files: capPatches(files),
       // Dependabot's text, with the upstream release notes it quotes: data.
       body: pull.body ?? "",
@@ -320,7 +347,7 @@ export async function select({
 
 // Dependabot's id comes from the base's trusted-actors list, by login.
 export function dependabotIdFrom(trustedActorsPath) {
-  const actors = JSON.parse(readFileSync(trustedActorsPath, "utf8")).actors ?? [];
+  const actors = readRawTrustedActors(trustedActorsPath).actors ?? [];
   const actor = actors.find((row) => row.login === DEPENDABOT_LOGIN && row.kind === "bot");
   return positive(actor?.id, `the ${DEPENDABOT_LOGIN} id in ${trustedActorsPath}`);
 }
@@ -461,6 +488,9 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     output("relock-state", "written");
     output("relock-sha256", createHash("sha256").update(request).digest("hex"));
     summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
+  }
+  if (result.gateHold) {
+    summary(`#${pr}: the only failing CI Status check is the trust-gate hold, which only a person on the trusted-actor list approving this head clears, so no dependency review ran and the update's content was not judged`);
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);

@@ -45,8 +45,21 @@ Re-check all check runs for any state changes, then re-check for new comments si
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
-3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
-4. Wait for user approval (merge is irreversible) unless the PR qualifies for
+3. **pr-verify's verdict at `HEAD_SHA`.** When the base repository runs pr-verify and pr-verify
+   judges the PR's author, read its verdict at `HEAD_SHA` by the pass names the merge queue's own
+   check reads
+   ([GitHub](../../../reference/providers/github/pull-request/merge.md#read-the-pr-verify-verdict)),
+   and merge or enqueue on a pass. While the read answers `missing` (pr-verify has not judged that
+   head yet), read it again every 90 seconds, for up to 30 minutes. A FAIL at the head, a moved
+   head or a failed read is a hold to report. Still `missing` after 30 minutes (pr-verify down, or
+   a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. Where
+   the guardrails plugin's `block-unresolved-pr-merge` hook is enabled, it refuses that merge until
+   a pass exists at the head, so report the PR as held for its verdict instead; only the owner
+   releases it, by turning the hook's `block_unresolved_pr_merge_enabled` switch off. The wait exists because the merge queue removes a PR whose head
+   pr-verify fails, so a PR queued before the verdict spends a queue entry and a removal. This step applies whether the user approves the merge (step 5) or §4.2.1
+   clears it.
+4. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
+5. Wait for user approval (merge is irreversible) unless the PR qualifies for
    the merge after AI review under §4.2.1
 
 ## 4.2 Squash merge
@@ -64,7 +77,7 @@ covers, and what it does not after arming:
 gate: a merge the forge or the permission layer refuses is reported with its error text and the
 session moves on to other work, never handed to the user as a command to run and never retried in
 another shape. Before any merge call, poll the PR's merge state at
-the pinned head over REST every 60 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
+the pinned head over REST every 90 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
 
@@ -92,7 +105,7 @@ the request and applies the base's rules when the merge runs, so 4.1 still comes
 
 ### 4.2.1 Merge after AI review
 
-Merge or enqueue without asking only when every condition below holds; otherwise 4.1 step 4 waits
+Merge or enqueue without asking only when every condition below holds; otherwise 4.1 step 5 waits
 for the user.
 
 - The `unattended_merge_owners` setting names the repository's owner, and the live ruleset for the
@@ -158,7 +171,7 @@ review lanes' check names, are recorded in the
 Run this after every merge call on a merge-queue base, from 4.2 or 4.2.1. A merge run ends in one of
 three states, and the report names which: merged, queued, or held with the blocker GitHub returned.
 It changes what the run reports, not who may merge: it enqueues only a PR the user already approved
-in 4.1 step 4 or that 4.2.1 cleared, and only at the head pinned there.
+in 4.1 step 5 or that 4.2.1 cleared, and only at the head pinned there.
 
 Run the confirm read
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#confirm-queue-entry)). It reads

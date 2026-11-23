@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "row written and appended with the documented quoted command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/tools/findings-buffer/buffer.sh append < /w/.work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "unquoted script path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        }
+      ],
+      "why": "row written, never appended"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" list"
+          }
+        }
+      ],
+      "why": "runs buffer.sh without append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /w/.work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "reads the row only"
+    }
+  ]
+}

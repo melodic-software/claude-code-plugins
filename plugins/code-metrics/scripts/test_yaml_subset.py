@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for yaml_subset.py: the pure parser through the module
-loaded by path, the command line through subprocess."""
-
 from __future__ import annotations
 
 import importlib.util

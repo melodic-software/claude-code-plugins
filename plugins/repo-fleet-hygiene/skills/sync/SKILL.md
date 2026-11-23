@@ -100,6 +100,11 @@ ${CLAUDE_SKILL_DIR}/scripts/sync-fleet.sh --project-dir "${CLAUDE_PROJECT_DIR}" 
 
 `/repo-fleet-hygiene:audit` after canonical checkouts are on their default branches.
 
+## Related
+
+- Execute a prior fleet cleanup plan: /repo-fleet-hygiene:apply.
+- Park a dirty branch manually: /source-control:worktree.
+
 ## Gotchas
 
 - A clean non-default branch is checked out away from, not deleted. The branch remains.

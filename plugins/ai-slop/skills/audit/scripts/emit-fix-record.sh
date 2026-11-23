@@ -53,23 +53,23 @@ done
   exit 2
 }
 [[ "$ROWS" =~ ^[0-9]+$ ]] || {
-  echo "emit-fix-record.sh: --rows must be a non-negative integer" >&2
+  echo "$ME: --rows must be a non-negative integer" >&2
   exit 2
 }
 for f in "${CONSUMED[@]}"; do
   [[ -f "$f" ]] || {
-    echo "emit-fix-record.sh: --consumed file not found: $f" >&2
+    echo "$ME: --consumed file not found: $f" >&2
     exit 2
   }
 done
 [[ -z "$NA_ROWS" || -f "$NA_ROWS" ]] || {
-  echo "emit-fix-record.sh: --not-applied-rows file not found: $NA_ROWS" >&2
+  echo "$ME: --not-applied-rows file not found: $NA_ROWS" >&2
   exit 2
 }
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
-    echo "emit-fix-record.sh: no --branch and no current git branch" >&2
+    echo "$ME: no --branch and no current git branch" >&2
     exit 2
   }
 fi
@@ -78,7 +78,6 @@ sha12() {
   { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12
 }
 
-# Same quoting predicate as emit-findings.sh: the consumer compares the exact branch string.
 yaml_scalar() {
   local s="$1" l="${1,,}" indicator='^[][?:,{}#&*!|>%@`"'"'"'-]'
   if [[ "$s" =~ $indicator || "$s" == *": "* || "$s" == *" #"* || "$s" =~ [[:space:]]$ ||
@@ -121,6 +120,5 @@ for f in "${CONSUMED[@]}"; do names+="${names:+, }$(basename "$f")"; done
 
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/${TS}-fix-pass-applied-$(sha12 "$TMP").md"
-# The name carries the bytes' digest, so an existing path is the same record.
 [[ -e "$OUT" ]] || mv "$TMP" "$OUT"
 printf '%s\n' "$OUT"

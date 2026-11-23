@@ -1,21 +1,12 @@
 #!/usr/bin/env node
-// Claude proposes, the owner approves, in a real browser against `share.sh ensure-running` with the fake
-// cloudflared: a second "Ann" joins while the first is not here, the server tells Claude (person-joined), Claude's
-// propose-merge lands in the owner's Host view and Inbox with its reasons, a guest never sees it, nothing merges
-// until the owner taps Merge, and Merge folds the new browser into the earlier Ann as the owner's own merge does. A
-// withheld recommendation gets no card: its alternatives stay and its Withheld text is the question's open note.
-//   node plugins/planning/shared/tests/ui_claude_proposals.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the issue's acceptance list, the owner's decision on it, and the texts this suite
-// writes, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
-const HELD = "Withheld: the team calendar would settle it."; // a withheld recommendation: asked open, never on a card
-const BASIS = "Checked against: the venue list. Basis: Verified: the venue list."; // question-shape.md's basis, its own labels inside
+const HELD = "Withheld: the team calendar would settle it.";
+const BASIS = "Checked against: the venue list. Basis: Verified: the venue list.";
 
 async function post(base, route, body, headers = {}) {
   const r = await fetch(new URL(route, base), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -36,13 +27,11 @@ async function main() {
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
 
-    // The first Ann joined earlier and is not here now: a join that names no device starts no presence.
     const first = await post(A.localUrl, "/api/join", { name: "Ann", key: A.guestKey });
     ok("the first Ann joins", first.status === 200, JSON.stringify(first.body));
     const annPid = first.body.pid, annHdr = { "X-Session-Secret": first.body.secret };
     ok("  and says hello in chat", (await post(A.localUrl, "/api/chat", { text: "Hello from my laptop" }, annHdr)).status === 200);
 
-    // The same Ann on her phone, without her own link: a second person, who answers "No, I am new".
     const twin = await rec.open(A.localUrl);
     await twin.waitForSelector("dialog.core-name[open]");
     await twin.fill("#core-n", "Ann");
@@ -62,7 +51,6 @@ async function main() {
     const kid = out.results[0].id;
     ok("Claude's proposal is accepted", !!kid, JSON.stringify(out));
 
-    // ---------- the owner sees it in the Host view, with its reasons; a guest never does ----------
     await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
     const row = '.vf-queue .vf-qitem[data-t="people"]';
     ok("the Host view lists Claude's proposal with its reasons and the fix for next time", await until(owner, sel => {
@@ -77,7 +65,6 @@ async function main() {
     ok("a guest's approve is refused as owner-only", guestApprove.status === 403 && guestApprove.body.error === "owner-only", JSON.stringify(guestApprove));
     ok("  and nothing merged without the owner's tap", state().people[twinPid] !== undefined && state().people[annPid] !== undefined);
 
-    // ---------- the Inbox lists it under Needs you; Merge there folds the two ----------
     await owner.click(".vf-bell");
     ok("the owner's Inbox lists it under Needs you, as From Claude", await until(owner, () => [...document.querySelectorAll(".vf-rev-chip")].some(b => b.textContent.startsWith("From Claude · 1"))
       && !!document.querySelector('.vf-ibq .vf-qitem[data-t="people"]')),
@@ -90,7 +77,6 @@ async function main() {
     ok("the phone carries on as the earlier Ann", await until(twin, p => window.Core.snapshot()?.me?.pid === p, annPid, 10000), await twin.evaluate(() => window.Core.snapshot()?.me?.pid));
     ok("  and the phone's chat is the earlier Ann's now", await until(twin, p => window.Core.snapshot().chat.some(m => m.pid === p && m.text === "Hi from my phone"), annPid));
 
-    // A withheld recommendation is asked open: no "Claude recommends" card, the alternatives stay, and the Withheld text is the open note.
     const held = await rec.open(A.ownerUrl);
     await until(held, () => window.Core.snapshot()?.me?.role === "owner");
     ok("a withheld question gets its alternative cards and no recommendation card", await until(held, () => (window.Core.snapshot().cards.Q2 || []).map(c => c.ref).join() === "c:a,c:b"),
@@ -104,7 +90,6 @@ async function main() {
     ok("  and a guest sees the same open note", await until(guest, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
       await guest.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
 
-    // The recommendation's basis shows as written, folded behind "Why", with no page-added "Basis: " before its own labels.
     await held.locator(".vf-q", { hasText: "Which venue should we book?" }).first().click();
     await until(held, () => !!document.querySelector(".vf-claudebar")?.offsetParent || [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].some(c => c.offsetParent));
     if (await held.evaluate(() => !!document.querySelector(".vf-claudebar")?.offsetParent)) await held.click(".vf-claudebar");

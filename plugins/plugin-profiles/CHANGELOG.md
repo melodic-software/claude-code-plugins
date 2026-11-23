@@ -3,6 +3,56 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-11-23
+
+### Changed
+
+- `start -c` (and `claude -c` through the dotfiles `claude` function) continues the folder's last conversation in the profile that session started in, printing `Continuing this folder's last conversation in profile <name>.`; Claude Code still picks the conversation. It starts with the profile's own session file, never the plugins a `--profile-add` reopen added; after a session with no profile, or one resumed without its profile since, it starts with the folder's settings, a given `--profile` wins, and a recorded profile that no longer exists is named and skipped. The session-start hook writes the per-folder record, `sessions/by-folder/<sha256 of the folder's real path>.json`, for every session except `claude -p` and Agent SDK sessions (the `sdk-*` entrypoints), which `claude -c` skips, and sweeps it after 30 days like the by-id records.
+- A resumed session that had no recorded profile and now runs in one gets a start-notice line saying so, beside the existing line for a session that moved from one profile to another.
+
+## [0.11.0] - 2026-11-23
+
+### Added
+
+- Each `start --resume <id> --profile-add <plugin>` reopen records one exception per requested plugin in this machine's `exceptions.jsonl` in the plugin's data folder (never on `--dry-run` or a refused reopen); records older than 30 days are pruned.
+- When one profile has been reopened with the same plugin in three distinct conversations since that pair was last reviewed, the session-start notice suggests `/plugin-profiles:profile setup`.
+- `exceptions [--json]` lists each profile and plugin pair with its count since its last review, and `exceptions --reviewed <profile> --plugin <id>` records a review. Profile setup now starts with a review step that reads the log and asks per pair whether to add the plugin to the profile or keep it off.
+
+### Changed
+
+- `save --plugins` and `--optional` drop the ids they add from that file's `remove` and `exclude` lists, and the preview says `Stays off` when another file of the profile still switches one off.
+
+## [0.10.0] - 2026-11-23
+
+### Added
+
+- **Skill links that leave a profile are reported.** `profiles.mjs check` reads each skill's `## Next` and `## Related` `/plugin:skill` targets and reports, without failing, a target whose plugin a profile switches off or whose skill it hides (`links.next`, and `links.related` as a separate informational list) and a target that resolves to no skill (`links.unresolved`). A profile's members are its plugins, its optional plugins, always-on unless it opts out, and their manifest dependencies, minus `exclude`. `--skills <plugins dir>` checks a repository tree against its shipped profiles and also lists catalog plugins no shipped profile names; without it the installed plugins are checked against your own profiles. `--changed <file>` puts the lines for the skills and profiles a change touched first, and with `GITHUB_STEP_SUMMARY` set the tree check writes them to the job summary, the rest under a collapsed heading.
+
+- `start --resume <id> --profile-add <plugin>` (and `claude --resume <id>` with `--profile-add <plugin>` through the dotfiles `claude` function) reopens a conversation in its recorded profile with an installed plugin the profile switched off, and its dependencies, on for that conversation only. It takes a plugin id, a plugin name, `plugin:skill` or a skill name, never settings text; an ambiguous name is refused with its candidates, and a plugin that is not installed with its `claude plugin install` line. A later `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions, `launch` and handoffs start without it. `status` and the start notice name the added plugins.
+- In a one-session profile the session-start hook now tells the model how to reopen the conversation with an off plugin, through `additionalContext`, at start and again after compaction (the hook now also runs on `compact`, and there returns only that line).
+
+### Changed
+
+- Profile setup ends by offering the `claude` function's `--profile <name>` for one session instead of a folder apply.
+
+## [0.9.8] - 2026-11-23
+
+### Fixed
+
+- Two applies to one folder at the same time no longer lose a record: an apply saves its record only while the record file still holds what it read, so an apply that another apply finished first re-plans over that apply's record instead of overwriting it, and `clear` can still put the file back.
+
+## [0.9.7] - 2026-11-22
+
+### Fixed
+
+- An apply whose settings write fails now undoes its record only while the record file still holds the one it wrote, so a second apply that saved its record in between keeps it, and `clear` and `reset` can still undo that apply.
+
+## [0.9.6] - 2026-11-22
+
+### Fixed
+
+- On Windows, `launch` prints a PowerShell line (`Remove-Item Env:...; claude --settings ...`) in place of the `env -u` line Windows cannot run; `argv` keeps its shape for scripts that build their own start. Inline `--with` JSON with no profile now passes as a session file, since Windows PowerShell 5.1 strips the quotes inside it.
+
 ## [0.9.5] - 2026-11-22
 
 ### Fixed

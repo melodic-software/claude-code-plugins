@@ -30,7 +30,6 @@ run_copy() {
   RC=$?
 }
 
-# --- usage -------------------------------------------------------------------
 run_copy
 assert_eq "no provider → exit 2" "2" "$RC"
 run_copy ../acme --root "$ROOT"
@@ -39,7 +38,6 @@ run_copy nope --root "$ROOT"
 assert_eq "an unknown seed → exit 2" "2" "$RC"
 assert_contains "…naming the seeds there are" "$(<"$TMP_ROOT/err")" "acme"
 
-# --- first copy --------------------------------------------------------------
 run_copy acme --root "$ROOT"
 assert_eq "first run → exit 0" "0" "$RC"
 assert_eq "first run → copied" "copied" "$OUT"
@@ -56,7 +54,6 @@ run_copy acme --root "$ROOT"
 assert_eq "unchanged seed → exit 0" "0" "$RC"
 assert_eq "unchanged seed → up-to-date" "up-to-date" "$OUT"
 
-# --- an untouched copy fast-forwards -----------------------------------------
 printf 'v2\n' >"$SEEDS/acme/get-item.sh"
 printf 'new\n' >"$SEEDS/acme/list-items.sh"
 HASH_BEFORE="$(<"$DEST/.seed-hash")"
@@ -73,7 +70,6 @@ fi
 run_copy acme --root "$ROOT"
 assert_eq "after the fast-forward → up-to-date" "up-to-date" "$OUT"
 
-# --- an edited copy stops with a diff ----------------------------------------
 printf 'v2\nlocal fix\n' >"$DEST/get-item.sh"
 printf 'v3\n' >"$SEEDS/acme/get-item.sh"
 run_copy acme --root "$ROOT"

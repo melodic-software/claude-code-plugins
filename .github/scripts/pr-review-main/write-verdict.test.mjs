@@ -1,3 +1,4 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 // The main-run review verdict: the counts the merge gate reads
 // (babysit_review_evidence `_main_review_counted`), from the model's checked
 // output and the job's own reads, and nothing written on doubt.
@@ -105,7 +106,7 @@ test("the cap is the merge gate's", () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const python = spawnSync(
     "python3",
-    ["-I", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import babysit_risk; print(babysit_risk.LONG_LINE_BYTES)", path.join(root, "plugins/source-control/skills/babysit-prs/scripts")],
+    ["-I", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import diff_risk; print(diff_risk.LONG_LINE_BYTES)", path.join(root, "plugins/source-control/skills/babysit-prs/scripts")],
     { encoding: "utf8" },
   );
   assert.equal(python.status, 0, python.stderr);
@@ -144,7 +145,6 @@ test("a chunked review's verdict sums every chunk's findings and takes the most 
   // One chunk is the single-pass verdict, unchanged.
   const one = { findings: [finding("CRITICAL")], summary: "s" };
   assert.deepEqual(buildChunkedVerdict({ ...rest, outputs: [one] }), buildVerdict(args(one)));
-  // Any chunk off the schema voids the whole verdict.
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [one, { findings: [finding("HIGH")], summary: "s" }] }), /chunk 2 of 2/);
   assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [] }));
 });

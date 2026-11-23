@@ -10,21 +10,15 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -10`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
-
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-comes too late for whatever the command has already returned inline. What a result returns inline,
-and when it arrives as a saved file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
 
 ## Variables
 
@@ -293,6 +287,14 @@ is invoked via the Skill tool.
 /verification:confirm
 
 It checks the batch against the repo's own build, test and lint gates.
+
+## Related
+
+- Route-lane candidate needs boundary design: /architecture:improve.
+- Pure markdown prose dedup: /docs-hygiene:extract-ssot.
+- Identifier rename rather than value change: /docs-hygiene:rename-references.
+- Duplicate-writer ownership rule to codify: /corrections:codify.
+- General non-coupling tidying: /code-tidying:tidy.
 
 ## Gotchas
 

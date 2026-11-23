@@ -723,7 +723,7 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   `--match-head-commit`. `merge_method` is sent, `merge_action` is `direct_merge`, and
   `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
-- **Result.** The gate polls for up to 60 seconds, at the 60-second wait cadence; a 200 means already merged or already queued. A
+- **Result.** The gate polls for up to 90 seconds, at the 90-second wait cadence; a 200 means already merged or already queued. A
   409 means a request is already pending, possibly another actor's. When its body states that
   request's `expected_head_sha` or `merge_action`, each must equal this run's pin and action;
   otherwise the gate does not poll it, reports it as `merge.conflictingRequest` with exit `10`, and
@@ -1144,12 +1144,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    edit. An issue the lanes App both filed and
    admitted refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label;
    this fails closed, and the pr-merge lane is unaffected. A LOW score merges, and so does a MED one whose
-   every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   every reason is a size or reported review-finding reason (`diff_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
    CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
    `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
-   `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
+   `diff_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
    a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body

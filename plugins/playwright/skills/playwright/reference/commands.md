@@ -151,7 +151,7 @@ diff before.yml after.yml
 TOKEN=$(playwright-cli --raw cookie-get session_id)
 ```
 
-- **Pointer**: what `--raw` keeps, the "Raw output" section of `vendor/SKILL.md`. Probe: under 0.1.23, `--raw snapshot` printed the snapshot YAML and `--raw click` printed a snapshot link. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: what `--raw` keeps, the "Raw output" section of `vendor/SKILL.md`. Probe: under 0.1.25, `--raw snapshot` printed the snapshot YAML and `--raw click` printed a snapshot link. **As of**: 2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Open parameters
 

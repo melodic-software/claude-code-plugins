@@ -246,6 +246,11 @@
           "type": "object",
           "additionalProperties": {"type": "string"},
           "description": "Each imported row's round cell, by question id, where it is not the bare `round <N>`; export-ledger writes it back while the question's round still equals the cell's number."
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": {"type": "string"},
+          "description": "Each imported row's tag tail (`kind::`, `problem::`, `depends::`, `reopened::`, `recheck::`), by question id, as the ledger wrote it; export-ledger writes it back unchanged, and a merge into a ledger keeps that ledger's tail instead."
         }
       }
     },

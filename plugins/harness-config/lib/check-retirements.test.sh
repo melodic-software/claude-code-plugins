@@ -26,13 +26,9 @@ assert_contains() {
   esac
 }
 assert_file_eq() {
-  # assert_file_eq <label> <expected-file> <actual-file> — byte-for-byte
   if cmp -s "$2" "$3"; then pass "$1"; else fail "$1" "files differ: $(od -c "$3" | head -5)"; fi
 }
 
-# mkrepo <name> — echo a fresh fixture root (a git repo when git is present,
-# so the default-root rung can be exercised; else a directory holding `.git`,
-# which the helper's no-git fallback reads as a repository).
 mkrepo() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d"
@@ -44,7 +40,6 @@ mkrepo() {
   printf '%s' "$d"
 }
 
-# manifest <path> — write stdin (a heredoc) to <path>.
 manifest() { cat >"$1"; }
 
 # run <args...> — OUT/ERR/RC come back through globals, not stdout: a command
@@ -59,23 +54,19 @@ run() {
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
 
-# A well-formed record template, one field overridden per malformed case.
 good_record() {
-  # good_record <id> <kind> <path> <action> [extra lines...]
   printf 'id: %s\nretired: 2026-09-01\nplugin_version: 1.2.3\nkind: %s\npath: %s\naction: %s\nnote: fixture record\n' "$1" "$2" "$3" "$4"
   shift 4
   local extra
   for extra in "$@"; do printf '%s\n' "$extra"; done
 }
 
-# --- Case 1: --help exits 0 ---------------------------------------------------
 run --help
 assert_exit "case 1: --help exits 0" 0 "$RC"
 assert_contains "case 1: --help prints usage" "$OUT" "Usage:"
 run -h
 assert_exit "case 1: -h exits 0" 0 "$RC"
 
-# --- Case 2: usage errors exit 2 ----------------------------------------------
 r="$(mkrepo usage)"
 m="$TEST_TMPDIR/usage.yaml"
 good_record fx-r001 file .claude/old.json delete | manifest "$m"
@@ -94,7 +85,6 @@ assert_exit "case 2: --clean with no id exits 2" 2 "$RC"
 run --manifest
 assert_exit "case 2: --manifest with no value exits 2" 2 "$RC"
 
-# --- Case 3: kind file — hit, TSV shape, miss ---------------------------------
 r="$(mkrepo file-kind)"
 mkdir -p "$r/.claude"
 printf '{}\n' >"$r/.claude/old.json"
@@ -114,7 +104,6 @@ mkdir -p "$r/.claude/old.json"
 run --manifest "$m" --root "$r"
 assert_exit "case 3: a directory at a file record's path is not a hit" 0 "$RC"
 
-# --- Case 4: kind dir — hit and miss ------------------------------------------
 r="$(mkrepo dir-kind)"
 mkdir -p "$r/.claude/scratch"
 m="$TEST_TMPDIR/dir.yaml"
@@ -129,7 +118,6 @@ printf 'x' >"$r/.claude/scratch"
 run --manifest "$m" --root "$r"
 assert_exit "case 4: a file at a dir record's path is not a hit" 0 "$RC"
 
-# --- Case 5: kind line — hit and miss (LF file) -------------------------------
 r="$(mkrepo line-kind)"
 printf 'node_modules/\n.claude/scratch/\ndist/\n' >"$r/.gitignore"
 m="$TEST_TMPDIR/line.yaml"
@@ -144,9 +132,6 @@ rm "$r/.gitignore"
 run --manifest "$m" --root "$r"
 assert_exit "case 5: missing file for a line record exits 0" 0 "$RC"
 
-# --- Case 6: content_match guards a reused path -------------------------------
-# The successor may legitimately live at the retired path. Only the OLD shape
-# is a leftover.
 r="$(mkrepo reused-path)"
 printf 'version: 2\nkey: new\n' >"$r/config.yaml"
 m="$TEST_TMPDIR/content.yaml"
@@ -157,9 +142,6 @@ printf 'version: 1\nkey: old\n' >"$r/config.yaml"
 run --manifest "$m" --root "$r"
 assert_exit "case 6: old content at the same path is a hit" 1 "$RC"
 
-# --- Case 7: CRLF fixtures match $-anchored patterns --------------------------
-# A Windows-authored file ends every line in \r\n; the trailing \r is stripped
-# before matching so `^...$` still means the whole line.
 r="$(mkrepo crlf)"
 printf 'node_modules/\r\n.claude/scratch/\r\ndist/\r\n' >"$r/.gitignore"
 m="$TEST_TMPDIR/crlf-line.yaml"
@@ -172,7 +154,6 @@ good_record fx-r001 file config.yaml delete 'content_match: "^version: 1$"' | ma
 run --manifest "$m" --root "$r"
 assert_exit "case 7: CRLF content_match matches a \$-anchored ERE" 1 "$RC"
 
-# --- Case 8: report-only is listed but does not fail --------------------------
 r="$(mkrepo report-only)"
 printf 'x\n' >"$r/old.txt"
 printf 'y\n' >"$r/older.txt"
@@ -191,7 +172,6 @@ assert_exit "case 8: one active among report-only exits 1" 1 "$RC"
 assert_eq "case 8: both rows listed" "2" "$(printf '%s\n' "$OUT" | grep -c .)"
 assert_contains "case 8: summary splits active from report-only" "$ERR" "1 active leftover(s), 1 report-only"
 
-# --- Case 9: malformed records fail the whole run, naming record and field ----
 r="$(mkrepo malformed)"
 printf 'x\n' >"$r/present.txt"
 m="$TEST_TMPDIR/bad.yaml"
@@ -294,8 +274,6 @@ run --manifest "$m" --root "$r"
 assert_exit "case 9: nesting exits 2" 2 "$RC"
 assert_contains "case 9: nesting names the line" "$ERR" "is not 'key: value'"
 
-# The property that matters most: one bad record silences NOTHING. A valid
-# record whose artifact IS present emits no row when a sibling is malformed.
 {
   good_record fx-r001 file present.txt delete
   echo '---'
@@ -306,7 +284,6 @@ assert_exit "case 9: a bad record fails the whole run" 2 "$RC"
 assert_eq "case 9: no row is emitted for the valid record" "" "$OUT"
 assert_contains "case 9: the bad record is named" "$ERR" "id: fx-r002"
 
-# --- Case 10: parsing — CRLF manifest, quotes, comments, separators -----------
 r="$(mkrepo parsing)"
 mkdir -p "$r/old dir"
 printf 'x\n' >"$r/old dir/file.txt"
@@ -347,7 +324,6 @@ run --manifest "$m" --root "$r"
 assert_exit "case 10: an empty manifest is valid" 0 "$RC"
 assert_contains "case 10: empty manifest reports zero records" "$ERR" "0 record(s)"
 
-# --- Case 11: emitted paths are repo-relative, exactly as declared ------------
 mkrepo relpath >/dev/null
 mkdir -p "$TEST_TMPDIR/relpath/.claude"
 printf '{}\n' >"$TEST_TMPDIR/relpath/.claude/old.json"
@@ -357,7 +333,6 @@ row_path="$(printf '%s\n' "$OUT" | cut -f3)"
 assert_eq "case 11: path column is the declared repo-relative path" ".claude/old.json" "$row_path"
 assert_not_contains "case 11: stdout never carries the root" "$OUT" "$TEST_TMPDIR"
 
-# --- Case 12: --clean delete (file) -------------------------------------------
 r="$(mkrepo clean-file)"
 mkdir -p "$r/.claude"
 printf '{}\n' >"$r/.claude/old.json"
@@ -374,7 +349,6 @@ run --manifest "$m" --root "$r" --clean fx-r999
 assert_exit "case 12: clean of an unknown id exits 2" 2 "$RC"
 assert_contains "case 12: unknown id is named" "$ERR" "fx-r999"
 
-# --- Case 12b: --clean file refuses a symlink parent that leaves ROOT --------
 r="$(mkrepo clean-symlink-parent)"
 outside="$TEST_TMPDIR/outside-clean-symlink"
 mkdir -p "$outside"
@@ -391,7 +365,6 @@ else
   fail "case 12b: the external file is left untouched" "deleted"
 fi
 
-# --- Case 13: --clean respects content_match at clean time --------------------
 r="$(mkrepo clean-guard)"
 printf 'version: 2\n' >"$r/config.yaml"
 m="$TEST_TMPDIR/clean-guard.yaml"
@@ -401,7 +374,6 @@ assert_exit "case 13: successor content at the path is not cleaned (exit 1)" 1 "
 if [[ -f "$r/config.yaml" ]]; then pass "case 13: reused file preserved"; else fail "case 13: reused file preserved" "deleted"; fi
 assert_contains "case 13: the reason is stated" "$ERR" "content no longer matches"
 
-# --- Case 14: --clean delete (dir) --------------------------------------------
 r="$(mkrepo clean-dir)"
 mkdir -p "$r/.claude/scratch/deep"
 printf 'x\n' >"$r/.claude/scratch/deep/f.txt"
@@ -414,7 +386,6 @@ if [[ -f "$r/.claude/keep.json" ]]; then pass "case 14: sibling untouched"; else
 run --manifest "$m" --root "$r" --clean fx-r001
 assert_exit "case 14: dir clean with nothing present exits 1" 1 "$RC"
 
-# --- Case 15: --clean remove-line keeps every other byte ----------------------
 r="$(mkrepo clean-line)"
 m="$TEST_TMPDIR/rm-line.yaml"
 good_record fx-r001 line notes.txt remove-line 'match: "^X$"' | manifest "$m"
@@ -442,7 +413,6 @@ run --manifest "$m" --root "$r" --clean fx-r001
 assert_exit "case 15: no line matches exactly — nothing to clean (exit 1)" 1 "$RC"
 assert_file_eq "case 15: whitespace-bearing lines untouched when nothing matches" "$TEST_TMPDIR/expected" "$r/notes.txt"
 
-# --- Case 16: --clean remove-line preserves CRLF ------------------------------
 printf 'a\r\nX\r\nb\r\n' >"$r/notes.txt"
 printf 'a\r\nb\r\n' >"$TEST_TMPDIR/expected"
 run --manifest "$m" --root "$r" --clean fx-r001
@@ -454,7 +424,6 @@ printf 'a\r\nb\n' >"$TEST_TMPDIR/expected"
 run --manifest "$m" --root "$r" --clean fx-r001
 assert_file_eq "case 16: mixed endings — each kept line keeps its own" "$TEST_TMPDIR/expected" "$r/notes.txt"
 
-# --- Case 17: --clean on migrate refuses without --i-migrated -----------------
 r="$(mkrepo clean-migrate)"
 printf 'version: 1\n' >"$r/config.yaml"
 m="$TEST_TMPDIR/migrate.yaml"
@@ -477,7 +446,6 @@ run --manifest "$m" --root "$r" --clean fx-r002 --i-migrated
 assert_exit "case 17: migrate line record cleans with --i-migrated" 0 "$RC"
 assert_file_eq "case 17: migrate line record removes only the matched line" "$TEST_TMPDIR/expected" "$r/.env"
 
-# --- Case 18: --clean works on a report-only record ---------------------------
 r="$(mkrepo clean-report-only)"
 printf 'x\n' >"$r/old.txt"
 m="$TEST_TMPDIR/clean-ro.yaml"
@@ -485,7 +453,6 @@ good_record fx-r001 file old.txt delete 'status: report-only' | manifest "$m"
 run --manifest "$m" --root "$r" --clean fx-r001
 assert_exit "case 18: report-only record is cleanable on request" 0 "$RC"
 
-# --- Case 19: --clean also refuses a manifest with a bad sibling record -------
 r="$(mkrepo clean-bad-sibling)"
 printf 'x\n' >"$r/old.txt"
 m="$TEST_TMPDIR/clean-bad.yaml"
@@ -498,7 +465,6 @@ run --manifest "$m" --root "$r" --clean fx-r001
 assert_exit "case 19: clean fails on an invalid manifest" 2 "$RC"
 if [[ -f "$r/old.txt" ]]; then pass "case 19: nothing cleaned from an invalid manifest"; else fail "case 19: nothing cleaned from an invalid manifest" "deleted"; fi
 
-# --- Case 20: default root — CLAUDE_PROJECT_DIR, then git toplevel ------------
 r="$(mkrepo default-root)"
 mkdir -p "$r/.claude" "$r/sub/dir"
 printf '{}\n' >"$r/.claude/old.json"
@@ -518,7 +484,6 @@ OUT="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r" bash "$SCRIPT" --manifest "$
 RC=$?
 assert_exit "case 20: --root wins over CLAUDE_PROJECT_DIR" 0 "$RC"
 
-# --- Case 21: every emitted row has exactly 6 columns -------------------------
 r="$(mkrepo columns)"
 mkdir -p "$r/d"
 printf 'x\n' >"$r/f.txt"
@@ -539,7 +504,6 @@ assert_eq "case 21: four rows" "4" "$(printf '%s\n' "$OUT" | grep -c .)"
 assert_eq "case 21: every row has 6 columns" "6" "$(printf '%s\n' "$OUT" | awk -F '\t' '{ print NF }' | sort -u | tr -d '\n')"
 assert_eq "case 21: rows are in manifest order" "fx-r001 fx-r002 fx-r003 fx-r004" "$(printf '%s\n' "$OUT" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
 
-# --- Case 22: heading scopes kind:line to one markdown section ----------------
 r="$(mkrepo heading-scope)"
 mkdir -p "$r/.claude"
 m="$TEST_TMPDIR/heading.yaml"
@@ -547,9 +511,6 @@ good_record fx-r001 line .claude/doc.md remove-line \
   'match: "^docs/conventions/source-control/commit-convention\.yml$"' \
   'heading: "## convention_source"' | manifest "$m"
 
-# doc_fixture <path>: five occurrences of the retired line, three decoys
-# outside the heading's section and two inside it (one under a deeper heading,
-# which is still the same section body).
 doc_fixture() {
   cat >"$1" <<'EOF'
 # title
@@ -626,8 +587,6 @@ assert_file_eq "case 22: --clean removes only in-section matches and keeps decoy
   "$TEST_TMPDIR/heading-expected" "$r/.claude/doc.md"
 assert_contains "case 22: --clean reports two in-section lines" "$ERR" "removed 2 line(s)"
 
-# Trailing whitespace on the heading line still identifies the section; a
-# second same-level heading with the same title is a second section.
 printf '## convention_source  \r\ndocs/conventions/source-control/commit-convention.yml\r\n## convention_source\r\ndocs/conventions/source-control/commit-convention.yml\r\n' \
   >"$r/.claude/doc.md"
 run --manifest "$m" --root "$r"
@@ -638,8 +597,6 @@ printf '## convention_source  \r\n## convention_source\r\n' >"$TEST_TMPDIR/headi
 assert_file_eq "case 22: both heading-titled sections cleaned; heading lines kept" \
   "$TEST_TMPDIR/heading-crlf-expected" "$r/.claude/doc.md"
 
-# --- Case 23: a $HOME or non-repository root skips kind file records ---------
-# There a .claude/<name>.json path is the live user-global layer.
 m="$TEST_TMPDIR/user-global.yaml"
 {
   good_record fx-r001 file .claude/old.json delete
@@ -654,7 +611,7 @@ for r in "$fake_home" "$plain"; do
 done
 # GIT_CEILING_DIRECTORIES: a TMPDIR inside some repository must not make the
 # plain directory look like one.
-run_at() { # <root> [args...] -- HOME is the fake home, git stops at TEST_TMPDIR
+run_at() {
   local root="$1"
   shift
   OUT="$(HOME="$fake_home" GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --manifest "$m" --root "$root" "$@" 2>"$TEST_TMPDIR/err")"
@@ -676,15 +633,12 @@ mkdir -p "$r/.claude"
 printf '{}\n' >"$r/.claude/old.json"
 run_at "$r"
 assert_contains "case 23: a repository root outside HOME still reports the file row" "$OUT" "fx-r001"
-# A `.git` git rejects (here an empty directory, as with git missing or a
-# repository git refuses for dubious ownership) still counts as a repository.
 r="$TEST_TMPDIR/bare-dot-git"
 mkdir -p "$r/.git" "$r/.claude"
 printf '{}\n' >"$r/.claude/old.json"
 run_at "$r"
 assert_contains "case 23: a .git that git rejects still reports the file row" "$OUT" "fx-r001"
 
-# --- Case 24: kind block removes one YAML key and its value, nothing else -----
 r="$(mkrepo block-kind)"
 m="$TEST_TMPDIR/block.yaml"
 good_record fx-r001 block conf.yaml migrate "match: '^old[_]key:'" 'successor: move old_key to new.yaml' | manifest "$m"

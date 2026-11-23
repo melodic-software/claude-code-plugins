@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": [".claude/ecosystems/bash.yaml"],
+      "answer": ["docs/conventions/ecosystems/bash.yaml"],
       "why": "in the repository"
     }
   ],
@@ -11,7 +11,7 @@
       "why": "outside .claude/"
     },
     {
-      "answer": [".claude/ecosystems/bash.local.yaml"],
+      "answer": ["docs/conventions/ecosystems/bash.local.yaml"],
       "why": "only the personal override"
     }
   ]

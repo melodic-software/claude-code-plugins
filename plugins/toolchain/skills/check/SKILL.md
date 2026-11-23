@@ -12,24 +12,26 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into one invocation, so a worktree-isolated session screens each git read on its own:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Current branch, `git branch --show-current`
-
-Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Pointers: what a large output returns, [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits); how injected commands are grouped, [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run); why a pre-compute block carrying git is refused, `/source-control:worktree`'s gather-block reference, "The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
 Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when enabled) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
-Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
+Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` (or the legacy `.claude/ecosystems/` file for a name absent there) first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
 
 ## Arguments
 
-`$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `.claude/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
+`$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `docs/conventions/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
-`--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
+`--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
 
 Read on demand:
 
@@ -83,7 +85,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 Resolve `globs`, `build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `requires`, `gates` and `notes` per the ladder:
 
-1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
+1. Consumer `docs/conventions/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key; the legacy `.claude/ecosystems/` file for a name absent there) → authoritative.
 2. Absent → infer from the repo's build files, name the inferred id and its globs in the report, and offer to persist via `/toolchain:setup`.
 3. Cannot infer → ask; offer to persist.
 
@@ -120,7 +122,7 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 **Declared prerequisites.** The resolved `requires` lists, per command key, what that command needs beyond its tool on `PATH`: a runtime package, or a tool at the build the repo pins for CI. After the tool-presence check passes, and after a single-condition `opt-in` is met (an unmet one skips `check-cmd` without probing), run each of the command's entries' `probe` before the command: one Bash call per probe with the Bash tool's `timeout` set to 30000, from `$REPO_ROOT`, or from each location the command runs from when the entry sets `run-from: ecosystem`, with `$REPO_ROOT` substituted. Exit 0 means present. Any other exit, a probe that cannot start, and one that times out mean absent, never `FAIL`.
 
-- With any entry absent, do not run the command. Its cell reads `skip (prerequisite missing: <name>)`, naming each absent entry (`<name>, <name>`), with each entry's `hint` below the table.
+- With any entry absent, do not run the command. Its cell reads `skip (prerequisite missing: <name>)`, naming each absent entry (`<name>, <name>`), with each entry's `hint` below the table. For an entry that carries an `install` object, the line below the table also names the provisioning step that installs it, `provision-prerequisites.sh` in the source-control plugin (the worktree helper runs it at creation), and its lockfile; the check itself never runs that step.
 - Under `run-from: ecosystem` the command still runs at the locations where every probe passed. The cell reads `FAIL` when any of those runs failed, else the skip, with the skipped locations listed below the table, and `pass` only when it ran and passed everywhere.
 - One absent entry skips the whole command, every tool bundled in its string included.
 - Never install a declared prerequisite and never run its `hint`, in any run. Compare no version yourself: the probe is the whole test, and `tool-pin` stays a drift warning.

@@ -9,7 +9,7 @@ that artifact rather than restating it. New terms are curated through
 `/domain-driven-design:ubiquitous-language curate` rather than hand-written, so the entry discipline stays
 uniform.
 
-This marketplace is a single language context, so there is no context map: every entry below
+This marketplace is a single language context, so there is no glossary index: every entry below
 applies repository-wide.
 
 Naming rule: split a concept into its core responsibilities and name each piece so the pieces
@@ -68,7 +68,9 @@ The moment a stage has produced its artifact and the next has not begun.
 What a session leaves for a fresh session to resume from: a resume prompt, always, plus an optional
 handoff file the prompt points to.
 
-Avoid: checkpoint; save point for pushed commits with no pull request (that state is PR-less)
+Pushed commits with no pull request are PR-less, not a save-point.
+
+Avoid: checkpoint
 
 **primary source**
 
@@ -86,10 +88,9 @@ claim resting on one is verified against the primary before it ships.
 **light zone**
 
 The healthiest of `context-usage`'s three context zones (`light` / `moderate` / `heavy`), naming
-the band rather than any token figure. The band numbers are declared judgment defaults and tunable
-per consumer.
+the band rather than any token figure.
 
-Avoid: smart zone (and acceptable zone, dumb zone for the other two)
+Avoid: smart zone
 
 **unknowns quadrants**
 
@@ -124,21 +125,25 @@ meant; a bare "seam" outside these files reads as the module-design sense.
 - the four channels through which a consumer configures a plugin
   ([`migration-playbook.md`](migration-playbook.md#extensibility-contract-v21-the-four-seams)).
 
-Avoid: renaming any of the five; each has a recorded decision that keeps it.
+Each sense keeps its name by a recorded decision.
 
 **harness**
 
 The program that runs a model as an agent: it gives the model its tools, gates their use, loads
-its instructions and memory, and repeats the model-then-tools cycle. In this repository the
-harness is Claude Code, the sense in the `harness-config`, `harness-memory` and `harness-ops`
-plugin names ([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21).
+its instructions and memory, and repeats the model-then-tools cycle. Bare *harness* means Claude
+Code, the sense in the `harness-config`, `harness-memory` and `harness-ops` plugin names
+([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21). In **vendor
+routing** it is any agent CLI a delegated task runs in (Claude Code, Codex CLI, Antigravity CLI),
+the sense benchmark rows use when they name the agent a model ran inside.
 
 ### Work items
 
 **work item** (short: **item**)
 
 A node in the tracker's dependency graph, the same node through planning, implementation and
-review. *Ticket* and *issue* are accepted synonyms for the same concept, not separate ones.
+review.
+
+Also called: ticket, issue
 
 **container**
 
@@ -155,7 +160,7 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
-Avoid: frontier alone for the model level; write frontier tier
+For the model level the word is **frontier tier**, a capability tier.
 
 **slice**
 
@@ -163,7 +168,7 @@ The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) tha
 plans and research. Checkout-local and never committed. Also written **memory slice** or **topic
 slice**; a folder nested inside one is a **sub-slice**.
 
-Avoid: slice for a work item; write **vertical slice**
+A work item cut through every layer is a **vertical slice**.
 
 **vertical slice**
 
@@ -215,15 +220,13 @@ is the same step in a local loop. The ADR admission test
 is a separate sense.
 
 Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
-The queue's length can pause admission
-([`check-wip-cap`](../.github/actions/check-wip-cap/action.yml) `admission-open`).
 
 Avoid: approval, commitment point
 
 **deferred**
 
 The state of an issue admission has deferred. The `admission-deferred` label and the `deferred`
-Work status option both mean it; work-unblock's hourly sweep admits it once there is room.
+Work status option both mean it; it is admitted once there is room.
 
 **work class**
 
@@ -256,8 +259,7 @@ Avoid: task, factory workflow
 **stage**
 
 The step in the chain a lane serves. For CI lanes it is the `stage` field in
-[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json): `intake`, `work`, `refine`,
-`verify`, `merge`, `post-merge`, `unblock`, `maintenance` or `upstream`.
+[`lane-rules.json`](../.github/actions/resolve-config/lane-rules.json).
 
 **software factory**
 
@@ -301,14 +303,25 @@ Avoid: human queue
 
 **PR hold**
 
-A stop on merging a pull request until it is lifted. Only the do-not-merge label is enforced across
-every lane and person; ci-status also enforces a member's veto comment on a lanes App pull request.
-Any other hold is enforced only by the gate that reads it, and a merging session still stops on a
-body hold or a human comment asking to wait until the owner lifts it (AGENTS.md, Merging).
+A stop on merging a pull request until it is lifted. Which holds each gate enforces is in
+AGENTS.md, Pull request states, and the hold convention in `docs/contracts/loop-lane/README.md`.
 
 **merge rung**
 
 A level of merge authority a repository grants its lanes, from human-only merge upward.
+
+**merge-risk rating**
+
+A model's rating of one pull request head, from LOW to CRITICAL, written as the pull request's
+`Merge-Risk:` body line.
+
+Avoid: risk score (that is the diff risk score)
+
+**diff risk score**
+
+A deterministic score of a pull request's diff, LOW, MED or HIGH, with the reason codes behind it.
+
+Avoid: merge risk, babysit risk (merge risk is the merge-risk rating)
 
 **changelog fragment**
 
@@ -330,6 +343,81 @@ A chapter for one model version, read when a session runs on that version, stati
 playbook does differently on it.
 
 Avoid: delta chapter
+
+### Vendor routing
+
+**vendor routing**
+
+Choosing the vendor (Claude, Codex or Gemini), harness, model and effort for one delegated task,
+owned by [`vendors.md`](../plugins/multi-agent/reference/vendors.md). Distinct from routing a
+Claude model and effort to an agent role, which `/multi-agent:route <role>` does.
+
+**work type**
+
+A kind of work routed on its own, such as coding (review, debugging and game development
+included), web UI, knowledge work or image generation.
+
+**workload**
+
+The subject matter a benchmark measures within a work type, such as terminal work or multi-file
+editing within coding. Sources are counted per workload.
+
+Avoid: slice (bare **slice** is the topic folder)
+
+**benchmark registry**
+
+The list of benchmarks and provider result pages vendor routing may read. Each row is a pointer to
+a page; the scores stay on the page.
+
+**permanent row**
+
+A benchmark registry row that has passed the longevity, accuracy and coverage tests. A row not yet
+permanent is a support-only source.
+
+**leading source**
+
+A permanent row that publishes an error range for its scores, so it can show a lead or a tie.
+
+**support-only source**
+
+A source whose scores can back a routing choice but never lead one: a score with no error range,
+a provider's results for its own models, or a row not yet permanent.
+
+**abstain**
+
+What a benchmark does for a vendor whose current models it does not test: it neither supports nor
+blocks routing work to that vendor.
+
+**error range**
+
+The plus-or-minus a benchmark states beside a score. A lead smaller than it is a tie.
+
+**trial mode**
+
+Vendor routing with the trials switch on, so a model, version and effort not yet proven on the
+machine can receive work under a **trial**.
+
+**trial**
+
+Routing work to one model, version and effort not yet proven on a machine, with Claude reviewing
+each result, until the trial ends.
+
+States: running, then proven or failed.
+
+**proven**
+
+The state of a model, version and effort whose trial succeeded on a machine: routing sends it work
+there without a new trial, until the user sends it back to trial.
+
+**trial notes**
+
+The per-machine record of one running trial's reviewed results, deleted when the trial ends; only
+its outcome is kept.
+
+**auto-delegation**
+
+Claude handing a task to the vendor routing names without asking first, then reviewing the result.
+With it off, routing only recommends the vendor.
 
 ### Upstream records
 
@@ -366,6 +454,7 @@ Each maps to the term or doctrine that owns the concept.
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is not project vocabulary |
 | slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
+| slice *(the benchmark sense)* | **workload** above; bare "slice" means the topic folder |
 | task *(for a lane)* | **lane** above; collides with the `Task` Issue Type admission reads ([`admission-rules.json`](../.github/actions/resolve-config/admission-rules.json)) |
 | factory workflow *(for a lane)* | **lane** above; not every workflow is a lane |
 | approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |

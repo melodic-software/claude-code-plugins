@@ -20,6 +20,9 @@ The tier, its size triggers and its promotion rule: [`reference/change-set.md`](
 | **medium** | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
 | **large** | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
 
+Route the leaf reviewer dispatches per the caller contract of `/multi-agent:route` (if enabled);
+otherwise run them here as before.
+
 ## Paved-path brief
 
 Before dispatch, resolve the project's standards index through the "Resolution ladder" section of
@@ -36,8 +39,9 @@ Before dispatch, resolve the loosened-check settings once (SKILL.md "Arguments",
 settings"; the command is run-everything-mode.md step 5's). The bundled criterion
 (`quality-gate`'s `context/loosened-check.md`) always applies; consumer criteria apply in addition.
 Every `code-reviewer` brief and, in the large tier, every slice's per-slice template carries the
-three value lines and the spec, the text of the issue the change resolves (never the pull request
-body), the spec only when the resolver's `loosened_check_spec:` line says `counts`.
+three value lines, the spec, the text of the issue the change resolves, only when the resolver's
+`loosened_check_spec:` line says `counts`, and, when the change has a pull request, the
+`## Loosened checks` section of its body (never the rest of the body).
 
 ## Size-crossing brief
 

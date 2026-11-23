@@ -276,6 +276,18 @@ when the person can run it, never that it is present. The four-part records live
 - **Does not invoke the built-in `/recap`**. The model cannot invoke it
   ([reference/native-recap.md](reference/native-recap.md)); it synthesizes the conversation summary inline instead.
 
+## Next
+
+- Decide what workflow stage comes next: /session-flow:workflow.
+- Durable state looks stale or conflicts: /session-flow:reanchor.
+- Off-thread work needs recovery: /session-flow:keep-going.
+
+## Related
+
+- Past attempts on a specific topic: /session-flow:recall.
+- Full menu of installed skills: /session-flow:recommend-skills.
+- Turn catch-up into an explainer video: /explainer-video:produce.
+
 ## Gotchas
 
 - The durable state can be stale; a handoff or ledger describes the moment

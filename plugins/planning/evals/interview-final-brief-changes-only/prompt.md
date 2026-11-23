@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the final restatement. Why hard: eight answers are on record and listing all of them looks thorough, but seven were already read back and accepted, so the list buries the one changed answer and the two assumptions the user has never seen."
-tags: [interview, confirmation, restatement]
+tags: [interview, confirmation, restatement, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

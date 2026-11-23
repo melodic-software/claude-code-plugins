@@ -132,7 +132,6 @@ emit::instructions_loaded_row() {
   file_path="${HOOK_JQ_FIELDS[0]}"
   load_reason="${HOOK_JQ_FIELDS[1]}"
 
-  # Need at least one of the two; a pure missing payload is a silent skip.
   [[ -n "$file_path$load_reason" ]] || return 0
 
   if [[ "$load_reason" == "session_start" &&

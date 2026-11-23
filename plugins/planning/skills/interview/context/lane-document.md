@@ -105,7 +105,8 @@ otherwise the interview goes on from SKILL.md Step 2 with the next frontier.
 
 Each item below is the lane part of a SKILL.md step; the step's own rule and its halts still hold.
 
-- Step 2: the document is the round. Its questions are numbered on the topic's one counter, and
-  rows from earlier rounds keep their ids.
+- Step 2: the document is the round. Its questions take ids as [`question-shape.md`](question-shape.md)'s
+  `id` row says, and rows from earlier rounds keep their ids. The terminal layout rules (SKILL.md
+  "Keep the layout whole", the detail levels) do not apply: the document follows its template.
 - Step 3: the confirmation gate runs with the user in this conversation, after the answers are
   read back, never inside the document.

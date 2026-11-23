@@ -26,6 +26,10 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
 - **`/evals:validate [<eval dir>]`**: static check over a plugin's eval case files. It reports the
   load failures the CLI rejects and the authoring mistakes its docs name, with no model call and no
   spend, so a broken suite is found before a run pays to discover it.
+- **`/evals:audit <plugin dir | eval dir>`**: read-only health report for a suite: skills with no
+  case or no deterministic triggering case, judged graders with no labeled samples, legacy-only
+  skills, missing should-not-fire cases, and judged findings on gate pairs, duplicates, grader fit
+  and drift. Each finding names where its fix goes; it edits nothing.
 
 ## What runs where
 
@@ -52,8 +56,8 @@ cases into its `evals/` suite and removes the converted files.
 ## Shared grader matchers
 
 A `regex` or `tool_used` grader is static text in `case.yaml`, so the binary cannot call a helper
-when it grades. Shapes that recur across cases live once in `matchers/fragments.json` instead, and a
-case builds a grader from them in `<case>/matchers.json`:
+when it grades. Shapes that recur across cases live once in the `*.json` files under `matchers/` instead
+(`install_command` in `install-command.json`, the rest in `fragments.json`), and a case builds a grader from them in `<case>/matchers.json`:
 
 ```json
 {"no-token-shell": [{"use": "command_position"}, "(?:curl|wget)\\b",
@@ -67,6 +71,7 @@ fragment's `{{row}}` slot. The fragments cover mechanically exact shapes only:
 |---|---|
 | `command_position` | a Bash command string up to where a command starts (POSIX shells) |
 | `command_position_multishell` | the same, also through PowerShell, `cmd /c`, `python -m`, `$(` |
+| `install_command` | a package or tool install, after `command_position_multishell`; the one list every `no-install` grader builds from |
 | `command_anywhere` | anywhere inside the Bash command string |
 | `token_argument` | the rest of the same simple command, up to a token |
 | `table_header_rule` | a Markdown table's header rule line |
@@ -81,14 +86,15 @@ differs from its build; `--write` rewrites the drifted lines. Its suite, `check-
 runs it over every plugin's evals in CI.
 
 To add a fragment, give it a `summary`, its `text`, a `probe` grader built from it, and `samples`
-with answers that must pass and answers that must fail, near misses included. To build a grader,
+with answers that must pass and answers that must fail, near misses included, in a file under `matchers/`; a name defined in two files is
+an error. To build a grader,
 write its `matchers.json` entry, run `check-matchers.py --write`, and add `samples/<grader>.json`.
 
 ## Upstream sync
 
-The reference content distills a live Anthropic doc page. Every reference file carries a
-"fetched YYYY-MM-DD" stamp; `/evals:methodology update` is the maintainer drift-check action that
-re-fetches both sources, diffs, corrects, and refreshes the stamps.
+The methodology skill points at live Anthropic pages and holds only this repository's decisions;
+`/evals:methodology update` is the maintainer drift-check action that fetches each linked section,
+confirms its anchor resolves and that the decisions still follow from it, and fixes what moved.
 
 ## Eval-warrant verdicts
 
@@ -134,8 +140,8 @@ where this repository departs from a source, the record is in the methodology sk
 No hooks and no MCP servers. The methodology, design, and validate surfaces make no network calls
 and no model calls; a `claude plugin eval` run does, on your own account, which is what the estimate
 and the ceiling exist for. The one other outbound surface is the maintainer-only
-`/evals:methodology update` action, which re-fetches the two upstream Anthropic doc pages to
-drift-check the distilled reference files.
+`/evals:methodology update` action, which fetches the upstream Anthropic pages the skill links to
+drift-check its pointers.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

@@ -23,7 +23,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import babysit_review_evidence as ev
-import babysit_risk as risk
+import diff_risk as risk
 
 # This repository's rows, which the floor paths below sit on.
 FLOOR_ROWS = policy.floor_paths_in(
@@ -2912,6 +2912,23 @@ class UpstreamDegradedRerunTests(Base):
         )
         self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
+    def test_a_kill_switch_failure_on_an_earlier_head_does_not_unbind(self) -> None:
+        setup = "Can't find 'action.yml' under '.base/.github/actions/setup-pinned-node'"
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                failed = upstream_stopped(lane, S0, message=setup)
+                result = self.bind([run(lane, S0, attempts=[failed]), whole(lane, S)])
+                self.assertIsNone(result[lane].unbound_reason)
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_an_earlier_head_failure_whose_kill_switch_succeeded_unbinds(self) -> None:
+        failed = upstream_stopped("claude-review", S0, kill_conclusion="success")
+        result = self.bind(
+            [run("claude-review", S0, attempts=[failed]), whole("claude-review", S)]
+        )
+        self.assertUnbound(result["claude-review"], "no-lane-job")
+
     def test_the_error_beside_a_lane_job_does_not_bind(self) -> None:
         first = upstream_stopped("claude-review")
         first["jobs"].append(self.ok("claude-review", 1)["jobs"][0])
@@ -4191,7 +4208,7 @@ class FailClosedTests(Base):
                 self.assertIsNone(item.open_findings)
 
     def test_evidence_is_the_scorers_lane_evidence(self) -> None:
-        import babysit_risk
+        import diff_risk
 
         result = ev.bind(
             S,
@@ -4202,7 +4219,7 @@ class FailClosedTests(Base):
             changed_paths=(),
             floor=risk.floor_for(),
         )
-        self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
+        self.assertTrue(all(isinstance(r, diff_risk.LaneEvidence) for r in result))
 
     def test_pinned_head_must_be_a_full_sha(self) -> None:
         result = ev.bind(
@@ -4239,7 +4256,7 @@ class CarriedBlockingTests(Base):
     """A blocking security finding a bound review left open still holds after
     the lane unbinds: the binder carries the count from the newest head of
     the pull request the lane's evidence binds at, so the gate's person
-    routing (babysit_risk.person_reasons) still sees `security-finding`."""
+    routing (diff_risk.person_reasons) still sees `security-finding`."""
 
     SEC = "claude-security-review"
     S2 = "c2" * 20  # a newer head

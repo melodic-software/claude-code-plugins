@@ -12,8 +12,11 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Worktree inventory, `git worktree list | head -30`
@@ -21,14 +24,8 @@ invocation:
 - Git common dir (differs from the git dir when in a linked worktree).
   `git rev-parse --git-common-dir`
 
-The pipe is the bound and belongs in the command: a read-time cap ("read only the first 30
-entries") comes too late for whatever the command has already returned inline. What a result returns
-inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body calls, not a pre-compute, so this skill stays invocable from inside a worktree
-([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation"). The Bash shapes an isolated session accepts at
-body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
+Body calls keep this skill invocable from inside a worktree. The Bash shapes an isolated session
+accepts at body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
 "Accepted command shapes for body-time and subagent Bash".
 
 The refusal that record names is documented isolation enforcement, so the constraint is durable. Our rules: treat a
@@ -156,6 +153,50 @@ Periodic health check for worktree infrastructure, suitable as a recurring track
 
 ---
 
+## Sandboxed sessions
+
+When this session's Bash commands run in the sandbox, `create` and `cleanup` take the native-tool
+route below. In a sandboxed session this section overrides the create invariants above and the
+Routing and Mutation gate rules of the Boundary section below wherever they forbid `EnterWorktree(name:)` or
+`ExitWorktree(action: "remove")`. Unsandboxed sessions keep the helper and `EnterWorktree(path:)`
+route. Decide which route applies before running the helper. To tell whether this session's
+commands run sandboxed, see
+[sandboxing: confirm commands run inside the sandbox](https://code.claude.com/docs/en/sandboxing#confirm-commands-run-inside-the-sandbox).
+
+- **Require a git repository.** Outside one, report and stop.
+- **Create.** The plugin's `WorktreeCreate` hook creates and claims the worktree at the external
+  root. For a new branch the hook uses the
+  helper's `fresh` base, with the remote default branch and fallback described in
+  [Base branch](context/create.md#base-branch). Resolve `worktree.baseRef` as described there
+  before calling the tool. If the session needs `head`, stop and report that the sandboxed route
+  cannot honor it. Follow the name validation and explain block in [context/create.md](context/create.md),
+  describing the base and the steps for this route. Call `EnterWorktree(name: "<validated name>")`,
+  then run the Workspace environment `setup` through Bash from the worktree root. Report a failed
+  `setup` without retrying. For upstream behavior, read
+  [WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate),
+  [what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox),
+  and [default placement](https://code.claude.com/docs/en/worktrees#start-claude-in-a-worktree).
+- **Commit** from inside the entered worktree, never by `git -C <worktree>` from the main checkout.
+  Pointer: [sandboxing: filesystem isolation](https://code.claude.com/docs/en/sandboxing#filesystem-isolation),
+  for what a linked worktree may write in the shared `.git`.
+- **Remove** only the worktree this session created with `EnterWorktree(name:)`, from inside it.
+  Run `cleanup`'s stranded-work and carried-file guards (both read-only), then the Workspace
+  environment `down`, then `ExitWorktree(action: "remove")`. The plugin's `WorktreeRemove` hook
+  handles the reap and removal, so skip `cleanup`'s Bash reap. Read
+  [WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove) for the tool's removal
+  arguments and [Clean up worktrees](https://code.claude.com/docs/en/worktrees#clean-up-worktrees)
+  for native removal and branch handling. When the guard keeps the worktree and the push it offers
+  fails under the sandbox, leave with `ExitWorktree(action: "keep")` and report it. `cleanup`
+  reports every other candidate, and any `git branch -D` the sandbox refuses, for an unsandboxed
+  session to finish, as it does for a hook block.
+
+Probe observation: [the #17901 probe](https://github.com/melodic-software/claude-code-plugins/issues/17901#issuecomment-7089725966),
+Claude Code 2.1.330 on Linux (WSL2), found Bash `git worktree add` and `remove`, and a commit run
+from the main checkout into a worktree, all refused with the sandbox on, while the native create,
+commit and remove route succeeded. **As of**: 2026-11-22. **Recheck trigger**: the sandboxing
+page's filesystem-isolation section changes what a linked worktree may write in the shared `.git`,
+or a Claude Code release changes the sandbox's filesystem rules or the worktree tools.
+
 ### The nesting invariant, dated measurement
 
 Worktrees stay outside every repository's tree. The measured basis, its disputed arms, the
@@ -218,6 +259,11 @@ This skill complements other workflow components. It does not duplicate their lo
 | `/source-control:pull-request create` (Phase 2.1) | Detects default-branch checkout and suggests `/source-control:worktree create` |
 | Project session-start hooks (if any) | May warn on main or auto-configure fresh worktrees; this skill verifies setup ran per context/create.md's post-create checks |
 | Recurring maintenance tracker items | Can invoke `/source-control:worktree audit` periodically |
+
+## Related
+
+- Back-half PR lifecycle once work is on the branch: /source-control:pull-request.
+- Commit changes in the worktree: /source-control:commit.
 
 ## Graceful Degradation
 

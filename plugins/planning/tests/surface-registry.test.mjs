@@ -19,7 +19,7 @@ const made = []
 const tmp = () => made[made.push(mkdtempSync(join(tmpdir(), 'surface-registry-'))) - 1]
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })))
 const tools = (...names) => ({ has: n => names.includes(n), env: {} })
-const PAGE_ONLY = tools('python3', 'curl', 'bash') // page available, no cloudflared
+const PAGE_ONLY = tools('python3', 'curl', 'bash')
 const ALL = tools('python3', 'curl', 'bash', 'cloudflared')
 const NONE = tools()
 const emptyProject = () => {
@@ -27,19 +27,32 @@ const emptyProject = () => {
   return { root, env: { CLAUDE_PROJECT_DIR: root, HOME: join(root, 'home'), PATH: '' } }
 }
 
-test('AC13: surface unset and two surfaces available prints exactly one offer line', async () => {
+const EVAL_OPENING_LINES_GRADER = /^\W*Asking here\b[^\n]*\.[^\S\n]+[^\n]*\balso available\b[^\n]*$/im
+
+test('AC13: surface unset and two surfaces available opens with the owner-approved lines', async () => {
   const { env } = emptyProject()
-  const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY })
+  const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, ledger: '.work/t/interview-checklist.md' })
   assert.equal(r.surface, 'terminal') // plugin.json userConfig.surface.default
   assert.equal(r.decidedBy, 'default')
-  assert.equal(typeof r.line, 'string')
-  assert.equal(r.line.split('\n').length, 1)
-  assert.match(r.line, /terminal \(default\)/)
-  assert.match(r.line, /\bpage\b/)
+  assert.deepEqual(r.line.split('\n'), [
+    'Asking here, one round at a time. A local page is also available; say which to switch.',
+    'Questions are saved to .work/t/interview-checklist.md.',
+  ])
   assert.doesNotMatch(r.line, /shared session/, 'an unavailable surface is not offered')
+  assert.equal(r.line.match(new RegExp(EVAL_OPENING_LINES_GRADER.source, 'gim')).length, 1)
 })
 
-test('AC13 through the CLI: one JSON line whose offer line is a single line', () => {
+test('the first line names every available surface and the pacing; no ledger, no saved-to line', async () => {
+  const { env } = emptyProject()
+  const all = await resolveSurface({ userConfig: { surface: UNSET }, env, context: ALL })
+  assert.equal(all.line, 'Asking here, one round at a time. A local page or a shared session is also available; say which to switch.')
+  const single = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, pacing: 'single' })
+  assert.match(single.line, /^Asking here, one question at a time\. /)
+  const other = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, pacing: '${user_config.question_pacing}' })
+  assert.match(other.line, /^Asking here, one round at a time\. /, 'anything but single reads as round')
+})
+
+test('AC13 through the CLI: one JSON line whose opening carries --pacing and --ledger', () => {
   const { root } = emptyProject()
   const bin = join(root, 'bin')
   mkdirSync(bin)
@@ -47,14 +60,17 @@ test('AC13 through the CLI: one JSON line whose offer line is a single line', ()
     writeFileSync(join(bin, name), '#!/bin/sh\n')
     chmodSync(join(bin, name), 0o755)
   }
-  const out = execFileSync(process.execPath, [REGISTRY, 'resolve', '--surface', UNSET], {
+  const out = execFileSync(process.execPath, [REGISTRY, 'resolve', '--surface', UNSET, '--pacing', 'single', '--ledger', 'L.md'], {
     env: { PATH: bin, HOME: join(root, 'home') },
     encoding: 'utf8',
   })
   assert.equal(out.trimEnd().split('\n').length, 1)
   const r = JSON.parse(out)
   assert.deepEqual([r.surface, r.alternatives], ['terminal', ['page']])
-  assert.equal(r.line.split('\n').length, 1)
+  assert.deepEqual(r.line.split('\n'), [
+    'Asking here, one question at a time. A local page is also available; say which to switch.',
+    'Questions are saved to L.md.',
+  ])
 })
 
 test('the CLI still prints its JSON line when the plugin path passes through a symlink', () => {
@@ -113,8 +129,10 @@ test('a configured surface that cannot run stays chosen and says why, so its spo
 test('every surface the offer line names can be asked for by that name', async () => {
   const { env } = emptyProject()
   for (const e of await loadEntries()) {
-    const r = await resolveSurface({ argument: e.reportName, userConfig: { surface: UNSET }, env, context: ALL })
-    assert.deepEqual([r.surface, r.decidedBy, r.notices], [e.id, 'argument', []], e.reportName)
+    for (const name of [e.reportName, e.offerName].filter(Boolean)) {
+      const r = await resolveSurface({ argument: name, userConfig: { surface: UNSET }, env, context: ALL })
+      assert.deepEqual([r.surface, r.decidedBy, r.notices], [e.id, 'argument', []], name)
+    }
   }
 })
 
@@ -183,7 +201,6 @@ test('AC15: a new surface entry is picked up from its own file, with no edit to 
   const chosen = await resolveSurface({ argument: 'kiosk', entries, env, context: NONE })
   assert.deepEqual([chosen.surface, chosen.read], ['kiosk', ['skills/interview/context/lane-kiosk.md']])
 
-  // The skill's selection paragraph routes through the registry: no lane table, no entry named.
   const skill = readFileSync(SKILL, 'utf8')
   const start = skill.indexOf('**Question lanes.**')
   const section = skill.slice(start, skill.indexOf('## Stance', start))
@@ -196,26 +213,30 @@ test('AC15: a new surface entry is picked up from its own file, with no edit to 
   }
 })
 
-test('AC13: an installed planner is named in the one offer line, beside the surfaces, and never required', async () => {
+test('AC13: an installed planner gets its own Optional line after the surfaces, and is never required', async () => {
   const { env } = emptyProject()
   const planners = [{ name: 'html-plan', invoke: '/html-plan' }]
   const both = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, planners })
-  assert.equal(both.line.split('\n').length, 1)
-  assert.match(both.line, /^surface: terminal \(default\)\. Also available: page, html-plan planner \(\/html-plan\)\./)
+  assert.deepEqual(both.line.split('\n'), [
+    'Asking here, one round at a time. A local page is also available; say which to switch.',
+    'Optional: the html-plan planner is installed; run /html-plan to use it.',
+  ])
   assert.equal(both.surface, 'terminal', 'the planner never replaces the surface')
-  // The planner alone still earns the line; the eval's line grader still matches it.
   const alone = await resolveSurface({ userConfig: { surface: UNSET }, env, context: NONE, planners })
-  assert.match(alone.line, /^\W*surface: \S[^\n]*\(default\)\. Also available: html-plan planner \(\/html-plan\)\.[^\n]*$/m)
+  assert.deepEqual(alone.line.split('\n'), ['Asking here, one round at a time.', 'Optional: the html-plan planner is installed; run /html-plan to use it.'])
   const none = await resolveSurface({ userConfig: { surface: UNSET }, env, context: NONE, planners: [] })
   assert.equal(none.line, null)
 })
 
-test('an offer rides the same single line, and a set surface prints no line at all', async () => {
+test('an offer gets its own Optional line, and a set surface prints no line at all', async () => {
   const { env } = emptyProject()
-  const offers = [{ name: 'html-plan', text: 'html-plan, an optional planner, is not installed; say "install html-plan" to add it', install: 'x' }]
-  const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: NONE, offers })
-  assert.equal(r.line.split('\n').length, 1)
-  assert.match(r.line, /^surface: terminal \(default\)\. html-plan, an optional planner, is not installed; say "install html-plan" to add it\.$/)
+  const offers = [{ name: 'html-plan', text: 'html-plan writes the plan as one interactive HTML page. Say "install html-plan" to add it', install: 'x' }]
+  const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, offers, ledger: 'L.md' })
+  assert.deepEqual(r.line.split('\n'), [
+    'Asking here, one round at a time. A local page is also available; say which to switch.',
+    'Questions are saved to L.md.',
+    'Optional: html-plan writes the plan as one interactive HTML page. Say "install html-plan" to add it.',
+  ])
   assert.deepEqual(r.offers, offers)
   const set = await resolveSurface({ userConfig: { surface: 'page' }, env, context: PAGE_ONLY, offers, planners: [{ name: 'html-plan', invoke: '/html-plan' }] })
   assert.equal(set.line, null)

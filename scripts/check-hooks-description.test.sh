@@ -32,7 +32,6 @@ run_check() (
 LABELED='{"description":"Formats Go source and its imports after a write or edit.","hooks":{"PostToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"x"}]}]}}'
 UNLABELED='{"hooks":{"PostToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"x"}]}]}}'
 
-# --- the shape the gate exists to reject: no description at all --------------
 new_fixture f
 hooks_file "$f" alpha "$UNLABELED"
 if out="$(run_check "$f" 2>&1)"; then
@@ -46,7 +45,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a labeled file passes, and a plugin with no hooks dir is skipped --------
 new_fixture f
 hooks_file "$f" alpha "$LABELED"
 mkdir -p "$f/plugins/beta/skills/x"
@@ -61,7 +59,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the degenerate values a present key can still carry ---------------------
 for case in \
   'blank|{"description":"","hooks":{}}|is blank' \
   'whitespace|{"description":"   ","hooks":{}}|is blank' \
@@ -94,7 +91,6 @@ else
 fi
 rm -rf "$f"
 
-# --- every file is named, not only the first -------------------------------
 new_fixture f
 hooks_file "$f" alpha "$UNLABELED"
 hooks_file "$f" beta "$LABELED"
@@ -112,7 +108,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an unparsable file is a failure, never a silent clear -----------------
 new_fixture f
 hooks_file "$f" alpha '{"description":"x", "hooks": '
 if out="$(run_check "$f" 2>&1)"; then
@@ -142,7 +137,6 @@ else
 fi
 rm -rf "$f"
 
-# --- two documents in one file is not one hooks.json either -----------------
 new_fixture f
 hooks_file "$f" alpha '{"description":"One.","hooks":{}} {"description":"Two.","hooks":{}}'
 if run_check "$f" >/dev/null 2>&1; then

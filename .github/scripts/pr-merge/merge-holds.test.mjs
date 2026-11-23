@@ -1,6 +1,6 @@
 // Expected values come from the issue that added these holds and the gate's
 // own rules: the merge gate holds a change to a cost path
-// (babysit_risk.COST_PATHS) until the owner's cost decision, which
+// (diff_risk.COST_PATHS) until the owner's cost decision, which
 // babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
 // pins case by case. ci-status names its owner by the trusted-actor list, as
 // its cost-only review hold step does, so a review approval lifts a hold path
@@ -406,8 +406,13 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // maps a ref (BASE, HEAD) to the trusted-actor list's text there.
 // `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
 // each written as given (a string as it is), `evidence` left out when undefined.
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
+const BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, pull, baselineFile = BASELINE } = {}) {
   const dir = tempDir("merge-holds-");
+  const env = pull === undefined ? {} : { BABYSIT_VERIFY_PULL: join(dir, "pull"), LANES_APP_ID: "9", ...(baselineFile === null ? {} : { BASELINE_FILE: baselineFile }) };
+  if (pull !== undefined) {
+    writeFileSync(join(dir, "pull"), JSON.stringify(pull));
+  }
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
@@ -446,7 +451,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
-  return main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE }, github }).then(
+  return main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE, ...env }, github }).then(
     (code) => {
       console.log = log;
       return { code, out: lines.join("\n") };
@@ -491,7 +496,7 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/retry-call.bash",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   "docs/conventions/pr-pipeline.yaml",
 ];
@@ -577,11 +582,6 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   assert.match(held.out, /it changes docs\/held\.md, a hold path/);
 });
 
-// The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):
-// a change that adds or widens an entry of the trusted-actor list waits for
-// the owner, and one that only removes entries does not. ci-status has no
-// bypass, so the owner's approval of the head lifts it, as it lifts a hold
-// path.
 const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const KYLE = { id: 1, login: "kyle", kind: "human" };
 const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
@@ -1165,6 +1165,58 @@ test("in the merge queue, a reader with no FAIL hold lets a passed head through"
   assert.match(out, /^#99: no verifier hold: pr-verify passed this head\.$/m);
 });
 
+const LANES_USER = { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" };
+
+test("baselineOnly allows the lanes App's pull request whose files are exactly the configured baseline file", () => {
+  const { baselineOnly } = holdsModule;
+  assert.equal(baselineOnly(LANES_USER, [BASELINE], 9, BASELINE), true);
+  assert.equal(baselineOnly(LANES_USER, [BASELINE], "9", BASELINE), true);
+  for (const files of [[BASELINE, "docs/a.md"], ["docs/a.md", BASELINE], [BASELINE, "docs/upstream/old.json"], ["docs/upstream/claude-code.md"], [], null, [BASELINE.toUpperCase()]]) {
+    assert.equal(baselineOnly(LANES_USER, files, 9, BASELINE), false, JSON.stringify(files));
+  }
+  for (const file of [undefined, null, "", 7]) {
+    assert.equal(baselineOnly(LANES_USER, [BASELINE], 9, file), false, String(file));
+  }
+  for (const [author, appId] of [
+    [{ ...LANES_USER, type: "User" }, 9],
+    [{ ...LANES_USER, login: "melodic-agent[bot]" }, 9],
+    [{ ...LANES_USER, id: 10 }, 9],
+    [{ login: "owner-person", id: 5, type: "User" }, 9],
+    [LANES_USER, undefined],
+    [LANES_USER, ""],
+    [null, 9],
+  ]) {
+    assert.equal(baselineOnly(author, [BASELINE], appId, BASELINE), false, JSON.stringify([author, appId]));
+  }
+});
+
+test("in the merge queue, the lanes App's configured baseline file needs no verifier pass or link", async () => {
+  const lanes = { user: LANES_USER };
+  const passed = await ci([BASELINE], { body: "No related issue: baseline.", pull: lanes, queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report("verify:missing") } });
+  assert.equal(passed.code, 0, passed.out);
+  assert.match(passed.out, /^#99: no verifier hold: the lanes App's pull request changes only docs\/upstream\/claude-code-native-surfaces\.min\.json \(merge\.baseline-file\)/m);
+  assert.match(passed.out, /^#99: no pr-verify FAIL hold: the lanes App's pull request changes only/m);
+  for (const [files, pull, baselineFile] of [
+    [[BASELINE, "docs/a.md"], lanes, BASELINE],
+    [[[BASELINE, "docs/upstream/old.json", "renamed"]], lanes, BASELINE],
+    [[BASELINE], { user: { login: "owner-person", id: 5, type: "User" } }, BASELINE],
+    [[BASELINE], { user: { ...LANES_USER, id: 10 } }, BASELINE],
+    [[BASELINE], undefined, BASELINE],
+    [[BASELINE], lanes, null],
+    [[BASELINE], lanes, ""],
+    [[BASELINE], lanes, "docs/upstream/other.json"],
+  ]) {
+    const held = await ci(files, { body: "No related issue: baseline.", pull, baselineFile, queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report("verify:missing") } });
+    assert.equal(held.code, 1, `${JSON.stringify([files, pull, baselineFile])}: ${held.out}`);
+    assert.match(held.out, /^::error title=pr-verify hold::#99: pr-verify's reader refuses this head's pass \(verify:missing\)/m);
+    assert.doesNotMatch(held.out, /changes only docs\/upstream/);
+  }
+  const veto = { user: { login: "owner-person", id: 5, type: "User" }, body: "do not merge", created_at: "2026-10-23T11:00:00Z", author_association: "OWNER" };
+  const vetoed = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
+  assert.equal(vetoed.code, 1, vetoed.out);
+  assert.doesNotMatch(vetoed.out, /no member veto/);
+});
+
 // Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds in the
 // queue even when the pass is read; an approval of the head lifts it.
 test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
@@ -1205,7 +1257,6 @@ test("in the merge queue, a FAIL the reader counts holds a passed head", async (
   assert.equal(code, 1, out);
   assert.match(out, /::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
-  // A verifier hold is not a body hold: no untitled error line.
   assert.doesNotMatch(out, /^::error::/m);
   assert.match(out, /^#99: no member veto and no hold path\.$/m);
 });
@@ -1373,7 +1424,6 @@ test("an approval of an earlier head lifts a hold path over a later base merge, 
     const run = await lifting(world);
     assert.equal(run.code, 0, `${name}: ${run.out}`);
     assert.match(run.out, /owner-person approved an earlier head whose every change since is a base merge, which lifts its hold path/, name);
-    // The base is resolved once by its full ref; no compare names the branch.
     assert.equal(world.reads.filter((path) => path.includes("/git/ref/")).length, 1, name);
     assert.ok(world.reads.includes(`/repos/owner/repo/compare/${TIP}...${OLD}`) && world.reads.includes(`/repos/owner/repo/compare/${MAIN}...${TIP}`), world.reads.join(" "));
     assert.ok(!world.reads.some((path) => /\/compare\/(main\.\.\.|.*\.\.\.main$)/.test(path)), world.reads.join(" "));

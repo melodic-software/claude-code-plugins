@@ -121,7 +121,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
     # would mean recursively parsing evaluated text, so the state is
     # refused instead. A linter rule has no reason to evaluate text.
     $evaluators = @("Invoke-Expression", "iex")
-    # The `using` kinds that load repository code (see the using pass below).
     $loadKinds = @(
         [System.Management.Automation.Language.UsingStatementKind]::Module,
         [System.Management.Automation.Language.UsingStatementKind]::Assembly)
@@ -139,8 +138,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
         if ($scanned -gt 256 -or $allFiles.Count -gt 512) { exitTrust UNVERIFIABLE }
         $curDir = Split-Path -Parent $cur
         try { $text = [System.IO.File]::ReadAllText($cur) } catch { exitTrust UNVERIFIABLE }
-        # Candidate paths to resolve for this file: every load target the
-        # parser reports plus every quoted literal the text scan finds.
         $pending = [System.Collections.Generic.List[string]]::new()
 
         # Refuse a load whose target cannot be pinned to a file. A COMPOSED

@@ -97,18 +97,13 @@ to the human report.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "emit-findings.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+source "$SCRIPT_DIR/../../../lib/opt-value.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --from | --from-lane | --out | --branch | --declined-carveout | --declined-residency)
-    require_opt_value "$@"
+    require_opt_value emit-findings.sh "$@"
     case "$1" in
     --from) FROM="$2" ;;
     --from-lane) FROM_LANE="$2" ;;
@@ -143,7 +138,6 @@ if [[ -n "$FROM_LANE" && ! -f "$FROM_LANE" ]]; then
   echo "emit-findings.sh: --from-lane file not found: $FROM_LANE" >&2
   exit 2
 fi
-# awk tells the two streams apart by FILENAME, so one file cannot be both.
 if [[ -n "$FROM" && "$FROM" == "$FROM_LANE" ]]; then
   echo "emit-findings.sh: --from and --from-lane name the same file; the paths admit different rules" >&2
   exit 2
@@ -252,9 +246,6 @@ if [[ -n "$CYGPATH_BIN" ]]; then
   [[ -n "$CYGPATH_IO" ]] || CYGPATH_BIN=""
 fi
 
-# Identity for every row an intake path could admit, keyed by the row verbatim.
-# Only the admitted families are identified: a scan over a large corpus carries
-# thousands of rows for families that never reach this file.
 IDMAP="$(mktemp)"
 trap 'rm -f "$IDMAP" ${CYGPATH_IO:+"$CYGPATH_IO"}' EXIT
 LC_ALL=C sed $'s/\r$//' "${INPUTS[@]}" |

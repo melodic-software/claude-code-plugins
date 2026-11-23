@@ -185,6 +185,12 @@ A user who rejects a card with a reason that would help a future explorer gets t
 - A card proposes a rule on which folders may reference which: /architecture:improve boundaries
 - A card proposes a grouping or a file-name marker as a convention: /architecture:improve conventions
 
+## Related
+
+- Record layout style or rejection rationale: /architecture:adr.
+- Card routes to rule codification: /corrections:codify.
+- Card routes to instruction placement: /instruction-placement:audit.
+
 ## Gotchas
 
 - **Every number on a card comes from the script's JSON.** A count read off `git log` by eye

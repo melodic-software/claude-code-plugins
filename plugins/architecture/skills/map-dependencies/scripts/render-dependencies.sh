@@ -105,10 +105,6 @@ fi
 grep -Eq '"schema_version"[[:space:]]*:[[:space:]]*1[[:space:]]*([,}]|$)' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
-# Readers match objects by line. A valid JSON document in another layout
-# (compacted, or one key per line) would match nothing. Each array is either
-# empty on its key's line, or opens alone on that line and holds one object
-# per line until its closing bracket.
 # shellcheck source=../../../lib/record-layout.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 read -r -d '' LAYOUT_AWK <<'AWK' || true

@@ -1,5 +1,3 @@
-# Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
-# Contract: docs/contracts/ecosystem-commands/README.md (schema: ecosystem.schema.json).
 globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock"]
 project-discovery: ["go.mod"]
 build-cmd: "go build ./..."
@@ -109,4 +107,4 @@ gates:
     trigger-globs: ["*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock", "*.pb.go", "*.pb.gw.go"]
     run-from: repo-root
     remediation: "Two distinct failures. (1) Refused before generating: tracked generated output has uncommitted changes, and buf generate --clean would overwrite them — commit or discard them, then re-run. (2) Failed after generating: the committed output is stale — run buf generate --clean from the repo root and commit every resulting change to every buf.gen.yaml-configured plugin's output (this example's *.pb.go and grpc-gateway's *.pb.gw.go — extend to match this repo's plugins), modified, newly generated, and deleted (an output whose .proto is gone). `git status --short -- '*.pb.go' '*.pb.gw.go'` lists what either case is reporting, its first column the index and its second the working tree (extend the same way)."
-notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."
+notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via docs/conventions/ecosystems/go.local.yaml if desired."

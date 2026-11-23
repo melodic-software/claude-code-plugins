@@ -88,10 +88,12 @@ there is reported correctly; the script ignores the literal placeholder when the
 
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
-file spells it across. When every layer leaves it unset, the row still resolves, to the plugin's
-portable default, the keyword `briefing`, so `won by` reads `plugin default` rather than the row
-going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
-not a bare absence. A winning layer declaring the literal keyword `none` renders the row's value as
+file spells it across. When every layer leaves it unset, the row still resolves, in the order the
+pull-request `create` reference §2.4.1 owns: the `##` headings of the repository's pull request
+template (`won by` reads `repository template`), else those of the owner's default template in its
+`.github` repository (`owner default template`), else the keyword `briefing` (`plugin default`). The
+row never goes blank; this is the one key whose "no layer sets it" state is itself a reportable,
+named value, not a bare absence. A winning layer declaring the literal keyword `none` renders the row's value as
 `none (no required sections)` with that layer in `won by`, a resolved value distinct from the unset
 row above, per config-resolution.md. A winning `briefing` or `summary-test-plan` keyword renders as
 that keyword with its layer in `won by`.
@@ -403,6 +405,12 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 writing it into a brief: we never rely on a `${…}` token in a file read from disk being expanded
 later. Where each plugin variable resolves: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+
+## Next
+
+- Commit with configured convention: /source-control:commit.
+- Open or manage a PR: /source-control:pull-request.
+- Run fleet PR pass with babysit config: /source-control:babysit-prs.
 
 ## Gotchas
 

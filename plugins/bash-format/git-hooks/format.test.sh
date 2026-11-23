@@ -252,7 +252,7 @@ expect "the record's file stays as written" "$TABBED" "$(cat "$REPO/a.sh")"
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
-expect "the vendored installer installs every entry" '[{"entry":"format","status":"installed"},{"entry":"lint","status":"installed"},{"entry":"lint-full","status":"installed"}]' "$status"
+expect "the vendored installer installs every entry" '[{"entry":"format","status":"installed"},{"entry":"lint","status":"installed"}]' "$status"
 expect "the installed format copy carries the stamp on line 2" yes \
   "$(grep -qE '^# bash-format format sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/bash-format/format.sh") && echo yes)"
 expect "the format entry's helpers are installed beside it" yes \
@@ -269,8 +269,7 @@ err="$(git -C "$REPO" commit -q -m finding 2>&1)"
 expect "git commit fails on a finding on an added line" "1" "$?"
 expect "the commit failure names the line" "a.sh:5: warning: undefined_var is referenced but not assigned. [SC2154]" "$(printf '%s\n' "$err" | head -1)"
 expect "verify reports every entry ok after the install" "ok	format
-ok	lint
-ok	lint-full" "$(node "$INSTALL" verify --repo "$REPO")"
+ok	lint" "$(node "$INSTALL" verify --repo "$REPO")"
 printf '# edited\n' >>"$REPO/.git/hooks/bash-format/shfmt-rewrite.sh"
 expect "verify reports a locally edited helper as modified" "modified	format" "$(node "$INSTALL" verify --repo "$REPO" | head -1 | cut -f1,2)"
 
@@ -281,9 +280,8 @@ expect "verify reports an earlier shell-check copy as superseded" yes \
   "$(grep -q '^superseded' <<<"$(node "$INSTALL" verify --repo "$REPO")" && echo yes)"
 new_repo
 git -C "$REPO" config checks.bash-format.shell-check.declined true
-expect "a decline of shell-check carries to format and lint, not to the pre-push lint-full" "declined	format
-declined	lint
-missing	lint-full" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
+expect "a decline of shell-check carries to format and lint" "declined	format
+declined	lint" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
 
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))

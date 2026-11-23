@@ -12,6 +12,7 @@ set -uo pipefail
 # On a runner the script would wrap its gh calls and record into the job's
 # RUNNER_TEMP; the cases here run it unwrapped.
 unset RUNNER_TEMP
+export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 SUT_SRC="$SCRIPT_DIR/check-upstream-drift.sh"
@@ -62,8 +63,6 @@ path_without() {
   NO_PATH="$dir"
 }
 
-# --- fixture builders --------------------------------------------------------
-
 # page_lines: the default page. Line 3 is the marker, line 7 the alpha row (a
 # drift input), line 8 a link to another repository, line 12 the beta unit in
 # the Map section.
@@ -104,8 +103,6 @@ setup() {
     tree_file "$NEW" "$@"
   fi
 }
-
-# --- running and asserting ---------------------------------------------------
 
 RC=0
 OUT=""
@@ -165,8 +162,6 @@ no_err() {
 out_lacks() {
   if [[ "$OUT" != *"$2"* ]]; then ok "$1: stdout lacks '$2'"; else fail "$1: stdout carries '$2' $(state)"; fi
 }
-
-# --- cases -------------------------------------------------------------------
 
 # Usage and help.
 setup
@@ -407,78 +402,203 @@ run
 want_rc "missing fixture HEAD" 2
 no_out "missing fixture HEAD"
 
-# IP allow list: stub gh and curl on PATH, no fixture seam. The page has a pin
-# and no links, so a read is the pin lookup and HEAD, then status=untracked.
-# Stub gh logs each call and prints <gh-body> (default: the allow-list refusal);
-# stub curl answers commits/<sha> with that sha and HTTP <curl-code>
-# (<head-code> for commits/HEAD, default <curl-code>); a code of `exit`
-# makes curl itself fail.
 # The backticks below are literal text.
 # shellcheck disable=SC2016
 ALLOW_BODY='{"message":"Although you appear to have the correct authorization credentials, the `acme` organization has an IP allow list enabled.","status":"403"}'
-stub_api() { # <curl-code> [<gh-body>] [<head-code>]
+GPIN="" GHEAD=""
+ugit() { git -c user.name=t -c user.email=t@example.invalid -C "$f/src" "$@"; }
+stub_api() {
   new_root || return 2
+  mkdir -p "$f/bin" "$f/tmp" "$f/src/skills/alpha" "$f/src/skills/gamma" "$f/remote/acme"
+  git init -q -b main "$f/src" || return 2
+  echo one >"$f/src/skills/alpha/SKILL.md"
+  ugit add skills/alpha/SKILL.md && ugit commit -qm one || return 2
+  GPIN="$(ugit rev-parse HEAD)"
+  echo two >"$f/src/skills/alpha/SKILL.md"
+  echo new >"$f/src/skills/gamma/SKILL.md"
+  ugit add -A && ugit commit -qm two || return 2
+  GHEAD="$(ugit rev-parse HEAD)"
+  git clone -q --bare "$f/src" "$f/remote/acme/widgets.git" || return 2
   {
     printf '# Widgets\n\n'
     # shellcheck disable=SC2016
-    printf '**Last audited upstream state:** `acme/widgets@%s`\n' "$PIN"
+    printf '**Last audited upstream state:** `acme/widgets@%s`\n' "$GPIN"
   } >"$f/$PAGE"
-  mkdir -p "$f/bin"
-  printf '%s\n' "${2:-$ALLOW_BODY}" >"$f/gh.body"
+  printf '%s\n' "${1:-$ALLOW_BODY}" >"$f/gh.body"
   cat >"$f/bin/gh" <<EOS
 #!/usr/bin/env bash
 echo "\$*" >>"$f/gh.log"
 cat "$f/gh.body"
 exit 1
 EOS
-  cat >"$f/bin/curl" <<EOS
-#!/usr/bin/env bash
-echo "\$*" >>"$f/curl.log"
-u="\${*: -1}"
-s="\${u##*/}"
-c=$1
-[[ "\$s" == HEAD ]] && s=$NEW c=${3:-$1}
-[[ "\$c" == exit ]] && exit 7
-printf '{"sha":"%s"}\n%s' "\$s" "\$c"
-EOS
-  chmod +x "$f/bin/gh" "$f/bin/curl"
+  chmod +x "$f/bin/gh"
 }
 
-stub_api 200
-run_env PATH="$f/bin:$PATH" -- --report
-want_rc "allow list, anonymous read works" 0
-want_out_line "allow list, anonymous read works" "page repo=acme/widgets pin=aaaaaaaaaaaa head=bbbbbbbbbbbb status=untracked path=$PAGE"
-want_err "allow list, anonymous read works" "acme: IP allow list refused the token; reading anonymously"
+scoped_page() {
+  {
+    printf '# Widgets\n\n'
+    # shellcheck disable=SC2016
+    printf '**Last audited upstream state:** `acme/widgets@%s` under `skills/`\n\n' "$GPIN"
+    printf '| [alpha](https://github.com/acme/widgets/tree/%s/skills/alpha) | adopted |\n' "$GPIN"
+  } >"$f/$PAGE"
+}
+
+tmp_clean() {
+  if [[ -z "$(ls -A "$f/tmp")" ]]; then ok "$1: temporary directory removed"; else fail "$1: left $(ls -A "$f/tmp")"; fi
+}
+
+stub_api
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, git read works" 0
+want_out_line "allow list, git read works" "page repo=acme/widgets pin=${GPIN:0:12} head=${GHEAD:0:12} status=untracked path=$PAGE"
+want_err "allow list, git read works" "acme: IP allow list refused the token; reading anonymously over git"
 if [[ "$(wc -l <"$f/gh.log")" -eq 1 ]]; then pass "allow list: later calls skip gh"; else bad "allow list: later calls skip gh" "$(cat "$f/gh.log")"; fi
+tmp_clean "allow list, git read works"
 
-stub_api 403
-run_env PATH="$f/bin:$PATH" -- --report
-want_rc "allow list, anonymous read refused, --report" 0
-want_out_line "allow list, anonymous read refused, --report" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
-want_err "allow list, anonymous read refused, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous read (HTTP 403)"
+scoped_page
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, git read finds drift" 1
+no_out "allow list, git read finds drift"
+want_err "allow list, git read finds drift" "$PAGE:5: acme/widgets M skills/alpha/SKILL.md"
+want_err "allow list, git read finds drift" "$PAGE: acme/widgets new unit skills/gamma/SKILL.md"
+tmp_clean "allow list, git read finds drift"
 
-run_env PATH="$f/bin:$PATH" --
-want_rc "allow list, anonymous read refused, default mode" 2
-no_out "allow list, anonymous read refused, default mode"
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --links
+want_rc "allow list, git read checks links" 0
+want_out "allow list, git read checks links" "1 links ok"
 
-stub_api 200 "" 403
-run_env PATH="$f/bin:$PATH" -- --report
-want_rc "allow list, a later read refused, --report" 0
-want_out_line "allow list, a later read refused, --report" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
-want_err "allow list, a later read refused, --report" "an anonymous read (HTTP 403)"
+REAL_GIT=$(command -v git)
+log_git() {
+  mkdir -p "$f/gitbin"
+  : >"$f/git.log"
+  cat >"$f/gitbin/git" <<EOS
+#!/usr/bin/env bash
+echo "GIT_NO_LAZY_FETCH=\${GIT_NO_LAZY_FETCH:-} \$*" >>"$f/git.log"
+exec "$REAL_GIT" "\$@"
+EOS
+  chmod +x "$f/gitbin/git"
+}
+log_git
+run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, git reads fetch each commit once at depth 1" 1
+fetches=$(grep -c ' fetch ' "$f/git.log")
+deep=$(grep ' fetch ' "$f/git.log" | grep -cv -- '--depth=1')
+if [[ "$fetches" -eq 2 && "$deep" -eq 0 ]]; then
+  pass "allow list: two depth-1 fetches, pin and HEAD"
+else
+  bad "allow list: two depth-1 fetches, pin and HEAD" "$(cat "$f/git.log")"
+fi
+if ! grep -q -e cat-file -e '^GIT_NO_LAZY_FETCH= ' "$f/git.log"; then
+  pass "allow list: no existence probe, lazy fetch off on every call"
+else
+  bad "allow list: no existence probe, lazy fetch off on every call" "$(cat "$f/git.log")"
+fi
 
-stub_api 200 "" exit
-run_env PATH="$f/bin:$PATH" -- --report
-want_rc "allow list, curl fails on a later read" 0
-want_out_line "allow list, curl fails on a later read" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
-want_err "allow list, curl fails on a later read" "an anonymous read (curl failed)"
+stub_api
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" -- --report
+want_rc "allow list, git read fails, --report" 0
+want_out_line "allow list, git read fails, --report" "page repo=acme/widgets pin=${GPIN:0:12} head=unknown status=unreachable path=$PAGE"
+want_err "allow list, git read fails, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous git read failed (git: "
+tmp_clean "allow list, git read fails, --report"
 
-stub_api 200 '{"message":"Not Found","status":"404"}'
-run_env PATH="$f/bin:$PATH" -- --report
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" --
+want_rc "allow list, git read fails, default mode" 2
+no_out "allow list, git read fails, default mode"
+
+stub_api
+mkdir -p "$f/fail-ls-remote"
+cat >"$f/fail-ls-remote/git" <<EOS
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == "ls-remote" ]]; then
+    echo "fatal: unable to access remote" >&2
+    exit 128
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/fail-ls-remote/git"
+run_env PATH="$f/fail-ls-remote:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, ls-remote fails after pin fetch, --report" 0
+want_out_line "allow list, ls-remote fails after pin fetch, --report" "page repo=acme/widgets pin=${GPIN:0:12} head=unknown status=unreachable path=$PAGE"
+want_err "allow list, ls-remote fails after pin fetch, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous git read failed (git: fatal: unable to access remote); not checked"
+tmp_clean "allow list, ls-remote fails after pin fetch, --report"
+
+run_env PATH="$f/fail-ls-remote:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, ls-remote fails after pin fetch, default mode" 2
+no_out "allow list, ls-remote fails after pin fetch, default mode"
+
+stub_api
+scoped_page
+mkdir -p "$f/fail-head-fetch"
+cat >"$f/fail-head-fetch/git" <<EOS
+#!/usr/bin/env bash
+is_fetch=0
+has_head=0
+for arg in "\$@"; do
+  [[ "\$arg" == "fetch" ]] && is_fetch=1
+  [[ "\$arg" == "$GHEAD" ]] && has_head=1
+done
+if ((is_fetch && has_head)); then
+  echo "fatal: remote hung up unexpectedly" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/fail-head-fetch/git"
+run_env PATH="$f/fail-head-fetch:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, HEAD fetch fails after ls-remote, --report" 0
+want_out_line "allow list, HEAD fetch fails after ls-remote, --report" "page repo=acme/widgets pin=${GPIN:0:12} head=unknown status=unreachable path=$PAGE"
+want_err "allow list, HEAD fetch fails after ls-remote, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous git read failed (git: fatal: remote hung up unexpectedly); not checked"
+tmp_clean "allow list, HEAD fetch fails after ls-remote, --report"
+
+run_env PATH="$f/fail-head-fetch:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, HEAD fetch fails after ls-remote, default mode" 2
+no_out "allow list, HEAD fetch fails after ls-remote, default mode"
+
+{
+  printf '# Widgets\n\n'
+  # shellcheck disable=SC2016
+  printf '**Last audited upstream state:** `acme/widgets@%s`\n' "$PIN"
+} >"$f/$PAGE"
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, pin missing upstream" 2
+no_out "allow list, pin missing upstream"
+want_err "allow list, pin missing upstream" "is not a commit upstream"
+
+stub_api || exit 2
+scoped_page
+control_path=$'skills/alpha/control\tpath'
+echo malformed >"$f/src/$control_path"
+ugit add -- "$control_path" && ugit commit -qm control || exit 2
+control_head=$(ugit rev-parse HEAD) || exit 2
+mkdir -p "$f/control-remote/acme"
+git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
+
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" -- --report
+want_rc "allow list, control in tree path, --report" 2
+no_out "allow list, control in tree path, --report"
+want_err "allow list, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "allow list, control in tree path, --report"
+
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
+want_rc "allow list, control in tree path, default mode" 2
+no_out "allow list, control in tree path, default mode"
+want_err "allow list, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "allow list, control in tree path, default mode"
+
+stub_api '{"message":"Not Found","status":"404"}'
+log_git
+run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
 want_rc "other gh failure does not retry" 2
 no_out "other gh failure does not retry"
 want_err "other gh failure does not retry" "Not Found (HTTP 404)"
-if [[ ! -e "$f/curl.log" ]]; then pass "other gh failure: no curl call"; else bad "other gh failure: no curl call"; fi
+if [[ "$ERR" != *"over git"* ]]; then pass "other gh failure: no git read"; else bad "other gh failure: no git read" "$ERR"; fi
+if grep -Eq ' (ls-remote|fetch)( |$)' "$f/git.log"; then
+  bad "other gh failure: no ls-remote or fetch" "$(cat "$f/git.log")"
+else
+  pass "other gh failure: no ls-remote or fetch"
+fi
 
 # Missing prerequisites: gh outside the fixture seam, and jq always.
 setup

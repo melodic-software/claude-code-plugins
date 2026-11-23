@@ -10,16 +10,6 @@ metadata:
   summary: Judge whether a doc earns its existence or should become a pointer
 ---
 
-## Repository context. Gather first
-
-Collect with **individual** Bash calls, one command per call, never combined:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Uncommitted .md files (first 20; empty = none matched or the probe returned nothing): !`"${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh" 20 2>/dev/null || echo "(status unavailable)"`
@@ -155,6 +145,12 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 - **The empty-target escalation is offer-only.** A repo-wide sweep from the no-op path runs only after explicit user confirmation; decline or silence ends as the no-op.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
 - **Output deterministic.** Filenames sort lexically; no timestamps in output.
+
+## Next
+
+- A kept doc with a derivable remainder or noise lines: /docs-hygiene:audit-noise.
+- A verdict routed for doc-to-doc duplication: /docs-hygiene:extract-ssot.
+- Confirmed `delete` or `convert-to-pointer` verdicts to file: /work-items:track add.
 
 ## Gotchas
 

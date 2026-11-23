@@ -28,8 +28,6 @@ BeforeAll {
         return (Get-Item -LiteralPath $Path -Force).FullName.TrimEnd('\')
     }
 
-    # The check holds the real limits; tests pass their own, with a budget
-    # no test tree reaches unless the test sets it.
     function Measure-TestRoot {
         param(
             [Parameter(Mandatory)] [string[]] $Root,
@@ -296,7 +294,6 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'third\a.bin') -Bytes 100
         $script:budget = New-ScanBudget -Milliseconds 600000
         $script:sizeCalls = 0
-        # The budget runs out on the second file read, after the first folder.
         Mock Get-AllocatedSize {
             $script:sizeCalls++
             if ($script:sizeCalls -ge 2) { $script:budget.LimitMs = 0 }

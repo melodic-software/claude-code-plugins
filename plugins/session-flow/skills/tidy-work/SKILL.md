@@ -107,6 +107,11 @@ No flag overrides any of these.
 
 /session-flow:clean-stop makes the remaining repo and worktree state durable before the machine goes away.
 
+## Related
+
+- Write a save-point before /clear: /session-flow:handoff.
+- Reclaim disk space inside git repos: /repo-hygiene:clean.
+
 ## Gotchas
 
 - **`--offline` reads as "in flight", not "stale".** With link state unknown, every handoff

@@ -23,22 +23,6 @@ metadata:
 The first word is an action only when it is one of the three above; anything else is the scope.
 Recording the chosen direction and deleting the candidates is step 5, whichever action ran last.
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Working tree status (empty = clean), `git status --porcelain | head -10`
-
-The pipe is the bound and belongs in the command: a read-time cap ("read only the first 10 entries")
-comes after the command has already returned its output inline. What a result returns inline, and
-when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/null || echo "none detected"`
@@ -480,6 +464,11 @@ Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) 
 - The open question is logic or state rather than appearance: `/prototype:pressure-test`.
 - A direction wins but one artifact in it (a texture, a curve, a generated shape) keeps missing
   after prompting: `/prototype:build-generator`, run by the person, so hand over the command.
+
+## Related
+
+- Need an interactive parameter explorer returning a prompt: /playgrounds:use.
+- Need project design system tokens or props API: /user-interface:design.
 
 ## Anti-patterns
 

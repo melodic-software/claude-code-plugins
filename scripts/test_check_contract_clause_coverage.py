@@ -142,7 +142,6 @@ class GateCase(unittest.TestCase):
             text=True,
         )
 
-    # --- clean shapes ------------------------------------------------------
 
     def test_canonical_alone_passes(self) -> None:
         result = self.run_gate()
@@ -195,7 +194,6 @@ class GateCase(unittest.TestCase):
         result = self.run_gate("--exclude", "docs")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    # --- the failures the gate exists for ---------------------------------
 
     def test_tagged_restatement_missing_a_qualifier_fails(self) -> None:
         self.write(
@@ -289,7 +287,6 @@ class GateCase(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("gamma", result.stderr)
 
-    # --- fail-closed refusals ---------------------------------------------
 
     def test_missing_registry_refuses(self) -> None:
         self.registry.unlink()

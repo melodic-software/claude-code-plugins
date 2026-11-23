@@ -127,10 +127,6 @@ function sha12(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 12);
 }
 
-// ---------------------------------------------------------------------------
-// Argument parsing (flat flags; every subcommand shares one parser)
-// ---------------------------------------------------------------------------
-
 // Flags that take no value; everything else consumes the next argv element.
 const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored', 'measure-only'];
 
@@ -175,10 +171,6 @@ Exit: 0 success; 2 usage error; 3 measurement unavailable/unparsable
       4 --measure-only and the Agent SDK is absent (same record, no fallback).
 `;
 
-// ---------------------------------------------------------------------------
-// Binary resolution — pin and report the measured binary
-// ---------------------------------------------------------------------------
-
 function resolveBinary(explicit) {
   if (explicit) {
     if (!existsSync(explicit)) {
@@ -215,10 +207,6 @@ function binaryVersion(bin) {
   const m = ((r.stdout || '') + (r.stderr || '')).match(/(\d+\.\d+\.\d+)/);
   return m ? m[1] : null;
 }
-
-// ---------------------------------------------------------------------------
-// SDK resolution
-// ---------------------------------------------------------------------------
 
 function findSdkEntry(dirs) {
   for (const dir of dirs) {
@@ -369,10 +357,6 @@ function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Skill-listing signature — the comparability key for `System tools`
-// ---------------------------------------------------------------------------
-
 function listingSignature(rows) {
   const canon = rows.map((r) => `${r.name} ${r.source}`).sort();
   return sha12(JSON.stringify(canon));
@@ -394,10 +378,6 @@ function splitCsv(value) {
   if (!value) return [];
   return String(value).split(',').map((s) => s.trim()).filter(Boolean);
 }
-
-// ---------------------------------------------------------------------------
-// Measurement — sdk mode
-// ---------------------------------------------------------------------------
 
 async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   const { query } = sdk;
@@ -490,10 +470,6 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Measurement — cli-parse mode
-// ---------------------------------------------------------------------------
-
 function cliSnapshot({ bin, deny, label }) {
   const args = ['-p', '/context'];
   if (deny.length) args.push('--disallowedTools', ...deny);
@@ -554,10 +530,6 @@ function cliSnapshot({ bin, deny, label }) {
     ],
   };
 }
-
-// ---------------------------------------------------------------------------
-// Shared snapshot driver with the degradation ladder
-// ---------------------------------------------------------------------------
 
 const GIT_BASH_CONTEXT_HINT = '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, '
   + 'or path conversion rewrites the command).';
@@ -628,10 +600,6 @@ async function takeSnapshot(args) {
       + GIT_BASH_CONTEXT_HINT);
   }
 }
-
-// ---------------------------------------------------------------------------
-// compare — two snapshots -> one ledger row
-// ---------------------------------------------------------------------------
 
 function summarize(snap) {
   return {
@@ -723,10 +691,6 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// attribute — per-tool attribution by bare-name deny differencing
-// ---------------------------------------------------------------------------
 
 // Saving across the attributed buckets of one comparison, honoring the
 // three states a bucket delta can be in:
@@ -968,11 +932,6 @@ function mergeCaveats(snapshots) {
   return merged;
 }
 
-// ---------------------------------------------------------------------------
-// ledger — one file per run plus an appended history line, under a data dir
-// the CALLER derives (state key included); this engine never invents the key.
-// ---------------------------------------------------------------------------
-
 function ledgerAppend(dir, rowFile) {
   let row;
   try {
@@ -1147,10 +1106,6 @@ function runVerifyCatalogue(args) {
     caveats,
   };
 }
-
-// ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
 
 function emit(record, outFile) {
   const text = `${JSON.stringify(record, null, 2)}\n`;

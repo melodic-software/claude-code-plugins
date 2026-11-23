@@ -1,5 +1,49 @@
 # Changelog: discovery plugin
 
+## [2.2.15] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [2.2.14] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [2.2.13] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [2.2.12] - 2026-11-23
+
+### Changed
+
+- `/discovery:explore`, `/discovery:research` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+- `/discovery:blindspot`, `/discovery:trace-intent` no longer gather repository context that no step read.
+
+## [2.2.11] - 2026-11-23
+
+### Changed
+
+- `scripts/check-dispatch-artifact.sh` takes its option-value guard from the shared `lib/opt-value.sh`: an empty or `-`-leading value for `--index-name`, `--newer-than`, `--expect-index` or `--expect-sidecars` is now a usage error (exit 2, as before), and the message reads `check-dispatch-artifact.sh: <option> requires a value`.
+
+## [2.2.10] - 2026-11-23
+
+### Changed
+
+- `scripts/check-hook-registration.sh` now runs the shared hook registration check (`lib/hook-registration-check.sh`, generated from the repository's `lib/`); its rows, wording and exit codes are unchanged.
+
+## [2.2.9] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [2.2.8] - 2026-11-22
 
 ### Changed

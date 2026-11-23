@@ -3,6 +3,44 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [3.2.0] - 2026-11-23
+
+### Changed
+
+- `setup` gains a `## Next` naming `/toolchain:check` and `/toolchain:lint`.
+- `lint` gains a `## Next` naming `/toolchain:check` and `/verification:confirm`.
+
+## [3.1.3] - 2026-11-23
+
+### Changed
+
+- `/toolchain:check`, `/toolchain:lint` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+## [3.1.2] - 2026-11-22
+
+### Changed
+
+- `/toolchain:lint` says a record sets `tool-pin` only for a tool whose version the repository owns itself, and omits it when the version comes from a shared default such as a composite action's input default, since a copy drifts.
+
+## [3.1.1] - 2026-11-22
+
+### Changed
+
+- A `skip (prerequisite missing: <name>)` cell for an entry with an `install` object names the provisioning step that installs it, the source-control plugin's `provision-prerequisites.sh`. The check still installs nothing. A test fails if the not-run rules in `check`, its gates and `lint` stop naming that step.
+- The unattended "write nothing" rule in `check`, `lint` and the resolution ladder names the legacy `.claude/ecosystems/` beside `docs/conventions/ecosystems/`.
+
+## [3.1.0] - 2026-11-22
+
+### Changed
+
+- Ecosystem records move to the convention home, `docs/conventions/ecosystems/<ecosystem>.yaml`, with the personal override beside them as `<ecosystem>.local.yaml`. `/toolchain:check` and `/toolchain:lint` read the new home first and the legacy `.claude/ecosystems/` file of a name absent there; with both present the new file wins and the report names both paths. `/toolchain:setup` writes only the new home, warns on each legacy file, and `apply` moves legacy files there (`git mv` for a tracked one). The recommended `.gitignore` line is `docs/conventions/**/*.local.*`.
+
 ## [3.0.0] - 2026-11-22
 
 ### Changed

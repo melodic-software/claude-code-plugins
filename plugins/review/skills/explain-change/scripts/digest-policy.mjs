@@ -51,8 +51,6 @@ export function resolveMedium(option, baseOid) {
   };
 }
 
-// ------------------------------------------------------------ publish gate
-
 export { SECRET_PATTERNS, findSecret };
 
 /**
@@ -64,8 +62,6 @@ export function publishGate({ explicit, visibility, diff }) {
   const known = visibility === "NONE" ? "UNKNOWN" : visibility;
   return sharedGate({ explicit, visibility: known, text: diff, subject: "diff" });
 }
-
-// ------------------------------------------------------------ CLI
 
 // The gate's only repository input is the pull request URL in `--facts`, whose
 // visibility it looks up itself (the lookup `publish-hosted.mjs` uses), so no

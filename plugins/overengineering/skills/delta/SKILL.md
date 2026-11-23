@@ -12,12 +12,16 @@ metadata:
 
 ## Repository context. Gather first
 
-Run this as its own Bash call, never combined with another command:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Branch, `git symbolic-ref --quiet --short HEAD`
 
-Treat a failure (detached checkout, no repository, no git) as an unresolved identity, never as
-`HEAD`. Read the baseline's UTC stamps with `date -u +%Y%m%dT%H%M%SZ` when writing them.
+A failure here (detached checkout, no repository, no git) is an unresolved identity, never `HEAD`.
+Read the baseline's UTC stamps with `date -u +%Y%m%dT%H%M%SZ` when writing them.
 
 ## Purpose
 
@@ -253,6 +257,11 @@ records why and holds the pointer.
 ## Next
 
 `/overengineering:realign`. It acts on the queued verdict changes, one finding at a time.
+
+## Related
+
+- Running a full enforcement-surface walk: /overengineering:audit.
+- Filing queued verdict changes as a work item: /work-items:track.
 
 ## Gotchas
 

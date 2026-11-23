@@ -3,6 +3,31 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.0] - 2026-11-23
+
+### Changed
+
+- `write`'s `## Next` names `/mutation-testing:audit` on the file to confirm each kill when the tests were written for survivors a mutation run handed over.
+
+## [5.13.3] - 2026-11-23
+
+### Changed
+
+- `/testing:cleanup`, `/testing:write` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+- `/testing:diagnose`, `/testing:plan`, `/testing:run-e2e` no longer gather repository context that no step read.
+
+## [5.13.2] - 2026-11-22
+
+### Fixed
+
+- The `wr-glossary-root` and `wr-glossary-docs-path` eval descriptions describe the glossary lookup `/testing:write` performs now (the ubiquitous-language lookup or a repository glob) instead of a walk-up rule.
+
+## [5.13.1] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [5.13.0] - 2026-11-22
 
 ### Changed

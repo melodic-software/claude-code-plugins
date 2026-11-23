@@ -10,16 +10,6 @@ metadata:
 
 **Arguments.** `[tier] [task description|#<map>]`. e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined:
-
-- Current branch, `git branch --show-current`
-- Recent commits, `git log --oneline -5`
-- Working tree status (empty = clean), `git status --porcelain | head -10`
-
-Keep the pipe in the command: a read-time cap comes too late ([what a result returns inline](https://code.claude.com/docs/en/tools-reference#output-limits)). Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines ([how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
-
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -155,7 +145,7 @@ Stop asking once every required section has a resolved answer or an explicit "op
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (`git branch --show-current`; the task description alone when that fails), kebab-case, ≤40 chars: the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
 When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` read it from there.
 
@@ -294,6 +284,11 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 - PRD locked and the Brief already exists: /planning:design.
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+
+## Related
+
+- Need codebase grounding on the product area: /discovery:explore.
+- Need external market or API research: /discovery:research.
 
 ## Gotchas
 

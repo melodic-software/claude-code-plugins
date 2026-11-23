@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-skill-precompute-compose.sh.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,7 +40,6 @@ run_check() (
   bash scripts/check-skill-precompute-compose.sh "$@"
 )
 
-# --- single git precompute line passes ---------------------------------------
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nBranch: !`git branch --show-current`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
@@ -55,7 +53,6 @@ else
 fi
 rm -rf "$f"
 
-# --- two precompute lines without git passes ---------------------------------
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`date`\nB: !`pwd`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
@@ -69,7 +66,6 @@ else
 fi
 rm -rf "$f"
 
-# --- two precompute lines with git warns by default --------------------------
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
@@ -83,7 +79,6 @@ else
 fi
 rm -rf "$f"
 
-# --- strict mode fails -------------------------------------------------------
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 if out="$(run_check "$f" --strict --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
@@ -97,7 +92,6 @@ else
 fi
 rm -rf "$f"
 
-# --- no precompute section passes --------------------------------------------
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
@@ -117,7 +111,6 @@ rm -rf "$f"
 # through *) or leave POSITIONAL empty after consuming --strict/--help.
 # =============================================================================
 
-# --- no args -> usage, exit 2 ------------------------------------------------
 new_fixture f
 out="$(run_check "$f" 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
@@ -127,7 +120,6 @@ else
 fi
 rm -rf "$f"
 
-# --- --help / -h -> usage, exit 2 --------------------------------------------
 new_fixture f
 out="$(run_check "$f" --help 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then

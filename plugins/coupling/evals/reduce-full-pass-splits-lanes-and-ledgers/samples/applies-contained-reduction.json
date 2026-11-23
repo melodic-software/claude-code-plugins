@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/status.ts",
+            "old_string": "=== \"archived\"",
+            "new_string": "=== ARCHIVED"
+          }
+        }
+      ],
+      "why": "names the magic string"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/services/storefront/update-order.sql",
+            "old_string": "status = :status",
+            "new_string": "status = :status /* owned */"
+          }
+        }
+      ],
+      "why": "edits only the shared-database file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledgers only"
+    }
+  ]
+}

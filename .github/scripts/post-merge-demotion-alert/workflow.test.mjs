@@ -11,6 +11,7 @@ import process from "node:process";
 import { test } from "node:test";
 
 const text = readFileSync(new URL("../../workflows/post-merge-file-demotion-issues.yml", import.meta.url), "utf8");
+const filer = readFileSync(new URL("./file-demotion-issue.sh", import.meta.url), "utf8");
 const job = text.slice(text.indexOf("\n  report-red-main:\n"), text.indexOf("\n  close-cleared:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
@@ -165,12 +166,10 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   const F = (pattern, ...args) => pattern.replace(/\{(\d+)\}/g, (_, i) => String(args[Number(i)]));
 
   const step = alert.slice(alert.indexOf("\n      - name: File or comment on the demotion issue\n"));
-  const body = /\n {8}run: \|\n([\s\S]*?)\n {10}newly=''\n/.exec(step);
+  assert.match(step, /^\n {6}- name: [^\n]*\n(?: {8}[^\n]*\n)*? {8}run: bash \.base\/\.github\/scripts\/post-merge-demotion-alert\/file-demotion-issue\.sh\n/);
+  const body = /\nset -e\n([\s\S]*?)\nnewly=''\n/.exec(filer);
   assert.ok(body, "the file step's early exits end at newly=''");
-  const script = body[1]
-    .split("\n")
-    .map((line) => line.slice(10))
-    .join("\n");
+  const script = body[1];
 
   // Candidates: every pair and conclusion either side names, plus ones neither does.
   const stepLabels = [...script.matchAll(/^\s+"?([\w|: -]+)"?\)/gm)].flatMap((m) => m[1].split("|").map((s) => s.trim()));
@@ -322,7 +321,7 @@ test("close-cleared runs on every completed scheduled full run on main and on a 
 // same way, so the filer one closes is the filer the other matches; file-revert
 // checks the identity the alert hands it the same way too.
 test("load_records and close-cleared extract merge.agent-identity identically", () => {
-  const lines = (pattern) => text.split("\n").filter((line) => line.includes(pattern)).map((line) => line.trim());
+  const lines = (pattern) => `${filer}\n${text}`.split("\n").filter((line) => line.includes(pattern)).map((line) => line.trim());
   const seds = lines("sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: ");
   assert.equal(seds.length, 2, "one extraction in each place");
   assert.equal(seds[0].replace(/configured_identity/, "identity"), seds[1]);

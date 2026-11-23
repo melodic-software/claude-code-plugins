@@ -44,7 +44,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Python formatting and linting are two concerns. The hooks run only the
 plugin's shipped adapter, where that tool's own config governs the file, and otherwise nothing; they
-never run a command from the repository's python record (`.claude/ecosystems/python.yaml`), which
+never run a command from the repository's python record (`docs/conventions/ecosystems/python.yaml`), which
 `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this plugin
 writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
 `/toolchain:setup apply python`, never here. The tunables are the native `userConfig` options (the on/off toggle, the
@@ -260,8 +260,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a
-tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- /toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository
+  wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do
 

@@ -3,6 +3,30 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1] - 2026-11-23
+
+### Changed
+
+- `confirm` now lists its context-dependent link under `## Related`, matching the committed skill-link table.
+
+## [0.30.0] - 2026-11-23
+
+### Changed
+
+- `confirm` passes a handed-in `--before` drive report on to `/source-control:pull-request evidence`.
+
+## [0.29.4] - 2026-11-23
+
+### Changed
+
+- `/verification:confirm` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+## [0.29.3] - 2026-11-22
+
+### Changed
+
+- `/verification:confirm` reads a record's `requires` from `docs/conventions/ecosystems/`, else the legacy `.claude/ecosystems/`. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
 ## [0.29.2] - 2026-11-21
 
 ### Changed

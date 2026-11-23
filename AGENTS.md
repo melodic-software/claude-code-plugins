@@ -13,6 +13,8 @@ and then marks it ready (the stop list below says when that needs the user).
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `CI Status` fails any other title.
 
+Before opening a pull request or filing an issue, read [docs/standards/filing-prs-and-issues.md](docs/standards/filing-prs-and-issues.md) (synced from melodic-software/standards).
+
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
 request for any reason, a measured regression included, applies the label at once and removes it
@@ -197,11 +199,12 @@ already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
+| `.claude/rules/consumer-agnostic-plugins.md` | `plugins/**` | Shipped plugin behavior stays consumer-agnostic: a value or preference of one user, machine, organization, repository or folder lives in that consumer's own config layers, and one consumer's setting never removes an option other consumers can turn on; read before changing what a plugin ships |
 | `.claude/rules/cost-claims.md` | `plugins/*/skills/**, plugins/*/agents/**, plugins/*/reference/**, docs/**/*.md, prompts/**` | Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported, and a skill that prices its own runs may state its dated, measured run costs |
 | `.claude/rules/eval-case-transcripts.md` | `plugins/*/evals/**, plugins/*/skills/*/evals/**` | Eval cases in this public repository never hold a raw session or product transcript; a one-to-one rewrite with every identifying detail changed is allowed after the identifying-details review |
 | `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**` | Mods: before adding or changing a hooks module, load the built-in `plugin-authoring` skill and follow the mod-authoring convention, which points at the upstream mods pages and ADR 0052 |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
-| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), and name their successor in a `## Next` section; read before editing any skill body |
+| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), name their successor in `## Next` and context-dependent links in `## Related`, and mark optional-plugin mentions `(if enabled)`; read before editing any skill body |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |

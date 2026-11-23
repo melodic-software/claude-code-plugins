@@ -1,5 +1,24 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.0] - 2026-11-23
+
+### Changed
+
+- `audit-derivability` gains a `## Next` naming `/docs-hygiene:audit-noise`, `/docs-hygiene:extract-ssot` and `/work-items:track add` by verdict.
+
+## [4.3.2] - 2026-11-23
+
+### Changed
+
+- `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-progressive-disclosure`, `/docs-hygiene:compress`, `/docs-hygiene:rename-references` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+- `/docs-hygiene:audit-derivability` no longer gather repository context that no step read.
+
+## [4.3.1] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [4.3.0] - 2026-11-22
 
 ### Changed

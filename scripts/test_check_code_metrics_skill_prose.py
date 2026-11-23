@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""The prose-default gate fails when a skill sentence drifts from the defaults."""
 
 from __future__ import annotations
 

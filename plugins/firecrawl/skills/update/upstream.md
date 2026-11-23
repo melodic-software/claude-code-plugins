@@ -3,10 +3,10 @@
 
 # Firecrawl skill upstream sync state
 
-- Last sync: 2026-11-16
+- Last sync: 2026-11-23
 - Upstream URL: https://www.firecrawl.dev/agent-onboarding/SKILL.md
-- Upstream SHA256: b4d49850499b9e55357a895be2292c6df8a51fee1f25a9e7536588160bb120a1
-- CLI version at sync: 1.29.0
+- Upstream SHA256: 3a86fb3509cd33dc7ad507ea95837ac59f3a9c0153cd28f4a10f9881a742b667
+- CLI version at sync: 1.30.0
 - Previous CLI version (rollback target): 1.26.24
 - CLI npm URL: https://www.npmjs.com/package/firecrawl-cli
 - Next recheck: run the update action with --check weekly or when a scrape

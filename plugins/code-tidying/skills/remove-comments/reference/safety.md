@@ -45,6 +45,7 @@ excluded path, or delete text without a landing place (staging rule below).
 | Tier | Edit | Gate | Why this proof and not another |
 |---|---|---|---|
 | **0** | Class-A deletion | `change-shape.py` verdict **COMMENT-ONLY** | The comment-stripped token sequence is identical, so no code token moved. Exhaustive over the file; needs no tests, no build, no config |
+| **0** | Deletion of a non-public Python module docstring, or the docstring of a function defined outside any class (top level or nested in a function), under `necessary` and `none` | verdict **DOCSTRING-ONLY**, and no other file in the repository names the function except as a direct call | With the docstrings cut out of both sides the token sequence is identical, and every docstring the edit kept is unchanged at its position. A class or method docstring is out of scope and reads CODE-CHANGED: calling a class returns an instance that carries its docstring, and passing the class reaches its methods'. The one value that changes is `__doc__`, so the verdict also refuses: a token containing `__doc__` or `__dict__`; an identifier `vars`, `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc` or `doctest`; a docstring holding `>>>`; a decorated function; the function's name anywhere but its own def line or immediately before `(` (passed, assigned, stored, returned); and a removal that leaves a body empty. These are token checks over one file, not a proof that nothing reads the docstring; the repository search applies the owner-name rule to every other file |
 | **1** | Rename Variable / Rename Field on a function-local identifier | verdict **RENAME-ONLY** under one consistent mapping, and the identifier is neither exported nor public | A shape claim: every differing token is an identifier under one injective old→new mapping, no old name survives at an unchanged position, and no new name was already in use in the file. It cannot see other files, reflection, or string-keyed access, so it earns application plus a flagged review line in the report, never silence |
 | **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional, Replace Nested Conditional with Guard Clauses, Introduce Special Case | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
 | **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call, Inline Function, Encode in a Type | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
@@ -53,7 +54,7 @@ excluded path, or delete text without a landing place (staging rule below).
 the `${CLAUDE_PLUGIN_ROOT}` token; pointer for where that token is substituted:
 [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions))
 and carries its verdict in
-the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
+the exit code: 0 COMMENT-ONLY, 11 DOCSTRING-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
 unavailable, **2 no grammar mapping for the file's extension, or no PowerShell host for a
 `.ps1`/`.psm1` file** (or a usage error). Run it against
 the file's content before and after each edit, and before the comment is deleted. Any verdict other
@@ -104,7 +105,8 @@ is tier 2.
 Knobs move tiers without changing any gate: `apply_local_renames=false` makes tier 1 a proposal even
 when RENAME-ONLY holds, and `safe` makes every tier above 0 a proposal. `necessary` and `none`
 move in the other direction and still change no gate:
-they widen which comments are triaged away, while every applied deletion carries COMMENT-ONLY, every
+they widen which comments are triaged away, while every applied deletion carries COMMENT-ONLY (a
+Python docstring's carries DOCSTRING-ONLY), every
 applied rename carries RENAME-ONLY, tiers 2 and 3 keep their test net, and an UNPROVABLE file yields
 proposals only. No knob applies an edit its tier's proof did not pass.
 

@@ -373,7 +373,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertNotIn(
                 wt.name, git("-C", str(main), "worktree", "list", "--porcelain")
             )
-            # The proof that matters: the path accepts a worktree again.
             git("-C", str(main), "worktree", "add", "-q", str(wt), "-b", "feat/redo")
             self.assertTrue(wt.exists())
 

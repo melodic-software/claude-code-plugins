@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/vendor-decide --task-type coding --settings /tmp/s/settings.json"
+          }
+        }
+      ],
+      "why": "skips fetch-boards when routing is off"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/fetch-boards --out /tmp/s/pages --manifest /tmp/s/manifest.json --task-type coding"
+          }
+        }
+      ],
+      "why": "called fetch-boards despite routing being off"
+    }
+  ]
+}

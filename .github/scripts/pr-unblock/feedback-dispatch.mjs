@@ -185,10 +185,12 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../lib/github-client.mjs";
+import { trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LaneRunPending } from "../lib/lane-binding.mjs";
+import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
@@ -220,7 +222,7 @@ export const DEFAULTS = Object.freeze({
   // The lanes each review workflow names in its reviewed-head marker
   // (melodic-software/ci-workflows pr-review-cli.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
-  holdLabels: Object.freeze(["do-not-merge"]),
+  holdLabels: FEEDBACK_HOLDS,
   // claude[bot], which posted reviews before both lanes moved to pr-review-cli
   // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
   // as github-actions[bot]; threadAuthors accepts those comments only when the
@@ -228,7 +230,7 @@ export const DEFAULTS = Object.freeze({
   // comment bound to its lane's run.
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
-  markerAuthorId: 41898282,
+  markerAuthorId: ACTIONS_BOT_ID,
   // The GitHub Actions app: only a check run it created counts.
   appId: 15368,
 });
@@ -926,7 +928,6 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
           taken.add(pull.number);
         }
       } catch (error) {
-        // One PR's failed read leaves the PRs after it to the sweep.
         log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
       }
     }
@@ -1010,7 +1011,6 @@ async function sweepPulls(context, decide) {
     try {
       dispatched = await decide(pull);
     } catch (error) {
-      // One PR's failed read leaves the PRs after it to the sweep.
       log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
     }
     if (dispatched !== null) {
@@ -1481,7 +1481,6 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
 }`;
 
 export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch, { floorGraceMs: DISPATCH_FLOOR_GRACE_MS }), attemptTimeoutMs }) {
-  // Each request's rate-limit reading goes to the job-end api-calls notice.
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   const repo = `${apiUrl}/repos/${owner}/${name}`;
@@ -1761,13 +1760,12 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     api: client,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
-    // One read budget for every dispatch this pass decides.
     earlierFailReads: { left: EARLIER_FAIL_READS },
     verifyReads: new Map(),
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.
-    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
+    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH)),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/docs/conventions/work-items.yaml`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
@@ -1799,7 +1797,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       const refire = swept.refireOf ? `refire-of${suffix}=${swept.refireOf}\n` : "";
       appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n${refire}`);
     };
-    // A lost run is recovered only on a tick the sweep sent nothing on.
     const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
     if (swept !== null && sends === 0) {

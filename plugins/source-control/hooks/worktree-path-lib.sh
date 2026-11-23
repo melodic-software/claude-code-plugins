@@ -148,7 +148,6 @@ worktree_add_target_to() {
     return 1
   fi
 
-  # Leading `VAR=val` assignments are not the command word.
   while ((__wt_i < __wt_n)) && [[ "${__wt_w[__wt_i]}" == *=* && "${__wt_w[__wt_i]}" != -* ]]; do ((__wt_i++)); done
 
   # Only the CURRENT shell can relocate later segments; `command`/`builtin`/

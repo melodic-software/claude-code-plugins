@@ -6,18 +6,8 @@ _CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
 
 # shellcheck source=../../../lib/config-root.sh
 source "$_CFG_LIB/config-root.sh"
-
-# require_opt_value <script> <option> [value ...]: refuse an option whose value
-# is missing, empty, or another option. The script name is a parameter because
-# each caller names itself in its own diagnostics; exit 2 is the usage code
-# every caller documents in its own `Exit:` line.
-require_opt_value() {
-  local script="$1" opt="$2"
-  if [[ $# -lt 3 || -z "${3:-}" || "$3" == -* ]]; then
-    echo "$script: $opt requires a value" >&2
-    exit 2
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+source "$_CFG_LIB/opt-value.sh"
 
 # json_str <text>: escape for a JSON string. Backslash and quote first, then the
 # control characters a path, a reason, or a matched line can legally carry.

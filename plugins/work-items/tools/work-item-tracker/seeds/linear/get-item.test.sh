@@ -9,7 +9,6 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S"
@@ -21,13 +20,11 @@ assert_usage_error "$S" "linear:acme/ENG#12" extra
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-# --- the declared scope is an authorization boundary ---
 rc="$(lin_run "$S" "linear:acme/OPS#5")"
 assert_eq "an undeclared team is refused → exit 2" "2" "$rc"
 assert_contains "the refusal names config.linear.scopes" "$(lin_err)" "config.linear.scopes"
 assert_eq "and no request was made" "" "$(lin_requests)"
 
-# --- happy path ---
 lin_reset
 lin_seed_issue 12 started
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
@@ -126,7 +123,6 @@ assert_eq "completed blocker not configured done still blocks" "2" "$(jq -r '.bl
 assert_eq "only the configured-done canceled blocker is won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
 lin_write_binding
 
-# --- parent_id is fully qualified ---
 lin_reset
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
   '{issues: {nodes: [($i | .parent = {identifier: "ENG-3", team: {key: "ENG"}, number: 3})]}}')"
@@ -157,7 +153,6 @@ lin_data 'issues(filter:' '{"issues":{"nodes":[]}}'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "no matching issue → exit 5" "5" "$rc"
 
-# --- HTTP-level status still maps ---
 lin_reset
 lin_seed 'issues(filter:' 401 '{"message":"unauthorized"}'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
@@ -168,7 +163,6 @@ lin_seed 'issues(filter:' 503 '{"message":"down"}'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "HTTP 503 → exit 8" "8" "$rc"
 
-# --- the request goes to the one GraphQL endpoint, over https ---
 lin_reset
 lin_seed_issue 12 started
 lin_run "$S" "linear:acme/ENG#12" >/dev/null

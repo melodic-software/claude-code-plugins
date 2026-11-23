@@ -16,7 +16,7 @@
     {
       "answer": [
         "docs/guide.md",
-        ".claude/ecosystems/markdown.yaml"
+        "docs/conventions/ecosystems/markdown.yaml"
       ],
       "why": "wrote the markdown record"
     }

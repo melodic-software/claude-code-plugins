@@ -35,7 +35,9 @@ Exit 1 = at least one question is still `open`, `discussing` or `superseded-by-p
 Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
          deferred-questions heading, an unterminated fenced block, an empty
          register, a malformed row, an unknown status, a duplicate, an
-         out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
+         out-of-order or a missing (gap) Q id that no `- gap | Q<a>-Q<b> | <why>`
+         line declares, a malformed gap line, a declared gap that covers a
+         row, an unfenced `- Q<N> |` row
          outside the register section (any heading ends the section, a
          sub-heading inside it included), a named `--brief` that is
          missing, or a `--surface` that is missing, comes without `--brief`
@@ -174,7 +176,6 @@ fence_awk='
   }
 '
 
-# squash(s) returns s with its whitespace runs made one space and its ends trimmed.
 squash_awk='
   function squash(s) {
     gsub(/[[:space:]]+/, " ", s)
@@ -206,7 +207,6 @@ heading_matches() {
   ' "$2"
 }
 
-# Count of, and comma-separated line numbers from, a heading_matches result.
 match_count() { printf '%s\n' "$1" | wc -l | tr -d '[:space:]'; }
 match_lines() { printf '%s\n' "$1" | cut -f1 | paste -sd, - | sed 's/,/, /g'; }
 
@@ -233,16 +233,13 @@ extract_section() {
   ' "$2"
 }
 
-# Print the line number of each unfenced `- Q<N> |` row outside lines `lo` to
-# `hi` (inclusive), the register section's body. The register reads only the
-# rows above its next heading, so a row below a sub-heading would otherwise go
-# ungraded while the gate reports clean. The pipe is required: the exported
-# ledger's deferred-questions list (`- Q3: <question>`) is not a register row.
 rows_outside() {
   awk -v lo="$1" -v hi="$2" "$fence_awk"'
     fence_line($0) { next }
     fenced { next }
+    /^#+[[:space:]]/ { reopened = (tolower($0) ~ /^#+[[:space:]]+reopened answers[[:space:]]*$/) }
     NR >= lo && NR <= hi { next }
+    reopened && /^[[:space:]]*-[[:space:]]+[Qq][1-9][0-9]*[[:space:]]*[|][[:space:]]*round[[:space:]]+[1-9][0-9]*[[:space:]]*[|][[:space:]]*was:.*[|][[:space:]]*fact:/ { next }
     /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
   ' "$3"
 }
@@ -275,13 +272,6 @@ brief_bounds() {
   fi
 }
 
-# Print, from the Brief's lines between `lo` and `hi` (both exclusive), the
-# first `- Page title:` value, each line of the Goal section's opening paragraph
-# (up to a blank line or a list item, so the Intent and Vision bullets a PLAN.md
-# adds under it are not part of it), and each non-blank Acceptance criteria
-# line, as `title`, `goal` or `criteria`, a TAB, then the text with its
-# whitespace runs made one space. A fenced line is documentation; the heading
-# bounds came from outside any fence.
 brief_fields() {
   awk -v lo="$1" -v hi="$2" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
@@ -310,8 +300,6 @@ brief_fields() {
   ' "$3"
 }
 
-# Print each unfenced heading's text between lines `lo` and `hi` (both
-# exclusive), lowercased, its #s dropped and its whitespace runs made one space.
 heading_texts() {
   awk -v lo="$1" -v hi="$2" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
@@ -325,9 +313,6 @@ heading_texts() {
   ' "$3"
 }
 
-# Print each non-blank, unfenced line of the section whose whole heading text
-# matches the awk regex `name` (lowercase) between lines `lo` and `hi` (both
-# exclusive), with its whitespace runs made one space, as brief_fields reads a line.
 section_lines() {
   awk -v name="$1" -v lo="$2" -v hi="$3" "$fence_awk$squash_awk"'
     NR <= lo || NR >= hi { next }
@@ -343,9 +328,6 @@ section_lines() {
   ' "$4"
 }
 
-# Name each line of the page export's section `name` (a section_lines regex) that
-# the Brief's own section lacks, as the section `label`. Reads the --surface
-# globals: the export in $expected_brief up to $export_hi, the Brief's bounds.
 need_export_lines() {
   local have want
   have=$'\n'"$(section_lines "$1" "$brief_lo" "$brief_hi" "$brief")"$'\n'
@@ -355,7 +337,6 @@ need_export_lines() {
   done <<<"$(section_lines "$1" 1 "$export_hi" "$expected_brief")"
 }
 
-# Print how many lines of $2 equal $1.
 count_line() {
   local n=0 line
   while IFS= read -r line; do
@@ -364,10 +345,6 @@ count_line() {
   printf '%s' "$n"
 }
 
-# The Brief's Decisions against the page export's: each export line appears as
-# often as the export writes it, and a Brief line naming a Q<N> is one of the
-# export's lines. A decision duplicated, put back in an earlier form, or
-# contradicted by a second line naming its Q<N> fails.
 check_decisions() {
   local want want_n have_n seen=$'\n' export_lines brief_lines
   export_lines="$(section_lines decisions 1 "$export_hi" "$expected_brief")"
@@ -387,9 +364,6 @@ check_decisions() {
   no_stray_decisions constraints Constraints
 }
 
-# Name each line of the Brief's section `name` that names a Q<N> but is not one of
-# the export's lines for that section, as the section `label`: a decision in another
-# form, or a second line for one (a Decisions line repeated under Constraints).
 no_stray_decisions() {
   local have export_lines
   local qn_re='(^|[^A-Za-z0-9])[Qq][1-9][0-9]*([^0-9A-Za-z_]|$)'
@@ -401,7 +375,6 @@ no_stray_decisions() {
   done <<<"$(section_lines "$1" "$brief_lo" "$brief_hi" "$brief")"
 }
 
-# Set `trimmed` to $1 without its leading and trailing whitespace (no subshell).
 trim_into() {
   trimmed="${1#"${1%%[![:space:]]*}"}"
   trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
@@ -409,12 +382,6 @@ trim_into() {
 
 proc_problem() { proc_problems="$proc_problems$1"$'\n'; }
 
-# The --procedure ledger checks beyond the register: Step-exit checkboxes and the
-# assumption sweep's dispositions (assumption-sweep.md "Disposition"). A sweep
-# item settled in the main loop by an uncited fact, or a `decision` item settled
-# without a register row, is the hole these close: the register alone cannot
-# show an item that never became a row. Runs after the register loop, so
-# `seen_ids` holds every register id.
 check_sweep() {
   local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
   local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
@@ -456,7 +423,6 @@ check_sweep() {
     sweep_line="${sweep_matches%%$'\t'*}"
     facts_matches="$(heading_matches '^#+[[:space:]]+self-answered facts[[:space:]]*$' "$ledger")"
     if [[ -n "$facts_matches" && "$(match_count "$facts_matches")" -eq 1 ]]; then
-      # One `F<n><TAB><basis>` line per fact; the basis is the text after the last `|`.
       while IFS= read -r text; do
         [[ "${text%%$'\t'*}" == "." ]] || continue
         text="${text#*$'\t'}"
@@ -528,8 +494,6 @@ check_sweep() {
       decision | fact | tenant | person) ;;
       *) proc_problem "line $lno: $key has unknown class '$class'" ;;
       esac
-      # A hedged item points at the answered row it came from and goes to the
-      # confirmation restate; every other item becomes a new row, asked.
       hedged=0
       [[ "$category" != hedged ]] || hedged=1
       user_owned=0
@@ -549,16 +513,10 @@ check_sweep() {
           if [[ "$src" =~ (^|[^A-Za-z0-9])[Qq]$qnum([^0-9]|$) ]]; then
             proc_problem "line $lno: $key names $qid, the row it was found in; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
           else
-            # The new row is written after the sweep ran, so its id is above the
-            # register's last row at that point, which is also at or above every
-            # row the source names. An older row (an earlier answer) would settle
-            # the item without asking it.
             src_rest="$src"
             src_max=0
             while [[ "$src_rest" =~ (^|[^A-Za-z0-9])[Qq]([1-9][0-9]*)([^0-9].*)?$ ]]; do
               [[ "${BASH_REMATCH[2]}" -le "$src_max" ]] || src_max="${BASH_REMATCH[2]}"
-              # Keep an alphanumeric in front of the tail, so a Q right after the
-              # digits is not read as a token the single-row test above would skip.
               src_rest="x${BASH_REMATCH[3]}"
             done
             high_water="${sweep_marks#*$'\n'"$sweep_no "}"
@@ -605,8 +563,6 @@ check_sweep() {
     if [[ "$sweep_rows" -eq 0 && "$sweep_none" -eq 0 ]]; then
       proc_problem "the '## Assumption sweep' section at line $sweep_line records no item; write '- none' when the sweep returned nothing"
     fi
-    # S ids run contiguously from 1 within each sweep, so an item dropped
-    # between two recorded ones is caught.
     gaps="$(printf '%s' "$sweep_keys" | awk '
       NF < 3 { next }
       { m = $2; n = substr($3, 2) + 0; if (n > max[m]) max[m] = n; seen[m " " n] = 1 }
@@ -640,8 +596,6 @@ die_ungradeable() {
   exit 2
 }
 
-# Set `matches` to heading_matches "$1" over the file "$2", refusing a fence left
-# open (every heading after it is hidden) or a file that cannot be read.
 headings_or_die() {
   matches="$(heading_matches "$1" "$2")"
   case $? in
@@ -718,10 +672,6 @@ headings_or_die 'open-question register' "$ledger"
 register_matches="$matches"
 [[ -n "$register_matches" ]] || die_ungradeable "no '## Open-question register' section in: $ledger"
 
-# The gate reads exactly one section. Binding to the first match would grade a
-# template's instructional copy (whose example rows parse as data) instead of
-# the live register below it; binding to the last would guess. Either hides the
-# ambiguity, so two matches are a refusal that names both.
 register_count="$(match_count "$register_matches")"
 if [[ "$register_count" -gt 1 ]]; then
   die_ungradeable "$register_count headings match 'open-question register' in: $ledger (lines $(match_lines "$register_matches")); the gate reads exactly one section, so delete the template's instructional copy and keep the single live register"
@@ -729,8 +679,6 @@ fi
 
 register_line="${register_matches%%$'\t'*}"
 register_heading="${register_matches#*$'\t'}"
-# Every register-derived error names the heading it bound to and its line, so a
-# bind to the wrong section is visible from stderr alone.
 where="register '$register_heading' at line $register_line"
 
 section="$(extract_section "$register_line" "$ledger")"
@@ -744,7 +692,13 @@ fi
 registered=0
 open_count=0
 stale_count=0
-stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
+recheck_count=0
+stale_list='stale:: C[0-9]+(, C[0-9]+)*'
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )'"$stale_list"'$'
+qlist='Q[1-9][0-9]*(, Q[1-9][0-9]*)*'
+tag_re='(kind:: discovery|problem:: P[1-9][0-9]*|depends:: '"$qlist"'|reopened:: round [1-9][0-9]*|recheck:: '"$qlist"')'
+recheck_tail_re='(^|\] |(^|[^\\])(\\\\)*; )('"$tag_re"'; )*recheck:: '"$qlist"'(; '"$tag_re"')*(; '"$stale_list"')?$'
+tags_only_re='^(\[[^]]*\][[:space:]]*)?'"$tag_re"'(; '"$tag_re"')*(; '"$stale_list"')?$'
 answered=0
 deferred=0
 withdrawn=0
@@ -753,6 +707,7 @@ superseded=0
 seen_ids=" "
 deferred_ids=""
 ids_in_order=""
+declared_gaps=""
 max_id=0
 rounds_seen=" "
 max_round=0
@@ -760,14 +715,8 @@ proc_problems=""
 row_errors=""
 lineno=0
 
-# Row errors are collected, not fatal on the first, so one run names every bad
-# row with its own line; any of them still makes the register ungradeable.
 row_error() { row_errors="${row_errors}line $lineno: $1"$'\n'; }
 
-# Record a question id (its number, no leading zero) in file order. A repeat is
-# a duplicate (dup=1, the row is skipped); a number below one already seen is
-# out of order. Gaps are found after the loop, from the whole id set, so an
-# out-of-order row is not also reported as a gap.
 track_id() {
   dup=0
   case "$seen_ids" in
@@ -787,22 +736,15 @@ track_id() {
   fi
 }
 
-# What counts as a CANDIDATE register row, defined once. The fenced branch and
-# the live branch below both test it, and they must agree: a shape skipped as
-# documentation has to be the same shape that would have been graded as data.
 row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
+gap_candidate_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|'
+gap_line_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*-[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[^[:space:]]'
 
 round_field_re='^[Rr]ound[[:space:]]+([1-9][0-9]*)([[:space:]]+\([Aa]dded in [Rr]ound[[:space:]]+[1-9][0-9]*\))?$'
 
 skipped_fenced_row=0
 while IFS= read -r line; do
-  # extract_section emits one line per ledger line after the heading, so the
-  # ledger line number is the heading's plus the count read so far.
   lineno=$((lineno == 0 ? register_line + 1 : lineno + 1))
-  # extract_section prefixes every line with its fence state; strip the marker
-  # before parsing. A fenced block inside the register section is documentation
-  # (the row shape, a worked example), not data. Grading it would fail a ledger
-  # for quoting its own schema.
   marker="${line%%$'\t'*}"
   line="${line#*$'\t'}"
   if [[ "$marker" == "f" ]]; then
@@ -812,12 +754,15 @@ while IFS= read -r line; do
     continue
   fi
 
-  # A candidate row's shape is validated below. The prefilter deliberately does
-  # not require the first pipe: a row that lost it (`- Q2 open | round 1 | ...`)
-  # would otherwise be skipped silently, the contiguity check would never see
-  # the id, and a register with a dropped question would grade clean — the exact
-  # silent drop this gate exists to refuse. Rows are model-written, so malformed
-  # is a real state; it exits 2.
+  if [[ "$line" =~ $gap_candidate_re ]]; then
+    if [[ "$line" =~ $gap_line_re && "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ]]; then
+      declared_gaps="$declared_gaps${BASH_REMATCH[1]} ${BASH_REMATCH[2]} $lineno"$'\n'
+    else
+      row_error "malformed gap line (expected '- gap | Q<a>-Q<b> | <why these ids have no row>'): $line"
+    fi
+    continue
+  fi
+
   [[ "$line" =~ $row_candidate_re ]] || continue
 
   # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
@@ -833,10 +778,6 @@ while IFS= read -r line; do
     row_error "malformed question id (expected Q1, Q2, … with no leading zero): $token"
     continue
   fi
-  # Normalize so `q3` and `Q3` collide as the same id. Q numbering runs
-  # continuously across rounds (SKILL.md "Relentless mode"), so a gap is a row
-  # that went missing after it was written, the exact silent drop this gate is
-  # here to refuse. A malformed row's id still counts, so it is not also a gap.
   id="Q$num"
   track_id "$num"
   [[ "$dup" -eq 0 ]] || continue
@@ -853,18 +794,12 @@ while IFS= read -r line; do
   trim_into "${rest%%|*}"
   status_field="$trimmed"
 
-  # Field count without a subprocess per row: on a single record `awk -F'|'`
-  # reports NF as the number of `|` separators plus one.
   separators="${row//[!|]/}"
   if [[ "${#separators}" -lt 3 ]]; then
     row_error "malformed register row (needs 'Q<N> | status | round | question'): $line"
     continue
   fi
 
-  # Fields after the id: status | round | question | resolution. The resolution
-  # is the text after the last `|`, so a `|` inside the question cannot make an
-  # empty resolution look filled; a row with no question and resolution
-  # fields has none.
   after_status="${rest#*|}"
   trim_into "${after_status%%|*}"
   round_field="$trimmed"
@@ -873,6 +808,8 @@ while IFS= read -r line; do
   trim_into "$resolution"
   resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
+  [[ "$resolution" =~ $recheck_tail_re ]] && recheck_count=$((recheck_count + 1))
+  [[ "$resolution" =~ $tags_only_re ]] && resolution=""
   if [[ "$round_field" =~ $round_field_re ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
@@ -914,27 +851,49 @@ while IFS= read -r line; do
   registered=$((registered + 1))
 done <<<"$section"
 
-# The loop read one line per ledger line, so lineno is the section's last line
-# (an empty section reads one empty line: the line after the heading, which is
-# a heading or past the end of the file, never a row).
 outside_lines="$(rows_outside $((register_line + 1)) "$lineno" "$ledger")" ||
   die_ungradeable "could not read the rows of: $ledger"
 for lineno in $outside_lines; do
   row_error "question row outside the register section (any heading ends it, a sub-heading included); move the row into the register, above its next heading"
 done
 
-# A gap is a number missing below the highest id; one sort over the whole set,
-# not a walk to the highest id, so a mistyped Q99999 costs nothing extra.
+undeclared_gap() {
+  local gap="Q$1"
+  [[ "$2" -gt "$1" ]] && gap="$gap to Q$2"
+  row_errors="${row_errors}gap in question ids: no row for $gap; declare an intended gap with a '- gap | Q$1-Q$2 | <why>' line"$'\n'
+}
+
+report_gap() {
+  local lo="$1" hi="$2" a b
+  while read -r a b _; do
+    [[ -n "$a" && "$b" -ge "$lo" ]] || continue
+    [[ "$a" -gt "$hi" ]] && break
+    [[ "$a" -gt "$lo" ]] && undeclared_gap "$lo" $((a - 1))
+    lo=$((b + 1))
+    [[ "$lo" -gt "$hi" ]] && return
+  done <<<"$sorted_gaps"
+  undeclared_gap "$lo" "$hi"
+}
+
+sorted_gaps=""
+[[ -z "$declared_gaps" ]] || sorted_gaps="$(printf '%s' "$declared_gaps" | sort -n -k1,1)"
 prev=0
 # shellcheck disable=SC2086 # deliberate: one id per word
 for n in $(printf '%s\n' $ids_in_order | sort -n); do
-  if [[ "$n" -gt $((prev + 1)) ]]; then
-    gap="Q$((prev + 1))"
-    [[ "$n" -gt $((prev + 2)) ]] && gap="$gap to Q$((n - 1))"
-    row_errors="${row_errors}gap in question ids: no row for $gap"$'\n'
-  fi
+  [[ "$n" -gt $((prev + 1)) ]] && report_gap $((prev + 1)) $((n - 1))
   prev="$n"
 done
+
+read -ra row_ids <<<"$ids_in_order"
+while read -r a b gap_line; do
+  [[ -n "$a" ]] || continue
+  for n in ${row_ids[@]+"${row_ids[@]}"}; do
+    if [[ "$n" -ge "$a" && "$n" -le "$b" ]]; then
+      row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b covers the row Q$n"$'\n'
+      break
+    fi
+  done
+done <<<"$declared_gaps"
 
 if [[ -n "$row_errors" ]]; then
   # Exit 2 stays load-bearing for Step 3 and the --brief path; the verdict
@@ -967,13 +926,10 @@ if [[ "$brief_named" -eq 1 && -z "$deferred_ids" ]]; then
 elif [[ "$brief_named" -eq 1 ]]; then
   headings_or_die 'deferred questions' "$brief"
   brief_matches="$matches"
-  # This branch is reached only with rows retired, so a Brief that carries no
-  # deferred-questions section cannot satisfy the lookup.
   if [[ -z "$brief_matches" ]]; then
     die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
   fi
 
-  # Same one-section rule as the register: two matches are a refusal, not a guess.
   brief_count="$(match_count "$brief_matches")"
   if [[ "$brief_count" -gt 1 ]]; then
     die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
@@ -1003,12 +959,6 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
-# export-brief stamps every page export with a `- Restatement:` line: `UNCONFIRMED (latest rev N)`
-# while the newest restatement has no Confirm, `UNCONFIRMED (no restatement posted)` with none.
-# Either fails. A stamped export whose Goal is still its `- Page title:` line, or whose criteria
-# are the placeholder, fails too while answered rows exist: the user decided things the Brief
-# does not carry. A Brief with no stamp (hand-written) is not graded for any of it; a fenced
-# line is documentation.
 if [[ "$brief_named" -eq 1 ]]; then
   restatement_stamp="$(awk "$fence_awk"'
     fence_line($0) { next }
@@ -1048,8 +998,6 @@ fi
 
 procedure_state="unchecked"
 if [[ "$procedure_on" -eq 1 ]]; then
-  # Contiguous rounds never exceed the row count, so bound the walk there: a
-  # mistyped round number fails fast instead of iterating to it.
   round_limit="$max_round"
   if [[ "$max_round" -gt "$registered" ]]; then
     round_limit="$registered"
@@ -1076,7 +1024,6 @@ if [[ "$procedure_on" -eq 1 ]]; then
       [[ -n "$section_matches" ]] || proc_problem "Brief is missing the section matching '$section_pattern'"
     done
 
-    # The Goal's Finish line says when the whole effort is done and who checks it.
     finish_line="$(section_lines 'goal' "$brief_lo" "$brief_hi" "$brief" | tr '[:upper:]' '[:lower:]' | sed -e 's/\*\*//g' -e 's/__//g' | sed -n 's/^[-*+] finish line:[[:space:]]*//p' | head -n 1)"
     finish_check="$(printf '%s' "$finish_line" | tr -d '`' | tr '[:upper:]' '[:lower:]')"
     case "$finish_check" in
@@ -1086,16 +1033,12 @@ if [[ "$procedure_on" -eq 1 ]]; then
     *) ;;
     esac
 
-    # The page's own export is what the Brief must still carry: the sections a
-    # confirmed restatement filled and the user's words in Intent exist only on
-    # the page, so the template headings alone cannot show them.
     if [[ "$surface_named" -eq 1 ]]; then
       expected_brief="$(mktemp)" || die_ungradeable "could not create a temp file for the --surface export"
       trap 'rm -f "$expected_brief"' EXIT
       round_sh="$(dirname "${BASH_SOURCE[0]}")/../surface/round.sh"
       export_err="$(bash "$round_sh" --dir "$surface" export-brief --ledger "$ledger" --out "$expected_brief" 2>&1 >/dev/null)" ||
         die_ungradeable "could not export the Brief from --surface $surface: $export_err"
-      # export-brief writes `## Brief` on line 1 and ends the Brief at `## Plan`.
       export_hi="$(awk '/^##[[:space:]]+Plan[[:space:]]*$/ { print NR; exit }' "$expected_brief")"
       export_hi="${export_hi:-999999999}"
       brief_headings=$'\n'"$(heading_texts "$brief_lo" "$brief_hi" "$brief")"$'\n'
@@ -1103,7 +1046,6 @@ if [[ "$procedure_on" -eq 1 ]]; then
         [[ -z "$want" || "$brief_headings" == *$'\n'"$want"$'\n'* ]] ||
           proc_problem "Brief is missing the section '$want' that the page export writes"
       done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
-      # Every line the export writes in a section other than Decisions (counted below).
       while IFS= read -r want; do
         [[ -z "$want" || "$want" == decisions ]] && continue
         # Not ${want^}: macOS /bin/bash is 3.2.
@@ -1125,8 +1067,9 @@ fi
 
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 [[ "$stale_count" -gt 0 ]] && verdict="$verdict stale=$stale_count"
+[[ "$recheck_count" -gt 0 ]] && verdict="$verdict recheck=$recheck_count"
 
-if [[ $((open_count + superseded + stale_count)) -gt 0 ]]; then
+if [[ $((open_count + superseded + stale_count + recheck_count)) -gt 0 ]]; then
   echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~1 --new HEAD -- semgrep --config .work/codify/sql-concat.yml src"
+          }
+        }
+      ],
+      "why": "proof runs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -20"
+          }
+        }
+      ],
+      "why": "counts only, no proof"
+    }
+  ]
+}

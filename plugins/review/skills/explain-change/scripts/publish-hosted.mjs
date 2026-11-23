@@ -50,7 +50,6 @@ function dataStrings(html) {
 const valid = (e) => ID.test(e?.id) && VISIBILITIES.includes(e?.visibility);
 const entry = ({ id, visibility, url }) => ({ id, visibility, url });
 
-/** The current page, plus `stale`: copies on another host whose delete has not yet succeeded. */
 const readSidecar = (path) => {
   try {
     const old = JSON.parse(readFileSync(path, "utf8"));

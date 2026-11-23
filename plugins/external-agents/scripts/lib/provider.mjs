@@ -12,6 +12,7 @@ const REVIEW_KIND = ["native", "diff_file"];
 const UNAVAILABLE = ["auth", "usage-limit"];
 const HELP_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const MODEL_FORMATS = ["tab_lines", "codex_catalog"];
+const USAGE_KINDS = ["jsonrpc_stdio", "json_envelope_lines"];
 const PREFACE_TOKENS = ["{base}", "{merge_base}", "{file_count}", "{files}"];
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -19,8 +20,9 @@ const isText = (v) => typeof v === "string" && v !== "";
 const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string");
 const isStringMap = (v) => isMap(v) && Object.values(v).every((s) => typeof s === "string");
 
-const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
-const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface"];
+const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "harness", "usage", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
+const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface", "add_dir", "unsandboxed"];
+const VARIANT = ["args", "settings", "fallback_warning"];
 const OUTPUT = {
   jsonl_events: {
     text: ["final_message_arg", "thread_event", "thread_field", "turn_ok_event", "item_event", "item_prefix"],
@@ -43,6 +45,21 @@ export function validateProvider(record) {
     for (const key of Object.keys(value)) if (!allowed.includes(key)) problems.push(`${at ? `${at}.` : ""}${key}: unknown key`);
   };
   const optional = (value, ok, path, what) => value === undefined || need(ok(value), path, what);
+  const checkFence = (spec, at, settingsArg) => {
+    optional(spec.args, (v) => isMap(v) && Object.entries(v).every(([k, list]) => COMMANDS.includes(k) && isStrings(list)), `${at}.args`, `expected argument lists keyed by ${COMMANDS.join(", ")}`);
+    if (spec.settings !== undefined) {
+      need(isMap(spec.settings), `${at}.settings`, "expected a mapping written to a settings file");
+      need(isText(settingsArg), `${at}.settings_arg`, "expected the flag that takes the settings file");
+    }
+    const warning = spec.fallback_warning;
+    if (warning === undefined) return;
+    known(warning, ["pattern", "severity", "log_arg", "applied"], `${at}.fallback_warning`);
+    need(isText(warning?.pattern), `${at}.fallback_warning.pattern`, "expected a stderr substring");
+    need(SEVERITY.includes(warning?.severity), `${at}.fallback_warning.severity`, `expected one of ${SEVERITY.join(", ")}`);
+    optional(warning?.log_arg, isText, `${at}.fallback_warning.log_arg`, "expected the flag that sets the CLI's log file");
+    optional(warning?.applied, isText, `${at}.fallback_warning.applied`, "expected a log substring");
+    need((warning?.log_arg === undefined) === (warning?.applied === undefined), `${at}.fallback_warning.applied`, "log_arg and applied are set together");
+  };
   if (!isMap(record)) return ["record: expected a mapping"];
   known(record, TOP, "");
   need(record.schema === 1, "schema", "expected 1");
@@ -66,6 +83,29 @@ export function validateProvider(record) {
     need(MODEL_FORMATS.includes(record.models?.format), "models.format", `expected one of ${MODEL_FORMATS.join(", ")}`);
     optional(record.models?.effort_help, (v) => Object.hasOwn(record.help ?? {}, v) && isText(record.effort_flag), "models.effort_help", "expected a help entry name, with effort_flag set");
     need(!Object.hasOwn(record.help ?? {}, "models"), "help.models", "the models file is reserved for the models.args output");
+  }
+
+  if (record.harness !== undefined) {
+    if (!isMap(record.harness)) {
+      problems.push("harness: expected a mapping");
+    } else {
+      known(record.harness, ["tools", "image"], "harness");
+      optional(record.harness.tools, isStrings, "harness.tools", "expected a list of tool names");
+      optional(record.harness.image, (v) => typeof v === "boolean", "harness.image", "expected a boolean");
+    }
+  }
+
+  if (record.usage !== undefined) {
+    if (!isMap(record.usage)) {
+      problems.push("usage: expected a mapping");
+    } else {
+      const kind = record.usage.kind;
+      need(USAGE_KINDS.includes(kind), "usage.kind", `expected one of ${USAGE_KINDS.join(", ")}`);
+      known(record.usage, kind === "jsonrpc_stdio" ? ["kind", "args", "method", "timeout_ms"] : ["kind", "args", "timeout_ms"], "usage");
+      need(isStrings(record.usage.args) && record.usage.args.length > 0, "usage.args", "expected a list of arguments");
+      if (kind === "jsonrpc_stdio") need(isText(record.usage.method), "usage.method", "required for jsonrpc_stdio");
+      optional(record.usage.timeout_ms, (v) => Number.isInteger(v) && v > 0, "usage.timeout_ms", "expected a positive integer");
+    }
   }
 
   known(record.version, ["args", "sources", "markers"], "version");
@@ -124,17 +164,22 @@ export function validateProvider(record) {
     }
     known(spec, MODE, at);
     need(ENFORCEMENT.includes(spec.enforcement), `${at}.enforcement`, `expected one of ${ENFORCEMENT.join(", ")}`);
-    optional(spec.args, (v) => isMap(v) && Object.entries(v).every(([k, list]) => COMMANDS.includes(k) && isStrings(list)), `${at}.args`, `expected argument lists keyed by ${COMMANDS.join(", ")}`);
-    if (spec.settings !== undefined) {
-      need(isMap(spec.settings), `${at}.settings`, "expected a mapping written to a settings file");
-      need(isText(spec.settings_arg), `${at}.settings_arg`, "expected the flag that takes the settings file");
-    }
-    if (spec.fallback_warning !== undefined) {
-      known(spec.fallback_warning, ["pattern", "severity"], `${at}.fallback_warning`);
-      need(isText(spec.fallback_warning?.pattern), `${at}.fallback_warning.pattern`, "expected a stderr substring");
-      need(SEVERITY.includes(spec.fallback_warning?.severity), `${at}.fallback_warning.severity`, `expected one of ${SEVERITY.join(", ")}`);
-    }
+    checkFence(spec, at, spec.settings_arg);
     optional(spec.prompt_preface, isText, `${at}.prompt_preface`, "expected text");
+    if (spec.add_dir !== undefined) {
+      known(spec.add_dir, ["arg", "commands"], `${at}.add_dir`);
+      need(isText(spec.add_dir?.arg), `${at}.add_dir.arg`, "expected the flag that adds a writable directory");
+      need(isStrings(spec.add_dir?.commands) && spec.add_dir.commands.every((c) => COMMANDS.includes(c)), `${at}.add_dir.commands`, `expected a list drawn from ${COMMANDS.join(", ")}`);
+    }
+    if (spec.unsandboxed !== undefined) {
+      need(mode === "write" && isMap(spec.unsandboxed), `${at}.unsandboxed`, "expected a mapping of opt-in names, on the write mode only");
+      for (const [name, variant] of Object.entries(isMap(spec.unsandboxed) ? spec.unsandboxed : {})) {
+        const where = `${at}.unsandboxed.${name}`;
+        need(HELP_NAME.test(name) && isMap(variant), where, "expected a lowercase name holding a mapping");
+        known(variant, VARIANT, where);
+        checkFence(variant ?? {}, where, spec.settings_arg);
+      }
+    }
   }
   known(record.modes, ["read-only", "write"], "modes");
 

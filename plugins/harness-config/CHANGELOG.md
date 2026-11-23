@@ -5,6 +5,51 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.10.1] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them, and comments removed from the audit-instructions `emit-findings.sh`; no behavior change.
+
+## [5.10.0] - 2026-11-23
+
+### Changed
+
+- `audit-instructions`' `## Next` names `/corrections:codify rules <file>` for a rule a check could enforce.
+
+## [5.9.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [5.9.2] - 2026-11-23
+
+### Changed
+
+- `lib/persist-report.sh` and the audit-instructions `emit-findings.sh` take their option-value guard from the shared `lib/opt-value.sh`. persist-report now refuses an empty or `-`-leading option value (exit 2, as before), still reads `--report -` as stdin, and says `persist-report.sh: <option> requires a value`.
+
+## [5.9.1] - 2026-11-22
+
+### Changed
+
+- The automation-gaps rule inventory reads ecosystem records from `docs/conventions/ecosystems/` and a legacy `.claude/ecosystems/` record of a name not there; a legacy record shadowed by one of the same name is named with the file that takes its place.
+
+### Fixed
+
+- `audit-automation-gaps` places a report-only check over the commit budget in the pre-PR check, not at `pre-push`, as the check-placement rubric now does.
+
+## [5.9.0] - 2026-11-22
+
+### Changed
+
+- `/harness-config:audit-automation-gaps`'s rule inventory counts `CODING_STANDARDS.md`, the
+  review-criteria index `docs/review/README.md` and the `docs/review/` files it links as
+  `automated-review` rules, beside `REVIEW.md`.
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
 ## [5.8.0] - 2026-11-22
 
 ### Changed

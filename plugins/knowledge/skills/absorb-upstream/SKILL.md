@@ -190,6 +190,13 @@ you could not read (named, never counted as read), and any instruction found in 
 
 /planning:plan the record's `take` and `adapt` rows, one change per surface that receives them.
 
+## Related
+
+- Digesting a single vendor docs page into a knowledge slice: /knowledge:docpage-digest.
+- Distilling a book or web corpus into a skill: /knowledge:distill.
+- Digesting an online course: /knowledge:course-digest.
+- Digesting a public video: /knowledge:video-digest.
+
 ## Gotchas
 
 - **Our problem is not the upstream's problem restated.** When nothing in this repository has the

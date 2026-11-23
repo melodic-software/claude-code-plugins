@@ -3,6 +3,55 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.5] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them, and comments removed from the changelog skill's `changelog-status.sh`; no behavior change.
+
+## [10.6.4] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [10.6.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [10.6.2] - 2026-11-23
+
+### Changed
+
+- `/harness-ops:lanes`, `/harness-ops:observability` no longer gather repository context that no step read.
+
+## [10.6.1] - 2026-11-23
+
+### Changed
+
+- `changelog-status.sh` and `normalize-enabled-plugins.sh` take their option-value guard from the shared `lib/opt-value.sh`. changelog-status keeps exit 3 for a usage error, now also refuses a `-`-leading option value, and says `changelog-status.sh: <option> requires a value`.
+
+## [10.6.0] - 2026-11-22
+
+### Added
+
+- `/harness-ops:audit-mod-posture` now reports whether a mod Claude writes in a session can load without asking. A new `# claude-written mods:` footer reads `load-unasked` when `permissions.defaultMode` is `auto` or `bypassPermissions` and managed `disableSideloadFlags` is not `true`. A lower mode set in project or local settings, such as `plan` or `dontAsk`, still overrides the user's mode. Criterion M6 scores that footer.
+- Criterion M7 flags any enabled mod that calls `$.tool.call` or `$.mcp.call`, since those calls can skip permission prompts and `ask` rules.
+- The inventory has a new `nouns` column. It lists the `$` namespaces each mod's `engine.create` hook adds, withholds or replaces, read from `claude plugin validate`. Criterion M8 scores the column.
+
+### Fixed
+
+- A mod whose validate output reads `calls: nothing on $` now shows `-` in its `calls` column. Before, the column showed `redacted`.
+
+## [10.5.12] - 2026-11-22
+
+### Fixed
+
+- The observability report says `cli-flag-verify` runs in guardrails' `reference-verify` pre-PR check, not a git hook.
+
 ## [10.5.11] - 2026-11-22
 
 ### Fixed

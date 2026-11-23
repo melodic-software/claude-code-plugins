@@ -17,14 +17,12 @@ fail() { CASE_NUM=$((CASE_NUM + 1)); FAILED=$((FAILED + 1)); printf 'FAIL: %s\n 
 expect_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 expect_has() { if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 
-# entry <id> <need> [local_bin]: one schema-valid cli entry for plugin <id>'s check skill.
 entry() {
   local lb=""
   [[ -n "${3:-}" ]] && lb=", \"local_bin\": [\"$3\"]"
   printf '{"id": "%s", "kind": "cli", "need": "%s", "for": ["plugin"], "detect": {"any": ["%s"]%s}, "degrade": "Without %s, the plugin does less.", "install": {"docs": "install %s"}, "check": "/plugin-x:check"}' \
     "$1" "$2" "$1" "$lb" "$1" "$1"
 }
-# manifest <dir> <plugin-name> <entry>...: write prerequisites.json and plugin.json.
 manifest() {
   local dir="$1" name="$2" joined="" e
   shift 2

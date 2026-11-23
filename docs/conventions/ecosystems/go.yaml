@@ -1,0 +1,7 @@
+# Go in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+globs: ["*.go"]
+build-cmd: null
+test-cmd: null
+check-cmd: null
+fix-cmd: null
+code-fix-cmd: null

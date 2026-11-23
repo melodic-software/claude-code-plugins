@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { blankProps, blocks, compilePatterns, distinct, maskProps, maskText, splitBlocks, splitMatches } from './mask.ts'
+import { blankProps, blocks, compilePatterns, distinct, maskProps, maskText, splitBlocks, splitMatches, WINDOW } from './mask.ts'
 
 const M = '[hidden]'
 const { patterns } = compilePatterns([])
@@ -98,7 +98,6 @@ test('returns invalid, over-long, empty-matching and nested-quantifier patterns 
     '((x*)y)*',
     'a*',
     '(\\d+){2,}',
-    // Alternation in a quantified group, and unbounded quantifiers over overlapping classes.
     '(a|a)*b',
     '(?:x|(y|z))+w',
     '\\d+\\d+\\d+\\d+x',
@@ -249,60 +248,39 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
   expect(blocks('Intro\n\n~~~\nx\n\ny')).toEqual(['Intro', '~~~\nx\n\ny'])
 })
 
-// The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
-const SMALL_TEXT = 10_000
+const SMALL_TEXT = WINDOW
 const SIZE_RATIO = 5
-const LARGE_TEXT = SIZE_RATIO * SMALL_TEXT
-const GROWTH_BOUND = 2 * SIZE_RATIO
-const SLACK_MS = 10
-const MIN_PASSES = 2
-const MAX_PASSES = 5
 
-const excessOverLinear = (cost: (n: number) => number) => {
-  let quietestSmall = Infinity
-  let quietestLarge = Infinity
-  let excess = Infinity
-  for (let pass = 0; pass < MAX_PASSES && (pass < MIN_PASSES || excess >= SLACK_MS); pass++) {
-    quietestSmall = Math.min(quietestSmall, cost(SMALL_TEXT))
-    quietestLarge = Math.min(quietestLarge, cost(LARGE_TEXT))
-    excess = quietestLarge - GROWTH_BOUND * quietestSmall
-  }
-  return excess
-}
-
-const slowedBy = (cost: (n: number) => number, slowdowns: number[]) => {
-  let call = 0
-  return (n: number) => cost(n) * (slowdowns[call++] ?? 1)
-}
-
-const quadraticCost = (n: number) => (n / 1000) ** 2
-const linearCost = (n: number) => n / 1000
-
-test('excessOverLinear flags a quadratic cost, even when a loaded small run in one pass hides the growth within that pass', () => {
-  expect(excessOverLinear(quadraticCost)).toBeGreaterThanOrEqual(SLACK_MS)
-  expect(excessOverLinear(slowedBy(quadraticCost, [1, 2, 3, 1]))).toBeGreaterThanOrEqual(SLACK_MS)
-  expect(excessOverLinear(slowedBy(quadraticCost, [3, 1]))).toBeGreaterThanOrEqual(SLACK_MS)
-})
-
-test('excessOverLinear passes a linear cost whose large runs stay slowed for three passes before a quiet one', () => {
-  const slowdowns = [...Array.from({ length: 3 }, () => [1, 4]).flat(), 1, 1]
-  expect(excessOverLinear(slowedBy(linearCost, slowdowns))).toBeLessThan(SLACK_MS)
-})
-
-test('runs each of the worst accepted extra patterns in time linear in the text length', { timeoutMs: 60_000 }, () => {
+test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
   expect(extras.map((p) => p.source)).toEqual(WORST_ACCEPTED)
   const inputs = (n: number) => ['a'.repeat(n), '1'.repeat(n), 'ab'.repeat(n / 2), '= '.repeat(n / 2)]
-  const cost = (pattern: RegExp, n: number) => {
-    const start = performance.now()
-    for (const input of inputs(n)) maskText(input, [pattern], M)
-    return performance.now() - start
+  for (const pattern of extras) {
+    const seen: number[] = []
+    const matchAll = RegExp.prototype[Symbol.matchAll]
+    Object.defineProperty(pattern, Symbol.matchAll, {
+      configurable: true,
+      value(this: RegExp, text: string) {
+        seen.push(text.length)
+        return matchAll.call(this, text)
+      },
+    })
+    const calls = (n: number) => {
+      seen.length = 0
+      for (const input of inputs(n)) maskText(input, [pattern], M)
+      return seen.length
+    }
+    const small = calls(SMALL_TEXT)
+    expect(Math.max(...seen)).toBeLessThanOrEqual(WINDOW)
+    const large = calls(SIZE_RATIO * SMALL_TEXT)
+    expect(Math.max(...seen)).toBeLessThanOrEqual(WINDOW)
+    expect(large).toBeLessThanOrEqual(SIZE_RATIO * (small + inputs(0).length))
+    delete (pattern as unknown as Record<symbol, unknown>)[Symbol.matchAll]
   }
-  for (const pattern of extras) expect(excessOverLinear((n) => cost(pattern, n))).toBeLessThan(SLACK_MS)
 })
 
 test('masks a token right after a color code and keeps every escape intact', () => {

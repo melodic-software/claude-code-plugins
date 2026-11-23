@@ -183,9 +183,6 @@ class SettleHarness(unittest.TestCase):
 
 class UnconfiguredIsInert(SettleHarness):
     def test_absent_config_makes_no_review_call_and_does_not_hold(self) -> None:
-        # With the hold unconfigured the gate issues no request it did not
-        # issue before, so "byte-for-byte
-        # its prior self" is asserted against call records, not just `ready`.
         result = self._evaluate(settle=None)
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(self._settle_blockers(result), [])
@@ -220,9 +217,6 @@ class HoldFiresWhileAReviewIsDue(SettleHarness):
 
 class HoldClearsWithoutAddedLatency(SettleHarness):
     def test_current_head_review_merges_immediately(self) -> None:
-        # The common case must cost nothing: a review of the live head clears
-        # the hold before the clock is ever consulted, so no commit read happens
-        # and no window is waited out.
         result = self._evaluate(reviews=[_review(HEAD)])
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(self._settle_blockers(result), [])
@@ -249,7 +243,6 @@ class HoldClearsWithoutAddedLatency(SettleHarness):
 
 class HoldIsBounded(SettleHarness):
     def test_head_older_than_the_window_stops_waiting(self) -> None:
-        # A reviewer that never engages must not wedge the PR.
         result = self._evaluate(
             reviews=[],
             head_committed_at="2026-07-26T21:00:00Z",
@@ -280,7 +273,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
         self.assertEqual(result["reviewSettle"]["headAgeSource"], "check-start")
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
-        # The rollup was already in hand, so no commit read was needed.
         self.assertEqual(result["_commit_reads"], [])
 
     def test_a_head_returning_to_a_checked_sha_still_holds(self) -> None:
@@ -298,9 +290,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
 
     def test_a_re_run_extends_the_wait_which_is_the_accepted_cost(self) -> None:
-        # The price of taking the newest timestamp: a re-run on a settled head
-        # re-arms the hold for up to one more window. Latency, never safety --
-        # and see the companion test below for why it rarely bites.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
@@ -310,9 +299,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 40)
 
     def test_a_re_run_a_review_already_postdates_never_reaches_the_clock(self) -> None:
-        # Why the cost above is usually small: a re-run does not move the head,
-        # so a review submitted AFTER the newest check start still clears the
-        # hold before any age is computed.
         result = self._evaluate(
             reviews=[_review(HEAD)],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
@@ -322,11 +308,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertIsNone(result["reviewSettle"]["headAgeSeconds"])
 
     def test_a_re_run_that_postdates_the_review_re_arms_the_hold(self) -> None:
-        # The widened cost of the recency floor, priced deliberately. A check
-        # start is indistinguishable from a restored head's fresh runs, so a
-        # re-run minted after the review pushes an already-reviewed head back
-        # into settling. Bounded latency, never a merge past a pending review --
-        # the fail-closed direction.
         result = self._evaluate(
             reviews=[_review(HEAD, submitted_at="2026-07-26T21:30:00Z")],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
@@ -368,8 +349,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(len(result["_commit_reads"]), 1)
 
     def test_a_stale_committer_date_with_no_checks_is_the_known_weak_spot(self) -> None:
-        # Documented behavior, asserted so a future change to it is deliberate:
-        # with no server timestamp available the gate can only trust the commit.
         result = self._evaluate(
             reviews=[],
             head_committed_at=self.OLD_COMMIT,
@@ -420,8 +399,6 @@ class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
 
     def test_an_undatable_review_fails_closed_once_a_floor_exists(self) -> None:
-        # A review that cannot be shown to postdate the floor is not evidence
-        # about this occurrence of the head.
         result = self._evaluate(
             reviews=[_review(HEAD, submitted_at="")],
             check_starts=["2026-07-26T21:45:00Z"],
@@ -445,8 +422,6 @@ class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
 
 class UnreadableClockHolds(SettleHarness):
     def test_commit_read_failure_holds_rather_than_merging(self) -> None:
-        # A transient read failure must not be the thing that silently disables
-        # the hold; the block is self-clearing on the next run.
         result = self._evaluate(reviews=[], commit_read_fails=True)
         self.assertFalse(result["ready"])
         blockers = self._settle_blockers(result)
@@ -461,8 +436,6 @@ class UnreadableClockHolds(SettleHarness):
 
 class ReviewCorpusIsFetchedOnce(unittest.TestCase):
     def test_settle_and_tier_share_one_reviews_fetch(self) -> None:
-        # Both consumers read the same corpus; fetching it twice per run would
-        # double a paginated call on every gated merge.
         tier = merge.AutopilotMergeTierConfig(
             lane_logins=frozenset({"lane-bot"}),
             approver_bot_logins=frozenset({"approver-bot"}),
@@ -783,8 +756,6 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
 
 class SettleConfigUnit(unittest.TestCase):
     def test_head_age_boundary_is_exclusive(self) -> None:
-        # Exactly at the window the head has settled: the hold is "younger than",
-        # so a window of N seconds waits N seconds and not a run longer.
         committed = NOW - timedelta(seconds=SETTLE.settle_seconds)
         with mock.patch.object(
             merge,
@@ -821,8 +792,6 @@ class SettleConfigUnit(unittest.TestCase):
         self.assertEqual(result["state"], "settling")
 
     def test_missing_head_is_not_held_by_this_gate(self) -> None:
-        # An absent head is already blocked upstream; the hold must not add a
-        # second, more confusing blocker for the same condition.
         blockers, result = merge.evaluate_review_settle(
             "owner/repo",
             None,

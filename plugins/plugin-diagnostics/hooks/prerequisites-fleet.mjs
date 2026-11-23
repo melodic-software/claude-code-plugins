@@ -36,7 +36,6 @@ export function configDir(ownRoot, env) {
   return env.CLAUDE_CONFIG_DIR || path.join(env.HOME || homedir(), ".claude");
 }
 
-// The kill switch's value: the operator's setting, else the option's declared default.
 function gateValue(root, install, gate, managed) {
   const key = gate.toLowerCase();
   const set = readOperatorOptions(install, managed, [key], { booleans: true })[key];
@@ -50,8 +49,6 @@ function gateValue(root, install, gate, managed) {
   }
 }
 
-// The probes to run: [{ root, env }], one per enabled plugin that declares session_probe and is not
-// switched off.
 export function planProbes(roots, config, managed, env) {
   const base = Object.fromEntries(
     Object.entries(env).filter(([k]) => !k.startsWith("CLAUDE_PLUGIN_OPTION_") && k !== "CLAUDE_PLUGIN_DATA"),
@@ -100,7 +97,6 @@ function runProbe({ root, env }, input) {
           const message = JSON.parse(line).systemMessage;
           if (typeof message === "string" && message) messages.push(message);
         } catch {
-          // Not a hook document.
         }
       }
       resolve(messages);
@@ -110,7 +106,6 @@ function runProbe({ root, env }, input) {
   });
 }
 
-// main(ctx) -> the systemMessage text, or "" when no plugin has a notice.
 export async function main({ env = process.env, input = "", ownRoot = OWN_ROOT, managed } = {}) {
   const config = configDir(ownRoot, env);
   let managedFiles = managed;

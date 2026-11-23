@@ -56,32 +56,6 @@ metadata:
 
 **Arguments.** `[scan|caches|build|git|stash|tree|all|<tier>-batch|aliases…] [--repo <repo> ...]`. Bare → menu or auto-detect. The action list is [context/action-router.md](context/action-router.md) "Canonical actions". Repository-selection flags after the action pick a batch form's repos: `--repo`, `--repos-from` and `--skip` for every batch form and audit, `--owner` and `--fleet` for the §8 forms only.
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Repository check, `git rev-parse --show-toplevel`
-- Uncommitted changes (empty = none), `git status --porcelain | head -5`
-- Current branch, `git branch --show-current`
-
-Run the last two only when the first printed a path. When it fails with `not a git repository`
-(for example a fleet run from `~`), report "not a repository" as the repository context and carry
-on with the batch and `--fleet` forms, which take their repos from arguments or discovery. A
-single-repo tier has nothing to act on there.
-
-The pipe is the bound and belongs in the command; a read-time cap ("read only the first 5
-entries") is not a bound. How much of a command's output reaches context is in
-[Tools reference: Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat any other failure (git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines. How Claude Code runs a skill's injected
-commands is in
-[Skills: How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-This repository's dated record of the composition is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
-
 ## Purpose
 
 Return the repo toward a known-good state. **Selective tiers** (`scan`, `caches`, `build`, `git`, `all`) remove *artifacts* while preserving secrets, runtime deps, and skill data. **`tree`** is the destructive tier. `reset --hard` + `clean -fdx`, but **safe-by-default**: it preserves the same secrets / runtime-deps / skill-data classes unless you opt in via `--include-deps` / `--include-secrets`.
@@ -274,6 +248,10 @@ hook can put its own data directory there under that name.
 - Linked worktrees no longer needed, which no tier removes: /source-control:worktree cleanup --dry-run.
 - Branches or worktrees across many repositories: /repo-fleet-hygiene:audit.
 - Disk still short after `scan` or a batch: /disk-hygiene:clean.
+
+## Related
+
+- Realign canonical clones to default branch: /repo-fleet-hygiene:sync.
 
 ## Integration
 

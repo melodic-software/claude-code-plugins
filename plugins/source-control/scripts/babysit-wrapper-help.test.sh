@@ -8,9 +8,10 @@
 # -- reaching no network, needing no allowlist, and exiting 0. If it ever
 # regressed to a live call, a read-only `check` run would start touching the
 # fleet it was asked to inspect. So the canary's harmlessness is pinned here.
-# test-scope: plugins/source-control/scripts/* plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
+# test-scope: plugins/source-control/scripts/* plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit-python.sh plugins/source-control/skills/babysit-prs/scripts/pr_review_threads.py
 # test-scope: .github/actions/log-api-budget/rate-limits.json docs/conventions/pr-pipeline.yaml
+# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/lib/yaml-subset.awk
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,13 +49,11 @@ assert_not_contains "merge --help never reaches gh" "$merge_out" "gh must not be
 assert_not_contains "merge --help does not reach the fail-closed guard" \
   "$merge_out" '"inScope"'
 
-# --- Case: the resolve wrapper behaves the same ------------------------------
 resolve_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-babysit-resolve-thread" --help 2>&1)
 assert_exit "resolve --help exit 0" 0 "$?"
 assert_contains "resolve --help prints usage" "$resolve_out" "usage: babysit_resolve_thread.py"
 assert_not_contains "resolve --help never reaches gh" "$resolve_out" "gh must not be invoked"
 
-# --- Case: the review-thread gate wrapper behaves the same -------------------
 threads_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-review-threads" --help 2>&1)
 assert_exit "review-threads --help exit 0" 0 "$?"
 assert_contains "review-threads --help prints usage" "$threads_out" "usage: pr_review_threads.py"
