@@ -1,4 +1,4 @@
-// test-scope: .github/workflows/*.yml .github/actions/*/action.yml
+// test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/actions/resolve-config/package.json
 // ADR 0085, "Lane model steps hold no write token": every job that runs a
 // model holds no write scope, no write credential and no dependency cache, so
 // a model steered by the text it reads can neither write nor plant an entry a
