@@ -473,6 +473,30 @@ class AuditSuiteTests(unittest.TestCase):
                 ["alpha:one", "alpha:two"],
             )
 
+    def test_unconstrained_skill_grader_is_not_trigger_coverage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = Path(tmp) / "loose"
+            write_file(
+                plugin / ".claude-plugin" / "plugin.json",
+                json.dumps({"name": "loose"}) + "\n",
+            )
+            write_file(
+                plugin / "skills" / "only" / "SKILL.md", "---\ndescription: only\n---\n"
+            )
+            write_file(
+                plugin / "evals" / "fire" / "prompt.md",
+                "---\ntags: [only]\n---\n\nDo only.\n",
+            )
+            write_file(
+                plugin / "evals" / "fire" / "graders" / "fired.md",
+                "---\ntype: tool_used\ntool: Skill\nmin: 1\n---\n",
+            )
+
+            run = run_audit(str(plugin), "--json")
+            self.assertEqual(run.returncode, 0, run.stderr)
+            report = json.loads(run.stdout)
+            self.assertEqual(report["counts"]["no_deterministic_trigger"], 1)
+
     def test_custom_experimental_evals_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             plugin = Path(tmp) / "custom"

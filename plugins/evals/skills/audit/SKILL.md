@@ -10,9 +10,10 @@ metadata:
 
 # Audit an eval suite
 
-Reports what a suite is missing or carrying that it should not, and changes nothing. The policy
-each finding checks against is `docs/review/evals.md` in this repository ("Which cases run",
-"Graders", "Upkeep"); read it before judging.
+Reports what a suite is missing or carrying that it should not, and changes nothing. The criteria
+are the ones below: every skill has a deterministic triggering case, every gate has a fire and a
+no-fire case, and a judged grader counts only once checked against labeled samples. Where the
+repository records its own eval policy, read it too and report against it as well.
 
 ## 1. Counts
 

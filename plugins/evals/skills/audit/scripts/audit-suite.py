@@ -185,22 +185,25 @@ def _is_negated_skill_grader(options):
     )
 
 
-def _grader_targets_skill(grader, plugin, skill, prompt_file, suite_plugin):
+def _grader_targets_skill(grader, plugin, skill, prompt_file, suite_plugin, negated=False):
     direct = case_skills.skills_under_test("", prompt_file, (), [grader], suite_plugin)
     if (plugin, skill) in direct:
         return True
     if direct:
         return False
     _, options, _ = grader
-    for call_name in ("%s:%s" % (plugin, skill), skill):
-        try:
-            if validate_cases.call_matches(
-                {"tool": "Skill", "input": {"skill": call_name}}, options
-            ):
-                return True
-        except validate_cases.Unmirrored:
+
+    def accepts(call_name):
+        return validate_cases.call_matches(
+            {"tool": "Skill", "input": {"skill": call_name}}, options
+        )
+
+    try:
+        if not negated and (accepts("%s:zz-unrelated-skill" % plugin) or accepts("zz-unrelated-skill")):
             return False
-    return False
+        return accepts("%s:%s" % (plugin, skill)) or accepts(skill)
+    except validate_cases.Unmirrored:
+        return False
 
 
 def _read_sample_counts(case_dir, grader_name):
@@ -254,7 +257,7 @@ def audit(target):
                 ):
                     has_det_trigger.add(ref_skill)
                 if _is_negated_skill_grader(options) and _grader_targets_skill(
-                    grader, plugin, ref_skill, prompt_file, plugin
+                    grader, plugin, ref_skill, prompt_file, plugin, negated=True
                 ):
                     has_should_not_fire.add(ref_skill)
 
