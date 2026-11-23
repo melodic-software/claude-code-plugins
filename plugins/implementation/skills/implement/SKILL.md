@@ -121,7 +121,7 @@ Either way the commit checkpoint follows the last green check.
 - **Build fails** → fix immediately. Don't add more code on top of broken code
 - **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
 - **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan. Route back to the planning skill (invoke `/planning:plan review` (if enabled) via the Skill tool) rather than expanding scope silently
-- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and tell the user to run `/planning:interview` (if enabled), which escalates to `/planning:wayfind` (if enabled) when the effort outgrows one session; otherwise list the open questions and say once that the `planning` plugin would interview them. Guide, never auto-switch
+- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and tell the user to run `/planning:interview` (if enabled); otherwise list the open questions and say once that the `planning` plugin would interview them. The interview escalates to `/planning:wayfind` (if enabled) when the effort outgrows one session. Guide, never auto-switch
 
 ### Commit discipline
 

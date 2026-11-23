@@ -175,8 +175,7 @@ other, and the question is whether both refuse a renewal of a reserved copy.
 **Product and preference calls stay with the person.** When the variants differ in what users
 should get, what reads better or which trade-off the team accepts, record the evidence and ask;
 the recommendation covers only what the run settled. When the fork is itself a performance target
-(the question is which variant meets a speed or resource goal), hand off to `/performance:goal` (if enabled); otherwise say once that the `performance` plugin would qualify the timing, record it as unqualified, and ask
-instead of recommending from unqualified timing.
+(the question is which variant meets a speed or resource goal), do not recommend from unqualified timing: hand off to `/performance:goal` (if enabled); otherwise say once that the `performance` plugin would qualify the timing, record it as unqualified, and ask.
 
 The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked
 for a prototype, stop and confirm scope before writing any variant.

@@ -301,9 +301,9 @@ an earlier run that paused).
    `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
    and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
    The launching session first invokes
-   `/plugin-profiles:profile launch [<profile>] --unattended --json` (if enabled) from that worktree via the Skill tool and
-   runs its `argv` followed by `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and
-   reports the reason the tool printed. Otherwise it runs the command as written.
+   `/plugin-profiles:profile launch [<profile>] --unattended --json` (if enabled); otherwise it runs the command as written.
+   It invokes it from that worktree via the Skill tool and runs its `argv` followed by
+   `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and reports the reason the tool printed.
    Either way the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
    isolation comes from where the operator launches it. Foreground on the default-branch checkout
