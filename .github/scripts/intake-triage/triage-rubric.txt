@@ -50,6 +50,12 @@ COMMENT BODY. After the verdict lines and any Cost line, write these two lines, 
 start of its own line:
 Blast radius: <what the change touches and who reads or runs it>
 Reversible: yes|partly|no; <how the change is undone>
+CLAIMS. Check each factual claim the issue makes about this repository (a file, a behavior, a
+value, an error) by reading the checkout with Read, Grep and Glob, never by running it. Then
+write one `Claims checked:` line, and under it one numbered line per claim: the claim, held or
+not held, and the `path:line` you read; write `Claims checked: none` when the issue makes no
+such claim. A claim that does not hold shapes Size and Uncertainty and is named again under the
+open questions.
 Then list each open question under an `Open questions:` line, numbered, as ESCALATION and
 RE-ENTRY ask them, or write `Open questions: none`.
 
