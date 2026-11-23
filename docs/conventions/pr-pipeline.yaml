@@ -1779,6 +1779,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/intake-triage/admit.mjs"
         class: enforcement
+      - glob: ".github/scripts/intake-triage/size-split.mjs"
+        class: enforcement
       - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
         class: enforcement
       - glob: "lib/publish-gate.mjs"

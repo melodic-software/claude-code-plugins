@@ -153,6 +153,7 @@ import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
+import { SPLIT_CHILD_MARKER, splitChildBody, splitParentClosed, splitParentOf } from "./size-split.mjs";
 
 export { ADMIT_MARKER, refusalText };
 
@@ -226,11 +227,6 @@ export const SIZE_SPLIT_DONE =
   "Size large: every sub-issue is closed, but it is still open, so an item no sub-issue covers or a sub-issue's close keeps it from closing as a finished split (owner Q93)";
 // The wait reason for each open sub-issue (decide).
 export const subIssueWait = (number) => `sub-issue #${number} is open`;
-// Opens the lanes App's comment on an issue refine.mjs split into sub-issues;
-// its second line is the split record (splitRecord).
-export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
-// Opens the body of each sub-issue that split files.
-export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "needs-owner-decision";
 export const CONFIRMED = "status: confirmed";
@@ -250,7 +246,7 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // any of UNTRUSTED_LABELS on an issue holds it the same way.
 export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
-const RECURRING = "recurring";
+export const RECURRING = "recurring";
 // A parent's labels that hold its children, except on a spec container, which
 // /work-items:decompose always marks human-gated: a parent carrying one of
 // the rules' `parent-container-labels`.
@@ -367,7 +363,7 @@ export async function openSubIssues(github, base, issue) {
   return none ? [] : (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed");
 }
 
-const here = (url, repository) =>
+export const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
@@ -1092,7 +1088,7 @@ export function unrunnableReason({ items, found }) {
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
-const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+export const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
 // Whether the newest `labeled` or `unlabeled` event of `label` in `events` is
 // a removal by an actor `trusted(actor)` does not accept. Pure.
@@ -1814,7 +1810,7 @@ export function retriageText(items) {
 }
 
 // A blocker's repository, `owner/name`, from its API URL, or null.
-const repoOf = (url) => /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(url ?? ""))?.[1]?.toLowerCase() ?? null;
+export const repoOf = (url) => /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(url ?? ""))?.[1]?.toLowerCase() ?? null;
 
 // trustedCloses' key for a blocker: its number here, `owner/name#number` in
 // another repository.
@@ -2002,33 +1998,6 @@ export function refineDue(spec, humans, appId, taskList) {
 export const noTrustedSpec = (taskList) =>
   `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
-// splitChildBody's `spec.splitParent` for `parent`, a sub-issue's native
-// parent as parentOf reads it: {number, spec (specOf), appId}, or undefined
-// when it has none in this repository. Admission and the issue lane
-// (write-issue.mjs) read it here.
-export async function splitParentOf(github, repository, parent, appId) {
-  if (parent === null || !here(parent.repository_url, repository) || !Number.isInteger(parent.number)) {
-    return undefined;
-  }
-  return { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
-}
-
-// Whether issue `number` is a trusted size-split sub-issue: the lanes App
-// (`appId`) filed it with SPLIT_CHILD_MARKER and splitChildBody counts it
-// against its native parent, exactly as admission (decide) does, so a child
-// admission takes at Size large is not skipped as split-required.
-// work-resolve-issue's check-blockers.mjs reads it and hands it to
-// resolve-config as the splitChild fact (pr-pipeline.yaml
-// models.issue-dimensions.split-child-size). Reads only.
-export async function trustedSplitChild(github, repository, number, humans, appId, taskList) {
-  const spec = await specOf(github, repository, number);
-  if (appId === undefined || spec.author?.__typename !== "Bot" || spec.author.databaseId !== appId || !spec.body.startsWith(SPLIT_CHILD_MARKER)) {
-    return false;
-  }
-  const parent = await splitParentOf(github, repository, await parentOf(github, `/repos/${repository}/issues/${Number(number)}`), appId);
-  return parent !== undefined && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
-}
-
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in
@@ -2101,7 +2070,7 @@ const appRefinement = (comment, appId) =>
   appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
 // Whether a GraphQL actor is a User among `humans`.
-const humanActor = (humans) => (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+export const humanActor = (humans) => (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
 
 // Whether a User among `humans` wrote the item, and last edited it if ever.
 const writtenBy = (humans) => {
@@ -2115,7 +2084,7 @@ export const humanWritten = (item, humans) => writtenBy(humans)(item);
 
 // The refinement comment that counts as spec on `spec`, or undefined: only on
 // a body a listed human wrote (refinementSpec).
-const countedRefinement = (spec, humans, appId) => (spec && writtenBy(humans)(spec) ? refinementSpec(spec.comments, appId) : undefined);
+export const countedRefinement = (spec, humans, appId) => (spec && writtenBy(humans)(spec) ? refinementSpec(spec.comments, appId) : undefined);
 
 // A refinement comment's second line: the issue body it is for.
 export const bodyVersion = (body) => `<!-- refined body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
@@ -2222,7 +2191,7 @@ export const hasTrustedCriteria = (spec, humans, taskList, appId, ownIds) =>
   trustedSpecTexts(spec, humans, appId, taskList, ownIds).some((text) => hasTaskLine(text, taskList));
 
 // The lines of `text` that start, past any indent, with `taskList`, as written.
-const taskLinesOf = (text, taskList) =>
+export const taskLinesOf = (text, taskList) =>
   String(text ?? "")
     .split("\n")
     .filter((line) => line.trimStart().startsWith(taskList));
@@ -2231,311 +2200,10 @@ const taskLinesOf = (text, taskList) =>
 // The lanes App's refinement is left out (splitTaskLines adds it). Pure.
 export const trustedTaskLines = (spec, humans, taskList) => trustedSpecTexts(spec, humans, undefined, taskList).flatMap((text) => taskLinesOf(text, taskList));
 
-// The task-list lines a size split partitions, as written, in order: those a
-// listed human wrote (trustedTaskLines), then those of intake's refinement
-// where admission counts it (trustedSpecTexts), never its other lines.
-// {lines, human, source}: `human` counts the listed human's lines, which come
-// first, and `source` is the refinement's {id, updatedAt} when a line of it
-// follows, else null. A refinement with no readable id or update time adds no
-// line. The body's checks a person runs (personChecks under `webHosts`) are
-// left out. Pure.
-export function splitTaskLines(spec, humans, taskList, appId, webHosts) {
-  const moved = personChecks(spec, humans, appId, taskList, webHosts);
-  const own = trustedTaskLines(moved.length > 0 ? { ...spec, body: withoutItems(spec.body, taskList, moved) } : spec, humans, taskList);
-  const refinement = countedRefinement(spec, humans, appId);
-  const usable = Number.isSafeInteger(refinement?.databaseId) && typeof refinement.updatedAt === "string";
-  const more = usable ? taskLinesOf(refinement.body, taskList) : [];
-  return { lines: [...own, ...more], human: own.length, source: more.length > 0 ? { id: refinement.databaseId, updatedAt: refinement.updatedAt } : null };
-}
-
-// The line after the part line of a sub-issue that copies refinement lines:
-// the refinement comment's id and update time when the split read it.
-export const splitSourceLine = ({ id, updatedAt }) => `<!-- size-split refinement=${id} updated_at=${updatedAt} -->`;
-const SOURCE = /^<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->$/;
-
-// The fixed header of part `part` of `parts` that a size split files from
-// issue `parent`, with splitSourceLine when `source` is given; the copied
-// task lines follow it, one per line. A `scoped` part (a target-subset
-// split) says its last line, the Scope line, names its targets.
-export const splitChildHeader = (parent, part, parts, source = null, scoped = false) =>
-  [
-    SPLIT_CHILD_MARKER,
-    `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). ${scoped ? "The done-when lines below are" : "The done-when below is"} copied from #${parent}${source ? " and intake's refinement comment on it" : ""} as written${scoped ? ", and the Scope line names the targets this part covers" : ""}.`,
-    ...(source ? [splitSourceLine(source)] : []),
-    "",
-    "## Done when",
-    "",
-  ].join("\n");
-
-// The split-child trust rule, its one home (owner Q93 with the Q9
-// extension; split-child.vectors.json holds its cases): the body of a
-// sub-issue a size split filed, when it counts as the text it copies, else
-// null. `spec.splitParent` is {number, spec, appId}: the issue's native
-// parent, its text as specOf reads it, and the lanes App's id, set only by
-// the reader that read the parent link (admissionFacts, resolve-pr.mjs). It
-// counts when the lanes App wrote the body, the parent was filed by a listed
-// human, and the body opens with splitChildHeader for that parent. A header
-// with splitSourceLine names a refinement comment, which must still be
-// intake's newest refinement on the parent, unedited, on a body a listed
-// human wrote (refinementSpec, as trustedSpecTexts counts it), with every
-// comment read and its updated_at equal to its created_at or to the value
-// recorded; a deleted, edited or superseded refinement leaves the body
-// untrusted, whoever edited the body since. Every line after the header is
-// then one of the allowed lines: the parent's trusted task-list lines
-// (trustedTaskLines with `taskList`, the rules' `task-list`; owner decision
-// on #9906) and, under a source line, that refinement's task-list lines,
-// never its other lines. Either nobody edited the body since, or a listed
-// human last edited it and the lines may also be allowed lines with their
-// box ticked (tickedForms). GitHub names only the last editor, so a listed
-// human's edit after anyone else's vouches for ticked boxes, never for other
-// text. An edit by anyone else, the App included, leaves it untrusted, and
-// so does a missing or empty `taskList`. Pure.
-export function splitChildBody(spec, humans, taskList) {
-  const parent = spec?.splitParent;
-  const author = spec?.author;
-  if (typeof taskList !== "string" || taskList === "" || parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
-    return null;
-  }
-  const human = humanActor(humans);
-  const edited = spec.lastEditedAt != null;
-  if (!human(parent.spec?.author) || (edited && !human(spec.editor))) {
-    return null;
-  }
-  const body = String(spec.body ?? "");
-  const rows = body.split("\n");
-  const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(rows[1] ?? "");
-  const tag = SOURCE.exec(rows[2] ?? "");
-  const source = tag ? { id: Number(tag[1]), updatedAt: tag[2] } : null;
-  const scoped = rows.at(-1).startsWith(SCOPE_PREFIX);
-  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]), source, scoped)}\n` : null;
-  if (header === null || !body.startsWith(header)) {
-    return null;
-  }
-  let refinement = [];
-  if (source !== null) {
-    const comments = parent.spec?.comments ?? [];
-    const whole = (parent.spec?.commentCount ?? comments.length) === comments.length;
-    const newest = whole ? countedRefinement(parent.spec, humans, parent.appId) : undefined;
-    if (newest?.databaseId !== source.id || typeof newest.updatedAt !== "string" || !(newest.updatedAt === newest.createdAt || newest.updatedAt === source.updatedAt)) {
-      return null;
-    }
-    refinement = taskLinesOf(newest.body, taskList);
-  }
-  const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
-  const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
-  const lines = body.slice(header.length).split("\n");
-  const scope = lines.at(-1)?.startsWith(SCOPE_PREFIX) ? scopeTargets(lines.pop(), exact.map((line) => taskText(line, taskList))) : [];
-  return scope !== null && lines.length > 0 && lines.every((line) => allowed.has(line)) ? body : null;
-}
-
-// A target-subset split's last child line: SCOPE_PREFIX and the child's
-// targets, joined by ", ". The model names the targets; the script writes
-// the line, and each target must be verbatim text of a trusted parent line.
-export const SCOPE_PREFIX = "Scope: ";
-
-// A task line's text: `line` without its indent and the `taskList` marker
-// it starts with, so a Scope target names text, never the marker every
-// line holds. Pure.
-export const taskText = (line, taskList) => line.trimStart().slice(taskList.length);
-
-// Whether `name` can be a Scope target over the task texts `texts`
-// (taskText): 2 to 100 characters with no comma, angle bracket, backtick,
-// at sign, number sign or line break (a new mention or issue link in the
-// child), no outer space, and a verbatim substring of one of `texts`. Pure.
-export const scopeTarget = (name, texts) =>
-  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`@#\r\n]/.test(name) && texts.some((text) => text.includes(name));
-
-// The targets the Scope line of `body`, a size-split sub-issue's body that
-// splitChildBody returned, names, or null when it has none: every done-when
-// line of a scoped part applies only to these targets. The one parser the
-// work lane (write-issue.mjs) and pr-verify (resolve-pr.mjs) read it with;
-// pass only a body splitChildBody trusts, so an unreadable Scope line
-// never narrows anything. Pure.
-export function splitScope(body) {
-  const last = String(body ?? "").split("\n").at(-1);
-  return last.startsWith(SCOPE_PREFIX) ? last.slice(SCOPE_PREFIX.length).split(", ") : null;
-}
-
-// The targets a Scope line names, or null when one is no scopeTarget over
-// `texts` or repeats. Pure.
-function scopeTargets(line, texts) {
-  const names = splitScope(line);
-  return new Set(names).size === names.length && names.every((name) => scopeTarget(name, texts)) ? names : null;
-}
-
-// `line`, a task-list line, with its box ticked: the one `[ ]` in `taskList`
-// written `[x]` or `[X]`, indent and text unchanged. None when `taskList`
-// does not hold exactly one `[ ]`.
-const tickedForms = (line, taskList) => {
-  if (taskList.split("[ ]").length !== 2) {
-    return [];
-  }
-  const indent = line.slice(0, line.length - line.trimStart().length);
-  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + taskText(line, taskList));
-};
-
-// The split record on the second line of the lanes App's SIZE_SPLIT_MARKER
-// comment: the sha256 of the task lines split, the parts (1-based item
-// numbers), the order pairs [a, b] (part b waits on part a), and the
-// sub-issues filed, empty until every one is filed.
-export const linesDigest = (lines) => createHash("sha256").update(JSON.stringify(lines)).digest("hex");
-const RECORD = /^<!-- size-split items=([0-9a-f]{64}) parts=([0-9,;]+) order=([0-9>,]*) filed=([0-9,]*)(?: groups=([A-Za-z0-9_-]{1,8000}))? -->$/;
-const numbers = (text, separator) => (text === "" ? [] : text.split(separator).map(Number));
-
-// A target-subset split also records its `groups` (the targets of each
-// part), base64url JSON, and each of its parts lists every item.
-export const renderSplitRecord = ({ items, parts, order, filed = [], groups }) =>
-  `<!-- size-split items=${items} parts=${parts.map((part) => part.join(",")).join(";")} order=${order.map(([a, b]) => `${a}>${b}`).join(",")} filed=${filed.join(",")}${groups ? ` groups=${Buffer.from(JSON.stringify(groups)).toString("base64url")}` : ""} -->`;
-
-// A record's groups, or null when they are not a list of lists of strings.
-const decodeGroups = (text) => {
-  try {
-    const groups = JSON.parse(Buffer.from(text, "base64url").toString("utf8"));
-    return Array.isArray(groups) && groups.every((group) => Array.isArray(group) && group.every((name) => typeof name === "string")) ? groups : null;
-  } catch {
-    return null;
-  }
-};
-
-// The record a comment body carries, or null. Pure.
-export function splitRecord(body) {
-  const lines = String(body ?? "").split("\n");
-  const match = lines[0] === SIZE_SPLIT_MARKER ? RECORD.exec(lines[1] ?? "") : null;
-  if (!match) {
-    return null;
-  }
-  return {
-    items: match[1],
-    parts: match[2].split(";").map((part) => numbers(part, ",")),
-    order: match[3] === "" ? [] : match[3].split(",").map((pair) => pair.split(">").map(Number)),
-    filed: numbers(match[4], ","),
-    ...(match[5] !== undefined && { groups: decodeGroups(match[5]) }),
-  };
-}
-
 // The default branch's admission rules, beside this script like readSchedule's
 // file, read once.
 let baseRules;
 export const baseAdmissionRules = () => (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))));
-const baseTaskList = () => baseAdmissionRules()["task-list"];
-
-// The lanes App's split record in `comments` with its sub-issues filed, if
-// any, and `at`, when its comment was posted.
-const filedRecord = (comments, isApp) =>
-  comments
-    .filter((comment) => isApp(comment.user))
-    .map((comment) => ({ ...splitRecord(comment.body), at: comment.created_at }))
-    .find((record) => (record.filed?.length ?? 0) > 0);
-
-// Whether a task item (taskItems) is one of `children` in this repository: a
-// `#N` that opens or ends the item cites it, and only when the rest of the
-// item is empty or that sub-issue's whole title (less a Conventional Commits
-// prefix), with no line under it: "Test #12" or "update the README after
-// #12" is the parent's own work.
-const citesChild = (children, repository) => {
-  const bare = (text) => String(text ?? "").replaceAll(/[*()[\]`.,;:!]/g, " ").replaceAll(/\s+/g, " ").trim().toLowerCase();
-  const titles = new Map(
-    children.filter((child) => here(child?.repository_url, repository)).map((child) => [Number(child?.number), bare(String(child?.title ?? "").replace(/^\w+(?:\([^)]*\))?!?:\s*/, ""))]),
-  );
-  return (item) =>
-    item.more.length === 0 &&
-    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#=?&])#(\d+)\)?[.;]?\s*$/].some((pattern) => {
-      const match = pattern.exec(item.text);
-      const title = titles.get(Number(match?.[1]));
-      const rest = match ? bare(`${item.text.slice(0, match.index)} ${item.text.slice(match.index + match[0].length)}`) : null;
-      return title !== undefined && (rest === "" || rest === title);
-    });
-};
-
-// Whether `issue` in this repository is a split parent, whose work is its
-// sub-issues' (owner Q93): the lanes App (`isApp(actor)`) posted a split
-// record with its sub-issues filed (refine.mjs), or it was split by hand:
-// `children` (its sub-issues as listed) is not empty, the newest
-// sub_issue_added naming each child was the App's or a listed human's, it is
-// not `recurring`, and each task-list item in its body (the admission rules'
-// `task-list`, unticked) is one of its children in this repository: the item
-// opens or ends with that child's `#N`, says nothing beyond its whole title,
-// and has no line under it. Any other item may be more work.
-// `comments` are its comments. A failed read throws.
-export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
-  if (filedRecord(comments, isApp)) {
-    return true;
-  }
-  if (children.length === 0 || names(issue.labels).includes(RECURRING)) {
-    return false;
-  }
-  if (!taskItems(issue.body, baseTaskList()).every(citesChild(children, repository))) {
-    return false;
-  }
-  const linker = new Map();
-  const events = await paginate(github, `/repos/${repository}/issues/${issue.number}/events`);
-  for (const event of events.filter((item) => item?.event === "sub_issue_added")) {
-    const key = `${String(event.sub_issue?.repository?.full_name).toLowerCase()}#${event.sub_issue?.number}`;
-    const newest = linker.get(key);
-    if (newest === undefined || !(Date.parse(event.created_at) < Date.parse(newest.created_at))) {
-      linker.set(key, event);
-    }
-  }
-  return children.every((child) => {
-    const actor = linker.get(`${repoOf(child?.repository_url)}#${child?.number}`)?.actor;
-    return actor !== undefined && (isApp(actor) || humans.has(actor?.id));
-  });
-}
-
-// The acceptance rule of a split, its one home (owner Q93): why `issue` must
-// stay open, or null when its split is finished and it closes as completed.
-// It is finished when it is a split parent (isSplitParent), every sub-issue
-// closed with state_reason `completed` (not_planned, duplicate and a null
-// reason do not count) by a close `trusted(number)` accepts, and its done-when
-// is covered. A split record covers it when its parts number every item from 1
-// with no gap, one part per sub-issue filed, each filed sub-issue is one of
-// `children`, and the body holds no more open items than the parts number. A
-// split by hand covers it when the body has a task list (ticked lines count;
-// isSplitParent read the unticked ones): with none, nothing shows a sub-issue
-// carried the done-when. On either path, an open task item in a listed human's
-// comment on the issue is work left on it unless it cites a sub-issue
-// (citesChild); a split record already took the items of a comment last written
-// before it (splitTaskLines), so those count as covered. `comments` are its
-// comments. A failed read throws.
-export async function splitLeftOpen({ github, repository, issue, comments, children, isApp, humans, trusted }) {
-  if (children.length === 0 || !(await isSplitParent({ github, repository, issue, comments, children, isApp, humans }))) {
-    return "it is not a split parent";
-  }
-  const childLeft = await subIssueLeftOpen(children, trusted, repository);
-  if (childLeft) {
-    return childLeft;
-  }
-  const taskList = baseTaskList();
-  const record = filedRecord(comments, isApp);
-  if (record) {
-    const items = new Set(record.parts.flat());
-    const listed = new Set(children.map((child) => Number(child?.number)));
-    if (items.size !== Math.max(...items) || items.has(0) || record.parts.length !== record.filed.length || !record.filed.every((number) => listed.has(number)) || taskItems(issue.body, taskList).length > items.size) {
-      return "its split record does not cover every item with its sub-issues";
-    }
-  } else if (!["[ ]", "[x]", "[X]"].some((box) => taskItems(issue.body, taskList.replace("[ ]", box)).length > 0)) {
-    return "its body has no task list a sub-issue can cover";
-  }
-  const cites = citesChild(children, repository);
-  const split = Date.parse(record?.at);
-  const beforeSplit = (comment) => Date.parse(comment.updated_at ?? comment.created_at) <= split;
-  if (comments.some((comment) => humans.has(comment.user?.id) && !beforeSplit(comment) && !taskItems(comment.body, taskList).every(cites))) {
-    return "a listed human's comment leaves an open task item on it";
-  }
-  return null;
-}
-
-// Whether `issue`, as just read, was closed as completed by the lanes App
-// (`isApp(actor)`) with its split finished (splitLeftOpen): the one close by
-// the App that counts as done (owner Q93).
-export async function splitParentClosed({ github, repository, issue, isApp, humans, trusted }) {
-  if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
-    return false;
-  }
-  const base = `/repos/${repository}/issues/${issue.number}`;
-  const children = await paginate(github, `${base}/sub_issues`);
-  return (await splitLeftOpen({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans, trusted })) === null;
-}
 
 // The numbers of the sub-issues of `issue` (as read, here) when it has any and
 // every one is closed as completed by a close `trusted(number)` accepts

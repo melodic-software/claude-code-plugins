@@ -72,7 +72,7 @@ inputs:
   split-child:
     description: >
       `true` or `false`: whether the issue is a trusted size-split sub-issue
-      (admit.mjs trustedSplitChild) or a finished parent (admit.mjs
+      (size-split.mjs trustedSplitChild) or a finished parent (admit.mjs
       finishedParent), as work-resolve-issue's check-admission job reads it. Required
       when the run reads the issue's dimensions; a Large one then takes
       models.issue-dimensions.split-child-size.
