@@ -28,7 +28,7 @@ import numpy as np  # noqa: E402
 DUP_PX = 50                 # at CAL_SIZE; is_repeat scales it by each frame's area
 CAL_SIZE = (1762, 982)      # the shfred0 frame every pixel count here and in extract.py was tuned on
 MID = 16
-TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']   # what decoding a video needs
+TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']
 
 
 def _ffprobe(video, entries):
