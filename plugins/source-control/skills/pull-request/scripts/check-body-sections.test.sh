@@ -17,7 +17,6 @@ CREATE_MD="$SKILL_DIR/reference/create.md"
 PASS=0
 FAIL=0
 
-# The first ```bash block after the §2.4.2.2 heading, with <skill-dir> resolved.
 GATE=$(awk '
   /^#### 2\.4\.2\.2 / { in_sec = 1; next }
   in_sec && /^```bash$/ { in_block = 1; next }
@@ -78,7 +77,6 @@ check "a same-level heading terminates Related, leaving it empty" FAIL "${head_o
 check "Related is matched case-insensitively" PASS "${head_ok}"$'##   RELATED\n\n- x'
 check "a Related heading with trailing text is not the section" FAIL "${head_ok}"$'## Related work\n\n- x'
 
-# The create path checks the headings config resolved, not a fixed four.
 check_configured() {
   local name="$1" want="$2" body="$3" got
   shift 3
@@ -94,7 +92,6 @@ check_configured() {
 check_configured "configured heading present" PASS $'## Notes\nwritten' Notes
 check_configured "configured heading only in a fence" FAIL $'```\n## Notes\nwritten\n```' Notes
 check_configured "resolved none checks nothing" PASS ""
-# A configured heading is matched as text, never as a regex.
 check_configured "configured heading with ? present" PASS $'## What changed?\nwritten' 'What changed?'
 check_configured "configured heading with ( ) present" PASS $'## Fix (details)\nwritten' 'Fix (details)'
 check_configured "? does not make a letter optional" FAIL $'## What change\nwritten' 'What changed?'
