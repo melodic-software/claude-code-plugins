@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~1 --new HEAD -- semgrep --config .work/codify/sql-concat.yml src"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/sql-concat.md",
+            "content": "# Proposal\nRung: semgrep-rule"
+          }
+        }
+      ],
+      "why": "proposal under .work/codify/"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~1 --new HEAD -- semgrep --config .work/codify/sql-concat.yml src"
+          }
+        }
+      ],
+      "why": "no proposal written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "a note row, not a proposal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/sql-concat.md",
+            "content": "# Proposal"
+          }
+        }
+      ],
+      "why": "proposal outside .work/codify/"
+    }
+  ]
+}

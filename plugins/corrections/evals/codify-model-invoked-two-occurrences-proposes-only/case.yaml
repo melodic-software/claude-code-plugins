@@ -3,15 +3,16 @@ name: 'codify-model-invoked-two-occurrences-proposes-only'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'counts-two-at-threshold'
-    type: 'llm'
-    criteria: 'Output counts both occurrences with their commits and states they meet the threshold of 2'
-    focus: 'trace'
-  - name: 'presents-full-proposal'
-    type: 'llm'
-    criteria: 'Output presents the full proposal (rung, scope, check, proof result) in the report'
-    focus: 'trace'
+  - name: 'runs-proof'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'prove-check\.sh'
+    min: 1
+    arm: 'with-only'
   - name: 'writes-nothing-model-only-proposes'
-    type: 'llm'
-    criteria: 'Output writes no proposal file and installs nothing, and says a model invocation only proposes'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":'
+    min: 0
+    max: 0
+    arm: 'both'
