@@ -431,9 +431,7 @@ intent is unsettled and escalating here when it outgrows one session → referen
 ## Next
 
 - The map is charted: /planning:wayfind work.
-- The effort keeps the map but has no interview behind it yet: /planning:interview.
 - The map closed on a set of build items: /planning:plan.
-- The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.
 - The map closed on a PRD: /planning:prd.
 - A prototype confirmed a provisional decision: /architecture:adr.
 
