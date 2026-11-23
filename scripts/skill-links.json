@@ -935,6 +935,13 @@
       "next": [],
       "related": []
     },
+    "evals:audit": {
+      "next": [
+        "A missing case or gate side: /evals:design.",
+        "A repaired case or grader: /evals:validate."
+      ],
+      "related": []
+    },
     "evals:design": {
       "next": [
         "Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.",
