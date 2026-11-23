@@ -115,6 +115,7 @@ jobs:
             /.github/CODEOWNERS
             /.github/scripts/intake-triage/triage-rubric.txt
             /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/lane-vocabulary.mjs
             /.github/scripts/pr-merge/merge-holds.mjs
             /.github/standards/github-actions-conventions/vocabulary.json
             /.github/standards/trusted-actors/

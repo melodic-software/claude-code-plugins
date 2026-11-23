@@ -44,6 +44,7 @@
 
 import { appendFileSync } from "node:fs";
 
+import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -84,7 +85,7 @@ export const DEFAULTS = Object.freeze({
   unknownDelayMs: 10_000,
   // resolve-conflicts's applies-when labels-absent and the human-gated label
   // (docs/conventions/pr-pipeline.yaml), checked before its check runs are read.
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: DISPATCH_HOLDS,
 });
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -421,7 +422,7 @@ export async function dispatchSharedCopies({
       continue;
     }
     try {
-      const { laneEscalated, why } = await prHold({ ...holdReads(api, node), holdLabels: ["do-not-merge"], gateLabel, activity, appId: appSenderId });
+      const { laneEscalated, why } = await prHold({ ...holdReads(api, node), holdLabels: SHARED_COPY_HOLDS, gateLabel, activity, appId: appSenderId });
       if (!laneEscalated) {
         log(`skip #${node.number}: no shared-copy refusal at head ${node.headRefOid} to answer${why ? ` (${why})` : ""}`);
         continue;

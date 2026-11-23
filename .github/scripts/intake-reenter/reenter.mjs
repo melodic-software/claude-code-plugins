@@ -90,16 +90,15 @@ import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { ACTIONS_BOT_ID, AGENT_READY, NEEDS_DECISION, NEEDS_HUMAN } from "../lib/lane-vocabulary.mjs";
 import { ownComment } from "../lib/upsert-comment.mjs";
 
-export const NEEDS_DECISION = "needs-owner-decision";
+export { NEEDS_DECISION, NEEDS_HUMAN };
 export const NEEDS_INFO = "needs-reporter-info";
 // Where admission parks a refusal no person must answer (admit.mjs CONFIRMED),
 // or a person confirmed the issue before any admission.
 export const CONFIRMED = "status: confirmed";
-export const NEEDS_HUMAN = "needs-human";
 export const NEEDS_TRIAGE = "needs-triage";
-const AGENT_READY = "agent-ready";
 const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
 // The issues actions a Work status field change starts this run with.
@@ -212,9 +211,6 @@ async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
   const actor = (await events()).filter((event) => event?.event === "unlabeled" && event.label?.name === NEEDS_HUMAN).at(-1)?.actor;
   return actor?.type === "User" && humans.has(actor.id);
 }
-
-// The job token's bot, whose needs-triage write is this lane's own.
-const ACTIONS_BOT_ID = 41898282;
 
 // A listed human released a hold the Work status field held, on an issue no
 // status label holds or moves. Walking back from the newest Work status event,

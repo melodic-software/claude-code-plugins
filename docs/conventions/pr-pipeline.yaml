@@ -1693,6 +1693,8 @@ merge:
         class: trust
       - glob: ".github/scripts/pr-merge/enable-auto-merge.mjs"
         class: trust
+      - glob: ".github/scripts/lib/lane-vocabulary.mjs"
+        class: trust
       - glob: ".github/scripts/pr-merge/superseded.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
