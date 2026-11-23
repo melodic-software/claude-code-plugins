@@ -116,6 +116,10 @@ which `status` reports.
 `/memory`, never that it is present in their host. The four-part records live in
 [reference/native-memory.md](reference/native-memory.md).
 
+## Related
+
+- Audit CLAUDE.md, CLAUDE.local.md, or rules instead of auto-memory: /harness-memory:audit.
+
 ## Gotchas
 
 - **Precedence**: a set `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative in `status`, `0`

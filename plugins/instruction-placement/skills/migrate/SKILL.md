@@ -462,6 +462,13 @@ for where each `${…}` variable resolves, see
 `/instruction-placement:check`. The gate that keeps every new `paths:` glob resolving and the index
 in sync after the move.
 
+## Related
+
+- Auditing section-level instruction placement: /instruction-placement:audit.
+- Writing new agent-loaded prose and pointers: /docs-hygiene:write-for-agents.
+- Checking built-in agents-md plugin state: /harness-ops:inventory.
+- Auditing harness memory files: /harness-memory:audit.
+
 ## Gotchas
 
 - **The root `CLAUDE.md` is what suppresses a nested `AGENTS.md`, so both move together.** A repo
