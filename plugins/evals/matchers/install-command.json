@@ -1,0 +1,611 @@
+{
+  "install_command": {
+    "summary": "A package or tool install at the command position before it: a package manager with an install verb (brew, apt, pip, npm, bun, gem, go, cargo, uv, mise and more), npx-style fetch-and-run, nix, docker pull/run, Install-Module, dpkg -i, rpm -i/-U, n lts, the shared pydeps.py installer, and curl, wget or aria2c only when the download lands on disk or feeds something other than a text reader. Follow command_position_multishell with it; Bash tool input_match only.",
+    "text": "(?:(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\\.exe)?(?:\\\\\"|')?(?:(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\\b)(?:(?!\\\\t|\\\\\\\\\\\\n)[^\\s\"&;|])+)*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+)?(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\\.\\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv|bun|gem|opam|sdk)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:help|view|info|show|search|list|ls|outdated|doctor|config|why|explain|docs|home|man)\\b)(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\\b|pacman(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+-S\\w*|(?:mise|asdf|rtx|aqua)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+up\\b|go(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+get\\b|(?:npm|pnpm|yarn|bun)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:-{1,2}[\\w-]+(?:[= ][^\\s-]\\S*)?|global)(?:\\s|\\\\t|\\\\\\\\\\\\n)+)*(?:ci|update|up|dlx|exec|x)\\b|dpkg(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-[a-zA-Z]*i[a-zA-Z]*|--install)\\b|rpm(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-(?![a-zA-Z]*q)[a-zA-Z]*[iUF][a-zA-Z]*|--(?:install|upgrade|freshen))\\b|n(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:lts|latest)\\b|aria2c(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|python[\\d.]*(?:\\.exe)?(?:\\\\\\\"|')?\\s+(?:\\\\\\\"|')?[^\\s\\\"]*pydeps\\.py(?:\\\\\\\"|')?\\s+install\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:npx|uvx|bunx|pnpx)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\\b)|Install-(?:Module|PSResource)\\b|(?:pwsh|powershell)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:[^\"\\\\]|\\\\.)*?(?:[{(;|=&]|\\\\n|(?<![\\w-])-[Cc]\\w*(?:\\s|\\\\t|\\\\\\\\\\\\n)))?(?:\\s|(?:\\\\\"|'))*(?:[\\w.]+\\\\\\\\)?Install-(?:Module|PSResource)\\b|curl(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;|\\']|\\\\(?![\"n])[\\s\\S]))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\\b|--remote-name(?:-all)?\\b)(?!=?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|[02-9]>>?(?:\\s|\\\\t|\\\\\\\\\\\\n)*[^\\s\"\\\\;&|>]+|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|\\|(?!\\|)|\\\\(?![\"n])[\\s\\S]|[^\"\\\\&;|'>])*?(?<![02-9&])&?>{1,2}(?!>|&[\\d-])(?!&?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;\\']|\\\\(?![\"n])[\\s\\S]))*?(?<!\\|)\\|(?!\\|)(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\\b)[^\\s|]|wget(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:--spider\\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\\s|\\\\t|\\\\\\\\\\\\n)*)(?:\\\\\"|')?(?:-|/dev/null|NUL)(?=\\\\\"|'|[\\s\"|;&>]|\\\\[nt])))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|(?:bash|dash|zsh|sh|source|\\.)(?:\\s+-\\S+)*\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position_multishell"
+        },
+        {
+          "use": "install_command"
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "brew install jq"
+              }
+            }
+          ],
+          "why": "brew"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sudo apt-get install -y nodejs"
+              }
+            }
+          ],
+          "why": "apt-get under sudo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pip3.12 install requests"
+              }
+            }
+          ],
+          "why": "versioned pip"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm i -g markdownlint-cli2"
+              }
+            }
+          ],
+          "why": "npm i"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "bun add zod"
+              }
+            }
+          ],
+          "why": "bun"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "gem install rails"
+              }
+            }
+          ],
+          "why": "gem"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "opam install dune"
+              }
+            }
+          ],
+          "why": "opam"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sdk install java"
+              }
+            }
+          ],
+          "why": "sdkman"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "go get example.com/mod@latest"
+              }
+            }
+          ],
+          "why": "go get"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "go install golang.org/x/tools/gopls@latest"
+              }
+            }
+          ],
+          "why": "go install"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm ci"
+              }
+            }
+          ],
+          "why": "npm ci"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pnpm --silent dlx create-thing"
+              }
+            }
+          ],
+          "why": "pnpm dlx after a flag"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm exec cowsay"
+              }
+            }
+          ],
+          "why": "npm exec"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pnpm update"
+              }
+            }
+          ],
+          "why": "pnpm update"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "bunx cowsay hi"
+              }
+            }
+          ],
+          "why": "bunx"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pnpx cowsay hi"
+              }
+            }
+          ],
+          "why": "pnpx"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npx -y ctx7"
+              }
+            }
+          ],
+          "why": "npx"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sudo dpkg -i ./tool.deb"
+              }
+            }
+          ],
+          "why": "dpkg -i"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "rpm -Uvh tool.rpm"
+              }
+            }
+          ],
+          "why": "rpm -U"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "n lts"
+              }
+            }
+          ],
+          "why": "n lts"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "aria2c https://example.invalid/tool.tgz"
+              }
+            }
+          ],
+          "why": "aria2c download"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "python3 scripts/pydeps.py install"
+              }
+            }
+          ],
+          "why": "the shared pydeps installer"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl -fsSL https://example.invalid/i.sh | sh"
+              }
+            }
+          ],
+          "why": "curl piped to a shell"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl -o /tmp/tool https://example.invalid/tool"
+              }
+            }
+          ],
+          "why": "curl to a file"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "wget https://example.invalid/tool.tgz"
+              }
+            }
+          ],
+          "why": "bare wget"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "docker pull rhysd/actionlint"
+              }
+            }
+          ],
+          "why": "docker pull"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "uv tool install ruff"
+              }
+            }
+          ],
+          "why": "uv tool"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cargo install ripgrep"
+              }
+            }
+          ],
+          "why": "cargo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "mise use node@20"
+              }
+            }
+          ],
+          "why": "mise use"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sudo pacman -Syu jq"
+              }
+            }
+          ],
+          "why": "pacman -S"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh -Command Install-Module PSScriptAnalyzer"
+              }
+            }
+          ],
+          "why": "Install-Module"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && npm install actionlint"
+              }
+            }
+          ],
+          "why": "after &&"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo npm install"
+              }
+            }
+          ],
+          "why": "an argument of echo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep -n 'brew install' README.md"
+              }
+            }
+          ],
+          "why": "a search term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm config get registry"
+              }
+            }
+          ],
+          "why": "npm config get"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm run ci"
+              }
+            }
+          ],
+          "why": "a script named ci"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "go test ./..."
+              }
+            }
+          ],
+          "why": "go test"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "rpm -qa"
+              }
+            }
+          ],
+          "why": "rpm query"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "rpm -qi bash"
+              }
+            }
+          ],
+          "why": "rpm query info"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "dpkg -l"
+              }
+            }
+          ],
+          "why": "dpkg list"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl -sI https://example.invalid"
+              }
+            }
+          ],
+          "why": "curl headers to stdout"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl -s https://example.invalid/api | jq ."
+              }
+            }
+          ],
+          "why": "curl into a reader"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "wget -qO- https://example.invalid"
+              }
+            }
+          ],
+          "why": "wget to stdout"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npx --version"
+              }
+            }
+          ],
+          "why": "npx version"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo -n latest"
+              }
+            }
+          ],
+          "why": "n as an echo flag"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cat npm-install.log"
+              }
+            }
+          ],
+          "why": "a file name"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node scripts/prerequisites.mjs check"
+              }
+            }
+          ],
+          "why": "a checker run"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm help install"
+              }
+            }
+          ],
+          "why": "npm help on a term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm help add"
+              }
+            }
+          ],
+          "why": "npm help on a term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "go help install"
+              }
+            }
+          ],
+          "why": "go help on a subcommand"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pip3 help install"
+              }
+            }
+          ],
+          "why": "pip help on a subcommand"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "brew info --installed"
+              }
+            }
+          ],
+          "why": "brew info with an install-like flag"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Read",
+              "input": {
+                "file_path": "npm install"
+              }
+            }
+          ],
+          "why": "another tool"
+        },
+        {
+          "answer": [],
+          "why": "no call"
+        }
+      ]
+    }
+  }
+}

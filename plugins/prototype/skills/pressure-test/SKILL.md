@@ -18,22 +18,6 @@ an outside service does something for us, selects
 [Vendor-fit](#vendor-fit-does-an-outside-service-do-it). `--medium` picks the shell
 ([Two shells](#two-shells-tui-default)) and is not part of the scope.
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Working tree status (empty = clean), `git status --porcelain | head -10`
-
-The pipe is the bound and belongs in the command: a read-time cap ("read only the first 10 entries")
-comes after the command has already returned its output inline. What a result returns inline, and
-when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/null || echo "none detected"`

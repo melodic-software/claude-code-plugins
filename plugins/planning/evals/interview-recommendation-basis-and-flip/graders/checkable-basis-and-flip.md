@@ -5,7 +5,8 @@ arm: both
 
 Look at every question in the reply that carries a recommended answer.
 
-PASS only if every such recommendation has:
+PASS only if every such recommendation has the following, stated in its printed reason or in a
+`Basis:` line under it:
 
 1. A checkable basis: a file path with a line, a URL, tool output or a check the reply says it ran
    this session (a command, a search, a survey of the working directory) named with what it showed

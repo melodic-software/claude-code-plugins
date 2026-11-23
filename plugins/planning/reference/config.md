@@ -140,7 +140,7 @@ plan_panel_rubric:
 
 ## Convention-home keys
 
-Four interview keys and three plan keys resolve through the bound convention home and the four layers of
+Five interview keys and three plan keys resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
@@ -151,6 +151,7 @@ layer.
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single`, `auto` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message, `auto` picks `single` for a broad, open-ended topic and `round` otherwise. A request in the session ("one at a time") overrides it for that session |
+| `question_detail` | `full`, `standard`, `minimal` | `standard` | `/planning:interview`, every round: how much of each question `round.sh show` prints from the saved round file, which always holds the full block. `standard` drops `Origin:`, `Basis:`, `Checked against:` and the `Source:` quote's body; `minimal` also drops `Context:` and the source and counts the alternatives; no level hides a line the interview skill's "Save the full block; print it at the detail level" protects. A request in the session ("full round") overrides it for that session |
 | `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and hands each qualifying decision to `/architecture:adr` at round step 8, "Decision record"; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
@@ -204,8 +205,9 @@ root rule above applies to the two file layers, and the unset and invalid-value 
 layer. Report the value and the layer that supplied it in
 one line.
 
-The `wayfind_suggest_questions` default is `judgment`, set from a measurement that did not separate
-the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
+The `wayfind_suggest_questions` default is the integer `27` (what `round.sh next-id` and
+`scope-check` take as `--limit` when no layer sets the key). Its Basis is judgment, set from a
+measurement that did not separate the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
 first-session question counts ran 6 to 98 for the 17 efforts that spanned more than one session and
 8 to 27 for the 9 that did not (AUC 0.80). `27` is the largest single-session count, so it errs
 toward not suggesting: 10 of the 17 and none of the 9 pass it. None of the 26 invoked wayfind in the

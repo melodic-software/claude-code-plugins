@@ -1,0 +1,50 @@
+# GENERATED from lib/mod-load-check.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
+# shellcheck shell=bash
+# The mods-floor check behind a mod-carrying plugin's scripts/check-mod-load.sh
+# (sourceable; not invoked directly). Each plugin's script supplies only its
+# session row, which names its own status tool.
+#
+# plugin.json also declares the floor as engines["claude-code"], but only
+# 2.1.323 and later read that field, so builds from 2.1.76 below the floor
+# still load the plugin and this check keeps its own copy:
+# https://code.claude.com/docs/en/plugins/manifest-reference#fields
+#
+# The session row is INFO because only the agent sees its own tool list; a child
+# process never sees this session's flags or settings overlay.
+# What turns mods off, and the floor's source:
+# https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off
+# Reading `claude plugin test`:
+# https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load
+
+mod_load_check() {
+  local root="$1" session="$2" floor version failed=0
+  shift 2
+  if [[ $# -gt 0 ]]; then
+    echo "check-mod-load: takes no arguments" >&2
+    exit 2
+  fi
+  _mod_load_row() {
+    printf '%s\t%s\t%s\n' "$1" "$2" "$3"
+    [[ "$2" == FAIL ]] && failed=1
+  }
+  floor="$(sed -n '/"id": "claude"/,/"min"/s/.*"min": *"\([0-9.]*\)".*/\1/p' "$root/prerequisites.json")"
+  version="$(claude --version 2>/dev/null)"
+  version="${version%% *}"
+  if [[ -z "$floor" ]]; then
+    _mod_load_row mods-floor FAIL "prerequisites.json declares no mods floor on its claude entry"
+  elif [[ -z "$version" ]]; then
+    _mod_load_row mods-floor FAIL "claude did not report a version, so the mods floor $floor could not be checked"
+  elif awk -v v="$version" -v f="$floor" 'BEGIN {
+    nv = split(v, a, "."); nf = split(f, b, ".")
+    for (i = 1; i <= (nv > nf ? nv : nf); i++) {
+      if (a[i] + 0 != b[i] + 0) exit (a[i] + 0 < b[i] + 0)
+    }
+  }'; then
+    _mod_load_row mods-floor PASS "claude $version meets the mods floor $floor"
+  else
+    _mod_load_row mods-floor FAIL "mods off: claude $version is older than the mods floor $floor, unsupported"
+  fi
+  _mod_load_row session INFO "$session"
+  exit "$failed"
+}

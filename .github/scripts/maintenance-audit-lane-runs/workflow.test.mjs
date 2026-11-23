@@ -9,15 +9,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { workflowText } from "../lib/workflow-text.mjs";
 import { routeSkipped } from "./handoff.mjs";
 
 const text = readFileSync(new URL("../../workflows/maintenance-audit-lane-runs.yml", import.meta.url), "utf8");
-const jobs = Object.fromEntries(
-  `\n${text.split("\njobs:\n")[1]}`
-    .split(/\n(?= {2}[a-z][a-z-]*:\n)/)
-    .slice(1)
-    .map((block) => [/^ {2}([a-z-]+):/.exec(block)[1], block]),
-);
+const wf = workflowText(text);
+const jobs = Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
 const permissions = (job) => {
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(jobs[job])[1];
   return Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]]));
@@ -33,17 +30,8 @@ const CREDENTIAL = {
   [SUB]: ["subscription-token", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"],
   [FB]: ["fallback-token", FALLBACK],
 };
-// Each step starts at a `      - name:` line of its job.
-const steps = (job) =>
-  jobs[job]
-    .split(/\n(?= {6}- name: )/)
-    .slice(1)
-    .map((block) => ({ name: /^ {6}- name: (.*)$/m.exec(block)[1], block }));
-const step = (name, job) => {
-  const found = steps(job).find((s) => s.name === name);
-  assert.ok(found, `a step named ${name} in ${job}`);
-  return found.block;
-};
+const steps = wf.steps;
+const step = (name, job) => wf.stepNamed(job, name).text;
 const value = (block, key, indent = 10) => new RegExp(`^ {${indent}}${key}: (.*)$`, "m").exec(block)?.[1];
 const list = (block, key) =>
   (new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "")
@@ -101,13 +89,13 @@ test("the model runs only in the three legs, on one pinned run-claude-cli as the
   assert.doesNotMatch(text, /claude-code-action/);
   const pins = new Set();
   for (const job of LEGS) {
-    const launchers = steps(job).filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
+    const launchers = steps(job).filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.text));
     assert.deepEqual(
       launchers.map((s) => s.name),
       ["Judge the unit"],
       job,
     );
-    const judge = launchers[0].block;
+    const judge = launchers[0].text;
     pins.add(value(judge, "uses", 8));
     assert.match(value(judge, "uses", 8), LAUNCHER, job);
     assert.equal(value(judge, "role"), "automations", job);
@@ -158,8 +146,8 @@ test("the later legs repeat the key leg's steps but for the credential, the leg 
   const normalize = (job) =>
     steps(job)
       .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$|^Pick the next leg$/.test(s.name))
-      .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.block)))
-      .map(({ name, block }) => ({
+      .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.text)))
+      .map(({ name, text: block }) => ({
         name,
         lines: block.split("\n").filter((line) => line.trim() !== "" && !/^\s*#/.test(line) && !differs.some((re) => re.test(line))),
       }));
@@ -196,7 +184,7 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     [KEY, "key-leg"],
     [SUB, "sub-leg"],
   ]) {
-    const check = steps(job).find((s) => / leg$/.test(s.name)).block;
+    const check = steps(job).find((s) => / leg$/.test(s.name)).text;
     assert.equal(value(check, "id", 8), leg, job);
     assert.equal(value(check, "if", 8), "steps.judge.outputs.handoff == 'true'", job);
     assert.match(check, /handoff\.mjs check-leg\n/, job);
@@ -214,7 +202,7 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     assert.equal(value(step("Download the handoff markers", route), "pattern"), pattern, route);
     // A lone match would otherwise land straight in the path, several each in its own directory.
     assert.equal(value(step("Download the handoff markers", route), "merge-multiple"), "true", route);
-    const routeStep = steps(route).find((s) => s.name.startsWith("Route the handed-off units")).block;
+    const routeStep = steps(route).find((s) => s.name.startsWith("Route the handed-off units")).text;
     assert.equal(value(routeStep, "LEG"), leg, route);
     assert.match(routeStep, /\n {8}run: node \.base\/\.github\/scripts\/maintenance-audit-lane-runs\/handoff\.mjs route\n/, route);
   }

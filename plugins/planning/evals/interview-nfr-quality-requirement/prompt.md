@@ -1,6 +1,6 @@
 ---
 description: "Unattended production lock whose request states a latency target, a degraded-provider behavior and a logging restriction: the Brief records each under Constraints as a Quality requirement line, and records the Intent and Quality bar lines under Captured assumptions"
-tags: [interview, quality-requirements, nfr, engineering-defaults]
+tags: [interview, quality-requirements, nfr, engineering-defaults, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

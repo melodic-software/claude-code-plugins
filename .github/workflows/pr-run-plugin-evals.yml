@@ -64,6 +64,11 @@ on:
         required: false
         type: string
         default: ""
+      cases:
+        description: Exact case names, space-separated; stages a suite copy with only these cases. Not with case.
+        required: false
+        type: string
+        default: ""
       tag:
         description: Optional --tag filter; space-separated tags, any of which selects a case.
         required: false
@@ -116,7 +121,7 @@ on:
       mode:
         description: >-
           suite runs the target's suite as above. compare runs the target's
-          deterministic cases that case or tag selects (one is required) on pull request pr's
+          deterministic cases that case, cases or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
           harness, with-plugin arm only, on the API key only, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
@@ -186,7 +191,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: maintenance
@@ -198,7 +203,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: skipped
           lane: eval-browser-dispatch
@@ -240,7 +245,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: github.event_name == 'workflow_run'
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       # The default branch tip; on a dispatch, the dispatched commit, which the
@@ -254,7 +259,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -348,7 +353,7 @@ jobs:
 
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: key
           role: maintenance
@@ -391,6 +396,7 @@ jobs:
           LIST: ${{ steps.plugins.outputs.list }}
           ROOT: ${{ github.event_name == 'workflow_run' && '.head' || '.base' }}
           DETERMINISTIC: ${{ github.event_name == 'workflow_run' || inputs.deterministic-only }}
+          CASES: ${{ inputs.cases }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
       # The tools and Chromium go under /opt, outside HOME, which each eval
@@ -501,7 +507,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+          ref: 8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -636,6 +642,7 @@ jobs:
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
           CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
           MAX_COST: ${{ inputs.max-cost-usd || 5 }}
@@ -668,6 +675,11 @@ jobs:
             fi
             IFS=, read -ra tools <<< "$ALLOW_TOOLS"
             read -ra tags <<< "$TAGS"
+            read -ra cases <<< "$CASES"
+            if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+              echo "::error::case and cases cannot both be set"
+              exit 1
+            fi
             for value in "${tools[@]}" "${tags[@]}" "$CASE"; do
               case "$value" in
                 -*) echo "::error::a case, tag or tool must not start with -"; exit 1 ;;
@@ -870,8 +882,9 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && steps.judge.outputs.handoff != 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/eval-results/
 
       - name: Upload the eval results
@@ -902,8 +915,9 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
@@ -924,7 +938,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
@@ -992,7 +1006,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1045,6 +1059,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           COST_CAP: ${{ inputs.cost-cap-usd }}
           CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
           TAGS: ${{ inputs.tag }}
         run: |
           [[ $PR =~ ^[1-9][0-9]{0,9}$ ]] || { echo "::error::pr must be a pull request number"; exit 1; }
@@ -1056,12 +1071,17 @@ jobs:
             exit 1
           fi
           read -ra tags <<<"$TAGS"
-          if [ -z "$CASE" ] && [ "${#tags[@]}" -eq 0 ]; then
-            echo "::error::compare mode runs the registered cases: set case or tag, so the whole suite never runs twice"
+          read -ra cases <<<"$CASES"
+          if [ -z "$CASE" ] && [ "${#cases[@]}" -eq 0 ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::compare mode runs the registered cases: set case, cases or tag, so the whole suite never runs twice"
             exit 1
           fi
-          for value in "${tags[@]}" "$CASE"; do
-            case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
+          if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+            echo "::error::case and cases cannot both be set"
+            exit 1
+          fi
+          for value in "${tags[@]}" "${cases[@]}" "$CASE"; do
+            case "$value" in -*) echo "::error::a case, cases name or tag must not start with -"; exit 1 ;; esac
           done
           echo "plugin=${target#plugins/}" >>"$GITHUB_OUTPUT"
 
@@ -1094,15 +1114,17 @@ jobs:
       - name: Scan the before patch for credentials
         id: scan-before
         if: steps.arms.outputs.before-sha256 != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/arms/before/edit.patch
 
       - name: Scan the after patch for credentials
         id: scan-after
         if: steps.arms.outputs.after-sha256 != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/arms/after/edit.patch
 
       - name: Stop on a patch the scan did not clear
@@ -1156,6 +1178,7 @@ jobs:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}
       tags: ${{ inputs.tag }}
       case: ${{ inputs.case }}
+      cases: ${{ inputs.cases }}
       pass: compare-before
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
@@ -1181,6 +1204,7 @@ jobs:
       plugin: ${{ needs.compare-prepare.outputs.plugin }}
       tags: ${{ inputs.tag }}
       case: ${{ inputs.case }}
+      cases: ${{ inputs.cases }}
       pass: compare-after
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
@@ -1209,7 +1233,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1283,7 +1307,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 

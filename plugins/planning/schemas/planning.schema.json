@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
   "title": "Planning team config",
-  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, domain_docs, wayfind_suggest_questions, interview_page, plan_stress_test, plan_size_bands and plan_inventory_min_files are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, question_detail, answer_audit_rounds, domain_docs, wayfind_suggest_questions, interview_page, plan_stress_test, plan_size_bands and plan_inventory_min_files are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -45,6 +45,11 @@
       "description": "How /planning:interview asks a frontier. round: every ready question in one message. single: the same questions, one per message, largest blast radius first. auto: single for a broad, open-ended topic, else round, chosen before the first round. A request in the session overrides it for that session.",
       "enum": ["round", "single", "auto"],
       "default": "round"
+    },
+    "question_detail": {
+      "description": "How much of each question /planning:interview prints from the saved round file, which always holds the full block. full: every line. standard: drops Origin:, Basis:, Checked against: and the Source: quote's body (its link stays), one line per alternative. minimal: the title, the recommendation or Withheld: or Discovery: line, Second view:, Departs from:, Flips if: and Commits you to:, with a count of the alternatives. No level hides a line the interview skill's \"Save the full block; print it at the detail level\" protects. A request in the session overrides it for that session.",
+      "enum": ["full", "standard", "minimal"],
+      "default": "standard"
     },
     "domain_docs": {
       "description": "Whether /planning:interview writes the project glossary and proposes ADRs in an engineering session. auto writes them; ask asks before each write; off writes neither and records them in the open-question register.",

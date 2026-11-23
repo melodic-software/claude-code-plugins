@@ -11,24 +11,22 @@ import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
+import { stepsOf, workflowText } from "../lib/workflow-text.mjs";
+
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
 const main = read("maintenance-measure-skill-edit.yml");
 const pass = read("maintenance-measure-skill-edit-pass.yml");
 // The jobs that mint a lanes App token, each its one effect (AL-Q11).
 const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
-const jobs = (text) =>
-  Object.fromEntries(
-    text
-      .slice(text.indexOf("\njobs:\n"))
-      .split(/\n(?= {2}[a-z0-9-]+:\n)/)
-      .slice(1)
-      .map((block) => [block.match(/^ {2}([a-z0-9-]+):/)[1], block]),
-  );
+const jobs = (text) => {
+  const wf = workflowText(text);
+  return Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
+};
 const step = (block, name) => {
-  const start = block.indexOf(`- name: ${name}\n`);
-  assert.ok(start > 0, `step ${name}`);
-  return block.slice(start).split("\n      - name:")[0];
+  const found = stepsOf(block).find((s) => s.name === name);
+  assert.ok(found, `step ${name}`);
+  return found.text;
 };
 
 test("only push-branch and publish hold id-token, each for its one lane token; every other job reads only", () => {
@@ -248,4 +246,21 @@ test("every eval entry job runs only while CLAUDE_EVALS_DISABLED is exactly fals
   for (const [text, name] of gated) {
     assert.match(head(text, name), /\n {4}if: (?:>-\n {6})?vars\.CLAUDE_EVALS_DISABLED == 'false'/, name);
   }
+});
+
+test("pass workflow accepts cases through env, passes --cases when set, and rejects case+cases", () => {
+  assert.match(
+    pass,
+    /\n {6}cases:\n {8}description: Exact case names, space-separated; stages a suite copy with only these cases\. Not with case\.\n {8}required: false\n {8}type: string\n {8}default: ""\n/,
+  );
+  const stage = step(pass, "Stage the suite");
+  assert.match(stage, /CASE: \$\{\{ inputs\.case \}\}\n/);
+  assert.match(stage, /CASES: \$\{\{ inputs\.cases \}\}\n/);
+  assert.match(stage, /stage_args=\(--cases "\$CASES"\)/);
+  assert.doesNotMatch(stage.slice(stage.indexOf("run: |")), /\$\{\{\s*inputs\./);
+  const stageGuard = /read -ra cases <<<"\$CASES"\n.*?\n\s+fi\n/s.exec(stage)[0];
+  const checkStage = (env) => spawnSync("bash", ["-c", stageGuard], { env, encoding: "utf8" });
+  assert.equal(checkStage({ CASE: "", CASES: "" }).status, 0);
+  assert.equal(checkStage({ CASE: "", CASES: "c1 c2" }).status, 0);
+  assert.equal(checkStage({ CASE: "c1", CASES: "c2" }).status, 1);
 });

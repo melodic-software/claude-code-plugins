@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# The load-bearing cases are the fixture-tree ones: `excluded_paths` declines
-# test-fixture trees by default, and every way the eval harness lifts that
-# default (a layer setting the key, a target inside the tree, a named file)
-# still lists the fixtures, so no run is blind to them unconditionally.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# make the fixture repo operate on the CALLER's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -24,18 +18,11 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# Fixture CONFIG isolation, the same idea as the git isolation above:
-# list-corpus.sh resolves its cascade from $HOME and CLAUDE_PROJECT_DIR, so
-# running this suite inside a repo that ships `docs/conventions/attribution.yaml` would
-# grade the fixtures against THAT repo's exclusions. Cases that exercise the
-# cascade set CLAUDE_PROJECT_DIR per invocation and override this.
 export HOME="$TEST_TMPDIR/home"
 mkdir -p "$HOME"
 
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
-
-# --- Fixture repository ----------------------------------------------------------
 
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"/{docs/guides,plugins/demo/skills/audit/vendor,legacy}
@@ -60,10 +47,8 @@ git -C "$REPO" config user.name "Test"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm "fixture corpus"
 
-# Untracked markdown must never enter the corpus.
 write_file "$REPO/docs/untracked.md" "# Untracked"
 
-# A second repo whose gitattributes marks a tree linguist-vendored.
 ATTR_REPO="$TEST_TMPDIR/attr-repo"
 mkdir -p "$ATTR_REPO/third-party"
 write_file "$ATTR_REPO/.gitattributes" "third-party/** linguist-vendored"
@@ -79,14 +64,10 @@ CFG_DIR="$REPO/docs/conventions"
 mkdir -p "$CFG_DIR"
 
 run_default() {
-  # A run with no config layers: CLAUDE_PROJECT_DIR points at a config-free
-  # directory so the fixture repo's own config layers never leak into the case.
   local noconfig="$TEST_TMPDIR/noconfig"
   mkdir -p "$noconfig"
   (cd "$REPO" && CLAUDE_PROJECT_DIR="$noconfig" bash "$LIST_CORPUS" "$@")
 }
-
-# --- Usage and argument handling -------------------------------------------------
 
 OUT="$(bash "$LIST_CORPUS" --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
@@ -101,8 +82,6 @@ assert_exit "clean run exits 0" "$?" "0"
 echo "$OUT" | jq -e . >/dev/null 2>&1
 assert_exit "stdout is valid JSON" "$?" "0"
 
-# --- Corpus membership -----------------------------------------------------------
-
 FILES="$(echo "$OUT" | jq -r '.files[]')"
 assert_contains "tracked markdown at the root is listed" "$FILES" "README.md"
 assert_contains "tracked markdown in a subdirectory is listed" "$FILES" "docs/guide.md"
@@ -112,8 +91,6 @@ assert_not_contains "tracked non-markdown is not listed" "$FILES" "docs/plain.tx
 
 assert_eq "paths are repo-relative" \
   "$(echo "$OUT" | jq -r '[.files[] | select(startswith("/"))] | length')" "0"
-
-# --- Built-in categorical carve-outs ---------------------------------------------
 
 assert_not_contains "a vendored tree is not listed" "$FILES" "vendor/upstream.md"
 assert_eq "the vendored file is declined once" \
@@ -144,16 +121,12 @@ printf '%s\n' "$FIXTURE" >"$TEST_TMPDIR/fixture-paths.txt"
 assert_eq "a --paths-file fixture entry is listed" \
   "$(run_default --paths-file "$TEST_TMPDIR/fixture-paths.txt" 2>/dev/null | jq -r '.files[0]')" "$FIXTURE"
 
-# --- Counts ----------------------------------------------------------------------
-
 assert_eq "considered equals included plus declined" \
   "$(echo "$OUT" | jq -r '.counts.considered == (.counts.included + .counts.declined)')" "true"
 assert_eq "included matches the files array length" \
   "$(echo "$OUT" | jq -r '.counts.included == (.files | length)')" "true"
 assert_eq "declined matches the declined counts" \
   "$(echo "$OUT" | jq -r '.counts.declined == ([.declined[].count] | add // 0)')" "true"
-
-# --- Config cascade --------------------------------------------------------------
 
 printf '%s\n' 'excluded_paths:' '  - legacy/**' >"$CFG_DIR/attribution.yaml"
 TEAM_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
@@ -177,8 +150,6 @@ assert_not_contains "the personal override's exclusion applies" \
   "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "docs/guide.md"
 assert_contains "the personal override replaces the team value per key" \
   "$(echo "$OVERRIDE_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
-# Per-key override means a later layer REPLACES the value, and an explicit empty
-# array is a value.
 printf '%s\n' 'excluded_paths:' '  - docs/**' >"$CFG_DIR/attribution.yaml"
 printf '%s\n' 'excluded_paths: []' >"$CFG_DIR/attribution.local.yaml"
 CLEAR_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
@@ -190,8 +161,6 @@ assert_contains "an explicit empty list lifts the default, so the fixtures repor
   "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "$FIXTURE"
 rm -f "$CFG_DIR/attribution.local.yaml" "$CFG_DIR/attribution.yaml"
 
-# The repository's old JSON team file under .claude/ is not read: the YAML team
-# layer (ADR 0075) beside it is the only one listed and applied.
 CONV="$CFG_DIR"
 OLD_JSON="$REPO/.claude/attribution.json"
 mkdir -p "$REPO/.claude"
@@ -219,8 +188,6 @@ USER_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig" bash "$LIST
 assert_not_contains "the user-global layer is read" \
   "$(echo "$USER_OUT" | jq -r '.files[]')" "README.md"
 
-# Config-cascade step 2: at a home root the user-global file is the only layer and
-# is listed once, never again as team; a non-repo root has no team layer either.
 printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
 HOME_SC="$(cd "$HOME" && CLAUDE_PROJECT_DIR="$HOME" bash "$LIST_CORPUS" --show-config 2>&1)"
 assert_eq "home root: the user-global file is listed once" \
@@ -233,8 +200,6 @@ assert_not_contains "a non-repo root: its team file is not a layer" \
   "$NONREPO_SC" "$NONREPO/docs/conventions/attribution.yaml"
 rm -f "$HOME/.claude/attribution.json"
 
-# --- --show-config ---------------------------------------------------------------
-
 OUT_SC="$(run_default --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"
 assert_contains "--show-config reports no layers when none exist" "$OUT_SC" "bundled defaults"
@@ -245,8 +210,6 @@ assert_contains "--show-config names the team layer" "$OUT_SC" "$CFG_DIR/attribu
 assert_contains "--show-config prints the effective exclusions" "$OUT_SC" "legacy/**"
 rm -f "$CFG_DIR/attribution.yaml"
 
-# The script alone, with no lib.sh beside it: the pre-computed --show-config
-# probe reads "detector unavailable", never an empty configuration.
 ALONE="$TEST_TMPDIR/alone"
 mkdir -p "$ALONE"
 cp "$LIST_CORPUS" "$ALONE/list-corpus.sh"
@@ -256,8 +219,6 @@ assert_eq "--show-config without lib.sh prints the unavailable marker" "$OUT_NL"
 ERR_NL="$(bash "$ALONE/list-corpus.sh" 2>&1 >/dev/null)"
 assert_exit "a real run without lib.sh exits 2" "$?" "2"
 assert_contains "a real run without lib.sh explains itself on stderr" "$ERR_NL" "cannot read"
-
-# --- Targets ---------------------------------------------------------------------
 
 DIR_OUT="$(run_default docs 2>/dev/null)"
 DIR_FILES="$(echo "$DIR_OUT" | jq -r '.files[]')"
@@ -273,8 +234,6 @@ assert_eq "a file target names the file" \
 run_default no/such/path >/dev/null 2>&1
 assert_exit "a nonexistent target exits 2" "$?" "2"
 
-# The repository root has several spellings and every one of them means "the
-# whole corpus".
 BASE_FILES="$(run_default 2>/dev/null | jq -r '.counts.included')"
 assert_eq "a '.' target scans the whole repository" \
   "$(run_default . 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
@@ -282,8 +241,6 @@ assert_eq "a './' target scans the whole repository" \
   "$(run_default ./ 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
 assert_eq "an absolute repo-root target scans the whole repository" \
   "$(run_default "$REPO" 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
-
-# --- --paths-file ----------------------------------------------------------------
 
 PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "docs/guide.md" "docs/guides/notes.md" >"$PATHS"
@@ -310,8 +267,6 @@ PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_contains "a missing entry declines with a reason" \
   "$(echo "$PF_OUT" | jq -r '.declined[].reason')" "does not exist"
 
-# A missing DIRECTORY component: git can place nothing, so the entry survives as
-# written; reduced to its basename it would name the fixture's root README.md.
 printf '%s\n' "no-such-dir/README.md" >"$PATHS"
 PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_eq "an entry under a missing directory lists nothing" \
@@ -322,13 +277,9 @@ assert_contains "and it declines under the name it was given" \
 run_default --paths-file "$TEST_TMPDIR/absent.txt" >/dev/null 2>&1
 assert_exit "an unreadable --paths-file exits 2" "$?" "2"
 
-# --- Determinism -----------------------------------------------------------------
-
 RUN_A="$(run_default 2>/dev/null)"
 RUN_B="$(run_default 2>/dev/null)"
 assert_eq "repeat runs produce identical output" "$RUN_A" "$RUN_B"
-
-# --- Report ----------------------------------------------------------------------
 
 printf '\nPassed: %s  Failed: %s\n' "$((CASE_NUM - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

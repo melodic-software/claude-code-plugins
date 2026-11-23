@@ -1,4 +1,12 @@
 {
+  "no-install": [
+    {
+      "use": "command_position_multishell"
+    },
+    {
+      "use": "install_command"
+    }
+  ],
   "runs-fetch": [
     {
       "use": "command_position_multishell"

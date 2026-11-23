@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
-# Roster test for the improve skill: every lens playbook in actions/ has a row in SKILL.md's
-# Actions table and an entry in its argument-hint, and every row and entry has a playbook.
-# Also proves the check fails on a playbook with no row and on a row with no playbook.
-#
-#   bash plugins/architecture/skills/improve/scripts/lens-roster.test.sh
-#
+# test-scope: plugins/architecture/skills/improve/SKILL.md plugins/architecture/skills/improve/actions/*.md
 # Exit 0 clean, 1 findings, 2 environment.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
-# Prints one problem per line for the skill directory $1; prints nothing when the roster agrees.
 roster_problems() {
   local dir="$1" hint lens
   local -a playbooks=() rows=() hinted=()
@@ -19,10 +13,8 @@ roster_problems() {
     lens="${f##*/}"
     playbooks+=("${lens%.md}")
   done
-  # The first [...] group of the argument-hint lists the lenses.
   hint="$(sed -n 's/^argument-hint: *"\[\([^]]*\)\].*/\1/p' "$dir/SKILL.md")"
   IFS='|' read -r -a hinted <<<"$hint"
-  # Actions-table rows: a backticked argument in the first cell, between "## Actions" and the next heading.
   mapfile -t rows < <(awk '/^## Actions/{on=1; next} on && /^#/{on=0} on && /^\| `[a-z-]+` \|/{sub(/^\| `/, ""); sub(/`.*/, ""); print}' "$dir/SKILL.md")
   for lens in "${playbooks[@]}"; do
     [[ " ${rows[*]} " == *" $lens "* ]] || echo "actions/$lens.md has no Actions-table row"

@@ -78,28 +78,23 @@ Exit: 0 on every scan path (findings or not, lanes healthy or not);
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "dead-code-scan.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+source "$SCRIPT_DIR/../../../lib/opt-value.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --max)
-    require_opt_value "$@"
+    require_opt_value dead-code-scan.sh "$@"
     MAX="$2"
     shift 2
     ;;
   --lane)
-    require_opt_value "$@"
+    require_opt_value dead-code-scan.sh "$@"
     LANE_SEL="$2"
     shift 2
     ;;
   --root)
-    require_opt_value "$@"
+    require_opt_value dead-code-scan.sh "$@"
     ROOT_SEL="$2"
     shift 2
     ;;

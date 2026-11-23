@@ -1,12 +1,7 @@
-// For the workflow tests that hold a lane's credential chain on
-// ci-workflows' select-model-credential: the action's own rules, fetched at
-// the pin the workflows name (no copy lives here), the launcher's own
-// handoffReason at that pin, and an expression evaluator with GitHub's value
-// semantics, so a job's `if:` and an input's `${{ }}` evaluate as GitHub
-// evaluates them.
 import assert from "node:assert/strict";
 
 import { contractAtPin } from "./ci-workflows-at-pin.mjs";
+import { evaluate, truthy } from "./gate-expression.mjs";
 
 // The one pin every select-model-credential step in the given workflows names.
 export function selectPin(...workflowTexts) {
@@ -20,89 +15,14 @@ export async function loadSelect(pin) {
   return { HANDOFF_REASONS, handoffReason, leg, next, start };
 }
 
-// One expression, `${{ }}` or bare, over `context` (a flat map of
-// `needs.x.outputs.y`-style names to strings; a missing name reads as '').
-// `&&` and `||` return an operand, as GitHub's do; `==` and `!=` compare
-// strings; `always()` is true, and `cancelled()` is true only when the
-// context sets `cancelled()` (a job that hit its own timeout, or a cancelled
-// run), so a state can model a step that runs after a job timed out.
-const TOKENS = new Map();
-function tokenize(expression) {
-  if (!TOKENS.has(expression)) {
-    const text = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").trim();
-    const tokens = text.match(/\|\||&&|==|!=|!|\(|\)|'[^']*'|cancelled\(\)|always\(\)|[A-Za-z_][\w.-]*/g) ?? [];
-    assert.equal(tokens.join(""), text.replace(/\s+/g, ""), `only known tokens in ${text}`);
-    TOKENS.set(expression, { text, tokens });
-  }
-  return TOKENS.get(expression);
-}
-
-const truthy = (v) => v !== "" && v !== false;
-
-export function evaluate(expression, context) {
-  const { text, tokens } = tokenize(expression);
-  let at = 0;
-  const peek = () => tokens[at];
-  const take = (expected) => {
-    assert.ok(expected === undefined || tokens[at] === expected, `${expected} at ${at} in ${text}`);
-    return tokens[at++];
-  };
-  const operand = () => {
-    if (peek() === "(") {
-      take("(");
-      const inner = or();
-      take(")");
-      return inner;
-    }
-    if (peek() === "!") {
-      take("!");
-      return !truthy(operand());
-    }
-    const token = take();
-    if (token === "cancelled()") return context["cancelled()"] === true;
-    if (token === "always()") return true;
-    if (/^'.*'$/.test(token)) return token.slice(1, -1);
-    assert.ok(/^(?:needs|steps|github|vars|inputs|secrets)\./.test(token), `a context name: ${token} in ${text}`);
-    return context[token] ?? "";
-  };
-  const comparison = () => {
-    const left = operand();
-    if (peek() !== "==" && peek() !== "!=") return left;
-    const op = take();
-    const right = operand();
-    return op === "==" ? String(left) === String(right) : String(left) !== String(right);
-  };
-  const and = () => {
-    let result = comparison();
-    while (peek() === "&&") {
-      take("&&");
-      const right = comparison();
-      result = truthy(result) ? right : result;
-    }
-    return result;
-  };
-  const or = () => {
-    let result = and();
-    while (peek() === "||") {
-      take("||");
-      const right = and();
-      result = truthy(result) ? result : right;
-    }
-    return result;
-  };
-  const result = or();
-  assert.equal(at, tokens.length, `the whole expression parsed: ${text}`);
-  return result;
-}
-
-// A job condition: GitHub coerces the result to a boolean.
-export const runs = (condition, context) => truthy(evaluate(condition, context));
+const status = (context) => (context["cancelled()"] === true ? "cancelled" : "success");
+export const runs = (condition, context) => truthy(evaluate(condition, context, { status: status(context) }));
 
 // An input value, as the string the step receives: a literal as written,
 // a `${{ }}` expression evaluated.
 export const value = (input, context) => {
   if (!/^\s*\$\{\{[\s\S]*\}\}\s*$/.test(input)) return input.trim().replace(/^"(.*)"$/, "$1");
-  const v = evaluate(input, context);
+  const v = evaluate(input, context, { status: status(context) });
   return typeof v === "boolean" ? String(v) : v;
 };
 

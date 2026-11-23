@@ -5,6 +5,7 @@
     {"answer": [], "why": "no tool call"}
   ],
   "fail": [
-    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/PLAN.md", "old_string": "## Plan", "new_string": "## Brief\n\n## Plan"}}], "why": "edited the Brief before the problem was confirmed"}
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/PLAN.md", "old_string": "## Plan", "new_string": "## Brief\n\n## Plan"}}], "why": "edited the Brief before the problem was confirmed"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/csv-export-speed/csv-export-Brief.md", "old_string": "x", "new_string": "## Brief"}}], "why": "edited a Brief file other than PLAN.md"}
   ]
 }

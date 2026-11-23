@@ -1,6 +1,6 @@
 ---
 description: "Purpose case for the before/after comparison: measures the outcome the replaced guidance served. P3 chart side: interview facts, constraints and glossary distilled into Notes (now constraints in Notes, facts and glossary in the seed item's resolution comment)."
-tags: [wayfind, wayfind-charting, purpose-set]
+tags: [wayfind, wayfind-charting, purpose-set, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

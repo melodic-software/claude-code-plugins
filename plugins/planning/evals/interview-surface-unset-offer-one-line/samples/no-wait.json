@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Asking here, one round at a time. A local page or a shared session is also available; say which to switch.\n\n### Round 1: intake\n\nScope check: 3 of 27 questions registered\nLater: retry budget (attempts, backoff, give-up point), which failures count as retryable, alert trigger and channel\n\n❓ Q1: **Rethink the approach against this problem, or accept retries and alerting as the fix?**\n\nContext:\n- The problem worked back out: events a receiver fails to take are lost, and nobody hears about it (inferred, user, round 1).\n- The sender makes one POST per event and retries nothing (user, round 1).\n\nDiscovery: whether retries and alerting are the fix for that problem.\n\n---\n\n❓ Q2: **Which quality bar is this for: a throwaway prototype, an internal tool, or production?**\n\nContext:\n- The bar sets how deep the retry and alerting questions go (judgment).\n\nDiscovery: the quality bar.\n\n---\n\n❓ Q3: **Who needs to hear about a failed delivery?**\n\nContext:\n- The request asks for failure alerting (user, round 1).\n\nDiscovery: who the alerts are for.\n\nAnswer in any order.\n\nIs there something else that would change these recommendations?",
+      "why": "one offer line stated, then round 1 asked in the conversation as an intake round of discovery questions"
+    },
+    {
+      "answer": "Asking here, one round at a time. A local page or a shared session is also available; say which to switch.\n\nPacing: one full round at a time (the default; no setting overrides it).\n\n### Round 1: intake\n\nScope check: 2 of 27 questions registered\n\n❓ Q1: **Is the problem that failed deliveries are lost and nobody finds out?**\n\nContext:\n- The sender makes one POST per event and retries nothing (user, round 1).\n\nDiscovery: whether retries and alerting are the fix for that problem.\n\n---\n\n❓ Q2: **Which quality bar is this for: a throwaway prototype, an internal tool, or production?**\n\nContext:\n- The bar sets how deep the retry and alerting questions go (judgment).\n\nDiscovery: the quality bar.\n\nIs there something else that would change these recommendations?",
+      "why": "the Pacing: line reports the pacing setting the skill prescribes; it is not a second surface offer"
+    },
+    {
+      "answer": "Asking here, one round at a time. A local page or a shared session is also available; say which to switch.\nQuestions are saved to .work/webhook-retries/interview-checklist.md.\n\n### Round 1: intake\n\nScope check: 3 of 27 questions registered\nLater: retry budget (attempts, backoff, give-up point), which failures count as retryable, alert trigger and channel\n\n❓ Q1: **Rethink the approach against this problem, or accept retries and alerting as the fix?**\n\nContext:\n- The problem worked back out: events a receiver fails to take are lost, and nobody hears about it (inferred, user, round 1).\n- The sender makes one POST per event and retries nothing (user, round 1).\n\nDiscovery: whether retries and alerting are the fix for that problem.\n\n---\n\n❓ Q2: **Which quality bar is this for: a throwaway prototype, an internal tool, or production?**\n\nContext:\n- The bar sets how deep the retry and alerting questions go (judgment).\n\nDiscovery: the quality bar.\n\n---\n\n❓ Q3: **Who needs to hear about a failed delivery?**\n\nContext:\n- The request asks for failure alerting (user, round 1).\n\nDiscovery: who the alerts are for.\n\nAnswer in any order.\n\nIs there something else that would change these recommendations?",
+      "why": "The offer is one line; the resolver's save line after it is not part of the offer, and round 1 follows."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nWhich surface would you like for this interview: the terminal or the page? I'll start round 1 once you choose.",
+      "why": "turns the offer into a question and stops before round 1"
+    }
+  ]
+}
