@@ -83,7 +83,7 @@ export const UPSTREAM_JOBS = Object.freeze([
 // A job's page, as the jobs API's html_url gives it.
 export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/actions/runs/${runId}/job/${jobId}`;
 
-export const RUN_CLAUDE_CLI_PIN = /\/run-claude-cli@([0-9a-f]{40}) /.exec(readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-verify.yml"), "utf8"))?.[1];
+export const RUN_CLAUDE_CLI_PIN = /\/run-claude-cli@(main)\b/.exec(readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-verify.yml"), "utf8"))?.[1];
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
