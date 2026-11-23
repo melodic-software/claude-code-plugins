@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "This decision fails the admission test: it is provisional on the latency prototype, which has not run yet. Skip it for now?"
+    },
+    {
+      "answer": "The prototype hasn't run, so the decision is not eligible until its verdict confirms it. Want me to wait?"
+    },
+    {
+      "answer": "Still provisional on an unrun spike. Record it anyway?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/adr/0002-move-order-search-to-opensearch.md."
+    },
+    {
+      "answer": "No real alternative was weighed. Skip it?"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "It waits on a prototype that has not run. Skip recording it until the verdict?"
+    },
+    {
+      "answer": "Do you still want the record now?"
+    },
+    {
+      "answer": "Should I hold off until the prototype runs?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/adr/0002-move-order-search-to-opensearch.md. Anything else?"
+    },
+    {
+      "answer": "The decision is provisional on the prototype, so I skipped it."
+    }
+  ]
+}
