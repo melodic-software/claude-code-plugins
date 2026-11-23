@@ -3,18 +3,13 @@
 # removes it. Each judgment is given its own parts, and the manifest names
 # every file's first part, so it can read across chunks where a change does.
 #
-# Each chunk is at most MAX_DIFF_BYTES, in diff order, cut as split-diff.py's
-# docstring says: whole files, and a file over MAX_DIFF_BYTES cut at its hunks
-# into pieces under its header, no two in one chunk
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-review-main/split-diff.py).
-# With more than one chunk manifest.txt lists every file, and each piece as
-# `piece <i> of <n>`, with its chunk, in $DATA/manifest/part-<n>.txt files of
-# at most PART_BYTES. Each chunk is cut into
-# $DATA/diff/chunk-<k>/part-<n>.patch files of at most PART_BYTES and PART_LINES.
-# Read may cut a long line short, so a line over LONG_LINE_BYTES continues on
-# lines that start `\ continued: `, which no line of a diff does, each on the
-# side of the line it continues, and every byte of the diff reaches a whole
-# Read. An empty diff is one chunk with one empty part.
+# The chunks, pieces, parts and long-line folds are diff_chunking.py's
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
+# chunks of at most MAX_DIFF_BYTES and parts of at most PART_BYTES and
+# PART_LINES. With more than one chunk the manifest lists every file, and each
+# piece as `piece <i> of <n>`, with its chunk and first part, in
+# $DATA/manifest/part-<n>.txt files of at most PART_BYTES. An empty diff is one
+# chunk with one empty part.
 #
 # A file with a hunk over MAX_DIFF_BYTES with its header, or a diff that needs
 # more than MAX_CHUNKS chunks, prints an error naming it and exits 1 with no
@@ -22,10 +17,13 @@
 # shellcheck disable=SC2154 # the step's env sets DATA and the limits
 set -euo pipefail
 
-# A fold takes a mark and a byte each line, or it never ends.
-if [[ ! "$LONG_LINE_BYTES" =~ ^[0-9]+$ ]] || ((LONG_LINE_BYTES < 40)); then
-  echo "::error::LONG_LINE_BYTES is not a line length; no verdict for this head"
-  exit 1
+wrap=()
+if [[ -n "${LONG_LINE_BYTES+set}" ]]; then
+  if [[ ! "$LONG_LINE_BYTES" =~ ^[0-9]+$ ]] || ((LONG_LINE_BYTES < 40)); then
+    echo "::error::LONG_LINE_BYTES is not a line length; no verdict for this head"
+    exit 1
+  fi
+  wrap=(--wrap "$LONG_LINE_BYTES")
 fi
 
 # The most chunks a head is judged in, and the run's cost guard: each judging
@@ -35,10 +33,10 @@ fi
 # test sets its own.
 MAX_CHUNKS=${MAX_CHUNKS:-12}
 
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+chunking="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../diff-chunking/diff_chunking.py"
 mkdir "$DATA/diff"
 status=0
-reason=$(python3 -I "$here/../pr-review-main/split-diff.py" "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$((MAX_DIFF_BYTES * MAX_CHUNKS))" 2>&1) || status=$?
+reason=$(python3 -I "$chunking" split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$((MAX_DIFF_BYTES * MAX_CHUNKS))" 2>&1) || status=$?
 if [[ "$status" -eq 3 ]]; then
   echo "::error::no verdict for this head: the diff is $(wc -c <"$DATA/diff.patch") bytes; ${reason#split-diff: }"
   exit 1
@@ -52,39 +50,7 @@ if [[ "$chunks" -eq 0 ]]; then
   chunks=1
   : >"$DATA/diff/chunk-1.patch"
 fi
-
-bytes=
-for k in $(seq "$chunks"); do
-  dir="$DATA/diff/chunk-$k"
-  mkdir "$dir"
-  LC_ALL=C awk -v dir="$dir" -v rel="diff/chunk-$k" -v list="$DATA/file-parts.txt" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
-    function put(text) {
-      len = length(text) + 1
-      if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-      print text > f; b += len; l++
-      if (header) { print sprintf("%s/part-%03d.patch", rel, n) >> list; header = 0 }
-    }
-    # The header test reads the line as the diff has it, so a continuation
-    # cannot pose as a file. A cut never falls inside a UTF-8 character, of
-    # at most three continuation bytes, so a run of stray ones still folds at
-    # the cap. A continuation takes the side of the line it continues.
-    { header = index($0, "diff --git ") == 1
-      rest = $0; mark = ""
-      while (length(mark) + length(rest) > wrap) {
-        at = wrap - length(mark)
-        for (back = 0; back < 3 && at > 1; back++) {
-          next_byte = substr(rest, at + 1, 1)
-          if (next_byte < "\200" || next_byte >= "\300") break
-          at--
-        }
-        put(mark substr(rest, 1, at))
-        rest = substr(rest, at + 1); mark = "\\ continued: "
-      }
-      put(mark rest) }' "$dir.patch"
-  [[ -s "$dir.patch" ]] || : >"$dir/part-001.patch"
-  bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
-  rm "$dir.patch"
-done
+bytes=$(python3 -I "$chunking" parts "$DATA/diff" "$PART_BYTES" "$PART_LINES" --file-parts "$DATA/file-parts.txt" "${wrap[@]}")
 rm "$DATA/diff.patch"
 
 # Each manifest line, in file order, gains the part its file starts in, and

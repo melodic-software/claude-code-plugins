@@ -950,8 +950,8 @@ jobs:
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
       # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks into pieces (split-diff.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-review-main/split-diff.py),
+      # whole but one over the cap, cut at its hunks into pieces (diff_chunking.py,
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
       # and each chunk is reviewed by its own run; the
       # verdict sums their findings and takes the most CRITICAL ones in a
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
@@ -985,7 +985,6 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
           # the head, as the lane's outputs for the report-review-counts job.
@@ -1007,7 +1006,7 @@ jobs:
           # hunk over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
-          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
+          python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
           if [ "$split" -eq 3 ]; then
             stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a hunk over $MAX_DIFF_BYTES bytes with its file's header, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes"
           elif [ "$split" -ne 0 ]; then
@@ -1023,35 +1022,7 @@ jobs:
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
           # whole (write-verdict.mjs `readCoverage`).
-          bytes=
-          for k in $(seq "$chunks"); do
-            dir="$DATA/diff/chunk-$k"
-            mkdir "$dir"
-            # A line over LONG_LINE_BYTES continues on lines that start
-            # `\ continued: `, which no line of a diff does, so every byte
-            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
-            # way). A cut never falls inside a UTF-8 character.
-            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
-              function put(text) {
-                len = length(text) + 1
-                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print text > f; b += len; l++
-              }
-              { rest = $0; mark = ""
-                while (length(mark) + length(rest) > wrap) {
-                  at = wrap - length(mark)
-                  for (back = 0; back < 3 && at > 1; back++) {
-                    next_byte = substr(rest, at + 1, 1)
-                    if (next_byte < "\200" || next_byte >= "\300") break
-                    at--
-                  }
-                  put(mark substr(rest, 1, at))
-                  rest = substr(rest, at + 1); mark = "\\ continued: "
-                }
-                put(mark rest) }' "$dir.patch"
-            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
-            rm "$dir.patch"
-          done
+          bytes=$(python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py parts "$DATA/diff" "$PART_BYTES" "$PART_LINES")
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
@@ -1904,8 +1875,8 @@ jobs:
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
       # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks into pieces (split-diff.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-review-main/split-diff.py),
+      # whole but one over the cap, cut at its hunks into pieces (diff_chunking.py,
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
       # and each chunk is reviewed by its own run; the
       # verdict sums their findings and takes the most CRITICAL ones in a
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
@@ -1939,7 +1910,6 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
           # the head, as the lane's outputs for the report-review-counts job.
@@ -1961,7 +1931,7 @@ jobs:
           # hunk over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
-          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
+          python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
           if [ "$split" -eq 3 ]; then
             stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a hunk over $MAX_DIFF_BYTES bytes with its file's header, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes"
           elif [ "$split" -ne 0 ]; then
@@ -1977,35 +1947,7 @@ jobs:
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
           # whole (write-verdict.mjs `readCoverage`).
-          bytes=
-          for k in $(seq "$chunks"); do
-            dir="$DATA/diff/chunk-$k"
-            mkdir "$dir"
-            # A line over LONG_LINE_BYTES continues on lines that start
-            # `\ continued: `, which no line of a diff does, so every byte
-            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
-            # way). A cut never falls inside a UTF-8 character.
-            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
-              function put(text) {
-                len = length(text) + 1
-                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print text > f; b += len; l++
-              }
-              { rest = $0; mark = ""
-                while (length(mark) + length(rest) > wrap) {
-                  at = wrap - length(mark)
-                  for (back = 0; back < 3 && at > 1; back++) {
-                    next_byte = substr(rest, at + 1, 1)
-                    if (next_byte < "\200" || next_byte >= "\300") break
-                    at--
-                  }
-                  put(mark substr(rest, 1, at))
-                  rest = substr(rest, at + 1); mark = "\\ continued: "
-                }
-                put(mark rest) }' "$dir.patch"
-            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
-            rm "$dir.patch"
-          done
+          bytes=$(python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py parts "$DATA/diff" "$PART_BYTES" "$PART_LINES")
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
@@ -2831,8 +2773,8 @@ jobs:
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
       # split into chunks of at most the cap at file boundaries, each file
-      # whole but one over the cap, cut at its hunks into pieces (split-diff.py,
-      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-review-main/split-diff.py),
+      # whole but one over the cap, cut at its hunks into pieces (diff_chunking.py,
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
       # and each chunk is reviewed by its own run; the
       # verdict sums their findings and takes the most CRITICAL ones in a
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
@@ -2866,7 +2808,6 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
           # the head, as the lane's outputs for the report-review-counts job.
@@ -2888,7 +2829,7 @@ jobs:
           # hunk over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
-          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
+          python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" || split=$?
           if [ "$split" -eq 3 ]; then
             stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a hunk over $MAX_DIFF_BYTES bytes with its file's header, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes"
           elif [ "$split" -ne 0 ]; then
@@ -2904,35 +2845,7 @@ jobs:
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
           # whole (write-verdict.mjs `readCoverage`).
-          bytes=
-          for k in $(seq "$chunks"); do
-            dir="$DATA/diff/chunk-$k"
-            mkdir "$dir"
-            # A line over LONG_LINE_BYTES continues on lines that start
-            # `\ continued: `, which no line of a diff does, so every byte
-            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
-            # way). A cut never falls inside a UTF-8 character.
-            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
-              function put(text) {
-                len = length(text) + 1
-                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print text > f; b += len; l++
-              }
-              { rest = $0; mark = ""
-                while (length(mark) + length(rest) > wrap) {
-                  at = wrap - length(mark)
-                  for (back = 0; back < 3 && at > 1; back++) {
-                    next_byte = substr(rest, at + 1, 1)
-                    if (next_byte < "\200" || next_byte >= "\300") break
-                    at--
-                  }
-                  put(mark substr(rest, 1, at))
-                  rest = substr(rest, at + 1); mark = "\\ continued: "
-                }
-                put(mark rest) }' "$dir.patch"
-            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
-            rm "$dir.patch"
-          done
+          bytes=$(python3 -I .base/.github/scripts/diff-chunking/diff_chunking.py parts "$DATA/diff" "$PART_BYTES" "$PART_LINES")
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
