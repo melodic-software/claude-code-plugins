@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Check or write the developer-experience pointer line inside the shared
-# plugin-conventions block of a repository's root AGENTS.md.
-#
-# The block is shared: other plugins keep their own lines in it and the user's
-# text surrounds it. This helper owns exactly one line, the one that starts with
-# DX_PREFIX below, and never edits any other byte. A line that merely cites a
-# /developer-experience: skill belongs to another plugin. CLAUDE.md is only
-# read, to report whether AGENTS.md reaches Claude Code's context; load rules:
-# https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
-#
-# UNTRUSTED INPUT. AGENTS.md and CLAUDE.md are consumer prose: they are only
-# compared as text, never evaluated. The conventions path is checked against the
-# convention-home grammar before it is written anywhere.
 set -uo pipefail
 export LC_ALL=C
 
@@ -123,8 +110,6 @@ RES_ERR=""
 cleanup() { rm -f "$STAGED" "$DIR_TMP" "$RES_ERR"; }
 trap cleanup EXIT
 
-# The convention-home path grammar: repo-relative segments of [A-Za-z0-9._-]+
-# joined by "/", none equal to "." or "..".
 valid_path() {
   [[ "$1" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] || return 1
   [[ "/$1/" != */./* && "/$1/" != */../* ]]
@@ -141,7 +126,6 @@ if [[ -z "$CONV_PATH" ]]; then
       CONV_PATH="${home%/}/developer-experience.md"
       ;;
     1 | 5)
-      # 5: no home is applicable (the root is $HOME, an ancestor of it, or outside git).
       SOURCE=default
       CONV_PATH="$DEFAULT_PATH"
       ;;
@@ -202,8 +186,6 @@ analyze() {
     }' "$1"
 }
 
-# render <file> <state> <dx-line-no> <end-line-no> <crlf> <final-newline> :
-# the new file on stdout. Every line not replaced or added is printed as read.
 render() {
   awk -v BINMODE=3 -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v W="$DX_LINE" -v s="$2" \
     -v dxno="$3" -v endno="$4" -v crlf="$5" -v finalnl="$6" '
@@ -232,9 +214,6 @@ render() {
     }' "$1"
 }
 
-# has_import <file> <token> : the file holds an @-import of AGENTS.md outside
-# fenced code blocks (``` or ~~~, closed by a fence of the same character at
-# least as long), which Claude Code's import parsing skips.
 has_import() {
   awk -v BINMODE=3 '
     function fence(s, c,   k) { k = 0; while (substr(s, k + 1, 1) == c) k++; return k }
