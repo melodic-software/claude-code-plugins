@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-source-applicability.py.
-#
-# Self-contained and cwd-independent; mutates only its own guarded mktemp dir.
-#
-# The cases that matter are the ones where a wrong answer is invisible: a source
-# written for an older version must never pass as current evidence for a claim
-# about a newer one, and a slice this gate cannot read must never pass at all.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,9 +14,6 @@ trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# run <expected-exit> <label> [--err <stderr-substring>] [args...]
-# --err also requires stderr to contain the substring, so a case fails for its
-# intended rule rather than for any violation at all.
 run() {
   local expected="$1" label="$2" want_err=""
   shift 2
@@ -92,9 +82,6 @@ clean_pub="$(mkslice clean-pub publish "$(claim "$V9" "$PRIMARY
 $(src corroborator 2024 'ExampleLib 9' current)")")"
 run 0 "clean slice, publish" "$clean_pub"
 
-# The coverage ledger lives in the same slice and has no front matter. A
-# case-insensitive sidecar match (pathlib's glob on Windows) would read it as a
-# RESEARCH-*.md sidecar and grade every bounded-corpus run ungradeable.
 with_ledger="$(mkslice with-ledger - "$(claim "$V9" "$PRIMARY
 $(src corroborator 2024-06 'ExampleLib 8-10' current)")")"
 printf '%s\n' '| # | Corpus item | Depth criterion | Done |' '|---|---|---|---|' \
@@ -139,8 +126,6 @@ run 1 "undated primary on version-independent claim, internal" --err 'source 1: 
 run 1 "historical primary" --err 'source 1: primary source must be current' \
   "$(mkslice historical-primary - "$(claim "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)")")"
 
-# An undated primary is one fault: "must be dated" fires, "must be current"
-# does not, and a stored label that already says historical adds nothing more.
 undated_hist="$(mkslice undated-primary-hist - "$(claim "$V9" "$(src primary undated "$V9" historical)")")"
 out="$(python3 "$SUT" "$undated_hist" 2>"$WORK/stderr")"
 err="$(cat "$WORK/stderr")"
@@ -157,10 +142,6 @@ else
   fail "undated primary stored current should report two violations: $out / $err"
 fi
 
-# A MEDIUM or LOW claim is a Gap, and Gaps stay in the sidecar header
-# (artifact-shape.md), so the accepted-claim primary rules (R5's count, R7)
-# skip it. Every source it does carry is still graded, so its labels stay
-# honest. Confidence is the only marker: HIGH, or no confidence at all, gets R7.
 gap() { claim "$@" | sed "s/confidence: HIGH/confidence: ${GAP_LEVEL:-LOW}/"; }
 run 0 "LOW gap claim keeps a historical primary" \
   "$(mkslice gap-historical - "$(gap "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)")")"
@@ -263,7 +244,6 @@ bom="$(mkslice bom - "$(claim "$V9" "$PRIMARY")")"
 { printf '\xef\xbb\xbf'; cat "$bom/RESEARCH-s.md"; } >"$bom/bom.tmp" && mv "$bom/bom.tmp" "$bom/RESEARCH-s.md"
 run 0 "BOM sidecar parses" "$bom"
 
-# An all-Gap run: every sidecar says claims: [] and the slice still passes.
 no_claims="$WORK/no-claims"
 mkdir -p "$no_claims"
 printf -- '---\ntopic: t\n---\n' >"$no_claims/RESEARCH.md"
@@ -271,7 +251,6 @@ printf -- '---\ntopic: t\nclaims: []\n---\n' >"$no_claims/RESEARCH-a.md"
 printf -- '---\ntopic: t\nclaims:\n---\n' >"$no_claims/RESEARCH-b.md"
 run 0 "sidecars with empty claims lists" "$no_claims"
 
-# A bad sidecar in a sub-slice is never read.
 nested="$(mkslice nested - "$(claim "$V9" "$PRIMARY")")"
 mkdir -p "$nested/sub"
 printf 'no front matter\n' >"$nested/sub/RESEARCH-x.md"

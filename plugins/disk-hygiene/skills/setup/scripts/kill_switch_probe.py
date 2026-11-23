@@ -48,8 +48,6 @@ for _module_dir in (
 import destructive_guard  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
-# Re-exported for the setup skill and tests: the read logic and its default
-# settings location are the library's, surfaced here unchanged.
 default_settings_path = killswitch_config.default_settings_path
 probe = killswitch_config.probe
 
