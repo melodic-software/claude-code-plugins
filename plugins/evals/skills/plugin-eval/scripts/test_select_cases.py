@@ -630,7 +630,8 @@ class SelectCasesTest(unittest.TestCase):
 
         path = self.repo / "plugins/alpha/skills/check/SKILL.md"
         original = path.read_text(encoding="utf-8")
-        flips = ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
+        flips = ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't",
+                 "shouldn't", "mustn't", "don\u2019t"]
         for word, expected in [(w, "cases") for w in flips] + [("quietly", "affected-no-run")]:
             with self.subTest(word=word):
                 path.write_text(

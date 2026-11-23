@@ -170,6 +170,11 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
+def _flips_meaning(word):
+    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
+    return token in MEANING_FLIP_WORDS or token.endswith("n't")
+
+
 def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion."""
@@ -200,9 +205,7 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
                     kept_here = True
                 else:
                     added.append(word)
-            if kept_here and any(
-                word.strip(".,;:!?()\"'`*_").lower() in MEANING_FLIP_WORDS for word in added
-            ):
+            if kept_here and any(_flips_meaning(word) for word in added):
                 return True
         return index != len(old)
 
