@@ -2769,8 +2769,6 @@ class SupersededRunTests(Base):
                 (own, None, "success"),
                 (own, "success", "success"),
                 (own, "failure", "success"),
-                # A failed run whose caller was skipped, not upstream-stopped.
-                (own, "skipped", "failure"),
                 (JOBS[other].split(" / ", 1)[0], "skipped", "success"),
                 ("Wait Refine", "skipped", "success"),
             ):
@@ -2809,6 +2807,78 @@ class SupersededRunTests(Base):
         stopped = run("claude-review", S0, attempts=[first])
         result = self.bind([stopped, whole("claude-review", S)])
         self.assertUnbound(result["claude-review"], "count-inconsistent")
+
+
+def kill_switch_crashed(lane: str, sha: str, n: int) -> dict[str, Any]:
+    """Attempt `n` as run 45110250571 (#18333) recorded it: Check Kill Switch
+    failed on a missing local action, so the run failed and the reusable's
+    caller job was skipped, leaving no lane job."""
+    crashed = kill_switched(
+        lane,
+        sha,
+        message="Can't find 'action.yml' under"
+        " '.base/.github/actions/setup-pinned-node'.",
+        level="failure",
+        kill_conclusion="failure",
+        kill_name="Check Kill Switch",
+    )
+    crashed["conclusion"] = "failure"
+    crashed["run_attempt"] = n
+    for job in crashed["jobs"]:
+        job["run_attempt"] = n
+    return crashed
+
+
+class FailedBeforeLaneJobTests(Base):
+    """A failed attempt that never reached its lane job reviewed nothing: on
+    an earlier head it does not unbind the lane, while a failed attempt with
+    a lane job is still read and the pinned head still needs its own review."""
+
+    def test_an_earlier_head_failed_attempt_with_no_lane_job_does_not_unbind(
+        self,
+    ) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                ok = attempt(
+                    lane, S0, 1, [record(lane, S0, "findings=0 inline=0 scope=whole")]
+                )
+                earlier = run(lane, S0, attempts=[ok, kill_switch_crashed(lane, S0, 2)])
+                result = self.bind([earlier, whole(lane, S)])
+                self.assertIsNone(result[lane].unbound_reason)
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_an_earlier_head_failed_attempt_with_a_lane_job_is_still_read(
+        self,
+    ) -> None:
+        failed = attempt(
+            "claude-review",
+            S0,
+            1,
+            [record("claude-review", S0, "findings=0 inline=1 scope=whole")],
+            conclusion="failure",
+        )
+        earlier = run("claude-review", S0, attempts=[failed])
+        result = self.bind([earlier, whole("claude-review", S)])
+        self.assertUnbound(result["claude-review"], "count-inconsistent")
+
+    def test_a_failed_attempt_with_no_lane_job_at_the_pinned_head_does_not_bind(
+        self,
+    ) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind(
+                    [
+                        whole(lane, S0),
+                        run(
+                            lane,
+                            S,
+                            attempts=[kill_switch_crashed(lane, S, 1)],
+                            created="2026-01-02T00:00:00Z",
+                        ),
+                    ]
+                )
+                self.assertUnbound(result[lane], "run-not-success")
 
 
 # The caller workflows' `Stop on upstream status` error (pr-review-hosted.yml,

@@ -1515,11 +1515,12 @@ def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
     )
 
 
-def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
-    """Whether an outage lost this attempt before its lane job existed."""
+def _ended_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether this attempt failed, or an outage lost it, before its lane job
+    existed."""
     jobs = attempt.get("jobs")
     return (
-        attempt.get("conclusion") in LOST_CONCLUSIONS
+        attempt.get("conclusion") in LOST_CONCLUSIONS | {"failure"}
         and isinstance(jobs, list | tuple)
         and not _has_lane_job(lane, jobs)
     )
@@ -1909,11 +1910,7 @@ def _open_findings(
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
                 or _kill_switch_stopped(lane, item["id"], attempt)
-                or (
-                    attempt.get("conclusion") == "failure"
-                    and _upstream_stopped(lane, item["id"], attempt)
-                )
-                or _lost_before_lane_job(lane, attempt)
+                or _ended_before_lane_job(lane, attempt)
                 or _caller_skipped(lane, attempt)
             ):
                 continue
