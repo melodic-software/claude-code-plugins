@@ -30,7 +30,6 @@ mkjson() { # mkjson <name> <jq-array-expr>
   printf '%s' "$f"
 }
 
-# --- Case: --help ---
 help_out=$(bash "$GATE" --help 2>&1)
 assert_exit "--help exit 0" 0 "$?"
 assert_contains "--help describes the gate" "$help_out" "readiness pre-gate"
@@ -39,19 +38,15 @@ assert_contains "--help describes the gate" "$help_out" "readiness pre-gate"
 assert_contains "--help documents the env-var override" "$help_out" "FETCH_COMMENTS_OWNER"
 assert_contains "--help documents --repo" "$help_out" "--repo owner/repo"
 
-# --- Case: unknown flag ---
 bash "$GATE" 123 --bogus >/dev/null 2>&1
 assert_exit "unknown flag exit 3" 3 "$?"
 
-# --- Case: no pr + no comments-json ---
 bash "$GATE" >/dev/null 2>&1
 assert_exit "no args exit 3" 3 "$?"
 
-# --- Case: bad --repo ---
 bash "$GATE" 123 --repo bad --comments-json /dev/null >/dev/null 2>&1
 assert_exit "bad --repo exit 3" 3 "$?"
 
-# --- Case: under-decomposed (three findings, one classification) ---
 F=$(mkjson under '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [IMPORTANT] b\n### 3. [SUGGESTION] c"},
   {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
@@ -62,7 +57,6 @@ assert_contains "under findings=3" "$r" "findings=3"
 assert_contains "under classified=1" "$r" "classified=1"
 assert_contains "under exit 1" "$r" "EXIT:1"
 
-# --- Case: fully decomposed (2 findings, 2 classifications) ---
 F=$(mkjson ok '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [IMPORTANT] b"},
   {author:"me[bot]", body:"| 1 | a | VALID | fixed |\n| 2 | b | INCORRECT | refuted |"}
@@ -72,7 +66,6 @@ assert_contains "ok -> READINESS_OK" "$r" "READINESS_OK"
 assert_contains "ok findings=2 classified=2" "$r" "findings=2 classified=2"
 assert_contains "ok exit 0" "$r" "EXIT:0"
 
-# --- Case: zero findings (nothing to decompose) ---
 F=$(mkjson empty '[
   {author:"human", body:"LGTM, nice work"},
   {author:"me[bot]", body:"thanks"}
@@ -82,7 +75,6 @@ assert_contains "zero-findings -> READINESS_OK" "$r" "READINESS_OK"
 assert_contains "zero-findings findings=0" "$r" "findings=0"
 assert_contains "zero-findings exit 0" "$r" "EXIT:0"
 
-# --- Case: checklist incomplete (decomposed, but unticked box) ---
 F=$(mkjson ckl '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
   {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
@@ -94,7 +86,6 @@ assert_contains "checklist-incomplete -> BLOCKED" "$r" "READINESS_BLOCKED reason
 assert_contains "checklist unticked=1" "$r" "unticked=1"
 assert_contains "checklist-incomplete exit 1" "$r" "EXIT:1"
 
-# --- Case: checklist clean ---
 CK2="$TEST_TMPDIR/checklist-clean.md"
 printf -- '- [x] done\n- [x] also done\n' >"$CK2"
 r=$(run_gate "$F" --checklist "$CK2")
@@ -197,7 +188,6 @@ r=$(run_gate "$F")
 assert_contains "self-classification not a finding -> findings=1" "$r" "findings=1"
 assert_contains "self-classification -> READINESS_OK" "$r" "READINESS_OK"
 
-# --- Case: --comments-json without an argument -> exit 3 ---------------------
 bash "$GATE" 123 --comments-json >/dev/null 2>&1
 assert_exit "--comments-json missing arg exit 3" 3 "$?"
 
@@ -689,7 +679,6 @@ assert_eq "newline-injecting <pr> alone still emits one verdict line" 1 \
   "$(verdict_lines "$injected_alone")"
 assert_not_contains "newline-injecting <pr> alone forges no OK verdict" \
   "$injected_alone" "READINESS_OK"
-# A legitimate numeric <pr> is unaffected.
 assert_contains "numeric <pr> still reaches a verdict" \
   "$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' 2>/dev/null)" "READINESS_"
 

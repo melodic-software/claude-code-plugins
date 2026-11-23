@@ -82,10 +82,6 @@ C_PEERS=13
 C_RISK=14
 C_REASON=15
 
-# --------------------------------------------------------------------------
-# Path key normalization
-# --------------------------------------------------------------------------
-
 assert_eq "path-key strips a trailing slash" "$(bash "$ENGINE" --path-key "/a/b/")" "$(bash "$ENGINE" --path-key "/a/b")"
 # The separator is assembled rather than written literally: the two characters
 # `\` + `b` are a GNU-only regex escape the shell-portability gate scans for, and
@@ -108,10 +104,6 @@ MINGW* | MSYS* | CYGWIN*)
     "/d/repos/x" "$(bash "$ENGINE" --path-key "/d/repos/x")"
   ;;
 esac
-
-# --------------------------------------------------------------------------
-# Multi-commit squash-merge, and the same after the base advances
-# --------------------------------------------------------------------------
 
 W="$(mkfixture)"
 WT_SQUASH="$TEST_TMPDIR/wt-squash"
@@ -154,10 +146,6 @@ assert_eq "squash: still landed past an empty base commit" "yes" "$(col "$R" $C_
 assert_not_contains "and the base set is not reported incomplete" \
   "$(col "$R" $C_REASON)" "base-patchid-incomplete"
 
-# --------------------------------------------------------------------------
-# Negative control — a genuinely unmerged branch is NOT landed
-# --------------------------------------------------------------------------
-
 W="$(mkfixture)"
 WT_STRANDED="$TEST_TMPDIR/wt-stranded"
 git -C "$W" worktree add -q -b feat-stranded "$WT_STRANDED" main >/dev/null 2>&1
@@ -182,10 +170,6 @@ R="$(row "$OUT" "$(basename "$W")")"
 assert_eq "nothing unpushed skips the landed computation" "n/a" "$(col "$R" $C_LANDED)"
 assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
 
-# --------------------------------------------------------------------------
-# A branch whose only unique work is a DELETION is not landed
-# --------------------------------------------------------------------------
-
 # A direction test ("additions are zero") misclassifies this fixture as landed
 # while the deletion commit exists nowhere else: `git diff base..HEAD` reports
 # deletions both for a branch that is merely BEHIND the base and for a branch
@@ -203,10 +187,6 @@ OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 R="$(row "$OUT" "wt-delete-only")"
 assert_eq "a delete-only branch is NOT landed" "no" "$(col "$R" $C_LANDED)"
 assert_eq "a delete-only branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
-
-# --------------------------------------------------------------------------
-# Behind the base is not proven landed by content alone
-# --------------------------------------------------------------------------
 
 # The base takes the branch's content AND more of the same file, so its commit is
 # a different patch — no patch-id matches, and the two-dot is non-empty. With no
@@ -229,10 +209,6 @@ R="$(row "$OUT" "wt-behind")"
 assert_eq "merely-behind is not claimed landed without proof" "no" "$(col "$R" $C_LANDED)"
 assert_eq "and the method names the test that produced it" "two-dot" "$(col "$R" $C_METHOD)"
 
-# --------------------------------------------------------------------------
-# Whitespace-only difference is not sameness
-# --------------------------------------------------------------------------
-
 # `git patch-id` strips whitespace before hashing, so `a b` and `ab` hash
 # identically under the default and `--stable` — measured on git 2.54, both
 # `7ad14294…`. A branch whose unique change differs from the base's only in
@@ -249,10 +225,6 @@ git -C "$W" push -q origin main >/dev/null 2>&1
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 R="$(row "$OUT" "wt-whitespace")"
 assert_eq "a whitespace-only difference is not landed" "no" "$(col "$R" $C_LANDED)"
-
-# --------------------------------------------------------------------------
-# Path spellings the two-dot fallback must not be defeated by
-# --------------------------------------------------------------------------
 
 # A fallback that compares two diff invocations' TEXT output would join paths
 # the two invocations spell differently. `--name-only` octal-escapes a non-ASCII
@@ -283,10 +255,6 @@ assert_eq "and the row is STRANDED, not landed" "STRANDED" "$(col "$R" $C_RISK)"
 assert_not_contains "the verdict is not the vacuous empty-match one" \
   "$(col "$R" $C_METHOD)" "two-dot-empty"
 
-# --------------------------------------------------------------------------
-# An incomplete patch-id set yields no verdict
-# --------------------------------------------------------------------------
-
 # An empty commit produces no patch, so it is invisible to patch-id and the id
 # set silently under-represents the branch. Any affirmative verdict over that set
 # would be a statement about the commits that happened to hash, not about the
@@ -305,10 +273,6 @@ R="$(row "$OUT" "wt-empty-commit")"
 assert_eq "an empty commit makes the id set incomplete, so no verdict" "?" "$(col "$R" $C_LANDED)"
 assert_contains "and the reason names the incompleteness" \
   "$(col "$R" $C_REASON)" "patchid-set-incomplete"
-
-# --------------------------------------------------------------------------
-# An ambiguous merge base yields no verdict
-# --------------------------------------------------------------------------
 
 # A criss-cross history has more than one merge base. Picking one silently means
 # testing against a base the work did not diverge at, which can produce a
@@ -337,10 +301,6 @@ else
   pass "a criss-cross history never yields an affirmative verdict"
 fi
 
-# --------------------------------------------------------------------------
-# EOL renormalization
-# --------------------------------------------------------------------------
-
 # The base carries the same content with CRLF endings; the branch has LF.
 #
 # This is the documented COST of `--verbatim`, asserted rather than left to be
@@ -365,10 +325,6 @@ OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 R="$(row "$OUT" "wt-eol")"
 assert_eq "an EOL-only difference is reported unproven, not landed" "no" "$(col "$R" $C_LANDED)"
 
-# --------------------------------------------------------------------------
-# Detached HEAD, and peers
-# --------------------------------------------------------------------------
-
 W="$(mkfixture)"
 WT_DETACHED="$TEST_TMPDIR/wt-detached"
 git -C "$W" worktree add -q --detach "$WT_DETACHED" main >/dev/null 2>&1
@@ -388,10 +344,6 @@ OUT="$(bash "$ENGINE" --repo-dir "$W")"
 R="$(row "$OUT" "wt-detached")"
 assert_contains "peer worktree holding the same commits is named" \
   "$(col "$R" $C_PEERS)" "wt-peer"
-
-# --------------------------------------------------------------------------
-# Not a worktree root
-# --------------------------------------------------------------------------
 
 # An empty leftover directory inside a repository. Probed with `git -C` it
 # reports the CONTAINING repository's clean state with a zero exit, which reads
@@ -469,10 +421,6 @@ done < <(printf '%s\n' "$OUT" | tail -n +2)
 assert_eq "a bare hub's head column is '-'" "-" "$bare_head"
 assert_eq "bare risk lands in the risk column under IFS-tab read" "bare" "$bare_risk"
 
-# --------------------------------------------------------------------------
-# Degradation paths each carry a reason
-# --------------------------------------------------------------------------
-
 # No remote at all: no base resolves. The fail-closed rule makes this `?`, never
 # `no` — and a guard must treat `?` exactly as it treats `no`.
 NOREMOTE="$(mktemp -d "$TEST_TMPDIR/noremoteXXXXXX")"
@@ -512,10 +460,6 @@ assert_contains "the reason says the staged tree is recomputable" \
 assert_contains "the reason says the operation's transient state dies with the directory" \
   "$(col "$R" $C_REASON)" "dies with the directory"
 
-# --------------------------------------------------------------------------
-# A truncated pass fails loudly
-# --------------------------------------------------------------------------
-
 # `source=/dev/null` scopes the analysis rather than silencing a finding: under
 # LANDED_WORK_LIB the engine returns at its library seam, but shellcheck follows
 # the file to its terminal `exit 0` and therefore reads everything after the
@@ -543,10 +487,6 @@ TRUNC_ERR="$(
   ) 2>&1 >/dev/null
 )"
 assert_contains "the short list says how short it was" "$TRUNC_ERR" "enumerated 3"
-
-# --------------------------------------------------------------------------
-# Contract surface
-# --------------------------------------------------------------------------
 
 bash "$ENGINE" --repo-dir "$TEST_TMPDIR" --no-peers >/dev/null 2>&1
 assert_exit "a non-repository scope is an environment error" 4 "$?"
@@ -623,10 +563,6 @@ R="$(row "$OUT" "wt-inprog-landed")"
 assert_eq "fixture sanity: the unpushed commit is landed" "yes" "$(col "$R" $C_LANDED)"
 assert_eq "fixture sanity: a merge is mid-flight" "merge" "$(col "$R" $C_INPROGRESS)"
 assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
-
-# --------------------------------------------------------------------------
-# Merged-PR proof (--merged-pr-proof), with a stubbed gh
-# --------------------------------------------------------------------------
 
 # The stub answers `gh api graphql` like GitHub: it builds the GraphQL response
 # for one page and runs the engine's own --jq over it with jq. A page is written
@@ -738,10 +674,6 @@ OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"
 
-# --------------------------------------------------------------------------
-# Merged-PR proof lists merged PRs once per repository, not once per worktree
-# --------------------------------------------------------------------------
-
 W="$(mkfixture)"
 for n in 1 2 3; do
   git -C "$W" worktree add -q -b "feat-many-$n" "$TEST_TMPDIR/wt-many-$n" main >/dev/null 2>&1
@@ -848,11 +780,6 @@ for BAD_LIMIT in 0 x; do
   rc=$?
   assert_eq "pr listing: --merged-pr-limit $BAD_LIMIT is a usage error" "2" "$rc"
 done
-
-# --------------------------------------------------------------------------
-# Base-side window: several worktrees at different merge-bases share one
-# rendering of the base commits
-# --------------------------------------------------------------------------
 
 # wt-window-a branches at the seed and lands as a squash (range-patchid);
 # wt-window-b branches after that squash and lands as two twin commits
