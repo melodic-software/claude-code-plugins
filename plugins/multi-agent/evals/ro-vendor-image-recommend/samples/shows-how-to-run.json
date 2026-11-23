@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run it with `external-agents run codex --use task --mode write --prompt-file <file>` (auto-delegation is off).",
+      "why": "shows exact external-agents run command"
+    },
+    {
+      "answer": "To run it manually: `external-agents run codex --use task --mode write --model sparrow-1 --prompt-file prompt.txt`.",
+      "why": "shows command with model flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use Codex for this image.",
+      "why": "omits how to run it"
+    }
+  ]
+}

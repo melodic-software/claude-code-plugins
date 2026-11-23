@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: 'ro-vendor-image-recommend'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ran-vendor-decide'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?vendor-decide\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'no-auto-delegation-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?external-agents\s+run\b'
+    min: 0
+    max: 0
+    arm: 'with-only'
+  - name: 'recommends-codex-image'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?codex:\s*model\s+\S+[^@\n]*@\s*effort\s+\S+[^\n]*basis:\s*claude-cannot'
+    flags: 'mi'
+    target: 'last_message'
+  - name: 'shows-how-to-run'
+    type: 'regex'
+    pattern: 'external-agents\s+run\s+codex\b[^\n]*--use\s+task[^\n]*--mode\s+write|external-agents\s+run\s+codex\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'explains-claude-cannot'
+    type: 'regex'
+    pattern: "claude[^\\n]{0,60}(?:cannot|can't|can not|does not|doesn't|isn't able|unable)[^\\n]{0,40}image|claude-cannot"
+    flags: 'i'
+    target: 'last_message'

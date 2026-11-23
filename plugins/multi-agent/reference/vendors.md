@@ -51,15 +51,19 @@ When a task fits neither row, use `everyday` and say which part was unclear.
 
 ## Facts per vendor
 
-- **Claude**: the role map from `/multi-agent:route <role>`, and the effort table in
+- **Claude**: the role map from `/multi-agent:route <role>`, the effort table in
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   (its `high` row covers work where verification matters, its `max` row hard problems Claude works
-  through without you).
-- **Codex**: `external-agents models codex` (each model's `efforts` and `default_effort`), then
+  through without you), and context windows per model id in
+  [Latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
+  (when unknown, Claude is not skipped for `--context`).
+- **Codex**: `external-agents models codex` (each model's `efforts`, `default_effort` and optional
+  `context_window`, plus product `tools`, `image` and `breaker`), then
   [Models § Pick a reasoning effort](https://learn.chatgpt.com/docs/models#pick-a-reasoning-effort)
   and
   [Model selection § Find the right model for your workflow](https://learn.chatgpt.com/docs/model-selection#find-the-right-model-for-your-workflow).
-- **Gemini**: `external-agents models antigravity` (its `models` and top-level `efforts`), then
+- **Gemini**: `external-agents models antigravity` (its `models`, top-level `efforts`, product
+  `tools`, `image` and `breaker`), then
   [Choose a model § Choose a model](https://antigravity.google/docs/models/#choose-a-model) and
   [Effort command](https://antigravity.google/docs/cli/commands/effort#inspect-or-override-effort-in-headless-mode).
   agy's model ids can carry their own effort word (`<model>-high`) beside `--effort`; which wins
@@ -68,6 +72,31 @@ When a task fits neither row, use `everyday` and say which part was unclear.
 A product whose `external-agents models` output has a `status` other than `ok`, or a machine
 without `external-agents`, gets no recommendation: the output names it as unavailable with the
 reason, and covers the rest.
+
+## Harness gating, usage tiebreak and image work
+
+- **Breaker skip**: a vendor whose `external-agents models` output reports `breaker.open: true`
+  is skipped with one note naming `reset_at` (unless `in_use: false`, which skips silently).
+- **Tools and context gating**: `vendor-decide --needs-tools <list> --context <tokens>` skips any
+  harness whose `tools` lacks a required tool and any model whose `context_window` is below
+  `--context`, each with one note. Claude's `context_window` comes from its `claude` entry in
+  `--models` (filled live from the model overview pointer above); when unknown, Claude is not
+  skipped.
+- **Usage tiebreak**: plan usage is queried only when the resolved `vendors.tiebreak` names
+  `most-usage-left` — via `external-agents usage <product>` per in-use vendor outside delegated
+  runs, and from the `rate-limits` status tool (`mcp__rate-limits__status`) for Claude when that
+  plugin is enabled (else marked unavailable). `vendor-decide --usage <file>` compares `remaining`
+  only in the `most-usage-left` step; a missing or `unavailable` reading falls back to vendor
+  order with one note.
+- **Image generation**: Claude cannot generate images, so `image` routes to an image-capable
+  vendor (`image: true`) with `basis: claude-cannot` (or `proven` once proven). With
+  `vendors.auto_delegation` off, routing recommends that vendor and shows how to run it; with it
+  on, routing runs `external-agents run <product> --use task --mode write` using a prompt built
+  strictly from the user's task (never benchmark page text) that names the vendor's built-in image
+  tool (for Codex: "use your built-in image generation tool, not code"), names the CLI and file
+  path in the reply, and reads the image file to review it against the prompt before calling
+  `vendor-state record`. When every image-capable vendor has failed its trial, routing says so,
+  recommends nothing, and lets the user choose.
 
 ## Benchmarks and trust model
 

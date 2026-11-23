@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "external-agents models codex"
+          }
+        }
+      ],
+      "why": "queries models without running a delegation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "external-agents run codex --use task --mode write --prompt-file /tmp/p.txt"
+          }
+        }
+      ],
+      "why": "ran external-agents run even though auto_delegation is false"
+    }
+  ]
+}
