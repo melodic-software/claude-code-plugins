@@ -238,6 +238,7 @@ BUPM_SHELL=0  # 1: a heredoc body may run as commands (_bupm_runs_shell)
 BUPM_UNLABEL=0
 BUPM_UNLABEL_VAR=0
 BUPM_UNLABEL_IDS=""
+BUPM_UNLABEL_GQL=0
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -341,7 +342,7 @@ _bupm_graphql() {
       done
     done
     read -r BUPM_UNLABEL_IDS <<<"$ids"
-    [[ -n "$BUPM_UNLABEL_IDS" ]] || BUPM_UNLABEL_VAR=1
+    [[ -n "$BUPM_UNLABEL_IDS" ]] || BUPM_UNLABEL_GQL=1
   fi
   [[ -n "$hit" ]] || return 1
   BUPM_FORM=graphql
@@ -582,6 +583,22 @@ _bupm_command() {
       [[ "${1-}" == merge ]] || return 1
       shift
       _bupm_gh_pr_merge ${pre_repo:+-R "$pre_repo"} "$@"
+    elif [[ "${1-}" == label && ("${2-}" == delete || "${2-}" == edit) ]]; then
+      local w
+      set -- "${@:3}"
+      while (($#)); do
+        w="$1"
+        shift
+        case "$w" in
+        -R | --repo) (($#)) && shift ;;
+        -*) ;;
+        *)
+          _bupm_unlabel_value "$w"
+          break
+          ;;
+        esac
+      done
+      return 1
     elif [[ "${1-}" == issue ]]; then
       _bupm_label_edit "${@:2}"
     elif [[ "${1-}" == api ]]; then
@@ -614,7 +631,7 @@ else
   # A second copy with quotes and backslashes dropped, as the tokenizer drops
   # them, reads `mer"ge"` and `en\queue` as the words they spell.
   _bupm_bare="${_bupm_joined//[\"\'\\]/}"
-  _bupm_pre_re='merge|enqueue|pr-verify-failed|removelabelsfromlabelable'
+  _bupm_pre_re='merge|enqueue|pr-verify-failed|removelabelsfromlabelable|labels/[^[:space:]]*%'
   [[ "$_bupm_joined" =~ $_bupm_pre_re || "$_bupm_bare" =~ $_bupm_pre_re ]] || exit 0
   # The bare copy too: `export GH_RE""PO=x` sets GH_REPO.
   [[ "$_bupm_lc" == *gh_repo* || "$_bupm_bare" == *gh_repo* ||
@@ -749,7 +766,7 @@ else
     BUPM_CONT=1
     BUPM_FORM=continuation
   else
-    [[ -n "$BUPM_FORM$BUPM_UNLABEL_IDS" ]] || ((BUPM_UNLABEL || BUPM_UNLABEL_VAR)) || exit 0
+    [[ -n "$BUPM_FORM$BUPM_UNLABEL_IDS" ]] || ((BUPM_UNLABEL || BUPM_UNLABEL_VAR || BUPM_UNLABEL_GQL)) || exit 0
   fi
 fi
 
@@ -873,6 +890,10 @@ if [[ -n "$BUPM_UNLABEL_IDS" ]]; then
     hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
   fi
 fi
+((BUPM_UNLABEL_GQL)) &&
+  _bupm_block pr-verify-label-removal-unresolvable \
+    'BLOCKED: this removeLabelsFromLabelable names no literal LA_ label id, so guardrails cannot tell whether it removes the pr-verify-failed label.' \
+    'Fix: pass each label id as a literal LA_... id, or use gh pr edit <number> --remove-label <name>.'
 if ((BUPM_UNLABEL)) || { ((BUPM_UNLABEL_VAR)) && [[ "${_bupm_bare-}" == *pr-verify-failed* ]]; }; then
   _bupm_block pr-verify-label-removal \
     'BLOCKED: this command removes the pr-verify-failed label, which is pr-verify'"'"'s FAIL hold on the pull request.' \

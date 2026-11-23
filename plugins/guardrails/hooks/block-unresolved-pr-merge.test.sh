@@ -64,11 +64,15 @@ graphql)
 */actions/artifacts\?*)
   [[ -f "$fix/artifacts_error" ]] && { echo "gh: HTTP 502" >&2; exit 1; }
   name="${endpoint#*name=}"
-  f="artifacts_${name%%&*}.json"
-  [[ -f "$fix/$f" ]] || f=artifacts_none.json
-  echo '{"artifacts":[]}' >"$fix/artifacts_none.json"
+  name="${name%%&*}"
+  [[ -f "$fix/artifacts.json" ]] || echo '{"artifacts":[]}' >"$fix/artifacts.json"
+  jq --arg n "$name" '{artifacts: [.artifacts[] | select(.name == $n)]}' "$fix/artifacts.json" >"$fix/artifacts_named.json"
+  f=artifacts_named.json
   ;;
-*/contents/*) f="contents_$(basename "${endpoint%%\?*}")" ;;
+*/contents/*)
+  [[ -f "$fix/contents_error" ]] && { echo "gh: HTTP 500" >&2; exit 1; }
+  f="contents_$(basename "${endpoint%%\?*}")"
+  ;;
 */ccr/review_threads) f=ccr.json ;;
 */reviews\?*) f=reviews.json ;;
 */check-runs/[0-9]*/annotations*) f="annotations_$(cut -d/ -f5 <<<"$endpoint").json" ;;
@@ -1011,8 +1015,13 @@ pv_scenario() {
   local conf='merge:\n  agent-identity: lanes-app[bot]\n  verify-authors: lane-or-owner # who pr-verify judges\n'
   printf '{"data":{"repository":{"w":{"oid":"f00"},"c":{"text":"%s"},"t":{"text":"{\\"actors\\":[{\\"id\\":9}]}"}}}}\n' "$conf" >"$FIX/graphql_scope.json"
 }
+pv_artifact() {
+  [[ -f "$FIX/artifacts.json" ]] || echo '{"artifacts":[]}' >"$FIX/artifacts.json"
+  jq --arg n "$1" --argjson id "$2" --arg b "${3:-main}" '.artifacts += [{name: $n, expired: false, workflow_run: {id: $id, head_branch: $b}}]' \
+    "$FIX/artifacts.json" >"$FIX/artifacts.next" && mv "$FIX/artifacts.next" "$FIX/artifacts.json"
+}
 pv_pass() {
-  echo '{"artifacts":[{"expired":false,"workflow_run":{"id":'"$2"',"head_branch":"main"}}]}' >"$FIX/artifacts_pr-verify-42-abc123-$1.json"
+  pv_artifact "pr-verify-42-abc123-$1" "$2"
   local o="${3-}"
   [[ -n "$o" ]] || o='{}'
   jq -n --argjson o "$o" '{status: "completed", conclusion: "success", path: ".github/workflows/pr-verify.yml",
@@ -1044,7 +1053,7 @@ run "pr-verify: PASS at the head stops at the first pass" 'gh pr merge 42 --auto
 assert_absent "first-name PASS -> no further artifact read" "$(calls)" "pass-notes"
 
 pv_scenario
-echo '{"artifacts":[{"expired":false,"workflow_run":{"id":7003,"head_branch":"main"}}]}' >"$FIX/artifacts_pr-verify-42-abc123-fail.json"
+pv_pass fail 7003
 run "pr-verify: FAIL at the head, label already removed" 'gh pr merge 42 --auto' 2
 assert_contains "FAIL at head -> refused" "$ERR" "no pr-verify PASS or PASS-NOTES verdict at its head abc123"
 pv_scenario
@@ -1054,15 +1063,17 @@ assert_contains "FAIL label -> the hold label refuses" "$ERR" "Hold labels: pr-v
 assert_absent "FAIL label -> no verdict read" "$(calls)" "actions/artifacts"
 
 pv_scenario
-echo '{"artifacts":[{"expired":false,"workflow_run":{"id":7004,"head_branch":"main"}}]}' >"$FIX/artifacts_pr-verify-42-old999-pass.json"
+pv_artifact pr-verify-42-old999-pass 7004
+pv_artifact "pr-verify-42-old999-pass-notes-$PV_DIGEST" 7004
+pv_pass fail-old 7004
 run "pr-verify: PASS only at an older head" 'gh pr merge 42 --auto' 2
 assert_absent "older head's PASS -> its run is never read" "$(calls)" "actions/runs/7004"
 pv_scenario
 pv_pass pass 7005 '{"conclusion":"failure"}'
 run "pr-verify: pass artifact from a run that failed" 'gh pr merge 42 --auto' 2
 pv_scenario
-pv_pass pass 7006 '{"head_branch":"feat/x"}'
-echo '{"artifacts":[{"expired":false,"workflow_run":{"id":7006,"head_branch":"feat/x"}}]}' >"$FIX/artifacts_pr-verify-42-abc123-pass.json"
+pv_pass pass-unused 7006 '{"head_branch":"feat/x"}'
+pv_artifact pr-verify-42-abc123-pass 7006 feat/x
 run "pr-verify: pass artifact uploaded off the default branch" 'gh pr merge 42 --auto' 2
 assert_absent "off-default artifact -> its run is never read" "$(calls)" "actions/runs/7006"
 
@@ -1104,19 +1115,36 @@ rm -f "$FIX/contents_pr-verify.yml"
 run "pr-verify: GraphQL refused, no workflow on the base" 'gh pr merge 42 --auto' 0
 assert_absent "REST, no workflow -> no settings read" "$(calls)" "pr-pipeline.yaml"
 
+pv_scenario
+invoke "$(jq -n '{tool_name: "mcp__github__enable_pr_auto_merge", tool_input: {owner: "acme", repo: "widgets", pullNumber: 42}}')"
+assert_exit "pr-verify: MCP enable_pr_auto_merge before any verdict" 2 "$RC"
+assert_contains "MCP, no verdict -> refused" "$ERR" "no pr-verify PASS or PASS-NOTES verdict"
+pv_scenario
+assert_contains "pr-verify: the artifact read names the head" "$(invoke "$(command_json 'gh pr merge 42 --auto')"; calls)" "actions/artifacts?name=pr-verify-42-abc123-pass&"
+pv_scenario
+echo '{"errors":[{"message":"boom"}]}' >"$FIX/graphql_scope.json"
+touch "$FIX/graphql_refused"
+echo '{"path":".github/workflows/pr-verify.yml"}' >"$FIX/contents_pr-verify.yml"
+touch "$FIX/contents_error"
+run "pr-verify: a scope read that fails with an error other than 404 fails open" 'gh pr merge 42 --auto' 0
+assert_contains "failed scope read -> runs unchecked" "$OUT" "for its pr-verify verdict"
+
 for c in 'gh pr edit 42 --remove-label pr-verify-failed' 'gh pr edit 42 --remove-label bug,PR-Verify-Failed' \
   'gh pr edit 42 --remove-label=pr-verify-failed' 'gh issue edit 42 -R acme/widgets --remove-label pr-verify-failed' \
   'gh pr edit 42 --remove-label pr-verify-failed && gh pr merge 42 --auto' \
   'gh api -X DELETE repos/acme/widgets/issues/42/labels/pr-verify-failed' \
   'curl -X DELETE -H "Authorization: token x" https://api.github.com/repos/acme/widgets/issues/42/labels/pr-verify-failed' \
-  'L=pr-verify-failed; gh pr edit 42 --remove-label "$L"'; do
+  'L=pr-verify-failed; gh pr edit 42 --remove-label "$L"' \
+  'gh api -X DELETE repos/acme/widgets/issues/42/labels/pr%2Dverify%2Dfailed' \
+  'gh label delete pr-verify-failed --yes' 'gh label edit -R acme/widgets pr-verify-failed --name gone'; do
   scenario none none green green
   run "label removal: $c" "$c" 2
   assert_contains "label removal, $c -> says why" "$ERR" "removes the pr-verify-failed label"
   assert_eq "label removal, $c -> no gh call" "" "$(calls)"
 done
 for c in 'gh pr edit 42 --remove-label bug' 'gh pr edit 42 --add-label pr-verify-failed' \
-  'gh api repos/acme/widgets/issues/42/labels/pr-verify-failed' 'grep -n pr-verify-failed docs/a.md'; do
+  'gh api repos/acme/widgets/issues/42/labels/pr-verify-failed' 'grep -n pr-verify-failed docs/a.md' \
+  'gh label delete stale-label --yes' 'gh api -X DELETE repos/acme/widgets/issues/42/labels/bug%20fix'; do
   scenario unresolved requested failed failed
   run "not a pr-verify-failed removal: $c" "$c" 0
   assert_eq "not a removal, $c -> no gh call" "" "$(calls)"
@@ -1132,6 +1160,9 @@ run "GraphQL removeLabelsFromLabelable of another label" "$GQL_UNLABEL" 0
 scenario none none green green
 run "GraphQL label removal whose label read fails" "$GQL_UNLABEL" 0
 assert_contains "GraphQL label read fails -> runs unchecked" "$OUT" "runs unchecked"
+scenario none none green green
+run "GraphQL label removal with label ids from a variable" 'gh api graphql -f query="mutation(\$l:[ID!]!){removeLabelsFromLabelable(input:{labelableId:\"PR_x\",labelIds:\$l}){clientMutationId}}" -f "l[]=$LID"' 2
+assert_contains "GraphQL label removal, non-literal ids -> refused" "$ERR" "names no literal LA_ label id"
 scenario none none green green
 run "label removal, switched off" 'gh pr edit 42 --remove-label pr-verify-failed' 0 CLAUDE_PLUGIN_OPTION_BLOCK_UNRESOLVED_PR_MERGE_ENABLED=false
 
