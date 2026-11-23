@@ -10652,7 +10652,7 @@ class DependabotEligibility(unittest.TestCase):
         every = self.cdn_sync(["lib/cdn-pins/pins.json", *self.CDN_TARGETS])
         self.assertTrue(every.eligible, every.reason)
 
-    def test_a_cdn_pins_sync_commit_is_only_the_base_registrys_files_in_place(
+    def test_a_cdn_pins_sync_commit_is_only_the_base_registry_files_in_place(
         self,
     ) -> None:
         pins, target = "lib/cdn-pins/pins.json", self.CDN_TARGETS[0]
