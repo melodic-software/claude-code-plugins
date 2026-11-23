@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "INVALID (2 run errors; permission denials unchecked: no kept traces). Post that line, not a number. Fix the errored runs and rerun with --keep-temp so the trace checks can run."
+    },
+    {
+      "answer": "No delta to give: the verdict is INVALID. Post the verdict line with its reasons, then rerun the suite with `--keep-temp` after fixing the two errors."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "INVALID: 2 run errors, traces unchecked. Post that line."
+    },
+    {
+      "answer": "The run is INVALID because of two errors and missing traces; post the INVALID line and rerun once the errors are fixed."
+    }
+  ]
+}
