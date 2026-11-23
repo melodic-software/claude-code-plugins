@@ -21,7 +21,7 @@ export { TITLE_CAPS, withTitle } from './core/commands.js'
 let isSessionUp = false
 /** Whether the room started in this session: it starts only once a desktop surface is attached. */
 let started = false
-/** Set while the last desktop window has detached: /bedroom says so. */
+/** Set once a desktop window detaches, until one attaches: /bedroom says so while the roster holds no desktop. */
 let desktopGone = false
 
 /** Registers /bedroom and starts the room, once a session: at session.start with a desktop attached, or on the first desktop attach or above-prompt render. */
@@ -134,7 +134,8 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'bedroom' }, async ($, e) => {
     const answer = await runCommand($, e.args)
-    const text = desktopGone ? `no desktop window shows this session; ${answer}` : answer
+    const isGone = desktopGone && !(await $.session.surfaces()).includes('desktop')
+    const text = isGone ? `no desktop window shows this session; ${answer}` : answer
     flush($)
     const [word = '', key = ''] = e.args.trim().toLowerCase().split(/ +/)
     if (word === 'title') forgetDraft(key)

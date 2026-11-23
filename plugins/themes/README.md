@@ -22,8 +22,8 @@ The catalog entry sets `defaultEnabled: false`, because the backdrop takes over 
 - The Claude Code desktop app. The room and `/bedroom` start only once a desktop window shows the
   session; a session no desktop window shows (a terminal, VS Code, mobile or `claude -p`) lists no
   `/bedroom` and runs none of the room's work. A desktop window that attaches later starts it then.
-- Claude Code 2.1.287 or later, the floor for mods. `claude plugin validate` and
-  `claude plugin test` pass on 2.1.329.
+- Claude Code 2.1.326 or later, the first version that keeps `/bedroom` answers from the model.
+  `claude plugin validate` and `claude plugin test` pass on 2.1.331.
 
 ## Bedroom
 

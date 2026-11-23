@@ -42,6 +42,7 @@ function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: s
   on('ui.toast', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.attach', (_, e) => ({ clientId: e.clientId }))
+  on('session.detach', (_, e) => ({ clientId: e.clientId }))
 
   return mock.clock(on)
 }
@@ -640,6 +641,33 @@ test('a desktop window attaching after the session starts starts the room once',
 
   expect(registered).toEqual(['bedroom'])
   expect(themeCalls).toEqual(['set'])
+})
+
+test('a card row placed for the desktop draws no card on a terminal showing the same session', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, ['terminal', 'desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await bedroom($, '')
+
+  const ui = await $.ui.mount({ ...cardOf(placed[0]!), surface: 'terminal' })
+
+  expect(await ui.find({ type: 'Button' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('/bedroom says no desktop window shows the session only once the last one detaches', async ($, on) => {
+  const surfaces: ('terminal' | 'desktop')[] = ['desktop']
+
+  engine(on, surfaces, [])
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.session.attach({ surface: 'desktop', clientId: 'desktop:second' })
+  await $.session.detach({ surface: 'desktop', clientId: 'desktop:second', reason: 'detach' })
+  expect(await bedroom($, 'status')).toBe(STATUS)
+
+  surfaces.length = 0
+  await $.session.detach({ surface: 'desktop', clientId: 'desktop:default', reason: 'detach' })
+  expect(await bedroom($, 'status')).toBe(`no desktop window shows this session; ${STATUS}`)
 })
 
 const ABOVE_PROMPT = {

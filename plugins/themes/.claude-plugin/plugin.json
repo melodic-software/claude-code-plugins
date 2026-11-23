@@ -8,7 +8,7 @@
   "version": "0.4.2",
   "license": "MIT",
   "engines": {
-    "claude-code": ">=2.1.287"
+    "claude-code": ">=2.1.326"
   },
   "types": "./types/index.d.ts",
   "userConfig": {
