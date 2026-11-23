@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for the audit-type-debt entry point (audit-type-debt.sh):
-# the file rows and the lane row both collectors produce, the lanes that are
-# not-applicable, the null reference, and what an absent tool looks like.
-#
-# Both tools are stubbed at runtime (design T13): a temporary bin/ prepended to
-# a PATH filtered of every collector name carries a fake `type-coverage`
-# replaying fixtures/tool-output/type-coverage.json and a fake `mypy` writing
-# fixtures/tool-output/mypy-any-exprs.txt into the report directory it is
-# given. Every case runs from a scratch working directory, because the
-# type-coverage probe reads ./node_modules/typescript from the current
-# directory. The fixture sources are copied into that directory under their
-# repository-relative path and passed relative, as the dispatcher passes a
-# scope in a real run, because the type-coverage capture names its file by
-# that relative path and a file row matches a scope file on the path.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -65,10 +51,6 @@ cp "$1" "\$dir/any-exprs.txt"
 EOF
 }
 mypy_stub "$MYPY_CAPTURE" >"$STUBS/mypy"
-# The type-coverage adapter reads the tsconfig program through `node` and the
-# project's typescript; this stub stands in for that listing, and fails the
-# way node does when the working directory has no typescript, so the probe's
-# `require.resolve('typescript')` check still fails in the bare directory.
 cat >"$STUBS/node" <<'EOF'
 #!/usr/bin/env bash
 if [[ ! -f node_modules/typescript/package.json ]]; then
@@ -87,9 +69,6 @@ SCOPE="plugins/code-metrics/scripts/fixtures/sources"
 mkdir -p "$PROJECT/${SCOPE%/*}"
 cp -R "$SOURCES" "$PROJECT/$SCOPE"
 
-# The five lane fixtures this suite measures, named so the affected-tests
-# runner maps them here: cm-sample.ts, cm_sample.py, cm-sample.sh,
-# cm-sample.go, CmSample.cs.
 for fixture in cm-sample.ts cm_sample.py cm-sample.sh cm-sample.go CmSample.cs; do
   [[ -f "$SOURCES/$fixture" ]] ||
     fail "the lane fixture $fixture exists" "a file at $SOURCES/$fixture" "missing"
@@ -145,10 +124,6 @@ assert_doc "its reason states that type-coverage needs a resolvable typescript" 
 assert_doc "the python lane still reports while typescript cannot" "$out" \
   'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
-# 3b. mypy resolves but a blocking error (a duplicate module name) stops it
-# before analysis: it exits 2 and still writes an empty report. The adapter
-# exits 4, the python row reads `unavailable` with mypy's own message rather
-# than a 100% measurement, and the run is not a failure.
 ABORT_STUBS="$WORK/abort-stubs"
 mkdir -p "$ABORT_STUBS"
 cp "$STUBS/type-coverage" "$STUBS/node" "$ABORT_STUBS/"
@@ -170,9 +145,6 @@ assert_doc "its reason carries mypy's own duplicate-module message" "$out" \
 assert_doc "the typescript lane still reports while mypy cannot" "$out" \
   'any(r["lane"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
-# 3c. mypy exits 1 (type errors) and still writes the report: the rows are
-# kept, the lane row is labeled, and the run row's reason counts the errors
-# and the missing stubs among them.
 ERROR_STUBS="$WORK/error-stubs"
 mkdir -p "$ERROR_STUBS"
 cp "$STUBS/type-coverage" "$STUBS/node" "$ERROR_STUBS/"

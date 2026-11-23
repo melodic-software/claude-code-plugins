@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Self-contained contract tests for changed-code-files.sh (runs against throwaway
-# git repos under mktemp; never touches the enclosing repository).
 set -uo pipefail
 
-# An inherited absolute GIT_DIR outranks -C and would point fixture writes at the
-# caller's repository; clear the git environment before any fixture is built.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -95,7 +91,6 @@ out=$(cd "$NOREPO" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1
 rc=$?
 assert_exit "outside a repo exits 1" 1 "$rc"
 
-# --- 5. One untracked file per extension in the shared list ---------------------
 
 UNION="$TEST_TMPDIR/union"
 make_repo "$UNION"
@@ -116,7 +111,6 @@ done
 assert_absent "a .txt file is still excluded" "$out" "notes.txt"
 assert_equal "28 code files listed" 28 "$(printf '%s\n' "$out" | grep -c .)"
 
-# --- 6. An unreadable extension list is named, never an empty match --------------
 
 LONE="$TEST_TMPDIR/lone"
 mkdir -p "$LONE"

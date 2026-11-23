@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# changed-code-files.sh — list uncommitted code files for remove-comments' audit
-# action.
-#
-# Kept out of SKILL.md: skill argument substitution rewrites `$<digit>` anywhere in a
-# skill body, which corrupted this awk's `substr($0, ...)` calls inline.
-#
-# Usage: changed-code-files.sh [max]
-#   max — cap on emitted paths (default 10)
-#
 # Output: up to <max> repo-relative paths of changed or untracked code files, one
 # per line, in `git status` order; empty when nothing matches. Rename and copy
 # entries emit the new path only. Exit 1 when git status is unavailable; callers
