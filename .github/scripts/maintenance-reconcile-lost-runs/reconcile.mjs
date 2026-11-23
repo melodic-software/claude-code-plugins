@@ -247,7 +247,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate } from "../lib/github-client.mjs";
-import { jobNames, laneJob } from "../lib/lane-registry.mjs";
+import { callers, jobNames, laneJob } from "../lib/lane-registry.mjs";
 import { annotationsPath, firstAttemptJobsPath, graphqlCall, isObject, jobsKey, serveFirstAttemptJobs, slimJob } from "../lib/run-jobs.mjs";
 import { loadTrustedList, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
@@ -303,11 +303,12 @@ export const CI_WORKFLOWS = new Set([
 ]);
 export const GATE_JOBS = new Set([...GATED_REVIEWS].flatMap((path) => jobNames(path.slice(".github/workflows/".length), "check-kill-switch")));
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
-// The step that job runs when a kill switch stops the review, and the caller's
-// job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;
-// pr-review on a head tested before the rename).
 export const REVIEW_STOP_STEP = "Report the kill switch";
-const REVIEW_JOB = /^(PR Review|pr-review)/;
+const PR_REVIEW_CLI = "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml";
+export const REVIEW_JOB_PREFIXES =[...GATED_REVIEWS].flatMap((path) => {
+  const workflow = path.slice(".github/workflows/".length);
+  return callers(workflow, PR_REVIEW_CLI).flatMap((id) => jobNames(workflow, id));
+});
 // GitHub re-runs a run up to 30 days after its initial run
 // (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 export const RERUN_WINDOW_DAYS = 30;
@@ -936,7 +937,7 @@ export const upstreamStopped = (jobs) =>
 // short proves nothing, so that head stays with a person (ci-status names it).
 export const reviewStopped = (jobs) =>
   Array.isArray(jobs) &&
-  !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
+  !jobs.some((job) => REVIEW_JOB_PREFIXES.some((prefix) => (job?.name ?? "").startsWith(prefix)) && job.conclusion !== "skipped") &&
   jobs.some((job) => GATE_JOBS.has(job?.name) && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
 
 const CLAUDE_REVIEW_STEP = "Claude review";
