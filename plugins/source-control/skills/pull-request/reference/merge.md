@@ -49,11 +49,13 @@ Re-check all check runs for any state changes, then re-check for new comments si
    judges the PR's author, read its verdict at `HEAD_SHA` by the pass names the merge queue's own
    check reads
    ([GitHub](../../../reference/providers/github/pull-request/merge.md#read-the-pr-verify-verdict)),
-   and merge or enqueue only on a pass. While the read answers `missing` (pr-verify has not
-   judged that head yet), read it again every 60 seconds, for up to 30 minutes, then hold. A FAIL
-   at the head, a moved head or a failed read is a hold to report. The merge queue removes a PR
-   whose head pr-verify fails, so a PR queued before the verdict spends a queue entry and a
-   removal. This step applies whether the user approves the merge (step 5) or §4.2.1
+   and merge or enqueue on a pass. While the read answers `missing` (pr-verify has not judged that
+   head yet), read it again every 60 seconds, for up to 30 minutes. A FAIL at the head, a moved
+   head or a failed read is a hold to report. Still `missing` after 30 minutes (pr-verify down, or
+   a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. The
+   merge queue's own check requires a pass only for some authors, so a pr-verify outage must not
+   stop every other merge. The wait exists because the merge queue removes a PR whose head
+   pr-verify fails, so a PR queued before the verdict spends a queue entry and a removal. This step applies whether the user approves the merge (step 5) or §4.2.1
    clears it.
 4. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
 5. Wait for user approval (merge is irreversible) unless the PR qualifies for
