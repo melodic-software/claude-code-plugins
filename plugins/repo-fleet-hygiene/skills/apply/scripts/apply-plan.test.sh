@@ -42,7 +42,6 @@ assert_not_contains() {
   fi
 }
 
-# Whether a branch survived a run is the mutation evidence most cases assert on.
 assert_branch_kept() {
   local name=$1 repo=$2 branch=$3
   if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
@@ -112,7 +111,6 @@ make_repo "$REPO_B"
 OID_A="$(add_merged_branch "$REPO_A" "feat/alpha")"
 OID_B="$(add_merged_branch "$REPO_B" "feat/beta")"
 
-# Worktree on repo-a for merged-worktree path (separate branch).
 OID_WT="$(
   git -C "$REPO_A" checkout -q -b feat/wt
   printf 'wt\n' >"$REPO_A/wt.txt"
@@ -252,7 +250,6 @@ if "remove-worktree-then-branch" not in actions[2]:
     sys.exit(1)
 print("PASS: ordering branches before worktrees")
 PY
-# Branches still exist after dry-run.
 if git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/alpha &&
   git -C "$REPO_B" show-ref --verify --quiet refs/heads/feat/beta &&
   [[ -d "$WT_PATH" ]]; then
@@ -285,7 +282,6 @@ drift_out="$TMP/drift.txt"
 bash "$SCRIPT" --plan-file "$PLAN" --apply --yes >"$drift_out" 2>&1
 assert_contains "OID drift skipped" "OID drift" "$drift_out"
 assert_branch_kept "drifted branch retained" "$REPO_A" feat/alpha
-# Non-drifted branch and worktree should still apply.
 assert_branch_deleted "non-drifted branch deleted" "$REPO_B" feat/beta
 if [[ ! -d "$WT_PATH" ]] && ! git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/wt; then
   pass "matching worktree removed and branch deleted"
@@ -816,7 +812,6 @@ assert_contains "moved remote tip is skipped with an OID-drift reason" "OID drif
 assert_contains "drift row shows the live tip" "live_oid: $RD_NEW" "$rd_out"
 assert_remote_head "drifted remote head is untouched" "$REMOTE_BARE" feat/moved "$RD_NEW"
 
-# The default branch and an already-gone head are skipped as well.
 make_remote_repo rd2
 RD2_MAIN="$(git -C "$REMOTE_REPO" rev-parse HEAD)"
 RD2_PLAN="$TMP/rd2-plan.json"
