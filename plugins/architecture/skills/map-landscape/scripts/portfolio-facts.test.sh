@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Every fixture is built in a mktemp directory and torn down on exit; nothing
-# here reads or writes a real repository.
 set -uo pipefail
 
-# Isolate the fixture repositories from any ambient git environment. `git -C`
-# changes directory but does not override discovery, so an exported absolute
-# GIT_DIR would land these throwaway identities in the CALLER's .git/config,
-# and GIT_CONFIG is a second leak path that survives a cleared GIT_DIR.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,9 +11,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# A committed fixture repository with an isolated identity, so a machine
-# without a global git identity still produces a commit (and therefore a
-# last_touched value).
 make_repo() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir"
@@ -31,14 +22,11 @@ make_repo() {
   printf '%s' "$dir"
 }
 
-# A fresh `git init` has no hooks, so --no-verify is belt-and-braces rather
-# than a bypass of anything the fixture installed.
 commit_repo() {
   git -C "$1" add -A 2>/dev/null
   git -C "$1" commit --quiet --no-verify -m "fixture" 2>/dev/null
 }
 
-# Read one JSON field out of a single-object JSON Lines record without jq.
 field() {
   printf '%s' "$1" | awk -v key="$2" '
     {
@@ -52,9 +40,6 @@ field() {
   '
 }
 
-# Read one JSON array field out of a single-object JSON Lines record. The
-# leading quote in the search pattern is what keeps `"dependencies":[` from
-# matching inside `"dev_dependencies":[`.
 array_field() {
   printf '%s' "$1" | awk -v key="$2" '
     {
@@ -73,7 +58,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Case group 1: a .NET repository ----------------------------------------
 dotnet_repo="$(make_repo dotnet-svc)"
 mkdir -p "$dotnet_repo/src"
 cat >"$dotnet_repo/src/Billing.csproj" <<'CSPROJ'
@@ -113,7 +97,6 @@ assert_contains "dotnet: PackageReference collected (Serilog)" "$out" '"Serilog"
 assert_contains "dotnet: last_touched is an ISO timestamp" "$out" '"last_touched":"20'
 assert_contains "dotnet: evidence names the csproj" "$out" 'src/Billing.csproj'
 
-# --- Case group 2: a Node repository ----------------------------------------
 node_repo="$(make_repo web-app)"
 cat >"$node_repo/package.json" <<'PKG'
 {
@@ -137,7 +120,6 @@ assert_contains "node: devDependencies are reported at development scope" \
 assert_equals "node: a manifest with runtime deps claims no tooling family" "$(field "$out" tooling)" "unknown"
 assert_not_contains "node: version ranges are not mistaken for keys" "$out" '"^19.0.0"'
 
-# --- Case group 3: a Python repository --------------------------------------
 py_repo="$(make_repo data-pipeline)"
 cat >"$py_repo/pyproject.toml" <<'PYPROJ'
 [project]
@@ -156,7 +138,6 @@ assert_contains "python: dependency name without its specifier" "$out" '"httpx"'
 assert_contains "python: second dependency name" "$out" '"pydantic"'
 assert_not_contains "python: the version specifier is stripped" "$out" '>=0.27'
 
-# --- Case group 4: a Go repository ------------------------------------------
 go_repo="$(make_repo edge-proxy)"
 cat >"$go_repo/go.mod" <<'GOMOD'
 module example.invalid/edge-proxy
@@ -175,7 +156,6 @@ assert_equals "go: target_framework from the go directive" "$(field "$out" targe
 assert_contains "go: require-block module collected" "$out" '"github.com/spf13/cobra"'
 assert_contains "go: second require-block module collected" "$out" '"golang.org/x/sync"'
 
-# --- Case group 5: an empty repository --------------------------------------
 empty_repo="$(make_repo blank)"
 printf 'nothing here\n' >"$empty_repo/README.md"
 commit_repo "$empty_repo"
@@ -187,7 +167,6 @@ assert_equals "empty: remote is unknown" "$(field "$out" remote)" "unknown"
 assert_contains "empty: dependencies list is empty" "$out" '"dependencies":[]'
 assert_not_contains "empty: no runtime is guessed from the directory name" "$out" '"runtime":"shell"'
 
-# --- Case group 6: CODEOWNERS wins the owner ladder -------------------------
 owned_repo="$(make_repo owned-svc)"
 mkdir -p "$owned_repo/.github"
 cat >"$owned_repo/.github/CODEOWNERS" <<'CO'
@@ -202,7 +181,6 @@ assert_equals "owner ladder: CODEOWNERS default rule beats the remote" "$(field 
 assert_contains "owner ladder: evidence names the CODEOWNERS path" "$out" '.github/CODEOWNERS'
 assert_not_contains "owner ladder: the non-default rule owner is not taken" "$out" '"owner":"docs-team"'
 
-# --- Case group 6b: credentials in the origin URL never reach the record ------
 cred_repo="$(make_repo cred-remote)"
 printf 'x\n' >"$cred_repo/README.md"
 git -C "$cred_repo" remote add origin "https://someone:not-a-real-value@example.invalid/acme/cred-remote.git"
@@ -220,7 +198,6 @@ git -C "$cred_repo" remote set-url origin "ssh://git@example.invalid/acme/cred-r
 out="$(bash "$SCRIPT" "$cred_repo")"
 assert_equals "remote: an ssh user with no password is unchanged" "$(field "$out" remote)" "ssh://git@example.invalid/acme/cred-remote.git"
 
-# --- Case group 7: remote owner is the fallback rung ------------------------
 remote_repo="$(make_repo remote-only)"
 printf 'x\n' >"$remote_repo/README.md"
 git -C "$remote_repo" remote add origin "git@example.invalid:fallback-owner/remote-only.git"
@@ -230,11 +207,6 @@ assert_equals "owner ladder: scp-style remote owner segment" "$(field "$out" own
 assert_contains "owner ladder: evidence names the remote" "$out" 'origin remote URL'
 assert_contains "remote: URL is reported verbatim" "$out" 'fallback-owner/remote-only.git'
 
-# --- Case group 7a: a port in the authority is not an owner ------------------
-# With a scheme, a colon in the authority is a PORT. An unconditional scp-style
-# conversion promotes it to a path segment, so `https://host:8080/acme/repo`
-# resolves to owner `8080` — the same fabricated-fact-with-a-citation the
-# host-required guard exists to stop, arriving by a different route.
 port_repo="$(make_repo ported-remote)"
 printf 'x\n' >"$port_repo/README.md"
 git -C "$port_repo" remote add origin "https://example.invalid:8080/ported-owner/ported-remote.git"
@@ -250,16 +222,6 @@ commit_repo "$ssh_port_repo"
 out="$(bash "$SCRIPT" "$ssh_port_repo")"
 assert_equals "owner ladder: ssh URL with a port keeps its real owner" "$(field "$out" owner)" "ssh-owner"
 
-# --- Case group 7b: a local-path remote names no owner -----------------------
-# A git remote is often a plain filesystem path, and a path's first segment is a
-# directory, not an owner. Reporting one would be a fabricated fact carrying an
-# "origin remote URL" citation.
-#
-# The remote is RELATIVE on purpose. An MSYS bash rewrites a POSIX-absolute
-# argument into a Windows path before git ever sees it, so an absolute fixture
-# would assert against `C:/Program Files/Git/...` on one platform and the
-# original on another. A relative path is left alone everywhere and exercises
-# the same branch.
 localpath_repo="$(make_repo local-remote)"
 printf 'x\n' >"$localpath_repo/README.md"
 git -C "$localpath_repo" remote add origin "../sibling-upstream"
@@ -271,7 +233,6 @@ assert_not_contains "owner ladder: no fabricated owner from the path" "$out" '"o
 assert_not_contains "owner ladder: an unknown owner is not cited to the remote" "$out" '"owner":"origin remote URL"'
 assert_contains "owner ladder: the remote itself is still reported" "$out" 'sibling-upstream'
 
-# The same rule through a scheme with an empty authority: no host, no owner.
 fileurl_repo="$(make_repo file-url-remote)"
 printf 'x\n' >"$fileurl_repo/README.md"
 git -C "$fileurl_repo" remote add origin "file:///opt/mirrors/upstream"
@@ -281,7 +242,6 @@ assert_equals "owner ladder: file:// with an empty authority yields unknown" \
   "$(field "$out" owner)" "unknown"
 assert_not_contains "owner ladder: no fabricated owner from a file URL" "$out" '"owner":"opt"'
 
-# --- Case group 7c: a nested member must not shadow the top-level one --------
 nested_repo="$(make_repo nested-deps)"
 cat >"$nested_repo/package.json" <<'PKG'
 {
@@ -296,7 +256,6 @@ assert_contains "nested: the top-level dependencies win (a)" "$out" '"real-dep-a
 assert_contains "nested: the top-level dependencies win (b)" "$out" '"real-dep-b"'
 assert_not_contains "nested: a same-named nested member does not shadow them" "$out" '"ghost-from-nested"'
 
-# --- Case group 8: the dependency cap ---------------------------------------
 capped_repo="$(make_repo capped)"
 {
   printf '{\n  "dependencies": {\n'
@@ -313,7 +272,6 @@ assert_equals "cap: dependencies truncated to 25" "$dep_count" "25"
 assert_contains "cap: sorted, so the first name survives" "$out" '"pkg-01"'
 assert_not_contains "cap: sorted, so the last name is dropped" "$out" '"pkg-40"'
 
-# --- Case group 9: shell only when nothing else claims the repository -------
 shell_repo="$(make_repo tooling)"
 printf '#!/usr/bin/env bash\necho hi\n' >"$shell_repo/run.sh"
 commit_repo "$shell_repo"
@@ -327,17 +285,7 @@ commit_repo "$mixed_repo"
 out="$(bash "$SCRIPT" "$mixed_repo")"
 assert_equals "shell: suppressed when another runtime matched" "$(field "$out" runtime)" "node"
 
-# --- Case group 9a: runtime scope versus development scope ------------------
-# A repository runs on its runtime; it is BUILT with its tooling. Every
-# ecosystem that distinguishes the two draws the line on scope (CycloneDX
-# `scope`, SPDX DEV_DEPENDENCY_OF, npm devDependencies, PEP 735 dependency
-# groups, the GitHub dependency graph's runtime/development), so a manifest
-# whose only content is development scope names a tool, never a runtime.
 
-# A CI config directory is kept and pinned to development scope: its manifest
-# is real evidence about the tooling and none at all about the runtime. A cache
-# directory is pruned outright, because its vendored manifests describe someone
-# else's package.
 dotdir_repo="$(make_repo ci-pinned)"
 mkdir -p "$dotdir_repo/.github" "$dotdir_repo/.mypy_cache/vendored"
 cat >"$dotdir_repo/.github/requirements-ci.txt" <<'REQ'
@@ -359,8 +307,6 @@ assert_not_contains "dot-dir: the CI pin is not a runtime dependency" \
 assert_contains "dot-dir: evidence cites the CI manifest" "$out" '.github/requirements-ci.txt'
 assert_not_contains "dot-dir: a cache directory is pruned outright" "$out" '.mypy_cache'
 
-# A devDependencies-only package.json is the shape every plugin repository in
-# this marketplace has: linters and formatters, no runtime dependency.
 devonly_repo="$(make_repo lint-only)"
 cat >"$devonly_repo/package.json" <<'PKG'
 {
@@ -379,7 +325,6 @@ assert_contains "dev-only: the dev dependency is reported" \
 assert_contains "dev-only: runtime dependencies stay empty" "$out" '"dependencies":[]'
 assert_contains "dev-only: evidence names the development scope" "$out" 'development scope'
 
-# A dev-scoped requirements file names a tool by its filename alone.
 devreq_repo="$(make_repo py-tooling)"
 cat >"$devreq_repo/requirements-dev.txt" <<'REQ'
 pytest==9.1.1
@@ -390,8 +335,6 @@ out="$(bash "$SCRIPT" "$devreq_repo")"
 assert_equals "dev-req: python is tooling, not the runtime" "$(field "$out" tooling)" "python"
 assert_contains "dev-req: the tool is a dev dependency" "$(array_field "$out" dev_dependencies)" '"pytest"'
 
-# One component's requirements file speaks for that component, not the
-# repository: it must neither claim the runtime nor hide the CI requirements.
 nestedreq_repo="$(make_repo plugin-extras)"
 mkdir -p "$nestedreq_repo/.github" "$nestedreq_repo/plugins/anim"
 printf 'ruff==0.16.5\npytest==9.1.1\n' >"$nestedreq_repo/.github/requirements-ci.txt"
@@ -404,7 +347,6 @@ assert_equals "nested-req: the CI requirements still report python tooling" "$(f
 assert_contains "nested-req: the CI tools are dev dependencies" "$(array_field "$out" dev_dependencies)" '"ruff"'
 assert_not_contains "nested-req: the component's package is not a repository dependency" "$out" '"numpy"'
 
-# A root-level requirements file still claims the runtime beside the CI one.
 rootreq_repo="$(make_repo py-app)"
 mkdir -p "$rootreq_repo/.github" "$rootreq_repo/plugins/anim"
 printf 'ruff==0.16.5\n' >"$rootreq_repo/.github/requirements-ci.txt"
@@ -416,7 +358,6 @@ assert_equals "root-req: a root requirements file claims the runtime" "$(field "
 assert_contains "root-req: its packages are runtime dependencies" "$(array_field "$out" dependencies)" '"flask"'
 assert_not_contains "root-req: a component's file adds nothing" "$out" '"numpy"'
 
-# A nested Python package declares itself, so it still claims the runtime.
 nestedpkg_repo="$(make_repo py-monorepo)"
 mkdir -p "$nestedpkg_repo/services/api"
 printf '[project]\nname = "api"\ndependencies = ["fastapi"]\n' >"$nestedpkg_repo/services/api/pyproject.toml"
@@ -425,8 +366,6 @@ out="$(bash "$SCRIPT" "$nestedpkg_repo")"
 assert_equals "nested-pkg: a nested pyproject still claims the runtime" "$(field "$out" runtime)" "python"
 assert_contains "nested-pkg: its dependencies are collected" "$(array_field "$out" dependencies)" '"fastapi"'
 
-# Runtime and tooling coexist: the runtime is claimed by the runtime-scope
-# manifest, and the dev-only manifest still reports its family as tooling.
 both_repo="$(make_repo svc-with-tooling)"
 cat >"$both_repo/go.mod" <<'GOMOD'
 module example.invalid/svc-with-tooling
@@ -446,7 +385,6 @@ assert_equals "both: target_framework follows the runtime" "$(field "$out" targe
 assert_contains "both: the runtime dependency is collected" "$(array_field "$out" dependencies)" '"github.com/spf13/cobra"'
 assert_contains "both: the tool is collected separately" "$(array_field "$out" dev_dependencies)" '"prettier"'
 
-# A root manifest beats a deeper one, whatever the sort order would say.
 rooted_repo="$(make_repo rooted)"
 mkdir -p "$rooted_repo/apps/inner"
 cat >"$rooted_repo/apps/inner/package.json" <<'PKG'
@@ -460,7 +398,6 @@ out="$(bash "$SCRIPT" "$rooted_repo")"
 assert_equals "root-first: the root manifest supplies the framework" "$(field "$out" target_framework)" ">=22"
 assert_contains "root-first: the root dependency is collected" "$(array_field "$out" dependencies)" '"root-dep"'
 
-# --- Case group 9b: checkout identity follows github.com origin (#4554) ----
 ident_repo="$(make_repo weird-checkout-name)"
 git -C "$ident_repo" remote add origin "https://github.com/acme/canonical-repo.git"
 printf 'service
@@ -491,7 +428,6 @@ commit_repo "$nongh_pf"
 out3="$(bash "$SCRIPT" "$nongh_pf")"
 assert_equals "identity: non-github origin keeps directory name (#4554)" "$(field "$out3" name)" "local-only-name"
 
-# --- Case group 10: multiple repositories, and a bad path -------------------
 out="$(bash "$SCRIPT" "$dotnet_repo" "$node_repo")"
 line_count="$(printf '%s\n' "$out" | grep -c '^{')"
 assert_equals "multi: one JSON object per repository" "$line_count" "2"
@@ -502,7 +438,6 @@ assert_equals "bad path: exits 1" "$bad_rc" "1"
 assert_contains "bad path: names the skipped path on stderr" "$bad_out" "not a directory, skipped"
 assert_contains "bad path: still emits the good repository" "$bad_out" '"name":"web-app"'
 
-# --- Case group 11: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no arguments exits 2" "$?" "2"
 

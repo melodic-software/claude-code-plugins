@@ -410,7 +410,8 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
   // The name the gate reads is the name the job uploads; the scan covers the same file.
@@ -462,7 +463,8 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
   assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);

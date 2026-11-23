@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Every fixture is built in a mktemp directory and torn down on exit; nothing
-# here reads or writes a real repository.
 set -uo pipefail
 
-# Isolate the fixture repositories from any ambient git environment: `git -C`
-# changes directory but does not override discovery, so an exported GIT_DIR
-# would land these throwaway identities in the CALLER's .git/config.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,9 +23,6 @@ make_repo() {
   printf '%s' "$dir"
 }
 
-# One pinned instant for every fixture commit. The record carries `last_touched`
-# (committer date, whole seconds), so two checkouts committed a second apart
-# would otherwise differ in a field the identity case compares byte for byte.
 FIXTURE_COMMIT_DATE="2026-01-01T00:00:00+00:00"
 
 commit_repo() {
@@ -44,7 +36,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- The fixture repository -------------------------------------------------
 repo="$(make_repo hub)"
 mkdir -p "$repo/.github/workflows" "$repo/docs"
 cat >"$repo/.github/workflows/ci.yml" <<'YML'
@@ -58,7 +49,6 @@ MD
 printf 'echo hi\n' >"$repo/run.sh"
 commit_repo "$repo"
 
-# --- Case group 1: the record's shape ---------------------------------------
 out="$(bash "$SCRIPT" "$repo")"
 rc=$?
 assert_equals "record: a clean build exits 0" "$rc" "0"
@@ -71,8 +61,6 @@ assert_not_contains "record: minus the local checkout path, which is not archite
 assert_contains "record: so are the edges" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_contains "record: including the weaker cites edge" "$out" '"to":"fixture-owner/standards"'
 
-# One object per line keeps the record diffable and parseable without a JSON
-# library, so the shape itself is asserted rather than left to chance.
 obj_lines="$(printf '%s\n' "$out" | grep -c '^    {')"
 assert_equals "record: every array element sits on its own line" "$obj_lines" "4"
 
@@ -84,14 +72,12 @@ else
   pass "record: JSON parse skipped, node not installed"
 fi
 
-# --- Case group 2: the recorded provenance is what the caller said ----------
 out="$(bash "$SCRIPT" "$repo" --source "current repository plus reference graph" --remote "used, owned only")"
 assert_contains "provenance: --source is recorded verbatim" "$out" '"discovery_source": "current repository plus reference graph"'
 assert_contains "provenance: --remote is recorded verbatim" "$out" '"remote": "used, owned only"'
 out="$(bash "$SCRIPT" "$repo" --source=inline --remote=inline)"
 assert_contains "provenance: the = spelling works too" "$out" '"discovery_source": "inline"'
 
-# --- Case group 3: a repository with nothing to relate ----------------------
 quiet="$(make_repo quiet)"
 printf 'Nothing references anything here.\n' >"$quiet/README.md"
 commit_repo "$quiet"
@@ -99,26 +85,22 @@ out="$(bash "$SCRIPT" "$quiet")"
 assert_contains "empty: an edgeless repository still records its facts" "$out" '{"name":"quiet",'
 assert_contains "empty: and an empty edge array, not a missing key" "$out" '"edges": []'
 
-# --- Case group 4: --edges-from picks the citing repository -----------------
 out="$(bash "$SCRIPT" "$quiet" "$repo" --edges-from "$repo")"
 assert_contains "edges-from: facts cover both repositories" "$out" '{"name":"quiet",'
 assert_contains "edges-from: and edges come from the named one" "$out" '"from":"hub"'
 out="$(bash "$SCRIPT" "$quiet" "$repo")"
 assert_contains "edges-from: it defaults to the first path" "$out" '"edges": []'
 
-# --- Case group 5: --owner reaches the edge extractor -----------------------
 out="$(bash "$SCRIPT" "$repo" --owner other-org)"
 assert_contains "owner: an override marks a same-name target external" "$out" '"relation":"external"'
 assert_not_contains "owner: and no longer trusts the old owner's bare tokens" "$out" '"to":"fixture-owner/standards"'
 
-# --- Case group 6: drift against an identical record ------------------------
 bash "$SCRIPT" "$repo" >"$TEST_TMPDIR/committed.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/committed.json")"
 rc=$?
 assert_equals "drift: an unchanged repository exits 0" "$rc" "0"
 assert_contains "drift: and says so plainly" "$out" "none"
 
-# --- Case group 7: drift the caller must see --------------------------------
 sed 's|"fixture-owner/ci-workflows"|"fixture-owner/gone-away"|' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/edge-drift.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/edge-drift.json")"
@@ -133,30 +115,23 @@ out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/fact-drift.json")"
 assert_equals "drift: a changed fact exits 3 too" "$?" "3"
 assert_contains "drift: it names the field, the old value and the new" "$out" 'changed fact on hub: runtime: "rust" -> "shell"'
 
-# A record written by an earlier version still carries `path`; comparing against
-# one must not report the local checkout location as architecture drift.
 sed 's|{"name":"hub",|{"name":"hub","path":"/somewhere/else",|' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/path-drift.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/path-drift.json")"
 assert_equals "drift: a moved checkout is not architecture drift" "$?" "0"
 
-# A repository anyone is working in moves its HEAD constantly, so the timestamp
-# is reported and never gated on: a check lane red on every commit gets muted.
 sed 's|"last_touched":"[^"]*"|"last_touched":"2020-01-01T00:00:00+00:00"|' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/time-drift.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/time-drift.json")"
 assert_equals "drift: a newer HEAD does not fail the check" "$?" "0"
 assert_contains "drift: but it is still reported" "$out" "moved on hub: last_touched"
 
-# The same checkout reports a different origin URL depending on whether it was
-# cloned over https or ssh; that is the clone's transport, not the system's.
 sed 's|"remote":"[^"]*"|"remote":"ssh://git@github.com/fixture-owner/hub"|' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/remote-transport-drift.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/remote-transport-drift.json")"
 assert_equals "drift: a different clone transport does not fail the check" "$?" "0"
 assert_contains "drift: but it is still reported" "$out" "remote transport differs on hub: remote"
 
-# A repository that left the record, and one that joined it.
 out="$(bash "$SCRIPT" "$repo" "$quiet" --edges-from "$repo" \
   --drift-against "$TEST_TMPDIR/committed.json")"
 assert_equals "drift: a new repository exits 3" "$?" "3"
@@ -166,15 +141,12 @@ bash "$SCRIPT" "$repo" "$quiet" --edges-from "$repo" >"$TEST_TMPDIR/two.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/two.json")"
 assert_contains "drift: a dropped repository is named as removed" "$out" "removed repository: quiet"
 
-# --- Case group 8: evidence that no longer exists ---------------------------
 rm "$repo/docs/notes.md"
 commit_repo "$repo"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/committed.json")"
 assert_equals "evidence: a deleted citation is drift" "$?" "3"
 assert_contains "evidence: the edge it supported is named as removed" "$out" "removed edge: fixture-owner/standards"
 
-# A record whose cited file is gone while the edge survives: the report says so
-# rather than leaving a dangling citation in a committed artifact.
 ev_repo="$(make_repo evidence)"
 mkdir -p "$ev_repo/docs"
 printf 'We use fixture-owner/toolkit here.\n' >"$ev_repo/docs/a.md"
@@ -187,10 +159,6 @@ out="$(bash "$SCRIPT" "$ev_repo" --drift-against "$TEST_TMPDIR/ev.json")"
 assert_not_contains "evidence: an edge still cited by one file survives" "$out" "removed edge: fixture-owner/toolkit"
 assert_contains "evidence: but the count change is reported" "$out" "changed"
 
-# --- Case group 8a: comparisons this script cannot honestly make ------------
-#
-# Two checkouts sharing a basename collapse onto one identity, so the field pass
-# would silently match the wrong row. Saying so beats guessing.
 dup_a="$(make_repo dupname)"
 printf 'echo a\n' >"$dup_a/run.sh"
 commit_repo "$dup_a"
@@ -209,8 +177,6 @@ out="$(bash "$SCRIPT" "$dup_a" "$dup_b" --edges-from "$dup_a" --drift-against "$
 assert_equals "ambiguity: a colliding basename is drift, not a silent wrong match" "$?" "3"
 assert_contains "ambiguity: and the collision is named" "$out" "ambiguous repository identity: several checkouts are named dupname"
 
-# A record built with remote facts carries repositories no local-only run can
-# produce; without this guard every one of them reports as removed.
 sed 's/"remote": "not used"/"remote": "used, owned only"/' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/remote-posture.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/remote-posture.json")"
@@ -219,7 +185,6 @@ assert_contains "posture: naming both sides" "$out" 'built with remote "used, ow
 out="$(bash "$SCRIPT" "$repo" --remote "used, owned only" --drift-against "$TEST_TMPDIR/remote-posture.json")"
 assert_not_contains "posture: matching postures compare normally" "$out" "NOT COMPARABLE"
 
-# --- Case group 9: a record this script will not compare against ------------
 printf '{"schema_version": 2, "repositories": [], "edges": []}\n' >"$TEST_TMPDIR/v2.json"
 bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/v2.json" 2>&1)"
 assert_equals "schema: an unknown version exits 1" "$?" "1"
@@ -228,8 +193,6 @@ assert_contains "schema: and says which version it wanted" "$bad" "schema_versio
 bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/absent.json" 2>&1)"
 assert_equals "schema: an unreadable record exits 1" "$?" "1"
 
-# A valid JSON record in another layout recovers no object line; comparing it
-# would report every repository and edge as added.
 tr -d '\n' <"$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/compact.json"
 awk '
   /^[[:space:]]*[{]"name":/ { sub(/[{]"name":/, "{\n      \"name\":"); print; next }
@@ -246,10 +209,6 @@ bash "$SCRIPT" "$repo" >"$TEST_TMPDIR/fresh.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/fresh.json")"
 assert_equals "layout: the collector's own layout still compares clean" "$?" "0"
 
-# --- Case group 10: the subject owner is recorded ---------------------------
-#
-# Whether a checkout is internal turns on who owns it, not on someone having it
-# on disk, so the record has to name the organization it was drawn from.
 out="$(bash "$SCRIPT" "$repo")"
 assert_contains "subject: the origin owner is recorded" "$out" '"subject_owner": "fixture-owner"'
 out="$(bash "$SCRIPT" "$repo" --owner other-org)"
@@ -265,10 +224,6 @@ commit_repo "$noremote"
 out="$(bash "$SCRIPT" "$noremote")"
 assert_contains "subject: an unresolvable owner reads unknown, not empty" "$out" '"subject_owner": "unknown"'
 
-# --- Case group 11: fetched remote facts reach the record -------------------
-#
-# Fetching is model work against an API, so the facts arrive assembled. Without
-# somewhere to put them the flag would only record that it ran.
 cat >"$TEST_TMPDIR/remote.jsonl" <<'JSONL'
 {"name":"standards","remote":"https://github.com/fixture-owner/standards","owner":"fixture-owner","runtime":"unknown","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"2026-02-01T00:00:00+00:00","archived":true,"default_branch":"main","visibility":"public","evidence":{"last_touched":"pushed_at (remote)"}}
 {"name":"ci-workflows","remote":"https://github.com/fixture-owner/ci-workflows","owner":"fixture-owner","runtime":"unknown","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"2026-02-02T00:00:00+00:00","evidence":{"owner":"repos API"}}
@@ -280,13 +235,10 @@ assert_contains "remote-facts: and the second one too" "$out" '{"name":"ci-workf
 assert_contains "remote-facts: the archived flag survives into the record" "$out" '"archived":true'
 assert_contains "remote-facts: so does a field only a fetch can supply" "$out" '"visibility":"public"'
 assert_contains "remote-facts: the local checkout is still there" "$out" '{"name":"hub",'
-# Sorted, so the record does not encode the order the fetches came back in.
 merged_order="$(printf '%s\n' "$out" | sed -n 's/^    {"name":"\([^"]*\)".*$/\1/p' | tr '\n' ' ')"
 assert_equals "remote-facts: locals first, then fetched entries in name order" \
   "$merged_order" "hub ci-workflows standards "
 
-# A probe that read the files beats an API summary of them, so a local checkout
-# wins outright rather than being merged field by field.
 printf '{"name":"hub","owner":"impostor","runtime":"cobol","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}\n' \
   >"$TEST_TMPDIR/clash.jsonl"
 out="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/clash.jsonl")"
@@ -294,7 +246,6 @@ assert_not_contains "remote-facts: a fetch never overwrites a probed checkout" "
 hub_rows="$(printf '%s\n' "$out" | grep -c '{"name":"hub",')"
 assert_equals "remote-facts: nor does it add a second row for it" "$hub_rows" "1"
 
-# A merged record is compared as one, or the fetched rows read as removals.
 bash "$SCRIPT" "$repo" --remote "used, owned only" --remote-facts "$TEST_TMPDIR/remote.jsonl" \
   >"$TEST_TMPDIR/merged.json"
 bash "$SCRIPT" "$repo" --remote "used, owned only" --remote-facts "$TEST_TMPDIR/remote.jsonl" \
@@ -310,12 +261,6 @@ bad="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/junk.jsonl" 2>&1)"
 assert_equals "remote-facts: a malformed line exits 1 rather than dropping quietly" "$?" "1"
 assert_contains "remote-facts: naming the line" "$bad" "line 1"
 
-# --- Case group 11b: one repository, two directory names --------------------
-#
-# The record key is the github.com origin's repository segment. Two checkouts
-# whose directories differ and whose origin does not produce one record, and a
-# drift comparison between them does not report a repository added or removed.
-# A non-github origin keeps the directory name on both the fact row and `from`.
 slug_a="$(make_repo slug-a)"
 slug_b="$(make_repo slug-b)"
 for slug in "$slug_a" "$slug_b"; do
@@ -349,7 +294,6 @@ out="$(bash "$SCRIPT" "$kept")"
 assert_contains "identity: no github.com origin keeps the directory name" "$out" '{"name":"kept-basename",'
 assert_contains "identity: and the edge from agrees" "$out" '"from":"kept-basename"'
 
-# --- Case group 12: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no repository path exits 2" "$?" "2"
 

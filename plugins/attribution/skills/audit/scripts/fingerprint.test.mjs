@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Unit tests for fingerprint.mjs, the one pure module in this plugin.
-//
-// The first two cases are load-bearing: quotation stripping
-// covers INLINE quotes and not only blockquotes, and verdicts are matched SPANS
-// rather than whole-file containment, which dilutes a real match to noise on a
-// real-sized file.
 
 import { mkdtempSync, writeFileSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,9 +33,6 @@ const fail = (name, detail) => {
 };
 const check = (name, cond, detail) => (cond ? ok(name) : fail(name, detail));
 
-// --- fixture text -----------------------------------------------------------
-
-// A distinctive upstream passage, reused across cases.
 const UPSTREAM_SENTENCE =
   "Flowlite reads configuration from three locations, merged in order of increasing " +
   "precedence: the system file, the user file, and the project file in the repository " +
@@ -56,9 +47,6 @@ const SOURCE_TEXT = [
   "The runner.max_parallel key caps concurrent task execution and defaults to four.",
 ].join("\n");
 
-// --- case: inline_quote_fixture ---------------------------------------------
-// A properly quoted and cited excerpt must strip to nothing before shingling.
-// A blockquote-only stripper would leave this text in and report a false match.
 {
   const localInline = [
     "# Why we cap parallelism",
@@ -82,7 +70,6 @@ const SOURCE_TEXT = [
     `containment=${r.containment}`,
   );
 
-  // The same passage with curly quotes must behave identically.
   const localCurly = localInline
     .replace(`"${UPSTREAM_SENTENCE}"`, `“${UPSTREAM_SENTENCE}”`);
   const rc = compare(localCurly, SOURCE_TEXT);
@@ -93,9 +80,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: span_dilution_fixture --------------------------------------------
-// A real-sized local file with one planted copied span. Whole-file containment
-// goes to noise; the matched span must still surface, with its line offsets.
 {
   const filler = [];
   for (let i = 0; i < 120; i += 1) {
@@ -136,7 +120,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: verbatim_copy ----------------------------------------------------
 {
   const r = compare(UPSTREAM_SENTENCE, SOURCE_TEXT);
   check(
@@ -147,7 +130,6 @@ const SOURCE_TEXT = [
   check("verbatim_copy: separation fires", r.separation.fired === true);
 }
 
-// --- case: unrelated_text ---------------------------------------------------
 {
   const r = compare(
     "Our deploy runbook tags the release, watches the canary for ten minutes, and " +
@@ -161,7 +143,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: fence_and_blockquote_stripping -----------------------------------
 {
   const local = [
     "Quoted upstream, fenced:",
@@ -182,9 +163,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: wrapped_quote_fixture --------------------------------------------
-// Hard-wrapped prose is ordinary markdown, so a quotation routinely opens on
-// one line and closes on the next, so inline stripping runs over the paragraph.
 {
   const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
   const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
@@ -228,10 +206,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: quote_cannot_escape_paragraph -------------------------------------
-// The bound that makes paragraph-wide stripping safe. An opening mark with no
-// partner in its own paragraph must stay put rather than pairing with a mark
-// further down the document and swallowing everything between.
 {
   const localBlank = [
     'An unpaired " quote mark opens here and never closes.',
@@ -280,10 +254,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: contraction_does_not_close_a_quote --------------------------------
-// A single-quoted excerpt that wraps and contains a contraction. The apostrophe
-// in "doesn't" is the first ' after the opening mark, so a naive forward search
-// closes the quote there and leaves the rest of the excerpt in the token stream.
 {
   const withContraction = [
     "The upstream page is explicit about this:",
@@ -315,8 +285,6 @@ const SOURCE_TEXT = [
     `${stripped.split("\n").length} vs ${withContraction.split("\n").length}`,
   );
 
-  // The guard must not stop a genuine closer that merely follows a word, or an
-  // excerpt containing a possessive would never close and would leak instead.
   const possessive = stripQuoted(
     "A cited span 'covering the runner and the teams' rota' ends here.",
   );
@@ -327,10 +295,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: possessive_after_markup_is_not_an_opening_quote -------------------
-// A possessive following a closing backtick or paren, `Location`'s or
-// (FILE.md)'s, is not an OPENING quote. Over-stripping hides real copies, so this
-// is the false-negative direction and the worse one.
 {
   const possessiveAfterMarkup = [
     "The rule is contained to `Location`'s file, but the runner still applies it.",
@@ -367,9 +331,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: wrapped_quote_line_numbering --------------------------------------
-// Spans report local line offsets and the fix flow edits against them, so a
-// wrapped quotation earlier in the file must not shift what comes after it.
 {
   const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
   const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
@@ -403,7 +364,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: stripQuoted_unit -------------------------------------------------
 {
   const stripped = stripQuoted('Lead in "quoted words here" and trailing text.');
   check(
@@ -422,7 +382,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: tokenize_line_tracking -------------------------------------------
 {
   const toks = tokenize("alpha beta\ngamma delta");
   check(
@@ -432,8 +391,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: url_tokens_count_zero_words ---------------------------------------
-// A URL split on its punctuation reads as several words; a cited link is not prose.
 {
   const urlOnly = tokenize("https://example.com/docs/en/flowlite/configuration-reference.md");
   check(
@@ -456,7 +413,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: shingle_and_set_metrics ------------------------------------------
 {
   const a = shingles(tokenize("one two three four five six"), 5);
   const b = shingles(tokenize("one two three four five six"), 5);
@@ -469,7 +425,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: matchedSpans_merges_runs ------------------------------------------
 {
   const local = tokenize(UPSTREAM_SENTENCE);
   const src = shingles(tokenize(SOURCE_TEXT), 5);
@@ -481,10 +436,6 @@ const SOURCE_TEXT = [
   );
 }
 
-// --- case: json_value_copy ---------------------------------------------------
-// The text path reads every JSON string as a paired `"` span and strips it, so a
-// copy inside a value never reached shingling. Values are measured instead, and
-// the span reports the line the value sits on in the JSON file.
 const lineOf = (text, needle) =>
   text.split("\n").findIndex((line) => line.includes(needle)) + 1;
 {
@@ -521,7 +472,6 @@ const lineOf = (text, needle) =>
   );
 }
 
-// --- case: json_unrelated_and_keys -------------------------------------------
 {
   const unrelated = JSON.stringify({
     prompt: "Our deploy runbook tags the release and watches the canary for ten minutes.",
@@ -543,7 +493,6 @@ const lineOf = (text, needle) =>
   );
 }
 
-// --- case: json_values_strip_on_their_own ------------------------------------
 {
   const local = JSON.stringify(
     ["```text\nan example whose fence never closes", UPSTREAM_SENTENCE],
@@ -570,9 +519,6 @@ const lineOf = (text, needle) =>
   );
 }
 
-// --- case: text_path_unchanged -----------------------------------------------
-// `compare` changed only in how it tokenizes the local text, so a local text
-// whose tokens equal the old `tokenize(stripQuoted(...))` compares as before.
 {
   const sameAsTextPath = (text) =>
     JSON.stringify(localTokens(text)) === JSON.stringify(tokenize(stripQuoted(text)));
@@ -601,7 +547,6 @@ const lineOf = (text, needle) =>
   );
 }
 
-// --- case: cli_json ----------------------------------------------------------
 {
   const dir = mkdtempSync(join(tmpdir(), "attribution-fp-"));
   try {
@@ -632,7 +577,6 @@ const lineOf = (text, needle) =>
   }
 }
 
-// --- case: cli_missing_arg_exits_nonzero -------------------------------------
 {
   let exitCode = 0;
   try {

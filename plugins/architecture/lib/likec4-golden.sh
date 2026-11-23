@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Golden files for the LikeC4 blocks the map-* renderers emit. Sourced by a test that defines
-# pass and fail. Each golden is the fenced likec4 block of one rendered view.
-#
-#   assert_likec4_golden <file.c4> <rendered-md>   diff the block against likec4-golden/<file.c4>
-#   UPDATE_GOLDEN=1                             rewrite the goldens instead of diffing
-#   LIKEC4_VALIDATE=1                           also run the LikeC4 CLI over the block (network, npx)
-#
-# The CLI is the only tool that has parsed these blocks. Bump LIKEC4_VERSION with the records in
-# the map-* skill bodies that name it.
 
 LIKEC4_VERSION="1.59.4"
 LIKEC4_GOLDEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/likec4-golden"
