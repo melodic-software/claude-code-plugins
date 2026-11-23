@@ -150,8 +150,6 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
   };
-  // With no status on the issue, only a listed human's decision answers, and
-  // only where nothing else holds or moves the issue.
   if (!labels.some((name) => isStatusLabel(name))) {
     if (!humans.has(user.id) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => labels.includes(name))) {
       return null;

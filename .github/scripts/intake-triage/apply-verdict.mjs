@@ -563,7 +563,6 @@ async function labelSetters(labels, since, events, appId) {
   const before = new Set();
   const bot = new Set();
   const other = new Set();
-  // Replayed by (time, id); an unreadable time sorts last.
   const time = (event) => {
     const at = Date.parse(event?.created_at);
     return Number.isFinite(at) ? at : Number.POSITIVE_INFINITY;
@@ -823,7 +822,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     log(summary);
     return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
   };
-  // A person's hold set since the read ends the run: the issue is theirs.
   if (stateWrite?.outcome === "held") {
     const why = `a person's Work status ${stateWrite.state} holds it`;
     return report({ outcome: "held", reasons: [why], status: stateWrite.state }, `apply-verdict: #${number} left as is (${why}); no admission`);
