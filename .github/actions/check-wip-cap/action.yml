@@ -15,7 +15,8 @@ description: >
   admissions pause (queued work at or over the queued cap on or after
   `wip.pause-from`, or, whatever `wip.pause-from` says, a search answered
   `incomplete_results: true` or the base config could not be read).
-  Run it from the default branch checkout, before any slot or lane token.
+  Run it from the default branch checkout, before any slot or lane token,
+  after ci-workflows' setup-pinned-node has set up the base's pinned Node.
 
 inputs:
   base-path:
@@ -31,6 +32,9 @@ inputs:
       answered incomplete or the base config could not be read.
     required: false
     default: full
+  node-setup:
+    description: The outcome of the caller's pinned Node setup; anything but `success` fails the check, so `capped` is never set.
+    required: true
   github-token:
     description: A token that can search this repository's pull requests and list its issues.
     required: false
@@ -53,13 +57,12 @@ outputs:
 runs:
   using: composite
   steps:
-    # setup-pinned-node's script, the sibling action in the same checkout: no
-    # GitHub API call, unlike actions/setup-node on a tool-cache miss.
-    - name: Set up Node
+    - name: Require the pinned Node
       shell: bash
       env:
-        VERSION_FILE: ${{ inputs.base-path }}/.node-version
-      run: bash "$GITHUB_ACTION_PATH/../setup-pinned-node/install-node.sh" "$VERSION_FILE"
+        NODE_SETUP: ${{ inputs.node-setup }}
+      run: |
+        [[ "$NODE_SETUP" == success ]] || { echo "::error::the pinned Node setup ended '${NODE_SETUP}', so the WIP cap is not read"; exit 1; }
 
     # The cap comes through resolve-config, which needs its dependencies; an
     # install that fails leaves the base config unread, so the run holds and admissions close.

@@ -10,7 +10,6 @@ mkdir -p "$d/.claude"
 if [[ -z "$model_window" ]]; then
   printf '{\n  "autoCompactWindow": %s\n}\n' "$window" >"$d/.claude/settings.json"
 else
-  # The id goes into a JSON key unescaped.
   [[ "${PROBE_MODEL:?set by probe.py}" =~ ^[A-Za-z0-9._:-]+$ ]] || {
     echo "autocompact-project.sh: model id '$PROBE_MODEL' is not a plain model name" >&2
     exit 2

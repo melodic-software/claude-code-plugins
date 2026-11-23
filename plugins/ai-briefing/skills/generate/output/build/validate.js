@@ -1,14 +1,3 @@
-// Multi-gate deck validator.
-//
-// Gates (each fails independently):
-//   1. Zod schema — slides-data.js shape
-//   2. HTML render — every URL appears as anchor, headlines match, 0 console errors
-//   3. Slide overflow detection (visual quality)
-//   4. URL reachability via linkinator (X URLs excluded by collection policy)
-//   5. PDF text coverage — every URL appears in PDF text layer
-//   6. PPTX slide count match
-//   7. Responsive matrix — 6 viewport×zoom combos, capture screenshots, check overflow
-//
 // Outputs: shots/*.png + audit.json. Exit 0 = green, 1 = blocking issues.
 import { chromium } from "playwright";
 import fs from "node:fs/promises";
@@ -34,10 +23,6 @@ const HTML_URL = pathToFileURL(HTML).href;
 const PDF = deckPath(meta.meetingNumber, "pdf");
 const PPTX = deckPath(meta.meetingNumber, "pptx");
 const SHOTS_DIR = shotsDir();
-// Purge stale screenshots before regen. Without this, section reordering
-// between meetings leaves orphan section-NN-foo.png files alongside the
-// current set, polluting the audit. Idempotent: only removes PNG/JSON.
-// A missing dir reads as empty; mkdir below creates it.
 for (const f of await fs.readdir(SHOTS_DIR).catch(() => [])) {
   if (/\.(png|json)$/i.test(f)) {
     await fs.unlink(path.join(SHOTS_DIR, f)).catch(() => {});
@@ -47,7 +32,6 @@ await fs.mkdir(SHOTS_DIR, { recursive: true });
 
 const issues = { blocking: [], warnings: [] };
 
-// Runs inside the page: settle web fonts + two rAFs so layout is stable.
 const settleRender = async () => {
   await document.fonts.ready;
   await new Promise((resolve) =>
@@ -55,10 +39,6 @@ const settleRender = async () => {
   );
 };
 
-// Runs inside the page: sections with horizontal overflow.
-// Skips decorative orb-overflow sections (open, qa) — orb gradients are intentionally
-// transform-translated past edges; overflow:hidden clips them visually but scrollWidth
-// still reports the layout extent. Pure cosmetic, no scrollbar appears.
 const collectSectionOverflows = () =>
   [...document.querySelectorAll("main#deck > section.section")]
     .filter(
@@ -66,8 +46,6 @@ const collectSectionOverflows = () =>
     )
     .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth }));
 
-// Loads the deck with every external request blocked, applies `zoom` when
-// given, and waits for a stable layout.
 const openDeck = async (page, { zoom, onExternalRequest } = {}) => {
   await page.route(/^https?:\/\//, (route) => {
     onExternalRequest?.(route.request().url());
@@ -81,9 +59,6 @@ const openDeck = async (page, { zoom, onExternalRequest } = {}) => {
   await page.evaluate(settleRender);
 };
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 1: Zod schema
-// ────────────────────────────────────────────────────────────────────
 console.log("\n[1/7] Schema (Zod) ...");
 try {
   validateDeck({ meta, theme, providerLogos, slides });
@@ -93,9 +68,6 @@ try {
   console.log(`  ✗ ${e.message}`);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 2-3: HTML render — URLs, headlines, console errors, overflow
-// ────────────────────────────────────────────────────────────────────
 console.log("\n[2/7] HTML render + URL/headline coverage ...");
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
@@ -107,9 +79,7 @@ page.on("pageerror", (e) => consoleErrs.push(`PAGEERR: ${e.message}`));
 page.on("console", (m) => { if (m.type() === "error") consoleErrs.push(`CONSOLE: ${m.text()}`); });
 await openDeck(page, { onExternalRequest: (url) => externalRenderRequests.push(url) });
 
-// Section-based audit (sectioned-scroll deck). One screenshot per <section>.
-// Page-wide URL/headline coverage check.
-const total = slides.length; // the audit.json `total` key; the PPTX gate compares against it
+const total = slides.length;
 const sectionInfo = await page.evaluate(() => {
   const sections = [...document.querySelectorAll("main#deck > section.section")];
   return sections.map((s) => ({ id: s.id, h1: s.querySelector("h1")?.innerText.trim() || "", h2: s.querySelector("h2")?.innerText.trim() || "" }));
@@ -124,8 +94,6 @@ for (const [i, { id }] of sectionInfo.entries()) {
   await page.screenshot({ path: shotPath, fullPage: false });
 }
 
-// Page-wide DOM extraction — section grouping concatenates bullets so
-// per-slide structure is gone. Verify URL + headline coverage at page level.
 const pageData = await page.evaluate(() => ({
   urls: Array.from(document.querySelectorAll(".news-url")).map((a) => a.href),
   headlines: Array.from(document.querySelectorAll(".news-headline, .flair-headline, .pattern-headline")).map((s) => s.innerText.trim()),
@@ -134,18 +102,15 @@ pageData.sectionOverflows = await page.evaluate(collectSectionOverflows);
 
 await browser.close();
 
-// All source URLs across ALL slides (bullets[].urls + items[].urls)
 const allUrls = new Set();
 slides.forEach((s) => (s.bullets || []).forEach((b) => (b.urls || []).forEach((u) => allUrls.add(u))));
 slides.forEach((s) => (s.items || []).forEach((it) => (it.urls || []).forEach((u) => allUrls.add(u))));
 
-// All source headlines (bullet titles + flair item titles + pattern item titles)
 const expectedHeadlines = slides.flatMap((s) => [
   ...(s.bullets || []).map((b) => b.title),
   ...(s.type === "flair" || s.type === "patterns" ? (s.items || []).map((it) => it.title) : []),
 ]);
 
-// Normalize trailing slash — browsers canonicalize <a href="https://host"> to "https://host/"
 const normUrl = (u) => u.replace(/\/+$/, "");
 const renderedUrlSet = new Set(pageData.urls.map(normUrl));
 const urlMismatches = [...allUrls].filter((u) => !renderedUrlSet.has(normUrl(u)));
@@ -169,10 +134,6 @@ console.log(`  Sections w/ horizontal overflow: ${pageData.sectionOverflows.leng
 pageData.sectionOverflows.forEach((s) => console.log(`    #${s.id}  scrollWidth=${s.sw} clientWidth=${s.cw}`));
 if (pageData.sectionOverflows.length) issues.warnings.push(`Section h-overflow: ${pageData.sectionOverflows.map((s) => s.id).join(", ")}`);
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 4: URL reachability via linkinator. X URLs are user-supplied citation
-// metadata only and must not be fetched by this plugin.
-// ────────────────────────────────────────────────────────────────────
 console.log(`\n[4/7] URL reachability (linkinator) ...`);
 const linkResults = { broken: [] };
 try {
@@ -197,9 +158,6 @@ try {
   issues.warnings.push(`linkinator skipped: ${e.message}`);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 5: PDF text coverage (unpdf)
-// ────────────────────────────────────────────────────────────────────
 console.log(`\n[5/7] PDF text coverage (unpdf) ...`);
 const pdfResult = { totalPages: 0, missingUrls: [] };
 try {
@@ -208,16 +166,11 @@ try {
   const pdf = await getDocumentProxy(new Uint8Array(buf));
   const { text, totalPages } = await extractText(pdf, { mergePages: true });
   pdfResult.totalPages = totalPages;
-  // Compare URL count — every source URL should appear in PDF text layer.
-  // HTML renders short display form (formatUrlDisplay), so check that the
-  // displayed form is in the text; href itself is preserved in PDF annotations
-  // (clickable links work independently of text-layer content).
   const urlList = [...allUrls];
   pdfResult.missingUrls = urlList.filter((u) => !text.includes(formatUrlDisplay(u)) && !text.includes(u));
   console.log(`  PDF pages:    ${totalPages} (sections: ${sectionInfo.length}; slide objects: ${total})`);
   console.log(`  URLs in PDF:  ${urlList.length - pdfResult.missingUrls.length} / ${urlList.length}`);
   console.log(`  Missing URLs: ${pdfResult.missingUrls.length}`);
-  // PDF pages should be ≥ section count (sections may span multiple pages when content is long)
   if (totalPages < sectionInfo.length) issues.warnings.push(`PDF page count ${totalPages} < section count ${sectionInfo.length}`);
   if (pdfResult.missingUrls.length) issues.warnings.push(`PDF missing ${pdfResult.missingUrls.length} URLs`);
 } catch (e) {
@@ -225,9 +178,6 @@ try {
   issues.warnings.push(`unpdf skipped: ${e.message}`);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 6: PPTX slide count (node-pptx-parser)
-// ────────────────────────────────────────────────────────────────────
 console.log(`\n[6/7] PPTX slide count (node-pptx-parser) ...`);
 const pptxResult = { slideCount: 0 };
 try {
@@ -243,9 +193,6 @@ try {
   issues.warnings.push(`pptx-parser skipped: ${e.message}`);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Gate 7: Responsive matrix — 6 viewport×zoom combos
-// ────────────────────────────────────────────────────────────────────
 console.log(`\n[7/7] Responsive matrix (viewport × zoom) ...`);
 const responsiveMatrix = [
   { name: "desktop-100", viewport: { width: 1920, height: 1080 }, zoom: 1.0 },
@@ -265,7 +212,6 @@ try {
 
     const overflows = await p2.evaluate(collectSectionOverflows);
 
-    // Single full-page screenshot per matrix combo (decks can be long; cap height)
     const shotPath = path.join(SHOTS_DIR, `responsive-${m.name}.png`);
     await p2.screenshot({ path: shotPath, fullPage: false });
     responsiveResults.push({ name: m.name, viewport: m.viewport, zoom: m.zoom, overflowCount: overflows.length, overflows });
@@ -287,9 +233,6 @@ try {
   issues.warnings.push(`Responsive matrix skipped: ${e.message}`);
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Summary
-// ────────────────────────────────────────────────────────────────────
 const summary = {
   total,
   sectionCount: sectionInfo.length,

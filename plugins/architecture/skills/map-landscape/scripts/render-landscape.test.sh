@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The fixture record is written here rather than collected, so the renderer is
-# tested against a fixed input and every assertion is about rendering alone.
 # test-scope: .markdownlint-cli2.jsonc
 set -uo pipefail
 
@@ -13,8 +11,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
 render() {
-  # $1 output subdirectory, rest passed through. Stdout lands in $1.out beside
-  # the directory, so the summary line is asserted rather than leaked.
   local dir="$TEST_TMPDIR/$1"
   local out="$TEST_TMPDIR/$1.out"
   shift
@@ -23,11 +19,6 @@ render() {
   bash "$SCRIPT" --out "$dir" "$@" >"$out"
 }
 
-# --- The fixture record -----------------------------------------------------
-#
-# Two checked-out repositories under one owner, an edge to a third repository
-# under the same owner that is NOT checked out, and two external targets whose
-# reference counts differ. Hyphens and dots in names exercise alias sanitizing.
 cat >"$TEST_TMPDIR/record.json" <<'JSON'
 {
   "schema_version": 1,
@@ -47,7 +38,6 @@ cat >"$TEST_TMPDIR/record.json" <<'JSON'
 }
 JSON
 
-# --- Case group 1: the mermaid dialect --------------------------------------
 render mermaid --record "$TEST_TMPDIR/record.json"
 rc=$?
 assert_equals "mermaid: rendering exits 0" "$rc" "0"
@@ -67,10 +57,8 @@ assert_contains "mermaid: the provenance line names the discovery source" "$md" 
 assert_contains "mermaid: and whether remote facts were used" "$md" 'Remote facts: not used'
 assert_contains "mermaid: the generated-on date comes from the record, never the clock" "$md" '2026-01-02'
 
-# The second checked-out repository cites nothing, so it must still be a node.
 assert_contains "mermaid: a repository with no outgoing edge is still drawn" "$md" 'System(acme_billing_api'
 
-# --- Case group 2: determinism ----------------------------------------------
 render mermaid2 --record "$TEST_TMPDIR/record.json"
 if diff -q "$TEST_TMPDIR/mermaid/landscape.md" "$TEST_TMPDIR/mermaid2/landscape.md" >/dev/null &&
   diff -q "$TEST_TMPDIR/mermaid/portfolio.md" "$TEST_TMPDIR/mermaid2/portfolio.md" >/dev/null; then
@@ -80,7 +68,6 @@ else
     "$(diff "$TEST_TMPDIR/mermaid/landscape.md" "$TEST_TMPDIR/mermaid2/landscape.md")"
 fi
 
-# --- Case group 3: the structurizr dialect ----------------------------------
 render dsl --record "$TEST_TMPDIR/record.json" --dialect structurizr
 assert_equals "structurizr: rendering exits 0" "$?" "0"
 if [[ -f "$TEST_TMPDIR/dsl/landscape.dsl" && ! -f "$TEST_TMPDIR/dsl/landscape.md" ]]; then
@@ -96,11 +83,8 @@ assert_contains "structurizr: owners become groups" "$dsl" 'group "acme" {'
 assert_contains "structurizr: a system carries its label as the description" "$dsl" 'softwareSystem "billing.api" "dotnet, net9.0"'
 assert_contains "structurizr: an other-owner system is tagged External" "$dsl" '"actions/checkout" "not checked out here" "External"'
 assert_contains "structurizr: relationships carry the same type-and-count label" "$dsl" 'acme_web_ui -> acme_billing_api "depends-on (3)"'
-# Structurizr dropped the internal/external `location` property, so the tag is
-# the only carrier for that fact — and a tag with no style renders nothing.
 assert_contains "structurizr: the External tag has a style to render through" "$dsl" 'element "External" {'
 
-# The two dialects must agree on which systems exist.
 for sys in acme_web_ui acme_billing_api acme_design_tokens actions_checkout; do
   case "$md$dsl" in
   *"$sys"*) pass "dialects: $sys appears in both" ;;
@@ -108,7 +92,6 @@ for sys in acme_web_ui acme_billing_api acme_design_tokens actions_checkout; do
   esac
 done
 
-# --- Case group 4: the portfolio table --------------------------------------
 pf="$(cat "$TEST_TMPDIR/mermaid/portfolio.md")"
 assert_contains "portfolio: the header carries all seven columns" "$pf" \
   '| Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |'
@@ -121,11 +104,9 @@ assert_not_contains "portfolio: a repository with none gets no empty line" "$pf"
 assert_contains "portfolio: every fact names the file it came from" "$pf" '| web-ui | runtime | node: package.json |'
 assert_contains "portfolio: including a non-default owner ladder rung" "$pf" 'CODEOWNERS default rule'
 
-# Rows sort by name, so the record's order (web-ui first) must not survive.
 row_order="$(printf '%s\n' "$pf" | sed -n 's/^| \([^|]*\) | acme |.*/\1/p' | tr -d ' ' | tr '\n' ' ')"
 assert_equals "portfolio: rows sort by name, not by record order" "$row_order" "billing.api web-ui "
 
-# --- Case group 5: --top-external -------------------------------------------
 render capped --record "$TEST_TMPDIR/record.json" --top-external 1
 capped="$(cat "$TEST_TMPDIR/capped/landscape.md")"
 assert_contains "cap: the most referenced external survives the cap" "$capped" 'actions/checkout'
@@ -141,7 +122,6 @@ assert_contains "cap: and says how many were left out" "$uncapped" '2 external r
 assert_not_contains "cap: a cap wide enough for every external adds no leftover line" \
   "$md" 'external repositories are referenced but not drawn'
 
-# --- Case group 6: annotations ----------------------------------------------
 printf '## Notes\n\nBilling owns the ledger.\n' >"$TEST_TMPDIR/notes.md"
 render noted --record "$TEST_TMPDIR/record.json" --notes "$TEST_TMPDIR/notes.md"
 noted="$(cat "$TEST_TMPDIR/noted/landscape.md")"
@@ -151,7 +131,6 @@ assert_contains "notes: and the diagram is unchanged" "$noted" 'Rel(acme_web_ui,
 assert_not_contains "notes: the portfolio does not receive them" \
   "$(cat "$TEST_TMPDIR/noted/portfolio.md")" 'Billing owns the ledger.'
 
-# --- Case group 7: a record with nothing in it ------------------------------
 cat >"$TEST_TMPDIR/empty.json" <<'JSON'
 {
   "schema_version": 1,
@@ -168,8 +147,6 @@ render solo --record "$TEST_TMPDIR/empty.json"
 assert_equals "empty: an edgeless record still renders" "$?" "0"
 solo="$(cat "$TEST_TMPDIR/solo/landscape.md")"
 assert_contains "empty: the one system is drawn" "$solo" 'System(solo, "solo"'
-# An enterprise boundary is captioned with an organization, so the absence of
-# one is drawn as no boundary rather than as a boundary named "unknown".
 assert_not_contains "empty: an unknown owner does not become a boundary caption" "$solo" 'Enterprise_Boundary'
 assert_contains "empty: the ownerless system is drawn at the top level instead" "$solo" 'System(solo, "solo"'
 render dsl_solo --record "$TEST_TMPDIR/empty.json" --dialect structurizr
@@ -182,7 +159,6 @@ assert_contains "empty: an empty dependency list reads as none, not blank" \
 assert_not_contains "empty: and no relationship is invented" "$solo" 'Rel('
 assert_not_contains "empty: nor is a leftover-externals line" "$solo" 'not drawn'
 
-# --- Case group 8: several owners -------------------------------------------
 cat >"$TEST_TMPDIR/two-owners.json" <<'JSON'
 {
   "schema_version": 1,
@@ -201,13 +177,6 @@ owners="$(cat "$TEST_TMPDIR/owners/landscape.md")"
 assert_contains "owners: the first owner gets a boundary" "$owners" 'Enterprise_Boundary(b0, "acme")'
 assert_contains "owners: the second gets its own, not a shared one" "$owners" 'Enterprise_Boundary(b1, "zeta")'
 
-# --- Case group 8a: repository content stays inside its string literal ------
-#
-# A target framework is read out of a manifest with only XML tags stripped, and
-# a raw quote is legal there. Both dialects then carry it inside a quoted string
-# literal, and neither offers a portable escape for its own delimiter, so the
-# delimiter is replaced rather than escaped: what arrives here is corrupt data
-# or an attempt to splice diagram syntax, never a fact worth keeping verbatim.
 cat >"$TEST_TMPDIR/hostile.json" <<'JSON'
 {
   "schema_version": 1,
@@ -233,8 +202,6 @@ hostile_dsl="$(cat "$TEST_TMPDIR/hostile_dsl/landscape.dsl")"
 assert_not_contains "injection: nor the structurizr one" "$hostile_dsl" '"pwn'
 dsl_count="$(printf '%s\n' "$hostile_dsl" | grep -c '^      acme_payments = softwareSystem "payments" "[^"]*"$')"
 assert_equals "injection: whose string closes where it should" "$dsl_count" "1"
-# A pipe read out of a manifest ends the cell it lands in and shifts every
-# column after it, which corrupts the table the same way.
 hostile_portfolio="$(cat "$TEST_TMPDIR/hostile/portfolio.md")"
 assert_contains "injection: a pipe in a fact is escaped, not a new column" \
   "$hostile_portfolio" '| a \| b |'
@@ -242,11 +209,6 @@ ev_row="$(printf '%s\n' "$hostile_portfolio" | grep -F '| payments | runtime |')
 assert_equals "injection: so the evidence row stays three cells wide" \
   "$ev_row" '| payments | runtime | a \| b |'
 
-# --- Case group 8b: one alias per system ------------------------------------
-#
-# Every character outside the alphabet folds to the same underscore, so two
-# names differing only in punctuation arrive at one identifier and take each
-# other's relationships with them.
 cat >"$TEST_TMPDIR/collide.json" <<'JSON'
 {
   "schema_version": 1,
@@ -280,11 +242,6 @@ else
     "$(diff "$TEST_TMPDIR/collide/landscape.md" "$TEST_TMPDIR/collide2/landscape.md")"
 fi
 
-# --- Case group 8c: a checkout is not a claim of ownership ------------------
-#
-# Having a repository on disk says where someone works, not who owns the system.
-# A third-party checkout is the same external system the edges to it call
-# external, so the recorded subject owner decides and the local facts stay.
 cat >"$TEST_TMPDIR/foreign.json" <<'JSON'
 {
   "schema_version": 1,
@@ -307,12 +264,9 @@ assert_not_contains "foreign: and not inside an enterprise boundary for its owne
   "$foreign" 'Enterprise_Boundary(b1'
 assert_contains "foreign: the subject owner still gets one" "$foreign" 'Enterprise_Boundary(b0, "acme")'
 assert_contains "foreign: the facts the probe read are kept" "$foreign" '"go"'
-# --top-external trims the tail of repositories this run only read about, never
-# the set someone asked it to chart.
 render foreign_capped --record "$TEST_TMPDIR/foreign.json" --top-external 0
 assert_contains "foreign: a probed external survives the external cap" \
   "$(cat "$TEST_TMPDIR/foreign_capped/landscape.md")" 'System_Ext(thirdparty_vendor_sdk'
-# A record that names no subject owner cannot make the call, so nothing moves.
 cat >"$TEST_TMPDIR/nosubject.json" <<'JSON'
 {
   "schema_version": 1,
@@ -329,11 +283,6 @@ render nosubject --record "$TEST_TMPDIR/nosubject.json"
 assert_contains "foreign: with no subject owner recorded, the drawing is unchanged" \
   "$(cat "$TEST_TMPDIR/nosubject/landscape.md")" 'System(thirdparty_vendor_sdk, "vendor-sdk"'
 
-# --- Case group 8d: an archived system is charted and marked ----------------
-#
-# Archiving is a fact about the system, and the most consequential one a reader
-# can learn about it: a landscape that quietly drops archived repositories hides
-# exactly the dependencies worth acting on.
 cat >"$TEST_TMPDIR/archived.json" <<'JSON'
 {
   "schema_version": 1,
@@ -356,12 +305,6 @@ assert_not_contains "archived: it is charted, not hidden" \
   "$(cat "$TEST_TMPDIR/archived/portfolio.md")" '| (none) | unknown | unknown |
 '
 
-# --- Case group 9: markdown that lints --------------------------------------
-#
-# Probed on a file known to be clean first. `npx --no-install` exits non-zero
-# when the package is simply absent, which is indistinguishable at the exit code
-# from a lint failure, and reading "tool missing" as "the renderer emits bad
-# markdown" would fail this suite on any host without the dependency installed.
 markdownlint_usable() {
   [[ -z "${SKIP_MARKDOWNLINT:-}" ]] || return 1
   command -v npx >/dev/null 2>&1 || return 1
@@ -376,10 +319,6 @@ else
   pass "lint: markdownlint skipped, the package is not installed here"
 fi
 
-# --- Case group 9a: the summary line ----------------------------------------
-#
-# The artifacts cannot say a landscape is too small to answer much, so the
-# renderer prints one counted line on stdout and the report carries it.
 assert_equals "summary: the main record is not thin" "$(cat "$TEST_TMPDIR/mermaid.out")" \
   'landscape: internal=3 external=2 drawn_systems=5 edges=4 drawn_edges=4 unresolved_edges=0 thin=no'
 assert_equals "summary: stdout is exactly one line" \
@@ -411,8 +350,6 @@ render pair --record "$TEST_TMPDIR/pair.json"
 assert_equals "summary: two boxes and one arrow is thin" "$(cat "$TEST_TMPDIR/pair.out")" \
   'landscape: internal=2 external=0 drawn_systems=2 edges=1 drawn_edges=1 unresolved_edges=0 thin=yes'
 
-# Edges come from one repository. When that repository is not in the record,
-# every edge has a source the diagram cannot draw, though each target is a node.
 cat >"$TEST_TMPDIR/orphan.json" <<'JSON'
 {
   "schema_version": 1,
@@ -437,7 +374,6 @@ assert_contains "summary: a target reached only by an unresolved edge is still a
   "$(cat "$TEST_TMPDIR/orphan/landscape.md")" 'System(acme_lib, "lib"'
 assert_contains "summary: --help documents the line" "$(bash "$SCRIPT" --help 2>&1)" 'unresolved_edges='
 
-# --- Case group 10: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no arguments exits 2" "$?" "2"
 
@@ -456,8 +392,6 @@ assert_equals "usage: an unreadable record exits 1" "$?" "1"
 bash "$SCRIPT" --record "$TEST_TMPDIR/record.json" --out "$TEST_TMPDIR/nowhere" >/dev/null 2>&1
 assert_equals "usage: an output directory that is not there exits 1" "$?" "1"
 
-# A valid JSON record in another layout matches no object line, so the renderer
-# refuses it rather than drawing an empty landscape and calling it thin.
 tr -d '\n' <"$TEST_TMPDIR/record.json" >"$TEST_TMPDIR/compact.json"
 cat >"$TEST_TMPDIR/pretty.json" <<'JSON'
 {

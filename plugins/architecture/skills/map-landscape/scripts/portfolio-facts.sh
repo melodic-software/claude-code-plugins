@@ -48,10 +48,6 @@ DEP_CAP=25
 PROBE_DEPTH=3
 
 usage() {
-  # Print the header comment block only. Selecting by comment marker rather
-  # than a hardcoded last line keeps --help correct when the header grows or
-  # shrinks; a fixed range silently leaks `set -uo pipefail` the moment the
-  # block changes length.
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
@@ -65,8 +61,6 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 
-# PackageReference and ProjectReference Include values come from the shared
-# reader, so this collector and map-dependencies cite the same spans.
 _ARCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
 # shellcheck source=../../../lib/dotnet-references.sh
 source "$_ARCH_LIB/dotnet-references.sh"
@@ -75,12 +69,7 @@ source "$_ARCH_LIB/github-remote.sh"
 # shellcheck source=../../../lib/json-escape.sh
 source "$_ARCH_LIB/json-escape.sh"
 
-# ---------------------------------------------------------------------------
-# JSON emission helpers
-# ---------------------------------------------------------------------------
 
-# The non-blank lines of $1, sorted, de-duplicated and capped at DEP_CAP, as the
-# body of a JSON string array, into JSON_ARR.
 JSON_ARR=""
 json_name_array() {
   local item
@@ -92,40 +81,12 @@ json_name_array() {
   done < <(printf '%s' "$1" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
 }
 
-# Append $2 to the variable named $1, separated by ", " when it already holds text.
 append_csv() {
   local current="${!1}"
   printf -v "$1" '%s%s%s' "$current" "${current:+, }" "$2"
 }
 
-# ---------------------------------------------------------------------------
-# Probe helpers
-# ---------------------------------------------------------------------------
 
-# ONE bounded walk per repository, restricted to the manifest names any probe
-# below can consume, sorted, repo-relative. Every probe then filters this
-# cached list. Thirteen separate `find` invocations over the same tree is the
-# obvious spelling and is minutes slower per repository on a filesystem with
-# per-open overhead, which is exactly where a fleet-wide run lives.
-#
-# Dot-directories are pruned by default, because the ones that accumulate are
-# caches and build output (`.venv`, `.mypy_cache`, `.tox`, `.next`) whose
-# vendored manifests describe someone else's package, not this repository.
-# `.git` goes with them. Enumerating cache directories is a losing game;
-# enumerating the CI and container config directories is not, so those few are
-# kept: their manifests are real evidence about the repository's TOOLING.
-#
-# A manifest under any dot-directory can therefore only ever be development
-# scope (see `effective_scope`). That is the path rule doing exactly one job,
-# with the runtime-versus-tooling call left to the scope axis: a
-# `requirements-ci.txt` under `.github/` names the linters CI installs, and
-# reporting it as a Python RUNTIME makes every shell-and-markdown repository
-# "a Python project". GitHub Linguist draws the same line from the other side,
-# vendoring `(^|/)\.github/` out of its language statistics.
-#
-# `-mindepth 1` keeps the prune off the starting point. Without it a repository
-# checked out at a dotted path (`~/.local/src/billing`) prunes ITSELF and every
-# probe reports unknown.
 REPO_FILES=""
 index_repo_files() {
   local root="$1"
@@ -148,16 +109,6 @@ index_repo_files() {
   )"
 }
 
-# The indexed file whose basename matches the glob, into FIND_HIT. Returns 1
-# and clears FIND_HIT when nothing matches. Assigns rather than prints for the
-# same reason json_escape does: a command substitution per probe is a fork per
-# probe, and there are a dozen probes per repository.
-#
-# A ROOT-LEVEL manifest wins over any deeper one, whatever the sort order says.
-# The root manifest describes the repository; a deeper one describes a single
-# component inside it. Taking the first sorted hit instead reports whichever
-# component happens to sort first, so a monorepo whose root `package.json`
-# targets Node 22 was reported as `apps/inner`'s Node 18.
 FIND_HIT=""
 find_first() {
   local pattern="$1" line base first_hit=""
@@ -165,13 +116,10 @@ find_first() {
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     base="${line##*/}"
-    # An unquoted variable in a case pattern is a glob, which is the point:
-    # callers pass `*.csproj`, not a literal name.
     # shellcheck disable=SC2254
     case "$base" in
     $pattern)
       [[ -n "$first_hit" ]] || first_hit="$line"
-      # No slash means the hit sits at the repository root.
       case "$line" in
       */*) ;;
       *)
@@ -188,7 +136,6 @@ find_first() {
   return 0
 }
 
-# Every indexed file whose basename matches the glob, one per line.
 find_all() {
   local pattern="$1" line base
   while IFS= read -r line; do
@@ -202,16 +149,6 @@ find_all() {
   done <<<"$REPO_FILES"
 }
 
-# The owner segment of a git remote URL. Handles `scheme://[user@]host/owner/repo`
-# and scp-style `[user@]host:owner/repo`. Returns non-zero when the shape names
-# no host, rather than guessing at an owner.
-#
-# A HOST IS REQUIRED, and that is the whole guard. A git remote is often a plain
-# filesystem path, and a path's first segment is a directory, not an owner: an
-# earlier spelling stripped a leading segment unconditionally and reported
-# `/srv/code/platform/billing` as owner `srv` and `file:///opt/mirror/repo` as owner
-# `opt`. Both were emitted with `evidence.owner: "origin remote URL"`, so a
-# fabricated fact carried a citation. `unknown` is the correct answer here.
 remote_owner() {
   local url="$1" rest owner had_scheme=0
   url="${url%.git}"
@@ -219,16 +156,12 @@ remote_owner() {
   *://*)
     had_scheme=1
     url="${url#*://}"
-    # An empty authority (`file:///path`) leaves a leading slash: no host.
     case "$url" in
     /*) return 1 ;;
     *) ;;
     esac
     ;;
   *)
-    # No scheme. Only the scp-style `host:owner/repo` form names a host; an
-    # absolute, relative, or Windows path does not. A colon that appears AFTER
-    # a slash is part of a path, not an scp separator.
     case "$url" in
     /* | ./* | ../* | ~*) return 1 ;;
     */*:*) return 1 ;;
@@ -237,8 +170,6 @@ remote_owner() {
     esac
     ;;
   esac
-  # Strip a `user@` only when the `@` precedes the first path separator, so an
-  # `@` inside a path segment is left alone.
   case "$url" in
   *@*)
     case "${url%%@*}" in
@@ -248,12 +179,6 @@ remote_owner() {
     ;;
   *) ;;
   esac
-  # scp-style `host:owner/repo` becomes `host/owner/repo`. ONLY when there was
-  # no scheme: with one, a colon in the authority is a PORT, and converting it
-  # promotes the port number to a path segment, so `https://example.com:8080/acme/repo`
-  # would resolve to owner `8080`. That is the same fabricated-fact-with-a-citation
-  # this guard exists to stop, arriving by a different route. With a scheme, strip
-  # the port from the authority instead.
   if [[ "$had_scheme" -eq 1 ]]; then
     case "$url" in
     *:*)
@@ -275,7 +200,6 @@ remote_owner() {
   *) return 1 ;;
   esac
   owner="${rest%%/*}"
-  # A Windows drive letter normalizes to an empty or backslash-bearing segment.
   case "$owner" in
   "" | . | ..) return 1 ;;
   *[!A-Za-z0-9._-]*) return 1 ;;
@@ -284,7 +208,6 @@ remote_owner() {
   printf '%s' "$owner"
 }
 
-# The first owner of the default `*` rule in a CODEOWNERS file.
 codeowners_default() {
   awk '
     { sub(/\r$/, "") }
@@ -294,16 +217,6 @@ codeowners_default() {
   ' "$1"
 }
 
-# Keys of a TOP-LEVEL JSON object member, one per line. Walks the text with a
-# depth and string-state machine because a package.json is not line-oriented and
-# an anchored grep would miss a one-line manifest entirely.
-#
-# The member must be found BY POSITION, not by text search. Seeking the first
-# literal `"dependencies"` anywhere in the file lets a nested member of the same
-# name shadow the real one: a `pnpm.overrides.dependencies` block appears first
-# in the byte stream, so the top-level dependencies were reported as whatever
-# the override pinned. A container stack costs a few lines and cannot be fooled
-# that way.
 json_object_keys() {
   awk -v want="$2" '
     { buf = buf $0 "\n" }
@@ -348,7 +261,6 @@ json_object_keys() {
   ' "$1"
 }
 
-# Values of a TOML table's keys, or the key names themselves.
 toml_table_keys() {
   awk -v want="$2" '
     { sub(/\r$/, "") }
@@ -369,7 +281,6 @@ toml_table_keys() {
   ' "$1"
 }
 
-# A scalar `key = "value"` (or bare value) anywhere in a TOML/mod file.
 scalar_value() {
   awk -v want="$2" '
     { sub(/\r$/, "") }
@@ -384,8 +295,6 @@ scalar_value() {
   ' "$1"
 }
 
-# Package names from a requirements-style line set: the leading name token,
-# with any version specifier, extra, or environment marker dropped.
 requirements_names() {
   awk '
     { sub(/\r$/, "") }
@@ -401,20 +310,7 @@ requirements_names() {
   '
 }
 
-# ---------------------------------------------------------------------------
-# Manifest scope
-# ---------------------------------------------------------------------------
-#
-# A repository RUNS ON its runtime and is BUILT WITH its tooling. Every
-# ecosystem that separates the two does it on scope rather than on path:
-# CycloneDX `scope`, SPDX DEV_DEPENDENCY_OF and BUILD_TOOL_OF, npm
-# devDependencies, PEP 735 dependency groups, and the GitHub dependency graph's
-# runtime/development. Each classifier reports `runtime` or `development` for
-# ONE manifest; the caller routes the family and its dependencies accordingly.
 
-# A package.json names tooling when devDependencies are its only dependency
-# section. Absence of every section is NOT evidence of tooling, so a manifest
-# carrying no dependencies at all stays runtime: it still declares a package.
 node_manifest_scope() {
   local file="$1"
   if [[ -n "$(
@@ -429,10 +325,6 @@ node_manifest_scope() {
   fi
 }
 
-# A requirements file names its own scope in its filename: `-dev`, `-ci`, and
-# `-test` are the pre-PEP-735 convention for a dependency group. Each token is
-# matched WITH its separator, because a bare substring test catches real
-# names — `requirements-scientific.txt` contains "ci" and is not tooling.
 requirements_scope() {
   case "${1##*/}" in
   *-dev.txt | *_dev.txt | *-dev-*.txt | dev-*.txt | \
@@ -445,7 +337,6 @@ requirements_scope() {
   esac
 }
 
-# True when a repo-relative path has a dot-directory segment.
 dotdir_path() {
   case "/$1" in
   */.*/*) return 0 ;;
@@ -453,16 +344,10 @@ dotdir_path() {
   esac
 }
 
-# The scope a manifest actually carries: its content's scope, unless it sits
-# inside a dot-directory, which pins it to development however it reads. The
-# kept dot-directories are CI and container config, so a manifest there
-# describes the build, never what the repository runs on.
 effective_scope() {
   if dotdir_path "$1"; then printf 'development'; else printf '%s' "$2"; fi
 }
 
-# A `[project]` table declares a Python project. A pyproject whose only
-# dependency surface is PEP 735 `[dependency-groups]` declares tooling.
 pyproject_scope() {
   if grep -q '^[[:space:]]*\[project\]' "$1" 2>/dev/null; then
     printf 'runtime'
@@ -473,9 +358,6 @@ pyproject_scope() {
   fi
 }
 
-# ---------------------------------------------------------------------------
-# Per-repository collection
-# ---------------------------------------------------------------------------
 
 exit_code=0
 
@@ -493,7 +375,6 @@ for raw_path in "$@"; do
   }
   index_repo_files "$repo"
 
-  # --- remote --------------------------------------------------------------
   remote="$(git -C "$repo" remote get-url origin 2>/dev/null)" || remote=""
   if [[ "$remote" =~ ^(https?://)[^/@]*@(.*)$ ]]; then
     remote="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
@@ -502,12 +383,8 @@ for raw_path in "$@"; do
   fi
   [[ -n "$remote" ]] || remote="unknown"
 
-  # --- name (github.com origin repository segment, else directory basename) -
-  # #4554: identity follows the repository, not the checkout directory, when
-  # origin is github.com. Other hosts and path remotes keep basename behavior.
   name="$(github_repo_name "$remote")" || name="$(basename "$repo")"
 
-  # --- owner (CODEOWNERS, then the remote's owner segment) ------------------
   owner="unknown"
   owner_evidence="no CODEOWNERS default rule and no origin remote owner"
   for candidate in CODEOWNERS .github/CODEOWNERS docs/CODEOWNERS; do
@@ -526,14 +403,10 @@ for raw_path in "$@"; do
     fi
   fi
 
-  # --- runtime and tooling (first RUNTIME hit is primary) -------------------
   runtimes=()
   toolings=()
   runtime_evidence=""
   tooling_evidence=""
-  # $1 family, $2 manifest, $3 content scope. The dot-directory rule is applied
-  # here so every family gets it, including the ones that pass a literal
-  # `runtime` because their manifest format has no development scope of its own.
   add_family() {
     local scope
     scope="$(effective_scope "$2" "$3")"
@@ -569,17 +442,6 @@ for raw_path in "$@"; do
     add_family "$js_runtime" "$node_manifest" "$node_scope"
   fi
 
-  # A pyproject settles the scope on its own. Otherwise a RUNTIME-scope
-  # requirements file is preferred over a development-scope one: taking the
-  # first sorted hit reports the repository as tooling merely because
-  # `requirements-dev.txt` sorts ahead of `requirements.txt`.
-  #
-  # Only a ROOT-LEVEL runtime-scope requirements file claims the runtime. A
-  # requirements file declares no package, so a nested one speaks for its own
-  # directory (one plugin's optional extras), not the repository; letting it win
-  # reported a shell repository as python and discarded its CI requirements. A
-  # nested Python package still claims the runtime through pyproject.toml or
-  # setup.py, which `find_first` reads at any depth.
   py_manifest=""
   py_dev_manifest=""
   py_scope="runtime"
@@ -622,9 +484,6 @@ for raw_path in "$@"; do
   find_first 'Gemfile' && add_family ruby "$FIND_HIT" runtime
   find_first 'composer.json' && add_family php "$FIND_HIT" runtime
 
-  # `shell` only when no RUNTIME-scope family claimed the repository. A
-  # development-scope family never suppresses it: a shell-and-markdown
-  # repository that lints with Node still runs on shell.
   if [[ ${#runtimes[@]} -eq 0 ]]; then
     for pattern in '*.sh' '*.ps1'; do
       if find_first "$pattern"; then
@@ -656,8 +515,6 @@ for raw_path in "$@"; do
 
   primary="${runtimes[0]:-unknown}"
 
-  # --- target framework (from the primary runtime's declaration) ------------
-  # Each branch reads tf and names its source; the source is cited only when tf is found.
   target_framework="unknown"
   tf_evidence="no framework declaration for runtime $primary"
   tf=""
@@ -702,18 +559,11 @@ for raw_path in "$@"; do
     tf_evidence="$tf_source"
   fi
 
-  # --- dependencies, split by scope -----------------------------------------
-  # Runtime-scope names land in `dependencies`; development-scope names land in
-  # `dev_dependencies`. devDependencies are collected either way: a runtime
-  # manifest still has tooling, and reporting it is what keeps the two columns
-  # honest instead of silently dropping half the manifest.
   dep_raw=""
   dep_sources=""
   dev_dep_raw=""
   dev_dep_sources=""
 
-  # `global.json` alone marks the runtime but carries no references, so it must
-  # not claim a dependency source that produced nothing.
   if [[ "$dotnet_proj" == *.*proj ]]; then
     while IFS= read -r projfile; do
       [[ -n "$projfile" ]] || continue
@@ -797,7 +647,6 @@ for raw_path in "$@"; do
   [[ -n "$dep_sources" ]] || dep_sources="no runtime-scope dependency manifest"
   [[ -n "$dev_dep_sources" ]] || dev_dep_sources="no development-scope dependency manifest"
 
-  # --- last touched (local HEAD; nothing here fetches) ----------------------
   last_touched="$(git -C "$repo" log -1 --format=%cI 2>/dev/null)" || last_touched=""
   if [[ -n "$last_touched" ]]; then
     lt_evidence="git log -1 --format=%cI (local HEAD)"
@@ -806,7 +655,6 @@ for raw_path in "$@"; do
     lt_evidence="no git history readable at this path"
   fi
 
-  # --- emit ----------------------------------------------------------------
   record='{'
   json_escape "$name" && record="$record\"name\":\"$JSON_ESC\","
   json_escape "$repo" && record="$record\"path\":\"$JSON_ESC\","

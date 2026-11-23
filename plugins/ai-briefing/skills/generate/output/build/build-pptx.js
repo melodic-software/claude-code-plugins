@@ -1,4 +1,3 @@
-// Build ai-meeting-{N}.pptx from slides-data.js using pptxgenjs.
 import PptxGenJS from "pptxgenjs";
 import path from "node:path";
 import fs from "node:fs";
@@ -17,12 +16,11 @@ const logoWhiteData = meta.logoWhite
   : "";
 
 const pres = new PptxGenJS();
-pres.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 in
+pres.layout = "LAYOUT_WIDE";
 pres.title = `${meta.org} — AI Meeting #${meta.meetingNumber}`;
 pres.author = meta.org;
 pres.company = meta.org;
 
-// Slide width/height in inches
 const W = 13.33;
 const H = 7.5;
 
@@ -42,17 +40,14 @@ function addHeading(slide, text, fontSize = 44) {
   });
 }
 
-// Helper: solid bg + accent strip + footer
 function decorate(slide, { eyebrow = null } = {}) {
   slide.background = { color: theme.bg };
 
-  // Top accent bar (brand red)
   slide.addShape(pres.ShapeType.rect, {
     x: 0, y: 0, w: W, h: 0.1,
     fill: { color: theme.brandRed }, line: { type: "none" },
   });
 
-  // Side rail (gold)
   slide.addShape(pres.ShapeType.rect, {
     x: 0, y: 0.1, w: 0.18, h: H - 0.1,
     fill: { color: theme.accent2 }, line: { type: "none" },
@@ -66,7 +61,6 @@ function decorate(slide, { eyebrow = null } = {}) {
     });
   }
 
-  // Top-right logo (white)
   addLogo(slide, W - 1.65, 0.2, 1.3, 0.36);
 
   slide.addText([
@@ -81,8 +75,6 @@ function decorate(slide, { eyebrow = null } = {}) {
   });
 }
 
-// Hyperlinked source URLs as one text run per URL, separated by a small blank line.
-// Dangerous schemes are dropped here so no build path can emit them as a hyperlink.
 function urlRuns(urls, { fontSize, gapFontSize }) {
   return urls.filter(isAllowedUrlScheme).flatMap((u, i) => [
     ...(i > 0 ? [{ text: "\n", options: { fontSize: gapFontSize } }] : []),
@@ -98,12 +90,9 @@ function addSlideNumber(slide, n, total) {
   });
 }
 
-// ----- Slide types ----------------------------------------------------------
-
 function buildTitle(s, slide) {
   slide.background = { color: theme.bg };
 
-  // Top brand-red bar + bottom gold bar
   slide.addShape(pres.ShapeType.rect, {
     x: 0, y: 0, w: W, h: 0.22,
     fill: { color: theme.brandRed }, line: { type: "none" },
@@ -113,7 +102,6 @@ function buildTitle(s, slide) {
     fill: { color: theme.accent2 }, line: { type: "none" },
   });
 
-  // Brand glow shapes (indigo + periwinkle)
   slide.addShape(pres.ShapeType.ellipse, {
     x: W - 5, y: -2, w: 7, h: 7,
     fill: { color: theme.bgCard, transparency: 25 }, line: { type: "none" },
@@ -127,7 +115,6 @@ function buildTitle(s, slide) {
     fill: { color: theme.accent2, transparency: 85 }, line: { type: "none" },
   });
 
-  // Org logo (large, top-left)
   addLogo(slide, 0.8, 0.7, 3.5, 0.95);
 
   slide.addText(s.eyebrow.toUpperCase(), {
@@ -165,7 +152,6 @@ function buildAgenda(s, slide) {
   decorate(slide, { eyebrow: "MEETING ROADMAP" });
   addHeading(slide, s.title, 48);
 
-  // 2-column agenda grid
   const colW = 5.6;
   const rowH = 0.65;
   const startX = 0.7;
@@ -200,14 +186,12 @@ function buildSection(s, slide) {
   decorate(slide, { eyebrow: "WELCOME" });
   addHeading(slide, s.title);
 
-  // Big lead quote
   slide.addText(`"${s.lead}"`, {
     x: 0.7, y: 2.2, w: 11.9, h: 2,
     fontFace: FONT_HEAD, fontSize: 24, italic: true,
     color: theme.accent, valign: "top",
   });
 
-  // Sub-items as pills
   const startX = 0.7;
   const startY = 4.8;
   const pillW = 3.8;
@@ -235,7 +219,6 @@ function buildLevels(s, slide) {
   const rowH = 0.7;
   const numW = 1.0;
 
-  // Color scale across levels (indigo -> periwinkle -> sky -> gold)
   const palette = ["3F3E87", "5D5CB0", "8080FF", "80BEFF", "FFD466", "FFB901"];
 
   s.levels.forEach((lvl, i) => {
@@ -280,7 +263,6 @@ function buildNews(s, slide) {
     });
   }
 
-  // Allocate vertical space proportional to URL count to keep all links visible.
   const startY = 1.75;
   const totalH = H - startY - 0.5;
   const weights = s.bullets.map((b) => 1 + Math.max(0, (b.urls?.length ?? 1) - 1) * 0.32);
@@ -292,13 +274,11 @@ function buildNews(s, slide) {
     const y = cursor;
     cursor += rowH;
 
-    // Left accent dot (brand red)
     slide.addShape(pres.ShapeType.ellipse, {
       x: 0.55, y: y + 0.18, w: 0.16, h: 0.16,
       fill: { color: theme.brandRed }, line: { type: "none" },
     });
 
-    // Title + body
     const richText = [
       { text: b.title, options: { fontFace: FONT_HEAD, fontSize: 12.5, bold: true, color: theme.text } },
       { text: "  —  ", options: { fontSize: 12.5, color: theme.brandRed } },
@@ -309,7 +289,6 @@ function buildNews(s, slide) {
       valign: "top",
     });
 
-    // ALL URLs — each as separate hyperlinked line
     const urlBlock = urlRuns(b.urls ?? [], { fontSize: 8.5, gapFontSize: 4 });
     if (urlBlock.length > 0) {
       const bodyChars = b.body.length + b.title.length;
@@ -424,7 +403,6 @@ function buildPatterns(s, slide) {
 function buildOpen(s, slide) {
   slide.background = { color: theme.bg };
 
-  // Brand glow
   slide.addShape(pres.ShapeType.ellipse, {
     x: -2, y: -2, w: 8, h: 8,
     fill: { color: theme.brandRed, transparency: 78 }, line: { type: "none" },
@@ -467,7 +445,6 @@ function buildPrompt(s, slide) {
   decorate(slide, { eyebrow: "DISCUSSION" });
   addHeading(slide, s.title);
 
-  // Centered question — brand-red border for energy
   slide.addShape(pres.ShapeType.roundRect, {
     x: 1.2, y: 2.5, w: 10.9, h: 2.6,
     fill: { color: theme.bgAccent }, line: { color: theme.brandRed, width: 3 },
@@ -493,7 +470,6 @@ function buildBlank(s, slide) {
   decorate(slide, { eyebrow: "TASK FORCE" });
   addHeading(slide, s.title);
 
-  // Open canvas — placeholder hint only
   slide.addShape(pres.ShapeType.roundRect, {
     x: 0.7, y: 2.2, w: 11.9, h: 4.4,
     fill: { color: theme.bgAccent, transparency: 50 }, line: { color: theme.divider, width: 1, dashType: "dash" },
@@ -510,7 +486,6 @@ function buildBlank(s, slide) {
 function buildQA(s, slide) {
   slide.background = { color: theme.bg };
 
-  // Brand glow decorations
   slide.addShape(pres.ShapeType.ellipse, {
     x: -2, y: -2, w: 8, h: 8,
     fill: { color: theme.accent, transparency: 80 }, line: { type: "none" },
@@ -524,7 +499,6 @@ function buildQA(s, slide) {
     fill: { color: theme.bgCard, transparency: 75 }, line: { type: "none" },
   });
 
-  // Logo top-center
   addLogo(slide, W / 2 - 1.4, 0.7, 2.8, 0.75);
 
   slide.addText("Q & A", {
@@ -544,8 +518,6 @@ function buildQA(s, slide) {
     line: { color: theme.brandRed, width: 3 },
   });
 }
-
-// ----- Main loop ------------------------------------------------------------
 
 const total = slides.length;
 slides.forEach((s, i) => {

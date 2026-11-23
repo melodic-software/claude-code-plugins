@@ -1,8 +1,3 @@
-// Ties the escalation event classes to the guardrails stop rule they route
-// under. Reads the "## Escalation" table and its stop rule, then probes
-// check-security-binding.mjs: every class the table lists must need its own
-// escalation_routes entry, each class must stop for a person only as the
-// table says, and the always-stop class must keep its C5 work human at merge.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -20,7 +15,6 @@ const baseName = "valid.json";
 const manifest = JSON.parse(readFileSync(join(scriptsDir, "check-security-binding.fixtures.test.manifest.json"), "utf8"));
 const credentialRoots = manifest.fixtures[baseName].credential_roots;
 
-// The route each class's "Stops for a person" cell must state.
 const STOP_RULE = "only under the stop rule";
 const EXPECTED_STOPS = {
   "gate-failure": STOP_RULE,
@@ -31,7 +25,6 @@ const EXPECTED_STOPS = {
   "untrusted-provenance": "always: a kept trust control",
 };
 
-// The stop rule's own text for where each routed class goes instead.
 const OWNING_ROUTES = {
   "gate-failure": "a failed gate or a dissent to the lane doing the work",
   "verification-divergence": "a failed gate or a dissent to the lane doing the work",

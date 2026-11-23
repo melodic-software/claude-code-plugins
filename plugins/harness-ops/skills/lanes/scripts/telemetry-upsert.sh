@@ -170,17 +170,9 @@ jq() { command jq "$@" | tr -d '\r'; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
-MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
+MAX_BODY_BYTES=65536
+MIN_BODY_BYTES=16
 
-# Guard for a space-form option that consumes the next token. Called as
-# `require_value "$@"` from the parse loop, so $1 is the flag and $# counts the
-# tokens still to come: fewer than two means the flag arrived last, with nothing
-# to consume. Without it `shift 2` on a lone trailing flag consumes nothing and
-# the parse loop spins forever.
-# Deliberately an argc check and NOT a `-*` value rejection: `-` is a real value
-# here, since SKILL.md documents `--body-file -` for reading the body from stdin.
-# Hardening this into "reject values that look like flags" would break that.
 require_value() {
   (($# >= 2)) && return 0
   err "$1 requires a value"
@@ -194,7 +186,6 @@ BODY_DIR=""
 REPO=""
 APP_SLUG=""
 DRY_RUN=0
-# set_opt FLAG VALUE: store a value-taking option, whichever form it came in.
 set_opt() {
   case "$1" in
   --issue) ISSUE="$2" ;;
@@ -231,7 +222,6 @@ while (($#)); do
   esac
 done
 
-# After the parse loop, so `--help` answers on a machine missing either tool.
 for bin in gh jq node; do
   type -P "$bin" >/dev/null 2>&1 || {
     err "$bin not found (required)"
@@ -251,20 +241,12 @@ done
   err "--body-file is required"
   exit 3
 }
-# An unrendered `${user_config.lane_app_slug}` placeholder means the option is
-# unset; treat it, like an empty value, as no slug.
 [[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
 if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
   exit 3
 fi
 
-# Read the body. `-` reads stdin (a body generated in memory: no arbitrary-file
-# read, so it is exempt from containment, not from the leak scan below). A real
-# path goes through telemetry-body-gate.sh (a generated copy of
-# lib/telemetry-body-gate.sh), the rule every lane telemetry upsert shares: the
-# safe body dir must be this plugin's data dir (never /, the home dir or an
-# ancestor of it), the file must resolve under it, and it is read once.
 # shellcheck source=lib/telemetry-body-gate.sh
 . "${BASH_SOURCE[0]%/*}/lib/telemetry-body-gate.sh"
 if [[ "$BODY_FILE" == "-" ]]; then
@@ -286,12 +268,6 @@ else
   rm -f -- "$TBG_COPY"
 fi
 
-# --- Pre-write body gate -----------------------------------------------------
-# All three checks run against the caller's body BEFORE any gh call, so a body
-# that fails costs zero API calls and never lands on the tracking issue. The
-# read-back below re-asserts the same properties on what came back; THIS is what
-# keeps a degraded body from being published in the first place. Applied to file
-# and stdin bodies alike.
 body_bytes="$(printf '%s' "$body_text" | wc -c | tr -d ' ')"
 if ((body_bytes > MAX_BODY_BYTES)); then
   err "body is ${body_bytes} bytes, over the ${MAX_BODY_BYTES}-byte cap — telemetry bodies are small"
@@ -308,8 +284,6 @@ if ((body_bytes < MIN_BODY_BYTES)); then
   exit 3
 fi
 
-# The marker is published too; a hostname-shaped instance in it is refused up
-# front, so the body scan below never blames the body for it.
 tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$MARKER" || {
   err "$TBG_ERR; nothing was written"
   exit 3
@@ -332,7 +306,6 @@ if [[ -n "$leak" ]]; then
   exit 3
 fi
 
-# --- Resolve owner/repo ------------------------------------------------------
 if [[ -z "$REPO" ]]; then
   REPO="$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null | tr -d '\r')"
   [[ -n "$REPO" ]] || {
@@ -341,18 +314,11 @@ if [[ -z "$REPO" ]]; then
   }
 fi
 
-# Validate BEFORE interpolating $REPO into any gh api URL path. Both the explicit
-# --repo value and the auto-detected one flow through here. Without this, a value
-# like `foo/bar/../../org/target` injects `..` segments that GitHub's API routing
-# normalizes, redirecting the GET/PATCH/POST to a different repo the token can
-# reach. A single owner/repo pair (one slash, no traversal) is the only shape.
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || {
   err "--repo must be owner/repo (got: '$REPO')"
   exit 3
 }
 
-# The login whose comments count as mine (WRITE IDENTITY in the header). Returns 1
-# when none resolves; the caller writes nothing.
 WRITE_IDENTITY=""
 installation_token() { gh api 'installation/repositories?per_page=1' >/dev/null 2>&1; }
 resolve_write_identity() {
@@ -371,15 +337,6 @@ resolve_write_identity() {
   [[ "$WRITE_IDENTITY" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]
 }
 
-# --- List existing comments (paginated, raw) ---------------------------------
-# Fetch raw JSON and select in-script rather than via `gh --jq`, so the whole
-# two-tier detection is one auditable jq program. With no `--jq`, `gh` merges
-# array-shaped pages into ONE array, so `jq -s 'add'` unwraps a one-element
-# slurp rather than concatenating pages — but it is not optional: supplying
-# `--jq` would suppress that merge and restore per-page emission, and `add`
-# keeps this correct under either shape. `--paginate` itself is what makes an
-# existing comment on page 2 of a busy tracking issue visible; without it we
-# would POST a duplicate, the exact failure this script exists to prevent.
 resolve_write_identity || {
   err "cannot resolve the lanes' write identity (gh api user failed or reported no User, and the token is not an App installation token); pass --app-slug under an App token. Nothing was written."
   exit 4
@@ -389,10 +346,6 @@ raw_pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100"
   err "failed to list comments on $REPO#$ISSUE (gh api)"
   exit 5
 }
-# A list that does not parse is not an empty list: reading it as one would POST
-# a duplicate of the comment it failed to show. An issue with no comments still
-# answers `[]`, so no output at all, a `null` or a `false` is an error too, and
-# a non-object element would make detection below match nothing.
 comments="$(jq -se '
   if length > 0 and all(.[]; type == "array") then add else error("not an array") end
   | if all(.[]; type == "object") then . else error("not an object") end
@@ -405,23 +358,12 @@ detect_failed() {
   exit 5
 }
 
-# Primary: newest of MY comments carrying the exact sentinel.
 target_id="$(jq -r --arg s "$SENTINEL" --arg me "$WRITE_IDENTITY" '
   [ .[] | select((.user.login // "") == $me and (.body // "" | contains($s))) ]
   | sort_by(.created_at) | last | .id // empty
 ' <<<"$comments")" || detect_failed
 detect="sentinel"
 
-# Fallback: no sentinel yet — the newest of MY comments carrying the raw marker
-# as a whole token. A plain substring match would let a shorter marker adopt a
-# longer lane's comment: `lane:triage` is a prefix of `lane:triage-old`, so
-# `contains("lane:triage")` matches the other lane's comment and this run would
-# PATCH it — overwriting that lane's only telemetry comment. The lookaround
-# boundaries (marker charset [A-Za-z0-9:@._-]) require the marker not abut another
-# marker-charset char on either side; `.` is escaped so it stays a literal. `@` is
-# in both classes for the same reason `-` is: with the writer-identity suffix in
-# play, `lane:triage` must not adopt `lane:triage@laptop-a`'s comment, and
-# `lane:work@a` must not adopt `lane:work@a@b`'s.
 if [[ -z "$target_id" ]]; then
   target_id="$(jq -r --arg m "$MARKER" --arg me "$WRITE_IDENTITY" '
     ($m | gsub("[.]"; "\\.")) as $mre
@@ -433,7 +375,6 @@ if [[ -z "$target_id" ]]; then
   [[ -n "$target_id" ]] && detect="marker-fallback"
 fi
 
-# --- Act ---------------------------------------------------------------------
 if [[ -n "$target_id" ]]; then
   action="update"
   if ((DRY_RUN)); then
@@ -461,16 +402,6 @@ fi
 new_id="$(jq -r '.id // empty' <<<"$resp")"
 html_url="$(jq -r '.html_url // empty' <<<"$resp")"
 
-# --- Post-write read-back (secondary confirmation) ---------------------------
-# Re-READ the comment rather than trusting the create/update response echo: the
-# echo proves the request was accepted, a GET proves what a reader of the issue
-# will actually find. The body's CONTENT was already cleared by the pre-write
-# gate, so what remains for this pass to catch is what happened to the comment
-# AFTER the write returned — a mangled store, a concurrent overwrite, a deletion.
-# It cannot detect that detection resolved the wrong comment; see the header.
-#
-# $2 overrides the remediation line, because "the check disagreed" and "the check
-# could not run" call for opposite next steps.
 verify_fail() {
   err "post-write read-back FAILED for $REPO#$ISSUE (marker=$MARKER): $1"
   [[ -n "$html_url" ]] && err "the written comment is at $html_url"
@@ -479,36 +410,13 @@ verify_fail() {
 }
 unconfirmed="the body cleared the pre-write gate, so the comment is probably intact — but this cycle is UNCONFIRMED, not proven good"
 
-# On the update path the id is already known — fall back to it rather than
-# calling a successful PATCH unverifiable over a missing field in its response.
 new_id="${new_id:-$target_id}"
 [[ -n "$new_id" ]] || verify_fail "the ${action} response carried no comment id, so the write cannot be read back" "$unconfirmed"
 
-# Same rule the $REPO validation states above: nothing reaches a gh api URL path
-# unvalidated. A GitHub comment id is an integer from either source, so this can
-# only fire on a malformed response — but the rule does not carry an exception.
 [[ "$new_id" =~ ^[0-9]+$ ]] ||
   verify_fail "the ${action} response carried a non-numeric comment id ('$new_id'), so the write cannot be read back" "$unconfirmed"
 
-# The write has already landed by this point, so a momentary GET failure would
-# otherwise report a good cycle as a bad one. Retry once before concluding the
-# comment is unverifiable; a second failure is still fail-closed. The retry is a
-# network-blip guard ONLY — it does not honor Retry-After, so a secondary rate
-# limit (which outlasts it by far) reliably burns both attempts.
-#
-# gh's stderr is kept rather than discarded, and the verdict branches on it: a
-# 404 means the comment is GONE, which contradicts the default "probably intact"
-# reading, while a 403/429 means it is almost certainly still there and simply
-# unread. The two call for opposite responses, so neither the raw message nor
-# the conclusion drawn from it can be one-size-fits-all.
-# Capturing stderr is a DIAGNOSTIC, so it must never be the thing that fails an
-# otherwise good write: on a full or unwritable TMPDIR the capture is skipped and
-# the read-back proceeds blind rather than turning exit 0 into exit 6.
 verify_err="$(mktemp 2>/dev/null)" || verify_err=""
-# INT/TERM are trapped SEPARATELY and re-exit. A handler that only cleans up
-# does not terminate: bash runs it and RESUMES the interrupted command, so a
-# single `trap … EXIT INT TERM` would swallow an operator's Ctrl-C (or a
-# supervisor's SIGTERM) during the retry sleep and carry on to exit 0.
 if [[ -n "$verify_err" ]]; then
   trap 'rm -f "$verify_err"' EXIT
   trap 'rm -f "$verify_err"; exit 130' INT TERM
@@ -525,14 +433,9 @@ done
 if ((verify_read == 0)); then
   verify_err_text=""
   [[ -n "$verify_err" ]] && verify_err_text="$(tr -d '\r' <"$verify_err" | tr '\n' ' ')"
-  # Bounded: gh's stderr is remote-influenced text going into an operator-facing
-  # message, and an unbounded splice would let a long error bury the verdict.
   verify_err_text="${verify_err_text:0:500}"
   case "$verify_err_text" in
   *"HTTP 404"*)
-    # 404 is also what GitHub returns when a token loses READ access, so this
-    # says "not retrievable", not "deleted" — the one thing it rules out is the
-    # default "probably intact" reading.
     verify_verdict="comment $new_id is NOT RETRIEVABLE (404) — it was deleted, its issue was, or this token can no longer read it; do not read this as 'probably intact'"
     ;;
   *) verify_verdict="$unconfirmed" ;;
@@ -543,14 +446,9 @@ fi
 [[ "$verify_body" == *"$SENTINEL"* ]] ||
   verify_fail "comment $new_id does not carry the marker sentinel after the write"
 
-# Everything below the sentinel is the caller's body — the sentinel is ours and
-# would otherwise mask a leading `@` in the part that carries the data.
 verify_rest="${verify_body#*"$SENTINEL"}"
 verify_rest="${verify_rest#$'\n'}"
 
-# The body that was sent cleared the same two assertions pre-write, so failing
-# them now means the stored comment diverged from it afterwards. Naming that
-# keeps an operator from hunting a caller-side `@path` bug the gate excluded.
 [[ "$verify_rest" == @* ]] &&
   verify_fail "comment $new_id starts with a literal '@' below the sentinel, but the body sent did not — the stored comment diverged from what was written"
 
@@ -561,6 +459,4 @@ verify_bytes="$(printf '%s' "$verify_rest" | wc -c | tr -d ' ')"
 printf 'telemetry-upsert: %sd comment %s (marker=%s) on %s#%s\n' \
   "$action" "$new_id" "$MARKER" "$REPO" "$ISSUE"
 [[ -n "$html_url" ]] && printf '%s\n' "$html_url"
-# Explicit: without it a response carrying no html_url leaves the `[[ ]] &&`
-# above as the last command, and a verified upsert would exit 1.
 exit 0

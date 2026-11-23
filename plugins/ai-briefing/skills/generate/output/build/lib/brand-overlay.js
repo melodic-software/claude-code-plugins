@@ -1,6 +1,3 @@
-// Resolve a declarative, schema-validated brand.json profile overlay over the
-// engine's neutral defaults. Profile data is never executed as JavaScript.
-
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";

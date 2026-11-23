@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.2] - 2026-11-23
+
+### Changed
+
+- `/attribution:audit` no longer gather repository context that no step read.
+- `/attribution:setup` keeps its root-then-home resolution in order, since each call takes the value the one before it returned, under a renamed heading.
+
+## [0.22.1] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [0.22.0] - 2026-11-22
 
 ### Added

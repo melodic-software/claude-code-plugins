@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tests for build_capture_script.py against live processes this test starts: the built script
-# reads the start time after the last ')' of /proc/<pid>/stat (a comm holding spaces and ')'),
-# runs the recorder only when every recheck holds, drops the capture when the process changes
-# while the recorder runs, and the builder refuses a record that fails its format or live check.
-# Usage: build_capture_script.test.sh [builder]   (default: the sibling build_capture_script.py)
 # shellcheck disable=SC2016 # recorder scripts and expected script text are single-quoted on purpose
 set -uo pipefail
 
@@ -30,7 +25,6 @@ cleanup() {
 trap cleanup EXIT
 
 UID_NOW="$(id -u)"
-# start_of <pid>: field 22 of /proc/<pid>/stat, counted from after the last ')'.
 start_of() {
   local stat rest
   stat="$(</proc/"$1"/stat)"
@@ -43,7 +37,6 @@ sum_of() {
   s="$(sha256sum <"/proc/$1/cmdline")"
   printf '%s' "${s%% *}"
 }
-# spawn <comm>: a long-lived bash whose comm is <comm>; its pid in $P.
 spawn() {
   bash -c 'printf %s "$1" >/proc/self/comm; while :; do sleep 1; done' spawned "$1" &
   P=$!
@@ -56,8 +49,6 @@ spawn() {
 }
 
 N=0
-# build <args...>: runs the builder writing $T/case-N/capture.sh; rc in $rc, stdout in $out,
-# stderr in $err, the script path in $S and the capture path in $C.
 build() {
   N=$((N + 1))
   mkdir -p "$T/case-$N"
@@ -68,7 +59,6 @@ build() {
   out="$(cat "$T/out")"
   err="$(cat "$T/err")"
 }
-# run_script: runs $S; rc in $src, stderr in $serr.
 run_script() {
   src=0
   sh "$S" 2>"$T/serr" || src=$?
@@ -78,7 +68,6 @@ launch_args() {
   printf '%s\n' --pid "$1" --uid "$UID_NOW" --start-time "$(start_of "$1")" --sha256 "$(sum_of "$1")"
 }
 
-# --- a comm with spaces and ')' --------------------------------------------------
 COMM='x) R 1 ) y'
 if ! spawn "$COMM"; then
   fail "a process with comm '$COMM' starts" "comm never became '$COMM'"
@@ -146,7 +135,6 @@ else
     fi
   done
 
-  # --- recheck after the recorder ----------------------------------------------
   build "${LA[@]}" -- sh -c 'echo "threads of $1"; kill "$1"; sleep 0.5' recorder '<pid>'
   run_script
   if [[ "$src" == 3 && ! -e "$C" && "$serr" == *"capture dropped: $C"* ]]; then
@@ -156,7 +144,6 @@ else
   fi
 fi
 
-# --- the recheck before the recorder ----------------------------------------------
 if spawn plain; then
   B="$P"
   mapfile -t LB < <(launch_args "$B")
@@ -173,7 +160,6 @@ else
   fail "a plain process starts" "comm never became plain"
 fi
 
-# --- a wrapper resolves to its one child ------------------------------------------
 bash -c 'sleep 120 & printf %s "$!" >"$1"; wait' wrapper "$T/child" &
 W=$!
 PIDS+=("$W")
@@ -183,7 +169,6 @@ for _ in $(seq 50); do
 done
 K="$(cat "$T/child" 2>/dev/null)"
 PIDS+=("$K")
-# The child's command line is bash's until it execs sleep.
 for _ in $(seq 50); do
   [[ "$(cat "/proc/$K/comm" 2>/dev/null)" == sleep ]] && break
   sleep 0.1
@@ -210,7 +195,6 @@ else
   fail "--child on a process with no child is refused" "rc=$rc: $err"
 fi
 
-# --- elevated attach ------------------------------------------------------------
 build --attach-pid "$K" -- sh -c 'echo "threads of $1"' recorder '<pid>'
 if [[ "$rc" == 0 && "$out" == *"attached process $K: uid $UID_NOW, start time $(start_of "$K")"* && "$out" == *"check $K $UID_NOW $(start_of "$K") $(sum_of "$K")"* ]]; then
   pass "--attach-pid records the pid's uid, start time and hash in the script"
@@ -231,8 +215,6 @@ else
   fail "--elevate prefixes the recorder and points its <file> into a stage directory, never the capture path" "rc=$rc out=$out err=$err"
 fi
 
-# A stand-in sudo that runs its command as this user: the script copies the staged file to the
-# capture path through its own redirect and removes the stage directory.
 mkdir -p "$T/bin" "$T/stage-tmp"
 printf '#!/bin/sh\nexec "$@"\n' >"$T/bin/sudo"
 chmod +x "$T/bin/sudo"
@@ -245,7 +227,6 @@ else
   fail "an elevated <file> capture is copied from the stage directory, which is removed" "rc=$rc src=$src: $(cat "$T/serr") stage=$(ls -A "$T/stage-tmp")"
 fi
 
-# --- an elevated run reads the builder's stdout, never the file ---------------------
 build --attach-pid "$K" --elevate sudo -- sh -c 'printf "threads of %s" "$1" >"$2"' recorder '<pid>' '<file>'
 shown="$out"
 if [[ "$rc" == 0 && -n "$(find "$S" -perm 0600)" && "$out" == *"# record of this script, never run: $S"* ]]; then
@@ -261,7 +242,6 @@ if [[ "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && ! -e "$T/ta
 else
   fail "the builder's stdout piped to bash -s runs the shown script, not the rewritten file" "src=$src: $(cat "$T/serr")"
 fi
-# The documented form: sh reading the shown text from a heredoc.
 rm -f "$C"
 src=0
 PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" sh -s 2>"$T/serr" <<APP_CONTROL_SHOWN_SCRIPT || src=$?
@@ -273,7 +253,6 @@ else
   fail "the shown text in a heredoc to sh -s runs the shown script, not the rewritten file" "src=$src: $(cat "$T/serr")"
 fi
 
-# A recorder that reads stdin gets none of the script, so the recheck and hand-back after it run.
 build --attach-pid "$K" --elevate sudo -- sh -c 'cat >"$2"; printf "threads of %s" "$1" >"$3"' recorder '<pid>' "$T/swallowed" '<file>'
 src=0
 printf '%s\n' "$out" | PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" bash -s 2>"$T/serr" || src=$?
@@ -283,7 +262,6 @@ else
   fail "a recorder reading stdin reads none of the script fed on stdin" "rc=$rc src=$src: $(cat "$T/serr") swallowed=$(cat "$T/swallowed" 2>/dev/null)"
 fi
 
-# A placeholder name inside the capture path or a recorder argument stays literal text.
 N=$((N + 1))
 mkdir -p "$T/case-$N/@RUN@"
 S="$T/case-$N/capture.sh"
@@ -297,7 +275,6 @@ else
   fail "placeholder names in the capture path and recorder are not filled again" "rc=$rc src=$src: $(cat "$T/err") $serr"
 fi
 
-# --- usage ----------------------------------------------------------------------
 build --attach-pid "$K" -- sudo rec '<pid>'
 if [[ "$rc" == 2 && "$err" == *"pass --elevate"* ]]; then
   pass "a recorder with an elevation prefix is refused"

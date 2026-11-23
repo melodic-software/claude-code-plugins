@@ -42,7 +42,6 @@ die() {
   exit "$2"
 }
 
-# Append "key":"value" to obj, comma-separated, the value JSON-escaped.
 add_str() {
   json_escape "$2"
   obj="${obj:+$obj,}\"$1\":\"$JSON_ESC\""
@@ -189,12 +188,6 @@ done < <(git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n') >"$raw"
 
 awk -F'\t' '$1 == "T" { print }' "$raw" >"$types"
 
-# Resolve type names against the declared types. A dotted name is tried as written,
-# then under each enclosing namespace and each using; `global::` allows only the
-# first. A short name binds to the one match in scope (namespace, parents, usings;
-# the global namespace always), else to the one match in the repo. A name that
-# matches no declared type stays unresolved.
-# Pass 1 reads types, pass 2 registrations, pass 3 edges.
 awk -F'\t' '
   function qualify(arg, sc,    g, n, i, c, pick, inscope, t) {
     if (arg == "" || arg == "-") return "-"
@@ -224,7 +217,6 @@ awk -F'\t' '
   }
 ' pass=1 "$types" pass=2 "$raw" pass=3 "$raw" >"$edges_tsv"
 
-# A message is a declared type some edge names, cited at its first declaration.
 awk -F'\t' '
   FILENAME == ARGV[1] { if ($2 != "-") used[$2] = 1; next }
   ($2 in used) && !($2 in seen) { seen[$2] = 1; printf "%s\t%s\t%s\t%s\n", $2, $3, $5, $6 }
@@ -249,8 +241,6 @@ while IFS=$'\t' read -r kind contract file line queue resolution rawarg; do
   printf '{%s}\n' "$obj"
 done <"$edges_tsv" >"$edge_body"
 
-# Findings. Orphans compare resolved contracts only. An unresolved edge is its
-# own finding and satisfies nothing.
 awk -F'\t' '
   $6 == "unresolved" { print "unresolved\t-\tunresolved " $1 " " $7 " " $3 ":" $4; next }
   $1 == "publish" || $1 == "send" { pub[$2] = 1 }

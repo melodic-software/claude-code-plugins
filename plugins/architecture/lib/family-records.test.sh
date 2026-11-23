@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for is_family_record: every name the map-* renderers and skills write
-# is recognized, and configuration names are not.
 # test-scope: plugins/architecture/skills/*/scripts/render-*.sh plugins/architecture/skills/*/SKILL.md
 set -uo pipefail
 

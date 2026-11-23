@@ -1,8 +1,3 @@
-// Convert parsed briefing buckets → ordered slide objects matching the
-// 11-type schema in lib/schema.js.
-
-// Canonical bucket order. Keys MUST match the H2 headings in briefing markdown
-// (case-insensitive prefix match against parser output).
 const BUCKET_ORDER = [
   { key: "anthropic",   label: "Anthropic",                provider: "anthropic" },
   { key: "openai",      label: "OpenAI",                   provider: "openai" },
@@ -19,8 +14,6 @@ const BUCKET_ORDER = [
   { key: "extras",      label: "EXTRAS",                   provider: null },
 ];
 
-// Special-purpose buckets emitted outside the standard HIGH/MED/LOW per-provider loop.
-// Matched by pattern in addition to BUCKET_ORDER above.
 const SPECIAL_BUCKETS = {
   "dev-tools": /^dev tools|^dev-tools|^dev tools — release walk/i,
   "patterns": /^patterns|^notable patterns/i,
@@ -29,7 +22,6 @@ const SPECIAL_BUCKETS = {
   "trends":   /^trends|^cross-meeting trends/i,
 };
 
-/** Map a parsed briefing item → the bullet shape every slide renderer expects. */
 function toBullet(item) {
   return {
     title: item.headline || "Untitled",
@@ -39,7 +31,6 @@ function toBullet(item) {
   };
 }
 
-/** Map a parsed briefing item → the item shape the `patterns` slide type expects. */
 function toPatternItem(item) {
   return {
     title: item.headline || "Untitled",
@@ -47,10 +38,8 @@ function toPatternItem(item) {
   };
 }
 
-/** Match an H2 heading from briefing.md to a canonical bucket key. */
 function bucketKey(heading) {
   const h = heading.toLowerCase();
-  // Special buckets take precedence over fuzzy provider matches
   for (const [key, re] of Object.entries(SPECIAL_BUCKETS)) {
     if (re.test(h)) return key;
   }
@@ -65,14 +54,12 @@ function bucketKey(heading) {
   return null;
 }
 
-// Title suffix per tier, e.g. "Anthropic — also worth noting".
 const TIER_TITLE_SUFFIX = {
   high: "Highlights",
   med: "also worth noting",
   low: "color & notes",
 };
 
-/** Build news/condensed slides for a tier of items, splitting past the tier's cap. */
 function tierSlides({ items, tier, providerKey, label }) {
   if (!items || items.length === 0) return [];
   const slideType = tier === "high" ? "news" : "condensed";
@@ -97,14 +84,9 @@ function tierSlides({ items, tier, providerKey, label }) {
   }));
 }
 
-// Non-provider buckets, excluded from the active-bucket heuristic below. Deliberately
-// independent of SPECIAL_BUCKETS: the sets coincide today but answer different questions.
 const NON_PROVIDER_BUCKETS = new Set(["patterns", "breaking", "dev-tools", "pace", "trends"]);
 
-/** Synthesize patterns slide from cross-bucket signals. Heuristic — caller can override
- *  by authoring `## Patterns` in the briefing markdown (parsed into buckets.patterns._items). */
 function buildPatternsSlide(buckets) {
-  // Authored content beats heuristic — if `## Patterns` H2 has bullets, render them directly.
   const authored = buckets.patterns?._items;
   if (authored && authored.length > 0) {
     return {
@@ -137,7 +119,6 @@ function buildPatternsSlide(buckets) {
   };
 }
 
-/** Build "Breaking & Deprecated" slide from authored `## Breaking & Deprecated` H2. */
 function buildBreakingSlide(buckets) {
   const items = buckets.breaking?._items;
   if (!items || items.length === 0) return null;
@@ -151,7 +132,6 @@ function buildBreakingSlide(buckets) {
   };
 }
 
-/** Build "Pace" velocity slide from authored `## Pace` H2 (or auto-derive from bucket counts). */
 function buildPaceSlide(buckets) {
   const authored = buckets.pace?._items;
   if (authored && authored.length > 0) {
@@ -162,11 +142,9 @@ function buildPaceSlide(buckets) {
       items: authored.map(toPatternItem),
     };
   }
-  return null; // No auto-derivation in the first cut — author the section to enable.
+  return null;
 }
 
-/** Build dev-tool slides in DEV_TOOL_PRIORITY order, one per matching H3 under
- *  the Dev Tools release-walk H2; tools with no matching H3 are skipped. */
 const DEV_TOOL_PRIORITY = [
   { key: "claude-code",    re: /claude\s*code/i,                          label: "Claude Code",     provider: "anthropic" },
   { key: "cursor",         re: /cursor/i,                                  label: "Cursor",          provider: "cursor" },
@@ -178,10 +156,9 @@ function buildDevToolSlides(buckets) {
   const dt = buckets["dev-tools"];
   if (!dt) return [];
   const slides = [];
-  // Map each H3 tier to a priority key; skip H3s that don't match any priority.
   const matched = {};
   for (const [tier, items] of Object.entries(dt)) {
-    if (tier === "_items") continue; // bare-bullets fallback (no H3) — ignored for dev-tools
+    if (tier === "_items") continue;
     for (const tool of DEV_TOOL_PRIORITY) {
       if (tool.re.test(tier) && !matched[tool.key]) {
         matched[tool.key] = { items, heading: tier };
@@ -204,8 +181,6 @@ function buildDevToolSlides(buckets) {
   return slides;
 }
 
-/** Sort items newest first; undated items stay on top. The sort is stable, so
- *  undated items and same-date ties keep source order. */
 function sortItemsByDate(items) {
   return items.toSorted((a, b) => {
     if (a.date == null || b.date == null) return (b.date == null) - (a.date == null);
@@ -217,7 +192,6 @@ const SORTED_TIERS = ["high", "med", "low", "_items"];
 
 function sortTiersByDate(normalized) {
   for (const [bucket, data] of Object.entries(normalized)) {
-    // dev-tools also keeps per-tool tiers under raw H3 keys; sort every one.
     const keys = bucket === "dev-tools" ? Object.keys(data) : SORTED_TIERS;
     for (const k of keys) {
       if (data[k]) data[k] = sortItemsByDate(data[k]);
@@ -225,7 +199,6 @@ function sortTiersByDate(normalized) {
   }
 }
 
-/** Mutate `normalized` to rebalance HIGH and MED tier sizes. */
 function balanceTiers(normalized) {
   for (const data of Object.values(normalized)) {
     if (!data) continue;
@@ -255,14 +228,11 @@ export function emitSlides(briefing, ctx) {
     for (const [tier, items] of Object.entries(tiers)) {
       const append = (k) => { bucket[k] = (bucket[k] || []).concat(items); };
       const t = tier.toLowerCase();
-      // No-H3 bullets (Patterns / Breaking / Pace authored under H2 directly)
       if (t === "_items") append("_items");
       else if (t.startsWith("high")) append("high");
       else if (t.startsWith("med")) append("med");
       else if (t.startsWith("low")) append("low");
-      // Per-tool H3 tiers (Claude Code, Cursor, Codex, etc.) — preserve raw heading text
       else if (key === "dev-tools") append(tier);
-      // EXTRAS sub-tiers
       else if (t.startsWith("rob") || t.startsWith("pattern")) append(t);
     }
   }
@@ -320,7 +290,6 @@ export function emitSlides(briefing, ctx) {
     ],
   });
 
-  // Open share: first slide of the NEWS group (intake before briefing items)
   slides.push({
     type: "open",
     section: "open",
@@ -330,7 +299,6 @@ export function emitSlides(briefing, ctx) {
     note: "Headlines, links, breaking AI news — anything we should add to today's coverage.",
   });
 
-  // Stamp section key + parent on every news slide so HTML render groups them.
   const pushNews = (section, ...newsSlides) => {
     for (const s of newsSlides) {
       if (!s) continue;
@@ -340,7 +308,6 @@ export function emitSlides(briefing, ctx) {
     }
   };
 
-  // Per-bucket news in canonical order, one section per bucket key.
   for (const b of BUCKET_ORDER) {
     const data = normalized[b.key];
     if (!data) continue;

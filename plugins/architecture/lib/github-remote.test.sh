@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for github_remote_path and github_repo_name: which remote URLs name a
-# github.com repository, and which segment is the repository.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,8 +18,6 @@ fail() {
   printf 'FAIL: %s\n' "$1" >&2
 }
 
-# expect_path URL PATH: PATH is what github_remote_path prints; "-" means the
-# URL fails and prints nothing.
 expect_path() {
   local url="$1" want="$2" got rc=0
   got="$(github_remote_path "$url")" || rc=$?
@@ -34,7 +30,6 @@ expect_path() {
   fi
 }
 
-# expect_name URL REPO: same for github_repo_name.
 expect_name() {
   local url="$1" want="$2" got rc=0
   got="$(github_repo_name "$url")" || rc=$?
@@ -65,16 +60,13 @@ for url in \
   expect_name "$url" "repo"
 done
 
-# The path keeps its extra segments; the name stops at the second.
 expect_path "https://github.com/owner/repo/tree/main" "owner/repo/tree/main"
 expect_name "https://github.com/owner/repo/tree/main" "repo"
 
-# One segment is an owner, not a repository.
 expect_path "https://github.com/owner" "owner"
 expect_name "https://github.com/owner" "-"
 expect_name "https://github.com/owner/" "-"
 
-# rest='/owner/repo' names repo, not owner.
 expect_name "https://github.com///owner/repo" "repo"
 
 for url in \
@@ -98,7 +90,6 @@ for url in \
   expect_name "$url" "-"
 done
 
-# The function leaves the caller's nocasematch setting as it found it.
 shopt -u nocasematch
 github_remote_path "https://GITHUB.com/o/r" >/dev/null
 if shopt -q nocasematch; then fail "nocasematch left on"; else pass "nocasematch restored off"; fi

@@ -1,33 +1,4 @@
 #!/usr/bin/env bash
-# Coverage:
-#   - create when the issue has no matching comment (POST)
-#   - update-in-place when the sentinel is present (PATCH to that comment id)
-#   - fallback: no sentinel but MY comment carries the raw marker -> adopt it (PATCH)
-#   - fallback never edits ANOTHER user's marker comment -> create instead
-#   - pagination: a sentinel comment on a second page is found (no duplicate POST)
-#   - argument validation: bad marker (incl. `>` injection), non-numeric issue,
-#     missing body-file
-#   - write identity (#7999): User login; Bot report + --app-slug; failed user call
-#     + --app-slug; Bot report without a slug; a refused slug (exit 3); an
-#     unresolved identity (exit 4, nothing written, even with a sentinel present);
-#     another author's sentinel comment is ignored; an empty or unrendered
-#     `${user_config.lane_app_slug}` slug reads as no slug (#8002); a failed
-#     user call under a personal token with --app-slug exits 4
-#   - a comment list that does not parse, is empty, `null` or `false`, or holds a
-#     non-object element exits 5 with nothing written, and so does a failed
-#     detection jq
-#   - --dry-run resolves the action but performs no write
-#   - `-` reads the body from stdin
-#   - missing jq BINARY (not just the in-script wrapper function) exits 4
-#   - pre-write body gate: an `@path` body (file AND stdin), an under-floor body,
-#     and an empty body each exit 3 having made NO API call
-#   - post-write read-back: a good body verifies; a body that came back `@`-led,
-#     sentinel-only, or without the sentinel exits 6; a failed GET is retried
-#     once then exits 6 reporting the cycle UNCONFIRMED; a response with no id
-#     exits 6; --dry-run reads nothing back
-#
-# PATH-stubs `gh`; the stub logs every mutating call and serves a fixture
-# comment list, so no network or real issue is touched.
 
 set -uo pipefail
 
@@ -48,24 +19,6 @@ STUB_BIN="$TMP/bin"
 mkdir -p "$STUB_BIN"
 LOG="$TMP/gh.log"
 
-# gh stub: serves `repo view`, `api user`, a paginated comment list from
-# $STUB_COMMENTS_FILE, the post-write read-back GET of a single comment, and logs
-# PATCH/POST mutations (echoing a synthetic response so the script can extract
-# .id / .html_url).
-#
-# Identity knobs (`api user`): STUB_ME (login, default octocat), STUB_ME_TYPE
-# (User|Bot, default User), STUB_USER_FAIL (non-empty: the call fails, as under an
-# App installation token), STUB_NOT_INSTALLATION (non-empty: the
-# `installation/repositories` probe fails, as under a personal token).
-#
-# Read-back knobs (all default to a body that verifies):
-#   STUB_READBACK_BODY  exact body the read-back GET returns (emitted CRLF)
-#   STUB_READBACK_FAIL  non-empty: the read-back GET fails with a 403 rate limit
-#   STUB_READBACK_404   non-empty: the read-back GET fails with a 404
-#   STUB_NO_ID          non-empty: mutations answer with no `id` field
-#   STUB_NO_ID_PATCH    non-empty: only PATCH answers with no `id` field
-#   STUB_NO_HTML_URL    non-empty: mutations answer with an `id` but no `html_url`
-#   STUB_BAD_ID         non-empty: mutations answer with a non-numeric traversal `id`
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 args=("$@")
@@ -173,8 +126,6 @@ exit 0
 STUB
 chmod +x "$STUB_BIN/gh"
 export PATH="$STUB_BIN:$PATH"
-# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
-# it under the work dir without touching HOME.
 cat >"$STUB_BIN/getent" <<'GETENT'
 #!/usr/bin/env bash
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
@@ -182,7 +133,6 @@ GETENT
 chmod +x "$STUB_BIN/getent"
 export STUB_LOG="$LOG"
 
-# The safe body dir the containment check keys off; BODY lives under it.
 SAFE_DIR="$TMP/harness-ops"
 mkdir -p "$SAFE_DIR"
 BODY="$SAFE_DIR/body.txt"
@@ -194,9 +144,6 @@ run() { STUB_COMMENTS_FILE="$1" bash "$SCRIPT" --repo "$REPO" --issue 502 --mark
 SENT='<!-- harness-ops:lane-telemetry marker=lane:triage -->'
 export STUB_SENTINEL="$SENT"
 
-# ============================================================================
-# create — no matching comment
-# ============================================================================
 echo '[]' >"$TMP/empty.json"
 : >"$LOG"
 out="$(run "$TMP/empty.json" 2>&1)"
@@ -207,9 +154,6 @@ assert_contains "create reports created" "$out" "created comment 999"
 assert_contains "create POSTs to the issue comments endpoint" "$log" "method=POST url=repos/$REPO/issues/502/comments"
 assert_not_contains "create does not PATCH" "$log" "method=PATCH"
 
-# ============================================================================
-# update — sentinel already present
-# ============================================================================
 cat >"$TMP/has-sentinel.json" <<JSON
 [
   { "id": 111, "created_at": "2026-07-20T00:00:00Z", "user": {"login": "octocat"},
@@ -226,13 +170,8 @@ assert_eq "update exits 0" 0 "$rc"
 assert_contains "update reports updated" "$out" "updated comment 222"
 assert_contains "update PATCHes the sentinel comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/222"
 assert_not_contains "update does not POST a second comment" "$log" "method=POST"
-# The read-back must GET the comment that was actually written, not a fixed id:
-# reading back the wrong comment would verify somebody else's body as ours.
 assert_contains "update reads back the comment it just wrote" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
-# ============================================================================
-# fallback — no sentinel, my comment carries the raw marker -> adopt (PATCH)
-# ============================================================================
 cat >"$TMP/marker-only.json" <<'JSON'
 [
   { "id": 333, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
@@ -244,9 +183,6 @@ out="$(run "$TMP/marker-only.json" --dry-run 2>&1)"
 assert_contains "fallback matches my marker comment" "$out" "would update comment 333"
 assert_contains "fallback labels the detection path" "$out" "matched via marker-fallback"
 
-# ============================================================================
-# fallback never edits another user's marker comment -> create instead
-# ============================================================================
 cat >"$TMP/other-user-marker.json" <<'JSON'
 [
   { "id": 444, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "someone-else"},
@@ -260,11 +196,6 @@ assert_contains "does not adopt another user's comment — creates" "$out" "crea
 assert_contains "creates via POST" "$log" "method=POST"
 assert_not_contains "never PATCHes another user's comment" "$log" "method=PATCH"
 
-# ============================================================================
-# fallback never adopts a comment whose marker is a longer superstring of mine
-# -> `lane:triage` must not PATCH a `lane:triage-old` comment (prefix collision);
-# it creates its own instead.
-# ============================================================================
 cat >"$TMP/prefix-collision.json" <<'JSON'
 [
   { "id": 555, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
@@ -277,12 +208,6 @@ log="$(cat "$LOG")"
 assert_contains "prefix-collision marker does not adopt the longer lane — creates" "$out" "created comment 999"
 assert_not_contains "never PATCHes the longer lane's comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/555"
 
-# ============================================================================
-# writer-identity suffix (#1295) — `@` is a marker-charset char on BOTH lookaround
-# boundaries, so a lane-type marker must not adopt an INSTANCE's comment. Without
-# `@` in the classes, `lane:triage` matches inside `lane:triage@laptop-a` and this
-# run would PATCH that instance's durable state.
-# ============================================================================
 cat >"$TMP/instance-suffix.json" <<'JSON'
 [
   { "id": 666, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
@@ -295,10 +220,6 @@ log="$(cat "$LOG")"
 assert_contains "lane-type marker does not adopt an instance's comment — creates" "$out" "created comment 999"
 assert_not_contains "never PATCHes an instance-suffixed comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/666"
 
-# ============================================================================
-# an instance marker must not adopt a LONGER instance marker either — the same
-# boundary rule one level down (`lane:triage@a` vs `lane:triage@a@b`).
-# ============================================================================
 INST_SENT='<!-- harness-ops:lane-telemetry marker=lane:triage@a -->'
 cat >"$TMP/instance-superstring.json" <<'JSON'
 [
@@ -313,18 +234,11 @@ log="$(cat "$LOG")"
 assert_contains "instance marker does not adopt a longer instance marker — creates" "$out" "created comment 999"
 assert_not_contains "never PATCHes the longer instance's comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/888"
 
-# An instance-suffixed marker is accepted by argument validation at all.
 : >"$LOG"
 out="$(STUB_SENTINEL="$INST_SENT" run "$TMP/empty.json" --marker "lane:triage@a" --dry-run 2>&1)"
 rc=$?
 assert_eq "instance-suffixed marker is a valid --marker" 0 "$rc"
 
-# ============================================================================
-# write identity (#7999) — the fallback reads comments written by the lanes' write
-# identity: a User login; else SLUG[bot] from --app-slug; else the reported Bot
-# login plus [bot]. Two marker-only comments, one per author, so each case shows
-# which one was adopted.
-# ============================================================================
 cat >"$TMP/two-authors.json" <<'JSON'
 [
   { "id": 701, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
@@ -373,7 +287,6 @@ done
 out="$(STUB_ME="other-app" STUB_ME_TYPE=Bot run "$TMP/two-authors.json" --app-slug="$PLACEHOLDER_SLUG" --dry-run 2>&1)"
 assert_contains "--app-slug=<placeholder> reads as no slug" "$out" "would update comment 703"
 
-# A refused slug writes nothing: exit 3 before any API call.
 for bad_slug in 'Bad Slug' 'lanes-app[bot]' '-lanes' 'a/b'; do
   : >"$LOG"
   out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" --app-slug "$bad_slug" 2>&1)"
@@ -383,9 +296,6 @@ for bad_slug in 'Bad Slug' 'lanes-app[bot]' '-lanes' 'a/b'; do
   assert_eq "slug '$bad_slug' refusal reaches no API call" "" "$(cat "$LOG")"
 done
 
-# No identity resolves: nothing is written (no create either — that would
-# duplicate the comment the fallback could not recognize) and the message names
-# the flag that fixes it.
 : >"$LOG"
 out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" 2>&1)"
 rc=$?
@@ -395,8 +305,6 @@ assert_contains "an unresolved write identity names --app-slug" "$out" "pass --a
 assert_not_contains "an unresolved identity does not POST" "$log" "method=POST"
 assert_not_contains "an unresolved identity does not PATCH" "$log" "method=PATCH"
 
-# Detection needs the identity even when a sentinel is present: without it the
-# script cannot tell its own sentinel comment from anyone else's.
 : >"$LOG"
 out="$(STUB_USER_FAIL=1 run "$TMP/has-sentinel.json" 2>&1)"
 rc=$?
@@ -405,9 +313,6 @@ assert_eq "a sentinel present with no write identity exits 4" 4 "$rc"
 assert_not_contains "a sentinel present with no write identity does not PATCH" "$log" "method=PATCH"
 assert_not_contains "a sentinel present with no write identity does not POST" "$log" "method=POST"
 
-# A personal token with --app-slug whose user call failed transiently is not an
-# App token: SLUG[bot] would miss octocat's own sentinel comment and POST a
-# duplicate, so no identity resolves and nothing is written.
 : >"$LOG"
 out="$(STUB_USER_FAIL=1 STUB_NOT_INSTALLATION=1 run "$TMP/has-sentinel.json" --app-slug lanes-app 2>&1)"
 rc=$?
@@ -417,9 +322,6 @@ assert_contains "a failed user call under a personal token names the cause" "$ou
 assert_not_contains "a failed user call under a personal token does not POST" "$log" "method=POST"
 assert_not_contains "a failed user call under a personal token does not PATCH" "$log" "method=PATCH"
 
-# The issue is public: an outsider can post the exact sentinel. Their comment is
-# newer than mine, so a match on the sentinel alone would PATCH it (or exit 5 on
-# the 403); the writer's own sentinel comment is the one updated.
 cat >"$TMP/outsider-sentinel.json" <<JSON
 [
   { "id": 801, "created_at": "2026-07-20T00:00:00Z", "user": {"login": "octocat"},
@@ -436,7 +338,6 @@ assert_eq "an outsider's newer sentinel comment: exits 0" 0 "$rc"
 assert_contains "an outsider's newer sentinel comment: my own comment is updated" "$log" "method=PATCH url=repos/$REPO/issues/comments/801"
 assert_not_contains "an outsider's newer sentinel comment is never patched" "$log" "comments/802"
 
-# Only an outsider carries the sentinel: it is ignored and a new comment created.
 cat >"$TMP/outsider-only.json" <<JSON
 [
   { "id": 803, "created_at": "2026-07-21T00:00:00Z", "user": {"login": "mallory"},
@@ -451,10 +352,6 @@ assert_eq "only an outsider's sentinel comment: exits 0" 0 "$rc"
 assert_contains "only an outsider's sentinel comment: a new comment is created" "$log" "method=POST url=repos/$REPO/issues/502/comments"
 assert_not_contains "only an outsider's sentinel comment: it is never patched" "$log" "method=PATCH"
 
-# A comment list that does not parse is not an empty list: creating a comment
-# then would duplicate the one the list failed to show. An issue with no
-# comments answers `[]`, so no output, `null` and `false` are errors too, and so
-# is a non-object element, which detection could not match.
 for bad_list in 'not json' '{"message":"Bad credentials"}' '' 'null' 'false' '[42]' \
   '[{"id":1,"created_at":"2026-07-19T00:00:00Z","user":{"login":"octocat"},"body":"x"},"oops"]'; do
   printf '%s\n' "$bad_list" >"$TMP/bad-list.json"
@@ -468,8 +365,6 @@ for bad_list in 'not json' '{"message":"Bad credentials"}' '' 'null' 'false' '[4
   assert_not_contains "list '$bad_list' does not PATCH" "$log" "method=PATCH"
 done
 
-# A detection jq that fails (here on a non-string body) matched nothing it can
-# vouch for: reading that as "no comment" would POST a duplicate.
 cat >"$TMP/bad-body.json" <<'JSON'
 [
   { "id": 901, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"}, "body": 5 }
@@ -484,12 +379,6 @@ assert_contains "a failed detection jq is reported" "$out" "detection jq failed"
 assert_not_contains "a failed detection jq does not POST" "$log" "method=POST"
 assert_not_contains "a failed detection jq does not PATCH" "$log" "method=PATCH"
 
-# ============================================================================
-# pagination — sentinel comment on a SECOND page is still found (no duplicate)
-# Real `gh --paginate` merges array pages into one array, but the script's
-# `jq -s 'add'` is correct under either shape, so the fixture feeds it the
-# harder one: a page-per-document stream.
-# ============================================================================
 cat >"$TMP/paged.json" <<JSON
 [
   { "id": 501, "created_at": "2026-07-18T00:00:00Z", "user": {"login": "octocat"},
@@ -506,9 +395,6 @@ log="$(cat "$LOG")"
 assert_contains "second-page sentinel is found" "$out" "updated comment 777"
 assert_not_contains "paginated find does not create a duplicate" "$log" "method=POST"
 
-# ============================================================================
-# argument validation
-# ============================================================================
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker 'lane>evil' --body-file "$BODY" 2>&1)"
 rc=$?
 assert_eq "marker with > (comment-injection) rejected exit 3" 3 "$rc"
@@ -537,18 +423,11 @@ fi
 assert_eq "trailing value-option with no value rejected exit 3 (no hang)" 3 "$rc"
 assert_contains "missing option-value message" "$out" "--issue requires a value"
 
-# ============================================================================
-# SECURITY — a traversal --repo is rejected before any URL interpolation
-# ============================================================================
 out="$(bash "$SCRIPT" --repo 'foo/bar/../../org2/target' --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
 rc=$?
 assert_eq "traversal --repo rejected exit 3" 3 "$rc"
 assert_contains "traversal --repo message" "$out" "--repo must be owner/repo"
 
-# ============================================================================
-# SECURITY — a --body-file OUTSIDE the safe dir is refused (no arbitrary read):
-# a prompt-injected secret path must never be cat'd into a public comment.
-# ============================================================================
 mkdir -p "$TMP/outside"
 SECRET="$TMP/outside/secret.txt"
 printf 'PRIVATE-KEY-MATERIAL\n' >"$SECRET"
@@ -558,16 +437,10 @@ assert_eq "body-file outside the safe dir rejected exit 3" 3 "$rc"
 assert_contains "containment message names the safe dir" "$out" "must resolve under the safe body dir"
 assert_not_contains "the secret's content is never read or echoed" "$out" "PRIVATE-KEY-MATERIAL"
 
-# A traversal body-file that escapes the safe dir via `..` is refused too
-# (canonicalization resolves the `..` before the prefix check).
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/../outside/secret.txt" --body-dir "$SAFE_DIR" 2>&1)"
 rc=$?
 assert_eq "traversal body-file escaping the safe dir rejected exit 3" 3 "$rc"
 
-# A SYMLINK leaf under the safe dir pointing at a secret is refused by the -L
-# guard — containment (parent-dir canonicalization) alone would pass it. Skipped
-# where the platform can't create symlinks (Windows without privilege); CI is
-# Linux and exercises it.
 LINK="$SAFE_DIR/link-to-secret.txt"
 # MSYS `ln -s` silently makes a COPY, not a symlink, and returns 0 — so gate on
 # the result actually being a symlink, not on ln's exit status.
@@ -582,14 +455,11 @@ else
 fi
 rm -f "$LINK" 2>/dev/null
 
-# No safe dir configured (no --body-dir, no CLAUDE_PLUGIN_DATA) fails closed.
 out="$(env -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" 2>&1)"
 rc=$?
 assert_eq "no safe body dir configured exits 4" 4 "$rc"
 assert_contains "no safe body dir message" "$out" "no safe body dir"
 
-# Another plugin's SessionStart hook can export its own data dir into every Bash
-# call as CLAUDE_PLUGIN_DATA; that must not widen the containment to it.
 FOREIGN="$TMP/codex-openai-codex"
 mkdir -p "$FOREIGN"
 cp "$BODY" "$FOREIGN/body.txt"
@@ -597,9 +467,6 @@ out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --repo "$REPO" --issue 502 -
 rc=$?
 assert_eq "a foreign CLAUDE_PLUGIN_DATA is no safe body dir (exits 4)" 4 "$rc"
 
-# A credential-shaped body, from a contained file or from stdin, is withheld
-# whole before any API call and never echoed. The fake token is assembled at run
-# time so no token-shaped literal is tracked.
 FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
 LEAKY="$SAFE_DIR/leaky.txt"
 printf 'lane: triage\nnote: %s\n' "$FAKE_TOKEN" >"$LEAKY"
@@ -617,8 +484,6 @@ assert_not_contains "the stdin leak refusal never prints the token" "$out" "$FAK
 assert_eq "the stdin leak refusal makes no API call" "" "$(cat "$LOG")"
 rm -f "$LEAKY"
 
-# A caller-chosen --body-dir must be the plugin's data dir: one not naming
-# harness-ops, or the home dir or an ancestor of it, is refused (exit 4).
 mkdir -p "$TMP/elsewhere"
 cp "$BODY" "$TMP/elsewhere/body.txt"
 : >"$LOG"
@@ -629,7 +494,6 @@ assert_eq "a --body-dir that is an ancestor of the home dir is refused (exit 4)"
 assert_contains "the home-ancestor refusal names the rule" "$out" "home dir"
 assert_eq "the body-dir refusals make no API call" "" "$(cat "$LOG")"
 
-# CDPATH cannot redirect a relative body path to a same-named dir in the safe dir.
 mkdir -p "$TMP/cwd/sub" "$SAFE_DIR/sub"
 cp "$BODY" "$TMP/cwd/sub/body.txt"
 cp "$BODY" "$SAFE_DIR/sub/body.txt"
@@ -637,8 +501,6 @@ out="$(cd "$TMP/cwd" && CDPATH="$SAFE_DIR" bash "$SCRIPT" --repo "$REPO" --issue
 assert_eq "CDPATH cannot make an outside relative body path pass (exit 3)" 3 "$?"
 rm -rf "$SAFE_DIR/sub"
 
-# A home path in the body is withheld, naming the rule and never the path.
-# A fake home path, assembled at run time so no user path is tracked.
 FAKE_HOME="/ho""me/alice"
 printf 'lane: triage\nworktree: %s/worktrees/app\n' "$FAKE_HOME" >"$SAFE_DIR/homepath.txt"
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/homepath.txt" --body-dir "$SAFE_DIR" 2>&1)"
@@ -648,8 +510,6 @@ assert_not_contains "the home-path refusal gives no rotation advice" "$out" "rot
 assert_not_contains "the home-path refusal never prints the path" "$out" "$FAKE_HOME"
 rm -f "$SAFE_DIR/homepath.txt"
 
-# A fleet-hostname-shaped instance in the marker is refused up front, blaming the
-# marker rather than the body, and never echoing it.
 FLEET_MARKER="lane:triage@melo-""lap-001"
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "$FLEET_MARKER" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
 assert_eq "a hostname-shaped marker instance is refused (exit 3)" 3 "$?"
@@ -657,23 +517,18 @@ assert_contains "the hostname-marker refusal names the instance" "$out" "withhel
 assert_not_contains "the hostname-marker refusal does not blame the body" "$out" "body withheld"
 assert_not_contains "the hostname-marker refusal never prints the hostname" "$out" "melo-""lap-001"
 
-# A GitHub-hosted runner's home path reveals nothing: the scan lets it through.
 printf 'lane: triage\nlog: /ho''me/runner/work/app/app/run.log\n' >"$SAFE_DIR/runner.txt"
 printf '[]\n' >"$TMP/no-comments.json"
 out="$(STUB_COMMENTS_FILE="$TMP/no-comments.json" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/runner.txt" --body-dir "$SAFE_DIR" --dry-run 2>&1)"
 assert_eq "a hosted-runner home path is not withheld (dry run exits 0)" 0 "$?"
 rm -f "$SAFE_DIR/runner.txt"
 
-# The plugin name is checked again on the canonical dir.
 mkdir -p "$TMP/config"
 cp "$BODY" "$TMP/config/body.txt"
 ln -s "$TMP/config" "$TMP/harness-ops-x"
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$TMP/harness-ops-x/body.txt" --body-dir "$TMP/harness-ops-x" 2>&1)"
 assert_eq "a --body-dir symlink named for the plugin but resolving elsewhere is refused (exit 4)" 4 "$?"
 
-# ============================================================================
-# SECURITY (defense in depth) — an oversized body is refused
-# ============================================================================
 BIG="$SAFE_DIR/big.txt"
 head -c 70000 /dev/zero | tr '\0' 'x' >"$BIG"
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BIG" --body-dir "$SAFE_DIR" 2>&1)"
@@ -681,12 +536,6 @@ rc=$?
 assert_eq "oversized body rejected exit 3" 3 "$rc"
 assert_contains "oversized body message" "$out" "over the"
 
-# ============================================================================
-# `-` reads body from stdin
-# ============================================================================
-# The body length is load-bearing: `lane: from-stdin` is exactly MIN_BODY_BYTES
-# once the trailing newline is stripped, so it doubles as the floor's inclusive
-# boundary. Shortening it turns this into a pre-write rejection.
 : >"$LOG"
 out="$(printf 'lane: from-stdin\n' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
 rc=$?
@@ -735,8 +584,6 @@ assert_contains "@path rejection points at the fix" "$out" "use --body-file PATH
 assert_contains "@path rejection says nothing was written" "$out" "nothing was written"
 assert_eq "@path body reaches no API call at all" "" "$log"
 
-# Same gate on the stdin path — a lane piping an interpolated `@path` string is
-# the realistic vector, since `-` is the recommended body input.
 : >"$LOG"
 out="$(printf '@/tmp/telemetry.txt\n' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" \
   --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
@@ -745,8 +592,6 @@ log="$(cat "$LOG")"
 assert_eq "@path stdin body rejected pre-write exit 3" 3 "$rc"
 assert_eq "@path stdin body reaches no API call at all" "" "$log"
 
-# Degenerate sibling: a body too short to be telemetry would leave a comment
-# that still looks fresh.
 TINY="$SAFE_DIR/tiny.txt"
 printf 'ok\n' >"$TINY"
 : >"$LOG"
@@ -758,20 +603,13 @@ assert_eq "under-floor body rejected pre-write exit 3" 3 "$rc"
 assert_contains "under-floor rejection names the floor" "$out" "under the 16-byte floor"
 assert_eq "under-floor body reaches no API call at all" "" "$log"
 
-# An empty body is the same rejection, not a special case.
 : >"$LOG"
 out="$(printf '' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" \
   --issue 502 --marker "lane:triage" --body-file - 2>&1)"
 rc=$?
 assert_eq "empty stdin body rejected pre-write exit 3" 3 "$rc"
 
-# ============================================================================
-# POST-WRITE READ-BACK (#952) — secondary confirmation. The body's content was
-# already cleared pre-write, so these cases stand in for damage between the
-# write and what a reader of the issue finds.
-# ============================================================================
 
-# A verified write re-reads the comment it just wrote (guard is not inert).
 : >"$LOG"
 out="$(run "$TMP/empty.json" 2>&1)"
 rc=$?
@@ -779,8 +617,6 @@ log="$(cat "$LOG")"
 assert_eq "verified write exits 0" 0 "$rc"
 assert_contains "verified write re-reads the written comment" "$log" "method=GET url=repos/$REPO/issues/comments/999"
 
-# What landed starts with `@` although what was sent did not. The sentinel is
-# line one, so the check must look BELOW it.
 : >"$LOG"
 out="$(STUB_READBACK_BODY="$SENT"$'\n@/tmp/telemetry_combined.txt' \
   run "$TMP/empty.json" 2>&1)"
@@ -790,22 +626,16 @@ assert_contains "@path read-back names the literal @" "$out" "starts with a lite
 assert_contains "@path read-back blames the store, not the caller's body" "$out" "the stored comment diverged from what was written"
 assert_contains "@path read-back names the comment url" "$out" "https://github.com/o/r/issues/1#c999"
 
-# Degenerate sibling: an empty body leaves a sentinel-only comment that still
-# looks fresh.
 out="$(STUB_READBACK_BODY="$SENT" run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "sentinel-only read-back body exits 6" 6 "$rc"
 assert_contains "sentinel-only failure names the floor" "$out" "under the 16-byte floor"
 
-# A body that lost the sentinel is not this marker's comment any more.
 out="$(STUB_READBACK_BODY="lane: triage, but no sentinel at all" run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "read-back without the sentinel exits 6" 6 "$rc"
 assert_contains "missing-sentinel message" "$out" "does not carry the marker sentinel"
 
-# Cannot verify == not verified: a failed read-back is never treated as success,
-# but it is retried first — the write already landed, so a transient read failure
-# must not report a good cycle as a bad one.
 : >"$LOG"
 out="$(STUB_READBACK_FAIL=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
@@ -813,15 +643,9 @@ gets="$(grep -c "url=repos/$REPO/issues/comments/" "$LOG")"
 assert_eq "failed read-back GET exits 6" 6 "$rc"
 assert_contains "failed read-back message" "$out" "could not re-read comment"
 assert_eq "failed read-back is retried once before failing" 2 "$gets"
-# A read-back that could not RUN is reported differently from one that disagreed:
-# the body already cleared the pre-write gate, so the comment is unconfirmed
-# rather than known-bad, and the operator is told so.
 assert_contains "unreachable read-back is reported as unconfirmed" "$out" "UNCONFIRMED"
-# gh's own error text must reach the operator — it is the only thing separating a
-# rate limit (the comment is there, just unread) from a 404 (it is gone).
 assert_contains "rate-limited read-back surfaces gh's error text" "$out" "secondary rate limit"
 
-# A 404 contradicts the default "probably intact" reading, so the verdict branches.
 out="$(STUB_READBACK_404=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "404 read-back exits 6" 6 "$rc"
@@ -855,22 +679,16 @@ wait "$sig_pid"
 rc=$?
 assert_eq "a signal during the retry terminates instead of resuming" 130 "$rc"
 
-# The stderr capture is a DIAGNOSTIC: an unwritable TMPDIR must not turn an
-# otherwise good write into a verification failure.
 out="$(TMPDIR="$TMP/nonexistent-dir" run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "unwritable TMPDIR does not fail a good write" 0 "$rc"
 assert_contains "unwritable TMPDIR still reports the upsert" "$out" "created comment 999"
 
-# Same rule when the write response carries no id to read back.
 out="$(STUB_NO_ID=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "write response with no comment id exits 6" 6 "$rc"
 assert_contains "no-id message" "$out" "carried no comment id"
 
-# A non-numeric comment id never reaches a gh api URL path — the same rule the
-# --repo validation enforces, applied to the one other interpolated value. A
-# traversal id would otherwise redirect the read-back GET to another repo.
 : >"$LOG"
 out="$(STUB_BAD_ID=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
@@ -879,9 +697,6 @@ assert_eq "non-numeric comment id exits 6" 6 "$rc"
 assert_contains "non-numeric id message" "$out" "non-numeric comment id"
 assert_not_contains "traversal id never reaches a read-back GET" "$log" "org2/target"
 
-# A PATCH response with no `id` is still verifiable: the update path already
-# resolved the target id, so it falls back to that rather than declaring a
-# successful write unverifiable over a missing response field.
 : >"$LOG"
 out="$(STUB_NO_ID_PATCH=1 run "$TMP/has-sentinel.json" 2>&1)"
 rc=$?
@@ -889,15 +704,11 @@ log="$(cat "$LOG")"
 assert_eq "PATCH response with no id still exits 0" 0 "$rc"
 assert_contains "id-less PATCH reads back the resolved target id" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
-# A response carrying an id but NO html_url still exits 0: the false branch of
-# the trailing `[[ -n "$html_url" ]] && printf` must not become the script's
-# exit status, or a verified upsert reports failure.
 out="$(STUB_NO_HTML_URL=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "verified write with no html_url still exits 0" 0 "$rc"
 assert_contains "no-html_url write still reports the upsert" "$out" "created comment 999"
 
-# --dry-run writes nothing, so it reads nothing back.
 : >"$LOG"
 out="$(run "$TMP/has-sentinel.json" --dry-run 2>&1)"
 rc=$?
@@ -905,7 +716,6 @@ log="$(cat "$LOG")"
 assert_eq "dry-run exits 0" 0 "$rc"
 assert_not_contains "dry-run performs no read-back" "$log" "url=repos/$REPO/issues/comments/"
 
-# ============================================================================
 echo
 if ((FAILED)); then
   printf 'telemetry-upsert.test: FAIL — %d case(s) failed\n' "$FAILED" >&2

@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.2] - 2026-11-23
+
+### Changed
+
+- `/harness-ops:lanes`, `/harness-ops:observability` no longer gather repository context that no step read.
+
+## [10.6.1] - 2026-11-23
+
+### Changed
+
+- `changelog-status.sh` and `normalize-enabled-plugins.sh` take their option-value guard from the shared `lib/opt-value.sh`. changelog-status keeps exit 3 for a usage error, now also refuses a `-`-leading option value, and says `changelog-status.sh: <option> requires a value`.
+
 ## [10.6.0] - 2026-11-22
 
 ### Added
