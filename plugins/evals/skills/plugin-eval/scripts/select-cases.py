@@ -208,8 +208,8 @@ def git_show(repo_root, rev, rel_path):
 
 
 def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
-    """A hunk that edits an existing line is a cut unless its old and new lines hold the same
-    words, which is a re-wrap."""
+    """A hunk that edits an existing line is a cut unless every old word survives, in order, in
+    its new lines: a re-wrap or a pure insertion."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -223,7 +223,11 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
             hunks[-1][1].extend(line[1:].split())
         elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][2].extend(line[1:].split())
-    return any(edits and old != new for edits, old, new in hunks)
+    def kept(old, new):
+        remaining = iter(new)
+        return all(word in remaining for word in old)
+
+    return any(edits and not kept(old, new) for edits, old, new in hunks)
 
 
 def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):

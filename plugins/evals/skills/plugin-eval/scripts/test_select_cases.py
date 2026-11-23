@@ -1007,7 +1007,7 @@ class SelectCasesTest(unittest.TestCase):
         self.assertEqual(0, res.returncode, res.stderr)
         self.assertEqual("no affected cases", res.stdout.strip())
 
-    def test_finding_01_inserted_word_rewording_is_cut(self):
+    def test_pure_word_insertion_follows_the_word_diff_rule(self):
         _write(
             self.repo,
             "plugins/alpha/skills/check/SKILL.md",
@@ -1054,8 +1054,8 @@ class SelectCasesTest(unittest.TestCase):
         res = _run_select(self.repo)
         self.assertEqual(0, res.returncode, res.stderr)
         blocks = _parse_blocks(res.stdout)
-        self.assertEqual("check", blocks["plugins/alpha"]["cases"])
-        self.assertNotIn("affected-no-run", blocks["plugins/alpha"])
+        self.assertEqual("check", blocks["plugins/alpha"]["affected-no-run"])
+        self.assertNotIn("cases", blocks["plugins/alpha"])
 
     def test_finding_02_cut_description_includes_skill_linked_cases(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
