@@ -46,7 +46,7 @@ const dispatcherRun = (extra = {}) => ({
   conclusion: "success",
   ...extra,
 });
-const refineRun = (extra = {}) => ({ id: REFINE_ID, path: ".github/workflows/pr-refine.yml", event: "workflow_dispatch", head_branch: "main", display_title: "pr-refine fix-docs #7", status: "completed", conclusion: "success", ...extra });
+const refineRun = (extra = {}) => ({ id: REFINE_ID, path: ".github/workflows/pr-refine.yml", event: "workflow_dispatch", head_branch: "main", display_title: "PR Refine fix-docs #7", status: "completed", conclusion: "success", ...extra });
 const record = (id = REFINE_ID) => ({ artifacts: [{ name: `pr-unblock-target-dispatched-${COMMIT}-${id}` }] });
 
 // Each route answers a value, or a list it steps through one read at a time
@@ -231,7 +231,7 @@ test("a dispatcher still running at the cap: the review runs", async () => {
 });
 
 test("a record naming a run that is not a pr-refine dispatch on main: the review runs, with a warning", async () => {
-  for (const other of [{ path: ".github/workflows/pr-merge.yml" }, { event: "pull_request" }, { head_branch: "feature" }, { display_title: "pr-refine fix-docs #77" }]) {
+  for (const other of [{ path: ".github/workflows/pr-merge.yml" }, { event: "pull_request" }, { head_branch: "feature" }, { display_title: "PR Refine fix-docs #77" }]) {
     const w = world(refined(refineRun(other)));
     assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "not-refine" }, JSON.stringify(other));
     assert.ok(w.reads.some((line) => line.startsWith(`log ::warning::wait-refine #7 ${HEAD}: run ${REFINE_ID} `)));
