@@ -29,7 +29,7 @@ the file the user asks about.
 
 ## Every write: preview, ask, then write
 
-The user sees every change before it is made, so each write runs twice:
+The user sees every settings, profile or install change before it is made, so each runs twice:
 
 1. Run the command with `--dry-run` and show its preview lines to the user as printed, not
    summarized: the counts and the named plugins are what they are agreeing to.
@@ -56,9 +56,9 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
 ## Actions
 
 - **status**: `status` names the profile in force for this folder, each entry that differs from it,
-  plugins installed since, an unfinished switch, a one-session profile, the surface, and the
-  command that starts another session here in the profile in force. Relay it; a handoff's restore
-  line is that command.
+  plugins installed since, an unfinished switch, a one-session profile and the plugins added to
+  this conversation only, the surface, and the command that starts another session here in the
+  profile in force. Relay it; a handoff's restore line is that command, which adds nothing.
 - **launch `[<name>]`**: `launch [<name>] [--folder <dir>]` writes the one-session file for the
   folder and profile and prints the `claude` command that starts a session in it; with no name it
   takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
@@ -68,9 +68,21 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   giving it `--profile <name>`, a flag the function adds (Claude Code's own flags:
   [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags)); with the function,
   `claude --resume <id>` resumes in the profile, since it runs `start --claude-args` for that
-  flag. `claude -c` continues the same conversation it would without the function, with the
-  folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in
-  its profile. Tell them both forms.
+  flag. `claude -c` continues the same conversation it would without the function, in the
+  profile the folder's last session ran in, never with plugins a reopen added; when Claude Code
+  picks another conversation, its start notice says which profile it now runs in. Tell them both
+  forms.
+- **reopen with an off plugin**: in a one-session profile, the session-start hook gives the model
+  the reopen line as context, at start and again after compaction (the notice the user sees does
+  not carry it): `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
+  When the work needs a plugin or skill the profile switched off (a `## Next` pointer into it, or
+  the user asking for it), offer that line with the session's id: it reopens this conversation in its profile with the
+  plugin and its dependencies on, for this conversation only, and a later `claude --resume <id>`
+  keeps it while new sessions and handoffs start without it. It takes a plugin id, a plugin name,
+  `plugin:skill` or a skill name, never settings text. For a plugin that is not installed, the
+  tool refuses and prints its `claude plugin install` line: offer that instead.
+  After three distinct conversations reopened with the same plugin in a profile since its last
+  review, the start notice names `/plugin-profiles:profile setup`.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when
@@ -103,49 +115,59 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   from a new dry run. When it refuses because the preview changed, nothing was written:
   start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
   **Reset** do the same and reload the session.
-- **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
-  each FAIL and Report line.
+- **check**: `check` reports profile files that name plugins the catalog or machine lacks, and
+  skill `## Next` and `## Related` links that a profile switches off; relay each FAIL and Report
+  line.
 - **setup**: the guided walk below.
 
 ## setup
 
 Walk the user through one phase at a time. A phase is done when its result is shown and the user
 has answered its question or chosen to skip it; only then start the next. A user who says to skip
-questions skips the interview questions only: phase 1 and, for any member not installed, phase 6
-always run. Every save and install
+questions skips the interview questions only: phases 1 and 2 and, for any member not installed,
+phase 7 always run. Every save and install
 goes through the preview rule above. Setup is done when each saved profile has been previewed and
-written or declined, and the apply offer in phase 7 is answered.
+written or declined, and the start offer in phase 8 is answered.
 
 1. **What is installed.** Run `inventory --json`. Report the number of plugins and skills, then
    each plugin with its skills, grouped by marketplace.
-2. **What gets used.** Run `usage --json`. When it found history, report the most used skills and
+2. **Review exceptions.** Run `exceptions --json`. For each pair with a positive count, show the
+   profile, plugin and session count. Ask whether to keep it off or add it to the profile with
+   `save <profile> --level user --plugins <id>` under the preview rule; the save also drops the
+   plugin from that file's `remove` and `exclude` lists. When its preview prints `Stays off`,
+   another file of the profile still switches it off: show that line, and leave the pair unreviewed
+   until the user settles that file. Once either choice is settled, run
+   `exceptions --reviewed <profile> --plugin <id>` to clear that pair's count.
+3. **What gets used.** Run `usage --json`. When it found history, report the most used skills and
    plugins and the installed plugins with no recorded use. When it reports no usage history, say
    so, propose profiles from the interview and the shipped profiles' descriptions alone, and offer
    to turn on session recording for a later, sharper setup: session-telemetry's hooks record each skill a
    session uses, and recording starts once session-telemetry is enabled (installed first if it is
    not). When `/harness-ops:audit-skill-visibility` is among the available skills, offer it for what
    that recording shows. Either way, say that setup can run again later.
-3. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
+4. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
    reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where
    the answers are known.
-4. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`,
+5. **Plugins that ship hooks.** For each installed plugin whose `ships` shows `hooks` or `mod`,
    session-telemetry and plugin-diagnostics included, ask whether it is always on or per profile; what a hook runs on is in
    [hooks: hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle). Always on: `save always-on --level user --plugins <id>`. Per
    profile: it goes into the profiles the user picks, and every apply names it when it is switched
    off.
-5. **Propose profiles.** Start from `list --json`. For each phase the user named, propose the
+6. **Propose profiles.** Start from `list --json`. For each phase the user named, propose the
    shipped profile as it is, an extension of it (a user file of the same name with `--plugins` and
    `--remove`), or a new profile, each with the usage or answer behind it. Save with `save <name>
    --level user|repository`: `user` (under `~/.claude/plugin-profiles/`) for the user's own
    sessions, `repository` (the repository's convention home, committed) only when the user wants
    the team to share it.
-6. **Missing plugins.** For a member that is not installed, show `install <id> --dry-run` and
+7. **Missing plugins.** For a member that is not installed, show `install <id> --dry-run` and
    install only on the user's yes to that plugin at that moment. The tool installs only from a
    marketplace this machine already knows, never for a plugin only a repository profile names, and
    leaves the new plugin off at user level unless the initial profile includes it; it never
    updates or uninstalls. How Claude Code installs a plugin, and what it asks for along the way:
    [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
-7. **Apply.** Offer `apply <name> --for folder` for the profile that fits this folder.
+8. **Start.** Offer the `claude` function's `--profile <name>` (or `profiles.mjs start <name>`)
+   for the profile that fits the next piece of work, which starts one session in it and writes no
+   settings file.
 
 ## Next
 

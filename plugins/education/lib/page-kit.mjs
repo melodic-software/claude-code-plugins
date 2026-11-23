@@ -1,9 +1,3 @@
-// Shared parts of the education page builders: the stylesheet, the field
-// coercion that keeps non-string input from reaching the page, and the CLI
-// wrapper that validates a page before it is printed.
-//
-// Every value reaches the page through e(), which is escapeHtml from the synced
-// helper. A page is stamped, then refused unless validateRenderedPage accepts it.
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";

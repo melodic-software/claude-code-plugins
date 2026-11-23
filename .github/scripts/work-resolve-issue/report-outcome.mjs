@@ -2172,7 +2172,7 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const bot = botLogin(env);
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
-    const { createGitHub } = await import(new URL("../../actions/check-trusted-trigger/check-trusted-trigger.mjs", import.meta.url).href);
+    const { createGitHub } = await import(new URL("../lib/github-client.mjs", import.meta.url).href);
     const { createRateLimitLatch } = await import(new URL("../../actions/log-api-budget/rate-guard.mjs", import.meta.url).href);
     const github = createGitHub({
       token: env.GH_TOKEN,
@@ -2480,7 +2480,7 @@ async function baseStatus(env) {
     const { statusWriter } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
     const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
     const { fieldEvents, issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
-    const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
+    const { createGitHub } = await import(pathToFileURL(join(actions, "..", "scripts", "lib", "github-client.mjs")).href);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
     const { set, leaveAgentReady, restart } = await statusWriter({ env, github, repository });

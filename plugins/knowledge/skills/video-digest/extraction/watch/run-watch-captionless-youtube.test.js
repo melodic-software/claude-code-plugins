@@ -1,11 +1,3 @@
-/**
- * CLI-level proof for a caption-less YouTube watch (caption ladder exhausted,
- * video downloaded): the run exits 0, selects `asr` when the capability is
- * detected, and otherwise completes with a recorded `transcriptDegradation`.
- * `detectAsrCapability` and `runAsrTranscription` are stubbed; no real Whisper
- * model runs.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -83,7 +75,6 @@ let workRoot;
 let fixtureDir;
 let previousTmpdir;
 
-/** Mock acquisition as the YouTube adapter returns it for a caption-less full run. */
 async function mockCaptionlessAcquisition() {
   const mediaPath = path.join(fixtureDir, `${VIDEO_ID}.mp4`);
   await fs.writeFile(mediaPath, "binary", "utf8");

@@ -60,9 +60,6 @@ write() {
   printf '%s' "$json" >"$path"
 }
 
-# Args: case_dir, marketplace name, run extra env (e.g. "CLAUDE_PROJECT_DIR=/x").
-# Always seeds a minimal installed_plugins.json / known_marketplaces.json /
-# user settings.json unless the case already wrote its own.
 run_state() {
   local case_dir="$1"
   shift
@@ -1392,7 +1389,6 @@ assert_eq "catalog_versions fail-open: an unparsable manifest yields null" \
 # when it positively proved that id already sits at the catalog version.
 # ============================================================================
 
-# Withheld: installed version equals the catalog version.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 seed_catalog_versions_case "$case_dir" alpha=0.1.0
@@ -1404,7 +1400,6 @@ rc=$?
 assert_exit "update-candidates-user: exit 0" 0 "$rc"
 assert_eq "update-candidates-user: withholds an id already at the catalog version" "" "$out"
 
-# Emitted: installed version differs from the catalog version.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 seed_catalog_versions_case "$case_dir" alpha=0.2.0

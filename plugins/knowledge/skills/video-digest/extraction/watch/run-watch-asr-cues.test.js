@@ -1,10 +1,3 @@
-/**
- * CLI-level proof that a caption-less run whose transcript came from the
- * optional ASR rung feeds those ASR cues to watching, so frame densification
- * has cues to work from. ASR detection and transcription are stubbed: no real
- * Whisper model runs.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

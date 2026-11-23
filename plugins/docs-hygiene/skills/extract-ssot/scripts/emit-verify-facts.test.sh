@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for emit-verify-facts.sh (no external test lib — ships with the plugin).
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -44,7 +43,6 @@ assert_exit() {
   fi
 }
 
-# --- Build a fixture consumer repo with a known duplication cluster. ---
 repo="$TEST_TMPDIR/repo"
 mkdir -p "$repo/docs" "$repo/.claude/rules"
 git -C "$repo" init -q
@@ -64,7 +62,6 @@ cat >"$repo/.claude/rules/gamma.md" <<EOF
 Gamma rule restates: $phrase.
 Primary source: https://platform.claude.com/docs/example
 EOF
-# Non-markdown file containing the phrase — must NOT count (scope is *.md).
 cat >"$repo/script.sh" <<EOF
 #!/usr/bin/env bash
 echo "$phrase"
@@ -72,7 +69,6 @@ EOF
 git -C "$repo" add -A
 git -C "$repo" commit -qm fixture
 
-# --- Argument handling ---
 assert_exit "--help exits 0" 0 "$(
   bash "$EMIT" --help >/dev/null 2>&1
   echo $?
@@ -90,7 +86,6 @@ assert_exit "--phrase with empty value exits 2" 2 "$(
   echo $?
 )"
 
-# --- Fact emission against the fixture repo ---
 out="$(cd "$repo" && bash "$EMIT" --phrase "$phrase")"
 assert_contains "phrase echoed" "$out" "Phrase: $phrase"
 assert_contains "markdown instances counted" "$out" "Instance hit count: 3"
@@ -102,7 +97,6 @@ assert_contains "primary URL sample surfaced" "$out" ".claude/rules/gamma.md"
 assert_not_contains "no verdict emitted" "$out" "PROCEED"
 assert_not_contains "no refusal emitted" "$out" "REFUSE"
 
-# --- Dash-prefixed phrase is not parsed as a git grep option ---
 cat >>"$repo/docs/alpha.md" <<'EOF'
 Never bypass hooks with --no-verify on commits.
 EOF
@@ -113,7 +107,6 @@ dash_out="$(cd "$repo" && bash "$EMIT" --phrase "--no-verify")" || dash_rc=$?
 assert_exit "dash-prefixed phrase exits 0" 0 "$dash_rc"
 assert_contains "dash-prefixed phrase counted" "$dash_out" "Instance hit count: 1"
 
-# --- Zero-match phrase still exits 0 with zero counts ---
 zero_rc=0
 zero_out="$(cd "$repo" && bash "$EMIT" --phrase "phrase that matches nothing at all")" || zero_rc=$?
 assert_exit "zero-match run exits 0" 0 "$zero_rc"

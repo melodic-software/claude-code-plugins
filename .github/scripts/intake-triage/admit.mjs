@@ -142,7 +142,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { paginate } from "../lib/github-client.mjs";
+import { appCloseKind, isTrustedClose } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, isStatusLabel, readyWhileDeferred, StatusReadError } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";

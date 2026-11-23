@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained regression tests for update.sh (no external test lib — ships
-# with the plugin; network-free: exercises help, arg handling, and the sourced
-# helper functions against local fixtures only).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,8 +36,6 @@ assert_not_contains() {
   esac
 }
 
-# --- 1. --help contract --------------------------------------------------------
-
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
@@ -58,17 +53,11 @@ short_exit=$?
 assert_exit "-h exits 0" 0 "$short_exit"
 assert_contains "-h mentions --check" "$help_out_short" "--check"
 
-# --- 2. Unknown flag handling ----------------------------------------------------
-
 unknown_out=$(bash "$SCRIPT" --bogus-flag 2>&1)
 unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 
-# --- 3. Source-guard: helpers callable when sourced ------------------------------
-
-# Sourcing installs the script's own EXIT trap (cleanup of its TMPDIR_RUN); the
-# trap set after it replaces that one and removes both directories.
 # shellcheck source=update.sh
 source "$SCRIPT" 2>/dev/null
 SOURCED_TMPDIR="$TMPDIR_RUN"
@@ -78,8 +67,6 @@ if declare -F recorded_field >/dev/null; then
 else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
 fi
-
-# --- 4. recorded_field parses upstream.md fixture ----------------------------------
 
 FIXTURE_UP="$TEST_TMPDIR/upstream.md"
 cat >"$FIXTURE_UP" <<'EOF'
@@ -97,12 +84,9 @@ assert_eq "parses recorded Upstream SHA256" "abc123def456" "$parsed_sha"
 parsed_ver=$(recorded_cli_version)
 assert_eq "parses recorded CLI version" "1.18.0" "$parsed_ver"
 
-# Missing file yields empty, not an error.
 UPSTREAM_MD="$TEST_TMPDIR/does-not-exist.md"
 missing=$(recorded_upstream_sha)
 assert_eq "missing upstream.md returns empty" "" "$missing"
-
-# --- 5. rewrite_upstream_md writes the full record ----------------------------------
 
 UPSTREAM_MD="$TEST_TMPDIR/upstream-out.md"
 rewrite_upstream_md "deadbeef" "2.0.0" "1.18.0"
@@ -111,8 +95,6 @@ assert_contains "record has SHA" "$written" "Upstream SHA256: deadbeef"
 assert_contains "record has version" "$written" "CLI version at sync: 2.0.0"
 assert_contains "record has rollback target" "$written" "rollback target): 1.18.0"
 
-# Rewriting the committed record with its own values reproduces it byte for
-# byte, so a re-run with nothing changed leaves no diff.
 COMMITTED_UP="$SCRIPT_DIR/../upstream.md"
 UPSTREAM_MD="$COMMITTED_UP"
 committed_args=("$(recorded_upstream_sha)" "$(recorded_cli_version)"
@@ -126,8 +108,6 @@ else
     "$(diff "$COMMITTED_UP" "$UPSTREAM_MD")"
 fi
 
-# --- 6. sha256 helper matches a direct call ------------------------------------------
-
 FIXTURE_SHA="$TEST_TMPDIR/sha-fixture.txt"
 echo "firecrawl test" >"$FIXTURE_SHA"
 sha_via_helper=$(sha256 "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
@@ -137,10 +117,6 @@ else
   sha_direct=$(shasum -a 256 "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
 fi
 assert_eq "sha256 helper matches direct call" "$sha_direct" "$sha_via_helper"
-
-# --- 7. Never-synced placeholders read as empty -------------------------------------
-# The placeholder lines are the ones upstream.md carried before its first sync,
-# which the report used to print as `last sync:  recorded)`.
 
 FIXTURE_NEVER="$TEST_TMPDIR/upstream-never.md"
 cat >"$FIXTURE_NEVER" <<'EOF'
@@ -154,9 +130,6 @@ assert_eq "placeholder CLI version reads as empty" "" "$(recorded_cli_version)"
 assert_eq "placeholder sync date reads as empty" "" "$(recorded_sync_date)"
 UPSTREAM_MD="$FIXTURE_UP"
 assert_eq "parses recorded Last sync" "2026-05-22" "$(recorded_sync_date)"
-
-# --- 8. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ----------
-# Network helpers are stubbed; the recorded state is the section 4 fixture.
 
 stub_current="1.18.0"
 stub_latest="1.18.0"
@@ -204,7 +177,6 @@ out=$(run_check 2>&1)
 assert_exit "upstream fetch fails: exit 2" 2 "$?"
 stub_sha="abc123def456"
 
-# Drift outranks unverifiable: the upstream check still runs when npm is down.
 stub_latest=""
 stub_sha="0000ffff"
 out=$(run_check 2>&1)
@@ -213,7 +185,6 @@ assert_contains "npm unreachable: upstream change still named" "$out" "upstream 
 stub_latest="1.18.0"
 stub_sha="abc123def456"
 
-# A trailing space on a recorded value is not part of it.
 FIXTURE_TRAIL="$TEST_TMPDIR/upstream-trailing.md"
 printf -- '- Upstream SHA256: abc123def456  \n- CLI version at sync: 1.18.0 \n' >"$FIXTURE_TRAIL"
 UPSTREAM_MD="$FIXTURE_TRAIL"
@@ -274,9 +245,6 @@ printf '%s\n' "$STUB_CYGPATH_RESULT"
 EOF
 chmod +x "$APPLY/tools/npm" "$APPLY/tools/curl" "$APPLY/tools/uname" "$APPLY/tools/cygpath"
 
-# Install a firecrawl stub in <dir> that reports the version in $STUB_VERSION_FILE,
-# logs `update` calls to $STUB_FIRECRAWL_LOG, and fails them when
-# $STUB_UPDATE_FAIL is set.
 place_firecrawl() {
   mkdir -p "$1"
   cat >"$1/firecrawl" <<'EOF'
@@ -291,7 +259,6 @@ EOF
   chmod +x "$1/firecrawl"
 }
 
-# Fresh world for one case: no firecrawl anywhere, and a prior upstream.md.
 reset_apply() {
   rm -rf "$APPLY/prefix" "$APPLY/launcher"
   mkdir -p "$APPLY/prefix/bin" "$APPLY/launcher"
@@ -301,7 +268,6 @@ reset_apply() {
   printf '%s\n' "$1" >"$APPLY/version"
 }
 
-# run_stubbed <mode> <npm global bin> <version after install> [uname] [npm prefix output]
 run_stubbed() {
   apply_out=$(
     PATH="$APPLY/tools:$APPLY/launcher:$2:$PATH" \
@@ -319,7 +285,6 @@ run_stubbed() {
 }
 run_stubbed_apply() { run_stubbed --apply "$@"; }
 
-# Refused or failed: exit 2, the prior record intact.
 assert_apply_wrote_nothing() {
   assert_exit "$1: exit 2" 2 "$apply_exit"
   assert_eq "$1: upstream.md untouched" "$APPLY_PRIOR_RECORD" "$(cat "$APPLY_RECORD")"
@@ -328,7 +293,6 @@ assert_no_install() {
   assert_eq "$1: npm install never ran" "" "$(cat "$APPLY/npm.log")"
 }
 
-# npm owns the command and the install takes effect: the paired success case.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix/bin"
 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
@@ -338,14 +302,12 @@ assert_contains "npm-owned: records the new version" "$(cat "$APPLY_RECORD")" "C
 assert_contains "npm-owned: records the rollback target" "$(cat "$APPLY_RECORD")" "rollback target): 1.0.0"
 assert_eq "npm-owned: self-update turned off" "update --disable-auto" "$(cat "$APPLY/firecrawl.log")"
 
-# Turning self-update off fails: nothing recorded, so --check keeps the drift.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix/bin"
 STUB_UPDATE_FAIL=1 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
 assert_apply_wrote_nothing "disable-auto fails"
 assert_contains "disable-auto fails: says so" "$apply_out" "firecrawl update --disable-auto failed"
 
-# A launcher ahead of npm's bin owns the command, behind the new version.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/launcher"
 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
@@ -353,21 +315,18 @@ assert_apply_wrote_nothing "launcher behind latest"
 assert_no_install "launcher behind latest"
 assert_contains "launcher behind latest: names the launcher as owner" "$apply_out" "$APPLY/launcher/firecrawl"
 
-# The same launcher already at the new version would record itself as the rollback target.
 reset_apply "2.0.0"
 place_firecrawl "$APPLY/launcher"
 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
 assert_apply_wrote_nothing "launcher at latest"
 assert_no_install "launcher at latest"
 
-# On Unix a command directly in the prefix is outside npm's bin.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix"
 run_stubbed_apply "$APPLY/prefix" "2.0.0"
 assert_apply_wrote_nothing "Unix, command in the prefix itself"
 assert_no_install "Unix, command in the prefix itself"
 
-# npm's global prefix cannot be read, so ownership is unknown.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix/bin"
 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0" "Linux" "FAIL"
@@ -375,7 +334,6 @@ assert_apply_wrote_nothing "npm prefix unreadable"
 assert_no_install "npm prefix unreadable"
 assert_contains "npm prefix unreadable: says so" "$apply_out" "npm prefix -g"
 
-# The install succeeds and the command still reads the old version.
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix/bin"
 run_stubbed_apply "$APPLY/prefix/bin" "1.0.0"
@@ -397,13 +355,8 @@ run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" "$WINDOWS_PREF
 assert_apply_wrote_nothing "Windows, launcher elsewhere"
 assert_no_install "Windows, launcher elsewhere"
 
-# No command at all is a fresh install, not a foreign owner.
 PATH="$APPLY/no-such-dir" require_npm_owned_command
 assert_exit "no firecrawl on PATH: not refused" 0 "$?"
-
-# --- 10. The upstream SHA is recorded only after Gate 2 -------------------------------
-# --apply leaves it alone, so a declined or abandoned Gate 2 keeps showing as drift;
-# --record-upstream writes it with no install.
 
 SYNCED_RECORD="- Last sync: 2026-05-22
 - Upstream SHA256: oldsha
@@ -439,7 +392,6 @@ run_stubbed --check "$APPLY/prefix/bin" "2.0.0"
 assert_exit "check after record-upstream: in sync, exit 0" 0 "$apply_exit"
 assert_contains "check after record-upstream: reports unchanged" "$apply_out" "upstream unchanged"
 
-# Gate 1 declined behind a launcher: nothing refuses, and the CLI line reads what runs.
 reset_apply "1.5.0"
 printf '%s\n' "$SYNCED_RECORD" >"$APPLY_RECORD"
 place_firecrawl "$APPLY/launcher"
@@ -450,7 +402,6 @@ record=$(cat "$APPLY_RECORD")
 assert_contains "record-upstream behind a launcher: CLI line reads the running version" "$record" "CLI version at sync: 1.5.0"
 assert_contains "record-upstream behind a launcher: keeps the rollback target" "$record" "rollback target): 0.9.0"
 
-# Upstream unreachable: the prior record stands.
 reset_apply "1.0.0"
 printf '%s\n' "$SYNCED_RECORD" >"$APPLY_RECORD"
 place_firecrawl "$APPLY/prefix/bin"
@@ -458,7 +409,6 @@ STUB_UPSTREAM_DOWN=1 run_stubbed --record-upstream "$APPLY/prefix/bin" "9.9.9"
 assert_exit "record-upstream, upstream down: exit 2" 2 "$apply_exit"
 assert_eq "record-upstream, upstream down: record untouched" "$SYNCED_RECORD" "$(cat "$APPLY_RECORD")"
 
-# A first apply has no SHA to keep, and --check must still read it as never synced.
 reset_apply "1.0.0"
 rm -f "$APPLY_RECORD"
 place_firecrawl "$APPLY/prefix/bin"
@@ -467,8 +417,6 @@ assert_exit "first apply: exit 0" 0 "$apply_exit"
 run_stubbed --check "$APPLY/prefix/bin" "2.0.0"
 assert_exit "check after first apply: drift, exit 1" 1 "$apply_exit"
 assert_contains "check after first apply: last sync reads never" "$apply_out" "last sync:  never"
-
-# --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

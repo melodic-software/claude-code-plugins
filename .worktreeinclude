@@ -7,3 +7,4 @@
 .work/**/INTENT.md
 .work/**/INTENT-*.md
 .work/**/*-checklist.md
+docs/conventions/**/*.local.*

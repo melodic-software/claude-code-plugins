@@ -46,15 +46,18 @@ export const LIMITS = {
   stalledCommentRounds: 2,
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
-  // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
-  // up to holdListPages run list pages (pr-verify's and pr-merge's own 5,
-  // pr-review-main's 4), then each run's jobs and the annotations of each
-  // green job that prints a hold. Every lane's jobs are read in one GraphQL
-  // query per 25 runs, and its annotations in one per 25 jobs. A run has one
-  // green hold job (pr-verify's one of three), but pr-review-main's about 3
-  // (its trigger and two review legs) and pr-merge's up to 2, so at most
-  // 4 × 3 + 5 + 4 + 5 list pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 list queries and
-  // 1 + 1 + 1 + 2 + 4 + 9 + 7 annotation queries (67 calls, 41 of them
+  // first. Only work-resolve-issue uses this default. The other lanes,
+  // including pr-refine, set their own caps (signals.mjs HOLD_LANES holdRuns).
+  // Each status costs up to holdListPages run list pages (pr-verify and
+  // pr-merge set 5, pr-review-main sets 4, and pr-refine lists green and red
+  // separately), then each run's jobs and the annotations of each green
+  // hold job are read. Every lane's jobs are read in one GraphQL query per
+  // 25 runs, and its annotations in one per 25 jobs. A run has one green
+  // hold job (pr-verify's one of three), with up to 4 for pr-refine, about 3
+  // for pr-review-main (its trigger and two review legs), and up to 2 for
+  // pr-merge. In lane order, that is at most 3 + 3 + 6 + 3 + 5 + 4 + 5 list
+  // pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 job list queries and
+  // 1 + 1 + 2 + 2 + 4 + 9 + 7 annotation queries (71 calls, 42 of them
   // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
   // node GraphQL does not answer, is read through REST, one call a jobs or
   // annotation read; a REST list has steps, so pr-verify and pr-review-main
@@ -64,9 +67,10 @@ export const LIMITS = {
   // lists but not the annotations, those two lanes spend at most 7 + 150
   // list calls and one annotation read per held job, not 290 for every green
   // hold job; the other lanes'
-  // 152 jobs and about 232 annotation reads put the source past
+  // 158 job lists and about 274 annotation reads put the source past
   // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
-  // last run read and the window is a gap.
+  // last run read and the window is a gap. pr-refine's cap of 12:
+  // https://github.com/melodic-software/claude-code-plugins/issues/16656
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
   // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the

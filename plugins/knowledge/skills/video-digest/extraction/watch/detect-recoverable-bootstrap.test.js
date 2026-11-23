@@ -36,7 +36,6 @@ function makeWorkDir(vttName) {
   return workDir;
 }
 
-/** Fresh temp frames + contact-sheets dirs, one surviving artifact each. */
 function makeFrameAndSheetDirs() {
   const framesDir = mkTmp("video-frames-");
   const sheetsDir = mkTmp("video-sheets-");
@@ -159,7 +158,6 @@ describe("run.mjs hands its child only the resolved data dir", () => {
   const launcher = path.join(import.meta.dirname, "..", "run.mjs");
   const codex = "/var/fixture/claude/plugins/data/codex-openai-codex";
 
-  /** The recover command the CLI prints when run through the launcher with these args. */
   function recoverCommandVia(launcherArgs) {
     const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
     const slice = makeSliceDir({
@@ -203,7 +201,6 @@ describe("resolveWorkArtifacts", () => {
   });
 
   describe("with info.json subtitles", () => {
-    /** A workDir holding both English tracks and an info.json with the given `subtitles`. */
     function makeWorkDirWithSubtitles(subtitles) {
       const workDir = makeWorkDir("x.en-orig.vtt");
       fs.writeFileSync(path.join(workDir, "x.en.vtt"), "WEBVTT\n");

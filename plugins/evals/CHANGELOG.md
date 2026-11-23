@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.24.0] - 2026-11-23
+
+### Added
+
+- `/evals:plugin-eval select <diff-base>` names the eval cases a change affects, split into the cases to run (the eval workflows' `cases` input), judged cases, cases to run after merge, and affected cases that need no run, with the agent-run count. It reads which skill a case tests through the shared `case_skills.py` rule and makes no model call.
+
+## [0.23.2] - 2026-11-23
+
+### Changed
+
+- `/evals:validate` reads which skill a case tests from a shared `plugins/evals/scripts/case_skills.py`, with the same findings.
+
 ## [0.23.1] - 2026-11-23
 
 ### Added

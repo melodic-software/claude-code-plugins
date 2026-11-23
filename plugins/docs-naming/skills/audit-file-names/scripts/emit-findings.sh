@@ -108,8 +108,6 @@ fi
 records="$(grep -cE '^(OFFENDER|COLLISION|EXEMPT|SCANNED)	' "$INVENTORY" 2>/dev/null || true)"
 [[ "${records:-0}" -gt 0 ]] || die "the inventory carries no records; this is not inventory.sh output" 3
 
-# --- a collision refuses the whole plan --------------------------------------
-
 collisions="$(grep -E '^COLLISION	' "$INVENTORY" 2>/dev/null || true)"
 if [[ -n "$collisions" ]]; then
   printf 'emit-findings: the plan would create a case-only path collision; nothing written.\n' >&2
@@ -117,8 +115,6 @@ if [[ -n "$collisions" ]]; then
   printf 'emit-findings: a case-insensitive checkout writes the second file over the first. Resolve the pair, then re-audit.\n' >&2
   exit 1
 fi
-
-# --- context -----------------------------------------------------------------
 
 BRANCH="$(git -C "$ROOT" branch --show-current 2>/dev/null)"
 if [[ -z "$BRANCH" ]]; then
@@ -129,8 +125,6 @@ HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown')"
 NOW="$(date -u +%Y%m%dT%H%M%SZ)"
 SCANNED="$(awk -F'\t' '$1=="SCANNED" {print $2; exit}' "$INVENTORY")"
 ROOTS="$(awk -F'\t' '$1=="SCANNED" {print $3; exit}' "$INVENTORY")"
-
-# --- statuses carried forward ------------------------------------------------
 
 CARRIED=""
 if [[ -f "$OUT" && "$REPLACE" -eq 0 ]]; then
@@ -154,13 +148,10 @@ status_of() {
   printf '%s' "$s"
 }
 
-# --- the records -------------------------------------------------------------
-
 offenders="$(awk -F'\t' '$1=="OFFENDER" {print $2 "\t" $3}' "$INVENTORY")"
 finding_count="$(printf '%s' "$offenders" | grep -c . || true)"
 
 body=""
-# Most-cited first: the presentation order, never the id.
 ranked="$(
   while IFS="$(printf '\t')" read -r old new; do
     [[ -n "$old" ]] || continue
@@ -176,8 +167,6 @@ while IFS="$(printf '\t')" read -r nsites old new; do
   [[ -n "$old" ]] || continue
   id="FN-$(printf '%s' "$old" | git hash-object --stdin | cut -c1-8)"
   status="$(status_of "$id")"
-  # This offender's sites, read from the sweep once. Printed without a trailing
-  # newline, an offender with no site feeds each count below no line at all.
   refs="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o' "$SWEEP")"
   files="$(printf '%s' "$refs" | awk -F'\t' '{print $3}' | sort -u | grep -c . || true)"
   by_tier="$(printf '%s' "$refs" | awk -F'\t' '{print $6 " " $7}' |
@@ -208,8 +197,6 @@ $(printf '%s' "$refs" | awk -F'\t' '{
 done <<EOF
 $ranked
 EOF
-
-# --- write -------------------------------------------------------------------
 
 mkdir -p "$(dirname "$OUT")" || die "cannot create $(dirname "$OUT")"
 tmp="$OUT.tmp.$$"

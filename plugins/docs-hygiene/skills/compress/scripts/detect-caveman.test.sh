@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for detect-caveman.sh (the /compress backend detector).
-#
-# Self-contained: no shared assertion lib; resolves the script under test
-# relative to this file. Asserts the always-exit-0 contract, both output
-# labels, and graceful degradation to "unknown" when claude/jq are absent.
 # test-scope: .claude/settings.json
 set -uo pipefail
 
@@ -51,9 +46,6 @@ out="$(bash "$DETECT" 2>/dev/null)"
 assert_contains "backend label present" "$out" "Caveman backend:"
 assert_contains "plugin id label present" "$out" "Caveman plugin id:"
 
-# Degradation contract: without claude/jq on PATH the script must report
-# "unknown" (and still exit 0) rather than fail. Resolve bash first so the
-# empty PATH only affects lookups inside the script under test.
 BASH_BIN="$(command -v bash)"
 if out_nopath="$(PATH="" "$BASH_BIN" "$DETECT" 2>/dev/null)"; then
   ok "empty-PATH invocation exits 0"
@@ -63,16 +55,10 @@ fi
 assert_contains "degrades to unknown without claude/jq" "$out_nopath" "Caveman backend: unknown"
 assert_contains "plugin id none without claude/jq" "$out_nopath" "Caveman plugin id: none"
 
-# Enabled-field contract: a disabled caveman@ entry must not report available.
-# The stub lives under mktemp, never beside the script: a trap that does not
-# fire would otherwise leave an untracked directory inside the plugin tree.
 FAKE_BIN="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN"' EXIT
-# jq must stay reachable while the stub shadows `claude` at the front of PATH.
 JQ_DIR="$(dirname "$(command -v jq)")"
 STUB_PATH="$FAKE_BIN:$JQ_DIR:$PATH"
-# One stub serves both cases; STUB_JSON carries the `claude plugin list --json`
-# payload under test.
 cat >"$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == plugin && "${2:-}" == list && "${3:-}" == --json ]]; then

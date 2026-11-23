@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { REFIRES_PER_RUN, main, refireComment } from "./refire-refused.mjs";
 
@@ -58,7 +58,7 @@ const run = (
   {
     number,
     event = "workflow_dispatch",
-    title = `pr-unblock resolve-conflicts #${number}`,
+    title = `PR Unblock resolve-conflicts #${number}`,
     headBranch = "main",
     step = TOKEN_STEP,
     steps = fullSteps(step),
@@ -367,7 +367,7 @@ test("a PR pushed, drafted or closed since the listing is not pushed to, and war
 test("a run for another PR or off main, a failure at another step, or another broker reason re-fires nothing", async () => {
   for (const runOptions of [
     // The title names a PR that is not open.
-    { title: "pr-unblock resolve-conflicts #10" },
+    { title: "PR Unblock resolve-conflicts #10" },
     { headBranch: "fix" },
     { event: "pull_request" },
     { step: "Run the skill activity" },
@@ -662,7 +662,7 @@ test("the job token's client counts its readings as github-token while API_BUDGE
 // wording: no broker response, or a 5xx after the action's own retries.
 const UNREACHABLE = "broker-unreachable: the lanes token broker gave no response, after 503 with reason github-unavailable";
 const DENIED_5XX = "lane-token-denied: the broker answered 502 with reason internal-error: upstream timed out";
-const FEEDBACK = { title: "pr-unblock address-feedback #9", jobName: "Apply Feedback Patch / Run" };
+const FEEDBACK = { title: "PR Unblock address-feedback #9", jobName: "Apply Feedback Patch / Run" };
 const transientMarker = (runId, head, { tree = TREE, at = "2026-10-17T21:50:00Z" } = {}) => ({
   user: BOT,
   created_at: at,
@@ -734,14 +734,14 @@ test("an address-feedback run refused as workflow-modified is left to the feedba
   assert.deepEqual(posts(w.calls), []);
 });
 
-test("a Title Case run-name names the PR and the activity as the old one does; a near miss names neither", async () => {
+test("the reader extracts the PR and activity from a Title Case run name", async () => {
   const titled = refusedWorld([pr(9)], { runOptions: { title: "PR Unblock resolve-conflicts #9" } });
   assert.equal(await main({ env, github: titled.github, actions: titled.actions, now: NOW }), 0);
   assert.equal(pushes(titled.calls).length, 1, "the PR it names is re-fired");
   const feedback = refusedWorld([pr(9)], { runOptions: { title: "PR Unblock address-feedback #9", jobName: FEEDBACK.jobName } });
   assert.equal(await main({ env, github: feedback.github, actions: feedback.actions, now: NOW }), 0);
   assert.deepEqual(pushes(feedback.calls), [], "address-feedback is left to the feedback sweep");
-  for (const title of ["pr unblock resolve-conflicts #9", "PR Refine resolve-conflicts #9", "PR Unblock resolve-conflicts 9"]) {
+  for (const title of ["pr-unblock resolve-conflicts #9", "pr unblock resolve-conflicts #9", "PR Refine resolve-conflicts #9", "PR Unblock resolve-conflicts 9"]) {
     const w = refusedWorld([pr(9)], { runOptions: { title } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
     assert.deepEqual(pushes(w.calls), [], title);
@@ -750,7 +750,7 @@ test("a Title Case run-name names the PR and the activity as the old one does; a
 
 test("a transient token failure of an activity pr-unblock-dispatch retries itself is left to that tick", async () => {
   for (const activity of ["resolve-conflicts", "review-dependency", "fix-ci"]) {
-    const w = refusedWorld([pr(9)], { runOptions: { title: `pr-unblock ${activity} #9`, messages: [DENIED_5XX] } });
+    const w = refusedWorld([pr(9)], { runOptions: { title: `PR Unblock ${activity} #9`, messages: [DENIED_5XX] } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
     assert.deepEqual(pushes(w.calls), [], activity);
     assert.deepEqual(posts(w.calls), [], activity);

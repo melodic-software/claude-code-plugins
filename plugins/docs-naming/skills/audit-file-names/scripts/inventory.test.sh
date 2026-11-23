@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for inventory.sh, driven against the committed fixture
-# tree in fixtures/tree via fixtures/build-fixture.sh.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -25,8 +20,6 @@ new_fixture() {
   printf '%s' "$d"
 }
 
-# --- the clean fixture -------------------------------------------------------
-
 root="$(new_fixture)"
 out="$(bash "$SUT" --root "$root")"
 
@@ -42,14 +35,9 @@ assert_contains "a code file is exempt by extension" "$out" "EXEMPT	docs/tool.py
 assert_lacks "an already-legal dotted stem is not an offender" "$out" "docs/v1.2.schema.json	docs/"
 assert_lacks "a legal historical record is not an offender" "$out" "OFFENDER	docs/adr/0001-historical.md"
 assert_eq "no collision is reported on the clean tree" "0" "$(printf '%s\n' "$out" | grep -c '^COLLISION')"
-# The eight files of fixtures/tree/docs plus the team layer, docs/conventions/docs-naming.yaml.
 assert_contains "the scanned count and roots are reported" "$out" "SCANNED	9	docs"
 
-# --- read-only ---------------------------------------------------------------
-
 assert_eq "the tree is byte-identical after an inventory" "" "$(git -C "$root" status --porcelain)"
-
-# --- the collision variant ---------------------------------------------------
 
 root="$(new_fixture collision)"
 out="$(bash "$SUT" --root "$root")"
@@ -59,8 +47,6 @@ assert_eq "a collision still exits 0: it is a finding, not a crash" "0" "$(
   bash "$SUT" --root "$root" >/dev/null 2>&1
   printf '%s' "$?"
 )"
-
-# --- configuration is read, never assumed ------------------------------------
 
 root="$(new_fixture)"
 bash "$EDIT_CONFIG" "$root" '.file_names.exempt_basenames = ["README.md"] | .file_names.exempt_extensions = []'
@@ -73,8 +59,6 @@ out="$(bash "$SUT" --root "$root")"
 assert_eq "a different root inventories a different tree" "0" "$(printf '%s\n' "$out" | grep -c '^OFFENDER')"
 assert_contains "the reported roots follow the configuration" "$out" "SCANNED	1	build"
 
-# A root object claims only its extensions, in any case, and its exempt_paths
-# never cover a path another root claims without exempting it.
 root="$(new_fixture)"
 mkdir -p "$root/tools/fixtures" "$root/docs/fixtures"
 for f in tools/Notes_Here.md tools/LOUD.MD tools/fixtures/Kept_Name.md docs/fixtures/Judged_Name.md tools/Other_File.txt; do
@@ -92,9 +76,6 @@ assert_lacks "an extension the root does not claim is out of scope" "$out" "tool
 assert_lacks "a tools/ script is out of the markdown root" "$out" "tools/gen.sh"
 assert_contains "the reported roots label the extension filter" "$out" "SCANNED	15	docs,. (*.md)"
 
-# The same under a root below the repository root, where git would match an
-# exclude glob against the wrong base: an exempt glob that matches nothing
-# exempts nothing, and one that matches exempts only its own paths.
 for ex in '**/zzz/**' '**/fixtures/**'; do
   root="$(new_fixture)"
   mkdir -p "$root/tools/fixtures"
@@ -112,7 +93,6 @@ for ex in '**/zzz/**' '**/fixtures/**'; do
   fi
 done
 
-# A root git refuses must fail the audit, never empty the scan for every root.
 for bad in '"../x"' '{"path": ".", "exempt_paths": ["/abs/**"]}'; do
   root="$(new_fixture)"
   bash "$EDIT_CONFIG" "$root" --argjson r "$bad" '.file_names.roots += [$r]'
@@ -140,13 +120,9 @@ root="$(new_fixture)"
 bash "$SUT" --root "$root" >/dev/null 2>"$TEST_TMPDIR/err"
 assert_lacks "the clean fixture does not warn about an empty root" "$(cat "$TEST_TMPDIR/err")" "empty root"
 
-# --- an explicit --config file -----------------------------------------------
-
 root="$(new_fixture)"
 out="$(bash "$SUT" --root "$root" --config "$SCRIPT_DIR/fixtures/config.json")"
 assert_eq "an explicit --config resolves the same three offenders" "3" "$(printf '%s\n' "$out" | grep -c '^OFFENDER')"
-
-# --- usage and environment ---------------------------------------------------
 
 assert_eq "--help exits 0" "0" "$(
   bash "$SUT" --help >/dev/null 2>&1
