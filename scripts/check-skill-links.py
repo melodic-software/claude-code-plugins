@@ -63,6 +63,10 @@ def dependencies(manifest):
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return set()
+    except (OSError, ValueError) as err:
+        die(f"cannot read {manifest}: {type(err).__name__}: {err}")
+    if not isinstance(data, dict):
+        die(f"{manifest}: not a JSON object")
     names = set()
     for dep in data.get("dependencies") or []:
         name = dep.get("name") if isinstance(dep, dict) else dep
@@ -103,6 +107,14 @@ def main():
         rows = json.loads(data_file.read_text(encoding="utf-8"))["skills"]
     except (OSError, ValueError, KeyError, TypeError) as err:
         die(f"cannot read {data_file}: {type(err).__name__}: {err}")
+    if not isinstance(rows, dict):
+        die(f"{data_file}: 'skills' is not an object")
+    for key, row in rows.items():
+        if not isinstance(row, dict) or not all(
+            isinstance(row.get(k), list) and all(isinstance(v, str) for v in row[k])
+            for k in ("next", "related")
+        ):
+            die(f"{data_file}: row {key!r} needs string lists 'next' and 'related'")
     plugins_dir = root / "plugins"
     if not plugins_dir.is_dir():
         die(f"no plugins directory under {root}")
@@ -115,7 +127,11 @@ def main():
         key = f"{plugin}:{skill}"
         seen.add(key)
         rel = skill_md.relative_to(root).as_posix()
-        found, outside = sections(body_lines(skill_md.read_text(encoding="utf-8")))
+        try:
+            text = skill_md.read_text(encoding="utf-8")
+        except (OSError, ValueError) as err:
+            die(f"cannot read {rel}: {type(err).__name__}: {err}")
+        found, outside = sections(body_lines(text))
         row = rows.get(key)
         if row is None:
             no_row.append(key)

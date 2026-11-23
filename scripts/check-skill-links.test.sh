@@ -88,6 +88,17 @@ else
   fail "expected the summary on stdout; got: $out"
 fi
 
+cp "$TMP/scripts/skill-links.json" "$TMP/good.json"
+printf '{"skills": {"alpha:one": {"next": "not a list", "related": []}}}\n' >"$TMP/scripts/skill-links.json"
+bash "$TMP/scripts/check-skill-links.sh" "$TMP" >"$TMP/out" 2>"$TMP/err"
+status=$?
+if [[ $status -eq 2 && -s "$TMP/err" && ! -s "$TMP/out" ]] && ! grep -q Traceback "$TMP/err"; then
+  ok "a malformed row exits 2 on stderr, no traceback"
+else
+  fail "expected exit 2 with stderr only and no traceback, got $status: $(cat "$TMP/out" "$TMP/err")"
+fi
+mv "$TMP/good.json" "$TMP/scripts/skill-links.json"
+
 rm "$TMP/scripts/skill-links.json"
 bash "$TMP/scripts/check-skill-links.sh" "$TMP" >"$TMP/out" 2>"$TMP/err"
 status=$?
