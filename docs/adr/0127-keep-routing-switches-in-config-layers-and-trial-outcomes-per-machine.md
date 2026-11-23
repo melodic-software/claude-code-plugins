@@ -27,8 +27,12 @@ sessions run, and a dotfiles-managed file must never be written at run time.
    on the owner's machines (dotfiles manages it).
 3. **Route reaches `external-agents run` only through `skills/route/scripts/delegate`.** The script
    checks the setting again, refuses a `--user-file` inside a git work tree, and fixes every flag
-   but product, `--use task|investigate`, `--model` and `--effort`; route's skill grant names that
-   one script.
+   but the product (`codex` or `antigravity`), `--model` and `--effort`, always running
+   `--use task --mode write`; route's skill grant names that one script. The owner approved one
+   widening (2026-11-23, caller-contract interview Q4): `--use investigate`, which always runs
+   `--mode read-only`, added in
+   [#18534](https://github.com/melodic-software/claude-code-plugins/pull/18534). No other flag is
+   approved.
 4. **Trial outcomes live in a per-machine state file in the plugin's data folder, outside dotfiles**
    (Q42, Q55). Records exist only while a trial runs, and the write is safe for concurrent
    sessions.
