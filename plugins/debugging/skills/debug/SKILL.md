@@ -209,9 +209,11 @@ Run the loop and see it fail. Then check three things before going on:
    failure (a 413 where the user saw a 502) sends the fix to the wrong place.
 3. **The symptom is on record.** Keep the exact error text, wrong value or timing, so Phase 5 can
    show the fix changed that symptom and not some other one. When the reproduction drives the app
-   through `/app-control:drive` (if enabled), keep that run's `report.json` path: the fix hand-off
-   and the report name it as the `--before` evidence for `/source-control:pull-request evidence`
-   (if enabled).
+   through `/app-control:drive` (if enabled), keep that run's `report.json` path and the commit it
+   ran on (`git rev-parse HEAD`). Only when that commit is the PR's base commit does the fix
+   hand-off name it as the `--before` evidence for `/source-control:pull-request evidence` (if
+   enabled); on any other commit, such as a feature branch with earlier changes, the report names
+   it as pre-fix evidence of that commit, never as the base.
 
 ### Minimize
 
