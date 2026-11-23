@@ -364,7 +364,8 @@ counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`
 `verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
 or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
 named note ends as any fix round; no push with every note already addressed stops
-`feedback-already-addressed` for a session builder.
+`feedback-already-addressed` with no label: pr-verify judges the head on its own, and the lane's
+next run on that head clears the stop once a pass there lifts the refusal.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
