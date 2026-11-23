@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.30.3] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
 ## [0.30.2] - 2026-11-23
 
 ### Changed

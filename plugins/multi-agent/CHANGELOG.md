@@ -3,6 +3,32 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.1] - 2026-11-23
+
+### Added
+
+- Eval case `evals/ro-vendor-caller-auto-delegation-off/`: a Caller contract request with `vendors.auto_delegation` off makes `/multi-agent:route vendors` stop after `route.sh` and return only `run here`, with no board fetch, no `vendor-decide`, no `delegate` run and no vendor recommendation.
+
+### Fixed
+
+- carry a named agent's definition into a delegated brief
+
+  The route caller contract now has a step that dispatches a named agent
+  open its delegated brief with that agent's definition body, so another
+  vendor gets the agent's instructions and report shape.
+
+## [3.6.0] - 2026-11-23
+
+### Added
+
+- A Caller contract section in `reference/vendors.md` for skill steps that ask `/multi-agent:route vendors` which vendor runs a task: with `vendors.auto_delegation` off, route returns only `run here` and the step runs as before with no extra output; with it on and a vendor other than Claude chosen, the step sends its task text through route's `delegate` script and Claude reviews the report (and, for `task`, the changed files), which replaces the subagent's; text the user or caller did not write is framed as data; a skill asks route once per run per work type and passes route's `delegate:` line back with each later task; each call site carries one seam-phrased sentence.
+- `skills/route/scripts/delegate --use investigate` runs `external-agents run <product> --use investigate --mode read-only`; `--use task` (the default) keeps `--use task --mode write`. Every other external-agents flag is still refused.
+- `/multi-agent:route vendors` step 12 delegates `coding`, `web-ui` and `knowledge` work: with auto-delegation on and a non-Claude vendor chosen it prints one `delegate:` line naming the product, `--use` and any non-default model and effort, and runs a caller's brief through `delegate`. With auto-delegation off its output is unchanged.
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
 ## [3.5.0] - 2026-11-23
 
 ### Added

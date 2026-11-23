@@ -142,6 +142,12 @@ do not manufacture work to look thorough.
   worktree work to whatever capabilities are installed and falls back to
   `git` and the forge's or tracker's own tooling; it does not reimplement them.
 
+## Related
+
+- Local save-point when machine stays available: /session-flow:handoff.
+- Resume after an interruption: /session-flow:keep-going.
+- Prune stale .work memory items: /session-flow:tidy-work.
+
 ## Gotchas
 
 - "Pushed" is not "linked". A branch can be safely on the remote and still

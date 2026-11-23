@@ -78,6 +78,11 @@ never hand a `${…}` token from those files to the Bash tool.
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
 
+## Related
+
+- Multi-source or cross-checked technical questions: /discovery:research.
+- Verbatim read of a named upstream docs page: /discovery:read-docs.
+
 ## Gotchas
 
 - **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).

@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.5] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them, and comments removed from the changelog skill's `changelog-status.sh`; no behavior change.
+
 ## [10.6.4] - 2026-11-23
 
 ### Fixed

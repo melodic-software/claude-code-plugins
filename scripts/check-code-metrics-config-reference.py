@@ -195,7 +195,6 @@ def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
 
     if not rows:
         raise GateError(f"no table under {SECTION_HEADING!r} in the reference document")
-    # Drop the header row, whose first cell names the column rather than a key.
     header = rows[0][1]
     if not header or read_code_span(header[0]) is not None:
         raise GateError(

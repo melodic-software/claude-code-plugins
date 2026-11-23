@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: au-suite-health-trigger
+description: "Triggering case. The prompt names no skill; it matches audit's 'which skills have no eval case' and 'is my eval suite healthy'. The scaffold seeds a plugin with two skills, one with a case and one without; run with --scaffold. Deterministic: only the Skill call is graded."
+tags: [audit, triggering]
+runs: 3
+expected_outcome: "The evals audit skill fires without a slash command"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Before I add more eval cases to my plugin, which of its skills have no case at all, and is the suite in decent shape otherwise?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?audit"'
+    min: 1
+    arm: with-only

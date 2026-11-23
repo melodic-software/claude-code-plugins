@@ -188,7 +188,6 @@ def splice(readme: str, block: str) -> str:
     if halves is not None:
         head, tail = halves
         return head + block + tail
-    # First insertion: before the License heading when there is one, else at the end.
     marker = "\n## License"
     if marker in readme:
         i = readme.index(marker)

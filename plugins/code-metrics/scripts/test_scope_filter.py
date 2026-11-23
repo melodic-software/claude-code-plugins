@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for scope-filter.py at its command line."""
 
 from __future__ import annotations
 

@@ -262,6 +262,12 @@ directory under that name.
 
 /planning:interview, which takes the slice's `recommendations/interview.md`.
 
+## Related
+
+- Auth-walled online video course: /knowledge:course-digest.
+- Unrolling an X thread with companion replies: /x:read.
+- Deeper external claim verification: /discovery:research.
+
 ## Gotchas
 
 Observed failure modes. Recovery detail in `context/gotchas.md`: bot/sign-in cookie fallback,

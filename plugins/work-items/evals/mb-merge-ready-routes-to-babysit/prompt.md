@@ -1,5 +1,5 @@
 ---
-description: "Legacy morning-brief 5. Reaches SKILL.md 'What each section reports' (merge-ready is a light glance signal) and 'Cross-references': the authoritative merge verdict belongs to /source-control:babysit-prs, and the brief neither classifies nor merges the PR. routes-to-babysit-prs reads the reply; meets-expectations judges the rest. Bash is listed only so SKILL.md's pre-computed context lines load; needs --allow-tools Bash. Graded on the reply."
+description: "Legacy morning-brief 5. Reaches SKILL.md 'What each section reports' (merge-ready is a light glance signal) and 'Next': the authoritative merge verdict belongs to /source-control:babysit-prs, and the brief neither classifies nor merges the PR. routes-to-babysit-prs reads the reply; meets-expectations judges the rest. Bash is listed only so SKILL.md's pre-computed context lines load; needs --allow-tools Bash. Graded on the reply."
 tags: [work-items, morning-brief, routine, routing]
 max_turns: 15
 timeout_seconds: 420

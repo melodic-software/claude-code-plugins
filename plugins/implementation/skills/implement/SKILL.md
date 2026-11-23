@@ -302,6 +302,14 @@ When all planned work is done:
 - A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.
 - Tests planned, checked and green: `/review:quality-gate`.
 
+## Related
+
+- Orchestrated worker-subagent execution: /implementation:implement-dispatch.
+- Major divergence requiring replan: /planning:plan.
+- Build and test checks during blocks: /toolchain:check.
+- TDD test design guidance: /tdd:principles.
+- Outcome verification after review: /verification:confirm.
+
 ## Gotchas
 
 Every observed failure pattern for this skill is in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. When a new pattern bites, record it in the topic's memory slice (`<memory_dir>/<slug>/`) as one lesson per file with a one-line summary at the top, in the same what-happens / why-it-is-bad / how-to-avoid shape, and consult that slice at the start of later sessions on the same topic. Do not edit the plugin's own file from a consuming project; maintainers fold patterns that recur across projects into it.

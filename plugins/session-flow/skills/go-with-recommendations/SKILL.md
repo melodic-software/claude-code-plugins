@@ -89,6 +89,11 @@ it is the go-ahead, except for a refused action during an absence.
 
 Names the next stage once the accepted work is under way.
 
+## Related
+
+- Park decisions while away before returning: /session-flow:step-away.
+- Run the underlying evidence audit standalone: /discipline:do-your-research.
+
 ## Gotchas
 
 - The evidence check can move a recommendation the person just accepted. Accepting the old form

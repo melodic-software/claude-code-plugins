@@ -415,11 +415,6 @@ class Unmirrored(Exception):
     """A grader setting this script cannot reproduce offline."""
 
 
-# --------------------------------------------------------------------------
-# YAML subset parser
-# --------------------------------------------------------------------------
-
-
 def _prepare(text):
     """Strip comments and blank lines, returning (indent, content) pairs."""
     prepared = []
@@ -716,11 +711,6 @@ def split_frontmatter(text):
     return split_markdown(text)[0]
 
 
-# --------------------------------------------------------------------------
-# Findings
-# --------------------------------------------------------------------------
-
-
 class Finding(object):
     def __init__(self, level, case, path, message):
         self.level = level
@@ -764,11 +754,6 @@ def unparsed(case, path, error):
         path,
         "frontmatter not parsed (%s); simplify or run the CLI" % error.construct,
     )
-
-
-# --------------------------------------------------------------------------
-# Case discovery and validation
-# --------------------------------------------------------------------------
 
 
 def discover_cases(eval_dir):
@@ -1398,11 +1383,6 @@ def collect_graders(case_dir, case, yaml_data, findings):
                 options[field] = body.strip()
             graders.append((filename[:-3], options, path))
     return graders
-
-
-# --------------------------------------------------------------------------
-# Sample answers: deterministic graders run offline
-# --------------------------------------------------------------------------
 
 
 def python_only_tokens(pattern, flags=""):
