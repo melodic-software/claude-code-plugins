@@ -123,12 +123,12 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule. For a can't-fail test pattern in one of these
      languages, name the call `/corrections:codify "<the test pattern>"` (if enabled) for the user to run;
-     `check` builds no mechanism. When `/corrections:codify` (if enabled) is among the available skills, hand
-     it the choice of mechanism; it picks the strongest rung of the enforcement ladder that can
+     `check` builds no mechanism. Hand `/corrections:codify` (if enabled)
+     the choice of mechanism; it picks the strongest rung of the enforcement ladder that can
      decide the rule and proves the check. Otherwise, propose the strongest mechanism that can
      decide the rule: a change that makes the mistake impossible first, then a check that blocks
      it, then a test, and an instruction only when nothing a machine runs can decide it. Say that
-     `/corrections:codify` (if enabled) was not available, so the proposal is unproven.
+     the `corrections` plugin was not available, so the proposal is unproven.
    - Any other detected language: named with `setup has no lint check for this language`, not a
      finding. For a can't-fail test pattern in that language, name the call
      `/corrections:codify "<the test pattern>"` (if enabled) for the user to run; `check` builds no mechanism.
@@ -137,7 +137,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      that can decide the rule and proves the check. Otherwise, propose the strongest mechanism that
      can decide the rule: a change that makes the mistake impossible first, then a check that
      blocks it, then a test, and an instruction only when nothing a machine runs can decide it.
-     Say that `/corrections:codify` (if enabled) was not available, so the proposal is unproven.
+     Say that the `corrections` plugin was not available, so the proposal is unproven.
 4. **instruction**: the optional line, naming one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is

@@ -72,8 +72,8 @@ route.
 
 ## Step 1: Choose who drives
 
-The testing plugin works without app-control and never requires it. Check first whether
-`/app-control:drive` (if enabled) resolves in this session. When it does, invoke
+The testing plugin works without app-control and never requires it. Check first whether the
+`app-control` plugin is enabled. When it is, invoke
 `/app-control:drive affected [<app>] --base <ref> --out <run dir>/affected` (if enabled) through the Skill tool,
 adding `--unattended` on an `--unattended` run and `--trusted-root <dir>` when given, and read
 `<run dir>/affected/affected.json` as data: a non-null `control_skill` is a control skill found,
@@ -350,8 +350,8 @@ edits no component code; fixes go to the user. It always takes own driving and s
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: its start stays with the user, and this skill's orchestrator path runs unchanged either way. Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), which says which bundled skills Claude invokes on its own.
-- All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` (if enabled) via the Skill tool when the `review` plugin is enabled; otherwise the consuming setup's review step
-- All scenarios pass after review → invoke `/verification:confirm outcome` (if enabled) via the Skill tool when the `verification` plugin is enabled (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
+- All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` (if enabled) via the Skill tool; otherwise the consuming setup's review step
+- All scenarios pass after review → invoke `/verification:confirm outcome` (if enabled) via the Skill tool (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 

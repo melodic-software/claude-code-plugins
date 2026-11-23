@@ -256,8 +256,9 @@ expectation): the batch stops and names it until the rewrite is repaired. The re
 the scanner's rules; the judgment-only shapes in `test-value` §5 stay with each rewrite's row
 review.
 
-Then invoke `/mutation-testing:audit (if enabled) --exercised <folder> --replay-mutants <work>/before.tsv
---record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line. The replay
+Then invoke
+`/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv --record-mutants <work>/after.tsv` (if enabled)
+through the Skill tool and read its `Gate:` line. The replay
 reapplies each `before.tsv` mutant and compares the records mutant by mutant: one detected before
 and not after is newly surviving.
 

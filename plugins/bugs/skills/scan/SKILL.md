@@ -185,8 +185,7 @@ Apply in this order.
 
 **Model by stage.** Each stage's model comes from the multi-agent role map, passed through the
 Agent tool's per-spawn `model` parameter, and the gates' effort through its `effort` parameter. Name
-roles, never aliases. When `/multi-agent:route` (if enabled) resolves in this session, run
-`/multi-agent:route all session=<this session's model alias>` (if enabled) once per run. Pass the role's `fanout`
+roles, never aliases. Run `/multi-agent:route all session=<this session's model alias>` (if enabled) once per run. Pass the role's `fanout`
 variant model when the stage dispatches more than one agent and its `single` variant when it
 dispatches one (a one-lens run, a one-candidate wave); omit the model when `omit_model` is true.
 Hunters pass no `effort`: any level passed would lower some run's hunters, a cut to recall with no

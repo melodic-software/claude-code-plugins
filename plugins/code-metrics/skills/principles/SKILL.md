@@ -103,8 +103,7 @@ named plugin is not enabled, the concern is out of this plugin's scope and nothi
 substitutes for it, unless the bullet names its own fallback.
 
 - **Surviving mutants and mutation score.** Invoke `/mutation-testing:principles` (if enabled) for what a
-  surviving mutant means, and `/mutation-testing:audit` (if enabled) to run one, when the `mutation-testing`
-  plugin is enabled. Coverage cannot answer it: a covered line can still be unchecked.
+  surviving mutant means, and `/mutation-testing:audit` (if enabled) to run one. Coverage cannot answer it: a covered line can still be unchecked.
 - **Tautological and assertion-free tests.** Invoke `/testing:audit` (if enabled).
 - **Dead code.** Invoke `/code-tidying:audit-dead-code` (if enabled). ISO/IEC 5055 files dead code as its own weakness (7.1.5, CWE-561), separate from
   every measure here.

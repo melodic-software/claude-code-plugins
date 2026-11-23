@@ -146,10 +146,9 @@ boundary other modules will build on):
    `design-threads.md`.
 
 When the thread is about how a screen or interaction looks or feels, invoke
-`/prototype:explore-directions` (if enabled) via the Skill tool when it is among the available skills. When the
+`/prototype:explore-directions` (if enabled) via the Skill tool. When the
 candidates differ in logic or state (the rules, a state machine, a data model, an API surface) and
-a run can settle the fork, invoke `/prototype:pressure-test observe` (if enabled) via the Skill tool when it is
-among the available skills, because running each candidate on the same inputs shows which one
+a run can settle the fork, invoke `/prototype:pressure-test observe` (if enabled) via the Skill tool, because running each candidate on the same inputs shows which one
 holds where arguing them only predicts it. The test: name the event sequence or record that the
 criteria turn on; when nobody can yet say with confidence how each candidate handles it, a run
 settles the fork (pstack's `exhaust-the-design-space` principle). Confirm the scope of the
@@ -221,7 +220,7 @@ The inventory covers:
   naming, collisions with common library types, namespaces) before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction,
   disambiguating overloaded terms) where declared; otherwise low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool (if that plugin is enabled)
+- Invoke `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool
   the moment a domain term resolves, so the glossary owner applies the consumer's format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts
@@ -290,7 +289,7 @@ Each round:
    `/corrections:codify "<the principle>"` (if enabled). Otherwise, propose the strongest mechanism that can
    decide the rule: a change that makes the mistake impossible first, then a check that blocks it,
    then a test, and an instruction only when nothing a machine runs can decide it. Say that
-   `/corrections:codify` (if enabled) was not available, so the proposal is unproven. When codify stops with no
+   the `corrections` plugin was not available, so the proposal is unproven. When codify stops with no
    proposal, as it does below its recurrence threshold, propose the same way and say that it
    stopped.
 
@@ -381,8 +380,7 @@ dialect: mermaid
 ```
 
 `scope` is one of `data`, `integration`, `system`. `dialect` is one of `mermaid`, `dbml`,
-`openapi-3.1`, `likec4`, `c4-plantuml`. `/work-items:decompose` (if enabled) (when the `work-items` plugin is
-enabled) reads the label to inline the artifact under a provenance note naming scope and dialect;
+`openapi-3.1`, `likec4`, `c4-plantuml`. `/work-items:decompose` (if enabled) reads the label to inline the artifact under a provenance note naming scope and dialect;
 without that plugin the label is inert. The body is one fenced block in the declared dialect,
 followed by the artifact's prose. Tag the fence with the renderer name: `mermaid`, `dbml`, `yaml`
 for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts,
@@ -399,7 +397,7 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
 **Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
-`/visualization:visualize` (if enabled) via the Skill tool (if the `visualization` plugin is enabled), asking
+`/visualization:visualize` (if enabled) via the Skill tool, asking
 for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
@@ -422,12 +420,12 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Track resolution status.** Every question and thread is resolved / directional / deferred.
   Deferred items carry a research tag naming the external investigation needed
 - **Codify rules when discovered.** When discussion surfaces a project-wide principle, route it
-  immediately: when `/corrections:codify` (if enabled) is among the available skills, hand it the choice of
+  immediately: hand `/corrections:codify` (if enabled) the choice of
   mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule and
   proves the check. Call it as `/corrections:codify "<the principle>"` (if enabled). Otherwise, propose the
   strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
   then a check that blocks it, then a test, and an instruction only when nothing a machine runs
-  can decide it. Say that `/corrections:codify` (if enabled) was not available, so the proposal is unproven.
+  can decide it. Say that the `corrections` plugin was not available, so the proposal is unproven.
   When codify stops with no proposal, as it does below its recurrence threshold, propose the same
   way and say that it stopped
 - **Incremental artifacts.** Build artifacts as discussion progresses and update them as decisions

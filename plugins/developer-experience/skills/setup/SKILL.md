@@ -72,7 +72,7 @@ the file and line behind it and one remediation line per FAIL:
 2. **Load**: each helper `load:` line. `missing-import` fails; `may-not-load` is INFO worded
    "may not load", because the outcome depends on a per-user setting, a gitignored file, or a
    `CLAUDE.md` in a directory above the repository. From the helper's `add:` line, name the file
-   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is enabled, name
+   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. Name
    `/instruction-placement:migrate` (if enabled) for moving instructions into `AGENTS.md`; otherwise print
    `claude plugin enable instruction-placement@<marketplace>`, preceded by
    `claude plugin install instruction-placement@<marketplace>` when it is not installed, and the

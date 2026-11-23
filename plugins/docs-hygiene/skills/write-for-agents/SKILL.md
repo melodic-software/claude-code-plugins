@@ -37,7 +37,7 @@ Every line spends two budgets, and cutting one can overspend the other:
 Fewer words spends less of both. The universal brevity rules apply: no more words than the meaning
 needs, no filler, hedging, intensifiers, expletive openings, or restatement of an adjacent line;
 active voice; one idea per sentence; a factual register with nothing sold. `/writing:be-concise` (if enabled)
-owns those rules when the `writing` plugin is enabled; without it, apply them from this
+owns those rules; without it, apply them from this
 paragraph. Take those rules and no more of that doctrine: its human-only rules do not transfer. A
 bottom-line-first opening, headings written to be skimmed, bullet lists for scanning, and bounded
 bold serve a person moving down a page fast; an agent needs the rule stated where it applies, not
@@ -176,7 +176,7 @@ available skills, hand it the choice of mechanism; it picks the strongest rung o
 ladder that can decide the rule and proves the check. Otherwise, propose the strongest mechanism
 that can decide the rule: a change that makes the mistake impossible first, then a check that
 blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say
-that `/corrections:codify` (if enabled) was not available, so the proposal is unproven. A line that keeps
+that the `corrections` plugin was not available, so the proposal is unproven. A line that keeps
 getting missed means the file needs to be shorter. Bold is structure only: a list-item label
 or a defined term at its first use, never a whole sentence or a rule
 ([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
@@ -211,7 +211,7 @@ stronger word: a more precise one, and a firm one only for a hard limit
   already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. A new shared home still
   waits for the third occurrence; below that it remedies the repetition in place.
 - Resolved or coined a term in the **consuming project's** domain? Invoke
-  `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool (if that plugin is enabled) rather
+  `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool rather
   than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
   scope and stays where it is.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit

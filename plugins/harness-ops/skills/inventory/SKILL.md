@@ -325,13 +325,13 @@ plugin skills). Recheck when the cache layout or `defaultEnabled` precedence cha
 
 ## MCP servers
 
-When `/mcp-tools:audit-posture` (if enabled) is among the available skills, invoke it through the Skill tool
+Invoke `/mcp-tools:audit-posture` (if enabled) through the Skill tool
 after the script runs. Save its report in the directory that holds the `--out` file, as
 `mcp-posture-<YYYY-MM-DD>.md`. When that directory already holds an earlier `mcp-posture-*.md`,
 pass the newest one's path in the Skill call's arguments as the previous report, so the posture
 report adds its "Changes since" section. Without `--out`, show the report and save nothing.
 
-When `/mcp-tools:audit-posture` (if enabled) is not among the available skills, print
+When the `mcp-tools` plugin is not enabled, print
 `MCP coverage: mcp-tools is not enabled` and say nothing more about it.
 
 Either way, say that claude.ai connectors arrive in the session at runtime and never appear in a

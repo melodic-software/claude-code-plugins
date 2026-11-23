@@ -43,9 +43,9 @@ re-captures it, and never edits a capture harness or the app's styles to make a 
    output, and give that state the gap report (the state, the command, and that it needs that
    command to run to a verdict). Never move it to another route: the suite holds its baseline,
    and another renderer's capture would measure the renderer change.
-2. **A driver that writes PNG files.** When `/app-control:drive` (if enabled) is among the available skills,
-   capture each state with `/app-control:drive (if enabled) capture --kind screenshot --out <the baseline or
-   after directory>`, and use the result only when drive reports a non-empty PNG file at that
+2. **A driver that writes PNG files.** Capture each state with
+   `/app-control:drive capture --kind screenshot --out <the baseline or after directory>` (if enabled),
+   and use the result only when drive reports a non-empty PNG file at that
    path. Drive names its files for the feature and a step number
    (`checkout-cart-02-screenshot.png`), and compare pairs images by filename, so rename or copy
    each drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory,

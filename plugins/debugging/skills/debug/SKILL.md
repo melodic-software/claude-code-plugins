@@ -354,8 +354,7 @@ The run is not done until every line below holds. They fall into three groups.
   docs said, a sign-in step the loop needed), or say there were none. Every report this skill
   gives carries this list: a fix, a diagnose stop, and a stop with no loop. This skill writes
   none of them into a control skill:
-  `/app-control:map` (if enabled) is the one writer of a control skill's Gotchas, so when the `app-control`
-  plugin is enabled, give each lesson as a `/app-control:map refresh "<lesson>"` (if enabled) line for it to place.
+  `/app-control:map` (if enabled) is the one writer of a control skill's Gotchas, so give each lesson as a `/app-control:map refresh "<lesson>"` (if enabled) line for it to place.
 - Propose one cheap, always-on signal (a log line, a metric or an assertion) that would have shown
   the deciding fact (the value or state that settled the Phase 3 table) at first look. A deep dig
   means the failure did not show that fact, and a signal left on shows it the next time without

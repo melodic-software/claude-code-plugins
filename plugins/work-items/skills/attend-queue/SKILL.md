@@ -200,9 +200,8 @@ never compress this restatement away.
   **interactive** direction gate applies: brief before asking, recommend, wait for direction, then
   mutate. All triage machinery (states, outcomes, briefs, closing invariant) is owned there.
 - **`[escalated]` rows**. Read the machine-marked comment for the escalated question, restate the
-  brief above, then drive it to a decision by invoking `/planning:interview` (if enabled) via the Skill tool (when the `planning` plugin is
-  enabled; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
-  same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
+  brief above, then drive it to a decision by invoking `/planning:interview` (if enabled) via the Skill tool; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
+  same fallback shape triage's interview step uses. **Write the answer back as an issue comment** on
   the item, the decision lives on the tracker, never only in the session, replying in the thread of
   the escalation comment where the provider supports it. **Then update the item body** so it
   stands alone: where it still shows the question open (a `Readiness: needs-decision` line, a list
@@ -280,7 +279,7 @@ when the setting resolves `true`
 `{lane}` → `attend-queue`; the per-user value it reads is `${user_config.ai_disclaimer}`); the
 operator's own words need none.
 
-Each answer opens with the decision and stops there: invoke `/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled;
+Each answer opens with the decision and stops there: invoke `/writing:be-concise` (if enabled) via the Skill tool;
 otherwise apply that discipline inline. It never trims the per-row restatement above.
 
 ## Telemetry

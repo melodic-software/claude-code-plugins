@@ -95,8 +95,7 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
    not launched: redraft it as case 2 drafts one and take case 2, or take
    case 3 when no checkable condition is left. Either way the report still advises `/goal clear`
    for the goal active here.
-2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition` (if enabled)
-   (when it is among the available skills; otherwise draft inline a condition the transcript can
+2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition` (if enabled) (otherwise draft inline a condition the transcript can
    demonstrate, and say once that the `planning` plugin would pick the repetition lever and check
    the draft against the documented condition limit) and write the save-point with it as a fresh
    goal; its on-screen goal region is the display.
@@ -216,8 +215,8 @@ fallback), then:
    Insert `--effort "<level>"` before the prompt argument when "What the launched session
    inherits" below calls for it.
 
-   **Plugin profile.** When `/plugin-profiles:profile` (if enabled) is among the available skills (enabled),
-   invoke `/plugin-profiles:profile launch --json` (if enabled) via the Skill tool, naming the profile only when
+   **Plugin profile.** Invoke
+   `/plugin-profiles:profile launch --json` (if enabled) via the Skill tool, naming the profile only when
    the user named one (no name takes this session's own) and adding `--unattended` when this run
    is unattended. Replace `claude` in the command above with its `argv` words (its `command` field
    is them, shell-quoted), keeping every argument after it, and name the profile in the launch
@@ -319,7 +318,7 @@ matches its remote:
    fallback, so the work keeps moving: local steps 3 and 4 then replace cloud step 3, and the
    report adds that the cloud launch was refused and the run went local. Pointer: probe 3 in
    [reference/goal-probe.md](reference/goal-probe.md). A cloud launch carries no settings file, so
-   when `/plugin-profiles:profile` (if enabled) is among the available skills the report says the cloud session
+   when the `plugin-profiles` plugin is enabled the report says the cloud session
    starts without this session's plugin profile.
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the

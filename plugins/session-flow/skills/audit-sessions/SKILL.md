@@ -309,8 +309,7 @@ which reads every project, so say which scope was read. Give every
 
 `trends` shows how this project's session health scores move across sessions, with the team's
 delivery metrics beside them. It takes no option, runs neither Step 1 nor Step 2, and reads no
-store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` (if enabled) when
-that skill is available, so the first-collect disclosure under "Paths" does not apply. Read
+store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` (if enabled), so the first-collect disclosure under "Paths" does not apply. Read
 [actions/trends.md](actions/trends.md) and follow its process.
 
 ## Resumed context: `resumed`

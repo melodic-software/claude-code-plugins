@@ -196,7 +196,7 @@ whole descriptions lowest-score-first. The score is decay-weighted and the walk 
 is not the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
-So the report says what the baking would cost. When the `skill-quality` plugin is enabled, invoke
+So the report says what the baking would cost. Invoke
 `/skill-quality:check listing-budget` (if enabled) over the repo's plugin skill roots and fold its aggregate
 estimate into the Budget exposure section. When that plugin is not enabled, state "budget
 exposure unavailable. `skill-quality` not enabled" and continue; never reach into another
@@ -326,7 +326,7 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 …"), the provenance class, and the routing split, and, when `integration` is `wrap` or
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
-measured by `/skill-quality:check <skill>` (if enabled) (when `skill-quality` is not enabled, state "description
+measured by `/skill-quality:check <skill>` (if enabled) (otherwise state "description
 length unmeasured. `skill-quality` not enabled" and do not bake); a row that would exceed
 the cap is not baked. Every wrapped or suggesting skill declares `--unattended` in its
 `argument-hint`. The

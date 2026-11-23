@@ -127,7 +127,7 @@ waiting from before the anchor. Work the session can still do itself is not an a
 Add a visual (table, diagram) only when one exists or can be built from what is in hand; never
 invent a number or picture.
 
-When `/explainer-video:produce` (if enabled) is among the available skills and the reply did not stop at
+When the `explainer-video` plugin is enabled and the reply did not stop at
 Needs you, end the reply with a one-line offer of a video of the catch-up, and on a yes hand the
 catch-up to that skill, which owns how the video is made. When that skill is not available, say
 nothing about a video. Unattended, record the offer in the output instead of asking.

@@ -50,8 +50,7 @@ releases.
 
 What clears each dimension resolves down the same ladder as the discipline
 itself: what the consuming project declares wins; failing that, the contract
-`/discovery:research` (if enabled) states as mandatory disciplines, when the `discovery`
-plugin is enabled; failing both, the floor below. The floor is this skill's
+`/discovery:research` (if enabled) states as mandatory disciplines; failing both, the floor below. The floor is this skill's
 own baseline, deliberately lighter than a research pass's numbers, because it
 settles one claim mid-conversation:
 

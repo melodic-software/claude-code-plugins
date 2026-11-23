@@ -79,7 +79,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
 
 - Invoke `/repo-hygiene:clean` (if enabled) via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking
-  `/source-control:worktree status` (if enabled)/`cleanup` via the Skill tool, run from the checkout's own main
+  `/source-control:worktree` (if enabled) `status` or `cleanup` via the Skill tool, run from the checkout's own main
   repository, those actions manage the current repository's worktrees and take no target path. The
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the

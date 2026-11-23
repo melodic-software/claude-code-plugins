@@ -201,13 +201,13 @@ any published contract surface (API shapes, message schemas, tool schemas). Thos
 lane by definition.
 
 **F. Verify the batch.** Invoke `/toolchain:check` (if enabled) via the Skill tool for the affected
-ecosystems when the `toolchain` plugin is enabled; otherwise run the consuming project's
+ecosystems; otherwise run the consuming project's
 own build, test, and lint commands (its CLAUDE.md or rules may name them). A reduction that
 breaks a test was secretly behavioral: revert that reduction, reclassify it as route lane,
 and continue. Never ship red.
 
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
-invoke `/source-control:pull-request create` (if enabled) via the Skill tool when that plugin is enabled; otherwise use the
+invoke `/source-control:pull-request create` (if enabled) via the Skill tool; otherwise use the
 repo's own PR convention with a body listing each reduction as `edge → mechanism → why safe`.
 One coupling pass per PR; structure-only, no behavioral riders. A human merges. This skill
 never auto-merges.
@@ -215,9 +215,8 @@ never auto-merges.
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). A cross-repository finding
 goes in the ledger, and is filed in the tracker, of the repository that owns the source. For route-lane
-candidates: hand the top one to `/architecture:improve` (if enabled), invoked via the Skill tool (if that plugin is enabled), for
-design exploration, and file the rest by invoking `/work-items:track add` (if enabled) via the Skill tool
-when that plugin is enabled, else the repo's own tracker, else present the list to the user. For each confirmed
+candidates: hand the top one to `/architecture:improve` (if enabled), invoked via the Skill tool, for
+design exploration, and file the rest by invoking `/work-items:track add` (if enabled) via the Skill tool, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
 ledger entry's `outcome`, and offer `/corrections:codify findings <file>` (if enabled);
@@ -259,7 +258,7 @@ skill is ever extended to judge work its own session produced outside those gate
 - **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.
 - **Does not deep-design one boundary.** A route-lane candidate needing interface
-  exploration goes to `/architecture:improve` (if enabled) (when enabled) or a design session.
+  exploration goes to `/architecture:improve` (if enabled) or a design session.
 - **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
   `/code-tidying:tidy` (if enabled) territory.
 - **Does not enforce.** Blocking a new literal for a value that already has an owner is a

@@ -146,7 +146,7 @@ class-B moves, and reports.
 1. **Dispatch** with the resolved scope (files, and lines under `diff`), posture, settings, under
    `necessary` the resolved keep list's path, the discovered markers and the tooling layer. Model and effort: the
    agent's own definition, unless
-   `/multi-agent:route worker code` (if enabled) resolves in this session and a config layer (basis `config`)
+   `/multi-agent:route worker code` (if enabled) reports a config layer (basis `config`) that
    sets the `worker` role, in which case pass that role's `single` variant model and effort.
 2. **Check its report and its diff.** Re-run `change-shape.sh` on every file it touched, before
    against after: anything but COMMENT-ONLY, or DOCSTRING-ONLY on a Python file whose only

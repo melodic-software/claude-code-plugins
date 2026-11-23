@@ -214,7 +214,7 @@ resources get digests); the parent's invariant governs each downstream run untou
    checklist takes its `verification` from the workflow result's page entry, which never says
    `verified`. An entry the workflow result lists under `deferred` or `rejected` was not run: write
    that entry's `verification` value, `unverified: not run: <reason>`, with that list's reason.
-5. Hand `mapper-handoff.md` to `/planning:interview` (if enabled), invoked via the Skill tool, when enabled;
+5. Hand `mapper-handoff.md` to `/planning:interview` (if enabled), invoked via the Skill tool;
    otherwise present and stop.
 
 Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase, work root).

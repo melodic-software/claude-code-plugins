@@ -49,7 +49,7 @@ Collect the source's acceptance criteria with their ids for Step 2's criterion t
 
 When `## Plan` opens with a `### Behavior` list, extract it for Step 2's cut: each `- B<n>: <claim> (AC<i>, ...)` item with the criterion ids it cites, the list's `Process criteria:` line (criteria no behavior shows), and each phase's `**Delivers:**` line naming the B ids that phase builds.
 
-Name things with the project's own domain terms: invoke `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool when that skill is available, otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, and follow the architecture decision records that cover the area being sliced.
+Name things with the project's own domain terms: invoke `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool, otherwise Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder) and Read the match that covers the area; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped, and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
 
@@ -111,7 +111,7 @@ The human-gated label (default `needs-human`) is what keeps an item out of auton
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
 | research | External unknown (best practice, library choice, API behavior) | `/discovery:research` (if enabled) |
-| prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (if enabled) (feasibility, logic) or `/prototype:explore-directions` (if enabled) (design feel), when that plugin is enabled |
+| prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (if enabled) (feasibility, logic) or `/prototype:explore-directions` (if enabled) (design feel) |
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` (if enabled) |
 | design | Type, contract, module-boundary, topology, or data-model unknown | `/planning:design` (if enabled) |
 
@@ -327,7 +327,7 @@ Fill the sections this way:
   `(passes at base; kept: <reason>)`, the reason approved at Step 3, so the picker knows why a
   check that cannot fail at the starting commit is there.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The section shape above, the approved Demo line, every acceptance criterion with its id and any `(passes at base; kept: <reason>)` note, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` (if enabled) via the Skill tool; otherwise apply that discipline inline. The section shape above, the approved Demo line, every acceptance criterion with its id and any `(passes at base; kept: <reason>)` note, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos. Stamp the Issue Type only, and write no status field; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 

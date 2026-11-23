@@ -372,7 +372,7 @@ Read the item body, comments, and any linked PRs, plus the diff when the item is
 touches, and before any check below, read three things the repository may keep, so the evaluation
 uses its terms and respects its decisions:
 
-- its **glossary** or ubiquitous-language file: invoke `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool when that skill is available, otherwise search for it (such as `docs/glossary.md`);
+- its **glossary** or ubiquitous-language file: invoke `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool, otherwise search for it (such as `docs/glossary.md`);
 - the **ADRs** covering the item's area (such as those under `docs/adr/` whose subject is the
   plugin, module or concept the item touches);
 - its **scope statement**: what the project is for and what it leaves out (a README section or a
@@ -461,7 +461,7 @@ as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the rec
 raw marker stays on the item until step 5 replaces it, so a pass that stops here leaves the item in
 the attention view with its evidence already posted.
 
-**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug` (if enabled), or `/testing:diagnose` (if enabled) when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write` (if enabled); otherwise shape it inline into a title, steps to reproduce, expected vs actual, severity and suggested fix location, and say once that the `bugs` plugin would add its targeted questions and severity rubric; one missing facts only the reporter holds still takes `needs-reporter-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug` (if enabled), or `/testing:diagnose` (if enabled) when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write` (if enabled) (otherwise shape it inline into a title, steps to reproduce, expected vs actual, severity and suggested fix location, and say once that the `bugs` plugin would add its targeted questions and severity rubric). One missing facts only the reporter holds still takes `needs-reporter-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
 
 ### 4. Interview (if needed)
 

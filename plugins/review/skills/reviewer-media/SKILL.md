@@ -13,8 +13,8 @@ metadata:
 # Reviewer media (`/review:reviewer-media`)
 
 Builds the reviewer part of a produced walkthrough and nothing else: `/review:explain-change`
-writes the digest, `/explainer-video:produce` (if enabled) renders the video, and `/source-control:pull-request (if enabled)
-media` places it. This skill decides, writes the storyboard, checks it covers the change, and
+writes the digest, `/explainer-video:produce` (if enabled) renders the video, and
+`/source-control:pull-request media` (if enabled) places it. This skill decides, writes the storyboard, checks it covers the change, and
 hands over. When and with which settings: the
 [reviewer-media convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/reviewer-media.md).
 
@@ -44,7 +44,7 @@ Then check the renderer, on a direct run and on `--handoff` alike:
 
 - `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
   pull request over, so leave it off.
-- `--producer-unavailable` when check 1 found no `/explainer-video:produce` (if enabled).
+- `--producer-unavailable` when check 1 found the `explainer-video` plugin missing.
 - `--shown` with the sha `media shows` printed, left off when it printed nothing.
 - `--policy` only when the reader passed it; `--blast-radius` when a plan or
   `/review:quality-gate downstream` assessed one.

@@ -10,7 +10,7 @@ metadata:
 # Test value
 
 A test is worth keeping when it fails for the bug it guards and passes for any correct
-implementation. `/tdd:principles` (if enabled) (when the `tdd` plugin is enabled) carries the wider Beck and
+implementation. `/tdd:principles` (if enabled) carries the wider Beck and
 Khorikov doctrine.
 
 ## 1. Every expected value names its independent source
@@ -160,7 +160,7 @@ https://jestjs.io/docs/snapshot-testing.
 A surviving mutant on changed code is one more signal of this class: the changed line was
 altered and every test stayed green, so unless the mutant is equivalent (behaves exactly as the
 original), no test checks the behavior the mutant changed. Assert that behavior, with an expected
-value from §1. `/mutation-testing:audit` (if enabled) (when that plugin is enabled) produces the surviving
+value from §1. `/mutation-testing:audit` (if enabled) produces the surviving
 mutants for a change.
 
 **Change detectors** (fail on any edit, prove no behavior):

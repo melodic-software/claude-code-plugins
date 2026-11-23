@@ -278,7 +278,7 @@ Capture: unassisted, verification present and skipped because <reason>
 ```
 
 The dependency is a preference for reuse, not a requirement: never refuse to measure because
-`/verification:measure` (if enabled) is missing; this skill's own gates (host qualification, interleaving, the
+the `verification` plugin is missing; this skill's own gates (host qualification, interleaving, the
 counter, the refusal) work either way.
 
 A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a

@@ -89,7 +89,7 @@ it:
 | Wording of new agent-loaded text | invoke `/docs-hygiene:write-for-agents` (if enabled) | write from the catalog's own guidance and say once the write-side doctrine was not available |
 | The hub's decision record | invoke `/architecture:adr` (if enabled) | put the record's text under "Proposed, not written" and say once that the architecture plugin would write it in the estate's convention |
 | The scratch directory's `.gitignore` line | this skill: a one-line append when absent | n/a |
-| The mechanism for a catalog rule a check could decide (a write to a target's main checkout, a scratch directory that must stay ignored) | name `/corrections:codify` (if enabled) in the report when it is among the available skills (enabled): it picks the enforcement-ladder rung | list the rule under "Proposed, not written" as a candidate for a stronger mechanism and say once that the corrections plugin would pick it |
+| The mechanism for a catalog rule a check could decide (a write to a target's main checkout, a scratch directory that must stay ignored) | name `/corrections:codify` (if enabled) in the report: it picks the enforcement-ladder rung | list the rule under "Proposed, not written" as a candidate for a stronger mechanism and say once that the corrections plugin would pick it |
 
 The hub's `AGENTS.md` is prose, the weakest tier that still reaches every session, and it is the
 right home for what no check can decide: where things are and how to reach them. A catalog rule a

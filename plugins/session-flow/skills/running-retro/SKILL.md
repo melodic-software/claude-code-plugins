@@ -172,7 +172,7 @@ the user picks:
   issue together, and file only the ones the user says yes to, skipping any that already has an
   issue. Skill-fit findings are never auto-filed.
 - **Build the new-skill candidate** → read `/playbooks:skill-authoring` (if enabled) for the authoring doctrine
-  and draft against it, then gate the result on `/skill-quality:check` (if enabled), when those are enabled;
+  and draft against it, then gate the result on `/skill-quality:check` (if enabled);
   otherwise say the candidate has no authoring route here and leave it recorded. Read the
   doctrine before drafting rather than inventing a shape from scratch. (It is a knowledge surface:
   it takes no arguments and performs no actions, so it informs the drafting rather than doing it.)

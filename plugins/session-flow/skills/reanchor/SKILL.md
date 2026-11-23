@@ -118,8 +118,8 @@ read from there.
 ## What this skill does not do
 
 - **Does not inventory worktrees.** Enumerating every worktree by
-  path / branch / PR / commit-age staleness is `/source-control:worktree` (if enabled)
-  status's job when that plugin is enabled (it reports no behind-base or
+  path / branch / PR / commit-age staleness is the job of `/source-control:worktree status` (if enabled)
+  (it reports no behind-base or
   dirty-tree signal); reanchor does its own base-drift check (a `git`
   behind-count on the working branch) and never reimplements that
   cross-worktree inventory.

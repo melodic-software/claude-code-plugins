@@ -300,7 +300,7 @@ an earlier run that paused).
    `/harness-ops:lanes` (if enabled) launches) to keep the record Write in place: from a linked worktree outside
    `.claude/worktrees` the record Write lands with no refusal (probed with `claude --bg` on Claude Code 2.1.285),
    and from a checkout that is not a linked worktree it can be refused (evidence: the issue the pointer below names).
-   When `/plugin-profiles:profile` (if enabled) is among the available skills, the launching session first invokes
+   The launching session first invokes
    `/plugin-profiles:profile launch [<profile>] --unattended --json` (if enabled) from that worktree via the Skill tool and
    runs its `argv` followed by `--bg -n <name> --permission-mode auto`; on exit 1 it launches nothing and
    reports the reason the tool printed. Otherwise it runs the command as written.

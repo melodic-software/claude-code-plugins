@@ -129,8 +129,7 @@ Run each source that is available, and name any that is not:
   available skills, run `/source-control:pull-request list --state closed --search '<word>'` (if enabled) once
   per word of the search terms (a search value takes only letters, digits and `._/#-`) and keep the rows whose
   `mergeCommit` is null. Otherwise, or when the read exits non-zero, say so and skip it.
-- **Tracker items, open and closed.** When `/work-items:track` (if enabled) is among the available skills, run
-  `/work-items:track search '<term>'` (if enabled) once per search term; it covers open and closed items.
+- **Tracker items, open and closed.** Run `/work-items:track search '<term>'` (if enabled) once per search term; it covers open and closed items.
   Otherwise say the tracker was not searched. Read each match whose kind the rows do not show with
   `/work-items:track view '<id>' --comments` (if enabled). Closed rows show no kind, and `view` returns labels
   but no native issue type, so on a repository that types items natively a closed match can carry

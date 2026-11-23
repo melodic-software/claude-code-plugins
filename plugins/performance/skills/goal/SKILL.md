@@ -179,8 +179,7 @@ Target (from /performance:target): <candidate> @ <E1..E4>
 - **Does not measure the baseline.** That is `/performance:snapshot`; this phase measures only the
   floor, an input to the goal rather than a result of it.
 - **Does not implement.** The change is `/implementation:implement` (if enabled).
-- **Does not store baselines.** `/verification:measure` (if enabled) owns baseline capture and storage when the
-  `verification` plugin is enabled; this plugin depends on it rather than reimplementing it.
+- **Does not store baselines.** `/verification:measure` (if enabled) owns baseline capture and storage; this plugin depends on it rather than reimplementing it.
 
 ## Next
 

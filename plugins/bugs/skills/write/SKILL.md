@@ -115,7 +115,7 @@ Stop when every field has a backed answer or the placeholder.
 Read [`context/template.md`](context/template.md) first and follow it. Default: Markdown to stdout.
 
 A person reads the report, so each field opens with its finding and carries no filler: invoke
-`/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled; otherwise apply that
+`/writing:be-concise` (if enabled) via the Skill tool; otherwise apply that
 discipline inline. Keep the five fields, their order, and the template's shape; drop no repro step,
 severity justification, or placeholder to shorten it.
 

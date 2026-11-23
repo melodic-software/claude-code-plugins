@@ -292,9 +292,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
 
    | Type label | Usually | Routes to |
    |---|---|---|
-   | `<prefix> research` | agent-capable | `/discovery:research` (if enabled) (falls back to inline research if not enabled) |
+   | `<prefix> research` | agent-capable | `/discovery:research` (if enabled) (otherwise inline research) |
    | `<prefix> interview` | `<human-gated>` (intent) | `/planning:interview` |
-   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` (if enabled) / `/event-storming:simulation` (if enabled) when the item is domain/event-model work (falls back to `/planning:design` if not enabled) |
+   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` (if enabled) / `/event-storming:simulation` (if enabled) when the item is domain/event-model work (otherwise `/planning:design`) |
    | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (if enabled) (behaviour/feasibility; its vendor-fit mode when the item proves an outside vendor does something) or `/prototype:explore-directions` (if enabled) (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment. Falls back to `/planning:design` if not enabled: the resolution comment says no artifact was built, and the decision the item settles is recorded as provisional, naming this prototype item (step 6). This fallback route is itself provisional until a prototype item is first worked without the plugin and shows whether a discussion settles its question |
    | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate` (if enabled); its resolution records the names and locations of what was set up, never the values |
 
@@ -384,7 +384,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | Sharp build work | `/planning:plan`, `/work-items:decompose` (if enabled), `/work-items:work` (if enabled) | Closure targets for a set of build items (plan, then decompose) or one change |
 | Human-only setup in a task item | `/wizard:generate` (if enabled) | `task`-typed items whose work only a human can do route here |
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
-| Feasibility / UX unknown | `/prototype:pressure-test` (if enabled), `/prototype:explore-directions` (if enabled) | `prototype`-typed items route here (`/planning:design` if not enabled) |
+| Feasibility / UX unknown | `/prototype:pressure-test` (if enabled), `/prototype:explore-directions` (if enabled) | `prototype`-typed items route here (otherwise `/planning:design`) |
 | External-evidence item | `/discovery:research` (if enabled) | `research`-typed items route here |
 
 Pre-implementation order (blindspot → brainstorm/prototype → interview, calling a PRD when product

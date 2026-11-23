@@ -123,7 +123,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count
 # unjustified=<n>
 ```
 
-When `/toolchain:ratchet` (if enabled) is among the available skills, it can hold that count as a CI ceiling: it
+`/toolchain:ratchet` (if enabled) can hold that count as a CI ceiling: it
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 

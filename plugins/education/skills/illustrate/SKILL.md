@@ -185,8 +185,7 @@ unavailable because the explainer-video plugin is not enabled. Never install it.
 
 - **Plainer words, not a picture** ("explain this simply", "I don't get it") is
   `/education:explain`; invoke it via the Skill tool.
-- **Reorganizing a dense message** without losing precision is `/adhd:clarify` (if enabled) via the Skill tool
-  (if enabled). Without it, restructure in place and keep the terms verbatim.
+- **Reorganizing a dense message** without losing precision is `/adhd:clarify` (if enabled) via the Skill tool. Without it, restructure in place and keep the terms verbatim.
 - **Picking the best form for content already in the conversation** (a table, a chart, a
   code-shape sketch) is `/visualization:visualize` (if enabled) via the Skill tool.
 - **Ongoing coaching** is `/education:teach`.

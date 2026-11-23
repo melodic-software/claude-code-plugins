@@ -82,7 +82,7 @@ something is reported to the user, never carried out.
 - **Already found.** When `/user-interface:design` (if enabled) ran earlier in this conversation for the same
   screen and handed off here, use the tokens, components and screens it named; do not run it
   again.
-- **Delegated.** Otherwise, when `/user-interface:design` (if enabled) is among the available skills, invoke it
+- **Delegated.** Otherwise, invoke `/user-interface:design` (if enabled)
   via the Skill tool with the screen in scope, follow only its Step 1 (Detect) and Step 2 (The
   project leads), and come back here rather than following its routing, which sends mockups to
   this skill. Build from the tokens, components and screens it names.

@@ -48,7 +48,7 @@ Supported sources: YouTube (`youtube.com`, `youtu.be`) and X/Twitter status post
 Durable artifacts live under `.work/<watch-epic>/<video-slug>/`; the video, bulk frames, working
 contact sheets, and shallow clones stay in the OS temp directory. Where this skill says "deeper
 research," use whatever external-research capability your project provides, for example the
-discovery plugin's `/discovery:research` (if enabled) (with its `deep` token for a broad pass) when enabled. Treat those
+discovery plugin's `/discovery:research` (if enabled) (with its `deep` token for a broad pass). Treat those
 as the reference implementation, not a hard dependency.
 
 ## Routing
@@ -71,7 +71,7 @@ Read a spoke **only when its condition holds**. These are mutually exclusive by 
 | `context/gotchas.md` | when a run failed and you need the recovery path |
 
 **Optional, agent-lane:** when an X status heads a thread whose replies carry material the digest
-needs, invoke `/x:read` (if enabled) via the Skill tool (if the `x` plugin is enabled; otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the reply chain and fold it in as companion
+needs, invoke `/x:read` (if enabled) via the Skill tool (otherwise say once that the `x` plugin would unroll the replies, and go on without them) to unroll the reply chain and fold it in as companion
 source material. This is
 a per-watch judgment call, never a pipeline stage. See `reference/sources/x.md`.
 

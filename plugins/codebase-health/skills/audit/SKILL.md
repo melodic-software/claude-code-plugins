@@ -418,12 +418,12 @@ verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end
 
 Route remediation to the dedicated lanes (soft dependencies. Use when the plugin is enabled):
 
-- **Fix** → `/implementation:implement` (if enabled) (when the `implementation` plugin is enabled). Hand it the
+- **Fix** → `/implementation:implement` (if enabled). Hand it the
   Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing
   Enforcement → Code Quality → Doc Drift order (see
   [`reference/category-playbook.md`](reference/category-playbook.md)); that lane owns the fix cadence:
   TDD, build/test at each checkpoint, and the post-fix simplification pass.
-- **Verify** → `/verification:confirm` (if enabled) (when the `verification` plugin is enabled). Confirms the
+- **Verify** → `/verification:confirm` (if enabled). Confirms the
   fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
   and retrospective that the fix lane hands it.
 

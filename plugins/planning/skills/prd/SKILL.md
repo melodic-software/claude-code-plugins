@@ -180,7 +180,7 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, so the PRD stays accurate after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` (if enabled) via the Skill tool, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
 
 **Non-goals graduation edge.** A permanently rejected non-goal (not a deferral) graduates to the consuming repo's rejected-concept ledger, one file per concept at `docs/out-of-scope/<concept>.md`, created on the first rejection; each resurfacing adds a "Prior requests" entry, so the ledger answers later proposals instead of relitigating them. With no ledger, the plain Non-goals list suffices.
 

@@ -112,8 +112,7 @@ criterion with no check is reported as a "no guardrail" finding, naming the "Gua
 section. When a check replaces an existing instruction line, propose removing that line in the same
 change.
 
-The `make-impossible` rung is only proposed here: hand the redesign to `/architecture:improve` (if enabled) when
-that skill is available, otherwise to `/planning:design` (if enabled).
+The `make-impossible` rung is only proposed here: hand the redesign to `/architecture:improve` (if enabled), otherwise to `/planning:design` (if enabled).
 
 ## 3. Place the lesson by scope
 
@@ -228,7 +227,7 @@ current one. End with the question for any blocking install.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
   "just write the analyzer", decline and hand over the rung and the check, naming
   `/implementation:implement` (if enabled) as the builder. For the `architecture-test` rung, also name
-  `/architecture:enforce-boundaries` (if enabled) as the next step when that skill is available.
+  `/architecture:enforce-boundaries` (if enabled) as the next step.
 - It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement` (if enabled).
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
