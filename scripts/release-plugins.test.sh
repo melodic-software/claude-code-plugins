@@ -57,7 +57,6 @@ $3"
   fi
 }
 
-# --- several fragments: one version at the highest bump, sections merged -------
 base_fixture f
 # Committed z-first so commit order differs from file-name order.
 add_fragment "$f" alpha zeta-11111111 patch "### Fixed
@@ -117,7 +116,6 @@ expect_file "leaves a plugin with no fragments alone" "$f/plugins/beta/.claude-p
 }'
 rm -rf "$f"
 
-# --- major and patch arithmetic -------------------------------------------------
 base_fixture f
 add_fragment "$f" alpha a-11111111 major "### Removed
 
@@ -133,7 +131,6 @@ else
 fi
 rm -rf "$f"
 
-# --- all-none plugin: fragments deleted, no bump, no entry ---------------------
 base_fixture f
 add_fragment "$f" beta b-22222222 none "Test fixture refresh only."
 before="$(cat "$f/plugins/beta/CHANGELOG.md")"
@@ -150,7 +147,6 @@ expect_file "an all-none plugin keeps its version" "$f/plugins/beta/.claude-plug
 expect_file "an all-none plugin gets no CHANGELOG entry" "$f/plugins/beta/CHANGELOG.md" "$before"
 rm -rf "$f"
 
-# --- a release note keeps its backslashes ---------------------------------------
 base_fixture f
 # shellcheck disable=SC2016  # the backticks are markdown, not command substitution
 add_fragment "$f" beta b-22222222 patch '### Fixed
@@ -165,7 +161,6 @@ else
 fi
 rm -rf "$f"
 
-# --- identical bullets within one section collapse to the first ------------------
 base_fixture f
 for n in 1 2 3; do
   add_fragment "$f" beta "same-1111111$n" patch "### Changed
@@ -257,7 +252,6 @@ Intro.
 - First.'
 rm -rf "$f"
 
-# --- dash lines inside a fenced example are not bullets ---------------------------
 base_fixture f
 add_fragment "$f" beta a-11111111 patch '### Changed
 
@@ -289,7 +283,6 @@ Intro.
 - First.'
 rm -rf "$f"
 
-# --- whole bullet blocks are compared, children included --------------------------
 base_fixture f
 add_fragment "$f" beta a-11111111 patch "### Changed
 
@@ -383,7 +376,6 @@ Intro.
 - First.'
 rm -rf "$f"
 
-# --- nothing pending ---------------------------------------------------------------
 base_fixture f
 out="$(run_release "$f" 2>&1)"
 if [[ $? -eq 0 && "$out" == "No pending changelog fragments." ]]; then
@@ -393,7 +385,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an invalid fragment skips its plugin whole; the others still release ---------
 base_fixture f
 add_fragment "$f" alpha a-11111111 minor "### Added
 
@@ -414,7 +405,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an em dash bound for a purged CHANGELOG.md skips that plugin -----------------
 ed=$'\xe2\x80\x94'
 base_fixture f
 printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
@@ -434,7 +424,6 @@ else
 fi
 rm -rf "$f"
 
-# --- every plugin invalid: nothing is written, and the run still exits 0 ---------
 base_fixture f
 add_fragment "$f" beta b-22222222 patch "No sections."
 out="$(run_release "$f" 2>&1)"
@@ -447,7 +436,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a plugin not in fragment mode is skipped ------------------------------------
 base_fixture f
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
 add_fragment "$f" beta b-22222222 patch "### Fixed
@@ -483,7 +471,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a rerun after a run cut short does not write a second entry ------------------
 base_fixture f
 add_fragment "$f" alpha a-11111111 minor "### Added
 
@@ -497,7 +484,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a shallow clone is refused, since commit order is unknown -------------------
 base_fixture f
 add_fragment "$f" alpha a-11111111 minor "### Added
 
@@ -517,7 +503,6 @@ else
 fi
 rm -rf "$f" "$g"
 
-# --- a listed convention: versioned by its newest CHANGELOG heading -------------
 for home in conventions contracts; do
   base_fixture f
   mkdir -p "$f/docs/$home/demo"
@@ -561,7 +546,6 @@ Prose.'
   rm -rf "$f"
 done
 
-# --- usage ------------------------------------------------------------------------
 base_fixture f
 out="$(cd "$f" && bash scripts/release-plugins.sh --date tomorrow 2>&1)"
 if [[ $? -eq 2 && "$out" == *usage* ]]; then

@@ -1395,13 +1395,19 @@ test("each shell step in the file-demotion-issue job that calls gh wraps it firs
   const block = /\n  file-demotion-issue:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
   const wrap = "{ . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true";
   const calling = block.split(/\n {6}- name: /).filter((step) => /^ {10}[^#\n]*\bgh api\b/m.test(step));
-  assert.ok(calling.length >= 2, "the file-demotion-issue job's gh-calling steps are found");
+  const filer = ".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh";
+  assert.ok(block.includes(`\n        run: bash .base/${filer}\n`), "the file-demotion-issue job runs the filing script");
+  const script = readFileSync(new URL(`../../../${filer}`, import.meta.url), "utf8");
+  assert.ok(calling.length >= 1, "the file-demotion-issue job's inline gh-calling steps are found");
   for (const step of calling) {
     const run = step.indexOf("        run: |\n");
     assert.ok(run > 0, `${step.split("\n")[0]} is a run step`);
     const at = step.indexOf(wrap);
     assert.ok(at > run && at < step.search(/^ {10}[^#\n]*\bgh api\b/m), `${step.split("\n")[0]} wraps gh before its first call`);
   }
+  const selfWrap = '[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token';
+  const at = script.indexOf(selfWrap);
+  assert.ok(at > 0 && at < script.search(/^[^#\n]*\bgh api\b/m), `${filer} wraps gh before its first call`);
 });
 
 // pr-review-main's report-review-counts job has no checkout of the action, and its only

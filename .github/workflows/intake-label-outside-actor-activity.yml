@@ -49,7 +49,7 @@ name: Intake Label Outside Actor Activity
 on:
   # Runs from the default branch; checks out main only and passes no event
   # text to a shell.
-  issues: # zizmor: ignore[dangerous-triggers]
+  issues:
     types: [opened, edited, reopened, unlabeled]
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created, edited]

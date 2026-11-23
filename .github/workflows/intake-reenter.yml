@@ -58,7 +58,7 @@ on:
   # Runs from the default branch only; the header says what reaches the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
-  issues: # zizmor: ignore[dangerous-triggers]
+  issues:
     types: [unlabeled, field_added, field_removed]
 
 permissions: {}

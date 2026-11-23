@@ -5138,7 +5138,7 @@ const relabeled = (n, id = 801) => [
 ];
 
 test("post-merge-file-demotion-issues still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
-  const alert = readFileSync(join(HERE, "../../workflows/post-merge-file-demotion-issues.yml"), "utf8");
+  const alert = readFileSync(join(HERE, "../post-merge-demotion-alert/file-demotion-issue.sh"), "utf8");
   assert.ok(alert.includes(`note="${RECURRENCE_PREFIX.replace("`", "\\`")}`), "the recurrence comment's opening words changed");
   assert.ok(alert.includes('fix_marker="<!-- post-merge-fix check=$check -->"'), "the fix issue's first line changed");
 });
