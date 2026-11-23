@@ -58,13 +58,11 @@ command -v jq >/dev/null 2>&1 || {
 mkdir -p "$out" || exit 3
 fetcher="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fetch-docs.sh"
 
-# try <name> <heading> <fetch-docs args...>: read one source into $out/changelog.md.
 reasons=""
 try() {
   local name="$1" heading="$2" work="$out/.$1" file reason
   shift 2
   rm -rf "${work:?}"
-  # No claude_version is read from the manifest, so the fetcher runs no claude.
   FETCH_DOCS_CLAUDE_BIN='' bash "$fetcher" --out "$work" --cache --max-age 0 "$@" >/dev/null 2>&1
   if [[ "$(jq -r '.pages[0].state' "$work/manifest.json" 2>/dev/null)" == read ]]; then
     file="$(jq -r '.pages[0].file' "$work/manifest.json")"

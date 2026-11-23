@@ -397,14 +397,17 @@ fi
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 hidden="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
-# Keep jq and python (and uv, the PyYAML fallback), drop node.
-mkdir -p "$hidden/bin"
+mkdir -p "$hidden/bin" "$hidden/sys"
 for tool in bash jq python3 python uv; do
   src="$(command -v "$tool" 2>/dev/null || true)"
   [[ -n "$src" ]] && ln -s "$src" "$hidden/bin/$tool"
 done
+for src in /usr/bin/* /bin/*; do
+  name="${src##*/}"
+  [[ "$name" == node* || -e "$hidden/sys/$name" ]] || ln -s "$src" "$hidden/sys/$name"
+done
 rc=0
-out="$(cd "$f" && PATH="$hidden/bin:/usr/bin:/bin" EXEC_FORM_WINDOWS_PROBE_FORCE=1 EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)" || rc=$?
+out="$(cd "$f" && PATH="$hidden/bin:$hidden/sys" EXEC_FORM_WINDOWS_PROBE_FORCE=1 EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)" || rc=$?
 if [[ "$rc" -eq 1 ]] && grep -q 'SPAWN-PROBE:' <<<"$out" && grep -q 'cannot clear a fleet sweep' <<<"$out"; then
   ok "a required spawn with no node.exe fails closed"
 else

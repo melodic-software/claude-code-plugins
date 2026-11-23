@@ -62,3 +62,12 @@ step scanned their pixels. Owner decision Q119 (2026-11-20, issue #16908) settle
    weaken it.
 5. **Synthetic data stays the main control.** Evidence captures of a regulated product show
    synthetic data only; the OCR scan is a backstop behind that rule.
+6. **Measured cost.** As of 2026-11-22, on tesseract 5.5.0, ffmpeg 8.0.1 and a 24-core host, a set
+   of three browser screenshots (1280x900, 768x1592, 390x900) and one 5 s 1920x1200 recording
+   (125 frames, of which `mpdecimate` at `hi` 256 kept 3) scanned clean in 9.1 to 10.2 s over
+   three runs: 4 captures, 6 images, 12 OCR passes, about 2.5 cores busy and a peak of about
+   200 MB resident. One screenshot alone took 2.6 s and the recording alone 2.3 s, so the cost
+   grows with the images read: each capture's stills plus the frames `mpdecimate` keeps. This
+   measures run time only; it says nothing about which `hi` reads dim text in real recordings.
+   Recheck when `evidence-ocr.py` changes the passes it makes per image, or tesseract changes
+   major version.
