@@ -1,5 +1,14 @@
 # Changelog: discovery plugin
 
+## [2.2.16] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to five skills, matching the committed skill-link table
+
+  blindspot, explore, read-docs, research and trace-intent now list their
+  context-dependent links after `## Next`, one condition per line.
+
 ## [2.2.15] - 2026-11-23
 
 ### Changed
