@@ -158,7 +158,6 @@ fi
 # Numeric dotted sort of stdin lines by their leading version. Portable across GNU
 # and BSD sort, which do not agree on -V.
 vsort() { sort -t. -k1,1n -k2,2n -k3,3n; }
-# Highest of the versions given.
 vmax() { printf '%s\n' "$@" | grep -E "^$VERSION_RE\$" | vsort | tail -1; }
 
 # --- Repository root -----------------------------------------------------------
@@ -177,7 +176,6 @@ else
   canon="$(cd "$repo_root" 2>/dev/null && pwd -P)" && repo_root="$canon"
 fi
 
-# --- Ledger and marker -----------------------------------------------------------
 if [[ -n "$ledger_arg" ]]; then
   ledger="$ledger_arg"
 elif [[ -n "${HARNESS_OPS_CHANGELOG_LEDGER:-}" ]]; then
@@ -197,9 +195,6 @@ if [[ -f "$ledger" ]]; then
 fi
 
 if [[ -z "$last" ]] && ((in_repo)); then
-  # Subject only (%s), and only the versions inside the
-  # `address Claude Code v<A>[..<B>] changelog` phrase count: a subject can carry
-  # another dotted version (a plugin release) that is not an apply.
   subject_versions="$(git log --format='%s' 2>/dev/null | tr -d '\r' |
     grep -E '^[a-z]+(\([^)]*\))?!?: .*address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
     grep -oE 'address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
@@ -211,7 +206,6 @@ if [[ -z "$last" ]] && ((in_repo)); then
   fi
 fi
 
-# --- Installed version -----------------------------------------------------------
 installed="$(claude --version 2>/dev/null | tr -d '\r' | grep -oE "$VERSION_RE" | head -1)"
 [[ -n "$installed" ]] || installed="unknown"
 
@@ -220,7 +214,6 @@ printf 'source: %s\n' "$source"
 printf 'ledger: %s (%s)\n' "$ledger" "$ledger_state"
 printf 'installed: %s\n' "$installed"
 
-# --- Changelog source ------------------------------------------------------------
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 tmp_dir=""
 trap '[[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"' EXIT
@@ -259,10 +252,6 @@ finish_without_range() {
 
 [[ -n "$changelog" ]] || finish_without_range "$not_computed"
 
-# --- Releases in range -----------------------------------------------------------
-# One line per release in range: "<version>\t<core item count>", oldest first.
-# mode "after": version > last (or every release when last is empty).
-# mode "between": first <= version <= last_in_range.
 mode="after"
 [[ -n "$range_first" ]] && mode="between"
 rows="$(bash "$plugin_root/scripts/changelog-releases.sh" "$changelog")"
@@ -284,8 +273,6 @@ mapfile -t in_range < <(printf '%s\n' "$rows" | awk -F'\t' -v mode="$mode" -v la
   END { for (v in n) print v "\t" n[v] }
 ' | vsort)
 
-# Newest published release, independent of the range, for the latest line and the
-# installed-version warning.
 latest="$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "release" { print $2 }' | vsort | tail -1)"
 printf 'latest: %s\n' "${latest:-unknown}"
 
@@ -306,8 +293,6 @@ if ((rel_count == 0)); then
   exit 0
 fi
 
-# Each row is "<version>\t<core item count>"; the version (X.Y.Z, no whitespace)
-# is everything before the first whitespace.
 range_versions=("${in_range[@]%%[[:space:]]*}")
 last_in_range="${range_versions[rel_count - 1]}"
 item_count="$(printf '%s\n' "${in_range[@]}" | awk -F'\t' '{ s += $2 } END { print s + 0 }')"
@@ -329,9 +314,6 @@ else
   fi
 fi
 
-# The comparison is against the newest release in the range, not the newest published:
-# an explicit historical range is fully supported by an installed version that is
-# older than the feed's newest release.
 if [[ "$installed" != "unknown" && "$(vmax "$installed" "$last_in_range")" != "$installed" ]]; then
   printf 'warn: installed %s is older than the newest release in the range %s; update Claude Code before applying changes that reference it\n' "$installed" "$last_in_range"
 fi

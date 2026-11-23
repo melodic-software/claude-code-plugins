@@ -1,9 +1,4 @@
 # test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/scripts/* plugins/speech/hooks/*.sh
-"""pydeps.py: the hash-locked on-demand install (first install, no-op rerun, a failed install) and the run launcher.
-
-The lock is a local wheel that provides the numpy and onnxruntime modules, installed with pip's own PIP_NO_INDEX and
-PIP_FIND_LINKS, so no test reaches a package index.
-"""
 import base64
 import contextlib
 import hashlib
@@ -75,7 +70,6 @@ class OnDemandInstall(unittest.TestCase):
         _, digest = make_wheel(self.wheels)
         self.lock = self.tmp / 'requirements.txt'
         self.lock.write_text(lock_text(digest), encoding='utf-8')
-        # Pin this Python: without the marker pydeps.py hands over to the first supported one on PATH.
         self.env = {**os.environ, 'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(self.wheels),
                     'SPEECH_PYDEPS_INTERPRETER': sys.executable}
 
@@ -98,7 +92,6 @@ class OnDemandInstall(unittest.TestCase):
     def test_second_session_is_a_no_op(self):
         self.assertEqual(self.pydeps('install', '--data-dir', str(self.data)).stdout.strip(), 'installed')
         before = self.installs()
-        # Aim pip at an empty folder: a second pip run could not find the wheel and would fail.
         empty = self.tmp / 'empty'
         empty.mkdir()
         r = self.pydeps('install', '--data-dir', str(self.data), env={**self.env, 'PIP_FIND_LINKS': str(empty)})
@@ -175,7 +168,6 @@ class DataDir(unittest.TestCase):
             os.environ.update(env)
             try:
                 self.assertEqual(pydeps.data_dir('/explicit'), Path('/explicit'))
-                # a placeholder the host did not substitute, and another plugin's directory, are both ignored
                 self.assertEqual(pydeps.data_dir('${CLAUDE_PLUGIN_DATA}'), config / 'plugins/data/speech-market')
                 os.environ['CLAUDE_PLUGIN_DATA'] = str(config / 'plugins/data/speech-elsewhere')
                 self.assertEqual(pydeps.data_dir(None), config / 'plugins/data/speech-elsewhere')
@@ -204,7 +196,7 @@ class Launcher(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
-            (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
+            (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
             (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
@@ -279,7 +271,7 @@ class ReadyStamp(unittest.TestCase):
             'python3.13=', 'python3.12=', f'python3={python3}', 'python='])
 
     def test_an_interpreter_only_the_launcher_listed_writes_no_stamp(self):
-        self.install_as(sys.executable)   # not on PATH, as a python.exe that only py -0p lists
+        self.install_as(sys.executable)
         self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
         self.assertFalse(self.stamp.exists())
 
@@ -304,7 +296,7 @@ class ReadyStamp(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
             self.assertFalse(self.stamp.exists())
-            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)   # no stamp to drop
+            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
         self.install_here()
         self.stamped()
         self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 0)

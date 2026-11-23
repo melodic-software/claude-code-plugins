@@ -122,6 +122,7 @@ REGISTRY=(
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
   "check-skill-count-claims.sh|-|-|-"
+  "check-skill-links.sh|python3|-|-"
   "check-skill-leaf-names.sh|-|-|-"
   "check-skill-portability.sh|-|-|-"
   "check-skill-precompute-compose.sh|-|-|-"

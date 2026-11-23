@@ -146,6 +146,12 @@ After the ledger, offer to route actionable verdicts (delete / convert-to-pointe
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
 - **Output deterministic.** Filenames sort lexically; no timestamps in output.
 
+## Next
+
+- A kept doc with a derivable remainder or noise lines: /docs-hygiene:audit-noise.
+- A verdict routed for doc-to-doc duplication: /docs-hygiene:extract-ssot.
+- Confirmed `delete` or `convert-to-pointer` verdicts to file: /work-items:track add.
+
 ## Gotchas
 
 - **Derivable is not a verdict.** Check re-derivation cost, drift risk, and fact ownership first. The most common misfire is deleting a mostly-derivable doc that owned one buried rationale line.

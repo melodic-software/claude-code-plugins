@@ -123,7 +123,7 @@ on:
           suite runs the target's suite as above. compare runs the target's
           deterministic cases that case, cases or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
-          harness, with-plugin arm only, on the API key only, and posts the eval-pair record on a
+          harness, with-plugin arm only, on the credential input, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
         required: false
         type: choice
@@ -144,6 +144,16 @@ on:
         required: false
         type: string
         default: ""
+      credential:
+        description: >-
+          Compare mode only. api-key runs both passes on the maintenance API
+          key. subscription runs them on the maintenance subscription token,
+          only when the pull request's author is a trusted actor, with no
+          fallback (docs/review/evals.md).
+        required: false
+        type: choice
+        options: [api-key, subscription]
+        default: api-key
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
@@ -967,13 +977,16 @@ jobs:
   # https://github.com/melodic-software/claude-code-plugins/issues/17854): the
   # pull request's merge base and head reach the eval only as plugin text,
   # patched onto this branch by compare-arms.sh from git objects; no script,
-  # hook, workflow or manifest of either runs. Each arm runs on the API key
-  # alone. The record job is the only one that writes: it holds issues: write,
-  # checks out only this branch, and posts nothing unless every job before it
-  # passed and the head has not moved. A run whose jobs all skipped (a dispatch
-  # on a tag, which compare-prepare's ref gate skips) still concludes success,
-  # so release-eval-hold.mjs trusts the record only by reading this run back
-  # and finding its Compare Record job (that name, RECORD_JOB there) succeeded.
+  # hook, workflow or manifest of either runs. Each arm runs on the credential
+  # input's one secret: the API key, or the subscription token when
+  # compare-prepare found the pull request's author on the trusted-actor list
+  # (docs/review/evals.md). The record job is the only one that writes: it
+  # holds issues: write, checks out only this branch, and posts nothing unless
+  # every job before it passed and the head has not moved. A run whose jobs
+  # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
+  # still concludes success, so release-eval-hold.mjs trusts the record only by
+  # reading this run back and finding its Compare Record job (that name,
+  # RECORD_JOB there) succeeded.
   compare-prepare:
     name: Compare Prepare
     if: >-
@@ -985,6 +998,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       base-sha: ${{ github.sha }}
       plugin: ${{ steps.inputs.outputs.plugin }}
@@ -1091,6 +1105,23 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: bash .base/.github/scripts/plugin-eval/compare-head.sh
 
+      - name: Check the pull request author
+        id: author
+        if: inputs.credential == 'subscription'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          pr-number: ${{ inputs.pr }}
+          triggering-actor: ${{ github.triggering_actor }}
+
+      - name: Stop on an untrusted pull request author
+        if: inputs.credential == 'subscription' && steps.author.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.author.outputs.reason }}
+        run: |
+          echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
+          exit 1
+
       - name: Fetch the pull request's commits as data
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1178,6 +1209,7 @@ jobs:
       case: ${{ inputs.case }}
       cases: ${{ inputs.cases }}
       pass: compare-before
+      credential: ${{ inputs.credential }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
@@ -1185,7 +1217,8 @@ jobs:
       ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-after:
     name: Compare After
@@ -1204,6 +1237,7 @@ jobs:
       case: ${{ inputs.case }}
       cases: ${{ inputs.cases }}
       pass: compare-after
+      credential: ${{ inputs.credential }}
       base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
@@ -1211,7 +1245,8 @@ jobs:
       ablation: none
       lane: eval-compare
     secrets:
-      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_API_KEY: ${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-verdict:
     name: Compare Verdict

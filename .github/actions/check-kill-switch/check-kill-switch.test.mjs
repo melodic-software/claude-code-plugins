@@ -479,7 +479,7 @@ test("a failed budget read proceeds", async () => {
 // take over a handed-off turn) and check the switches only.
 const GATES = {
   "pr-run-plugin-evals.yml": { "run-eval": "switch", "compare-prepare": "switch", "compare-record": "switch" },
-  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch" },
+  "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
     "check-kill-switch": "start",
