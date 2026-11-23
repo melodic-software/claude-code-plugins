@@ -304,9 +304,9 @@ load_records() {
     gh api --paginate \
       "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
       --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
-      | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+      | [.[0], .[1], .[2], (.[3] | sub("^[\\t\\n\\f\\r ]+"; "") | split("\n")[0] | sub("[\\t\\n\\f\\r ]+$"; "")),
          ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
-          | ltrimstr("- Failing run: ") | sub("\\s+$"; "")),
+          | ltrimstr("- Failing run: ") | sub("[\\t\\n\\f\\r ]+$"; "")),
          ([.[3] | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c] | join(" ") | if . == "" then "none" else . end),
          (if any(.[3] | split("\n")[]; startswith("<!-- lift-content v1 ")) then "block" else "none" end)]
       | @tsv'
@@ -401,7 +401,7 @@ revert_pass() {
           rest="${BASH_REMATCH[2]}"
         done
       elif [[ "$line" =~ ^This\ reverts\ commit\ ([0-9a-f]{7,40})([^0-9A-Za-z_]|$) ||
-        "$line" =~ ^\<!--\ red-main-revert\ culprit=([0-9a-f]{40})\ --\>$ ]]; then
+        "$line" =~ ^'<!-- red-main-revert culprit='([0-9a-f]{40})' -->'$ ]]; then
         t="${BASH_REMATCH[1]}"
         n="$(subject_pr "$t")"
         if [[ "$n" == '?' ]]; then

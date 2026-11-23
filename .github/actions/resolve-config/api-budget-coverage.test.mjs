@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
 // Every workflow job that calls the GitHub API leaves api-budget readings and
 // logs them at its end, so the lane record's githubCalls covers the job: each
 // step that runs gh itself wraps it with api_budget_wrap_gh, or sources
