@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# Shared reader for .NET PackageReference and ProjectReference Include values.
-#
-# WHY. map-landscape's portfolio collector and map-dependencies both cite the
-# same declarations. Two copies of the match would drift, and a second parser
-# is how a portfolio row and a graph edge stop describing the same file.
-# This is the one reader.
-#
-# The reader takes the whole file as one string. It drops XML comments (one line
-# or many), finds each start tag whose element name ends in "Reference", and
-# reads that tag's attributes, so an Include on a later line, a single-quoted
-# Include, and a tag that spans lines are all read. A reference inside a comment
-# is not an edge. A tag with Update= or Remove= and no Include= modifies another
-# declaration and is not a reference. A reference-like tag the reader cannot turn
-# into a record is counted, so a caller can say it was skipped.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   dotnet_reference_records <file>
-#     One line per reference: kind<TAB>include<TAB>declaration
-#     kind is "package" or "project". declaration is the start tag text with
-#     line breaks collapsed to one space.
-#   dotnet_reference_includes <file>
-#     Include values only, one per line, in file order. This is the
-#     portfolio-facts contract.
-#   dotnet_reference_unmatched_count <file>
-#     How many start tags whose element name ends in "Reference" yielded no
-#     record and are not Update= or Remove= modifiers. FrameworkReference,
-#     GlobalPackageReference, an empty Include, and a tag with no Include are
-#     counted. 0 for a file that cannot be read.
-#
-#   dotnet_project_property <file> <name>
-#     The text of the first <name>...</name> element in the file (comments
-#     dropped, whitespace trimmed), or nothing. A value that holds an MSBuild
-#     expression, $(...), is not a value this reader can evaluate and prints
-#     nothing.
-#   dotnet_is_test_project <file>
-#     Succeeds when the file sets IsTestProject to true, or has a
-#     PackageReference whose Include is Microsoft.NET.Test.Sdk, xunit*,
-#     NUnit*, MSTest*, or Microsoft.Testing.Platform*, matched
-#     case-insensitively as NuGet ids are.
-#
-# Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.

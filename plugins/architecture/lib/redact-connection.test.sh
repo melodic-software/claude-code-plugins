@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for redact_connection_shape. The raw value must never come back.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -58,8 +57,6 @@ mail="$(shape "Smtp.Host" "https://alice:P4ss-UNIQUE-991@smtp.example.com/send")
 assert_contains "mail: host survives" "$mail" "smtp.example.com"
 assert_not_contains "mail: password is absent" "$mail" "P4ss-UNIQUE-991"
 
-# A database name identifies a sql store beside its host and port. It is kept
-# only as a plain identifier that carries no credential.
 db_catalog="$(shape "ConnectionStrings.Orders" "Server=tcp:orders.database.windows.net,1433;Initial Catalog=Orders;User ID=sa;Password=${leak_sql};")"
 assert_equals "database: Initial Catalog is kept, lower-cased" "$db_catalog" $'sql\torders.database.windows.net\t1433\torders\t'
 assert_not_contains "database: password is absent" "$db_catalog" "$leak_sql"
@@ -91,7 +88,6 @@ pg_bad="$(shape "Pg.Uri" "postgres://pg.example.com/orders;pass""word=${leak_sql
 assert_equals "scheme: a path that is not an identifier names no database" "$pg_bad" $'sql\tpg.example.com\t\t\tpostgres'
 assert_not_contains "scheme: path credential is absent" "$pg_bad" "$leak_sql"
 
-# A Data Source that names a local file is not a server.
 for lite_file in app.db APP.DB data.sqlite data.sqlite3 legacy.mdb northwind.mdf; do
   lite_shape="$(shape "ConnectionStrings.Lite" "Data Source=${lite_file};Foreign Keys=True" || true)"
   assert_equals "file source: Data Source=$lite_file is not a host" "$lite_shape" ""
@@ -149,7 +145,6 @@ clean "host and port" "Cache" "cache.example.com:6380"
 clean "an empty key with a plain line" "" $'Clerk\tFiles a claim'
 secret "an empty key with a bearer line" "" $'Gate\tsends Bearer '"${fake}"
 
-# redact_local_http is opt-in: only a caller that sets it sees a bare service name or a loopback host.
 local_shape() {
   REDACT_KEY="$1" REDACT_VALUE="$2" awk -v redact_local_http="$3" -f "$SCRIPT_DIR/redact-connection.awk" -f - <<'AWK'
 BEGIN {

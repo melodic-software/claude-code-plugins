@@ -9,6 +9,17 @@ The record of which Bash shapes a worktree-isolated session accepts at body time
 is owned by `/source-control:worktree`, under "Accepted command shapes for body-time and subagent
 Bash".
 
+## The gather-block rule text has one home
+
+[`block.md`](block.md) is the one home of the rule text a skill's `## Repository context. Gather
+first` section carries: run each listed command as its own Bash call and send them all in parallel
+in one message. [`scripts/sync-gather-block.py`](../../../scripts/sync-gather-block.py) writes it
+between the `BEGIN GENERATED: gather-block` and `END GENERATED: gather-block` markers in every
+`plugins/*/skills/*/SKILL.md` that carries them, and CI runs it with `--check`. A skill opts in by
+carrying the markers, so they are the consumer list. The commands stay outside the markers, since
+each skill gathers its own. Edit `block.md`, then run the script; never hand-edit a generated block.
+A skill whose body reads none of the gathered values carries no gather section at all.
+
 ## The pre-compute block runs as one shell invocation
 
 **Claim.** Claude Code submits the commands in a skill's `## Pre-computed context` block to the

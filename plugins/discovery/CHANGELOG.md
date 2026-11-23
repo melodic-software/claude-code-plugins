@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.11] - 2026-11-23
+
+### Changed
+
+- `scripts/check-dispatch-artifact.sh` takes its option-value guard from the shared `lib/opt-value.sh`: an empty or `-`-leading value for `--index-name`, `--newer-than`, `--expect-index` or `--expect-sidecars` is now a usage error (exit 2, as before), and the message reads `check-dispatch-artifact.sh: <option> requires a value`.
+
 ## [2.2.10] - 2026-11-23
 
 ### Changed

@@ -868,11 +868,9 @@ scripts/vendor-gitleaks-rules.test.sh 2
 .github/actions/report-check-run 1
 .github/actions/request-lane-token 4
 .github/actions/resolve-config 106
-.github/actions/scan-upload 1
 .github/actions/seal-lane-output 1
 .github/actions/select-trusted-text 1
 .github/actions/setup-runner-isolation 5
-.github/actions/upload-lane-transcript 1
 .github/scripts/apply-patch 73
 .github/scripts/branch-cleanup 6
 .github/scripts/intake-reenter 17

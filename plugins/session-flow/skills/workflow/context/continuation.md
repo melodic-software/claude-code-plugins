@@ -55,12 +55,11 @@ invokes one to manufacture the answer: a router that only recommends must not mu
 side effect of deciding. With no reconciliation in hand, the liveness input comes from orient's
 read-only glance; absent that too, it is unknown like any other missing input.
 
-**No duplicated reads, and no new pre-compute.** This router runs no probe of its own: the
-skill's repository-context gather (SKILL.md, "Repository context. Gather first") is the whole
-pre-compute block, and everything past it comes from an informant at run time. Any
-context-gathering added here later inherits that block's `$`-expansion ban (a worktree-isolated
-agent refuses a command carrying one; the reason is in `reference/gather.md`), so a new input
-arrives as a pointer to an informant, never as a probe inlined into this file.
+**No probes, and no new pre-compute.** This router runs no probe of its own: every input comes
+from the conversation or an informant at run time. Any context-gathering added here later
+inherits the `$`-expansion ban (a worktree-isolated agent refuses a command carrying one; the
+reason is in `reference/gather.md`), so a new input arrives as a pointer to an informant, never as
+a probe inlined into this file.
 
 ## The router: ask in order, first yes wins
 

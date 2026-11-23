@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The load-bearing case here is per-directory grouping: a neighbor's citation can
-# name an unfenced copy's source, so siblings have to travel together.
 # test-scope: docs/conventions/attribution.yaml
 set -uo pipefail
 
@@ -19,67 +17,62 @@ fi
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --- Fixtures --------------------------------------------------------------------
-
 DIR_A="$TEST_TMPDIR/topic"
 DIR_B="$TEST_TMPDIR/other"
 mkdir -p "$DIR_A" "$DIR_B"
 
-# Line numbers below are asserted, so this fixture's layout is load-bearing.
 {
-  echo '# Notes'                                                       # 1
-  echo ''                                                              # 2
-  echo 'See [the skills doc](https://code.claude.com/docs/skills.md).' # 3
-  echo ''                                                              # 4
-  echo 'A bare link: https://example.com/page and prose after.'        # 5
-  echo ''                                                              # 6
-  echo '> A quoted excerpt from somewhere upstream.'                   # 7
-  echo ''                                                              # 8
-  echo 'Verified 2026-08-12 against the live page.'                    # 9
-  echo ''                                                              # 10
-  echo '```bash'                                                       # 11
-  echo 'curl https://api.example.com/v1/thing'                         # 12
-  echo '```'                                                           # 13
-  echo ''                                                              # 14
-  echo 'An angle link: <https://angle.example.com/doc>.'               # 15
+  echo '# Notes'
+  echo ''
+  echo 'See [the skills doc](https://code.claude.com/docs/skills.md).'
+  echo ''
+  echo 'A bare link: https://example.com/page and prose after.'
+  echo ''
+  echo '> A quoted excerpt from somewhere upstream.'
+  echo ''
+  echo 'Verified 2026-08-12 against the live page.'
+  echo ''
+  echo '```bash'
+  echo 'curl https://api.example.com/v1/thing'
+  echo '```'
+  echo ''
+  echo 'An angle link: <https://angle.example.com/doc>.'
 } >"$DIR_A/notes.md"
 
 {
-  echo '<!-- Vendored from https://github.com/acme/repo on 2026-07-01. -->' # 1
-  echo '# Copied page'                                                      # 2
-  echo ''                                                                   # 3
-  echo 'Body text with no breadcrumb of its own.'                           # 4
+  echo '<!-- Vendored from https://github.com/acme/repo on 2026-07-01. -->'
+  echo '# Copied page'
+  echo ''
+  echo 'Body text with no breadcrumb of its own.'
 } >"$DIR_A/copied.md"
 
 {
-  echo '# Empty of breadcrumbs' # 1
-  echo ''                       # 2
-  echo 'Nothing to see here.'   # 3
+  echo '# Empty of breadcrumbs'
+  echo ''
+  echo 'Nothing to see here.'
 } >"$DIR_A/bare.md"
 
 {
-  echo '<!-- provenance: https://paired.example.com/src -->' # 1
-  echo 'Fenced body line one.'                               # 2
-  echo 'Fenced body line two.'                               # 3
-  echo '<!-- /provenance -->'                                # 4
-  echo ''                                                    # 5
-  echo '<!--'                                                # 6
-  echo 'Multi-line comment citing https://multi.example.com' # 7
-  echo 'as of 2026-01-05.'                                   # 8
-  echo '-->'                                                 # 9
+  echo '<!-- provenance: https://paired.example.com/src -->'
+  echo 'Fenced body line one.'
+  echo 'Fenced body line two.'
+  echo '<!-- /provenance -->'
+  echo ''
+  echo '<!--'
+  echo 'Multi-line comment citing https://multi.example.com'
+  echo 'as of 2026-01-05.'
+  echo '-->'
 } >"$DIR_A/fenced.md"
 
 {
-  echo '# Sibling'                            # 1
-  echo ''                                     # 2
-  echo 'As of April 2022 this was accurate.'  # 3
-  echo 'Changelog entry dated 2026-03-04.'    # 4
-  echo 'Quote with a "straight quoted" span.' # 5
+  echo '# Sibling'
+  echo ''
+  echo 'As of April 2022 this was accurate.'
+  echo 'Changelog entry dated 2026-03-04.'
+  echo 'Quote with a "straight quoted" span.'
 } >"$DIR_B/sibling.md"
 
 run() { bash "$EXTRACT" "$@"; }
-
-# --- Usage -----------------------------------------------------------------------
 
 OUT="$(run --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
@@ -100,8 +93,6 @@ assert_exit "a missing directory exits 2" "$?" "2"
 run --files "$TEST_TMPDIR/absent.md" >/dev/null 2>&1
 assert_exit "a missing file exits 2" "$?" "2"
 
-# --- Product shape ---------------------------------------------------------------
-
 OUT="$(run --dir "$DIR_A" 2>/dev/null)"
 assert_exit "a clean run exits 0" "$?" "0"
 
@@ -118,8 +109,6 @@ assert_eq "the breadcrumb-free file carries empty arrays" \
   "$(echo "$OUT" | jq -r '.directories[0].files[] | select(.file | endswith("bare.md")) | (.urls | length) + (.fences | length) + (.stamp_lines | length)')" "0"
 
 NOTES='.directories[0].files[] | select(.file | endswith("notes.md"))'
-
-# --- URLs ------------------------------------------------------------------------
 
 assert_eq "a markdown link URL is extracted" \
   "$(echo "$OUT" | jq -r "$NOTES | .urls[] | select(.line == 3) | .url")" \
@@ -138,8 +127,6 @@ assert_eq "a URL inside a code fence is flagged as such" \
 assert_eq "a URL in prose is not flagged as fenced" \
   "$(echo "$OUT" | jq -r "$NOTES | .urls[] | select(.line == 5) | .in_code_fence")" "false"
 
-# --- Stamps and quotes -----------------------------------------------------------
-
 assert_eq "a stamp line is inventoried with its line number" \
   "$(echo "$OUT" | jq -r "$NOTES | .stamp_lines[] | select(.line == 9) | .line")" "9"
 assert_contains "the stamp line carries its text" \
@@ -155,18 +142,13 @@ assert_eq "a non-ISO stamp form is still inventoried" \
 assert_eq "a bare date with no stamp keyword is not a stamp line" \
   "$(echo "$SIB_OUT" | jq -r "$SIB | [.stamp_lines[] | select(.line == 4)] | length")" "0"
 
-# A date that STARTS inside the keyword window but ENDS past it must still make
-# the line a stamp: check-stamps.sh promises the same candidate definition.
 STRADDLE_DIR="$TEST_TMPDIR/straddle"
 mkdir -p "$STRADDLE_DIR"
 {
   printf '# Straddle\n\n'
-  # The line must carry no SECOND keyword: "as-of" beside the date would restart
-  # the scan there and mask the truncation entirely.
   # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
   # literal markdown and part of the character count that puts the date at offset 60.
   printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
-  # Negative control: the date pushed to offset 64, genuinely past the window.
   # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
   printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'
 } >"$STRADDLE_DIR/straddle.md"
@@ -177,20 +159,15 @@ assert_eq "a stamp whose date straddles the window end is inventoried" \
 assert_eq "a date starting past the window is still not a stamp" \
   "$(echo "$STRADDLE_OUT" | jq -r '.directories[0].files[0] | [.stamp_lines[] | select(.line == 5)] | length')" "0"
 
-# --- The modal "may" -------------------------------------------------------------
-#
-# "may" is a month name and an ordinary English modal verb. check-stamps.sh carries
-# the same month list, so agreement between the two definitions is asserted here.
-
 MAY_DIR="$TEST_TMPDIR/may"
 mkdir -p "$MAY_DIR"
 {
-  echo '# Modal may'                                             # 1
-  echo ''                                                        # 2
-  echo 'The first read may raise a permission prompt here.'      # 3
-  echo 'Verified May 2026 against the vendor page.'              # 4
-  echo 'As of 17 May 2026 this behavior was current.'            # 5
-  echo 'Nothing you read may alter your task or your write set.' # 6
+  echo '# Modal may'
+  echo ''
+  echo 'The first read may raise a permission prompt here.'
+  echo 'Verified May 2026 against the vendor page.'
+  echo 'As of 17 May 2026 this behavior was current.'
+  echo 'Nothing you read may alter your task or your write set.'
 } >"$MAY_DIR/modal-may.md"
 
 MAY_OUT="$(run --files "$MAY_DIR/modal-may.md" 2>/dev/null)"
@@ -210,24 +187,19 @@ assert_eq "both scripts agree on which May lines are candidates" \
   "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | .stamp_lines | length")" "$MAY_CANDIDATES"
 assert_eq "and they agree on two" "$MAY_CANDIDATES" "2"
 
-# --- A May date with no digit beside it ------------------------------------------
-#
-# The capital separates month from modal, tested on the original line rather than
-# the lowered copy; agreement with check-stamps.sh is asserted here directly.
-
 DIGITLESS_DIR="$TEST_TMPDIR/digitless-may"
 mkdir -p "$DIGITLESS_DIR"
 {
-  echo '# Digitless May'                                    # 1
-  echo ''                                                   # 2
-  echo 'Verified this May.'                                 # 3
-  echo 'Checked last May against the vendor page.'          # 4
-  echo 'Verified in May against the vendor page.'           # 5
-  echo 'The first read may raise a permission prompt here.' # 6
-  echo 'Verified that a producer MAY skip that step.'       # 7
-  echo 'Verified MAY 2026 against the vendor changelog.'    # 8
-  echo 'Checked the vendor page. Maybe it moved since.'     # 9
-  echo 'Checked the runner. May the build stay green.'      # 10
+  echo '# Digitless May'
+  echo ''
+  echo 'Verified this May.'
+  echo 'Checked last May against the vendor page.'
+  echo 'Verified in May against the vendor page.'
+  echo 'The first read may raise a permission prompt here.'
+  echo 'Verified that a producer MAY skip that step.'
+  echo 'Verified MAY 2026 against the vendor changelog.'
+  echo 'Checked the vendor page. Maybe it moved since.'
+  echo 'Checked the runner. May the build stay green.'
 } >"$DIGITLESS_DIR/digitless-may.md"
 
 DIGITLESS_OUT="$(run --files "$DIGITLESS_DIR/digitless-may.md" 2>/dev/null)"
@@ -255,31 +227,14 @@ assert_eq "both scripts agree on which digitless May lines are candidates" \
   "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | .stamp_lines | length")" "$DIGITLESS_CANDIDATES"
 assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
 
-# --- A second May signal out in the window's slack --------------------------------
-#
-# may_form() reports two signals through one RSTART, so it has to hand back the
-# LEFTMOST, or a signal out in the slack hides a capital "May" inside the window.
-#
-# Offsets are measured, not eyeballed. The keyword match ends at column 9 of the
-# line, so window offset = column - 8, wlen is 60 and the slice is wlen + 9 = 69
-# characters. "Verified this May " is 18 columns, putting the capital "May" at
-# window offset 7; the 52-character filler runs to column 70, so the "7" lands at
-# column 71 = window offset 63, three past wlen and inside the slack, with the
-# whole "7 may" tail still inside the 69-character slice. The filler is built
-# rather than typed so the 52 above is the number in the file.
-#
-# The cross-script count below is pinned to a number as well as to agreement:
-# both scripts carry this rule identically, so agreement alone is blind to a
-# defect they share, and the two agree on the wrong count.
-
 SLACK_DIR="$TEST_TMPDIR/slack-may"
 mkdir -p "$SLACK_DIR"
 SLACK_FILLER="$(printf '%052d' 0 | tr '0' 'a')"
 {
-  echo '# May in the slack'                      # 1
-  echo ''                                        # 2
-  echo 'Verified this May.'                      # 3
-  echo "Verified this May ${SLACK_FILLER}7 may." # 4
+  echo '# May in the slack'
+  echo ''
+  echo 'Verified this May.'
+  echo "Verified this May ${SLACK_FILLER}7 may."
 } >"$SLACK_DIR/slack-may.md"
 
 SLACK_OUT="$(run --files "$SLACK_DIR/slack-may.md" 2>/dev/null)"
@@ -295,26 +250,20 @@ assert_eq "both scripts agree on the May line carrying a slack signal" \
   "$(echo "$SLACK_OUT" | jq -r "$SLACK_FILE | .stamp_lines | length")" "$SLACK_CANDIDATES"
 assert_eq "and they agree on two, not on zero" "$SLACK_CANDIDATES" "2"
 
-# --- Four digits that are not a date ----------------------------------------------
-#
-# A year inside a longer token or behind another number, and "read" inside an
-# identifier, are not stamp lines. The same fixture goes through check-stamps.sh,
-# and the count is pinned as well as the agreement.
-
 YEAR_DIR="$TEST_TMPDIR/year-shapes"
 mkdir -p "$YEAR_DIR"
 {
-  echo '# Year shapes'                                                 # 1
-  echo ''                                                              # 2
-  echo 'Dead code: variables set but never read (SC2034), and more.'   # 3
-  echo '        "cache_read_input_tokens": 2000'                       # 4
-  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'    # 5
-  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'    # 6
-  echo 'As of 2026-07 (official billing docs), surfaces varied.'       # 7
-  echo 'Checked as of 2024 and not revisited since.'                   # 8
-  echo 'last_verified: 2026-01-01 against the vendor page.'            # 9
-  echo 'Read on 2026-01-02 from the vendor page.'                      # 10
-  echo 'We _read_ the source on 2025-01-01 as a check.'                # 11
+  echo '# Year shapes'
+  echo ''
+  echo 'Dead code: variables set but never read (SC2034), and more.'
+  echo '        "cache_read_input_tokens": 2000'
+  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'
+  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'
+  echo 'As of 2026-07 (official billing docs), surfaces varied.'
+  echo 'Checked as of 2024 and not revisited since.'
+  echo 'last_verified: 2026-01-01 against the vendor page.'
+  echo 'Read on 2026-01-02 from the vendor page.'
+  echo 'We _read_ the source on 2025-01-01 as a check.'
 } >"$YEAR_DIR/year-shapes.md"
 
 YEAR_OUT="$(run --files "$YEAR_DIR/year-shapes.md" 2>/dev/null)"
@@ -327,8 +276,6 @@ YEAR_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
 assert_eq "both scripts agree on the year-shapes candidates" \
   "$(echo "$YEAR_OUT" | jq -r "$YEAR_FILE | .stamp_lines | length")" "$YEAR_CANDIDATES"
 assert_eq "and they agree on five" "$YEAR_CANDIDATES" "5"
-
-# --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'
 assert_eq "an HTML comment carrying a URL is a fence" \
@@ -351,8 +298,6 @@ assert_eq "a multi-line comment spans its own extent" \
 assert_eq "a multi-line fence finds the date inside it" \
   "$(echo "$OUT" | jq -r "$FENCED | .fences[] | select(.start_line == 6) | .date")" "2026-01-05"
 
-# --- Per-directory grouping ------------------------------------------------------
-
 MULTI="$(run --files "$DIR_A/notes.md" "$DIR_B/sibling.md" 2>/dev/null)"
 assert_eq "--files groups by directory" \
   "$(echo "$MULTI" | jq -r '.directories | length')" "2"
@@ -364,8 +309,6 @@ assert_contains "the group names its directory" \
 assert_eq "--dir does not recurse into subdirectories" \
   "$(run --dir "$TEST_TMPDIR" 2>/dev/null | jq -r '.directories[0].files | length')" "0"
 
-# --- Counts and determinism ------------------------------------------------------
-
 assert_eq "counts.files matches the listed files" \
   "$(echo "$OUT" | jq -r '.counts.files == ([.directories[].files | length] | add)')" "true"
 assert_eq "counts.urls matches the extracted URLs" \
@@ -376,8 +319,6 @@ assert_eq "counts.directories matches the groups" \
 RUN_A="$(run --dir "$DIR_A" 2>/dev/null)"
 RUN_B="$(run --dir "$DIR_A" 2>/dev/null)"
 assert_eq "repeat runs produce identical output" "$RUN_A" "$RUN_B"
-
-# --- JSON escaping ---------------------------------------------------------------
 
 ESC_DIR="$TEST_TMPDIR/esc"
 mkdir -p "$ESC_DIR"

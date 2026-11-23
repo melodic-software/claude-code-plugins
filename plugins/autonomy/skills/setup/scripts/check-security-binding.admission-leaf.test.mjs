@@ -1,8 +1,3 @@
-// Ties the validator's admission defaults to the admission-policy leaf they
-// encode. Reads the leaf's "Shipped defaults" table and its no-match default,
-// then probes check-security-binding.mjs with one unjustified
-// autonomous-eligible rule per cell: the checker must reject the rule exactly
-// where the leaf ships a less permissive disposition for that cell.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -40,8 +35,6 @@ function readLeaf() {
   return { rows, fallback };
 }
 
-// The leaf's disposition for one cell: the most specific shipped row that
-// matches, else the no-match default.
 function leafDisposition({ rows, fallback }, surface, workClass) {
   const matching = rows.filter(
     (row) => (row.surface === "*" || row.surface === surface) && (row.workClass === "*" || row.workClass === workClass),

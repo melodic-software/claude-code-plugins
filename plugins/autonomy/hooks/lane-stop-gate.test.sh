@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for lane-stop-gate.sh (autonomy Stop hook).
-#
-# Proves WIRING: default-OFF inertness, the completion-signal matrix (sentinel
-# token / marker file), the standalone-token match guard, the one-nudge-then-
-# allow+notify loop behavior via stop_hook_active, the Stop-only event guard,
-# fail-open on empty stdin and missing jq, that a legitimate signaled stop is
-# allowed silently — and, since #1784, that gate config is honored from TRUSTED
-# sources only: the user settings.json derived from the hook's own install
-# anchor, and the launcher-written arm record, never the bare
-# CLAUDE_PLUGIN_OPTION_* environment.
-#
-# The whole suite therefore runs the hook from a STAGED synthetic install
-# (<root>/plugins/cache/<marketplace>/<name>/<version>/hooks/), because an
-# unanchored checkout invocation has no trusted user-settings location and can
-# never enable the gate — which is itself the documented --plugin-dir behavior.
-# The managed-settings layer reads fixed root-owned system paths and is
-# deliberately not seam-injectable (an override would BE the tamper channel),
-# so it is exercised only through the shared reader the user-settings cases
-# cover, not end-to-end.
-#
-# Self-contained: installed plugins are cache-isolated with no shared test lib,
-# so this defines its own assertions and builds throwaway inputs with jq. The OS
-# toast is never exercised here (notification channels are disabled on the paths
-# that would fire one) — lane-notify.test.sh covers the notifier.
 # test-scope: plugins/autonomy/hooks/*.sh
 # test-scope: plugins/autonomy/hooks/hooks.json
 
@@ -46,7 +22,6 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# --- Staged install (the trust anchor everything reads from) ------------------
 CACHE_ROOT="$(mktemp -d "$WORK/install.XXXXXX")"
 STAGED_DIR="$CACHE_ROOT/plugins/cache/melodic/autonomy/9.9.9/hooks"
 mkdir -p "$STAGED_DIR"
@@ -57,8 +32,6 @@ PLUGIN_ID="autonomy@melodic"
 SETTINGS="$CACHE_ROOT/settings.json"
 DATA_DIR="$CACHE_ROOT/plugins/data/autonomy-melodic"
 
-# build_input — assemble a Stop payload. Positional: event, last message,
-# stop_hook_active, cwd, session id (default test-sess).
 build_input() {
   local event="${1:-Stop}" last="${2:-}" stop_active="${3:-false}" cwd="${4:-}" sess="${5:-test-sess}"
   MSYS_NO_PATHCONV=1 jq -n \
@@ -66,8 +39,6 @@ build_input() {
     '{hook_event_name:$e, last_assistant_message:$l, stop_hook_active:$s, cwd:$c, session_id:$sid}'
 }
 
-# write_settings <enabled> [sentinel-set sentinel] [marker-set marker] — write
-# the staged user settings.json carrying the gate's pluginConfigs entry.
 write_settings() {
   local enabled="$1" ss="${2:-0}" sentinel="${3:-}" ms="${4:-0}" marker="${5:-}"
   jq -n --arg id "$PLUGIN_ID" --argjson e "$enabled" \
@@ -79,14 +50,6 @@ write_settings() {
     >"$SETTINGS"
 }
 
-# run <input> [KEY=VAL ...] — invoke the staged hook from an unrelated cwd with
-# a hermetic env and notifications muted. The three gate option spellings
-# (CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED/SENTINEL/MARKER) are intercepted
-# and written into the staged user settings.json — the trusted channel — AND
-# still exported to the environment, mirroring what the harness injects for a
-# configured key; the gate must take its values from the settings, not the env.
-# A RAWENV_-prefixed spelling is exported to the environment ONLY (no settings
-# entry): that is the repo-env-block attack shape the #1784 cases pin.
 run() {
   local input="$1"
   shift
@@ -125,16 +88,10 @@ run() {
       bash "$HOOK" 2>/dev/null)
 }
 
-# run_bare <input> [KEY=VAL ...] — invoke the staged hook with NO settings file
-# at all: only what the caller exports exists. The shape of an interactive
-# session, and of the repo-env attack.
 run_bare() {
   local input="$1"
   shift
   rm -f "$SETTINGS"
-  # Process substitution, not a pipe: the unconfigured path exits without
-  # reading stdin, and a pipe writer's EPIPE would become the status under
-  # pipefail.
   (cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
     -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
     -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
@@ -147,30 +104,23 @@ run_bare() {
 
 is_block() { printf '%s' "$1" | jq -e '.decision == "block"' >/dev/null 2>&1; }
 
-# --- Case 1: gate unconfigured everywhere → silent exit 0 -------------------
 OUT="$(run_bare "$(build_input Stop "" false)")"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "default OFF → silent exit 0 (interactive-safe)"; else fail "default OFF (rc=$RC out=$OUT)"; fi
 
-# --- Case 2: enabled, first stop, no signal → block ------------------------
 OUT="$(run "$(build_input Stop "working on it" false)")"
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "first stop no-signal: exit 0"; else fail "first stop no-signal exit $RC"; fi
 if is_block "$OUT"; then ok "first stop no-signal → decision:block"; else fail "first stop no-signal → not blocked: $OUT"; fi
 if grep -q 'LANE-STOP-OK' < <(jq -re '.reason' <<<"$OUT"); then ok "block reason names the sentinel"; else fail "block reason missing sentinel: $OUT"; fi
 
-# --- Case 3: sentinel alone on its own (final) line → allow (no block) ------
 OUT="$(run "$(build_input Stop "All queue items cleared.
 LANE-STOP-OK" false)")"
 if is_block "$OUT"; then fail "sentinel on its own line → still blocked: $OUT"; else ok "sentinel on its own line → stop allowed (no block)"; fi
 
-# --- Case 4: sentinel only as substring of a longer word → NOT signaled ----
 OUT="$(run "$(build_input Stop "status: LANE-STOP-OKAYISH maybe" false)")"
 if is_block "$OUT"; then ok "sentinel-as-substring → not a signal, blocked"; else fail "sentinel-as-substring wrongly allowed: $OUT"; fi
 
-# --- Case 5: marker file exists → allow, and the marker is CONSUMED ---------
-# One marker, one authorized stop: a file left by a prior completed run must
-# not authorize every stop of a later lane run in the same checkout.
 MARK="$WORK/done.marker"
 : >"$MARK"
 OUT="$(run "$(build_input Stop "no token here" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$MARK")"
@@ -180,11 +130,9 @@ OUT="$(run "$(build_input Stop "no token here" false)" CLAUDE_PLUGIN_OPTION_LANE
 if is_block "$OUT"; then ok "consumed marker no longer authorizes the next stop"; else fail "stale marker path wrongly allowed after consumption: $OUT"; fi
 rm -f "$MARK"
 
-# --- Case 6: marker absent → block -----------------------------------------
 OUT="$(run "$(build_input Stop "no token here" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$WORK/never.marker")"
 if is_block "$OUT"; then ok "marker absent → blocked"; else fail "marker absent wrongly allowed: $OUT"; fi
 
-# --- Case 7: relative marker resolves against payload cwd → allow ----------
 REPO="$WORK/lane"
 mkdir -p "$REPO"
 : >"$REPO/complete"
@@ -192,28 +140,23 @@ OUT="$(run "$(build_input Stop "" false "$REPO")" CLAUDE_PLUGIN_OPTION_LANE_STOP
 if is_block "$OUT"; then fail "relative marker under cwd → still blocked: $OUT"; else ok "relative marker resolves against cwd → allowed"; fi
 rm -rf "$REPO"
 
-# --- Case 8: stop_hook_active=true, no signal → allow + no block (notify path)
 OUT="$(run "$(build_input Stop "still no token" true)")"
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "post-nudge stop: exit 0"; else fail "post-nudge stop exit $RC"; fi
 if is_block "$OUT"; then fail "post-nudge stop → blocked again (would risk runaway): $OUT"; else ok "post-nudge stop → allowed (no second block)"; fi
 
-# --- Case 9: non-Stop event (SubagentStop) → allow even when unsatisfied ----
 OUT="$(run "$(build_input SubagentStop "no token" false)")"
 if is_block "$OUT"; then fail "SubagentStop → blocked (must not gate subagents): $OUT"; else ok "SubagentStop event → not gated"; fi
 
-# --- Case 10: empty stdin → silent exit 0 ----------------------------------
 write_settings true
 OUT="$(cd "$UNRELATED" && env CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true bash "$HOOK" </dev/null 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "empty stdin → silent exit 0 (fail-open)"; else fail "empty stdin (rc=$RC out=$OUT)"; fi
 
-# --- Case 11: custom sentinel via trusted settings → allow ------------------
 OUT="$(run "$(build_input Stop "queue empty
 DONE-ROTATE" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="DONE-ROTATE")"
 if is_block "$OUT"; then fail "custom sentinel → still blocked: $OUT"; else ok "custom sentinel honored → allowed"; fi
 
-# --- Case 12: jq absent → visible systemMessage notice + exit 0 (fail-open) --
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash dirname cat env printf mktemp mkdir find tr grep sed uname sleep git awk date; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -231,31 +174,17 @@ if [[ $RC -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]];
 else
   fail "jq-absent (rc=$RC out=$OUT_NOJQ)"
 fi
-# Stop additionalContext would continue the conversation for a notice.
 if [[ "$OUT_NOJQ" == *additionalContext* ]]; then fail "jq-absent notice reached the model on Stop: $OUT_NOJQ"; else ok "jq-absent notice is user-only on Stop"; fi
 
-# --- Case 13: sentinel mentioned/negated inline (not alone on a line) → block
-# Regression: after the nudge reveals the token, a premature turn that merely
-# discusses or negates it must NOT satisfy the gate.
 OUT="$(run "$(build_input Stop "I should not emit LANE-STOP-OK yet" false)")"
 if is_block "$OUT"; then ok "inline mention/negation of sentinel → not a signal, blocked"; else fail "inline sentinel mention wrongly allowed: $OUT"; fi
 
-# --- Case 14: sentinel alone on its line amid other lines, indented → allow --
-# Leading/trailing whitespace around the dedicated line is tolerated.
 OUT="$(run "$(build_input Stop "Goal verified, tests green.
   LANE-STOP-OK
 (stopping now)" false)")"
 if is_block "$OUT"; then fail "sentinel alone on its line (indented) → wrongly blocked: $OUT"; else ok "sentinel alone on its own line (whitespace ok) → stop allowed"; fi
 
-# --- Case 15: early sentinel in a very long message → allow (SIGPIPE guard) --
-# Regression: `printf | grep -q` under pipefail loses an early match when the
-# message overruns the pipe buffer (grep exits, printf takes SIGPIPE, the
-# pipeline reads false). The sentinel first + ~120KB of trailing text must
-# still be recognized as a signal. The message is fed to jq via --rawfile, not
-# --arg: a 120KB argv element overruns OS argv limits, and a failed build would
-# silently degrade this case to the empty-stdin fail-open path.
-build_big_input() { # <file-with-message> — message rides stdin (-Rs), not a
-  # path argument: a native jq binary cannot open an MSYS-style temp path.
+build_big_input() {
   jq -Rs \
     '{hook_event_name:"Stop", last_assistant_message:., stop_hook_active:false, cwd:"", session_id:"test-sess"}' \
     <"$1"
@@ -265,22 +194,15 @@ BIGFILE="$WORK/bigmsg.txt"
   printf 'LANE-STOP-OK\n'
   head -c 120000 /dev/zero | tr '\0' 'x'
 } >"$BIGFILE"
-# Control first — the same long tail WITHOUT the sentinel must block, proving
-# the long payload is actually built and evaluated (not lost to fail-open).
-# The stdin read timeout is raised for both invocations: the hook's default 2s
-# bounded read can time out on a 120KB payload on a slow-pipe host (Windows),
-# and this case tests the sentinel match, not stdin timing.
 head -c 120000 /dev/zero | tr '\0' 'x' >"$BIGFILE.nosig"
 OUT="$(run "$(build_big_input "$BIGFILE.nosig")" CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30)"
 if is_block "$OUT"; then ok "~120KB message without sentinel → blocked (long payload really evaluated)"; else fail "long-message control not blocked — long payload not reaching the gate: $OUT"; fi
 OUT="$(run "$(build_big_input "$BIGFILE")" CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30)"
 if is_block "$OUT"; then fail "early sentinel in long message → wrongly blocked (pipefail/SIGPIPE): $OUT"; else ok "early sentinel in ~120KB message → stop allowed (no SIGPIPE loss)"; fi
 
-# --- Telemetry (hook-telemetry convention): sink helpers ---------------------
 # shellcheck source=hook-test-sink.sh
 source "$HOOK_DIR/hook-test-sink.sh"
 
-# --- Case 16: telemetry on block → status=blocked, outcome=nudged, no token --
 TEL="$WORK/tel-block.jsonl"
 SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "no token" false)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
@@ -296,7 +218,6 @@ else
   fail "telemetry on block: no envelope written"
 fi
 
-# --- Case 17: telemetry on signaled allow → status=ok, signal=sentinel -------
 TEL="$WORK/tel-ok.jsonl"
 SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "LANE-STOP-OK" false)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
@@ -307,7 +228,6 @@ else
   fail "telemetry on signaled allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
 fi
 
-# --- Case 18: telemetry on post-nudge allow → ok, outcome=stopped-after-nudge
 TEL="$WORK/tel-nudge.jsonl"
 SINK="$(make_sink "cat >>\"$TEL\"")"
 OUT="$(run "$(build_input Stop "still no token" true)" HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$WORK")"
@@ -318,14 +238,6 @@ else
   fail "telemetry on post-nudge allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
 fi
 
-# --- Case 19: a marker whose deletion FAILS is still consumed ---------------
-# Regression (#1784): consumption was latched ONLY by deleting the marker, so
-# an `rm` the OS refuses left a file that satisfied `[[ -f ]]` on a later,
-# unrelated lane run — the cross-run bypass consuming the marker exists to
-# close. Deletion is made to fail with a PATH-stub `rm`: a read-only parent
-# directory does not reliably block deletion on every host this suite runs on,
-# an `rm` that refuses does. The consumption ledger lands under the staged
-# install's derived data directory (cases 22-23 pin that derivation).
 RMFAIL="$(mktemp -d "$WORK/rmfail.XXXXXX")"
 printf '#!/bin/sh\nexit 1\n' >"$RMFAIL/rm"
 chmod +x "$RMFAIL/rm"
@@ -337,32 +249,16 @@ OUT="$(run "$(build_input Stop "no token here" false)" \
 if is_block "$OUT"; then fail "marker present with a failing rm → still blocked: $OUT"; else ok "marker present with a failing rm → stop allowed"; fi
 if [[ -f "$STICKY" ]]; then ok "the rm stub really prevented the delete (case precondition)"; else fail "the rm stub did not take — the next case would prove nothing"; fi
 
-# --- Case 20: the surviving marker does not authorize a later run -----------
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY")"
 if is_block "$OUT"; then ok "an undeletable consumed marker does not authorize a later run"; else fail "a surviving consumed marker wrongly authorized a later run: $OUT"; fi
 
-# --- Case 21: recreating the marker authorizes again ------------------------
-# The consumption record is keyed to the file that was consumed, not to the
-# path forever — a fresh marker is a fresh signal.
 printf 'done\n' >"$STICKY"
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY")"
 if is_block "$OUT"; then fail "a recreated marker was wrongly treated as consumed: $OUT"; else ok "a recreated marker authorizes a stop again"; fi
 if [[ -f "$STICKY" ]]; then fail "recreated marker not consumed after authorizing a stop"; else ok "recreated marker consumed on use"; fi
 
-# --- Case 21b: the same-second, same-size recreation boundary ---------------
-# Pins the DOCUMENTED limit of the identity read rather than an aspiration: the
-# portable `stat` mtime is whole-second, so an empty marker recreated at the
-# same size within the same second is indistinguishable from the consumed one
-# and stays latched. Case 21 above changes the size, which is why it recovers.
-#
-# The collision is FORCED with `touch -r` rather than raced for: recreating and
-# hoping the wall clock has not ticked yields a case that passes on either
-# outcome, which pins nothing. Copying the consumed file's own timestamp makes
-# the boundary a decision this suite owns, so a future finer-grained identity
-# has to move this case deliberately, and the gate's failure direction (a stop
-# delayed, never a second unearned one) is what is actually held.
 STICKY2="$WORK/sticky2.marker"
 MTIME_REF="$WORK/sticky2.mtime-ref"
 : >"$STICKY2"
@@ -371,19 +267,14 @@ OUT="$(run "$(build_input Stop "no token here" false)" \
   PATH="$RMFAIL:$PATH")"
 if is_block "$OUT"; then fail "same-second setup: marker did not authorize: $OUT"; else ok "same-second setup: marker authorizes once"; fi
 if [[ -f "$STICKY2" ]]; then ok "same-second setup: the rm stub prevented the delete (case precondition)"; else fail "same-second setup: the rm stub did not take — the case would prove nothing"; fi
-touch -r "$STICKY2" "$MTIME_REF" # the consumed file's own mtime, before it moves
-: >"$STICKY2"                    # recreate: same size (0), new mtime
-touch -r "$MTIME_REF" "$STICKY2" # force the same whole second the record holds
+touch -r "$STICKY2" "$MTIME_REF"
+: >"$STICKY2"
+touch -r "$MTIME_REF" "$STICKY2"
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
   PATH="$RMFAIL:$PATH")"
 if is_block "$OUT"; then ok "same-second same-size recreation stays latched (documented coarse-identity limit)"; else fail "same-second same-size recreation read as a fresh signal — the identity read got finer without this case moving: $OUT"; fi
 
-# --- Case 22: the ledger is keyed to the hook's OWN install path ------------
-# The tamper-resistant property the ledger rests on is the primary path: the
-# data directory derived from the script's location under the documented
-# plugins/cache anchor, which no repo file reaches. An unrelated
-# CLAUDE_PLUGIN_DATA is present to show it does NOT win.
 DECOY_DATA="$(mktemp -d "$WORK/decoy.XXXXXX")"
 STAGED_MARKER="$WORK/staged.marker"
 : >"$STAGED_MARKER"
@@ -400,22 +291,11 @@ else
 fi
 if [[ -n "$(ls -A "$DECOY_DATA" 2>/dev/null)" ]]; then fail "CLAUDE_PLUGIN_DATA wrongly won over the install path"; else ok "CLAUDE_PLUGIN_DATA does not win over the install path"; fi
 
-# --- Case 23: the install-derived record is honored on the next run ---------
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STAGED_MARKER")"
 if is_block "$OUT"; then ok "staged install: the derived record blocks a later run"; else fail "staged install: a consumed marker wrongly authorized a later run: $OUT"; fi
 
-# ============================================================================
-# #1784 P1 — the enable flag (and sentinel/marker) come from trusted channels
-# only; the bare environment is never authority.
-# ============================================================================
 
-# --- Case 24: a repo env block cannot enable the gate (the pinned attack) ---
-# Channel B's unset case: nothing trusted configures the gate, and the
-# environment — which a watched repository's own .claude/settings.json `env`
-# block populates freely for an unconfigured key — claims enabled=true. The
-# gate must stay OFF, and must say so visibly (a silent disengage would hide
-# both this attack and a stale launcher).
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true)"
 RC=$?
@@ -427,18 +307,12 @@ else
 fi
 if [[ "$OUT" == *additionalContext* ]]; then fail "env-only enable notice reached the model on Stop: $OUT"; else ok "env-only enable notice is user-only"; fi
 
-# --- Case 25: a repo env block cannot weaken the sentinel -------------------
-# On a trusted-enabled session, an env-only SENTINEL must be ignored: the
-# easy token does not authorize, and the trusted default still does.
 OUT="$(run "$(build_input Stop "some ordinary line
 EASY" false)" RAWENV_CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="EASY")"
 if is_block "$OUT"; then ok "env-only sentinel is not honored (weakened token does not authorize)"; else fail "env-only sentinel wrongly honored: $OUT"; fi
 OUT="$(run "$(build_input Stop "LANE-STOP-OK" false)" RAWENV_CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="EASY")"
 if is_block "$OUT"; then fail "trusted default sentinel stopped working under an env-only override: $OUT"; else ok "trusted default sentinel still authorizes under an env-only override"; fi
 
-# --- Case 26: a repo env block cannot point the gate at its own marker ------
-# On a trusted-enabled session with NO trusted marker configured, an env-only
-# MARKER naming an existing file must not authorize the stop.
 ATTACK_MARKER="$WORK/attack.marker"
 : >"$ATTACK_MARKER"
 OUT="$(run "$(build_input Stop "no token" false)" \
@@ -446,18 +320,12 @@ OUT="$(run "$(build_input Stop "no token" false)" \
 if is_block "$OUT"; then ok "env-only marker path is not honored"; else fail "env-only marker path wrongly authorized a stop: $OUT"; fi
 if [[ -f "$ATTACK_MARKER" ]]; then ok "env-only marker file left untouched"; else fail "env-only marker file was consumed despite not being trusted"; fi
 
-# --- Case 27: a trusted explicit false wins silently ------------------------
-# enabled=false configured in user settings + env claiming true → off, and NO
-# notice: a configured verdict is not an unhonored claim.
 OUT="$(run "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=false \
   RAWENV_CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true)"
 if is_block "$OUT"; then fail "configured enabled=false wrongly engaged the gate: $OUT"; else ok "configured enabled=false keeps the gate off"; fi
 if [[ "$OUT" == *systemMessage* ]]; then fail "configured false wrongly emitted the unhonored-claim notice: $OUT"; else ok "configured false stays silent (a verdict, not an unhonored claim)"; fi
 
-# --- Case 28: an unreadable trusted source contributes no verdict (fail-open)
-# Malformed user settings + env claiming true → off with the visible notice,
-# never a wedged stop and never an env fallback.
 printf '{ not json' >"$SETTINGS"
 OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
   env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID -u CLAUDE_PLUGIN_DATA \
@@ -468,12 +336,8 @@ RC=$?
 if [[ $RC -eq 0 ]] && ! is_block "$OUT"; then ok "malformed user settings → gate off, stop allowed (fail-open)"; else fail "malformed user settings (rc=$RC out=$OUT)"; fi
 if [[ "$OUT" == *'"systemMessage"'* ]]; then ok "malformed settings + env claim → visible notice"; else fail "malformed settings + env claim stayed silent: $OUT"; fi
 
-# ============================================================================
-# #1784 P1 — the arm record: the launcher's per-session trusted channel.
-# ============================================================================
 ARM_ID_1="cafe1234deadbeef"
 
-# --- Case 29: arming enables the gate with NO settings entry at all ---------
 LANE_MARKER="$WORK/lane.marker"
 bash "$ARM" --id "$ARM_ID_1" --cwd "$WORK" --marker "$LANE_MARKER" 2>/dev/null ||
   fail "arm helper refused a valid arming (precondition for cases 29-32)"
@@ -482,28 +346,17 @@ OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
 if is_block "$OUT"; then ok "an armed session is gated (no settings entry needed)"; else fail "an armed session was not gated: $OUT"; fi
 
-# --- Case 30: the record's marker is honored; the record SURVIVES the stop ---
-# A lane is one session across many /loop cycles: the record must not be
-# consumed by a single completion-signaled stop, or every later cycle runs
-# ungated (#1784, finding 2).
 : >"$LANE_MARKER"
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
 if is_block "$OUT"; then fail "record-configured marker did not authorize: $OUT"; else ok "record-configured marker authorizes the stop"; fi
 if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_1" ]]; then ok "the arm record survives a completion-signaled stop (not consumed)"; else fail "arm record was consumed on a stop — a later /loop cycle would run ungated"; fi
 
-# --- Case 30b: a LATER stop in the same armed session is still gated ---------
-# The record persisted through case 30's signaled stop; a subsequent unsignaled
-# stop of the same session must still be caught. This is the multi-cycle
-# coverage the no-consume design protects.
 rm -f "$LANE_MARKER"
 OUT="$(run_bare "$(build_input Stop "no token this cycle" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
 if is_block "$OUT"; then ok "a later cycle of the same armed session is still gated (record persisted)"; else fail "a later cycle ran ungated after an earlier signaled stop: $OUT"; fi
 
-# --- Case 31: a DANGLING arm id does not engage the gate, with the RIGHT notice
-# An id whose record never existed (or was cleaned up) is not the env attack —
-# the notice must not blame a repo env block; it must point at re-arming.
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="deadbeefdeadbeef")"
 if is_block "$OUT"; then fail "a dangling arm id wrongly engaged the gate: $OUT"; else ok "a dangling arm id does not engage the gate"; fi
@@ -515,9 +368,6 @@ fi
 if [[ "$OUT" == *additionalContext* ]]; then fail "the stale-arm notice reached the model on Stop: $OUT"; else ok "the stale-arm notice is user-only"; fi
 if [[ "$OUT" == *"environment channel"* ]]; then fail "a dangling arm id wrongly blamed the env channel"; else ok "a dangling arm id does not blame the env channel"; fi
 
-# --- Case 32: a replayed arm id is refused for a different session ----------
-# First presenter claims the record; a later session presenting the same id
-# (the shape of a leaked id served back via a repo env block) gets nothing.
 ARM_ID_2="feedface00112233"
 bash "$ARM" --id "$ARM_ID_2" --cwd "$WORK" 2>/dev/null
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-A")" \
@@ -527,7 +377,6 @@ OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-B")" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_2")"
 if is_block "$OUT"; then fail "a replayed arm id engaged the gate for a different session: $OUT"; else ok "a replayed arm id is refused for a different session"; fi
 
-# --- Case 33: the record's sentinel is honored ------------------------------
 ARM_ID_3="0123456789abcdef"
 bash "$ARM" --id "$ARM_ID_3" --cwd "$WORK" --sentinel "DONE-LANE-7" 2>/dev/null
 OUT="$(run_bare "$(build_input Stop "wrapping up
@@ -535,7 +384,6 @@ DONE-LANE-7" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_3")"
 if is_block "$OUT"; then fail "record-configured sentinel did not authorize: $OUT"; else ok "record-configured sentinel authorizes the stop"; fi
 
-# --- Case 34: an expired record does not engage the gate --------------------
 ARM_ID_4="aaaabbbbccccdddd"
 bash "$ARM" --id "$ARM_ID_4" --cwd "$WORK" 2>/dev/null
 REC_4="$DATA_DIR/lane-arms/$ARM_ID_4"
@@ -580,8 +428,6 @@ bash "$ARM" --id "sweepfresh00aaaa" --cwd "$WORK" 2>/dev/null
 if [[ -f "$SWEEP_KEEP" ]]; then ok "the arm helper's sweep keeps a file aged 8 days (31-day TTL)"; else fail "the arm helper's sweep dropped a file aged 8 days"; fi
 if [[ -e "$SWEEP_GONE" ]]; then fail "the arm helper's sweep kept a file aged 32 days"; else ok "the arm helper's sweep drops a file aged 32 days (31-day TTL)"; fi
 
-# --- Case 35: a post-nudge (down-lane) stop is allowed; record still survives
-# The record is not consumed here either — the session may /loop onward.
 ARM_ID_5="1234abcd5678efab"
 bash "$ARM" --id "$ARM_ID_5" --cwd "$WORK" 2>/dev/null
 OUT="$(run_bare "$(build_input Stop "still no token" true)" \
@@ -589,11 +435,6 @@ OUT="$(run_bare "$(build_input Stop "still no token" true)" \
 if is_block "$OUT"; then fail "post-nudge armed stop wrongly blocked: $OUT"; else ok "post-nudge armed stop allowed"; fi
 if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_5" ]]; then ok "the arm record survives a post-nudge stop (not consumed)"; else fail "arm record was consumed on the post-nudge stop"; fi
 
-# --- Case 36: a traversal-shaped arm id is rejected — at the GUARD, provably --
-# The gate not blocking would pass whether or not the id-shape guard existed
-# (a traversal path is not a readable JSON record either way), so this pins the
-# guard directly: gate_arm_record_path must REFUSE a traversal id, so no path
-# under lane-arms/ can ever be escaped. Sourced from the staged lib.
 if (
   # shellcheck source=/dev/null
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
@@ -616,10 +457,6 @@ else
   ok "the arm helper rejects a malformed id"
 fi
 
-# --- Case 37: the arm helper refuses to arm without an install anchor -------
-# A --plugin-dir checkout install has no trusted record store; arming must fail
-# closed (the launcher then skips the lane) rather than write to a forgeable
-# location.
 UNANCHORED="$(mktemp -d "$WORK/unanchored.XXXXXX")"
 cp "$HOOK_DIR"/*.sh "$UNANCHORED/"
 if bash "$UNANCHORED/lane-stop-gate-arm.sh" --id "$ARM_ID_1" --cwd "$WORK" 2>/dev/null; then
@@ -628,31 +465,22 @@ else
   ok "the arm helper fails closed without a plugins/cache anchor"
 fi
 
-# --- Case 38: the managed-settings path is selected by uname, not $OSTYPE ----
-# Regression guard for #1784 finding 1: $OSTYPE is a bash variable a repo `env`
-# block can set, so branching the highest-precedence (managed) scope on it let a
-# repo suppress or relocate it. Selection now reads `uname -s`, and the resolved
-# primary is asserted absolute. Sourced from the staged lib; `uname` is stubbed
-# so the platform is controlled independently of the host, and $OSTYPE is set
-# hostile.
 if (
   # shellcheck source=/dev/null
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
   # shellcheck disable=SC2329 # invoked indirectly by gate_managed_settings_files
   uname() { printf '%s\n' "${STUB_UNAME:-Linux}"; }
-  export OSTYPE=msys # would force the Windows relative-on-POSIX branch in old code
-  # Every emitted managed path must be absolute, whatever uname reports.
+  export OSTYPE=msys
   for plat in Linux Darwin MINGW64_NT CYGWIN_NT bogus-platform; do
     STUB_UNAME="$plat"
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       case "$line" in
       /* | [A-Za-z]:[/\\]*) ;;
-      *) exit 1 ;; # a relative (cwd-resolved, repo-plantable) managed path
+      *) exit 1 ;;
       esac
     done < <(gate_managed_settings_files)
   done
-  # An unrecognized platform yields NO managed file, regardless of $OSTYPE.
   STUB_UNAME="bogus-platform"
   [[ -z "$(gate_managed_settings_files)" ]] || exit 1
   exit 0
@@ -662,14 +490,6 @@ else
   fail "managed-settings path selection is influenced by \$OSTYPE or can be relative (#1784 finding 1)"
 fi
 
-# --- Case 39: an UNANCHORED install still reads managed settings ------------
-# A --plugin-dir checkout has no plugins/cache anchor, so no marketplace
-# qualifier to match — but managed settings are its ONLY enable path, and the
-# arm helper refuses to arm there precisely on that premise (case 37). Keying
-# the read on the anchor alone would make an org's managed mandate silently
-# not apply to that whole install class. The reader falls back to the manifest
-# name; anchored installs keep their exact-id match so another marketplace's
-# entry cannot mask this install's.
 UNANCHORED_ROOT="$(mktemp -d "$WORK/plugindir.XXXXXX")"
 mkdir -p "$UNANCHORED_ROOT/hooks" "$UNANCHORED_ROOT/.claude-plugin"
 cp "$HOOK_DIR"/*.sh "$UNANCHORED_ROOT/hooks/"
@@ -680,12 +500,10 @@ if (
   source "$UNANCHORED_ROOT/hooks/lane-stop-gate-lib.sh"
   gate_resolve_install "$UNANCHORED_ROOT" || exit 1
   [[ -z "$GATE_PLUGIN_ID" && "$GATE_PLUGIN_NAME" == "autonomy" ]] || exit 1
-  # A bare key and a marketplace-qualified key both reach an unanchored install.
   printf '{"pluginConfigs":{"autonomy":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
   [[ "$(gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled)" == "true" ]] || exit 1
   printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
   [[ "$(gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled)" == "true" ]] || exit 1
-  # A different plugin's entry must NOT be picked up.
   printf '{"pluginConfigs":{"other@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
   gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled >/dev/null 2>&1 && exit 1
   exit 0
@@ -694,7 +512,6 @@ if (
 else
   fail "an unanchored (--plugin-dir) install cannot read managed settings — its only enable path"
 fi
-# The anchored install must still match ONLY its exact marketplace-qualified id.
 if (
   # shellcheck source=lane-stop-gate-lib.sh
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
@@ -709,9 +526,6 @@ else
   fail "an anchored install accepted another marketplace's entry"
 fi
 
-# --- Case 40: an empty configured sentinel falls back to the default --------
-# Emptiness is not a documented way to disable the token channel, and honoring
-# it would leave the block reason instructing the agent to emit an empty token.
 OUT="$(run "$(build_input Stop "LANE-STOP-OK" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
 if is_block "$OUT"; then fail "an empty configured sentinel silenced the token channel: $OUT"; else ok "an empty configured sentinel falls back to the default token"; fi
@@ -719,19 +533,11 @@ OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
 if [[ "$OUT" == *'LANE-STOP-OK'* ]]; then ok "the nudge names the default token, never an empty one"; else fail "the nudge did not name a usable token: $OUT"; fi
 
-# The claim-ownership cases below assert the exit code alongside the decision.
-# A Stop hook that starts exiting non-zero — 127 for a helper that stopped
-# resolving — is a regression a stdout-only assertion passes over in silence.
 rc0() {
   [[ -n "${1:-}" ]] || fail "$2 had no exit code to check"
   [[ "$1" -eq 0 ]] || fail "$2 exited $1"
 }
 
-# --- Case 41: the PERSISTED owner decides, not the presenting session --------
-# Case 32 proves a sequential replay is refused; that passes whether the claim
-# is atomic or a read-then-write. This pins the verify-the-owner clause with a
-# guaranteed signal: a claim sidecar already naming another session must refuse
-# the presenter outright, and must still honor the session it names.
 ARM_ID_6="beefbeef11223344"
 bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
 printf 'sess-owner\n' >"$DATA_DIR/lane-arms/$ARM_ID_6.claim"
@@ -744,9 +550,6 @@ OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-owner")" \
 rc0 $? "the persisted owner's honored stop"
 if is_block "$OUT"; then ok "a pre-claimed record is honored for its persisted owner"; else fail "the persisted owner was not honored: $OUT"; fi
 
-# --- Case 42: re-arming the same id clears the claim ------------------------
-# The sidecar outlives the record it names, so an id re-armed for a new lane
-# would otherwise stay bound to the dead session and the new lane run ungated.
 bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
 if [[ -e "$DATA_DIR/lane-arms/$ARM_ID_6.claim" ]]; then fail "re-arming left the previous lane's claim in place"; else ok "re-arming clears the previous lane's claim"; fi
 OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-relaunched")" \
@@ -754,9 +557,6 @@ OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-relaunched")" \
 rc0 $? "the relaunched lane's first claim"
 if is_block "$OUT"; then ok "a re-armed id is claimable by the relaunched lane"; else fail "a re-armed id stayed bound to the previous lane: $OUT"; fi
 
-# --- Case 43: a record claimed before the sidecar existed stays bound -------
-# Compatibility: an in-record session_id is authoritative and has no sidecar, so
-# an upgrade must not let a second session claim a record already bound.
 ARM_ID_7="c0ffee1122334455"
 bash "$ARM" --id "$ARM_ID_7" --cwd "$WORK" 2>/dev/null
 REC_7="$DATA_DIR/lane-arms/$ARM_ID_7"
@@ -770,12 +570,6 @@ OUT="$(run_bare "$(build_input Stop "no token" false "" "legacy-owner")" \
 rc0 $? "the legacy owner's honored stop"
 if is_block "$OUT"; then ok "a legacy-claimed record is still honored for its owner"; else fail "a legacy-claimed record stopped gating its own session: $OUT"; fi
 
-# --- Case 44: concurrent presenters of one fresh id — exactly one wins ------
-# The race the atomic claim exists to close: N sessions presenting the same
-# fresh id at once. A read-then-write claim lets every one of them read the
-# record unclaimed and honor the arm, and the last writer binds it — leaving
-# the legitimate lane ungated on every later stop. Settings are removed once up
-# front so the concurrent invocations share no file the harness rewrites.
 ARM_ID_8="99887766aabbccdd"
 bash "$ARM" --id "$ARM_ID_8" --cwd "$WORK" 2>/dev/null
 rm -f "$SETTINGS"
@@ -808,11 +602,6 @@ RACE_CLAIMED="$(head -n 1 "$DATA_DIR/lane-arms/$ARM_ID_8.claim" 2>/dev/null)"
 for i in 1 2 3 4 5 6; do rc0 "$(cat "$RACE_DIR/$i.rc" 2>/dev/null || echo 1)" "concurrent presenter race-$i"; done
 if [[ -n "$RACE_WINNER" && "$RACE_CLAIMED" == "$RACE_WINNER" ]]; then ok "the persisted claim names the session that was honored"; else fail "persisted claim '$RACE_CLAIMED' does not name the honored session '$RACE_WINNER'"; fi
 
-# --- Case 45: a durably ownerless claim honors the arm ----------------------
-# The fall-through direction of the re-read that closes case 44's window. A
-# claim whose owner never lands (a winner that died mid-write) must NOT make the
-# record permanently unclaimable — that is the original finding's harm in a new
-# shape. Over-gate instead: honor every presenter for as long as it lasts.
 ARM_ID_9="1234abcd5678ef90"
 bash "$ARM" --id "$ARM_ID_9" --cwd "$WORK" 2>/dev/null
 : >"$DATA_DIR/lane-arms/$ARM_ID_9.claim"
@@ -821,12 +610,6 @@ OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-after-a-dead-write
 rc0 $? "the stop that met an ownerless claim"
 if is_block "$OUT"; then ok "an ownerless claim still honors the arm (fail direction: gate ON)"; else fail "an ownerless claim left the lane ungated: $OUT"; fi
 
-# --- Case 46: a non-regular file at the claim path decides nothing ----------
-# The claim is a second predictable name in the store, and the record path has
-# always been `[[ -f ]]`-guarded. Without the same guard a planted FIFO takes
-# the write with no reader and the whole Stop event hangs until the harness
-# gives up — a stop allowed on every attempt, i.e. an ungated lane. Watchdogged
-# rather than run bare, so a regression fails this suite instead of stalling CI.
 ARM_ID_10="fedcba9876543210"
 bash "$ARM" --id "$ARM_ID_10" --cwd "$WORK" 2>/dev/null
 rm -f "$SETTINGS"
@@ -863,22 +646,6 @@ else
   fi
 fi
 
-# ============================================================================
-# #2852 — the arm pre-filter runs BEFORE the stdin buffer.
-# ============================================================================
-# The pre-filter (`gate_maybe_configured`) needs no payload: two env presences
-# and two greps over settings files. Ordering it after the buffered read made
-# the maximum-cost path the one taken by the sessions that get zero function
-# from it — an unarmed session paying a bounded stdin read against a 15s Stop
-# budget for a guaranteed no-op.
-#
-# probe_run <payload-file> — invoke the staged hook with stdin
-# bound to a REGULAR FILE on fd 3 instead of a pipe, then read what is LEFT on
-# that same open file description afterwards. The file offset is shared across
-# the fork/exec, so the leftover is exactly the bytes the hook did not consume:
-# the whole payload means stdin was never read, empty means it was drained.
-# This is the only observation that separates the two orderings — both exit 0
-# on an unarmed session, and only the read itself differs.
 PROBE_OUT=""
 PROBE_RC=0
 PROBE_LEFT=""
@@ -901,9 +668,6 @@ probe_run() {
   } 3<"$payload"
 }
 
-# --- Case 47: an UNARMED session exits 0 without consuming stdin ------------
-# No arm id, no env enable claim, no settings file for the helpers to find, and
-# no `lane_stop_gate` string anywhere they resolve — the interactive default.
 PROBE_PAYLOAD="$WORK/stdin-probe.json"
 build_input Stop "no token" false >"$PROBE_PAYLOAD"
 PROBE_EXPECT="$(<"$PROBE_PAYLOAD")"
@@ -917,28 +681,13 @@ else
   fail "unarmed session consumed stdin — the pre-filter is running after the buffered read (leftover=${#PROBE_LEFT} of ${#PROBE_EXPECT} bytes)"
 fi
 
-# --- Case 48: an ARMED session still reaches the payload reads --------------
-# The reorder must move only the payload-free pre-filter. A trusted-enabled
-# session must still drain stdin AND still produce the gate's block decision —
-# which it can only do by parsing hook_event_name and last_assistant_message
-# out of that payload, i.e. the payload reads all still sit below the buffer.
 write_settings true
 probe_run "$PROBE_PAYLOAD"
 if [[ $PROBE_RC -eq 0 ]]; then ok "armed fd-bound session: exit 0"; else fail "armed fd-bound session exited $PROBE_RC"; fi
 if [[ -z "$PROBE_LEFT" ]]; then ok "armed session drains stdin (the buffered read still runs when the gate is armed)"; else fail "armed session left ${#PROBE_LEFT} bytes unread — the payload never reached the gate"; fi
 if is_block "$PROBE_OUT"; then ok "armed session still blocks an unsignaled stop (payload reads intact below the buffer)"; else fail "armed session did not block — the reorder changed armed-lane behavior: $PROBE_OUT"; fi
 
-# ============================================================================
-# #3515 — one jq per settings file for every key, same per-key verdicts.
-# ============================================================================
 
-# --- Case 49: gate_settings_options_to answers three keys from one pass -----
-# Sourced from the staged lib like case 39. The multi-key reader must give the
-# verdict the single-key reader gave for each key: a boolean as true/false, a
-# string as-is with trailing newlines chomped (what the old `$(jq -r …)`
-# capture did), no verdict for an absent key, and no verdict for any key when
-# the entry's `options` is not an object (the one jq error the filter raises,
-# which is key-independent).
 OPTS_STUB="$WORK/opts-stub.json"
 if (
   # shellcheck source=lane-stop-gate-lib.sh
@@ -948,10 +697,8 @@ if (
   gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker || exit 1
   [[ "${GATE_FILE_OPT_HAVE[*]}" == "1 1 0" ]] || exit 1
   [[ "${GATE_FILE_OPT_VALUE[0]}" == "true" && "${GATE_FILE_OPT_VALUE[1]}" == "X" && -z "${GATE_FILE_OPT_VALUE[2]}" ]] || exit 1
-  # The single-key print form still agrees with the batch, key by key.
   [[ "$(gate_settings_option "$OPTS_STUB" lane_stop_gate_sentinel)" == "X" ]] || exit 1
   gate_settings_option "$OPTS_STUB" lane_stop_gate_marker >/dev/null 2>&1 && exit 1
-  # `options` holding a string: no verdict for any key, return 1.
   printf '{"pluginConfigs":{"autonomy@melodic":{"options":"lane_stop_gate_enabled"}}}\n' >"$OPTS_STUB"
   gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel && exit 1
   [[ "${GATE_FILE_OPT_HAVE[*]}" == "0 0" ]] || exit 1
@@ -962,10 +709,6 @@ else
   fail "gate_settings_options_to disagrees with the per-key reader (#3515)"
 fi
 
-# --- Case 49b: a CRLF-terminated option value chomps to the bare string -----
-# A value whose trailing whitespace is CRLF chomps to the bare string too. A jq
-# that writes stdout in text mode turns every LF inside a value into CRLF, so a
-# reader that chomps LF alone hands back a value with a CR still on the end.
 if (
   # shellcheck source=lane-stop-gate-lib.sh
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
@@ -980,40 +723,17 @@ else
   fail "gate_settings_options_to left a trailing CR on a CRLF-terminated value"
 fi
 
-# --- Case 50: a sentinel that holds a newline matches only as a whole block --
-# The shell's regex match replaced `grep -qE` over a here-string. grep read a
-# newline inside the configured token as a PATTERN SEPARATOR and authorized a
-# stop on a line matching either half; the regex treats the token as one
-# pattern, so only the whole token standing alone matches — the thing the block
-# reason asks for. Pinned so the disclosed divergence (0.23.1 changelog) is a
-# decision this suite owns, not drift.
 OUT="$(run "$(build_input Stop "A" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
 if is_block "$OUT"; then ok "newline-bearing sentinel: half the token does not authorize"; else fail "newline-bearing sentinel: half the token authorized a stop: $OUT"; fi
 OUT="$(run "$(build_input Stop $'done\nA\nB' false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
 if is_block "$OUT"; then fail "newline-bearing sentinel: the whole token on its own lines was not honored: $OUT"; else ok "newline-bearing sentinel: the whole token on its own lines authorizes"; fi
 
-# --- Case 51: an UNREADABLE settings file is silent, as the grep scan was ----
-# The pre-filter's settings scan is a builtin read (`done 2>/dev/null <"$f"`)
-# where it was `grep -q … 2>/dev/null`. Bash applies a command's redirections
-# left to right, so writing the input redirection first would attempt the open
-# BEFORE stderr is silenced and print "Permission denied" for a settings file
-# that exists but this hook may not read — per-turn noise from a hook that runs
-# on every Stop. The verdict (no verdict, gate off, exit 0) is the same either
-# way, so only stderr discriminates: assert it is EMPTY, and that the stop is
-# still allowed silently on stdout.
 UNREADABLE_ERR="$WORK/unreadable.err"
 write_settings true
 chmod 000 "$SETTINGS" 2>/dev/null || true
 if [[ -r "$SETTINGS" ]]; then
-  # Running as root (or on a filesystem without POSIX modes): chmod 000 denies
-  # nothing, so there is no unreadable file to assert on. Visible, and the
-  # ordering is still pinned by the CI lanes that run as a normal user.
   ok "SKIP: chmod 000 does not deny for this user — unreadable-source stderr not asserted here"
 else
-  # stdin is a file: an unreadable settings file is no gate footprint, so the
-  # hook exits at the pre-filter without reading stdin, and a pipe writer that
-  # has not finished gets EPIPE (jq exits 2 where SIGPIPE is ignored, as on CI
-  # runners), which pipefail would report as the hook's status.
   OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
     -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
     -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
@@ -1033,20 +753,11 @@ fi
 chmod 600 "$SETTINGS" 2>/dev/null || true
 rm -f "$SETTINGS"
 
-# --- Case 52: an embedded CR in the completion token does not authorize ------
-# last_assistant_message was `jq -r` with no `tr`; hook::jq_fields strips every
-# CR, so LANE-STOP\r-OK would become LANE-STOP-OK and authorize. The payload
-# pass leaves LAST intact, so this must still block. A real token whose only CR
-# is a line-ending (whitespace the match already accepts) still authorizes.
 OUT="$(run "$(build_input Stop $'LANE-STOP\r-OK' false)")"
 if is_block "$OUT"; then ok "embedded CR in the completion token does not authorize"; else fail "LANE-STOP\\r-OK authorized — LAST must preserve CR: $OUT"; fi
 OUT="$(run "$(build_input Stop $'LANE-STOP-OK\r' false)")"
 if is_block "$OUT"; then fail "CRLF-terminated sentinel was not honored: $OUT"; else ok "CRLF-terminated sentinel still authorizes (CR as line-ending whitespace)"; fi
 
-# --- Case 53: on Bash < 5.0, inherited EPOCHSECONDS is not the TTL clock -----
-# BASH_VERSINFO is readonly, so the pre-5.0 path is reached by overriding
-# gate_epochseconds_is_clock after sourcing, the same seam hook::read_supports_nchars
-# uses for the pre-4.1 read. An inherited EPOCHSECONDS=1 must not become `now`.
 if (
   # shellcheck source=lane-stop-gate-lib.sh
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
@@ -1060,7 +771,6 @@ if (
   gate_epoch_seconds_to got
   [[ "$got" =~ ^[0-9]+$ ]] || exit 1
   [[ "$got" != "1" ]] || exit 1
-  # Fallback is date +%s; it must be a plausible wall clock, not the spoof.
   ((got > 1)) || exit 1
   exit 0
 ); then
@@ -1068,7 +778,6 @@ if (
 else
   fail "pre-5.0 path trusted inherited EPOCHSECONDS=1"
 fi
-# This host's real clock path (Bash 5+) still reads EPOCHSECONDS when provided.
 if ((BASH_VERSINFO[0] >= 5)); then
   if (
     # shellcheck source=lane-stop-gate-lib.sh
@@ -1086,10 +795,6 @@ if ((BASH_VERSINFO[0] >= 5)); then
   fi
 fi
 
-# --- Case 54: unreadable file reads stay silent at every remaining site ------
-# Case 51 pins gate_file_mentions. The same left-to-right redirection bug lived
-# on gate_resolve_plugin_name, gate_settings_options_to, and the arm-record
-# load. Verdicts are fail-open either way; only stderr discriminates.
 UNREAD_PLUGIN="$WORK/unreadable-plugin"
 mkdir -p "$UNREAD_PLUGIN/.claude-plugin"
 printf '{"name":"autonomy"}\n' >"$UNREAD_PLUGIN/.claude-plugin/plugin.json"
@@ -1153,13 +858,6 @@ fi
 chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null || true
 rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 
-# ============================================================================
-# #4415 — the pre-filter runs before any library is sourced.
-# ============================================================================
-# The managed-settings layer is not seam-injectable, so the pre-filter's copy of
-# the three fixed primaries is pinned to the lib's authoritative literals: a
-# path changed in one place and not the other would make the pre-filter answer
-# "not configured" for a host whose managed settings do configure the gate.
 HOOK_TEXT="$(<"$HOOK")"
 if (
   # shellcheck source=lane-stop-gate-lib.sh
@@ -1173,10 +871,6 @@ else
   fail "the pre-filter's managed-settings primaries drifted from GATE_MANAGED_PRIMARY_* in the lib"
 fi
 
-# A second staged install whose three libraries are replaced by stubs that
-# record being sourced. Unconfigured, the hook must exit before sourcing any of
-# them; each opt-in source the pre-filter honors must still reach them (the
-# positive control that the stub would have caught a source).
 SRC_ROOT="$(mktemp -d "$WORK/srcprobe.XXXXXX")"
 SRC_DIR="$SRC_ROOT/plugins/cache/melodic/autonomy/9.9.9/hooks"
 SRC_MARK="$WORK/sourced.txt"
@@ -1185,7 +879,6 @@ cp "$HOOK" "$SRC_DIR/"
 for lib in hook-utils.sh lane-notify.sh lane-stop-gate-lib.sh; do
   printf 'printf "%%s\\n" %s >>"%s"\nexit 0\n' "$lib" "$SRC_MARK" >"$SRC_DIR/$lib"
 done
-# src_probe [KEY=VAL ...] — run the stubbed hook; SRC_OUT holds stdout.
 src_probe() {
   rm -f "$SRC_MARK"
   SRC_OUT="$(cd "${SRC_CWD:-$UNRELATED}" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
@@ -1211,12 +904,6 @@ printf '{"pluginConfigs":{}}\n' >"$SRC_ROOT/settings.json"
 src_probe
 if [[ ! -e "$SRC_MARK" ]]; then ok "user settings without the gate key stay on the early exit"; else fail "user settings without the gate key reached the libraries"; fi
 
-# The managed-settings loop, exercised behaviorally. The Windows primary has no
-# leading `/`, so on a POSIX host it resolves against the cwd: a drop-in planted
-# at `<cwd>/C:/Program Files/ClaudeCode/managed-settings.d/` is reachable from a
-# writable test root. The probe dir decides whether that route exists here; on
-# Windows the literal is a real drive path, so the case skips visibly and never
-# writes under C:.
 MANAGED_CWD="$(mktemp -d "$WORK/managedcwd.XXXXXX")"
 mkdir -p "$MANAGED_CWD/C:/lane-stop-gate-probe" 2>/dev/null || true
 if (cd "$MANAGED_CWD" && [[ -d "C:/lane-stop-gate-probe" ]]); then
@@ -1229,8 +916,6 @@ else
   ok "SKIP: the Windows managed path is a real drive here — drop-in route not exercised"
 fi
 
-# A RELATIVE hook path takes the pre-filter's `cd` branch for the plugin root;
-# an enabled lane invoked that way must still find its settings and block.
 write_settings true
 OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
   env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
@@ -1240,11 +925,6 @@ OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
     bash hooks/lane-stop-gate.sh 2>/dev/null)"
 if is_block "$OUT"; then ok "relative invocation: the pre-filter resolves the anchor and the lane blocks"; else fail "relative invocation lost the enabled lane's block: $OUT"; fi
 
-# A drive path spelled with `\`, as Claude Code passes CLAUDE_PLUGIN_ROOT on
-# Windows, must still resolve the anchor. On Windows the staged install
-# itself is spelled that way. On a POSIX host a drive path resolves against the
-# cwd, so `C:` links to the staged root and the backslashed spelling, a single
-# filename there, links to the version directory beneath it.
 write_settings true
 if command -v cygpath >/dev/null 2>&1; then
   BS_CWD="$UNRELATED"
@@ -1270,26 +950,14 @@ else
   fail "backslashed drive root: the arm helper found no anchor"
 fi
 
-# --- The interactive default path launches NO external command --------------
-# The strace case below proves the count where ptrace is available; this proves
-# the same property portably, and is the one that runs on the Windows host the
-# gate is tuned for (where a `$(uname -s)` cost three process creations). Every
-# external name the gate could reach for is replaced by a stub that records
-# itself and exits 99, so a regression names the offender instead of drifting a
-# number.
 NOSPAWN="$(mktemp -d "$WORK/nospawn.XXXXXX")"
 NOSPAWN_MARK="$WORK/nospawn-launched.txt"
-# The stub body uses NO external command: `basename` is itself on this list, so
-# a stub that called one would recurse instead of reporting.
 for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk date cksum find wc; do # portability-ok: a list of stub NAMES, not a date -d invocation
   # shellcheck disable=SC2016 # $0 is the STUB's own argument, expanded when it runs
   printf '#!/bin/sh\nprintf "%%s\\n" "$0" >>"%s"\nexit 99\n' "$NOSPAWN_MARK" >"$NOSPAWN/$t"
   chmod +x "$NOSPAWN/$t"
 done
 rm -f "$SETTINGS" "$NOSPAWN_MARK"
-# stdin is a FILE, not a pipe from build_input: the default path now exits
-# before the writer finishes, and under pipefail the writer's EPIPE would be
-# read as the hook's status.
 NOSPAWN_OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
   -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
   -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
@@ -1309,52 +977,11 @@ else
   ok "PATH-shim: the default path launches no external command at all"
 fi
 
-# --- An ENABLED session still resolves its config through the same path -----
-# The saving must come from deferring work the default path cannot use, never
-# from skipping a lookup a lane needs: a trusted-enabled session still blocks.
 write_settings true
 OUT="$(run "$(build_input Stop "no token" false)")"
 if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter lost uname"; else fail "the pre-filter change lost the enabled lane's block: $OUT"; fi
 
-# ============================================================================
-# #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
-# ============================================================================
-# This hook fires on EVERY Stop of every session, gated or not, so its cost on
-# the interactive default path is paid per turn fleet-wide against the 500 ms
-# per-turn ceiling in docs/contracts/hook-budget/README.md. Reading the code
-# cannot prove the count: bash execs a bare `$(cmd)` in the substitution's own
-# subshell only when the command carries no redirection of its own; a
-# `2>/dev/null`, a `<<<` or a pipeline written INSIDE the substitution forks
-# twice for one program, and a fork that never execs is invisible to an xtrace
-# command count. On the #3508 hosts a process creation is the unit of cost
-# (180-2,841 ms each), so the count that binds is this one.
-#
-# The trace runs `bash "$HOOK"` directly: it counts the script, not the `node`
-# launcher process hooks.json puts ahead of it.
-# Two paths are traced from the staged install:
-#   default (no gate footprint anywhere): EXACTLY 0 creations and 0 launches.
-#     The last one was the `uname -s` the managed-settings platform selection
-#     rests on; the pre-filter now tests the fixed primary of every platform
-#     with `[[ -f ]]` instead of asking which one to test, and the authoritative
-#     uname-selected load has moved below the pre-filter with the rest of the
-#     evaluated path. Everything else this path pays is builtin: a variable
-#     write per path helper and a read loop per settings file.
-#   enabled (user settings, first stop, no signal → block): a CEILING of 10
-#     creations and 5 launches. This hook's own share is 6 creations: the
-#     payload jq pass (3: process substitution, printf writer, jq),
-#     uname, the one settings jq, the block-decision jq. The remainder is
-#     hook::buffer_stdin_to in the synced shared library (its capture, its
-#     read-slice probe, its `printf | jq -e` validation pass), which this plugin
-#     does not own. A shared-library saving lowers the count without failing
-#     here; a regression in this plugin's own files raises it and does.
-# The named-program check pins what the reduction removed: no dirname, tr, sed,
-# grep, cksum or date on either path. Skipped where strace is unavailable (it
-# needs ptrace, which containers and macOS commonly withhold); CI keeps a Linux
-# lane that does not skip.
 if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
-  # trace_hook <input> → TRACE_CREATIONS, TRACE_LAUNCHES, TRACE_PROGS, TRACE_OUT.
-  # Same hermetic env as run/run_bare; the settings file is whatever the case
-  # left in place.
   trace_hook() {
     local input="$1" log="$WORK/gate-strace.log"
     TRACE_OUT=$(cd "$UNRELATED" && printf '%s' "$input" |
@@ -1366,14 +993,12 @@ if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve 
         CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
         strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$log" bash "$HOOK" 2>/dev/null)
     TRACE_CREATIONS=$(grep -cE '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null | tr -cd '0-9')
-    # Programs launched after the harness's own `bash "$HOOK"`; a failed execve
-    # attempt (a PATH miss, reported with ENOENT) launched nothing.
     TRACE_PROGS=$(grep -E '^[0-9]+ +execve\(' "$log" 2>/dev/null | grep -v 'ENOENT' |
       sed -E 's/^[0-9]+ +execve\("([^"]*)".*/\1/; s|.*/||' | tail -n +2 | tr '\n' ' ')
     TRACE_LAUNCHES=$(printf '%s' "$TRACE_PROGS" | wc -w | tr -cd '0-9')
     [[ -s "$log" ]]
   }
-  replaced_helper_back() { # <progs> — true when a helper this change removed is back
+  replaced_helper_back() {
     case " $1" in
     *' dirname '* | *' tr '* | *' sed '* | *' grep '* | *' cksum '* | *' date '*) return 0 ;;
     *) return 1 ;;
@@ -1424,10 +1049,6 @@ else
   ok "SKIP: strace unavailable — process-creation budget not asserted here"
 fi
 
-# The Stop row skips bash in the launcher with the same any-of test
-# gate_maybe_configured makes: either env presence, or a settings file that
-# mentions lane_stop_gate. Dropping ARM_ID from the list would skip an armed
-# lane. lib/exec-bash.gates.test.mjs proves the launcher side.
 if jq -e '[.hooks.Stop[].hooks[].args] == [[
     "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
     "--run-if-any-set", "LANE_STOP_GATE_ARM_ID,LANE_STOP_GATE_ENABLED",
