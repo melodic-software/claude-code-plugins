@@ -51,8 +51,13 @@ bash "<skill-dir>/scripts/monitor-poll.sh" --pr <N> --checkout "<checkout>"
 The script resolves `OWNER` and `REPO` from `--checkout` as
 [Resolve PR identity](#resolve-pr-identity) does, and exits 1 when `target-repo.sh` refuses. On a
 triangular flow, add `--repo <base-owner>/<repo>`, the PR's base repository named explicitly, which
-wins over `--checkout`. Raise `--interval <seconds>` (default 60) to poll less often with several
-watchers ([API budget](../README.md#api-budget)). `--once` exits 0 after the first poll that emits
+wins over `--checkout`. Every read is a conditional request: each page goes out with the ETag of
+its last answer, a `304 Not Modified` replays the cached body, and GitHub does not count an
+authorized 304 against the primary rate limit
+([conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests)),
+so a poll where nothing changed costs nothing. The comment reads keep `since` at the watch's start,
+because a changed query string gets a new ETag. Raise `--interval <seconds>` (default 90) only
+when the [API budget](../README.md#api-budget) arithmetic says so. `--once` exits 0 after the first poll that emits
 a line, for a background Bash run where the Monitor tool is unavailable. The first arming passes no `--baseline`; a re-arm
 passes `--baseline <file>`, the file this same script wrote in a snapshot run (`--snapshot <file>`:
 one state check and checks read, the `cur_checks` lines written under a marker line, then exit 0,

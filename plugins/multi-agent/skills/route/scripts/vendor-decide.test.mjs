@@ -992,3 +992,12 @@ test('AC8/AC20: image routes to capable vendor with claude-cannot; every capable
   assert.equal(resAllFailed.json.basis, 'user-choice')
   assert.ok(resAllFailed.json.notes.some((n) => /every image-capable vendor failed/i.test(n) && /user chooses/i.test(n)))
 })
+
+test('caller contract: the decision is the same with auto-delegation on or off', (t) => {
+  const off = twoBoards(t, codexLeadRecords(), { settings: { vendors: { routing: true, auto_delegation: false } } })
+  const on = twoBoards(t, codexLeadRecords(), { settings: { vendors: { routing: true, auto_delegation: true } } })
+  assert.equal(off.code, 0, off.stderr)
+  assert.equal(on.code, 0, on.stderr)
+  assert.equal(off.json.vendor, 'codex')
+  assert.deepEqual(on.json, off.json)
+})

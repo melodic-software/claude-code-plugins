@@ -522,6 +522,7 @@ const GATES = {
   "pr-unblock.yml": {
     "resolve-conflicts-select": "switch",
     "sync-shared-copies-select": "switch",
+    "fix-test-scope-select": "switch",
     "address-feedback-select": "switch",
     "adjudicate-feedback": "switch",
     "review-dependency-select": "switch",
@@ -537,6 +538,9 @@ const GATES = {
     "verify-env-scrub-subscription": "switch",
     "verify-env-scrub-fallback": "switch",
     "check-claude-function-flags": "switch",
+    "check-native-surfaces": "switch",
+    "push-native-baseline": "switch",
+    "publish-native-baseline": "switch",
     "push-branches": "switch",
     publish: "switch",
   },

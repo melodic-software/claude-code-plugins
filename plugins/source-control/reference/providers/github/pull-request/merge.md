@@ -140,7 +140,7 @@ esac
   || echo "pr-verify does not judge ${AUTHOR#* }: nothing to wait for"
 ```
 
-The verdict, read again on each 60-second pass (five calls, plus one per matching artifact):
+The verdict, read again on each 90-second pass (five calls, plus one per matching artifact):
 
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
@@ -175,7 +175,7 @@ flow, name the base repository in both scripts' first line, as the top of this f
 
 GitHub reports `mergeStateStatus` as `UNKNOWN` while it recomputes it after a push or a ready flip,
 and `gh pr merge` on a merge-queue base run then arms auto-merge instead of enqueueing. Poll at the
-pinned head over REST, at the [API budget](../README.md#api-budget)'s 60 s, while it reads
+pinned head over REST, at the [API budget](../README.md#api-budget)'s 90 s, while it reads
 `unknown`; go on only on `clean`:
 
 ```bash
@@ -262,7 +262,7 @@ For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. Ta
 `uuid` from the response. A 409 response carries the `uuid` of a request already pending for the
 PR, perhaps from an earlier run: poll that one and send no other request while it is pending, so
 there is one result to poll. Poll
-`gh api "repos/<owner>/<repo>/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until
+`gh api "repos/<owner>/<repo>/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 90 s until
 it reads one of the end statuses this procedure stops on: `merged`, `enqueued` or `failed`.
 
 - **Pointer**: when you need a request field, a response code or a status, fetch
@@ -325,7 +325,7 @@ queue, so [confirm queue entry](#confirm-queue-entry) before the poll.
 
 ### Poll the merge queue
 
-The wait reads REST every 60 s: the PR's state, and its latest queue event
+The wait reads REST every 90 s: the PR's state, and its latest queue event
 (`added_to_merge_queue` or `removed_from_merge_queue`). Only when that read changes does it read
 `isInMergeQueue` over GraphQL, once, to decide:
 

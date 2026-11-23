@@ -988,6 +988,7 @@ class PipelineConfig:
     # also held on (`issue_status`). None when the file sets none, which
     # reads labels alone. `stricter_config` takes main's when set.
     issue_status: IssueStatusConfig | None = None
+    baseline_file: str | None = None
 
 
 # The Work status states that hold an issue for a person (read-status.mjs
@@ -1194,6 +1195,7 @@ def read_config_at(
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
             ("merge.lane-prs", False),
+            ("merge.baseline-file", False),
             (ISSUE_HOLDS_KEY, True),
         ],
     )
@@ -1394,6 +1396,7 @@ def read_config_at(
         lane_prs=lane_prs,
         issue_holds=tuple(values[ISSUE_HOLDS_KEY]),
         issue_status=issue_status,
+        baseline_file=scalar("merge.baseline-file") or None,
     )
 
 
@@ -1478,6 +1481,9 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         self_merging_apps=main.self_merging_apps,
         issue_holds=_union(base.issue_holds, main.issue_holds),
         issue_status=main.issue_status or base.issue_status,
+        baseline_file=base.baseline_file
+        if base.baseline_file == main.baseline_file
+        else None,
     )
 
 
@@ -1521,7 +1527,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and c.rung in RUNG_RANK
             and all(
                 v is None or isinstance(v, str)
-                for v in (c.authority, c.agent_identity, c.loop_merge)
+                for v in (c.authority, c.agent_identity, c.loop_merge, c.baseline_file)
             )
             and all(
                 v is None or count(v, 0)
@@ -3467,6 +3473,28 @@ def _lane_authored(pr: dict[str, Any], agent_identity: str | None) -> bool:
         agent_identity
         and author.get("__typename") == "Bot"
         and _login_key(author.get("login")) == _login_key(agent_identity)
+    )
+
+
+def baseline_only(
+    pr: Mapping[str, Any],
+    agent_identity: str | None,
+    baseline_file: str | None,
+    paths: Sequence[str] | None,
+) -> bool:
+    """Whether the REST pull request `pr` is `agent_identity`'s Bot and
+    `paths`, every changed path with renamed-from paths, read whole, is
+    exactly `baseline_file` (`merge.baseline-file`; merge-holds.mjs
+    baselineOnly, which test_merge_holds_sync.py keeps equal). An unset file
+    takes no pull request."""
+    user = json_object(pr.get("user"))
+    return bool(
+        agent_identity
+        and baseline_file
+        and user.get("type") == "Bot"
+        and _login_key(user.get("login")) == _login_key(agent_identity)
+        and paths is not None
+        and list(paths) == [baseline_file]
     )
 
 

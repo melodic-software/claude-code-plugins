@@ -3,6 +3,14 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.0] - 2026-11-23
+
+### Changed
+
+- `debug` keeps the reproduction's drive `report.json` path and names it as the `--before` evidence in the fix hand-off.
+- `debug`'s surface pass reads a `conversations` data source, when one exists, for what users reported about the failure.
+- `debug`'s `## Next` names `/app-control:map refresh` for the report's lessons.
+
 ## [2.2.5] - 2026-11-23
 
 ### Fixed

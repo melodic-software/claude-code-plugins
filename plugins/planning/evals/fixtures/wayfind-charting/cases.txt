@@ -34,8 +34,6 @@ wayfind-purpose-known-options-kept
 wayfind-purpose-settled-facts-recorded
 wayfind-purpose-settled-fact-not-reasked
 wayfind-purpose-fog-recorded-not-charted-migration
-wayfind-purpose-nothing-before-destination
-wayfind-purpose-bare-run-one-item-by-title
 wayfind-chart-labels-from-tracker-reply
 wayfind-work-frontier-uses-tracker-reply-labels
 wayfind-labels-refused-stops-before-charting

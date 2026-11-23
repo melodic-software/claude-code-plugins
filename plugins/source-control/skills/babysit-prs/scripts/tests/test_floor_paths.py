@@ -59,6 +59,10 @@ PROMPT_TEXT = (
     ".github/scripts/intake-triage/refine-schema.json",
     ".github/scripts/plugin-eval/policy-probe-prompt.txt",
 )
+LANE_SCRIPTS = (
+    ".github/scripts/pr-unblock/test-scope.mjs",
+    ".github/scripts/pr-unblock/declare-test-scope.mjs",
+)
 
 
 def digest(items) -> str:
@@ -96,21 +100,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 164)
+        self.assertEqual(len(FLOOR.classes), 167)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "2a0b641dde48ad14a22a4ad3f2e9f94b84f8515aff5d1fb8014c2ae325241512",
+            "700e7029e0ee4fa0e5197bb9912c1dbb1ca43b0b9fa98a52518d3dd4d6c585b0",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "15af0be2540c0c1e718af14564ab6340e12bfef5b2326592992880c8675462b8",
-            FLOOR.review: "699fc1687656a949405ec67945915c78b6b1ff35ad4bfa03f36a63d0ab9b2d58",
+            FLOOR.high: "945bd54b1ad8d56e4602cedef8c10153954e011e5227018be34a981e5eee2f76",
+            FLOOR.review: "569b3a4dbbceceed73017600dd42ee834a40a53e8a59c9fb151f116aa09259c2",
             FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (98, 66, 24),
+            (100, 67, 24),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -176,7 +180,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 164 - 32)
+        self.assertEqual(len(ROWS), 167 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
@@ -200,19 +204,20 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
     """Owner decision Q11 (A): a person clears these whatever the author did."""
 
     def test_they_stay_gate_rows_marked_no_lift(self):
-        for glob in REVIEW_SURFACE + PROMPT_TEXT:
+        for glob in REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS:
             with self.subTest(glob):
                 self.assertIn((glob, "gate", False), ROWS)
                 self.assertNotIn(glob, FLOOR.author_review)
 
     def test_only_those_rows_refuse_the_lift(self):
         self.assertEqual(
-            {g for g, _, lift in ROWS if not lift}, {*REVIEW_SURFACE, *PROMPT_TEXT}
+            {g for g, _, lift in ROWS if not lift},
+            {*REVIEW_SURFACE, *PROMPT_TEXT, *LANE_SCRIPTS},
         )
 
     def test_an_author_reviewed_path_on_one_still_holds_for_a_person(self):
         for glob, sample in zip(
-            REVIEW_SURFACE + PROMPT_TEXT,
+            REVIEW_SURFACE + PROMPT_TEXT + LANE_SCRIPTS,
             (
                 ".github/scripts/pr-review-main/record.mjs",
                 ".github/scripts/diff-chunking/diff_chunking.py",
@@ -221,6 +226,7 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
                 "docs/standards/REVIEW.md",
                 "docs/review/README.md",
                 *PROMPT_TEXT,
+                *LANE_SCRIPTS,
             ),
             strict=True,
         ):

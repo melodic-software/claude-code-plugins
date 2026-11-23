@@ -475,7 +475,7 @@ later. Where each plugin variable resolves: the plugins reference,
   so the merge gate correctly refuses. Breaking the cycle is a one-time human admin-merge
   bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
   never as a reason to route around the gate
-- **Every worker draws on one forge [API budget](../../reference/providers/github/README.md#api-budget):** one background watcher per PR at 60 s or slower, writes one at a time, stop at the first rate-limit error
+- **Every worker draws on one forge [API budget](../../reference/providers/github/README.md#api-budget):** one background watcher per PR at 90 s or slower, writes one at a time, stop at the first rate-limit error
 
 ## Reference index. Load on demand
 

@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.9.0] - 2026-11-23
+
+### Changed
+
+- `pull-request evidence` names the two sources of a `--before` report: the `/debugging:debug` reproduction run's drive report, or an `/app-control:drive` run on a worktree at the PR's base commit.
+
+- `pull-request` prep §1.5 is called the pre-PR check throughout, and `create` and `ready` name it the same way. Each SKIP it reports carries its reason, and a run where every check skipped is "not verified", never clean.
+
+### Fixed
+
+- **Review evidence and an earlier head's kill-switch failure.** A run on an earlier head whose kill-switch job failed before any lane job existed (a setup error, for one) reviewed nothing, so it no longer unbinds the lane with `no-lane-job`. At the pinned head such a run still unbinds.
+
 ## [13.8.6] - 2026-11-23
 
 ### Fixed

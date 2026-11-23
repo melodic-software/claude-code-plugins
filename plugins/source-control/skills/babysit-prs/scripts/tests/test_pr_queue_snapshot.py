@@ -1,16 +1,3 @@
-"""Snapshot CLI: exit-code taxonomy and config assembly.
-
-Exit-code taxonomy covers every code the module documents (0/1/2/3), including
-the split that distinguishes an advisory-only head-ref alias failure (valid
-snapshot) from a substantive per-PR hydration failure.
-
-Config assembly covers the decoupling of the self-identity suppression set from
-the discovery `--author` filter, and -- for `--pr` scope -- that the resolved set
-is consumed by the classifier arms that read it, not merely populated. `@me`
-resolution and every per-PR fetch are stubbed by monkeypatching the `babysit_gh`
-seam; no real gh process is spawned.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -87,8 +74,6 @@ class SubstantiveErrors(unittest.TestCase):
         )
 
     def test_advisory_only_reports_complete_via_helper(self):
-        # `complete` is `not substantive_errors(errors)`; an advisory-only run
-        # is still a complete sweep even though `errors` is non-empty.
         self.assertFalse(bool(snapshot.substantive_errors([_advisory_error()])))
 
 
@@ -361,8 +346,6 @@ class SinglePrScopeSelfLoginTests(unittest.TestCase):
                 state_dir=state_dir,
                 write_state=False,
             )
-            # view_pr raises so the per-PR loop is a no-op; the assertion is
-            # about the identity resolution that runs before it.
             with (
                 mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"),
                 mock.patch.object(gh, "resolve_authors", return_value=[]),
@@ -391,8 +374,6 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
         RepoConfigFake().install(self)
 
     def _resolve_via_snapshot(self, args: argparse.Namespace) -> list[str]:
-        # view_pr raises so the per-PR loop is a no-op; the assertion is about
-        # the self-identity resolution that runs before it.
         with (
             mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"),
             mock.patch.object(gh, "parse_repo_number", return_value=("owner/repo", 1)),

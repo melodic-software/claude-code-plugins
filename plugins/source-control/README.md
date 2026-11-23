@@ -66,7 +66,7 @@ research-gated:
   show. `conflicts --ci` is the same discipline for the pr-unblock lane.
 - **monitor**. Async event loop over CI checks + review comments. Event
   delivery prefers a push channel when your environment ships one, falls back
-  to a Monitor watch re-armed at each deadline (60s REST poll), or polling in
+  to a Monitor watch re-armed at each deadline (90s REST poll), or polling in
   cloud sessions, which also subscribe to the PR's activity so reviews and
   failed checks wake them early. CI failures are read from complete logs via the
   bundled annotation/ZIP fetch scripts (`gh run view --log-failed`

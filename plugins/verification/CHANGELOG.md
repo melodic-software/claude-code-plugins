@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-11-23
+
+### Changed
+
+- `confirm` passes a handed-in `--before` drive report on to `/source-control:pull-request evidence`.
+
 ## [0.29.4] - 2026-11-23
 
 ### Changed
