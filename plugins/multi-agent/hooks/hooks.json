@@ -8,7 +8,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"
+            ],
             "timeout": 10,
             "onFailure": "block",
             "statusMessage": "Checking the drift-checker fetch host..."
@@ -45,8 +47,10 @@
               "${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs",
               "multi-agent:registry-fetcher",
               "arena.ai",
+              "artificialanalysis.ai",
               "cursor.com",
-              "www.tbench.ai"
+              "www.tbench.ai",
+              "www.vals.ai"
             ],
             "timeout": 10,
             "onFailure": "block"

@@ -24,7 +24,7 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   : 4
 const AS_OF = typeof input.asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.asOf) ? input.asOf : null
 
-const REGISTRY_HOSTS = ['arena.ai', 'cursor.com', 'www.tbench.ai']
+const REGISTRY_HOSTS = ['arena.ai', 'artificialanalysis.ai', 'cursor.com', 'www.tbench.ai', 'www.vals.ai']
 const WORK_TYPES = ['coding', 'web-ui', 'knowledge', 'image']
 const ROW_STATUSES = ['permanent', 'support-only']
 const MODEL_CHECKS = ['yes', 'no', 'unclear']
