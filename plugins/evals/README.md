@@ -87,9 +87,9 @@ write its `matchers.json` entry, run `check-matchers.py --write`, and add `sampl
 
 ## Upstream sync
 
-The reference content distills a live Anthropic doc page. Every reference file carries a
-"fetched YYYY-MM-DD" stamp; `/evals:methodology update` is the maintainer drift-check action that
-re-fetches both sources, diffs, corrects, and refreshes the stamps.
+The methodology skill points at live Anthropic pages and holds only this repository's decisions;
+`/evals:methodology update` is the maintainer drift-check action that fetches each linked section,
+confirms its anchor resolves and that the decisions still follow from it, and fixes what moved.
 
 ## Eval-warrant verdicts
 
@@ -135,8 +135,8 @@ where this repository departs from a source, the record is in the methodology sk
 No hooks and no MCP servers. The methodology, design, and validate surfaces make no network calls
 and no model calls; a `claude plugin eval` run does, on your own account, which is what the estimate
 and the ceiling exist for. The one other outbound surface is the maintainer-only
-`/evals:methodology update` action, which re-fetches the two upstream Anthropic doc pages to
-drift-check the distilled reference files.
+`/evals:methodology update` action, which fetches the upstream Anthropic pages the skill links to
+drift-check its pointers.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
