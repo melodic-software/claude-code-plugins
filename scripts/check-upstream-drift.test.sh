@@ -507,6 +507,57 @@ run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/n
 want_rc "allow list, git read fails, default mode" 2
 no_out "allow list, git read fails, default mode"
 
+stub_api
+mkdir -p "$f/fail-ls-remote"
+cat >"$f/fail-ls-remote/git" <<EOS
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == "ls-remote" ]]; then
+    echo "fatal: unable to access remote" >&2
+    exit 128
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/fail-ls-remote/git"
+run_env PATH="$f/fail-ls-remote:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, ls-remote fails after pin fetch, --report" 0
+want_out_line "allow list, ls-remote fails after pin fetch, --report" "page repo=acme/widgets pin=${GPIN:0:12} head=unknown status=unreachable path=$PAGE"
+want_err "allow list, ls-remote fails after pin fetch, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous git read failed (git: fatal: unable to access remote); not checked"
+tmp_clean "allow list, ls-remote fails after pin fetch, --report"
+
+run_env PATH="$f/fail-ls-remote:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, ls-remote fails after pin fetch, default mode" 2
+no_out "allow list, ls-remote fails after pin fetch, default mode"
+
+stub_api
+scoped_page
+mkdir -p "$f/fail-head-fetch"
+cat >"$f/fail-head-fetch/git" <<EOS
+#!/usr/bin/env bash
+is_fetch=0
+has_head=0
+for arg in "\$@"; do
+  [[ "\$arg" == "fetch" ]] && is_fetch=1
+  [[ "\$arg" == "$GHEAD" ]] && has_head=1
+done
+if ((is_fetch && has_head)); then
+  echo "fatal: remote hung up unexpectedly" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/fail-head-fetch/git"
+run_env PATH="$f/fail-head-fetch:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+want_rc "allow list, HEAD fetch fails after ls-remote, --report" 0
+want_out_line "allow list, HEAD fetch fails after ls-remote, --report" "page repo=acme/widgets pin=${GPIN:0:12} head=unknown status=unreachable path=$PAGE"
+want_err "allow list, HEAD fetch fails after ls-remote, --report" "$PAGE: acme/widgets refused the token (IP allow list) and an anonymous git read failed (git: fatal: remote hung up unexpectedly); not checked"
+tmp_clean "allow list, HEAD fetch fails after ls-remote, --report"
+
+run_env PATH="$f/fail-head-fetch:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, HEAD fetch fails after ls-remote, default mode" 2
+no_out "allow list, HEAD fetch fails after ls-remote, default mode"
+
 {
   printf '# Widgets\n\n'
   # shellcheck disable=SC2016
