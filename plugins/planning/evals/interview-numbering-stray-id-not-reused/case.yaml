@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: interview-numbering-stray-id-not-reused
+context:
+  scaffold_script: scaffold.sh

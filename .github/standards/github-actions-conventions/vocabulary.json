@@ -106,6 +106,7 @@
       { "name": "tag", "status": "in-use" }
     ],
     "maintenance": [
+      { "name": "audit-action-pins", "status": "in-use" },
       { "name": "audit-code-review-rules", "status": "in-use" },
       { "name": "audit-lane-runs", "status": "in-use" },
       { "name": "audit-link-check-excludes", "status": "in-use" },

@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-bare-vague-build-asks
 description: A bare vague build request with no slash command gets a question about the problem or scope before any source is written
-tags: [interview, bare-prompt, vague-build, scaffold]
+tags: [interview, bare-prompt, vague-build, scaffold, no-network]
 expected_outcome: The reply asks the user about the problem, the users or the scope of notifications (which events, which channel, who receives them) before building; no Write or Edit touches a file under src/.
 context:
   scaffold_script: scaffold.sh

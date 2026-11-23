@@ -199,3 +199,13 @@ pacings on this task; what differs is turns, about 12 single-pacing messages for
 Grader miss, reported and not re-graded (graders are frozen once a run starts): round run 3 asks D
 as "Can the export be asynchronous instead of an immediate download?", which `covers-d` does not
 match, so it counts as no D. Read by hand, Cr is 6/6 and the verdict is the same.
+
+## Amendment 3 (2026-11-21, cases retired)
+
+The six `interview-pacing-*` cases are removed from the suite. The experiment concluded with run 3
+(ROUNDS HOLD UP) and measured a round layout that has since changed: rounds now print at a
+`question_detail` level, `standard` by default, which shows no `Basis:` line. This file freezes the
+graders once a run starts, so the cases are retired, not edited. Question quality at the new layout
+is checked by `interview-round-quality-standard`, which reuses the round-arm prompt and is not part
+of this experiment. To rerun the experiment, restore the six case folders from the commit before
+their removal.
