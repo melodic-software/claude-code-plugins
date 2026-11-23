@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// Prints the known-issues registry directory as JSON, resolved through the config cascade
-// (lib/config-cascade.mjs, ADR 0075): the plugin default, the registry_dir userConfig option, the
-// team file <home>/harness-ops.yaml and the personal override <home>/harness-ops.local.yaml, later
-// layer winning, <home> from the convention-home pointer line.
-//   {"registry_dir": value | null, "layer": "default" | "userConfig" | "team" | "local",
-//    "path": the supplying file relative to the project | null,
-//    "data_dir": the absolute registry directory | null (null: use the plugin data directory),
-//    "home": dir | null, "home_skipped"?: why no repository file is read, "errors": [...]}
-// Every layer's value must be made of letters, digits, `.`, `_`, `-`, `/` and `\` only: data_dir is
-// pasted into a double-quoted shell argument, where `$(...)`, backticks and quotes would run or break
-// out, and a committed file is text from whoever can push to the repository. That is stricter than
-// the hooks' rule, which never meets a shell. The value must then be a contained relative path, the
-// rule hooks/harness-ops-paths.sh (harness_ops::resolve_project_relative_dir) applies to the hook
-// paths: no rooted, drive or UNC path, no `..` segment with either separator, and no existing
-// symlink on the way that leads outside its base. A value that fails either rule, or the schema, is
-// named with its layer, file, key and value and dropped: an invalid team or userConfig value
-// resolves to the default, never to a lower layer, and an invalid personal value leaves the value
-// below it standing.
-// Usage: registry-dir.mjs [--project DIR] [--user-registry-dir VALUE]
-// --project (default: the current directory) is the session's project directory. The userConfig
-// value joins to it as given, so a session started in a subdirectory keeps the registry it always
-// had; the team and personal files and their values anchor at its git toplevel, where <home> lives.
-// --user-registry-dir is the option as the skill renders it; an empty value or an unrendered
-// placeholder is unset.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -91,8 +67,6 @@ function check(value, base) {
 
 const schema = JSON.parse(readFileSync(join(ROOT, "schemas/harness-ops.schema.json"), "utf8"));
 const { home, skipped } = conventionHome();
-// The scratch directory stands in for the user home (only legacy files are looked up there) and,
-// with no usable convention home, for the home itself, so neither repository file is read.
 const scratch = mkdtempSync(join(tmpdir(), "harness-ops-registry-dir-"));
 let layers;
 try {
@@ -107,7 +81,6 @@ const errors = [];
 let result = DEFAULT;
 for (const layer of layers) {
   const path = home === null || !layer.path ? null : relative(project, layer.path);
-  // Errors about this key or about the whole file; other keys belong to other readers.
   layer.errors.forEach((e, i) => [KEY, null].includes(layer.error_keys[i]) && errors.push(e));
   const value = layer.values[KEY];
   let invalid = layer.error_keys.includes(KEY);

@@ -1,6 +1,4 @@
 # Repository-wide text checks in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
-# Lint-only: /toolchain:lint runs it, /toolchain:check does not, and no
-# code-metrics lane reads it.
 globs: ["**"]
 build-cmd: null
 test-cmd: null

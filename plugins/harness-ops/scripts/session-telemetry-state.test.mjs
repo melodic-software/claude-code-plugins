@@ -10,7 +10,6 @@ const ID = "session-telemetry@acme";
 const INSTALL = `claude plugin install ${ID}`;
 const ENABLE = `claude plugin enable ${ID}`;
 
-// A config dir with session-telemetry installed (or not) and enabled (or not) in user settings.
 function config({ installed, enabled, options }) {
   const dir = tempDir("st-state-");
   mkdirSync(path.join(dir, "plugins"), { recursive: true });

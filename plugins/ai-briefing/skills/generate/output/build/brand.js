@@ -1,15 +1,8 @@
-// Neutral default brand that emit-slides-data.js embeds into slides-data.js. A consumer
-// profile overlays org name, tagline, logos, and theme; edit this file only on a rebrand.
-//
-// `logoColor` / `logoWhite` are empty by default (no bundled org logo); the build
-// scripts skip logo embedding when empty. A profile supplies logo asset paths.
-
 export const brand = {
   org: "AI Briefing",
   tagline: "AI industry news, aggregated and ranked.",
   logoColor: "",
   logoWhite: "",
-  // Footer rendered by the build scripts as "<org> · AI Meeting #<meeting_n> · <date>".
   footerTemplate: "{org} · AI Meeting #{meeting_n} · {date}",
 };
 
