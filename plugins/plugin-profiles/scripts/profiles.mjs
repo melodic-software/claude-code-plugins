@@ -1180,7 +1180,8 @@ function hookInput(io) {
 }
 
 /**
- * Records this session as the folder's last, with its profile or none, and the profile it runs in under its id; returns the line
+ * Records this session as the folder's last, with its profile or none, unless it is a claude -p or Agent SDK session, which
+ * claude -c skips (https://code.claude.com/docs/en/cli-reference); and the profile it runs in under its id; returns the line
  * for a resumed session whose profile changed: to another, to one from none, or to none.
  */
 function sessionStartRecord(where, env, input) {
@@ -1188,9 +1189,11 @@ function sessionStartRecord(where, env, input) {
   const name = sessionProfile(env);
   const profiled = Boolean(name && env[SESSION_FILE_VAR]);
   const at = new Date().toISOString();
-  const folderFile = byFolderFile(where.dataDir, where.projectDir);
-  replaceFile(folderFile, `${JSON.stringify({ sessionId: input.session_id, profile: profiled ? name : null, at }, null, 2)}\n`);
-  sweepSessions(where, folderFile, byFolderDir(where.dataDir));
+  if (where.surface.id !== "sdk-cli") {
+    const folderFile = byFolderFile(where.dataDir, where.projectDir);
+    replaceFile(folderFile, `${JSON.stringify({ sessionId: input.session_id, profile: profiled ? name : null, at }, null, 2)}\n`);
+    sweepSessions(where, folderFile, byFolderDir(where.dataDir));
+  }
   if (profiled) {
     const before = input.source === "resume" ? sessionRecord(where, input.session_id) : null;
     const added = addedIn(env[SESSION_FILE_VAR]);

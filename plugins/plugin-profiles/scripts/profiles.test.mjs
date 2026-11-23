@@ -1916,6 +1916,17 @@ test("#18319 AC6: a resumed session's start notice names a profile change both w
   assert.doesNotMatch(hookStart(w, { session_id: "new-3", source: "startup" }, reviewEnv), /now runs in/, "a fresh start says nothing");
 });
 
+test("#18319: a claude -p or Agent SDK session start leaves the folder's record unchanged, since claude -c skips those sessions", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const before = folderRecordOf(w);
+  hookStart(w, { session_id: "headless-2", source: "startup" }, { CLAUDE_CODE_ENTRYPOINT: "sdk-cli" });
+  assert.deepEqual(folderRecordOf(w), before);
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "--settings", file, "-c"]);
+  hookStart(w, { session_id: "plain-3", source: "startup" });
+  assert.equal(folderRecordOf(w).sessionId, "plain-3", "an interactive CLI session still replaces it");
+});
+
 test("#18319: -c starts plain once the folder's last session was resumed without its profile", () => {
   const w = world();
   sessionInBuild(w, "abc-1");
