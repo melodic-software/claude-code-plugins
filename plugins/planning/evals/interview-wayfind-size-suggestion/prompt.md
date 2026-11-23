@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The reply suggests /planning:wayfind chart once, giving the register's 31 questions against the threshold of 27, and carries on with round 7 without waiting for an answer to the suggestion or switching on its own"
+expected_outcome: "The reply suggests /planning:wayfind chart once, giving the register's 31 questions (32 counting Q32, asked in the same message) against the threshold of 27, and carries on with round 7 without waiting for an answer to the suggestion or switching on its own"
 ---
 
 /planning:interview me: resume the billing-consolidation interview. Its ledger is `.work/billing-consolidation/interview-checklist.md`.
