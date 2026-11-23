@@ -25,7 +25,6 @@ AUDITOR_N=$(norm "$AUDITOR")
 SKILL_N=$(norm "$SKILL")
 CONFIG_N=$(norm "$CONFIG")
 
-# all_three <label> <fixed-phrase>
 all_three() {
   local label="$1" phrase="$2" where=""
   [[ "$AUDITOR_N" == *"$phrase"* ]] || where="auditor.md"
