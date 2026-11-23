@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Benchmark verdict record",
+  "description": "Closed schema for one VerdictRecord produced by board-reader from a fetched benchmark page and validated by vendor-decide. Unknown fields are rejected.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "workload",
+    "vendor",
+    "model",
+    "version",
+    "effort",
+    "verdict",
+    "error_range",
+    "page_date",
+    "read"
+  ],
+  "properties": {
+    "source_id": {
+      "description": "Registry row id for the benchmark page. Stamped from the fetch manifest by vendor-decide.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "workload": {
+      "description": "Work type this verdict applies to.",
+      "type": "string",
+      "enum": ["coding", "web-ui", "knowledge", "image"]
+    },
+    "vendor": {
+      "description": "Vendor identifier (for example claude, codex, gemini).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "model": {
+      "description": "Candidate model id evaluated on the board, or null when abstaining or unread.",
+      "type": ["string", "null"]
+    },
+    "version": {
+      "description": "Model version string if reported on the page, else null.",
+      "type": ["string", "null"]
+    },
+    "effort": {
+      "description": "Effort or reasoning level reported on the page, else null.",
+      "type": ["string", "null"]
+    },
+    "verdict": {
+      "description": "Relative standing of this vendor on the board for this workload.",
+      "type": "string",
+      "enum": ["lead", "tie", "behind", "abstain"]
+    },
+    "error_range": {
+      "description": "True only when the benchmark publishes an error range and a lead lies outside it.",
+      "type": "boolean"
+    },
+    "page_date": {
+      "description": "YYYY-MM-DD date from a dated row, release column or changelog entry, or null when undated. Stamped from the fetch manifest by vendor-decide.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "read": {
+      "description": "Read state of the page. Stamped from the fetch manifest by vendor-decide.",
+      "type": "string",
+      "enum": ["live", "cached-stale", "unread"]
+    },
+    "tokens": {
+      "description": "Optional published token usage figure for this candidate on the board (no prices).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit", "source"],
+      "properties": {
+        "value": {
+          "description": "Numeric token count.",
+          "type": "number",
+          "minimum": 0
+        },
+        "unit": {
+          "description": "Token count unit (for example tokens/task, output-tokens/run).",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "Board or table label that published the token count.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
