@@ -6464,7 +6464,30 @@ jobs:
               issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
             fi
           fi
-          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
+          # The lanes App's pull request whose files are exactly the native-surface
+          # baseline needs no issue link (merge-holds.mjs baselineOnly, owner
+          # decision Q152 (B)): its REST author and every page of its files,
+          # renamed-from paths included, judged by the base's module. A read, a
+          # short list or a module without baselineOnly keeps the link rule.
+          baseline=false
+          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; } &&
+            pull_rest=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr") &&
+            gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate --jq '.[] | [.filename, .previous_filename] | @json' >"$RUNNER_TEMP/queued-files.jsonl" &&
+            [ "$(grep -c . "$RUNNER_TEMP/queued-files.jsonl")" = "$(jq -r '.changed_files' <<<"$pull_rest")" ]; then
+            jq -c '.user' <<<"$pull_rest" >"$RUNNER_TEMP/queued-user.json"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            baseline=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [user, files, appId, module] = process.argv.slice(1);
+              const { baselineOnly } = await import(pathToFileURL(module).href);
+              const paths = readFileSync(files, "utf8").split("\n").filter(Boolean).flatMap((line) => JSON.parse(line).filter((path) => typeof path === "string"));
+              console.log(typeof baselineOnly === "function" && baselineOnly(JSON.parse(readFileSync(user, "utf8")), paths, appId) === true);' \
+              "$RUNNER_TEMP/queued-user.json" "$RUNNER_TEMP/queued-files.jsonl" "$LANES_APP_ID" "$module") || baseline=false
+          fi
+          if [ "$baseline" = true ]; then
+            echo "#$pr is the lanes App's and changes only the native-surface baseline, which needs no issue link."
+          fi
+          if [ "$lanes" = true ] && [ "$baseline" != true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
             why="its Refs: lines name no single issue"
             [ "$total" -eq 0 ] || why="it closes $total issue(s), none or more than one here"
             echo "::error::#$pr is the lanes App's and does not link exactly one issue in this repository, as pr-merge's lane takes it: $why; a person merges it."

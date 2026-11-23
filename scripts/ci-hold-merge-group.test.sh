@@ -94,6 +94,16 @@ case "$*" in
 *issues/18/labels*)
   [[ -z "${STUB_ISSUE_LABELS:-}" ]] || tr ',' '\n' <<<"$STUB_ISSUE_LABELS"
   ;;
+*pulls/6419/files*)
+  [[ -n "${STUB_FILES:-}" ]] || exit 1
+  [[ "$2" != -i ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  printf '%s\n' "$STUB_FILES"
+  ;;
+*pulls/6419*)
+  [[ -n "${STUB_PULL:-}" ]] || exit 1
+  [[ "$2" != -i ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  printf '%s\n' "$STUB_PULL"
+  ;;
 *) exit 1 ;;
 esac
 EOF
@@ -262,7 +272,7 @@ trust() {
 UNTRUSTED='provenance: untrusted'
 
 # Exported once and emptied, never unset, so each assignment reaches the step.
-export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS=''
+export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS='' STUB_PULL='' STUB_FILES=''
 trust "a person's pull request reads no issue" 0 1 "is a person's pull request"
 STUB_LINK="$(link Bot "[$(issue 16 '["agent-ready"]')]")"
 trust "an automation's pull request whose issue is clean passes" 0 2 "carries no label naming untrusted work"
@@ -338,6 +348,24 @@ STUB_LINK="$(link Bot '[]' '' "$app_id")"
 trust "an empty lanes App id fails a bot's unlinked pull request closed" 1 1 "::error::the bot author id of #6419 could not be read"
 LANES=$app_id
 STUB_LINK='' STUB_ISSUE_LABELS=''
+
+NATIVE=docs/upstream/claude-code-native-surfaces.min.json
+STUB_LINK="$(link Bot '[]' 'No related issue: baseline.' "$LANES")"
+STUB_PULL="$(jq -nc --arg login "$identity" --argjson id "$LANES" '{user: {login: $login, id: $id, type: "Bot"}, changed_files: 1}')"
+STUB_FILES="[\"$NATIVE\",null]"
+trust "the lanes App's native-surface baseline linking nothing passes" 0 1 "changes only the native-surface baseline"
+STUB_PULL="$(jq -c '.changed_files = 2' <<<"$STUB_PULL")" STUB_FILES="[\"$NATIVE\",null]
+[\"docs/a.md\",null]"
+trust "the baseline beside another file still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_FILES="[\"$NATIVE\",null]"
+trust "a file list shorter than the count still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_PULL="$(jq -c '.changed_files = 1' <<<"$STUB_PULL")" STUB_FILES="[\"$NATIVE\",\"docs/upstream/old.json\"]"
+trust "the baseline renamed into place still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_PULL="$(jq -c '.user.id = 1' <<<"$STUB_PULL")" STUB_FILES="[\"$NATIVE\",null]"
+trust "another bot id's baseline still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_PULL='' STUB_FILES=''
+trust "an unread pull request still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_LINK=''
 
 # A jq error is neither a match nor a miss: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[null]')]")"
