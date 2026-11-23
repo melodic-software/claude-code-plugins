@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/route.sh worker session=opus --user-file ''"
+          }
+        }
+      ],
+      "why": "stops before vendor-decide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/vendor-decide --task-type coding --settings /tmp/s/settings.json"
+          }
+        }
+      ],
+      "why": "ran the decider although the caller-contract request stops at step 2"
+    }
+  ]
+}

@@ -50,7 +50,7 @@ Re-check all check runs for any state changes, then re-check for new comments si
    check reads
    ([GitHub](../../../reference/providers/github/pull-request/merge.md#read-the-pr-verify-verdict)),
    and merge or enqueue on a pass. While the read answers `missing` (pr-verify has not judged that
-   head yet), read it again every 60 seconds, for up to 30 minutes. A FAIL at the head, a moved
+   head yet), read it again every 90 seconds, for up to 30 minutes. A FAIL at the head, a moved
    head or a failed read is a hold to report. Still `missing` after 30 minutes (pr-verify down, or
    a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. The
    merge queue's own check requires a pass only for some authors, so a pr-verify outage must not
@@ -76,7 +76,7 @@ covers, and what it does not after arming:
 gate: a merge the forge or the permission layer refuses is reported with its error text and the
 session moves on to other work, never handed to the user as a command to run and never retried in
 another shape. Before any merge call, poll the PR's merge state at
-the pinned head over REST every 60 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
+the pinned head over REST every 90 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
 

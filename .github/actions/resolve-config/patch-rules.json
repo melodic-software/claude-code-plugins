@@ -69,6 +69,19 @@
     "empty-at-push": "invalid",
     "escalations": ["dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path"]
   },
+  "test-scope": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "allow": ["test-suites"],
+    "max-files": 20,
+    "requires": [],
+    "content-rule": "test-scope-lines",
+    "api-only": true,
+    "commit": { "parents": ["head"], "message": "Declare the suites' test-scope reads on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
+    "escalations": ["test-scope-invalid", "test-scope-not-applied", "test-scope-protected-path"]
+  },
   "merge-base": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],

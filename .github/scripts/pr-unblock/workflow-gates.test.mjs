@@ -823,6 +823,7 @@ test("pr-unblock.yml: report-stop-status posts on the commit the activity's push
     ["apply-cdn-pins-sync", "review-dependency-select"],
     [null, "fix-ci-context"],
     [null, "sync-shared-copies-select"],
+    [null, "fix-test-scope-select"],
   ];
   const block = jobBlock(UNBLOCK, "report-stop-status");
   const needs = block.slice(block.indexOf("    needs:") + 1, block.findIndex((line) => /^ {4}if: /.test(line))).map((line) => line.replace(/^ {6}- /, ""));
@@ -1763,7 +1764,7 @@ test("the write runner's apply-patch base holds the base CDN registry and script
     for (const sub of [".github/actions/resolve-config", ".github/scripts/lib", ".github/scripts/pr-unblock", ".github/scripts/pr-merge", "lib/cdn-pins"]) {
       mkdirSync(join(base, sub), { recursive: true });
     }
-    for (const file of ["lib/retry-fetch.mjs", "lib/run-main.mjs", "lib/lane-branch.mjs", "pr-unblock/thread-scope.mjs", "pr-unblock/dependency-classify.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "pr-merge/merge-holds.mjs"]) {
+    for (const file of ["lib/retry-fetch.mjs", "lib/run-main.mjs", "lib/lane-branch.mjs", "pr-unblock/thread-scope.mjs", "pr-unblock/test-scope.mjs", "pr-unblock/dependency-classify.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "pr-merge/merge-holds.mjs"]) {
       writeFileSync(join(base, ".github/scripts", file), "");
     }
     writeFileSync(join(base, ".github/actions/resolve-config/patch-rules.json"), "{}");

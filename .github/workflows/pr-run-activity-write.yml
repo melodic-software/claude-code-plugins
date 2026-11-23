@@ -732,6 +732,8 @@ jobs:
             shared-copy-tooling-changed | shared-copy-path-unregistered | shared-copy-workflow-staged) ;;
             shared-copy-unexpected-path-staged | shared-copy-patch-invalid | shared-copy-patch-not-applied) ;;
             shared-copy-patch-protected-path | shared-copy-merge-conflicted) ;;
+            test-scope-invalid | test-scope-not-applied | test-scope-protected-path) ;;
+            test-scope-not-all-gaps | test-scope-gaps-remain) ;;
             patch-empty | patch-invalid | patch-credential | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
@@ -1450,6 +1452,7 @@ jobs:
           cp .base/.github/scripts/lib/run-main.mjs "$RUNNER_TEMP/lib/"
           cp .base/.github/scripts/lib/lane-branch.mjs "$RUNNER_TEMP/lib/"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
+          cp .base/.github/scripts/pr-unblock/test-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/escalation-routes.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/escalation-routes.json "$RUNNER_TEMP/pr-unblock/"
@@ -1742,7 +1745,7 @@ jobs:
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             # These apply-patch rows give their own reasons alone.
             case "$PREPARE:$PATCH_PREPARE" in
-              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:cdn-pins-sync | apply-patch:shared-copies)
+              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:cdn-pins-sync | apply-patch:shared-copies | apply-patch:test-scope)
                 case "$PATCH_PREPARE:$escalation" in
                   merge-base:unresolved-conflict | merge-base:workflow-staged | merge-base:unexpected-path-staged) ;;
                   merge-base:conflict-patch-invalid | merge-base:conflict-patch-not-applied | merge-base:conflict-patch-protected-path) ;;
@@ -1751,6 +1754,7 @@ jobs:
                   cdn-pins-sync:dependency-pin-invalid | cdn-pins-sync:dependency-pin-not-applied | cdn-pins-sync:dependency-pin-protected-path) ;;
                   shared-copies:shared-copy-workflow-staged | shared-copies:shared-copy-unexpected-path-staged) ;;
                   shared-copies:shared-copy-patch-invalid | shared-copies:shared-copy-patch-not-applied | shared-copies:shared-copy-patch-protected-path) ;;
+                  test-scope:test-scope-invalid | test-scope:test-scope-not-applied | test-scope:test-scope-protected-path) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac
                 echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"

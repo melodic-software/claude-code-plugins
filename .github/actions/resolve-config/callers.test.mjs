@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -24,10 +25,11 @@ import { gunzipSync } from "node:zlib";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
-import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
+import { commitMessage, loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
 import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
+import { TRAILER as TEST_SCOPE_TRAILER } from "../../scripts/pr-unblock/declare-test-scope.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
@@ -847,9 +849,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "review-cdn-pins-sync-patch",
     "apply-dependency-relock",
     "apply-cdn-pins-sync",
+    "fix-test-scope-select",
+    "apply-test-scope",
   ];
-  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin", "apply-dependency-relock", "apply-cdn-pins-sync"];
+  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select", "fix-test-scope-select"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin", "apply-dependency-relock", "apply-cdn-pins-sync", "apply-test-scope"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   // The push job of each activity that pushes, before its select job's head.
   const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
@@ -868,7 +872,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "needs.report-stop-status.outputs.status-withheld": "",
   });
   for (const from of SOURCES) {
-    assert.equal(evaluate(job.if, context({ from, reason: "x" })), true, from);
+    const stopped = { ...context({ from, reason: "x" }), "needs.publish-feedback.result": "skipped" };
+    assert.equal(evaluate(job.if, stopped), true, from);
+    assert.equal(evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, stopped), "x", `${from}'s reason posts the status`);
+    assert.equal(evaluate(escalation.if, stopped), true, `${from} reaches report-escalation`);
+    assert.equal(evaluate(escalation.with["escalation-reason"], stopped), "x", `${from}'s reason reaches report-escalation`);
   }
   for (const headFrom of HEADS) {
     assert.equal(evaluate(job.if, context({ from: "publish-feedback", reason: "x", headFrom })), true, headFrom);
@@ -1050,7 +1058,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin", "review-dependency-relock-patch", "review-cdn-pins-sync-patch", "apply-dependency-relock", "apply-cdn-pins-sync"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin", "review-dependency-relock-patch", "review-cdn-pins-sync-patch", "apply-dependency-relock", "apply-cdn-pins-sync", "fix-test-scope-select", "apply-test-scope"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -9314,6 +9322,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-shared-copies -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-test-scope -> pr-run-activity-write.yml",
     "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
     "pr-unblock.yml:resolve-feedback-threads -> pr-run-activity-write.yml",
     "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
@@ -9322,6 +9331,8 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
     "upstream-apply-changelog.yml:push-branches",
     "upstream-apply-changelog.yml:publish",
+    "upstream-apply-changelog.yml:push-native-baseline",
+    "upstream-apply-changelog.yml:publish-native-baseline",
     "maintenance-tidy-code-upkeep.yml:push-branches",
     "maintenance-tidy-code-upkeep.yml:publish",
     "maintenance-measure-skill-edit.yml:push-branch",
@@ -11195,4 +11206,105 @@ test("report-outcome keeps the base checkout its run-time .base imports need", (
   const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
   assert.equal(config.activities["report-outcome"].checkout, "base");
   assert.match(read("../../scripts/work-resolve-issue/report-outcome.mjs"), /env\.BASE_PATH \|\| "\.base", "\.github", "actions"/);
+});
+
+test("pr-run-activity-write.yml: the first step admits every fix-test-scope escalation reason, each routed to fix-test-scope", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
+  const routes = JSON.parse(read("../../scripts/pr-unblock/escalation-routes.json"));
+  const rules = JSON.parse(read("./patch-rules.json"));
+  for (const reason of ["test-scope-not-all-gaps", "test-scope-gaps-remain", ...rules["test-scope"].escalations]) {
+    const status = spawnSync("bash", ["-c", step.run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_SENDER_ID: "1", DEFAULT_BRANCH: "main", ESCALATION_REASON: reason },
+    }).status;
+    assert.equal(status, 0, reason);
+    assert.equal(routes[reason]?.activity, "fix-test-scope", reason);
+    assert.equal(routes[reason]?.label, undefined, `${reason} adds no label while the activity is dark`);
+  }
+});
+
+test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope reasons out and refuses another row's", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "act-script");
+  const root = mkdtempSync(join(tmpdir(), "act-script-"));
+  try {
+    mkdirSync(join(root, "base-script"));
+    const resolved = join(root, "resolved.json");
+    writeFileSync(resolved, JSON.stringify({ selected: { args: "" }, loop: { "review-rounds": 1 } }));
+    writeFileSync(join(root, "base-script", "apply-patch.mjs"), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
+    const run = (reason) => {
+      const output = join(root, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: ".github/scripts/apply-patch/apply-patch.mjs", TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+      });
+      return { status: result.status, output: readFileSync(output, "utf8") };
+    };
+    for (const reason of ["test-scope-invalid", "test-scope-not-applied", "test-scope-protected-path"]) {
+      const { status, output } = run(reason);
+      assert.equal(status, 0, reason);
+      assert.match(output, new RegExp(`^escalation-reason=${reason}$`, "m"));
+    }
+    assert.equal(run("shared-copy-patch-invalid").status, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("pr-unblock.yml: fix-test-scope posts its check on every decided outcome, and apply-test-scope runs only with test-scope.apply on", () => {
+  const jobs = workflow("pr-unblock.yml").jobs;
+  const post = jobs["fix-test-scope-not-run"].steps.find((step) => step.name === "Post the fix-test-scope check run");
+  const notRun = (proceed, skip = "", result = "success") => ({
+    "inputs.activity": "fix-test-scope",
+    "needs.fix-test-scope-select.result": result,
+    "needs.fix-test-scope-select.outputs.proceed": proceed,
+    "needs.fix-test-scope-select.outputs.skip-reason": skip,
+    "needs.fix-test-scope-select.outputs.head-sha": "a".repeat(40),
+    "steps.stop.outputs.skip": "lane-stopped",
+  });
+  assert.equal(evaluate(jobs["fix-test-scope-not-run"].if, notRun("true")), true, "a written patch with apply off still posts, so the head is sent once");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("true")), "no-model-turn");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("false", "not-applicable")), "not-applicable");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("false")), "lane-stopped");
+  const apply = (value) => ({ "needs.fix-test-scope-select.outputs.proceed": "true", "needs.fix-test-scope-select.outputs.apply": value });
+  assert.equal(evaluate(jobs["apply-test-scope"].if, apply("false")), false);
+  assert.equal(evaluate(jobs["apply-test-scope"].if, apply("true")), true);
+  assert.equal(jobs["apply-test-scope"].with["patch-prepare"], "test-scope");
+  const select = jobs["fix-test-scope-select"];
+  assert.equal(evaluate(select.outputs.apply, { "steps.build.outputs.apply": "" }), "false", "an absent flag is off");
+  const built = (outputs) => ({
+    "steps.build.outputs.state": "",
+    "steps.head.outputs.applicable": "true",
+    "steps.slot.outputs.applies": "true",
+    "steps.slot.outputs.skip-reason": "",
+    "steps.locate.outputs.skip-reason": "",
+    "steps.locate.outputs.escalation-reason": "",
+    "steps.build.outputs.skip-reason": "",
+    "steps.build.outputs.escalation-reason": "",
+    ...outputs,
+  });
+  const dark = built({ "steps.build.outputs.skip-reason": "lane-stopped" });
+  assert.equal(evaluate(select.outputs.proceed, dark), "false");
+  assert.equal(evaluate(select.outputs["skip-reason"], dark), "lane-stopped");
+  assert.equal(evaluate(select.outputs["escalation-reason"], dark), "");
+  assert.equal(evaluate(jobs["fix-test-scope-not-run"].if, notRun("false", "lane-stopped")), true, "the dark stop still posts the check");
+  const live = built({ "steps.build.outputs.escalation-reason": "test-scope-not-all-gaps" });
+  assert.equal(evaluate(select.outputs.proceed, live), "false");
+  assert.equal(evaluate(select.outputs["escalation-reason"], live), "test-scope-not-all-gaps");
+  for (const id of ["locate", "build"]) {
+    assert.equal(select.steps.find((step) => step.id === id).env.BASE_DIR, "${{ github.workspace }}/.base", `${id} reads test-scope.apply from the base`);
+  }
+  const download = select.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  assert.equal(download.with["run-id"], "${{ steps.locate.outputs.run-id }}");
+  const head = select.steps.find((step) => step.name === "Check out the PR head");
+  assert.equal(head.with["persist-credentials"], false);
+  assert.equal(select.permissions["pull-requests"], "read");
+  assert.equal(select.permissions.contents, "read");
+});
+
+test("pr-unblock.yml: locate counts the commit apply-test-scope writes as the lane's own", () => {
+  const push = workflow("pr-unblock.yml").jobs["apply-test-scope"].with;
+  const row = rowFor(loadRules(fileURLToPath(new URL("../../../", import.meta.url))), { prepare: push["patch-prepare"] });
+  const message = commitMessage(row, { ref: "feat/x", lane: push.lane, activity: push["patch-activity"] });
+  assert.equal(message.split("\n")[2], TEST_SCOPE_TRAILER);
 });

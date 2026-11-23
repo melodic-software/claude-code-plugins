@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/route.sh worker session=opus --user-file ''"
+          }
+        }
+      ],
+      "why": "stops after route.sh with no board fetch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/fetch-boards --out /tmp/s/pages --manifest /tmp/s/manifest.json --settings /tmp/s/settings.json --task-type coding"
+          }
+        }
+      ],
+      "why": "fetched boards although auto-delegation is off"
+    }
+  ]
+}

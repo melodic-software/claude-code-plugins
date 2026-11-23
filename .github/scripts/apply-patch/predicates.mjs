@@ -5,6 +5,8 @@
 
 import { inFixScope } from "../pr-unblock/dependency-classify.mjs";
 import { inThreadScope } from "../pr-unblock/thread-scope.mjs";
+import { suiteComment } from "../pr-unblock/test-scope.mjs";
+import { segments } from "./protected-paths.mjs";
 
 export const PREDICATES = {
   any: () => () => true,
@@ -50,6 +52,7 @@ export const PREDICATES = {
   // A path the base merge left conflicted, which the patch resolves; the
   // merge's own changes from the base side never face the predicates.
   // `merge.unmerged` is a Set, read from the checkout's merge.
+  "test-suites": () => (path) => suiteComment(path) !== null && segments(path)[0] !== ".github",
   "merge-result": ({ merge }) => {
     if (!(merge?.unmerged instanceof Set)) {
       throw new Error("allow merge-result needs the merge's conflicted paths");

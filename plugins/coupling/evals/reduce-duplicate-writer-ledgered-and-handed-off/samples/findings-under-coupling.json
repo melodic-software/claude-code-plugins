@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/main/findings.md",
+            "content": "# Findings\n"
+          }
+        }
+      ],
+      "why": "findings under coupling/<branch>/"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/reviews/main/findings.md",
+            "content": "#"
+          }
+        }
+      ],
+      "why": "under reviews/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledger only, no findings file"
+    }
+  ]
+}

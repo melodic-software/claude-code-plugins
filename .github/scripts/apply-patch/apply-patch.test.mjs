@@ -1,4 +1,4 @@
-// test-scope: .github/scripts/apply-patch/* .github/scripts/lib/*
+// test-scope: .github/scripts/lib/* .github/scripts/apply-patch/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -2233,7 +2233,7 @@ test("apply-patch loads from the staged layout its script activity runs in", asy
     mkdirSync(join(root, "pr-merge"));
     cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(root, "pr-merge", "merge-holds.mjs"));
     mkdirSync(join(root, "pr-unblock"));
-    for (const file of ["thread-scope.mjs", "dependency-classify.mjs", "escalation-routes.mjs", "escalation-routes.json"]) {
+    for (const file of ["thread-scope.mjs", "test-scope.mjs", "dependency-classify.mjs", "escalation-routes.mjs", "escalation-routes.json"]) {
       cpSync(join(here, "..", "pr-unblock", file), join(root, "pr-unblock", file));
     }
     const staged = await import(pathToFileURL(join(root, "base-script", "apply-patch.mjs")).href);
@@ -3979,4 +3979,144 @@ test("cdn-pins-sync checks the patched blobs and unchanged targets with the base
       assert.deepEqual(api.calls, [], why);
     }
   }
+});
+
+const SUITE = "tests/a.test.sh";
+const SUITE_TEXT = "#!/bin/bash\n# Checks a.\nset -e\necho ok\n";
+const scopeFixture = (t, edit, seed = () => {}) =>
+  repoWithPatch(t, edit, {
+    head: (repo) => {
+      mkdirSync(join(repo, "tests"));
+      writeFileSync(join(repo, SUITE), SUITE_TEXT);
+      seed(repo);
+    },
+  });
+const declare = (repo, text = "#!/bin/bash\n# Checks a.\n# test-scope: scripts/x.sh\nset -e\necho ok\n") => writeFileSync(join(repo, SUITE), text);
+
+function apiOnlyApi(repo, head, overrides = {}) {
+  const api = fakeApi(repo, head, overrides);
+  const read = (name, value) => (api.calls.push(name), value);
+  api.getCommit = async (sha) => read("getCommit", { tree: { sha: git(repo, ["rev-parse", `${sha}^{tree}`]) }, message: overrides.headMessage ?? git(repo, ["log", "-1", "--format=%B", sha]) });
+  api.getTree = async (sha) =>
+    read("getTree", {
+      tree: git(repo, ["ls-tree", sha])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const [[mode, type, item], path] = [line.slice(0, line.indexOf("\t")).split(" "), line.slice(line.indexOf("\t") + 1)];
+          return { path, mode, type, sha: item };
+        }),
+    });
+  api.getBlob = async (sha) => read("getBlob", { content: execFileSync("git", ["cat-file", "blob", sha], { cwd: repo }).toString("base64"), encoding: "base64" });
+  return api;
+}
+
+const scopePush = (t, fix, api, extra = {}) => pushWith(fix, api, { cwd: scratch(t), row: row("test-scope"), lane: "pr-unblock", activity: "fix-test-scope", ...extra });
+
+test("test-scope: the api-only row pushes a declaration from head blobs read over the API, with no head checkout", async (t) => {
+  const fix = scopeFixture(t, declare);
+  const api = apiOnlyApi(fix.repo, fix.head);
+  const result = await scopePush(t, fix, api);
+  assert.equal(result.outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:${SUITE}`]), "#!/bin/bash\n# Checks a.\n# test-scope: scripts/x.sh\nset -e\necho ok");
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:README.md`]), "# r", "a path the patch does not touch keeps the head's blob");
+  assert.deepEqual(createCommit.parents, [fix.head]);
+  assert.match(createCommit.message, /^Declare the suites' test-scope reads on feat\/x\n\nLane-Activity: pr-unblock\/fix-test-scope\n$/);
+  assert.deepEqual(api.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false });
+  assert.ok(api.calls.includes("getBlob"), "the head blob came from the API");
+});
+
+test("test-scope: a patch that rewrites or drops a suite line is refused by the content rule", async (t) => {
+  const fix = scopeFixture(t, (repo) => declare(repo, "#!/bin/bash\n# Checks a.\n# test-scope: scripts/x.sh\necho ok\n"));
+  const api = apiOnlyApi(fix.repo, fix.head);
+  assert.deepEqual(await scopePush(t, fix, api), { outcome: "escalate", escalationReason: "test-scope-protected-path" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("test-scope: a declaration below the leading comment block, which the selector never reads, is refused", async (t) => {
+  const fix = scopeFixture(t, (repo) => declare(repo, "#!/bin/bash\n# Checks a.\nset -e\n# test-scope: scripts/x.sh\necho ok\n"));
+  const api = apiOnlyApi(fix.repo, fix.head);
+  assert.equal((await scopePush(t, fix, api)).escalationReason, "test-scope-protected-path");
+  assert.deepEqual(writes(api), []);
+});
+
+test("test-scope: a // line in a shell suite, or a glob, is refused", async (t) => {
+  for (const line of ["// test-scope: scripts/x.sh", "# test-scope: scripts/*.sh", "# test-scope: scripts/x.sh scripts/y.sh"]) {
+    const fix = scopeFixture(t, (repo) => declare(repo, `#!/bin/bash\n# Checks a.\n${line}\nset -e\necho ok\n`));
+    const api = apiOnlyApi(fix.repo, fix.head);
+    assert.equal((await scopePush(t, fix, api)).escalationReason, "test-scope-protected-path", line);
+    assert.deepEqual(writes(api), [], line);
+  }
+});
+
+test("test-scope: a suite under .github/ or a file that is no suite is outside the row's allow", async (t) => {
+  for (const [path, text] of [
+    [".github/scripts/b.test.sh", "# test-scope: scripts/x.sh\nset -e\n"],
+    ["scripts/x.sh", "#!/bin/sh\n# test-scope: README.md\nfoo=1\n"],
+  ]) {
+    const fix = scopeFixture(t, (repo) => {
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    }, (repo) => {
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), text.replace(/^.*test-scope.*\n/m, ""));
+    });
+    const api = apiOnlyApi(fix.repo, fix.head);
+    assert.equal((await scopePush(t, fix, api)).escalationReason, "test-scope-protected-path", path);
+    assert.deepEqual(writes(api), [], path);
+  }
+});
+
+test("test-scope: a pull request Dependabot opened, or one held by a label, gets no push", async (t) => {
+  const fix = scopeFixture(t, declare);
+  const dependabot = apiOnlyApi(fix.repo, fix.head, { pull: { draft: false, head: { repo: { full_name: "o/r" } }, user: { login: "dependabot[bot]", type: "Bot" } } });
+  assert.deepEqual(await scopePush(t, fix, dependabot), { outcome: "held" });
+  assert.deepEqual(writes(dependabot), []);
+  const held = apiOnlyApi(fix.repo, fix.head, { labels: [{ name: "needs-session" }] });
+  assert.deepEqual(await scopePush(t, fix, held, { holdLabels: ["do-not-merge", "needs-session"] }), { outcome: "held" });
+  assert.deepEqual(writes(held), []);
+});
+
+test("test-scope: a head that is the activity's own commit, or that moved, gets no push", async (t) => {
+  const fix = scopeFixture(t, declare);
+  const own = apiOnlyApi(fix.repo, fix.head, { headMessage: "Declare the suites' test-scope reads on feat/x\n\nLane-Activity: pr-unblock/fix-test-scope\n" });
+  assert.deepEqual(await scopePush(t, fix, own), { outcome: "not-applicable" });
+  assert.deepEqual(writes(own), []);
+  const moved = apiOnlyApi(fix.repo, fix.head);
+  assert.deepEqual(await scopePush(t, fix, moved, { patchHeadSha: "e".repeat(40) }), { outcome: "superseded" });
+  assert.deepEqual(writes(moved), []);
+});
+
+test("test-scope: a tree GitHub built without the patched blob is never committed", async (t) => {
+  const fix = scopeFixture(t, declare);
+  const api = apiOnlyApi(fix.repo, fix.head, { tree: git(fix.repo, ["rev-parse", `${fix.head}^{tree}`]) });
+  await assert.rejects(scopePush(t, fix, api), /without the patched "tests\/a\.test\.sh"; nothing is committed/);
+  assert.equal(api.calls.some((call) => call.createCommit), false);
+});
+
+test("checkRow refuses api-only on a row that takes a moved head or names no refusing content rule", () => {
+  assert.throws(() => checkRow(row("test-scope", { "skip-moved-head": false })), /sets api-only but/);
+  assert.throws(() => checkRow(row("test-scope", { "content-rule": "protected-content" })), /sets api-only but/);
+  assert.equal(checkRow(row("test-scope")).name, "test-scope");
+});
+
+test("PREDICATES test-suites admits a suite outside .github/ the selector reads test-scope lines from, and nothing else", () => {
+  const admits = PREDICATES["test-suites"]({});
+  for (const path of ["tests/a.test.sh", "x/b.test.mjs", "x/c.test.js", "x/D.Tests.ps1", "x/test_e.py"]) {
+    assert.equal(admits(path), true, path);
+  }
+  for (const path of [".github/scripts/a.test.mjs", ".GitHub/x/a.test.sh", "scripts/x.sh", "x/e_test.py", "CODEOWNERS"]) {
+    assert.equal(admits(path), false, path);
+  }
+});
+
+test("test-scope: a declaration that also sets the executable bit is refused", async (t) => {
+  const fix = scopeFixture(t, (repo) => {
+    declare(repo);
+    chmodSync(join(repo, SUITE), 0o755);
+  });
+  const api = apiOnlyApi(fix.repo, fix.head);
+  assert.equal((await scopePush(t, fix, api)).escalationReason, "test-scope-protected-path");
+  assert.deepEqual(writes(api), []);
 });

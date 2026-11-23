@@ -437,6 +437,8 @@ jobs:
         .github/scripts/intake-triage/triage-rubric.txt
         .github/scripts/intake-triage/refine-schema.json
         .github/scripts/plugin-eval/policy-probe-prompt.txt
+        .github/scripts/pr-unblock/test-scope.mjs
+        .github/scripts/pr-unblock/declare-test-scope.mjs
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml

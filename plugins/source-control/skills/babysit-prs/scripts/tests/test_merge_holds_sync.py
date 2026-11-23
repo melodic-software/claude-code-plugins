@@ -419,6 +419,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/intake-triage/triage-rubric.txt",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+            ".github/scripts/pr-unblock/test-scope.mjs",
+            ".github/scripts/pr-unblock/declare-test-scope.mjs",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -448,7 +450,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 98)
+        self.assertEqual(len(FLOOR.high), 100)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -687,6 +689,50 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
             check=True,
         )
         self.assertEqual(json.loads(proc.stdout), list(policy.MERGE_HOLD_LABELS))
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheNativeBaselineIsTheGates(unittest.TestCase):
+    """Owner decision Q152 (B): ci-status (`baselineOnly`) and the arm's
+    reader (`baseline_only`) take the same lanes App pull requests, those
+    changing exactly the configured `merge.baseline-file`, with no link or
+    verdict, and none when it is unset."""
+
+    def test_both_take_the_same_pull_requests(self) -> None:
+        file = "docs/upstream/claude-code-native-surfaces.min.json"
+        lanes = {"login": "melodic-automation-lanes[bot]", "id": 9, "type": "Bot"}
+        cases = [
+            (lanes, [file], file),
+            (lanes, [file], None),
+            (lanes, [file], ""),
+            (lanes, [file], "docs/upstream/other.json"),
+            (lanes, [file, "docs/a.md"], file),
+            (lanes, [file, "docs/upstream/old.json"], file),
+            (lanes, ["docs/upstream/claude-code.md"], file),
+            (lanes, [], file),
+            ({**lanes, "type": "User"}, [file], file),
+            ({**lanes, "login": "melodic-agent[bot]"}, [file], file),
+        ]
+        script = (
+            f"const {{ baselineOnly }} = await import({json.dumps(MODULE.as_uri())});"
+            "const cases = JSON.parse(process.argv[1]);"
+            "console.log(JSON.stringify(cases.map(([user, files, file]) => baselineOnly(user, files, 9, file ?? undefined))));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        py = [
+            policy.baseline_only(
+                {"user": user}, "melodic-automation-lanes[bot]", baseline, files
+            )
+            for user, files, baseline in cases
+        ]
+        self.assertEqual(answers, py)
+        self.assertEqual(answers.count(True), 1)
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")

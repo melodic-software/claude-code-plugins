@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledger only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Ledger\n- Rejected: introducing EventBus for one-to-one calls; interface IClock over a stable dependency\n"
+          }
+        }
+      ],
+      "why": "ledger records the rejected abstractions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/IClock.ts",
+            "content": "export interface IClock { now(): Date }"
+          }
+        }
+      ],
+      "why": "extracts an interface"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/bus.ts",
+            "content": "export class EventBus {}"
+          }
+        }
+      ],
+      "why": "adds an event bus"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/clock.ts",
+            "content": "// clock\ninterface IClock { now(): Date }"
+          }
+        }
+      ],
+      "why": "interface after a newline"
+    }
+  ]
+}

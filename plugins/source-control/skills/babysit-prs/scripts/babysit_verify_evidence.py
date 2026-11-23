@@ -7247,12 +7247,46 @@ def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]
     return report
 
 
+def baseline_detail(baseline_file: str) -> str:
+    return f"changes only {baseline_file} (merge.baseline-file): no issue link or verdict is read"
+
+
+def _link_shape(refusal: str | None) -> bool:
+    """Whether `refusal` is about the link's shape alone (no single issue
+    here, `merge_policy._linked_issue`), the one kind a baseline pull request
+    sets aside. A failed read or the linked issue's trust hold is not."""
+    return refusal is not None and (
+        merge_policy.no_issue_here(refusal) or refusal.startswith("linked-issues:")
+    )
+
+
+def _native_baseline(
+    repo: str, pr: dict[str, Any], identity: str | None, baseline_file: str | None
+) -> bool:
+    """Whether `pr` is the lanes App's and changes only `baseline_file`
+    (`merge_policy.baseline_only`), its files read whole; a read that fails
+    is not. Any other author, an unset file, or a record that does not count
+    one changed file, reads no files."""
+    if pr.get("changed_files") != 1 or not merge_policy.baseline_only(
+        pr, identity, baseline_file, [str(baseline_file)]
+    ):
+        return False
+    try:
+        files, complete = merge_policy.changed_files(repo, pr)
+    except Exception:  # noqa: BLE001 - any doubt keeps the link refusal
+        return False
+    paths = [p for f in files for p in (f.path, f.previous_path) if p]
+    return complete and merge_policy.baseline_only(pr, identity, baseline_file, paths)
+
+
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
     """`evidence`'s answer for one pull request, read in full (`main`)."""
     link: dict[str, Any] = {}
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
-        if link["ineligible"] is not None:
+        if link["ineligible"] is not None and not (
+            args.lane_reviews and _link_shape(link["ineligible"])
+        ):
             refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
             return refusal.report() | link
     try:
@@ -7277,8 +7311,24 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         pr = merge_policy.cached_pull_request(
             os.environ.get(PULL_ENV), args.repo, args.number, args.head
         )
-    evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved and not args.shared_listing:
+    native_baseline = (
+        args.lane_link
+        and args.lane_reviews
+        and _native_baseline(
+            args.repo, json_object(pr), config.agent_identity, config.baseline_file
+        )
+    )
+    if native_baseline:
+        link["ineligible"] = None
+        evidence = Evidence(
+            None, args.head, (), 0, baseline_detail(str(config.baseline_file))
+        )
+    elif link.get("ineligible") is not None:
+        refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+        return refusal.report() | link
+    else:
+        evidence = reader.evidence(args.number, args.head, pr)
+    if evidence.refusal is None and reader.saved and not args.shared_listing and not native_baseline:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
