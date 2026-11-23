@@ -1,0 +1,17 @@
+{
+  "name": "external-agents-path",
+  "version": "0.0.0",
+  "description": "Eval-only: puts the fixture external-agents stand-in first on the run's Bash PATH",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "g=\"$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\" || exit 0; d=\"$g/eval-external-agents/bin\"; if [ -n \"$CLAUDE_ENV_FILE\" ] && [ -x \"$d/external-agents\" ]; then printf 'export PATH=\"%s:$PATH\"\\n' \"$d\" >>\"$CLAUDE_ENV_FILE\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

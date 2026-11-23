@@ -928,7 +928,6 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
           taken.add(pull.number);
         }
       } catch (error) {
-        // One PR's failed read leaves the PRs after it to the sweep.
         log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
       }
     }
@@ -1012,7 +1011,6 @@ async function sweepPulls(context, decide) {
     try {
       dispatched = await decide(pull);
     } catch (error) {
-      // One PR's failed read leaves the PRs after it to the sweep.
       log(`::warning::#${pull.number}: the sweep could not decide head ${pull.head.sha}: ${error.message}`);
     }
     if (dispatched !== null) {
@@ -1483,7 +1481,6 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
 }`;
 
 export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch, { floorGraceMs: DISPATCH_FLOOR_GRACE_MS }), attemptTimeoutMs }) {
-  // Each request's rate-limit reading goes to the job-end api-calls notice.
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   const repo = `${apiUrl}/repos/${owner}/${name}`;
@@ -1763,7 +1760,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     api: client,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
-    // One read budget for every dispatch this pass decides.
     earlierFailReads: { left: EARLIER_FAIL_READS },
     verifyReads: new Map(),
     appSenderId: Number(env.APP_SENDER_ID),
@@ -1801,7 +1797,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       const refire = swept.refireOf ? `refire-of${suffix}=${swept.refireOf}\n` : "";
       appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n${refire}`);
     };
-    // A lost run is recovered only on a tick the sweep sent nothing on.
     const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
     if (swept !== null && sends === 0) {

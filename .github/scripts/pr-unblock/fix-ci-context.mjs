@@ -73,7 +73,6 @@ export const WEAKEN_BRIEF =
   "Find a fix in the code under test that keeps every test's assertions and expected values unchanged. " +
   "If the only way to green still weakens a check, escalate weaken-required: this round is the last before a person.";
 
-// A finished fix-ci check by the GitHub Actions app: an earlier attempt on the head.
 const earlierAttempt = (run) => run?.status === "completed" && run.app?.id === ACTIONS_APP_ID;
 
 // Whether the head carries the pr-unblock/fix-ci status a weaken retry stop
@@ -84,7 +83,6 @@ export const weakenStopped = (statuses) =>
     (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
   );
 
-// A commit the lanes App pushed for the activity whose trailer it carries.
 const laneCommit = (commit, appId, trailer) =>
   commit.author?.id === appId &&
   String(commit.commit?.message ?? "")
@@ -272,7 +270,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (checks.length === 0) {
     return { decision: "skip", skipReason: "not-applicable", rounds, headSha, laneEscalated };
   }
-  // The findings are a lead, so a failed read costs them, not the run.
   let review_findings = [];
   try {
     review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull });

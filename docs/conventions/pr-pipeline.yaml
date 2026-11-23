@@ -1793,6 +1793,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-verify/resolve-pr.mjs"
         class: enforcement
+      - glob: ".github/scripts/pr-verify/spec-source.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-verify/write-verdict.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/admit.mjs"

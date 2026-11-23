@@ -29,10 +29,6 @@ check() {
 
 g() { git -C "$1" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "${@:2}"; }
 
-# A repository whose main holds a canonical, its generated copy and the real
-# tooling, and a PR branch carrying one change of its own. Then main changes
-# the canonical. Prints the repo path; base/ is a checkout of main's tip.
-# An optional second argument is the registry line.
 fixture() {
   local name=$1 repo="$TMP/$1" entry=${2:-lib/shared.sh plugins/p/lib/shared.sh}
   mkdir -p "$repo/scripts" "$repo/lib" "$repo/plugins/p/lib"
@@ -55,8 +51,6 @@ fixture() {
   printf '%s\n' "$repo"
 }
 
-# Merge main into pr without committing, as merge-base/prepare.sh leaves a
-# clean merge, then run the activity's script.
 run() {
   local repo=$1 base_dir=$2
   g "$repo" checkout -q pr &&
@@ -65,8 +59,6 @@ run() {
     bash "$SUT" "$base_dir" "$repo" "$(g "$repo" rev-parse main)" "$TMP/out.patch" 2>/dev/null
 }
 
-# A changed canonical: the copy is regenerated, the patch holds it alone, and
-# the merge commits with it.
 repo=$(fixture regen)
 rc=0
 out=$(run "$repo" "$TMP/regen-base") || rc=$?
@@ -126,7 +118,6 @@ check "unregistered path written: exit 3" 3 "$rc"
 check "unregistered path written: refused" refused=shared-copy-path-unregistered "$out"
 check "unregistered path written: no patch" "" "$(cat "$TMP/out.patch" 2>/dev/null || true)"
 
-# Copies already current: empty, nothing to push.
 repo=$(fixture current)
 g "$repo" checkout -q main
 g "$repo" revert --no-edit HEAD >/dev/null
@@ -134,8 +125,6 @@ rc=0
 out=$(run "$repo" "$TMP/current-base") || rc=$?
 check "copies current: empty" state=empty "$(grep '^state=' <<<"$out")"
 
-# A malformed base registry row fails the run, as the canonical sync script
-# fails it, instead of being skipped.
 repo=$(fixture malformed)
 printf 'lib/shared.sh\n' >>"$TMP/malformed-base/scripts/shared-copies.txt"
 rc=0
@@ -143,17 +132,12 @@ out=$(run "$repo" "$TMP/malformed-base") || rc=$?
 check "malformed base registry: exit 2" 2 "$rc"
 check "malformed base registry: no state" "" "$(grep '^state=' <<<"$out" || true)"
 
-# A registry line with an inline comment registers its copy, as the
-# canonical sync script reads it.
 repo=$(fixture inline 'lib/shared.sh plugins/p/lib/shared.sh # generated copy')
 rc=0
 out=$(run "$repo" "$TMP/inline-base") || rc=$?
 check "inline comment: exit 0" 0 "$rc"
 check "inline comment: state written" state=written "$(grep '^state=' <<<"$out")"
 
-# The PR and main each edit their own end of the canonical and regenerate the
-# copy: the merge holds current copies, so the run is empty and the push job
-# commits the merge alone.
 repo=$(fixture disjoint)
 printf 'echo one\necho 2\necho 3\necho 4\necho 5\n' >"$TMP/disjoint-lines"
 for side in main pr; do

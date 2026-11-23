@@ -392,7 +392,6 @@ class FakeGh:
                 ]
             )
         if endpoint.startswith(f"repos/{REPO}/git/ref/heads/"):
-            # Every branch a test judges has main's tip.
             ref = endpoint.split("/git/ref/")[1]
             return completed({"ref": f"refs/{ref}", "object": {"sha": self.main_tip}})
         if "/actions/runs/" in endpoint and endpoint.endswith("/rerun-failed-jobs"):
@@ -455,7 +454,6 @@ class FakeGh:
                 )
             return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
         if endpoint.startswith(f"repos/{REPO}/contents?ref="):
-            # A readable tree without the config: every config key at its default.
             return completed([])
         raise AssertionError(f"unexpected gh call: {args}")
 
@@ -513,8 +511,6 @@ class FakeGh:
                 {"data": {"repository": {"mergeQueue": {"entries": entries}}}}
             )
         if "PostMergeMerged" in joined and self.merged_pages:
-            # Served in order, one page per read, to model a history that
-            # changes between page reads.
             return completed(
                 {"data": {"repository": {"pullRequests": self.merged_pages.pop(0)}}}
             )
@@ -658,7 +654,6 @@ class AutoMergeDerivation(CheckCase):
             mergedAt="2026-10-12T09:00:00Z",
             updatedAt="2026-10-12T10:30:00Z",
         )
-        # Merged before the floor and updated since: not a merge to judge.
         old = merged_pr(
             number=6990,
             mergedAt="2026-10-11T23:00:00Z",
@@ -832,7 +827,6 @@ class Verification(CheckCase):
         self.assertEqual(verdict.failures, ())
 
     def test_non_identity_enqueue_verifies_on_dispatch_and_canary_alone(self) -> None:
-        # The fixture's enqueue is a sync App's: the identity pinned nothing.
         self.all_green()
         verdict = self.check(pinned=None)
         self.assertTrue(verdict.merges[0].verified)
@@ -894,7 +888,6 @@ class Verification(CheckCase):
         self.assertFalse(verdict.merges[0].verified)
 
     def test_user_enqueuer_named_like_the_app_slug_needs_no_read_back(self) -> None:
-        # Not the identity's enqueue, so no pin exists and none is required.
         slug_user = {"__typename": "User", "login": "agent-lanes"}
         self.gh.merged = [merged_pr(timelineItems=enqueued_by(slug_user, slug_user))]
         self.all_green()
@@ -919,9 +912,6 @@ class Verification(CheckCase):
     def test_the_report_records_the_earliest_canary_still_queued_in_a_window(
         self,
     ) -> None:
-        # A canary queued before the green one that verified the merge is in
-        # its window and fails it once it turns red, so a later tick that
-        # reuses the report must list runs back to it (`idle_refusal`).
         self.all_green()
         self.assertIsNone(self.check().report()["outstandingSince"])
         self.gh.add_runs(
@@ -938,8 +928,6 @@ class Verification(CheckCase):
         )
 
     def test_the_report_records_the_runs_it_listed_finished(self) -> None:
-        # Each run listed completed, at the updated_at read; the queued one
-        # is left out, since its finish is a change the check has not read.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -965,9 +953,6 @@ class Verification(CheckCase):
     def test_a_run_listed_running_and_finished_later_in_the_check_is_not_recorded(
         self,
     ) -> None:
-        # The lane's re-run probe lists the dispatch runs again after the
-        # merges are judged; the merge was judged on the first listing, which
-        # saw run 11 running, so its later finish is not one the check judged.
         self.gh.merged = [identity_merge()]
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         self.gh.add_runs(
@@ -1276,8 +1261,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertTrue(verdict.merges[0].verified)
 
     def test_the_report_records_each_pin_it_read_once(self) -> None:
-        # A later tick reads them again before it reuses the report
-        # (`idle_refusal`), so the record is the read itself, None included.
         self.all_green()
         for pin in (HEAD_SHA, None):
             with self.subTest(pin=pin):
@@ -1286,7 +1269,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
                 self.assertEqual(self.pin_reads, [7001])
 
     def test_a_pin_at_another_head_fails_the_read_back(self) -> None:
-        # A push after the arm: the merged head is not the one pinned.
         self.all_green()
         verdict = self.check_unpinned(pin=OTHER_SHA)
         self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
@@ -1294,7 +1276,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertFalse(verdict.ok)
 
     def test_a_null_enqueuer_and_an_absent_lane_prs_are_native(self) -> None:
-        # resolve-config resolves an absent merge.lane-prs to native.
         self.gh.merged = [immediate_enqueue(enqueue(APP_ACTOR, None))]
         self.lane_prs(None)
         self.all_green()
@@ -1324,7 +1305,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assert_pin_required("native", isCrossRepository=True)
 
     def test_an_auto_merge_event_keeps_the_enable_rule(self) -> None:
-        # Enabled, then disabled: the newest event is a disable.
         self.assert_pin_required(
             "native", autoMerge=auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent")
         )
@@ -1357,7 +1337,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assert_pin_required("native", earlier=True)
 
     def test_no_merge_parent_needs_the_pin(self) -> None:
-        # Read as the parent "", which read_config_at refuses: no read is sent.
         self.assert_pin_required("native", mergeCommit={"oid": MERGE_SHA})
         self.assertFalse(any("/contents/" in a for c in self.gh.calls for a in c))
 
@@ -1368,8 +1347,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assert_pin_required("sometimes")
 
     def test_a_gate_enqueue_under_gate_reads_its_pin_back(self) -> None:
-        # The gate's own enqueue looks the same: under gate its pin is read
-        # back, and a merged head other than the pinned one fails.
         self.lane_prs("gate")
         self.all_green()
         verdict = self.check(pinned=OTHER_SHA, now=self.LATE)
@@ -1386,8 +1363,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertEqual(self.read_back_failures(), ["read-back"])
 
     def test_an_arm_pinned_before_its_immediate_enqueue_verifies(self) -> None:
-        # enable-auto-merge.mjs pins the head before it arms, so where the
-        # pin is read (here under gate) the merged head matches it.
         self.lane_prs("gate")
         self.all_green()
         verdict = self.check(pinned=HEAD_SHA)
@@ -1403,7 +1378,6 @@ class ImmediateEnqueueNativeArm(CheckCase):
         ]
         self.all_green()
         self.assertTrue(self.check_unpinned().ok)
-        # The enable-event merge's pin is never read.
         self.assertEqual(sorted(self.pin_reads), [7001, 7002])
         reads = [
             c for c in self.gh.calls if any(f"/contents/{PIPELINE}" in a for a in c)
@@ -1732,15 +1706,10 @@ class DroppedDispatchListing(CheckCase):
         self.assertTrue(verdict.readable, verdict.reason)
         self.assertEqual([f.signal for f in verdict.failures], ["canary"])
         calls = self.canary_listing_calls()
-        # Runs 10:00:30 to 10:30:21, read to 11:00: the whole range and its
-        # older half each reach the cap on their first page (one call each),
-        # then 22, 870 and 900 runs are read whole, a page per 100, and the
-        # 900 one more, empty page, since its ninth is full.
         self.assertEqual(len(calls), 2 + 1 + 9 + 10)
         self.assertTrue(all("created=" in c for c in calls))
 
     def test_a_listing_under_the_search_cap_reads_its_pages_once(self) -> None:
-        # No split: the same pages a single listing read before the windows.
         self.spread_canary_listing(999)
         verdict = self.check()
         self.assertTrue(verdict.readable, verdict.reason)
@@ -1764,7 +1733,6 @@ class DroppedDispatchListing(CheckCase):
                 self.assertEqual(len(self.canary_listing_calls()), 3)
 
     def test_a_count_on_a_page_boundary_reads_one_empty_page(self) -> None:
-        # 200 runs fill two pages, so a third, empty one shows nothing follows.
         self.spread_canary_listing(200)
         verdict = self.check()
         self.assertTrue(verdict.readable, verdict.reason)
@@ -1957,7 +1925,6 @@ class LaneDispatch(CheckCase):
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
     def test_dispatch_from_the_push_job_on_main_verifies(self) -> None:
-        # dispatch-full-run records the run it starts on a push to main.
         self.lane_dispatch(event="push")
         self.assertTrue(self.check(pinned=None).merges[0].verified)
 
@@ -1983,7 +1950,6 @@ class LaneDispatch(CheckCase):
     def test_dispatch_from_a_same_repository_pull_request_run_does_not_verify(
         self,
     ) -> None:
-        # Every other field names pr-merge.yml on main; only the event is wrong.
         self.lane_dispatch(event="pull_request")
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
@@ -2204,8 +2170,6 @@ class UnlistedRecordRecovery(CheckCase):
         self.assertIs(verdict.report()["needsDispatch"], True)
 
     def test_the_hold_reaches_pr_merge_as_exit_3_with_needs_dispatch(self) -> None:
-        # pr-merge.yml reads `.needsDispatch` from the JSON whatever the exit;
-        # the real clock is long past the merge's deadline.
         self.unlisted_hold()
         out = io.StringIO()
         with (
@@ -2238,7 +2202,6 @@ class UnlistedRecordRecovery(CheckCase):
     def test_a_later_run_failing_a_condition_leaves_the_hold(self) -> None:
         maintainer = by("maintainer")
         cases = {
-            # The one recovery dispatch is spent: no second one, a loud hold.
             "unrecorded": ({"recorded": False}, (False, "recovery-unrecorded")),
             "another actor": (
                 {"actor": maintainer, "triggering_actor": maintainer},
@@ -2266,7 +2229,6 @@ class UnlistedRecordRecovery(CheckCase):
                 self.assertEqual(verdict.report()["hold"], hold)
 
     def test_failing_record_uploads_spend_one_recovery_dispatch(self) -> None:
-        # Each sweep sees the bot runs dispatched before it, none recorded.
         self.unlisted_hold()
         dispatched = 0
         holds = []
@@ -2313,7 +2275,6 @@ class UnlistedRecordRecovery(CheckCase):
         ]
 
     def test_a_later_recorded_red_run_with_regressions_is_a_failure(self) -> None:
-        # A completed recorded lane run containing the merge is a complete read.
         self.unlisted_hold()
         self.red_late_rerun()
         verdict = self.check(pinned=None, now=self.AFTER)
@@ -2328,7 +2289,6 @@ class UnlistedRecordRecovery(CheckCase):
     def test_a_later_recorded_red_run_without_regressions_clears_the_hold(
         self,
     ) -> None:
-        # test-bash already failed on the newest dispatch run before the merge.
         maintainer = by("maintainer")
         self.gh.add_runs(
             "pr-require-checks.yml",
@@ -2379,7 +2339,6 @@ class UnlistedRecordRecovery(CheckCase):
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
     def test_a_later_recorded_green_run_without_the_hold_still_fails(self) -> None:
-        # Only the hold is recoverable: no dispatch by the deadline stays a failure.
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         self.gh.run_records[self.LANE_RUN] = {
             "id": self.LANE_RUN,
@@ -2466,8 +2425,6 @@ class LaneRerun(LaneDispatch):
         )
 
     def test_a_bot_rerun_still_running_before_its_record_is_pending(self) -> None:
-        # pr-merge.yml uploads the record seconds after its re-run starts, so
-        # a check in that window waits for the attempt to finish.
         self.lane_rerun("success", record=None)
         self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
             dispatch_run(
@@ -2609,7 +2566,6 @@ class Attribution(CheckCase):
         self.assertEqual(
             [(f.signal, f.merge.number) for f in verdict.failures], [("schedule", 7001)]
         )
-        # The re-run is the failing attempt the sighting names.
         self.assertEqual(verdict.failures[0].run_url, f"{RUN_URL}/31/attempts/2")
 
     def test_green_on_the_rerun_records_a_flake_and_no_failure(self) -> None:
@@ -2777,8 +2733,6 @@ class Baseline(CheckCase):
         self.assertEqual(verdict.unattributed, ())
 
     def test_a_check_red_before_the_rename_is_not_charged_to_the_merge(self) -> None:
-        # A baseline run tested before the jobs got display names names the
-        # same leg and gate in lower case.
         lint = self.gitleaks_red(302, failure_annotation("markdown failed"))[0]
         self.before_merge(
             "failure",
@@ -2888,7 +2842,6 @@ class Baseline(CheckCase):
                 ],
                 ["schedule"],
             ),
-            # The full list keeps the gitleaks-only excuse.
             "the full list": (None, []),
         }
         for label, (steps, expected) in cases.items():
@@ -2901,9 +2854,6 @@ class Baseline(CheckCase):
                 self.assertEqual([f.signal for f in self.check().failures], expected)
 
     def test_a_baseline_job_with_unknown_steps_excuses_nothing(self) -> None:
-        # Before the merge, lint-repo failed only on gitleaks, but its steps
-        # read empty, so it counted whole. After the merge a real lint-repo
-        # step fails; that baseline entry must not excuse it.
         base = self.gitleaks_red(301)
         base[0]["steps"] = []
         self.before_merge("failure", *base)
@@ -3103,7 +3053,6 @@ class ReplacedRuns(CheckCase):
     def test_a_run_cancelled_after_its_jobs_started_still_waits_for_its_rerun(
         self,
     ) -> None:
-        # Run 11 off the branch: no newer green run settles run 10.
         self.gh.on_main.discard(LATER_SHA)
         verdict = self.check()
         self.assertFalse(verdict.merges[0].verified)
@@ -3124,9 +3073,6 @@ class ReplacedRuns(CheckCase):
         )
 
     def test_a_red_run_past_the_compare_cap_is_not_settled(self) -> None:
-        # Six newer green runs on the branch, none a descendant of run 10,
-        # ahead of run 11, which is: the cap stops at five compares and run
-        # 10 still waits for its re-run.
         shas = [f"{n:040x}" for n in range(1, 7)]
         self.gh.on_main.update(shas)
         self.gh.add_runs(
@@ -3200,8 +3146,6 @@ class ReplacedRuns(CheckCase):
         self.assertNotIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
 
     def test_a_replaced_run_is_no_baseline(self) -> None:
-        # Before the merge: a red run, then a replaced one. The red run is the
-        # baseline, so its failing check is no regression of the merge's run.
         self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
             dispatch_run(
                 5, "failure", head_sha=HEAD_SHA, created_at="2026-10-12T09:20:00Z"
@@ -3460,7 +3404,6 @@ class StopUncovered(CheckCase):
         verdict = self.lane_check()
         full = len(self.gh.calls)
         self.gh.calls.clear()
-        # Each check as its own process would run it.
         pm._default_branches.clear()
         try:
             stopped = self.lane_check(stop_uncovered=True)
@@ -3517,8 +3460,6 @@ class StopUncovered(CheckCase):
                 self.assertEqual(reads, full)
 
     def test_a_run_another_actor_dispatched_is_judged_in_full(self) -> None:
-        # Such a run never covers a merge, but the stop counts any dispatch
-        # listed after it: the full check still finds a dispatch needed.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -3542,8 +3483,6 @@ class StopUncovered(CheckCase):
                 self.assertFalse(verdict.readable)
 
     def test_a_dispatch_run_off_the_branch_still_stops(self) -> None:
-        # Listed after the merge, so the dispatch listing alone does not stop;
-        # the branch read drops it, and the merge stops as uncovered.
         self.gh.add_runs(
             "pr-require-checks.yml", "workflow_dispatch", dispatch_run(11, head_sha=OTHER_SHA)
         )
@@ -3552,8 +3491,6 @@ class StopUncovered(CheckCase):
         self.assertEqual(number, 7001)
 
     def test_the_stop_reads_no_schedule_or_canary_listing(self) -> None:
-        # Only the dispatch runs decide the stop, so a canary listing that
-        # would fail is never reached.
         self.gh.fail_reads.add("post-merge-detect-silent-revert.yml")
         _, full, number, reads = self.both()
         self.assertEqual(number, 7001)
@@ -3647,7 +3584,6 @@ class UncoveredAt(CheckCase):
         self.assertEqual(len(self.gh.calls), 1)
 
     def test_a_head_no_clone_can_answer_counts_as_covered(self) -> None:
-        # An unknown head_sha or a git failure is None: the wake runs its check.
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.ancestry = None
         self.assertEqual(self.cli(), 0)
@@ -3659,8 +3595,6 @@ class UncoveredAt(CheckCase):
         self.assertEqual(self.asked, [])
 
     def test_any_dispatch_run_counts_as_the_stop_counts_it(self) -> None:
-        # `_stop_uncovered`'s first pass counts every listed dispatch run,
-        # red, running or another actor's, so the pre-check adds no filter.
         for why, listed in [
             ("red", dispatch_run(11, conclusion="failure")),
             ("running", dispatch_run(11, status="in_progress", conclusion=None)),
@@ -3758,7 +3692,6 @@ class LaneMergesOnly(CheckCase):
         self.assertTrue(verdict.needs_dispatch)
 
     def test_without_the_flag_another_apps_merge_still_counts(self) -> None:
-        # Local babysit keeps judging every non-human merge.
         verdict = self.check()
         self.assertEqual(self.numbers(verdict), [7001])
         self.assertTrue(verdict.needs_dispatch)
@@ -3971,8 +3904,6 @@ class Remediation(CheckCase):
     def test_a_second_sighting_under_one_marker_reopens_a_closed_record(
         self,
     ) -> None:
-        # Two red canary runs on one merge share the marker (sha, canary); the
-        # closed record names only the first, so the second reopens it.
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(
             "post-merge-detect-silent-revert.yml",
@@ -4038,9 +3969,7 @@ class Remediation(CheckCase):
             body.splitlines()[0],
             f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->",
         )
-        # The record is no command to revert: intake triage reads it.
         self.assertNotIn("git revert", body)
-        # Any open record holds the rung off, and a red main reopens a closed one.
         self.assertIn("rung off while this record holds", body)
         # A read-back record lifts on a lane-checked read-back (#11022), so
         # its body names that lift, not a person's close alone.
@@ -4051,7 +3980,6 @@ class Remediation(CheckCase):
         self.assertNotIn("Only a person's direct close", " ".join(body.split()))
         self.assertNotIn("passes on main at a later commit", " ".join(body.split()))
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
-        # Until it lifts it keeps the human-gated label.
         self.assertIn("labels[]=needs-human", create)
 
     def test_a_full_run_record_is_human_gated_with_job_names_only(self) -> None:
@@ -4087,7 +4015,6 @@ class Remediation(CheckCase):
         pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
         create = next(w for w in self.gh.writes() if f"repos/{REPO}/issues" in w)
         body = next(a for a in create if a.startswith("body="))
-        # Phase 12's record shape: the sighting names the failing attempt.
         self.assertIn(f"- Failing run: {RUN_URL}/21/attempts/1", body.splitlines())
 
     def canary_failure_on_closed_record(self, *comments: str, body: str = "") -> None:
@@ -4122,8 +4049,6 @@ class Remediation(CheckCase):
             "push",
             canary_run(21, conclusion="failure"),
         )
-        # The alert workflow keys its marker on the run's head SHA, not the
-        # merge commit.
         self.gh.issues = [
             {
                 "number": 8004,
@@ -4145,20 +4070,16 @@ class Remediation(CheckCase):
         self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
 
     def test_a_run_number_sharing_the_prefix_does_not_stand_in(self) -> None:
-        # runs/210 is not runs/21.
         self.canary_failure_with_alert_record(210)
         self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
 
     def test_a_same_run_post_merge_failure_record_does_not_stand_in(self) -> None:
-        # The alert's not-demoted record never holds the gate.
         self.canary_failure_with_alert_record(
             21, marker=f"<!-- post-merge-failure sha={'4' * 40} signal=canary -->"
         )
         self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
 
     def test_one_red_run_over_two_merges_files_one_record(self) -> None:
-        # A red full run on a SHA containing both merges charges each, under
-        # its own marker; the second comments nowhere new, files nothing.
         second = "6" * 40
         self.gh.descendants.add(second)
         self.gh.merged = [
@@ -4178,7 +4099,6 @@ class Remediation(CheckCase):
         self.assertEqual(len(files), 1)
         self.assertEqual(report["issues"], [9001])
         self.assertEqual(report["comments"], [])
-        # The one record names the other charged merge and reverts neither.
         body = next(a for a in files[0] if a.startswith("body="))
         self.assertIn(f"- Also charged by this run: #7002 (`{second}`)", body)
         self.assertNotIn("git revert", body)
@@ -4382,8 +4302,6 @@ class Cli(CheckCase):
         return code, json.loads(out.getvalue())
 
     def test_the_default_branch_is_read_from_the_repository(self) -> None:
-        # A repository whose default branch is not `main`: every branch read and
-        # the dispatch ref follow it.
         self.gh.default_branch = "trunk"
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         _, report = self.main("--remediate")
@@ -4591,7 +4509,6 @@ class DefaultIsHuman(CheckCase):
         answers = [first(HUMAN), first({"__typename": "User", "login": "reader"})]
         self.assertEqual(answers, [True, False])
         self.assertEqual(len(self.permission_reads()), 2)
-        # Another process of the run: the gate's reader and a second check.
         self.gh.calls.clear()
         policy_read = pm.policy.permission_reader(REPO)
         self.assertEqual(policy_read("maintainer"), "write")
@@ -4833,10 +4750,7 @@ class PinnedHead(CheckCase):
         ]
         self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY))
 
-    # --- `alone`: nobody but the identity spoke after the pin --------------
-
     def test_alone_keeps_a_pin_only_the_identity_followed(self) -> None:
-        # The lane's own pin, then its own enqueue (no comment) and comments.
         self.gh.pin_comments = [
             said(HUMAN, "2026-10-12T09:00:00Z"),
             pin(HEAD_SHA),
@@ -4850,7 +4764,6 @@ class PinnedHead(CheckCase):
             with self.subTest(author=author):
                 self.gh.pin_comments = [pin(HEAD_SHA), said(author)]
                 self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY, alone=True))
-                # Without `alone` the pin still reads.
                 self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), HEAD_SHA)
 
     def test_alone_drops_a_pin_another_author_reviewed_after(self) -> None:
@@ -4990,7 +4903,6 @@ class ExitCodes(CheckCase):
             )
 
     def test_an_unverified_auto_merge_exits_5(self) -> None:
-        # The dispatch run is green; the canary has not run yet.
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.assertEqual(self.run_cli(), 5)
 
@@ -5170,8 +5082,6 @@ class SharedAnswer(CheckCase):
                 self.assertIsNone(pm.read_shared(str(path)))
 
     def test_a_written_answer_reads_back_as_the_scripts_own(self) -> None:
-        # The gate's write-back (`write_shared`) keeps the script's schema, so
-        # the next candidate reads the same answer back.
         self.all_green()
         path = self.write_report()
         original = json.loads(path.read_text(encoding="utf-8"))
@@ -5206,7 +5116,6 @@ class SharedAnswer(CheckCase):
         self.assertIn("disk full", err.getvalue())
         self.assertEqual(path.read_text(encoding="utf-8"), before)
         self.assertEqual(list(path.parent.iterdir()), [path])
-        # A path with no file name is a failed write, never a raise.
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertFalse(pm.write_shared(".", shared))
 
@@ -5394,8 +5303,6 @@ class SeveralInFlight(CheckCase):
         )
         self.assertFalse(any(gate.verified(m.merge) for m in verdict.merges))
         report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
-        # One demotion record per failing run, naming every charged merge;
-        # any open record holds the gate for all of them.
         self.assertEqual(report["telemetry"], {"demotion_events": 1})
         self.assertEqual(report["errors"], [])
 
@@ -5478,7 +5385,6 @@ class LaneFloorAnchor(CheckCase):
             "id": artifact_id,
             "name": pm.ANCHOR_ARTIFACT,
             "expired": False,
-            # Unexpired at the wall clock too: lane_floor reads at now.
             "expires_at": "2099-01-01T00:00:00Z",
             "workflow_run": {"id": run_id},
         }
@@ -5564,7 +5470,6 @@ class LaneFloorAnchor(CheckCase):
         self.assertIsNone(self.read())
 
     def test_the_read_stops_at_its_request_cap(self) -> None:
-        # Ten newer artifacts another workflow uploaded under the same name.
         for i in range(10):
             self.publish(600 + i, 9100 + i)
             self.gh.run_records[9100 + i] = anchor_run(9100 + i, path="x.yml")
@@ -5641,14 +5546,11 @@ class LaneFloorAnchor(CheckCase):
                 rejudge = check.call_args.kwargs["rejudge"]
                 self.assertEqual(rejudge is not None, rejudged)
                 if rejudge:
-                    # With no anchor yet, every settled merge is judged again.
                     self.assertTrue(rejudge(settled))
 
     def test_a_shared_answer_keeps_the_policy_floor_it_was_anchored_from(
         self,
     ) -> None:
-        # Reuse binds to the policy floor (`shared_refusal`, `_unreadable_at`),
-        # never to the anchored `since`.
         gate = pm.gate_from_report({"readable": False, "reason": "unreadable: x"})
         shared = pm.policy.SharedPostMerge(
             main_sha=TIP_SHA,
@@ -5687,9 +5589,6 @@ class LaneFloorAnchor(CheckCase):
         self.assertEqual(full.floor, SINCE)
 
     def test_a_long_verified_history_before_the_old_floor_stays_readable(self) -> None:
-        # More than MERGED_PAGE_LIMIT pages updated after the old floor, all
-        # before the anchor: from the old floor the read stops unreadable,
-        # from the anchor it ends at the first PR updated before it.
         self.all_green()
         recent = identity_merge()
         older = merged_pr(
@@ -5822,7 +5721,6 @@ class AnchorAdvance(unittest.TestCase):
 
     def test_the_merge_at_the_anchor_is_read_again_without_holding_it(self) -> None:
         previous = pm.Anchor(self.at(10))
-        # Settled since, so judged by its marker alone: at the anchor it passed.
         verdict = lane_verdict(
             merge_state(1, self.at(10), settleable=False, settled=True),
             merge_state(2, self.at(20)),
@@ -5838,13 +5736,11 @@ class AnchorAdvance(unittest.TestCase):
         self.assertEqual(pm.advance_anchor(verdict, None).at, self.at(10))
 
     def test_a_merge_settled_after_it_passed_does_not_hold_it(self) -> None:
-        # Run 1: #1 unverified, #2 final; the merge job then settles #2.
         run1 = lane_verdict(
             merge_state(1, self.at(10), settleable=False), merge_state(2, self.at(20))
         )
         first = pm.advance_anchor(run1, pm.Anchor(self.at(5)))
         self.assertEqual(first, pm.Anchor(self.at(5), frozenset({2})))
-        # Run 2: #1 final, #2 settled by marker: carried, so it passes.
         run2 = lane_verdict(
             merge_state(1, self.at(10)),
             merge_state(2, self.at(20), settleable=False, settled=True),

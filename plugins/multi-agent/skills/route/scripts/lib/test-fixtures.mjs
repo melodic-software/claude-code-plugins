@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,7 +37,18 @@ export const MODELS = {
 
 export function makeFixture(
   t,
-  { registry, manifest, records, models = MODELS, settings = null, cwd = undefined, env = undefined, extraArgs = [] },
+  {
+    registry,
+    manifest,
+    records,
+    models = MODELS,
+    settings = null,
+    usage = null,
+    stateDir = null,
+    cwd = undefined,
+    env = undefined,
+    extraArgs = [],
+  },
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'vendor-decide-test-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
@@ -54,6 +65,16 @@ export function makeFixture(
     const setPath = join(dir, 'settings.json')
     writeFileSync(setPath, JSON.stringify(settings, null, 2))
     args.push('--settings', setPath)
+  }
+
+  if (usage !== null) {
+    const usePath = join(dir, 'usage.json')
+    writeFileSync(usePath, JSON.stringify(usage, null, 2))
+    args.push('--usage', usePath)
+  }
+
+  if (stateDir !== null) {
+    args.push('--state-dir', stateDir)
   }
 
   if (Array.isArray(records) || (records && !records.__perSource)) {
@@ -74,6 +95,109 @@ export function makeFixture(
     stdout: res.stdout,
     stderr: res.stderr,
     json: res.status === 0 ? JSON.parse(res.stdout) : null,
+  }
+}
+
+export function twoBoards(t, records, overrides = {}) {
+  return makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records,
+    extraArgs: ['--task-type', 'coding'],
+    ...overrides,
+  })
+}
+
+export function seedOutcome(t, outcomes) {
+  const dir = mkdtempSync(join(tmpdir(), 'vendor-decide-outcomes-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const outDir = join(dir, 'outcomes')
+  mkdirSync(outDir, { recursive: true })
+  outcomes.forEach((doc, idx) => {
+    writeFileSync(join(outDir, `outcome-${idx}.json`), JSON.stringify(doc, null, 2))
+  })
+  return dir
+}
+
+export function codexLeadRecords(overrides = {}) {
+  return [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', overrides),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead', overrides),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ]
+}
+
+export function tieWithTokensRecords() {
+  return [
+    rec('board-a', 'claude', 'kestrel-1', 'tie', { tokens: { value: 140000, unit: 'tokens/task', source: 'board-a' } }),
+    rec('board-a', 'codex', 'sparrow-1', 'tie', { tokens: { value: 90000, unit: 'tokens/task', source: 'board-a' } }),
+    rec('board-b', 'claude', 'kestrel-1', 'tie', { tokens: { value: 160000, unit: 'tokens/task', source: 'board-b' } }),
+    rec('board-b', 'codex', 'sparrow-1', 'tie', { tokens: { value: 110000, unit: 'tokens/task', source: 'board-b' } }),
+  ]
+}
+
+export function runFetchBoardsCacheFixture(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'fetch-boards-test-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const fixtureDir = join(dir, 'fixtures')
+  const cacheDir = join(dir, 'cache')
+  const out1 = join(dir, 'out1')
+  const out2 = join(dir, 'out2')
+  const regPath = join(dir, 'benchmarks.json')
+
+  mkdirSync(join(fixtureDir, 'www-tbench-ai'), { recursive: true })
+  writeFileSync(
+    join(fixtureDir, 'www-tbench-ai', 'leaderboard.md'),
+    '# Terminal-Bench Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score | CI |\n|---|---|---|\n| sparrow-1 | 82.0% | +/- 1.1% |\n| kestrel-1 | 78.0% | +/- 1.2% |\n',
+  )
+  writeFileSync(
+    regPath,
+    JSON.stringify({
+      version: 1,
+      rows: [
+        {
+          id: 'terminal-bench',
+          workloads: ['coding'],
+          link: 'https://www.tbench.ai/leaderboard',
+          publisher: 'tbench.ai',
+          provider_own: false,
+          status: 'permanent',
+          task_set: 'terminal-bench',
+          expect: 'Terminal-Bench',
+          freshness_seconds: 3600,
+        },
+      ],
+    }),
+  )
+
+  const toPosix = (p) => p.replace(/\\/g, '/')
+  const nowSec = Math.floor(Date.UTC(2026, 10, 22, 12, 0, 0) / 1000)
+  const env = {
+    ...process.env,
+    FETCH_DOCS_FIXTURE_DIR: toPosix(fixtureDir),
+    DOCS_CACHE_DIR: toPosix(cacheDir),
+    DOCS_CACHE_NOW: String(nowSec),
+  }
+  const runOnce = (outDir, extraEnv = {}) =>
+    spawnSync(
+      'bash',
+      [
+        toPosix(FETCH_BOARDS),
+        '--registry', toPosix(regPath),
+        '--out', toPosix(outDir),
+        '--manifest', toPosix(join(outDir, 'manifest.json')),
+        '--cache-dir', toPosix(cacheDir),
+      ],
+      { encoding: 'utf8', env: { ...env, ...extraEnv } },
+    )
+  const run1 = runOnce(out1)
+  const run2 = runOnce(out2, { DOCS_CACHE_NOW: String(nowSec + 100) })
+  return {
+    run1,
+    run2,
+    m1: run1.status === 0 ? JSON.parse(readFileSync(join(out1, 'manifest.json'), 'utf8')) : null,
+    m2: run2.status === 0 ? JSON.parse(readFileSync(join(out2, 'manifest.json'), 'utf8')) : null,
   }
 }
 
