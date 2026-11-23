@@ -13,7 +13,6 @@ const BEFORE = '{\n  "enabledPlugins": {\n    "a@m": true\n  }\n}\n';
 const AFTER = '{\n  "enabledPlugins": {\n    "a@m": false\n  }\n}\n';
 const realRename = fs.renameSync;
 
-/** Calls fn while renameSync refuses with code on its first `refusals` calls, then renames; returns how many calls fn made. */
 function withRefusedRename(code, refusals, fn) {
   let calls = 0;
   fs.renameSync = (from, to) => {
