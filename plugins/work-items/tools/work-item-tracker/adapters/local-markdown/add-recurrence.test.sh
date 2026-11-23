@@ -10,8 +10,8 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 LINK="https://github.com/o/r/actions/runs/1"
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S" "local-markdown:local/markdown#1" --note seen       # no --source-link
-assert_usage_error "$S" "local-markdown:local/markdown#1" --source-link "$LINK" # no --note
+assert_usage_error "$S" "local-markdown:local/markdown#1" --note seen
+assert_usage_error "$S" "local-markdown:local/markdown#1" --source-link "$LINK"
 assert_usage_error "$S" "local-markdown:local/markdown#1" --source-link "$LINK" --note ""
 assert_usage_error "$S" "local-markdown:local/markdown#1" --source-link "not a url" --note seen
 assert_usage_error "$S" "github:o/r#1" --source-link "$LINK" --note seen
