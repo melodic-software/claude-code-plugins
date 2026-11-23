@@ -109,7 +109,7 @@ profile leaves the CLI's own configuration in charge.
 
 One key also has a per-user setting, the plugin's `userConfig` option `antigravity_uses_task_mode`
 (`read-only` by default, or `write`), which sets `antigravity.uses.task.mode` in every repository
-and worktree for that user. Set it in `/config`, or in `pluginConfigs` in your user
+and worktree for that user. Set it in `pluginConfigs` in your user
 `settings.json`:
 
 ```json
