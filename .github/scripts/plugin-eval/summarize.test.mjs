@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/plugin-eval/fixtures/traces/*
 // Expected verdicts come from /evals:plugin-eval's reference/ci.md parser: a
 // partial document, a run with skippedPaidGraders or a non-null error, and a
 // two-arm case with no delta are each NOT COMPARABLE, never a score. The
