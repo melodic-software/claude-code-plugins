@@ -198,15 +198,18 @@ follows this cadence:
 - **Which bucket.** GraphQL: `gh pr view`, `gh pr list`, `gh pr checks` (`--watch` re-queries every
   10 s), `gh pr create`, `edit`, `ready` and `merge`, `gh issue`, `gh api graphql`. REST: `gh run`,
   `gh api <path>`.
-- **Waiting.** One watcher per PR or run, in the background, polling at 60 s or longer:
-  `gh run watch <id> --exit-status -i 60` (the default is every 3 s), or REST reads of
+- **Waiting.** One watcher per PR or run, in the background, polling at 90 s or longer:
+  `gh run watch <id> --exit-status -i 90` (the default is every 3 s), or REST reads of
   `repos/<owner>/<repo>/pulls/<n>` and `commits/<sha>/check-runs`. Never loop `gh pr view` and
-  never run `gh pr checks --watch`. 60 s is a floor per watcher, not a budget: with several
+  never run `gh pr checks --watch`. 90 s is a floor per watcher, not a budget: with several
   watchers, poll every 2 s × watchers × counted requests per poll or slower, which keeps them near
   a third of the hourly REST budget. A `304 Not Modified` answer to a conditional request is not
-  counted, so the pull-request monitor's seven reads count only when their answer changed: none on
-  an idle poll, two measured on a poll while CI ran. Ten monitors at up to three counted requests a
-  poll fit its 60 s default; pass a larger `--interval` only past that.
+  counted, so the pull-request monitor's seven reads count only when their answer changed. Measured
+  on 2026-11-23: none on an idle poll, and two, three and four (an average of three) on polls while
+  CI ran; the worst case is seven, every read changed, and a push alone changes at least four (the
+  PR, and the runs, check runs and status of the new head). Ten monitors at the average fit the 90 s
+  default (about 1,200 counted requests an hour); ten at the worst case at once would count about
+  2,800 an hour, so pass a larger `--interval` when many watched PRs are pushed together.
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes.** One at a time, at least 1 s apart, never in a retry loop. Secondary limits cap
