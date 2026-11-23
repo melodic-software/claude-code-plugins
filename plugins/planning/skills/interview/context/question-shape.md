@@ -18,7 +18,7 @@ SKILL.md "Spoke paths" defines.
 
 | Field | Holds |
 |---|---|
-| `id` | the ledger's `Q<N>`: one counter per topic, across rounds, lanes and sessions |
+| `id` | the ledger's `Q<N>`: one counter per topic (one ledger), across rounds, lanes and sessions, assigned by `round.sh next-id` when the question is first shown, in display order; never picked by hand, reused or renumbered (SKILL.md, the `Q<N>` numbering paragraph; gaps: [`loop.md`](loop.md) "The open-question register") |
 | `text` | the question |
 | `short` | a label of at most 80 characters for lists |
 | `scope` | the view, screen or artifact the question is about ([Scope](#scope)) |
@@ -45,9 +45,14 @@ SKILL.md's "Recommended answers" owns both rules.
 | Lane | Where each field goes |
 |---|---|
 | terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:` (with its reason), `Origin:`, `Basis:`, and `Flips if:` and `Checked against:` when shown, are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
-| page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
-| shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
+| page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts |
+| shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)) |
 | document | the template in [`../templates/document.md`](../templates/document.md): `### Q<N>:` is `text`, then `Context:`, `My recommendation:` or `Withheld:`, `Basis:` and `Alternatives:`, with an answer stub under each question ([`lane-document.md`](lane-document.md)) |
+
+Alternatives, in every lane: at least two, and two or three in the shared lane; a yes/no question
+has exactly one, the other answer, and on the page it is flagged `"binary": true`, which
+`round.sh` enforces (`<plugin-root>/surface/README.md`). A withheld question keeps its
+alternatives; a discovery question has none.
 
 ## Context
 
@@ -57,11 +62,25 @@ Before the recommendation, `context` carries what drives the decision and nothin
 - what the source says or ships, paraphrased, with a short quote only where the exact words matter;
 - what exists today and the gap;
 - which parts of an absorbed idea come from the source and which are ours, labeled;
-- any term the question relies on that the reader may not share, defined inline.
+- every term the question relies on that a reader with none of the session's knowledge may not
+  share, defined inline with its source (a sourced term's agreement: SKILL.md "Agree a term where
+  it first appears"). The step, feature or topic the question decides about is such a term: a
+  question that names it ("the cluster step") says what it is, in every question that relies on
+  it.
+
+This holds in every lane and is the one home for which terms a question defines: no lane puts a
+terms table at the top of a round in its place.
 
 Every factual claim carries a link or `file:line` the reader can open in one click (a URL with its
-section anchor, a timestamp for a video, a repo path); a claim with no source is labeled
-`judgment`. Write one claim per line so each carries its own reference. If removing a line would
+section anchor, a timestamp for a video, a repo path); a claim the user stated cites
+`user, round <N>`, `<N>` being the round whose reply stated it, and the opening request counts as
+round 1 (`user, round 1`), never a bare "(your request)"; in a message that resumes past
+round <N> (one that reports round <N>'s answers), those answers cite `user, round <N>` and any
+other fact it states cites `user, round <N+1>`, the round it asks for. A
+claim cites its own basis, never another question (`(Q4 recommendation)`): a fact another
+question rests on is cited to that fact's source, and that question's undecided answer is not a
+Context claim (SKILL.md "No undecided name, scope or design shown as settled"). A claim with no
+source is labeled `judgment`. Write one claim per line so each carries its own reference. If removing a line would
 not change how a reasonable person decides, remove it; long material goes behind a link. Every
 lane carries the whole block, the terminal included; `basis` then names which of its sources the
 recommendation rests on. A question shown again (unanswered from last round, restated after async

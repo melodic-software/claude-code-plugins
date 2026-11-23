@@ -1,6 +1,6 @@
 # Document template: the literal shape
 
-Fill every `<placeholder>`; keep the section order. Order questions most-important-first; group under `##` theme headings once there are more than a handful. Each question keeps the `Q<N>` id of its register row, so a returned answer resolves that row.
+Fill every `<placeholder>`; keep the section order and the blank line between label blocks, so a renderer never joins two of them into one paragraph. Order questions most-important-first; group under `##` theme headings once there are more than a handful. Each question keeps the `Q<N>` id of its register row, so a returned answer resolves that row.
 
 ```markdown
 # <Document title>
@@ -27,9 +27,10 @@ Context:
 - <what drives the decision, one claim per line, each with its link or source, or labeled judgment>
 
 My recommendation: **<answer>**. <Why it beats the alternatives, in one or two sentences.>
+
 Basis: <the Context sources the recommendation rests on>
 
-<Or, in place of the two lines above, for a question no evidence lets us recommend an answer to:>
+<Or, in place of the two blocks above, for a question no evidence lets us recommend an answer to:>
 Withheld: <the evidence that would settle it>
 
 Alternatives:

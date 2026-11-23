@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "### Round 1: intake\n\nScope check: 3 of 27 questions registered\nLater: how patient records are shared between clinics, how billing splits across clinics, whether staff sign in once or per clinic, how existing appointments migrate\n\n❓ Q1: **Which quality bar is this move for?**\n\nContext:\n- The bars are a throwaway prototype (scoping only), an internal tool (some hardening) or production (failure handling, data correctness, security, monitoring and rollback in full) (judgment).\n- The app holds patient records today (user, round 1).\n\nDiscovery: how deep the later rounds go.\n\n---\n\n❓ Q2: **Where does the group of clinics stand today?**\n\nDiscovery: whether the group already exists or this move creates it.\n\nSuggested next: /planning:wayfind chart, because four areas are still open: shared patient records, billing across clinics, staff sign-in and appointment migration (user, round 1). Say yes to run it first.\n\nAnswer in any order.\n\nIs there something else that would change these recommendations?",
+      "why": "the intake round's one-line Suggested next: wayfind offer; the four areas are named on that line and the Later: line, not in a question's Context; other round-1 questions go out in the same message"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Round 1: intake\n\nScope check: 3 of 27 questions registered\nLater: how patient records are shared between clinics, how billing splits across clinics, whether staff sign in once or per clinic, how existing appointments migrate\n\n❓ Q1: **Which quality bar is this move for?**\n\nContext:\n- The bars are a throwaway prototype (scoping only), an internal tool (some hardening) or production (failure handling, data correctness, security, monitoring and rollback in full) (judgment).\n- The app holds patient records today (user, round 1).\n\nDiscovery: how deep the later rounds go.\n\n---\n\n❓ Q2: **Where does the group of clinics stand today?**\n\nDiscovery: whether the group already exists or this move creates it.\n\nIf these areas stay foggy after a couple of rounds, /planning:wayfind could chart them later.\n\nAnswer in any order.\n\nIs there something else that would change these recommendations?",
+      "why": "the same round, but wayfind is named only as something for later rounds, with nothing to accept now"
+    }
+  ]
+}

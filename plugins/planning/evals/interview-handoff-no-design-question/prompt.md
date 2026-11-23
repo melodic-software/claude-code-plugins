@@ -1,6 +1,6 @@
 ---
 description: "Contract case for the interview hand-off when the Brief is locked, the codebase and externals are understood, and the change has no design question (no new types, interface contracts, modules or data model) but is not trivially small. Why hard: the usual reflex is to route into design rounds or straight into code."
-tags: [interview, handoff]
+tags: [interview, handoff, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

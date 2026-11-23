@@ -3,6 +3,10 @@
     {
       "answer": "## Open-question register\n\n- Q1 | open | round 1 | What should checkout show for an undeliverable address? |\n- Q2 | open | round 1 | Is a second address-validation provider known, a category, or speculative? |\n",
       "why": "the intent question is registered open at ask-time"
+    },
+    {
+      "answer": "## Open-question register\n\n- Q7 | open | round 2 | Should mechanism decisions wait for planning? | problem:: P1 depends:: Q6\n- Q8 | open | round 2 | Should this change build against Loqate only (variation intent)? | problem:: P1\n",
+      "why": "the intent row named by the skill's own term, variation intent"
     }
   ],
   "fail": [

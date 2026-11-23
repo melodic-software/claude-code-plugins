@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q1: **What problem should notifications solve?**\n\nContext:\n- The request names the feature only (user, round 1).\n\nDiscovery: the answer sets what the feature must do.",
+      "why": "a Discovery: line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q1: **What problem should notifications solve?**\n\nWithheld: only you know why you want this.",
+      "why": "the old withheld shape, no Discovery: line"
+    },
+    {
+      "answer": "This round is for discovery: we learn the problem first.\n\nQ1: **What problem?**",
+      "why": "the word mid-sentence, lowercase, is not the label"
+    }
+  ]
+}
