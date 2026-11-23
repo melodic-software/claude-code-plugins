@@ -689,7 +689,8 @@ def load_case(repo_root, plugin, eval_dir, case_dir):
             if not case_skills.references("", prompt_file, (), (grader,)):
                 unread_graders.append("%s/%s" % (name, gname))
 
-    is_trigger_or_no_fire = has_skill_grader or any(
+    slash_invoked = bool(validate_cases.SLASH_SKILL.match(prompt or ""))
+    is_trigger_or_no_fire = (has_skill_grader and not slash_invoked) or any(
         tag.lower() in TRIGGER_TAGS for tag in all_tags
     )
     return CaseInfo(

@@ -31,6 +31,11 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | `unread-graders:` | A Skill or Agent grader whose `input_match` names no skill the shared rule can read | Rewrite the grader so it names its skill, or check it by hand |
 | `agent-runs:` | Each run-requiring case's runs times two arms, summed | State it with the case list before dispatch |
 
+A triggering or no-fire case is one that leaves the choice of skill to the model (its prompt does
+not open with a `/plugin:skill` command) and checks a Skill call, or one tagged `triggering`,
+`no-trigger` or `no-fire`. A `description` edit cannot change a case that invokes the skill by
+name, so those cases are not selected for one.
+
 Which skill a case tests comes from the plugin's shared `case_skills.py` rule, the same rule
 `/evals:validate` reads, so the two never disagree on a case.
 

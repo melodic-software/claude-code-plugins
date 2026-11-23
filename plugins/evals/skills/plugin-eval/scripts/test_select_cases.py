@@ -760,6 +760,27 @@ class SelectCasesTest(unittest.TestCase):
         )
         self.assertEqual("14", blocks["plugins/alpha"]["agent-runs"])
 
+    def test_description_edit_skips_slash_invoked_case_with_skill_grader(self):
+        grader = self.repo / "plugins/alpha/evals/one-basic/graders/fired.md"
+        grader.write_text(
+            "---\ntype: tool_used\ntool: Skill\ninput_match: '\"skill\"\\s*:\\s*\"alpha:one\"'\nmin: 1\n---\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "slash-invoked case with a Skill grader")
+        base = _git(self.repo, "rev-parse", "HEAD").strip()
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(
+            'description: "Run alpha one checks. Use when checking alpha items."',
+            'description: "Run alpha one checks. Use when checking alpha items. Also use for alpha audits."',
+        )
+        path.write_text(text, encoding="utf-8")
+        _commit_all(self.repo, "additive description edit")
+
+        res = _run_select(self.repo, base)
+        self.assertEqual(0, res.returncode, res.stderr)
+        blocks = _parse_blocks(res.stdout)
+        self.assertNotIn("one-basic", blocks["plugins/alpha"]["run-after-merge"].split())
+
     def test_reworded_description_is_cut_and_runs_before_merge(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace(
