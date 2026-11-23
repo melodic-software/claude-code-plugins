@@ -182,7 +182,8 @@ export function planCase(caseDir) {
 
 function caseNames(caseDirs) {
   const withYaml = caseDirs.filter((dir) => existsSync(join(dir, "case.yaml")));
-  const docs = withYaml.length ? parseYaml(withYaml.map((dir) => readFileSync(join(dir, "case.yaml"), "utf8"))) : [];
+  const texts = withYaml.map((dir) => readFileSync(join(dir, "case.yaml"), "utf8").trimStart());
+  const docs = texts.length ? parseYaml(texts.map((text) => (text.startsWith("---") ? text.slice(3) : text))) : [];
   const named = new Map(withYaml.map((dir, i) => [dir, docs[i]?.name]));
   return caseDirs.map((dir) => {
     const name = named.get(dir);

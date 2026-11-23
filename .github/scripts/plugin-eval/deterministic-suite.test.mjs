@@ -240,6 +240,23 @@ test("with a case list, only the named cases are copied, matching case.yaml name
   });
 });
 
+test("a case.yaml opening with a --- document marker still yields its name for a case list", () => {
+  const marked = {
+    ...SELECTION_SUITE,
+    "evals/marked-dir/case.yaml":
+      '---\nschema_version: "1"\nname: marked-name\ngraders:\n  - name: says-ok\n    type: regex\n    pattern: ok\n',
+    "evals/marked-dir/prompt.md": "Say ok.\n",
+  };
+  withPlugin(marked, (dir) => {
+    const run = spawnSync(process.execPath, [SCRIPT, dir, "evals-deterministic", "--cases", "marked-name alias-name"], {
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(JSON.parse(run.stdout).selected, ["marked-name", "alias-name"]);
+    assert.ok(existsSync(join(dir, "evals-deterministic/marked-dir/case.yaml")));
+  });
+});
+
 test("a listed case name that matches no case or violates NAME exits 2 and writes nothing", () => {
   withPlugin(SELECTION_SUITE, (dir) => {
     const missing = spawnSync(
