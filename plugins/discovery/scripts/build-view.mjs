@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Build the blindspot view: a checked-in template plus the JSON data object on
-// stdin, through the shared view builder (interactive profile). Writes the page
-// to one deterministic path under the OS temp directory, never beside the
-// record, and prints that path.
-//
 //   node build-view.mjs < data.json
 //
 // Exit 0 built, 1 the data or the page fails its checks, 2 usage or environment.
@@ -16,8 +11,6 @@ import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 
 const TEMPLATE = "../skills/blindspot/templates/blindspot-view.html";
 
-// Data shape from reference/rendered-view.md, "Discovery: blindspot": top-level
-// text fields, then one list of rows whose fields are text.
 const TEXT = ["title", "start", "prompt", "scope"];
 const LIST = "cards";
 const ROW = ["type", "gap", "why", "fix"];
@@ -53,7 +46,6 @@ try {
     template: readFileSync(fileURLToPath(new URL(TEMPLATE, import.meta.url)), "utf8"),
     data,
   });
-  // The temp root is shared: keep the directory private and never write through a link.
   const dir = join(tmpdir(), "discovery-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!lstatSync(dir).isDirectory())

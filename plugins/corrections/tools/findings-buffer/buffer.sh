@@ -2,11 +2,6 @@
 # Findings buffer front door.
 #   buffer.sh append < rows.jsonl
 #   buffer.sh read [--since <UTC ISO-8601>]
-# append redacts each row's string values, caps the row, sets obs_id and ts, and hands the rows to
-# the bound adapter: the user-scope binding for this repository, else the one in
-# <home>/findings-buffer.yaml (personal override findings-buffer.local.yaml; default local-file).
-# When that append fails, the rows go to the local-file adapter instead.
-# read merges the bound adapter's rows with the local-file rows and drops repeat obs_ids.
 # Exit: 0 ok, 1 failure, 2 usage or a malformed row, 3 not in a repository or node/python3 missing.
 set -uo pipefail
 
@@ -69,7 +64,6 @@ command -v python3 >/dev/null 2>&1 || {
   echo "buffer.sh: prerequisite missing: python3" >&2
   exit 3
 }
-# Redact first, then cap and set obs_id and ts: a row that cannot be redacted is never written.
 python3 -I "$HERE/lib/redact_rows.py" >"$TMP/redacted"
 RC=$?
 if [[ $RC -ne 0 ]]; then

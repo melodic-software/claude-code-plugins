@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tier classification is a path/frontmatter heuristic; files it cannot place
-# are tier=unknown and left to the in-session judgment layer. A repo with no
-# Claude Code configuration degrades gracefully: everything not matching an
-# instruction-surface pattern is on-demand/unknown and the size facts still
-# emit.
 # Exit: 0 facts emitted (including zero facts), 2 usage/environment error.
 set -euo pipefail
 

@@ -1999,6 +1999,7 @@ const patchRules = (name) => JSON.parse(fixture(name));
 test("patch rules: the shipped registry passes, with a row for each prepare mode, the docs row and the default and issue targets", () => {
   assert.equal(checkPatchRules(PATCH_RULES, PATCH_RULES_SCHEMA), PATCH_RULES);
   assert.deepEqual(Object.keys(PATCH_RULES).sort(), [
+    "cdn-pins-sync",
     "ci-context",
     "default",
     "dependency-relock",

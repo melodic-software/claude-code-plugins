@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "fast-check runs as the review:brief-reviewer agent on model sonnet with effort max. The council passes both on the Agent call at dispatch, so they override the agent file's opus/high pin."
+    },
+    {
+      "answer": "It does not run on opus: model sonnet and effort max are passed at dispatch.",
+      "why": "negated wrong claim"
+    },
+    {
+      "answer": "The member doesn't use opus or high; the Agent call carries sonnet and max.",
+      "why": "contracted negation"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The council passes sonnet and max on the Agent call; without that, the agent would run on opus with effort high.",
+      "why": "counterfactual would run"
+    },
+    {
+      "answer": "Otherwise the agent file alone would use opus/high.",
+      "why": "counterfactual would use"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "fast-check runs on opus with effort high, because the agent file pins those values.",
+      "why": "agent pin wins"
+    },
+    {
+      "answer": "It runs with sonnet, but the effort is ignored because the agent pins high.",
+      "why": "effort ignored"
+    },
+    {
+      "answer": "When max is unsupported it falls back to high effort silently.",
+      "why": "silent fallback"
+    }
+  ]
+}

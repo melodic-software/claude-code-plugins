@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # local-file findings buffer: append.sh < rows.jsonl
-# Stores each row in findings-buffer/findings.jsonl under the git common directory,
-# which every worktree of a clone shares.
 # Exit: 0 every row durable, 1 storage failure, 2 usage, 3 not in a repository or jq missing.
 set -uo pipefail
 
@@ -25,13 +23,9 @@ FILE="$DIR/findings.jsonl"
 LOCKDIR="$DIR/.lockdir"
 HELD=0
 TMP="$(mktemp)" || exit 1
-# Nothing takes a lock over, so a lock this process took is still its own.
 trap 'rm -f "$TMP"; if [[ $HELD -eq 1 ]]; then rm -rf "$LOCKDIR"; fi' EXIT
 trap 'exit 1' HUP INT TERM
 
-# Validate every line first, so a malformed row stores nothing from this call.
-# One program over all lines (-n with inputs): jq's exit status reflects only the
-# last input when each line is its own program, so an early bad line would pass.
 if ! jq -nRc '
   [inputs | select(test("[^[:space:]]"))
     | (try fromjson catch error("not JSON"))
@@ -44,9 +38,6 @@ fi
 
 [[ -s "$TMP" ]] || exit 0
 
-# refuse_links: the buffer stays a plain directory inside the git common directory,
-# so a symlink can never redirect rows (or the lock file) elsewhere. Git tracks
-# nothing there, so the rows never reach a commit.
 refuse_links() {
   local p
   for p in "$DIR" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
@@ -70,13 +61,8 @@ write_rows() {
   sync "$FILE" 2>/dev/null || true
 }
 
-# take_mkdir_lock: mkdir is atomic, and the holder writes its pid inside the lock.
-# There is no automatic takeover: a lock whose holder pid is dead fails at once, and
-# a live holder that keeps it past the wait fails too, each naming the lock dir.
 take_mkdir_lock() {
   local tries=0 holder pending=0
-  # Defer HUP/INT/TERM from a successful mkdir until HELD and the pid are set, so
-  # the EXIT trap always removes a lock this process took.
   trap 'pending=1' HUP INT TERM
   until mkdir "$LOCKDIR" 2>/dev/null; do
     if [[ $pending -eq 1 ]]; then
@@ -102,11 +88,6 @@ take_mkdir_lock() {
   fi
 }
 
-# Without flock(1), perl's flock takes the same lock when perl calls flock(2) itself
-# (d_flock), not an fcntl emulation whose lock would end with the perl process. A
-# flock(2) lock belongs to the open file, so it stays held through this shell's fd 9
-# after the tool exits, and ends only when every process holding that fd has exited:
-# a killed holder leaves nothing to take over. The mkdir lock is the last fallback.
 LOCK_WITH="mkdir"
 if command -v flock >/dev/null 2>&1; then
   LOCK_WITH="flock"
@@ -114,12 +95,10 @@ elif perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; t
   LOCK_WITH="perl"
 fi
 
-# lock_fd9: an exclusive flock(2) lock on fd 9, waiting while another append holds it.
 lock_fd9() {
   if [[ $LOCK_WITH == flock ]]; then
     flock -x 9
   else
-    # Two statements: a my variable is not in scope until the statement after it.
     perl -MFcntl=:flock -e 'open(my $fh, ">>&=", 9) or exit 1; flock($fh, LOCK_EX) or exit 1'
   fi
 }

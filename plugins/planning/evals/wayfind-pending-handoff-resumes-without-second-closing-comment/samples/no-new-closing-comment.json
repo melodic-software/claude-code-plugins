@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The closing comment from dana-m already states every decision and ends `Handoff: pending`, so I resume the handoff and post no second closing comment.\n\nInvoked /planning:prd with the decisions and `Source map: #520`.",
+      "why": "resumes and says no comment is posted"
+    },
+    {
+      "answer": "Tracker actions: none. Step 8 would post a closing comment, but the map's author already posted one, so the handoff resumes from it.",
+      "why": "mentions step 8's comment in prose without writing one out"
+    },
+    {
+      "answer": "1. Post no second closing comment: the existing one counts.\n2. Skill: planning:prd, args: decisions plus Source map: #520.",
+      "why": "a list item that declines the write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. `/work-items:track edit 520 --comment-file closing-520.md` with the closing comment below, ending `Handoff: pending`.\n2. Skill: planning:prd.",
+      "why": "writes out a new comment on the map"
+    },
+    {
+      "answer": "1. Post a closing comment on #520:\n\n> Q1: every household member. Q2: 30 days. D3: offline edits merge.\n>\n> Handoff: pending\n\n2. Invoke /planning:prd.",
+      "why": "near miss: restates the same decisions in a second closing comment"
+    },
+    {
+      "answer": "- Comment on #520: \"Closing comment: Q1 every household member; Q2 30 days; D3 offline merge. Handoff: pending\"",
+      "why": "comment write-out without the closing-comment phrase"
+    }
+  ]
+}

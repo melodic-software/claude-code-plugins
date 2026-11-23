@@ -1101,8 +1101,6 @@ models:
       medium:
         base-turns: 150
         timeout-minutes: 115
-      # Too big for one run: the lane skips it (split-required) before any
-      # model turn, and triage sends it to /work-items:decompose.
       large: split
     # A trusted size-split sub-issue rated Large (admission takes it whatever
     # its Size, owner Q93) runs at this size instead of split-required: it
@@ -1869,6 +1867,8 @@ merge:
       - glob: ".github/scripts/apply-patch/predicates.mjs"
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/cdn-paths.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/run-main.mjs"
         class: enforcement

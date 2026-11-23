@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for rules-ledger.mjs: a complete ledger passes, and each way a rule can be dropped or left
-# unaccounted for fails with a line naming it.
 # test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -36,7 +34,6 @@ cat >"$R/.claude/rules/api.md" <<'EOF'
 Every handler returns a typed result.
 EOF
 
-# A complete ledger: one row per disposition, each with the fields it needs.
 cat >"$TEST_TMPDIR/good.json" <<'EOF'
 {
   "inputs": [
@@ -58,19 +55,16 @@ cat >"$TEST_TMPDIR/good.json" <<'EOF'
 }
 EOF
 
-# run <ledger>: the script from inside the repository; stdout to $OUT, stderr to $ERR.
 run() {
   (cd "$R" && node "$LEDGER_SCRIPT" "$@") >"$TEST_TMPDIR/out" 2>"$TEST_TMPDIR/err"
   RC=$?
   OUT="$(cat "$TEST_TMPDIR/out")"
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
-# variant <name> <jq filter>: writes good.json transformed by the filter and sets V to its path.
 variant() {
   V="$TEST_TMPDIR/$1.json"
   jq "$2" "$TEST_TMPDIR/good.json" >"$V"
 }
-# fails_with <name> <pattern>: the last run exited 1 and stderr matches the pattern.
 fails_with() {
   DETAIL="exit $RC; stderr: $ERR"
   check "$1: exits 1" test "$RC" -eq 1
@@ -78,7 +72,6 @@ fails_with() {
   check "$1: stderr names it" grep -qE "$2" <<<"$ERR"
 }
 
-# 1. A complete ledger passes and prints the tally per file.
 run "$TEST_TMPDIR/good.json"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "complete ledger: exits 0" test "$RC" -eq 0
@@ -87,12 +80,10 @@ check "complete ledger: tallies each file" grep -qx 'AGENTS.md: 3 rules: 1 check
 DETAIL="out: $OUT"
 check "complete ledger: says every rule is accounted for" grep -qx 'ledger complete: 4 rules from 2 files accounted for' <<<"$OUT"
 
-# 2. A rule dropped silently: the file declares more rules than it has rows.
 variant dropped 'del(.rows[1])'
 run "$V"
 fails_with "dropped rule" 'AGENTS\.md: declares 3 rules, ledger has 2 rows'
 
-# 3. An input file with no count, and one with zero rules and no reason.
 variant nocount 'del(.inputs[1].rules)'
 run "$V"
 fails_with "no rule count" '\.claude/rules/api\.md: no rule count'
@@ -104,7 +95,6 @@ run "$V"
 DETAIL="exit $RC; stderr: $ERR"
 check "zero rules with a reason: exits 0" test "$RC" -eq 0
 
-# 4. A row whose file is not an input, or whose source is not file:line.
 variant stray '.rows[1].source = "README.md:1"'
 run "$V"
 fails_with "row from a file not read" 'README\.md:1: not one of the input files'
@@ -112,7 +102,6 @@ variant badsource '.rows[1].source = "AGENTS.md"'
 run "$V"
 fails_with "source without a line" 'AGENTS\.md: source is not <file>:<line>'
 
-# 5. The quoted rule must be in the file at that line.
 variant fabricated '.rows[1].rule = "Use tabs."'
 run "$V"
 fails_with "rule not at its line" 'AGENTS\.md:4: rule text not found at that line'
@@ -120,7 +109,6 @@ variant moved '.rows[1].source = "AGENTS.md:6"'
 run "$V"
 fails_with "rule at the wrong line" 'AGENTS\.md:6: rule text not found at that line'
 
-# 6. A disposition outside the four.
 variant fifth '.rows[1].disposition = "maybe"'
 run "$V"
 fails_with "unknown disposition" 'AGENTS\.md:4: disposition "maybe" is not check, prose, delete or held'
@@ -128,7 +116,6 @@ variant none 'del(.rows[1].disposition)'
 run "$V"
 fails_with "missing disposition" 'AGENTS\.md:4: disposition (missing|"undefined")'
 
-# 7. A check row needs a rung, a proof that held, the known cases and the prose flagged.
 variant norung 'del(.rows[0].rung)'
 run "$V"
 fails_with "check without rung" 'AGENTS\.md:3: check row has no rung'
@@ -173,7 +160,6 @@ variant badstyle '.rows[3].style = "pretty"'
 run "$V"
 fails_with "unknown style label" 'api\.md:1: style "pretty" is not formatter or lint'
 
-# 8. A prose, delete or held row needs a reason.
 for i in 1 2 3; do
   variant "noreason$i" "del(.rows[$i].reason)"
   run "$V"
@@ -183,12 +169,10 @@ for i in 1 2 3; do
   check "row $i without a reason: stderr names it" grep -q 'row has no reason' <<<"$ERR"
 done
 
-# 9. The same rule listed twice.
 variant twice '.rows += [.rows[1]] | .inputs[0].rules = 4'
 run "$V"
 fails_with "rule listed twice" 'AGENTS\.md:4: listed twice'
 
-# 9b. One rule cannot stand in for the rule on the line above it.
 printf 'Use descriptive names.\nNever log secrets.\n' >"$R/TWO.md"
 cat >"$TEST_TMPDIR/standin.json" <<'EOF'
 {
@@ -202,7 +186,6 @@ EOF
 run "$TEST_TMPDIR/standin.json"
 fails_with "quote from the next line" 'TWO\.md:1: rule text not found at that line'
 
-# 10. Usage and unreadable input.
 run
 DETAIL="exit $RC; stderr: $ERR"
 check "no argument: exits 2" test "$RC" -eq 2
@@ -214,7 +197,6 @@ run "$TEST_TMPDIR/bad.json"
 DETAIL="exit $RC; stderr: $ERR"
 check "ledger that is not JSON: exits 2" test "$RC" -eq 2
 
-# 11. Every checking rung id the script accepts is a rung id in the ladder copy.
 for id in $(node "$LEDGER_SCRIPT" --list-rungs); do
   DETAIL="rung $id"
   check "rung $id is in the ladder" grep -q "\`$id\`" "$LADDER"

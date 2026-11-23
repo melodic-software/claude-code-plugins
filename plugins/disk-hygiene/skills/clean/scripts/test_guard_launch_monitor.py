@@ -87,8 +87,6 @@ def _record(
     return json.dumps(payload)
 
 
-# A tail-window size the large-transcript fixtures straddle, so a cold scan
-# capped to the tail would fail them.
 _OLD_TAIL_CAP = 2_000_000
 
 
@@ -108,16 +106,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.data_root = Path(self.tmp.name) / "data-root"
         self.transcript_path = Path(self.tmp.name) / "transcript.jsonl"
 
-        # Isolate every test from real machine state: the fallback marker
-        # location is tempfile.gettempdir() and the data-root resolution
-        # falls back to the real CLAUDE_PLUGIN_DATA env var when no
-        # --data-root is supplied (test_unsubstituted_data_root_placeholder_
-        # treated_as_absent exercises exactly that "no usable data root"
-        # path). Without this isolation those tests would write a
-        # once-per-session marker into this machine's real temp dir (or,
-        # worse, its real plugin data directory if CLAUDE_PLUGIN_DATA
-        # happens to be exported) and never clean it up, making a second
-        # run of the suite on the same machine spuriously fail.
         fake_tempdir = Path(self.tmp.name) / "fake-system-tempdir"
         fake_tempdir.mkdir()
         gettempdir_patcher = mock.patch.object(
@@ -169,12 +157,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
-
-    # -- the did-not-run record (#3862) ------------------------------------
-    #
-    # The guard cannot write this state: a hook that failed to launch, or
-    # launched and exited non-zero, records nothing from inside its own
-    # process. Only this detector can.
 
     def test_a_detected_launch_failure_is_recorded_as_did_not_run(self) -> None:
         self.write_transcript([_record(exit_code=1, duration_ms=17054, stderr="boom")])
@@ -429,8 +411,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         failure = _record(exit_code=9, duration_ms=4242, stderr="boundary failure")
         pad = _filler_line(_OLD_TAIL_CAP - len(failure) - 1)
         head = [_filler_line(4096) for _ in range(4)]
-        # Written as bytes with explicit LF: the byte offsets are the fixture's
-        # whole point, and text mode would insert a platform line ending.
         body = "\n".join(head + [failure, pad]) + "\n"
         self.transcript_path.write_bytes(body.encode("utf-8"))
 
@@ -499,9 +479,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
 
     def _make_telemetry_sink(self) -> tuple[Path, str]:
         out_file = Path(self.tmp.name) / f"telemetry-{id(self)}.json"
-        # Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
-        # runs a sibling .py keeps quoting simple and inherits stdin. Same
-        # shape as the guard-telemetry sinks in test_hygiene.py.
         if os.name == "nt":
             sink_py = Path(self.tmp.name) / f"sink-{id(self)}.py"
             sink_py.write_text(

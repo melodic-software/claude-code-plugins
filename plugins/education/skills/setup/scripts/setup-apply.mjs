@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// The YAML reader is the copy bundled with /education:explain, under
-// skills/explain/scripts/. The usage, options, guarantees and exit codes are
-// in ../../../lib/setup-apply.mjs.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

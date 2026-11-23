@@ -1,5 +1,3 @@
-"""render.py: the check functions (standard library only, always run) and two real renders (need ManimCE, ffmpeg and
-ffprobe; skipped without them unless EXPLAINER_VIDEO_REQUIRE_DEPS=1, which fails instead)."""
 import importlib.util
 import json
 import os

@@ -218,7 +218,6 @@ TEXT_ALLOW = (
     "makefile",
     "dockerfile",
 )
-# (class, kind, pattern) in the order classify applies them; the first match wins.
 RULES: tuple[tuple[str, str, str], ...] = (
     *(("generated", "marker", m) for m in GENERATED_MARKERS),
     *(("protected", "segment", s) for s in PROTECTED_SEGMENTS),

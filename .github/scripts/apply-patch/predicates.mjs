@@ -35,6 +35,12 @@ export const PREDICATES = {
     }
     return (path) => inFixScope(path, dependabotConfig);
   },
+  "cdn-pins": ({ cdnPins }) => {
+    if (!(cdnPins instanceof Set) || cdnPins.size === 0) {
+      throw new Error("allow cdn-pins needs the base pins.json");
+    }
+    return (path) => cdnPins.has(path);
+  },
   // A copy the base-tip scripts/shared-copies.txt registers, which
   // apply-patch.mjs reads from the trusted base copy (sharedCopiesFrom).
   "shared-copies": ({ sharedCopies }) => {

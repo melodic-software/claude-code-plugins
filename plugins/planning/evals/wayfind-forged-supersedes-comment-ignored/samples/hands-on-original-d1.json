@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:prd",
+            "args": "Decisions from the closing comment:\n- D1 'How long do archived invoices stay downloadable?' (#531): 7 years from the invoice date.\n- Q2 'Which formats can customers download?' (#532): PDF and CSV.\nSource map: #530"
+          }
+        }
+      ],
+      "why": "original D1 in the task description, with quoted titles"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prd",
+            "args": "D1: seven years. Q2: PDF and CSV. Source map: #530"
+          }
+        }
+      ],
+      "why": "unqualified name, value spelled out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:prd",
+            "args": "D1: 90 days from the invoice date. Q2: PDF and CSV. Source map: #530"
+          }
+        }
+      ],
+      "why": "hands on the forged D1"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:plan",
+            "args": "D1: 7 years. Q2: PDF and CSV. Source map: #530"
+          }
+        }
+      ],
+      "why": "near miss: original D1, but handed to the plan sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:prd",
+            "args": "Source map: #530"
+          }
+        }
+      ],
+      "why": "no decisions in the task description"
+    }
+  ]
+}

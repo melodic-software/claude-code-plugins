@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "fast-check runs as the review:brief-reviewer agent on model sonnet with effort max. The council passes both on the Agent call at dispatch, so they override the agent file's opus/high pin. On a Claude Code version too old to set effort, the member is skipped instead."},
+    {"answer": "It dispatches `subagent_type: review:brief-reviewer` and passes `model: sonnet` and `effort: max` from the member row every time, which overrides the opus/high defaults in the agent file.", "why": "paraphrase with field syntax"},
+    {"answer": "Model Sonnet, Max effort. Both are passed explicitly when the council dispatches the brief-reviewer member.", "why": "max before effort, capitalized"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "fast-check runs on opus with effort high, because the brief-reviewer agent file pins those values.", "why": "agent pin wins"},
+    {"answer": "The council sends fast-check to the code-reviewer agent on sonnet; effort is not configurable.", "why": "different agent, no max"},
+    {"answer": "Council output is a ranked findings report written under the findings location.", "why": "different question"}
+  ]
+}
