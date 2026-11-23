@@ -35,7 +35,8 @@
         "@tailwindcss/browser",
         "mermaid"
       ],
-      "integrity": true
+      "integrity": true,
+      "prose": true
     },
     {
       "path": "plugins/architecture/evals/deepening-report-on-chrome-with-counts/samples/csp-pins-mermaid.json",
