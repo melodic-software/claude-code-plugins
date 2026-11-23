@@ -128,15 +128,12 @@ test("no trace leaves a pass runner: a pass uploads its result, summary and vali
   assert.doesNotMatch(step(jobs(main)["generate-edit"], "Write the prompt and schema"), /traces\//);
 });
 
-test("every ci-workflows action is pinned to one full commit", () => {
-  const pins = [...(main + pass).matchAll(/uses: melodic-software\/ci-workflows\/[^@\n]+@(\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.ok(pins.length >= 2);
-  const pin = pins[0];
-  assert.match(pin, /^[0-9a-f]{40} v\d+\.\d+\.\d+$/);
-  for (const found of pins) assert.equal(found, pin);
-  // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
-  const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, [pin]);
+test("every ci-workflows action, and the classifier each pass leg checks out, tracks main", () => {
+  const refs = [...(main + pass).matchAll(/uses: melodic-software\/ci-workflows\/[^@\n]+@(\S+)/g)].map(([, ref]) => ref);
+  assert.ok(refs.length >= 2);
+  for (const ref of refs) assert.equal(ref, "main");
+  const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+)/g)].map(([, ref]) => ref);
+  assert.deepEqual(classifier, ["main"]);
 });
 
 test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {

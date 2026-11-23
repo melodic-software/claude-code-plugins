@@ -9,6 +9,7 @@ const REMOTE = "https://github.com/melodic-software/ci-workflows.git";
 const CACHE = join(tmpdir(), "ci-workflows-at-pin");
 const ATTEMPTS = 3;
 const PIN = /^[0-9a-f]{40}$/;
+let mainTip;
 
 const LOCAL = new Set(execFileSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).split("\n").filter(Boolean));
 const ENV = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !LOCAL.has(name))), GIT_TERMINAL_PROMPT: "0" };
@@ -23,8 +24,23 @@ const git = (dir, ...args) =>
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
+function commitOf(ref) {
+  if (PIN.test(ref)) return ref;
+  if (ref !== "main") throw new Error(`ci-workflows ref is neither main nor a full commit sha: ${ref}`);
+  for (let attempt = 1; !mainTip; attempt += 1) {
+    try {
+      const sha = execFileSync("git", ["ls-remote", REMOTE, "refs/heads/main"], { encoding: "utf8", env: ENV, stdio: ["ignore", "pipe", "pipe"] }).split("\t")[0];
+      if (!PIN.test(sha)) throw new Error(`no main tip in: ${sha}`);
+      mainTip = sha;
+    } catch (error) {
+      if (attempt === ATTEMPTS) throw new Error(`git ls-remote of ci-workflows main failed: ${String(error.stderr || error.message).trim()}`);
+      pause(2000 * attempt);
+    }
+  }
+  return mainTip;
+}
+
 function pinned(pin) {
-  if (!PIN.test(pin)) throw new Error(`ci-workflows pin is not a full commit sha: ${pin}`);
   const dir = join(CACHE, pin);
   if (existsSync(join(dir, "ready"))) return dir;
   mkdirSync(CACHE, { recursive: true });
@@ -54,8 +70,9 @@ function pinned(pin) {
   }
 }
 
-export async function fetchAtPin(pin, path) {
-  return git(pinned(pin), "show", `${pin}:${path}`);
+export async function fetchAtPin(ref, path) {
+  const sha = commitOf(ref);
+  return git(pinned(sha), "show", `${sha}:${path}`);
 }
 
 export async function contractFilesAtPin(pin) {

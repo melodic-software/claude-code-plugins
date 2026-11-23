@@ -360,7 +360,7 @@ test("the key reaches the probe's run-claude-cli step alone, and that step runs 
   // The probe's input, and the presence check that reads whether it is set.
   assert.deepEqual(job.match(/secrets\.[^\n]*/g), ["secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}", "secrets.ISSUE_LANE_CLAUDE_API_KEY }}"]);
   const probe = stepIn(PROBE_JOB, PROBE_STEP);
-  assert.match(probe, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /m);
+  assert.match(probe, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main\b/m);
   assert.match(probe, /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
   assert.match(probe, /^ {10}cli-version: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
   assert.match(probe, /^ {10}CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY$/m);
@@ -455,7 +455,7 @@ test("the check names the release and hit names on every failure, never a value,
   assert.match(untried.stdout, /^::error::Claude Code 2\.1\.320: the subprocess scrub probe failed: the leg made no Read call on \/proc or the runner's temp directory, so its file-tool fence was not tested$/m);
 });
 
-const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} # \S/m;
+const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main/m;
 
 test("the gate reads the key's credit history through select-model-credential's start call once a release is picked", () => {
   assert.doesNotMatch(WORKFLOW, /check-key-credit@/);
@@ -510,7 +510,7 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   const scan = stepIn("apply-changelog", "Scan the key's credit-stop marker for credentials");
   assert.match(scan, /^ {8}id: credit-marker-scan$/m);
   assert.equal(ifOf(scan), "always() && steps.credit-marker.outcome == 'success'");
-  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main$/m);
   assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
   assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
   const upload = stepIn("apply-changelog", "Upload the key's credit-stop marker");
@@ -600,7 +600,7 @@ test("each leg writes, scans and uploads the start record after the leg", () => 
     assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
     const scan = stepIn(job, "Scan the start record for credentials");
     assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
-    assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+    assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main$/m);
     assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
     const upload = stepIn(job, "Upload the start record");
     assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");

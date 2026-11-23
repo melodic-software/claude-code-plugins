@@ -21,7 +21,7 @@ import { filePatch, MIXED, MIXED_MANIFEST } from "../diff-chunking/fixtures.mjs"
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 // The one commit and version comment every select-model-credential pin in
 // the workflow names; a second pin fails here.
-const SELECT_PINS = new Set([...text.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@([0-9a-f]{40}) # (\S+)/g)].map((m) => `${m[1]} # ${m[2]}`));
+const SELECT_PINS = new Set([...text.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@(main)/g)].map((m) => m[1]));
 assert.equal(SELECT_PINS.size, 1, [...SELECT_PINS].join(", "));
 const SELECT_USES = new RegExp(`^ {8}uses: melodic-software/ci-workflows/\\.github/actions/select-model-credential@${[...SELECT_PINS][0].replace(/[.+]/g, "\\$&")}$`, "m");
 const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
@@ -603,7 +603,7 @@ test("each chunk's review leaves a lane record", () => {
   for (const job of LEGS) {
     for (let k = 1; k <= SLOTS; k++) {
       const report = step(`Report chunk ${k}'s outcome`, job);
-      assert.match(report, /report-lane-outcome@[0-9a-f]{40}/);
+      assert.match(report, /report-lane-outcome@main/);
       assert.match(report, /^ {10}lane: pr-review-main$/m);
       assert.match(report, /^ {10}lane-id: pr-review-main-\$\{\{ matrix\.lane \}\}$/m);
       assert.equal(input(report, "outcome"), `\${{ steps.review-${k}.outcome }}`);
@@ -664,8 +664,7 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
   for (const [, remote] of text.matchAll(/^\s+uses: ([^.\s]\S*)/gm)) {
-    // Actions pin a full SHA (org policy); first-party reusable workflows float on main.
-    assert.match(remote, /^melodic-software\/[^/]+\/\.github\/workflows\//.test(remote) ? /@main$/ : /@[0-9a-f]{40}$/, remote);
+    assert.match(remote, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|\S+@[0-9a-f]{40})$/, remote);
   }
 });
 
@@ -1091,9 +1090,9 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
   assert.match(scan, /^ {8}id: probe-marker-scan$/m);
   assert.match(scan, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
-  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # \S/m);
+  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main/m);
   assert.match(upload, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
-  assert.match(upload, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.match(upload, /^ {8}uses: actions\/upload-artifact@v7/m);
   assert.equal(input(upload, "name"), probe);
   assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-probing/run-id");
   assert.equal(input(scan, "path"), input(upload, "path"));
@@ -1124,7 +1123,7 @@ test("review-handoffs uploads the gate's marker only after a key leg's credit st
   assert.ok(index("Upload the key's credit-stop marker", "review-handoffs") > index("Write the key's credit-stop marker", "review-handoffs"));
   assert.match(upload, /^ {8}if: \$\{\{ !cancelled\(\) && steps\.credit-marker\.outcome == 'success' \}\}$/m);
   assert.match(upload, /^ {8}continue-on-error: true$/m);
-  assert.match(upload, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.match(upload, /^ {8}uses: actions\/upload-artifact@v7/m);
   assert.equal(input(upload, "name"), "${{ needs.review-handoffs-credit.outputs.marker }}");
   assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
   assert.equal(input(upload, "if-no-files-found"), "error");

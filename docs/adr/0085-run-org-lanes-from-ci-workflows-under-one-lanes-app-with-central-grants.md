@@ -1,6 +1,8 @@
 # Run organization lanes from ci-workflows under one lanes App with central grants
 
-- Status: accepted
+- Status: accepted. Decision 4 (the allowed-SHA list) is superseded by
+  [ADR 0126](0126-reference-first-party-actions-at-main-and-vendor-actions-by-major-tag.md)
+  (2026-11-23): callers reference ci-workflows at `@main`.
 - Date: 2026-10-26
 
 ## Context

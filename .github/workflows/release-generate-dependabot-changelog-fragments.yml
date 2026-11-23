@@ -107,7 +107,7 @@ jobs:
             sleep "$((RANDOM % (2 * i + 1)))"
           done
       - name: Check out main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           fetch-depth: 0
@@ -121,7 +121,7 @@ jobs:
       - name: Mint the release App token
         id: app-token
         if: steps.find.outputs.count != '0'
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.PLUGIN_RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.PLUGIN_RELEASE_APP_PRIVATE_KEY }}

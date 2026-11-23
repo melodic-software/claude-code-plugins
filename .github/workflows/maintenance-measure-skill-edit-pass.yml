@@ -116,7 +116,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: start
           role: maintenance
@@ -128,7 +128,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -156,14 +156,14 @@ jobs:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.base-sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -184,7 +184,7 @@ jobs:
 
       - name: Check the credential
         id: credential
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           leg: key
           role: maintenance
@@ -194,7 +194,7 @@ jobs:
 
       - name: Download the edit
         if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
           path: ${{ runner.temp }}/edit
@@ -303,16 +303,16 @@ jobs:
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # run-claude-cli's classifier, at the pin every lane runs it, for
+      # run-claude-cli's classifier, at the ref every lane runs it, for
       # eval-handoff.mjs: its published contract, contract-files.txt and the
       # paths it lists, nothing run here:
       # https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
       - name: Check out the launcher's classifier
         if: steps.credential.outputs.present == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           repository: melodic-software/ci-workflows
-          ref: c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+          ref: main
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -484,7 +484,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: steps.read.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/upload/
@@ -492,7 +492,7 @@ jobs:
       - name: Upload the pass
         id: upload
         if: (steps.read.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: eval-hill-climb-pass-${{ inputs.pass }}-${{ github.job }}-${{ github.run_id }}
           path: ${{ runner.temp }}/upload/
@@ -519,7 +519,7 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -529,7 +529,7 @@ jobs:
         if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: key-credit-stop-MAINTENANCE_CLAUDE_API_KEY
           overwrite: true
@@ -540,7 +540,7 @@ jobs:
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}

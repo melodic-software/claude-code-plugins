@@ -129,13 +129,13 @@ test("the job holds the job token with least privilege, and no secret, App token
   assert.doesNotMatch(text, /secrets\.|id-token|request-lane-token|create-github-app-token|claude-code-action|run-claude-cli/);
 });
 
-test("it checks out main only, without credentials, and pins every external action by SHA", () => {
+test("it checks out main only, without credentials, and every external action ref follows ADR 0126's pin rule", () => {
   const checkout = steps.find((step) => step.text.includes("uses: actions/checkout@")).text;
-  assert.match(checkout, /\n {8}uses: actions\/checkout@[0-9a-f]{40} #/);
+  assert.match(checkout, /\n {8}uses: actions\/checkout@v7/);
   assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
   assert.match(named("Resolve main's tip"), /\n {10}branch: main\n$/);
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
-    assert.match(uses, /@[0-9a-f]{40}$/, uses);
+    assert.match(uses, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|\S+@[0-9a-f]{40})$/, uses);
   }
   // The one head read is the fork test in the job's `if`: metadata, never a checkout.
   const forkRead = "github.event.pull_request.head.repo.full_name != github.repository";

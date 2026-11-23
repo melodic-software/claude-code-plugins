@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +11,7 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const MODULE = fileURLToPath(new URL("./ci-workflows-at-pin.mjs", import.meta.url));
 const WORKFLOW = fileURLToPath(new URL("../../workflows/pr-require-checks.yml", import.meta.url));
-const PIN = /check-machine-paths@([0-9a-f]{40})/.exec(readFileSync(WORKFLOW, "utf8"))[1];
+const PIN = /check-machine-paths@(main)/.exec(readFileSync(WORKFLOW, "utf8"))[1];
 
 test("a pinned file is read by git fetch into its own cache, whatever GIT_DIR the caller exports", () => {
   const dir = mkdtempSync(join(tmpdir(), "ci-workflows-at-pin-test-"));
@@ -25,7 +25,7 @@ test("a pinned file is read by git fetch into its own cache, whatever GIT_DIR th
     );
     assert.equal(out.status, 0, out.stderr);
     assert.match(out.stdout, /^name: /m);
-    assert.ok(existsSync(join(dir, "ci-workflows-at-pin", PIN, "ready")), "the pin's cache is written");
+    assert.ok(readdirSync(join(dir, "ci-workflows-at-pin")).some((sha) => /^[0-9a-f]{40}$/.test(sha) && existsSync(join(dir, "ci-workflows-at-pin", sha, "ready"))), "the commit's cache is written");
     assert.equal(existsSync(join(caller, "shallow")), false, "the caller's repository gains no shallow file");
     assert.equal(execFileSync("git", ["--git-dir", caller, "count-objects"], { encoding: "utf8" }).trim(), "0 objects, 0 kilobytes");
   } finally {
@@ -33,7 +33,7 @@ test("a pinned file is read by git fetch into its own cache, whatever GIT_DIR th
   }
 });
 
-test("a pin that is not a full commit sha is refused before any fetch", async () => {
+test("a ref that is neither main nor a full commit sha is refused before any fetch", async () => {
   const { fetchAtPin } = await import(MODULE);
-  await assert.rejects(fetchAtPin("main", "README.md"), /not a full commit sha/);
+  await assert.rejects(fetchAtPin("v1", "README.md"), /neither main nor a full commit sha/);
 });

@@ -20,7 +20,7 @@ process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const workflowPins = ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"].flatMap((name) => [
-  ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
+  ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: (\S+)/g),
 ].map((m) => m[1]));
 const PIN = workflowPins[0];
 const CHECKOUT = [CONTRACT_FILES, ...(await contractFilesAtPin(PIN))];
@@ -123,9 +123,9 @@ test("a classifier that cannot load prints no verdict and exits 2", async () => 
   assert.match(r.stderr, /^eval-handoff: /);
 });
 
-test("every eval leg checks out the classifier at one pin", () => {
+test("every eval leg checks out the classifier at main", () => {
   assert.equal(workflowPins.length, 2, "one key leg in each eval workflow");
-  assert.deepEqual([...new Set(workflowPins)], [PIN]);
+  assert.deepEqual([...new Set(workflowPins)], ["main"]);
 });
 
 test("the pinned judgeLeg returns the fields eval-handoff reads", () => {

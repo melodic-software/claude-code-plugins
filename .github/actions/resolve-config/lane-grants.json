@@ -12,8 +12,7 @@
       "maintenance-tidy-code-upkeep": { "apply-upkeep-branches": "mutate-branch", "publish-upkeep-prs": "publish-artifact" },
       "maintenance-measure-skill-edit": { "apply-skill-edit-branch": "mutate-branch", "publish-skill-edit-pr": "publish-artifact" }
     },
-    "trusted-actors": [],
-    "ci-workflows-commits": []
+    "trusted-actors": []
   },
   "1404052094": {
     "repository": "melodic-software/pr-pipeline-sandbox",
@@ -26,7 +25,6 @@
       "pr-explain": { "explain-marker": "read" },
       "pr-review": { "review-gate": "read", "audit-env": "read" }
     },
-    "trusted-actors": [],
-    "ci-workflows-commits": []
+    "trusted-actors": []
   }
 }
