@@ -48,6 +48,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ACTIONS_BOT_ID } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
@@ -76,8 +77,7 @@ export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
 // The activity select decides, as escalation-routes.json names it.
 const ACTIVITY = "address-feedback";
-// github-actions[bot], the author of the review lanes' reviewed-head markers.
-export const MARKER_AUTHOR_ID = 41898282;
+export const MARKER_AUTHOR_ID = ACTIONS_BOT_ID;
 // Listed review bots no comment can summon: github-advanced-security[bot],
 // which posts code scanning (CodeQL) alerts after each analysis of a pushed
 // head. requestSkip asks only that a trusted person or the lanes App opened

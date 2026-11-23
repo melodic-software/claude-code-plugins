@@ -39,13 +39,11 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { ACTIONS_BOT_ID, NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL } from "../lib/lane-vocabulary.mjs";
 
+export { ACTIONS_BOT_ID, NEEDS_HUMAN };
 export const LABEL = OUTSIDE_ACTOR_LABEL;
-export const NEEDS_HUMAN = "needs-human";
 export const MARKER = "<!-- security-outside-actor";
-// github-actions[bot], the author of every comment this job's token writes.
-export const ACTIONS_BOT_ID = 41898282;
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER"]);
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/;
 

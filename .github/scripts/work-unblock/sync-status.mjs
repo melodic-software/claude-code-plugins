@@ -33,8 +33,8 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { fieldStatus, HOLD_STATES, loadTrustedActors } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { AGENT_READY } from "../lib/lane-vocabulary.mjs";
 
-const AGENT_READY = "agent-ready";
 const fold = (name) => String(typeof name === "string" ? name : name?.name).toLowerCase();
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 

@@ -101,19 +101,16 @@ import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-w
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMISSION_STATUS_READS, admit, authorTrust, CLEAR_ADMITTED, CLEAR_READY, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, judgedLine, loadRules, noteUnrunnable, ownVerdict, specOf, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_CLEAR, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { ACTIONS_BOT_ID, LANES_APP_LOGIN, NEEDS_DECISION, NEEDS_HUMAN, READY } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, postOptionNames, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
+export { LANES_APP_LOGIN, NEEDS_DECISION, READY };
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
-const ACTIONS_BOT_ID = 41898282;
-export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-export const READY = "status: ready";
-export const NEEDS_DECISION = "needs-owner-decision";
-const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
 const HOLDS = new Set([NEEDS_HUMAN, ...INFO_LABELS, ...DECISION_LABELS, OUTSIDE_ACTOR_LABEL]);

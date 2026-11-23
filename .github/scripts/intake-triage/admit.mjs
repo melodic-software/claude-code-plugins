@@ -149,10 +149,11 @@ import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-me
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
 import { contentHash, matchesRecord, readAdmissionRecord, writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
+import { ACTIONS_BOT_ID, AGENT_READY, ATTENDED, HOST_RUN, LANES_APP_LOGIN, NEEDS_DECISION, READY, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
-export { ADMIT_MARKER, refusalText };
+export { ACTIONS_BOT_ID, ADMIT_MARKER, AGENT_READY, ATTENDED, HOST_RUN, NEEDS_DECISION, READY, REFINE_MARKER, refusalText };
 
 // The lane name intake's stop-reason markers carry (../lib/stop-reason.mjs).
 export const INTAKE_LANE = "intake-triage";
@@ -172,10 +173,7 @@ export function heldRefusalText(reasons, code) {
   return `${refusalText(reasons)}\n\n${line}\n${marker}`;
 }
 
-export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
-// Opens the lanes App's refinement comment (refine.mjs).
-export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The last line of each refinement refine.mjs renders: `questions` closes one
 // that is not exact, `retriage` and `confirm` an exact one.
 export const REFINE_FOOTERS = {
@@ -229,21 +227,12 @@ export const subIssueWait = (number) => `sub-issue #${number} is open`;
 export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
 // Opens the body of each sub-issue that split files.
 export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
-export const READY = "status: ready";
-export const NEEDS_DECISION = "needs-owner-decision";
 export const CONFIRMED = "status: confirmed";
-// The owner-present label (owner decision 2026-10-28): only a listed human
-// removes it.
-export const ATTENDED = "attended";
-// The host queue's label (stop-routes.mjs): an unattended agent run on a host
-// builds the work.
-export const HOST_RUN = "host-run";
 // Opens the refinement line that records the work's external state
 // (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
 // Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
-const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The provenance label that holds an issue for a person (owner Q85, #9668);
 // any of UNTRUSTED_LABELS on an issue holds it the same way.
 export const UNTRUSTED = UNTRUSTED_LABEL;
@@ -1120,9 +1109,6 @@ export function authorAdmitted(issue, humans, appId) {
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
 }
 
-// The github-actions Bot, as which a job's GITHUB_TOKEN acts: the
-// upstream-drift workflow files its issues with it.
-export const ACTIONS_BOT_ID = 41898282;
 // scripts/upstream-drift-issues.sh's title, and its two lead lines
 // (write_body), all built from the upstream id: driftLead for an upstream with
 // a drifted hex-pin page, vendoredDriftLead for one whose drifted pages are

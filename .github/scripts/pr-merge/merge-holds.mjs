@@ -323,6 +323,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/log-api-budget/rate-limits.json", "gate"],
   [".github/scripts/pr-merge/merge-holds.mjs", "trust"],
   [".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"],
+  [".github/scripts/lib/lane-vocabulary.mjs", "trust"],
   [".github/scripts/pr-merge/superseded.mjs", "trust"],
   [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
   [".github/scripts/pr-merge/release-eval-hold.mjs", "trust"],

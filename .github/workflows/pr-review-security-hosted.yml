@@ -340,6 +340,7 @@ jobs:
         .github/actions/log-api-budget/rate-limits.json
         .github/scripts/pr-merge/merge-holds.mjs
         .github/scripts/pr-merge/enable-auto-merge.mjs
+        .github/scripts/lib/lane-vocabulary.mjs
         .github/scripts/pr-merge/superseded.mjs
         .github/scripts/pr-merge/clear-escalations.mjs
         .github/scripts/pr-merge/release-eval-hold.mjs

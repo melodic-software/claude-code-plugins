@@ -198,11 +198,12 @@ import { networkError, retryApi } from "../lib/retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
+import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
-export { doneEvidence };
+export { doneEvidence, REFINE_MARKER };
 
 export const HOLD_LINE = "Hold: a human merges this";
 // The label a held PR carries from its opening. The hold line is body text the
@@ -1071,9 +1072,6 @@ async function laneHold(statusOf, issueNumber, labels) {
   return hold ? `held by ${hold}` : "";
 }
 
-// intake's refinement record (admit.mjs REFINE_MARKER), restated as
-// DECISION_LINE is: a script activity runs from a copy of its own directory.
-export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The hold stops that wait on a person's answer on the issue. A security
 // stop is never among them: a person checks it first, whatever was posted.
 const ANSWERED_STOPS = new Set(["pushback", "intent-change", "design-change", "cost-risk"]);
@@ -2143,7 +2141,7 @@ function targetIssue(env) {
   return Number(env.ISSUE_NUMBER);
 }
 
-const botLogin = (env) => env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+const botLogin = (env) => env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
 const resolvedConfigPath = (env) => env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
 
 // Whether the lanes App already posted this run's `outcome` marker, so a rerun
