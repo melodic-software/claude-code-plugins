@@ -339,8 +339,6 @@ test("a holding latch words a server error hold as a notice under its own title"
   assert.ok(lines.every((line) => line.endsWith("this step holds")), lines.join("\n"));
 });
 
-// Every real limit signal keeps today's wording when it arrives on a 5xx, as
-// on a 403 or 429 with retry-after.
 test("a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays a rate limit", async () => {
   const graphql = "https://api.github.com/graphql";
   const cases = [
@@ -457,7 +455,6 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   await fetch(URL_B);
   assert.equal(gh.sent.length, 2);
   assert.equal(lines.filter((line) => line.startsWith("::warning::")).length, 1);
-  // The warning says what happens: nothing stops.
   assert.match(lines.find((line) => line.startsWith("::warning::")), /reads continue$/);
   assert.doesNotMatch(lines.join("\n"), /reads stop/);
   assert.equal(failed(), 0);
@@ -712,8 +709,6 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
     assert.equal(gh.sent.length, 1);
   }));
 
-// A stop the job's stop file could not take is reported, and this process's
-// latch still refuses the pool.
 test("a stop the stop file cannot take is reported in the error line, and the latch still holds", { skip: ROOT && "root writes past any file mode" }, async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
@@ -867,8 +862,6 @@ for (const vector of VECTORS.stop_file_errors) {
     }));
 }
 
-// Every guarded answer leaves one reading for the job-end notice, under the
-// bucket API_BUDGET_TOKEN names; without that name it leaves none.
 test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none without it", async () =>
   withDir(async (dir) => {
     const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };

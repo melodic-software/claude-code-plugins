@@ -170,8 +170,6 @@ async function assertFailsRed(t, env, cause, github = noApi) {
   );
 }
 
-// A valid run
-
 test("a valid config writes ResolvedConfig and the selected activity's outputs", async () => {
   const { env } = workspace();
   assert.equal(await main({ env, github: srcChanged() }), 0);
@@ -298,8 +296,6 @@ test("without an activity only enabled and slots are output", async () => {
   );
 });
 
-// Base vs head
-
 function runCli(root, env) {
   const result = spawnSync(process.execPath, [CLI], {
     cwd: root,
@@ -346,8 +342,6 @@ test("a config symlink that leaves base-path fails red", async (t) => {
   symlinkSync(join(root, CONFIG_PATH), join(base, CONFIG_PATH));
   await assertFailsRed(t, env, /outside base-path/);
 });
-
-// Every rejection fails red with no file
 
 const REJECTIONS = [
   [
@@ -483,8 +477,6 @@ test("an error message cannot start a second workflow command", async (t) => {
     /no lane `x%0A::set-output/,
   );
 });
-
-// Changed paths from pulls/{n}/files
 
 test("a paths predicate reads the PR's changed files through the API", async () => {
   const { env } = workspace();
@@ -625,8 +617,6 @@ test("a config with no predicate makes no API call", async () => {
   assert.equal(await main({ env, github }), 0);
   assert.deepEqual(calls, []);
 });
-
-// Labels, events and work classes
 
 // Gives valid.yaml's fix-prose activity (lane pr-refine) a predicate.
 function withPredicate(env, predicate) {
@@ -788,8 +778,6 @@ test("a leaf with prepare that does not apply resolves without prepare support",
   assert.equal(await main({ env, github: noApi }), 0);
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "false");
 });
-
-// mergeable, labels-absent and draft, from GET /pulls/{n}
 
 const GATED_HEAD = "a".repeat(40);
 const OTHER_HEAD = "b".repeat(40);
