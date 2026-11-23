@@ -1,13 +1,36 @@
 {
   "pass": [
-    {"answer": "Candidates 1 and 2 are one tree, tax module first; the mail sender is its own fork.\n\nFirst question, on the tax module: should quote(order) return a single total or a per-line breakdown?"},
-    {"answer": "Plan: tax module, then invoice total in the same tree; mail sender separately.\n\nShould TaxExemptions stay behind the tax module's entry point, or be passed in by the caller?", "why": "question names TaxExemptions"}
+    {
+      "answer": "Candidates 1 and 2 are one tree, tax module first; the mail sender is its own fork.\n\nFirst question, on the tax module: should quote(order) return a single total or a per-line breakdown?"
+    },
+    {
+      "answer": "Plan: tax module, then invoice total in the same tree; mail sender separately.\n\nShould TaxExemptions stay behind the tax module's entry point, or be passed in by the caller?",
+      "why": "question names TaxExemptions"
+    }
   ],
   "fail": [
-    {"answer": ""},
-    {"answer": "Plan: mail sender first, on its own.\n\nShould the recording adapter and SMTP share one port interface?", "why": "first question on the mail sender"},
-    {"answer": "Candidates 1 and 2 are one tree, tax module first. I will start when you are ready.", "why": "no question"},
-    {"answer": "Plan: the tax module and invoice total form one tree, tax first.\n\nShould the mail sender's port live in its own module?", "why": "tax only in the planning paragraph; the question is about the mail sender"},
-    {"answer": "The tax module goes first. Should the SMTP adapter send asynchronously?", "why": "tax in the sentence before the question"}
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Plan: mail sender first, on its own.\n\nShould the recording adapter and SMTP share one port interface?",
+      "why": "first question on the mail sender"
+    },
+    {
+      "answer": "Candidates 1 and 2 are one tree, tax module first. I will start when you are ready.",
+      "why": "no question"
+    },
+    {
+      "answer": "Plan: the tax module and invoice total form one tree, tax first.\n\nShould the mail sender's port live in its own module?",
+      "why": "tax only in the planning paragraph; the question is about the mail sender"
+    },
+    {
+      "answer": "The tax module goes first. Should the SMTP adapter send asynchronously?",
+      "why": "tax in the sentence before the question"
+    },
+    {
+      "answer": "Candidates 1 and 2 form one tree (tax module first, then invoice total); the mail sender is its own fork, and I'll start with it since it stands alone.\n\nFirst question, mail sender: should SMTP and the recording adapter share one port?",
+      "why": "review example: tax in the plan, question on the mail sender"
+    }
   ]
 }
