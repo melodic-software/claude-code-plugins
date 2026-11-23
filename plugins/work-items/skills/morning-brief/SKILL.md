@@ -422,13 +422,15 @@ pin a custom comma-separated set; pass `--decision-label` to pin the parked-deci
 label. When none of the configured queue labels exist, the Queues section reports
 "no queue labels found" and the rest of the brief still renders.
 
-## Cross-references
+## Next
 
-- `/source-control:babysit-prs`, the **authoritative** PR merge gate and readiness
-  classification. The merge-ready list here is a fast gh-native glance, not a
-  substitute for that skill's per-PR gate.
-- `/harness-ops:observability`. Reads locally captured telemetry (OTEL store, hook-event JSONL,
-  ccusage). This skill instead reads GitHub-side queue and PR state.
+- Escalations, held PRs, or parked decisions surfaced: /work-items:attend-queue.
+- Merge-ready PRs needing authoritative gate check: /source-control:babysit-prs.
+
+## Related
+
+- Inspect local OTEL and hook telemetry stores: /harness-ops:observability.
+- Team DORA delivery trends: /work-items:measure-delivery.
 
 ## What this skill does not do
 

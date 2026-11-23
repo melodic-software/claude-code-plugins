@@ -468,6 +468,12 @@ token resolving in a supporting file or in the Bash tool.
   [plugins manifest reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
 
+## Next
+
+- Inspect backlog or add items: /work-items:track.
+- Evaluate untriaged intake: /work-items:triage.
+- Pick and execute the next ready item: /work-items:work.
+
 ## What this skill does not do
 
 - Run tracker operations, no item is created, claimed, or closed here. Filing and coordination are

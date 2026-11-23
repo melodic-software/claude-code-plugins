@@ -65,6 +65,12 @@ Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `du
 - A picked item: `/work-items:work`.
 - Raw intake: `/work-items:triage`.
 
+## Related
+
+- File a new bug report with severity rubric: /bugs:write.
+- Decompose a plan into slices: /work-items:decompose.
+- Sweep code TODO markers: /work-items:scan-todos.
+
 ## Action Router
 
 Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.

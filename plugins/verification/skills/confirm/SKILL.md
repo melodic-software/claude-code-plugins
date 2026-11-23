@@ -351,6 +351,10 @@ pointer with an as-of date and a recheck trigger, live in
   <feature> ["<lesson>"] (or <control skill path> for every feature), or /corrections:codify
   "<lesson>" for one not about driving the app.
 
+## Related
+
+- Mechanical build, test, and lint only: /toolchain:check.
+
 ## Gotchas
 
 - **Stage 1 is a gate, not the deliverable.** A green build is the prerequisite; the deliverable is outcome confirmation. Don't stop at "it builds."

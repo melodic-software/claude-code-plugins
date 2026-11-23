@@ -131,6 +131,11 @@ your latest message.
 /session-flow:go-with-recommendations on return, to accept the parked recommendations once the
 evidence is checked.
 
+## Related
+
+- Launch a fresh detached background session: /session-flow:continue-in-background.
+- Make repo state durable before machine shutdown: /session-flow:clean-stop.
+
 ## Gotchas
 
 - We keep the away hooks (PermissionRequest, Elicitation, Stop, UserPromptSubmit) in the
