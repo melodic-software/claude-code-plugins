@@ -156,16 +156,16 @@ assert_eq "case 11: a page over the cap is a map" "kind=map" "$(head -1 <<<"$out
 if [[ ${#out} -lt 30000 ]]; then pass "case 11: output under 30000 characters"; else fail "case 11: output size" "${#out}"; fi
 
 rc=0
-bash "$SCRIPT" --render https://docs.example.com/page >/dev/null 2>&1 || rc=$?
-assert_eq "case 12: --render with no registry is refused" "2" "$rc"
+err="$(bash "$SCRIPT" --render https://docs.example.com/page 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 12: --render with no registry is refused" "2 docs-raw: --render needs a benchmark registry beside this script" "$rc $err"
 PLUG="$TEST_TMPDIR/plug"
 mkdir -p "$PLUG/scripts" "$PLUG/reference"
 cp "$SCRIPT_DIR"/docs-raw.sh "$SCRIPT_DIR"/fetch-docs.sh "$SCRIPT_DIR"/fetch-docs-generic.sh "$SCRIPT_DIR"/docs-cache.sh "$PLUG/scripts/"
 [[ ! -f "$SCRIPT_DIR/html2md.py" ]] || cp "$SCRIPT_DIR/html2md.py" "$PLUG/scripts/"
 printf '{"rows":[{"link":"https://docs.example.com/page","expect":"not in the page"}]}\n' >"$PLUG/reference/benchmarks.json"
 rc=0
-bash "$PLUG/scripts/docs-raw.sh" --render https://docs.example.com/other >/dev/null 2>&1 || rc=$?
-assert_eq "case 12: --render on a URL that is no row link is refused" "2" "$rc"
+err="$(bash "$PLUG/scripts/docs-raw.sh" --render https://docs.example.com/other 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 12: --render on a URL that is no row link is refused" "2 docs-raw: --render: not a registry row link: https://docs.example.com/other" "$rc $err"
 out="$(env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$TEST_TMPDIR/curl.log" FETCH_DOCS_ADDRESSES='docs.example.com=93.184.216.34' \
   bash "$PLUG/scripts/docs-raw.sh" --render https://docs.example.com/page)"
 assert_eq "case 12: a page without the row's marker is unread" \

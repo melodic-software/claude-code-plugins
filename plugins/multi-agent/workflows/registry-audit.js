@@ -356,7 +356,9 @@ const UNREAD_FIX = {
   'http-403': 'the host blocked the fetch: set the docs-cache renderer to firecrawl',
   'http-429': 'the host rate-limited the fetch: rerun later',
   'fetch-failed': 'the fetch failed: rerun later',
+  'host not in the registry-fetcher allowlist': 'add the host to the registry-fetcher hosts in hooks.json and registry-audit.js',
 }
+const unreadFix = reason => UNREAD_FIX[reason] || (/^http-5\d\d$/.test(reason || '') ? 'the host failed: rerun later' : 'recheck the row link')
 
 const judged = await inWaves(rows.map(row => async () => {
   const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', unchecked: true, reason: 'missing fetch result' }
@@ -381,7 +383,7 @@ const judged = await inWaves(rows.map(row => async () => {
         slice.unchecked ? slice.reason + '; no change proposed'
           : slice.state === 'read' ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
             : gone ? slice.reason
-              : (slice.reason || 'unread') + '; ' + (UNREAD_FIX[slice.reason] || 'recheck the row link') + '; no change proposed',
+              : (slice.reason || 'unread') + '; ' + unreadFix(slice.reason) + '; no change proposed',
       ]),
     }
   }
