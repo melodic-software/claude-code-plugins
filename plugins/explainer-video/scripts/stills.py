@@ -44,11 +44,11 @@ import media_verify
 
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 FRAMES = DEFAULTS['frames']
-BAND = FRAMES['caption_band']   # bottom share kept free for burned captions; SSIM compares above it
+BAND = FRAMES['caption_band']
 PROFILE = 'reviewer-stills'
 FPS = media_encode.PROFILES[PROFILE]['fps']
 CHROMIUM_INSTALL_S = 600
-MARKER = '.stills-output'   # only a folder holding it is cleared on the next run
+MARKER = '.stills-output'
 
 
 def fail(code, message):
@@ -214,7 +214,6 @@ def frame_holds(holds, frames):
         weights = [f['entries'][1] - f['entries'][0] if f['entries'] else 1 for f in mine]
         length = h['end'] - h['start']
         spare = length - sum(f['minimum'] for f in mine)
-        # The holds are rounded to the millisecond, so a hold built to its minimums can read a hair short.
         floors, spare = ([f['minimum'] for f in mine], spare) if spare > -0.005 else ([0] * len(mine), length)
         edges, t = [h['start']], h['start']
         for floor, w in zip(floors, weights):
@@ -285,7 +284,7 @@ def quality(video, frames):
 def main(argv=None):
     try:
         return _run(argv)
-    except Exception as e:   # exit 1 means a manifest lists the defects; any other failure produced nothing
+    except Exception as e:
         return fail(2, f'{type(e).__name__}: {e}')
 
 

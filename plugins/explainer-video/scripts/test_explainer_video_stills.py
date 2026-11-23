@@ -17,14 +17,13 @@ from pathlib import Path
 from unittest import mock
 
 HERE = Path(__file__).resolve().parent
-LONG_LIST = 9   # three of these two-line paths fill a frame, so nine need three frames
-MIN_FRAME_SECONDS = 3.0   # a frame stays up at least a few seconds, the captions-only hold's floor
+LONG_LIST = 9
+MIN_FRAME_SECONDS = 3.0
 REST_NARRATION = 'The tests cover both paths, and the changelog has one new line.'
 AFTER_NARRATION = 'Job length stays the same after the list.'
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
-# The same dependencies as lib/media-render's suite, so CI's MEDIA_RENDER_REQUIRE_DEPS also makes a gap fail.
 REQUIRE = '1' in (os.environ.get('EXPLAINER_VIDEO_REQUIRE_DEPS'), os.environ.get('MEDIA_RENDER_REQUIRE_DEPS'))
 
 
@@ -119,7 +118,7 @@ class Refusals(unittest.TestCase):
         self.assertEqual(run('--storyboard', BOARD, '--out', self.dir / 'fresh', '--script-only').returncode, 0)
 
     def test_planted_home_path_stops_before_any_video(self):
-        home = '/' + 'home/' + 'someone/project/notes.txt'   # assembled at run time, as the redact tests do
+        home = '/' + 'home/' + 'someone/project/notes.txt'
         path = self.board(lambda d: d['moments'][2]['data']['lines'].append({'n': 47, 'kind': '+', 'text': home}))
         r = run('--storyboard', path, '--out', self.dir / 'out', '--no-audio')
         self.assertEqual(r.returncode, 4, r.stderr)
@@ -175,7 +174,7 @@ class SilentHolds(unittest.TestCase):
         starts = [0.0, 0.5, 1.0, 2.0, 2.5] + [3.0 + 0.4 * i for i in range(11)]
         tokens = [w for v in narration.values() for w in v.split()]
         words = {'duration': 8.0, 'words': [{'word': w, 'start': s, 'end': s + 0.3} for w, s in zip(tokens, starts)]}
-        needs = [9.5, 4.0, 4.0]   # paragraphs span 2.0, 1.0 and 5.0 s of narration.wav
+        needs = [9.5, 4.0, 4.0]
         tl = media_timeline.timeline(board, words, minimum=needs)
         self.assertEqual(stills.silent_holds(board, tl, needs, 3.0),
                          [{'id': 'dense', 'past_s': 7.5, 'needs_s': 9.5, 'narration_s': 2.0}],
@@ -189,7 +188,7 @@ class Renders(unittest.TestCase):
             if REQUIRE:
                 raise AssertionError('a REQUIRE_DEPS variable is 1 but Playwright, ffmpeg or ffprobe is missing')
             raise unittest.SkipTest('Playwright for Python, ffmpeg or ffprobe not installed')
-        sys.path.insert(0, str(HERE))   # run_1080p imports stills
+        sys.path.insert(0, str(HERE))
         cls.addClassCleanup(sys.path.remove, str(HERE))
         cls.dir = Path(tempfile.mkdtemp())
         script = run_1080p('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')
@@ -243,7 +242,7 @@ class Renders(unittest.TestCase):
     def test_each_chapter_part_of_a_split_video_names_the_sha256_of_its_bytes(self):
         r, whole = self.silent
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        limit_mb = (whole / 'video.mp4').stat().st_size * 0.8 / 10 ** 6   # under the whole video, over any one chapter
+        limit_mb = (whole / 'video.mp4').stat().st_size * 0.8 / 10 ** 6
         out = self.dir / 'split'
         r = run_1080p('--storyboard', BOARD, '--out', out, '--no-audio', '--upload-limit-mb', limit_mb)
         self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)

@@ -44,8 +44,6 @@ if [[ "${1:-}" == "--default-root" ]]; then
     docs="$HOME/Documents"
     ;;
   MINGW* | MSYS* | CYGWIN*)
-    # Resolve the Documents KNOWN FOLDER native-side (it may be OneDrive-redirected), then
-    # convert to POSIX form for Git Bash — fail-loud, per docs/contracts/windows-path-emit/.
     win="$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('MyDocuments')" 2>/dev/null | tr -d '\r')"
     [[ -n "$win" ]] || exit 1
     docs="$(cygpath -u "$win" 2>/dev/null)" || exit 1
@@ -101,8 +99,6 @@ fi
 derive_slug() {
   local basename_slug path_hash
   basename_slug="$(basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')"
-  # The hash discriminates clones that share a directory name. `shasum -a 256` is the
-  # fallback for a stock macOS with no `sha256sum`.
   path_hash="$(printf '%s' "$1" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"
   printf '%s-%s' "$basename_slug" "$path_hash"
 }
