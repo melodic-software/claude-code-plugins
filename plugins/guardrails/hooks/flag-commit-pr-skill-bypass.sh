@@ -73,9 +73,6 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 is the only status this advisory flag chooses. Nothing is
-# enforced here, so the loss on an abort is the advisory itself.
 guard::abort_boundary flag-commit-pr-skill-bypass PreToolUse open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -108,9 +105,6 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
-# On the PowerShell tool, neutralize here-strings first so a `gh pr create`
-# mention inside message text is inert and a real invocation after a here-string
-# is still seen. Advisory-only: never blocks, so best-effort is proportionate.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
   # shellcheck source=../lib/powershell/ps-command.sh
@@ -119,19 +113,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   COMMAND="$PS_BLANKED"
 fi
 
-# Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
-# env-assignment prefixes stripped and the token basenamed. Never the full
-# command. The shared helper is used rather than a local copy so the aborts that
-# keep an assignment VALUE out of the subject — a quoted value spanning the
-# whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
-# following command consumed — hold here too (#3372).
 SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
-# Emit one telemetry envelope per run. Advisory guards always report status
-# "ok" (they never block); the finding signal rides in `data.forms` — category
-# labels only ("gh-pr-create-bypass"), never the matched
-# command text.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -166,11 +150,6 @@ sc_key_value() {
   jq -r --arg k "$key" '(.enabledPlugins // {}) | if has($k) then (.[$k] | tostring) else empty end' "$file" 2>/dev/null | head -1
 }
 
-# Is any source-control@ plugin enabled for this session? Resolves EACH exact
-# key across scopes (user-global base, project override, local override only for
-# a key the project already declares) and returns true when ANY resolves enabled
-# — collapsing distinct keys to one value would wrongly decide a mixed migration
-# state. Uncertain/absent -> return 1 (stay silent).
 source_control_enabled() {
   local root="" user_settings settings local_settings keys key uval bval lval effective
   hook::repo_root_to root "${CLAUDE_PROJECT_DIR:-.}" || :
@@ -203,17 +182,13 @@ source_control_enabled() {
     # enabledPlugins to settings.local.json as a first-class standalone state
     # — a local-only key is real enablement, not noise to ignore.
     [[ -n "$lval" ]] && effective="$lval"
-    [[ "$effective" == "true" ]] && return 0 # any enabled key -> skill available
+    [[ "$effective" == "true" ]] && return 0
   done <<<"$keys"
   return 1
 }
 
 source_control_enabled || exit 0
 
-# Strip single- and double-quoted literal spans, and drop heredoc bodies
-# wholesale, so the top-level invocation scan below sees shell syntax, not
-# payload text (a commit body mentioning "git commit -m" in prose is not a
-# false positive).
 strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
@@ -237,9 +212,6 @@ strip_literals() {
     fi
     result+="${line}"$'\n'
   done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
-  # One `sed` over every kept line: sed edits line by line, so a span never
-  # joins two lines. The expressions apply in order, so the double-quote strip
-  # sees the single-quote-stripped line.
   printf '%s' "${result%$'\n'}" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g'
 }
 
@@ -249,10 +221,6 @@ STRIPPED_LC="${STRIPPED_LC,,}"
 MESSAGES=()
 FORMS=()
 
-# `gh pr create` at a command position. No command-shape signature separates
-# skill-driven from ad hoc — /source-control:pull-request's value is process
-# (rebase, unrelated-changes triage, closing-keyword gate, attribution footer),
-# so any direct invocation is flagged.
 if [[ "$STRIPPED_LC" =~ (^|[[:space:];&|()]+)gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
   MESSAGES+=("Direct \`gh pr create\` skips /source-control:pull-request (rebase onto the default branch, closing-keyword gate, attribution footer).")
   FORMS+=("gh-pr-create-bypass")
@@ -263,8 +231,6 @@ if ((${#MESSAGES[@]} == 0)); then
   exit 0
 fi
 
-# Once per session and agent: the agent that was told once does not need the
-# same pointer on its next PR.
 if hook::notice_once guardrails-gh-pr-create "$INPUT" && [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then
   hook::emit_channels PreToolUse "${MESSAGES[*]}" ""
 fi

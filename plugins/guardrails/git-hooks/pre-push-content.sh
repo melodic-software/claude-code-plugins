@@ -39,10 +39,6 @@ lib="$here/check-lib.sh"
 . "$lib" || exit 1
 set -uo pipefail
 
-# A declined entry checks nothing, whichever path registered it: a lefthook
-# remote runs this script from the fetched copy, where no installer removed it.
-# The keys read as install.mjs reads them: the entry's key at git's precedence,
-# unset falling back to the master key, a non-boolean value not declining.
 declined="$(git config --type=bool --get checks.guardrails.pre-push-content.declined 2>/dev/null)"
 [[ $? -eq 1 ]] && declined="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
 [[ "$declined" == true ]] && exit 0
@@ -61,15 +57,6 @@ if [[ "$CHECKS_MODE" == worktree ]]; then
   content_report "$blocking" 'the change (use a placeholder, an environment variable or a portable path)'
 fi
 
-# commit_ranges <commit>: $CHECKS_TMP/ranges holds the lines <commit> adds
-# against every parent (a root commit, against the empty tree), push-ranges
-# names its first parent, so content_scan reads the files it changes from
-# there, and other_parents names the rest, so a file a merge takes whole from
-# another parent (one judged whole, past the ranges) is not judged again. A
-# file any parent holds as a symlink or a submodule counts every line as added
-# against it (T); content_scan judges only a regular file, so a file turned
-# into a symlink is not read. The ranges keep a binary file's rows, unread:
-# content_scan judges a file holding a NUL byte whole before it reads any range.
 commit_ranges() {
   local c=$1 p first="" k=0
   local -a ids=() parents=()
@@ -85,7 +72,6 @@ commit_ranges() {
       mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all"
       continue
     fi
-    # Keep only the lines this parent's diff adds too.
     checks_intersect_ranges "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both" ||
       checks_tool_failed awk "$?" 'listing the lines the merge adds'
     mv "$CHECKS_TMP/ranges.both" "$CHECKS_TMP/ranges.all"

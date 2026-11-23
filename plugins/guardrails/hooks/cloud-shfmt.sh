@@ -15,16 +15,12 @@
 # checksums file; the hash is sha256sum of the linux_amd64 asset.
 set -uo pipefail
 
-# A local session has nothing to install, so the hook leaves before any library
-# loads. Sourced (cloud-shfmt.test.sh calls the installer directly), it goes on.
 [[ "${BASH_SOURCE[0]}" != "$0" || "${CLAUDE_CODE_REMOTE:-}" == true ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: an install step never blocks a session, so any abort
-# is reported and the session goes on (open); 0 is the only chosen status.
 guard::abort_boundary cloud-shfmt SessionStart open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
