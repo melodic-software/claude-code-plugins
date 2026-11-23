@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/main/findings.md",
+            "content": "# Findings\n"
+          }
+        }
+      ],
+      "why": "coupling folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/reviews/main/coupling.md",
+            "content": "#"
+          }
+        }
+      ],
+      "why": "under reviews/"
+    }
+  ]
+}

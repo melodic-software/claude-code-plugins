@@ -166,6 +166,7 @@ activity_of() {
     dependency-*) echo review-dependency ;;
     ci-fix-*) echo fix-ci ;;
     shared-copy-*) echo sync-shared-copies ;;
+    test-scope-*) echo fix-test-scope ;;
     *) echo resolve-conflicts ;;
   esac
 }
@@ -200,7 +201,8 @@ FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-confl
   feedback-incomplete feedback-stood-open feedback-publish-failed feedback-verdict-unreadable feedback-already-addressed
   dependency-invalid
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry
-  shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)
+  shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied
+  test-scope-not-all-gaps test-scope-gaps-remain test-scope-invalid test-scope-not-applied test-scope-protected-path)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"

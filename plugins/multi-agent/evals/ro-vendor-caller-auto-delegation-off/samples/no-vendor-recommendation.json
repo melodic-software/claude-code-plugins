@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "run here",
+      "why": "no vendor line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- codex: model default @ effort default (basis: default; everyday review)",
+      "why": "prints a vendor recommendation line"
+    }
+  ]
+}

@@ -83,6 +83,7 @@
         "apply-patch": { "name": "Apply Patch", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-patch-rung-up": { "name": "Apply Patch Rung Up", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "apply-shared-copies": { "name": "Apply Shared Copies", "calls": "./.github/workflows/pr-run-activity-write.yml" },
+        "apply-test-scope": { "name": "Apply Test Scope", "calls": "./.github/workflows/pr-run-activity-write.yml" },
         "report-escalation": { "name": "Report Escalation", "calls": "./.github/workflows/pr-run-activity-write.yml" }
       }
     },

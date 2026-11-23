@@ -522,6 +522,7 @@ const GATES = {
   "pr-unblock.yml": {
     "resolve-conflicts-select": "switch",
     "sync-shared-copies-select": "switch",
+    "fix-test-scope-select": "switch",
     "address-feedback-select": "switch",
     "adjudicate-feedback": "switch",
     "review-dependency-select": "switch",

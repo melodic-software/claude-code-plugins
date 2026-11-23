@@ -419,6 +419,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/intake-triage/triage-rubric.txt",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+            ".github/scripts/pr-unblock/test-scope.mjs",
+            ".github/scripts/pr-unblock/declare-test-scope.mjs",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -448,7 +450,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 97)
+        self.assertEqual(len(FLOOR.high), 99)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

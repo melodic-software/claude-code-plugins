@@ -421,6 +421,18 @@
         }
       }
     },
+    "test-scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "pr-unblock's fix-test-scope: on a same-repository pull request whose pr-require-checks run failed only at Test Selection's trace, the select job builds the suites' missing test-scope lines from the trace as a patch. Absent: as apply false.",
+      "properties": {
+        "apply": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: apply-test-scope pushes the patch as one lanes App commit; false: the select job uploads the patch and nothing is pushed."
+        }
+      }
+    },
     "review-threads": {
       "type": "object",
       "additionalProperties": false,

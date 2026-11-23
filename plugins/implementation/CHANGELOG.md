@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-11-23
+
+### Changed
+
+- `implement`'s `## Next` names `/testing:write` for survivors the advisory mutation run persisted.
+
 ## [0.47.3] - 2026-11-23
 
 ### Changed
