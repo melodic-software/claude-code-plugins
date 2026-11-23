@@ -530,7 +530,7 @@ class PostMergeVerdict:
 
 
 def demotion_marker(sha: str, signal: str) -> str:
-    return f"<!-- babysit-merge-demotion sha={sha} signal={signal} -->"
+    return policy.record_marker(policy.DEMOTION_KIND, sha, signal)
 
 
 def quarantine_marker(suite: str) -> str:
