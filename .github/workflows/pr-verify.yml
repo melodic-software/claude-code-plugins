@@ -490,31 +490,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -2428,31 +2404,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -4240,31 +4192,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 

@@ -88,11 +88,8 @@ for (const job of JOBS) {
 
   test(`${job}: the prompt, schema and data directory are the replay's`, () => {
     const prompt = step(job, "Write the prompt and schema");
-    assert.match(prompt, /template=\$\(<\.base\/\.github\/scripts\/pr-verify\/prompt\.md\)/);
+    assert.match(prompt, /^ {10}node \.base\/\.github\/scripts\/pr-verify\/render-prompt\.mjs$/m, "the step renders with the module promptText uses");
     assert.equal(envOf(prompt).DATA, `\${{ github.workspace }}/${JUDGE.dataDir}`);
-    const substitutions = [...prompt.matchAll(/prompt=\$\{prompt\/\/([A-Z_]+)\/\$DATA\/([\w.-]+)\}/g)].map(([, token, file]) => [token, file]);
-    assert.deepEqual(substitutions, JUDGE.promptSubstitutions);
-    assert.match(prompt, /printf '%s\\n' "\$prompt" >"\$PROMPT_STEM-\$k\.md"/);
     const schema = /printf '%s\\n' '(\{.*\})' >"\$SCHEMA_FILE"/.exec(prompt)?.[1];
     assert.deepEqual(JSON.parse(schema), JUDGE.schema);
     const resolve = step(job, "Resolve the verifier's model");
