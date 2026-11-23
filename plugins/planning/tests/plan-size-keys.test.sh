@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/resolve-convention-home.sh plugins/planning/skills/setup/scripts/parse-concern-value.sh plugins/planning/skills/setup/scripts/yaml-subset.awk
 # plan_size_bands and plan_inventory_min_files: the plan skill's size bands and file-inventory
 # threshold, read through the convention home.
 #

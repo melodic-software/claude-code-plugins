@@ -164,8 +164,6 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
     It 'handles structurally-malformed finding (empty object) under strict mode' {
         Mock Get-Service {}
 
-        # Valid JSON, no .detail: a bare access throws under StrictMode 3.0, so
-        # Get-PropertyValue must return an empty target list instead.
         $attempts = @(Invoke-RestartAsObject -FindingJson '{}')
         @($attempts).Count | Should -Be 0
     }
@@ -173,8 +171,6 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
     It 'handles finding missing stopped_auto_services under strict mode' {
         Mock Get-Service {}
 
-        # .detail exists but lacks .stopped_auto_services -- still must
-        # return an empty target list without throwing.
         $attempts = @(Invoke-RestartAsObject -FindingJson '{"detail":{"other":1}}')
         @($attempts).Count | Should -Be 0
     }
@@ -194,7 +190,6 @@ Describe 'Restart-StoppedService -- service_exclusions' -Tag 'remediation' {
     }
 
     It 'never starts an excluded stopped service and still starts the others' {
-        # Exclusion is an exact name match that ignores case: 'spooler' covers 'Spooler'.
         $raw = & $script:ScriptPath -Finding $script:Finding -ExcludedService @('spooler')
         $attempts = @(ConvertFrom-CheckOutput $raw)
 

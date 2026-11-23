@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-brief-keeps-adr-verdicts
 description: "The user confirms a closing restatement whose ADR verdicts say no decision gets an ADR, and the interview writes the Brief. Why hard: the verdicts look like chat bookkeeping and the Brief template's familiar sections hold everything else, so the easy path writes the Brief without them and the one record of why the storage choice got no ADR is lost."
-tags: [interview, brief, adr, closing-summary, scaffold]
+tags: [interview, brief, adr, closing-summary, scaffold, no-network]
 expected_outcome: ".work/webhook-retries/PLAN.md has a ### ADR verdicts section under ## Brief with one line per decision Q1 to Q4, each carrying its verdict, including Q3 (failed-delivery storage in a Postgres table, Redis stream weighed) with the verdict ADR candidate, not checked."
 context:
   scaffold_script: scaffold.sh

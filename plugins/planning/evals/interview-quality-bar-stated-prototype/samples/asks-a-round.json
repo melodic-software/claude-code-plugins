@@ -19,6 +19,10 @@
     {
       "answer": "**Q1. Storage**\nWhere should the demo keep its data between reloads?",
       "why": "question on the line after the Q1 label"
+    },
+    {
+      "answer": "**Round 1.** A throwaway habit tracker for a weekend demo.\nScope check: 2 of 27 questions registered\n\n❓ Q1: **What should your friend take away from the demo?**\n\nContext:\n- The demo is this weekend and nobody else will use it (user, round 1).\n\nDiscovery: what the prototype must show.",
+      "why": "the emoji question marker the default layout prints before Q1"
     }
   ],
   "fail": [

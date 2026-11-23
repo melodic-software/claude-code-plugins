@@ -14,7 +14,6 @@ import {
   validateAdapter,
 } from "./adapter-contract.js";
 
-/** Minimal contract-conforming spec for validation tests. */
 function validSpec() {
   return {
     id: "stub",

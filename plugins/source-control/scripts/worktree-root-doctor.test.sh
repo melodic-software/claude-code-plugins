@@ -55,8 +55,6 @@ EMPTY_GCFG="$TEST_TMPDIR/empty-gitconfig"
 # wrapper rather than the prefix repeated per call, so no site can omit it.
 fgit() { GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git "$@"; }
 
-# --- CLI contract ---------------------------------------------------------------
-
 help_out=$(bash "$DOCTOR" --help 2>&1)
 assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help documents the exit taxonomy" "$help_out" "at least one warn/error"
@@ -74,8 +72,6 @@ assert_exit "an unknown argument is a usage error (exit 2)" 2 "$?"
 bash "$DOCTOR" --repo-dir >/dev/null 2>&1
 assert_exit "--repo-dir without a value is a usage error (exit 2)" 2 "$?"
 
-# --- The gate: an unreadable repository is the whole report ----------------------
-
 NOTREPO="$(mktemp -d "$TEST_TMPDIR/notrepoXXXXXX")"
 run "$EMPTY_GCFG" "$NOTREPO"
 assert_exit "a non-repository exits 1" 1 "$RC"
@@ -83,16 +79,12 @@ assert_contains "the gate finding names the silent global-fallback hazard" "$OUT
   "silently returns the GLOBAL value"
 assert_contains "the gate finding names safe.directory as a cause" "$OUT" "safe.directory"
 
-# --- Unset key: informational, exit 0 --------------------------------------------
-
 REPO="$(mkrepo plain)"
 run "$EMPTY_GCFG" "$REPO"
 assert_exit "a clean repo with no key exits 0" 0 "$RC"
 assert_contains "an unset key is reported as info, with the set command" "$OUT" \
   "worktreeroot.path is unset"
 assert_contains "the unset finding names the fallthrough rungs" "$OUT" "worktree_root plugin option"
-
-# --- A set key: named with its origin, exit 0 ------------------------------------
 
 KEYED="$(mkrepo keyed)"
 fgit -C "$KEYED" config worktreeroot.path "$TEST_TMPDIR/wt-root"
@@ -228,8 +220,6 @@ assert_contains "the include-supplied winner is reported as working layering" "$
 assert_contains "the layered winner is the include's value" "$OUT" \
   "worktreeroot.path = $TEST_TMPDIR/work-root"
 
-# --- The root itself must not sit inside a working tree --------------------------
-
 NESTED_ROOT_REPO="$(mkrepo nestroot)"
 fgit -C "$NESTED_ROOT_REPO" config worktreeroot.path "$NESTED_ROOT_REPO/worktrees"
 mkdir -p "$NESTED_ROOT_REPO/worktrees"
@@ -237,8 +227,6 @@ run "$EMPTY_GCFG" "$NESTED_ROOT_REPO"
 assert_exit "a root inside a working tree is a finding (exit 1)" 1 "$RC"
 assert_contains "the nested root names the invariant it violates" "$OUT" \
   "INSIDE a git working tree"
-
-# --- Identity partials: user.email in an include without user.signingkey ---------
 
 IDREPO_PARENT="$(mktemp -d "$TEST_TMPDIR/idparentXXXXXX")"
 IDREPO="$IDREPO_PARENT/identity-fixture"
@@ -268,8 +256,6 @@ run "$FULL_GCFG" "$IDREPO"
 assert_not_contains "a complete identity include is not flagged as partial" "$OUT" \
   "sets user.email but not user.signingkey"
 
-# --- A linked worktree classifies with its repository -----------------------------
-
 WTREPO="$(mkrepo wthost)"
 fgit -C "$WTREPO" config user.email t@t.t
 fgit -C "$WTREPO" config user.name t
@@ -285,8 +271,6 @@ if fgit -C "$WTREPO" worktree add -q "$LINKED" -b feat/doctor >/dev/null 2>&1; t
 else
   skip_case "worktree add unavailable for the linked-worktree note fixture"
 fi
-
-# --- A worktree nested in another repository's work tree --------------------------
 
 NEST_A="$(mkrepo nesta)"
 NEST_B="$(mkrepo nestb)"
@@ -353,8 +337,6 @@ if fgit -C "$NEST_A/clone" worktree add -q "$NEST_A/clone/.work/x" -b feat/clone
 else
   skip_case "worktree add unavailable for the nested-clone fixture"
 fi
-
-# --- Standing notes are always present ---------------------------------------------
 
 run "$EMPTY_GCFG" "$REPO"
 assert_contains "the un-probe-able classes are reported as standing notes" "$OUT" \

@@ -80,14 +80,13 @@ SENT='<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@lap-1 -
 PAYLOAD='cycle: 7
 {"schema":"source-control/babysit-loop-state@2","cycle":7}'
 FAILED=0 N=0
-check() { # name expected actual
+check() {
   N=$((N + 1))
   if [[ "$3" == "$2" ]]; then printf 'PASS: [%d] %s\n' "$N" "$1"; else
     printf 'FAIL: [%d] %s\n  expected: %q\n  got:      %q\n' "$N" "$1" "$2" "$3" >&2
     FAILED=$((FAILED + 1))
   fi
 }
-# setup <comments-json> [body]: fresh comment store and body file
 setup() {
   export STUB_DIR="$TMP/case$N/source-control"
   rm -rf "$STUB_DIR" && mkdir -p "$STUB_DIR"
@@ -95,7 +94,7 @@ setup() {
   : >"$STUB_DIR/calls.log"
   printf '%s\n' "${2-$PAYLOAD}" >"$STUB_DIR/body.txt"
 }
-run() { # extra arguments pass through to the script
+run() {
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance "${INST-lap-1}" \
     --body-file "$STUB_DIR/body.txt" --body-dir "$STUB_DIR" "$@" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }
@@ -103,7 +102,6 @@ read_state() {
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 --read \
     --body-dir "$STUB_DIR" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }
-# c <id> <body> [author]: one comment object, written by lane-op unless named
 c() { jq -n --argjson id "$1" --arg b "$2" --arg a "${3:-lane-op}" '{id: $id, body: $b, user: {login: $a}}'; }
 OLD="$SENT"$'\n''cycle: 6 old body here'
 FOREIGN="$SENT"$'\n''{"writer_nonce":"intruder","heartbeat_at":"2099-01-01T00:00:00Z"}'
@@ -335,7 +333,7 @@ OUTSIDE="$TMP/outside"
 mkdir -p "$OUTSIDE"
 printf 'PRIVATE-KEY-MATERIAL\n' >"$OUTSIDE/secret.txt"
 chmod 000 "$OUTSIDE/secret.txt"
-run_body() { # body path, then extra arguments
+run_body() {
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 \
     --body-file "$1" "${@:2}" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }

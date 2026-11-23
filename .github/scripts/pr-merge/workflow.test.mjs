@@ -2,7 +2,7 @@
 // test-scope: .github/actions/check-trusted-trigger/action.yml .github/actions/collect-base-activity/action.yml
 // test-scope: .github/actions/log-api-budget/pace.mjs .github/actions/request-lane-token/action.yml
 // test-scope: .github/actions/resolve-config/action.yml .github/actions/select-trusted-text/action.yml
-// test-scope: .github/actions/setup-pinned-node/action.yml .github/actions/setup-runner-isolation/action.yml
+// test-scope: .github/actions/setup-runner-isolation/action.yml
 // test-scope: .github/workflows/*.yml
 // pr-merge.yml's main-verification trigger. Expected values come from the
 // owner decision of 2026-10-18 (every merge to main gets a full run, whoever
@@ -24,15 +24,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { evaluate } from "../lib/gate-expression.mjs";
+import { ifOf, workflowText } from "../lib/workflow-text.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
+const CI_SCAN = "melodic-software/ci-workflows/\\.github/actions/scan-upload@[0-9a-f]{40} # v\\S+";
 const jobs = merge.slice(merge.indexOf("\njobs:\n"));
-const job = (id) => {
-  const match = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(jobs);
-  assert.ok(match, `job ${id}`);
-  return match[1];
-};
+const { job } = workflowText(merge);
 
 test("every push to main reaches the dispatch job, with no author filter", () => {
   assert.match(merge, /\n {2}push:\n {4}branches: \[main\]\n/);
@@ -375,7 +374,7 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
   assert.match(checkout, /^ {8}if: steps\.tip\.outputs\.sha != ''\n {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/\.github\/actions\/scan-upload\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
 // The cover read and each dispatch POST leave a rate-limit reading, so the
@@ -424,15 +423,7 @@ const checksConcurrency = () => {
   const checks = read("pr-require-checks.yml");
   const block = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress: (.*)\n(?=\S|\n)/.exec(checks);
   assert.ok(block, "a workflow-level concurrency block");
-  const unwrap = (text) => text.trim().replace(/^\$\{\{\s*/, "").replace(/\s*\}\}$/, "").replaceAll("\n", " ");
-  const evaluate = (text, github) =>
-    new Function("github", "contains", "fromJSON", "format", `return (${unwrap(text)});`)(
-      github,
-      (list, item) => list.includes(item),
-      JSON.parse,
-      (template, ...values) => template.replace(/\{(\d+)\}/g, (_, i) => String(values[i])),
-    );
-  return { checks, block, group: (github) => evaluate(block[1], github), cancel: (github) => evaluate(block[2], github) };
+  return { checks, block, group: (github) => evaluate(block[1], { github }), cancel: (github) => evaluate(block[2], { github }) };
 };
 const prEvent = (action, number = 5) => ({
   event_name: "pull_request",
@@ -505,23 +496,14 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
 
-// A bot-sent pull_request_target run would wait in the queue and then stop at
-// who.mjs (a bot is never a listed human), so the job's condition skips it
-// first. The condition's syntax is the subset JavaScript reads the same way,
-// so the test evaluates it against hand-written events.
 // A job another job skipped has no outputs, so `needs` defaults to none.
-const evalIf = (id, event, inputs = {}, needs = {}) => {
-  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(`\n${job(id)}`)[1].replaceAll("\n", " ").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]');
-  const format = (template, value) => template.replace("{0}", value);
-  return new Function("github", "vars", "cancelled", "format", "inputs", "needs", `return (${text});`)(
-    { ref: "refs/heads/main", repository: "o/r", ...event },
-    { AUTOMATION_LANES_APP_SENDER_ID: "99" },
-    () => false,
-    format,
+const evalIf = (id, event, inputs = {}, needs = {}) =>
+  evaluate(ifOf(job(id), 4), {
+    github: { ref: "refs/heads/main", repository: "o/r", ...event },
+    vars: { AUTOMATION_LANES_APP_SENDER_ID: "99" },
     inputs,
-    { "dispatch-post-merge-runs": { outputs: {} }, ...needs },
-  );
-};
+    needs: { "dispatch-post-merge-runs": { outputs: {} }, ...needs },
+  });
 
 test("a paced schedule tick skips the merge sweep and still arms", () => {
   const paced = (value) => ({ "dispatch-post-merge-runs": { outputs: { paced: value } } });
@@ -551,7 +533,6 @@ test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   assert.equal(evalIf("enable-auto-merge", dispatch, { pr: "12" }), true);
   assert.equal(evalIf("merge", dispatch, { pr: "12" }), false);
   assert.equal(evalIf("dispatch-post-merge-runs", dispatch, { pr: "12" }), false);
-  // A hand-started sweep (no pr) still runs both.
   assert.equal(evalIf("merge", dispatch, { pr: "" }), true);
   assert.equal(evalIf("dispatch-post-merge-runs", dispatch, { pr: "" }), true);
   assert.equal(evalIf("dispatch-post-merge-runs", { event_name: "schedule", event: {} }), true);
@@ -1079,7 +1060,6 @@ test("the pre-check comes first, and its uncovered answer skips every read and t
     assert.match(step, /steps\.precheck\.outputs\.uncovered != 'true'/, name);
     assert.ok(at(PRECHECK_STEP) < at(name), `${name} comes after the pre-check`);
   }
-  // With no report standing, the arm step and its own reads stay skipped.
   assert.match(arm, /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: [^\n]*steps\.keep-report\.outputs\.stands != 'true'/);
   const report = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(report, /\n {10}UNCOVERED: \$\{\{ steps\.precheck\.outputs\.uncovered \}\}\n/);
@@ -1447,7 +1427,7 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
   assert.match(dispatch, /\n {10}cp "\$RUNNER_TEMP\/post-merge\.json" "\$kept\/post-merge\.json"\n/);
   const arm = job("enable-auto-merge");
-  assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[dispatch-post-merge-runs\]\n/);
+  assert.match(arm, /^ {2}enable-auto-merge:\n {4}# [\s\S]*?\n {4}needs: \[dispatch-post-merge-runs\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
   // No check of its own on a sweep: the report comes from this run's job
   // alone. Only a PR-scoped run, which has no dispatch-post-merge-runs job, runs
@@ -1521,7 +1501,7 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("report-unarmed-status");
-  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
+  assert.match(post, /^ {2}report-unarmed-status:\n {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
   // It runs whenever enable-auto-merge handed it statuses, after a failed
   // step too, and only then.
   assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && \(needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \|\| needs\.merge\.outputs\.mended-heads != ''\) \}\}\n/);
@@ -1944,9 +1924,10 @@ test("a dispatch that failed skips the record", () => {
     // the file the record uploads; with no continue-on-error, a missing
     // scanner fails the job as a failed upload of the record does.
     const scan = before.split("\n      - name: ").at(-1);
-    assert.ok(
-      scan.startsWith(
-        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        timeout-minutes: 2\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
+    assert.match(
+      scan,
+      new RegExp(
+        `^Scan the upload for credentials\\n {8}id: ${scanId}\\n {8}if: >-\\n {10}steps\\.dispatch\\.outputs\\.run-id != ''\\n {8}timeout-minutes: 2\\n {8}uses: ${CI_SCAN}\\n {8}with:\\n {10}gate-path: \\.base/lib/publish-gate\\.mjs\\n {10}path: \\$\\{\\{ runner\\.temp \\}\\}/dispatched\\.json\\n`,
       ),
       id,
     );
@@ -1955,11 +1936,6 @@ test("a dispatch that failed skips the record", () => {
   }
 });
 
-// A scan that runs past its timeout fails before scan-upload.mjs appends clean=true, so the
-// upload it guards is skipped: a slow scan withholds the upload and frees the job, and the
-// concurrency group behind it, within minutes. Best-effort scans keep continue-on-error, so a
-// timeout skips only their upload; the scans before a dispatch record carry none, so a timeout
-// there fails the job as a failed record upload does (the test above).
 test("every credential scan has a timeout of at most 2 minutes, and the upload it guards needs its clean output", () => {
   const bestEffort = {
     "dispatch-post-merge-runs": ["scan-upload", "scan-upload-5"],
@@ -1987,14 +1963,6 @@ test("every credential scan has a timeout of at most 2 minutes, and the upload i
     assert.deepEqual(found, expected, `${id}: the scans that keep continue-on-error`);
   }
   assert.equal(scans, (merge.match(/- name: Scan the upload for credentials\n/g) ?? []).length, "every scan step is in a job above");
-  // clean is the scan step's own output, which scan-upload.mjs writes only after the last file.
-  const action = readFileSync(new URL("../../actions/scan-upload/action.yml", import.meta.url), "utf8");
-  assert.match(action, /\n {4}value: \$\{\{ steps\.scan\.outputs\.clean \}\}\n/);
-  const scanner = readFileSync(new URL("../../actions/scan-upload/scan-upload.mjs", import.meta.url), "utf8");
-  assert.equal(scanner.match(/appendFileSync\(env\.GITHUB_OUTPUT\b/g)?.length, 1, "one write to GITHUB_OUTPUT");
-  assert.equal(scanner.match(/appendFileSync\(/g)?.length, 2, "the only other write is the job summary's");
-  assert.equal(scanner.match(/appendFileSync\(env\.GITHUB_STEP_SUMMARY\b/g)?.length, 1);
-  assert.ok(scanner.indexOf('appendFileSync(env.GITHUB_OUTPUT, "clean=true\\n")') > scanner.indexOf("result = scanPaths(entries)"));
 });
 
 // Each job's "Check who started the run" step, run under bash from a directory
@@ -2259,8 +2227,7 @@ test("enable-auto-merge reads the skip records only from a trusted run and uploa
   // same file.
   const scan = arm.split("\n      - name: Upload the skip records for the next run\n")[0].split("\n      - name: ").at(-1);
   assert.ok(scan.startsWith(`Scan the upload for credentials\n        id: scan-upload\n        if: >-\n          ${predicate}\n`), scan);
-  assert.ok(scan.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), scan);
-  // A best-effort upload: neither it nor its scan can fail the job.
+  assert.match(scan, new RegExp(`\\n {8}uses: ${CI_SCAN}\\n {8}with:\\n {10}gate-path: \\.base/lib/publish-gate\\.mjs\\n`), scan);
   for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
   assert.ok(scan.includes("\n          path: ${{ runner.temp }}/verify-answers/eam-skip.json\n"), scan);
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);

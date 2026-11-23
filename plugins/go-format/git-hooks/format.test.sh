@@ -29,7 +29,7 @@ mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -51,7 +51,7 @@ new_repo() {
   git -C "$REPO" commit -q -m seed --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && PATH="${BIN:+$BIN:}$PATH" bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -206,7 +206,6 @@ $TAIL" "$(check "$REPO" --worktree)"
 rm "$REPO/a.go"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
 
-# A PATH with the tools the script runs, git and no goimports.
 NOGI="$WORK/nogoimports"
 mkdir -p "$NOGI"
 for t in git bash sed awk cat mktemp rm dirname grep tr; do

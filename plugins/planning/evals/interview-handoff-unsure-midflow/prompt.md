@@ -1,6 +1,6 @@
 ---
 description: "Contract case for the interview skill when the user arrives mid-flow after an interview and is unsure where that leaves the work. Why hard: guessing one specific pipeline step is wrong when the user has not said what is settled."
-tags: [interview, handoff]
+tags: [interview, handoff, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

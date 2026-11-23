@@ -81,7 +81,6 @@ const readJson = (file) => {
 const isMapping = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isDir = (p) => existsSync(p) && statSync(p).isDirectory();
 const isFile = (p) => existsSync(p) && statSync(p).isFile();
-/** The routing.schema.json schema of one routing row. */
 const rowSchema = () => JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
 const filesIn = (dir, re) => (isDir(join(opts.project, dir)) ? readdirSync(join(opts.project, dir)).filter((f) => re.test(f)).map((f) => (dir ? `${dir}/${f}` : f)) : []);
 

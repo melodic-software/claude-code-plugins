@@ -1,42 +1,4 @@
 #!/usr/bin/env bash
-# resolve-config.sh — resolve the docs-naming consumer configuration.
-#
-# WHY A SCRIPT AND NOT A SOURCED LIBRARY. Five callers in four skills need the
-# same merged document, and each one runs in its own process against its own
-# --root. A script invoked once per run returns one JSON document every caller
-# reads the same way, so no two callers can disagree about what the consumer
-# configured.
-#
-# OLD TEAM AND PERSONAL OVERRIDE FILES. The JSON files those layers used to live in
-# (<root>/.claude/docs-naming.json, .local.json, and the retired docs-hygiene
-# names of both) are not read; `/docs-naming:setup check` names each one it finds.
-#
-# MERGE IS PER KEY OF `file_names`, and three classes decide how:
-#
-#   nearest-wins  rule, regex, redirect_map. The latest layer that declares the
-#                 key supplies it whole.
-#   additive      roots, exempt_basenames, exempt_paths, exempt_extensions,
-#                 tiers, sweep_exclude, sweep_exclude_sites. The TEAM layer
-#                 replaces the bundled default whole; a PERSONAL layer only
-#                 appends entries the resolved value does not carry.
-#   team-only     generated. A personal layer that declares it is reported inert
-#                 and ignored.
-#
-# The additive and team-only classes are the POLICY FLOOR. Every key in them
-# decides what the realign skill will do to a tree: which files are frozen, which
-# references are edited in which form, and which shell command runs after a move.
-# A personal override that could REPLACE one could quietly widen a frozen tier or
-# swap the command that regenerates a record, which is a team decision weakened
-# from one machine. Appending is still allowed, because a contributor adding an
-# exemption or a scope root of their own weakens nothing. The team layer is the
-# authority rather than a peer, so it replaces: a repository whose defaults do
-# not fit has to be able to say so, not only add to them.
-#
-# CRLF. On native Windows, jq writes \r\n (its own release notes add --binary to
-# opt out, and this repository already records the class as a standing Windows
-# failure). Every jq read here goes through `tr -d '\r'`, so a resolved regex
-# cannot end in a carriage return and silently match nothing.
-#
 # Exit: 0 resolved, 2 usage error or an unreadable, unparsable, or
 #       unknown-schema layer (the file is named on stderr).
 # Every single-quoted `${...}` below is a jq program argument, substituted by jq
@@ -112,7 +74,6 @@ Exit: 0 resolved, 2 usage error or an unreadable, unparsable, or
 EOF
 }
 
-# jq with the Windows carriage return stripped from every line it emits.
 jqr() {
   jq "$@" | tr -d '\r'
 }
@@ -189,10 +150,6 @@ fi
 OLD_USER_READ=""
 [[ "$USER_STATE" != present ]] && OLD_USER_READ="${OLD_USER_FILES%%$'\n'*}"
 
-# Config-cascade step 2: a root that is the home directory or an ancestor of it,
-# or that is not inside a git working tree, has no team layer or personal override. The
-# home is --home, not the inherited $HOME, so a fixture is classified against
-# the directory it names.
 # shellcheck source=../lib/config-root.sh
 . "$SCRIPT_DIR/../lib/config-root.sh"
 ROOT_CLASS="$(HOME="$USER_HOME_DIR" config_root_classify "$ROOT")"
@@ -231,11 +188,6 @@ if [[ "$ACTION" = paths ]]; then
   exit 0
 fi
 
-# Read one layer. Prints its JSON, or nothing when the file is absent.
-# A present file that does not parse, or whose JSON schema is not this contract's,
-# is fatal: a silently skipped layer is a configuration the operator believes is
-# in effect and is not. A YAML layer carries no schema number; it is the
-# current contract by its location.
 read_layer() {
   layer_name="$1"
   layer_path="$2"
@@ -244,7 +196,6 @@ read_layer() {
   [[ -f "$layer_path" ]] || return 0
   [[ -r "$layer_path" ]] || die "$layer_name layer is not readable: $layer_path"
   if [[ "$layer_kind" = yaml ]]; then
-    # On success the converter writes only the JSON; on failure only its message.
     if ! layer_json="$(layer_yaml_to_json "$layer_path" 2>&1)"; then
       die "$layer_name layer is not valid YAML ($layer_json): $layer_path"
     fi
@@ -294,9 +245,6 @@ layer_value() {
   printf '%s' "$2" | jqr -c --arg k "$1" '.file_names[$k]'
 }
 
-# Append entries the accumulated value does not already carry, order preserved.
-# Compared by their JSON encoding, so an object entry counts as a duplicate only
-# when every field matches.
 append_new() {
   jqr -n -c --argjson a "$1" --argjson b "$2" '
     ($a + $b)
@@ -304,11 +252,7 @@ append_new() {
   '
 }
 
-# Only `tiers` entries carry a verdict, so each is stamped with its layer: a personal
-# tier may classify a file no team tier claims, never one a team tier claimed.
 stamp_layer() {
-  # A non-array value is handed back untouched: stamping must never turn a
-  # readable document into a failed one.
   case "$1" in
   '' | null) printf '%s' "$1" ;;
   \[*) jqr -n -c --argjson a "$1" --arg l "$2" '$a | map(if type == "object" then . + {_layer: $l} else . end)' ;;
@@ -325,8 +269,6 @@ for key in $KEY_ORDER; do
   [[ "$key" = tiers ]] && value="$(stamp_layer "$value" bundled)"
   contributors='bundled'
 
-  # Nearest-wins keys apply the nearer layer last so it wins; additive keys apply
-  # team first so its replacement cannot discard personal additions.
   case "$NEAREST_WINS" in
   *" $key "*) layer_order='userConfig team personal-override' ;;
   *) layer_order='team userConfig personal-override' ;;

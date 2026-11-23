@@ -4,8 +4,13 @@
 // the summary is redacted, and no results artifact is uploaded.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { workflowText } from "../lib/workflow-text.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-run-plugin-evals.yml", import.meta.url), "utf8");
 const step = (name) => {
@@ -35,7 +40,6 @@ test("a pull request run proves the policy denies the reads before any case runs
   assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_run'\n/);
   assert.match(probe, /RUNNER_ROOT: \$\{\{ steps\.deny\.outputs\.runner-root \}\}/);
   assert.match(probe, /--allowedTools Read Grep Glob /);
-  // policy-probe.mjs judges the four calls; only its exit 0 lets the step pass.
   const judge = 'reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?';
   assert.ok(probe.includes(judge), "the judge runs from the base checkout without the credential");
   assert.match(probe, /\n {10}case \$judged in\n {12}0\) echo "\$reason" ;;\n {12}3\) echo "::error::[^\n]*"; exit 1 ;;\n {12}\*\) echo "::error::[^\n]*"; exit 1 ;;\n {10}esac\n/);
@@ -103,12 +107,12 @@ test("a pull request run redacts its summary and uploads no results", () => {
   assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
 });
 
-test("every eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
-  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 3);
+test("the eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
+  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 1);
   assert.doesNotMatch(text, /--max-cost-usd \d/);
-  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 3);
+  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 1);
   const guards = text.match(/if ! \[\[ \$MAX_COST .*?\n\s+fi\n/gs);
-  assert.equal(guards.length, 3);
+  assert.equal(guards.length, 1);
   const passes = (value) => spawnSync("bash", ["-c", guards[0]], { env: { MAX_COST: value } }).status === 0;
   for (const value of ["1", "5", "12"]) {
     assert.ok(passes(value), value);
@@ -119,13 +123,7 @@ test("every eval leg takes its cost ceiling from the checked max-cost-usd input,
 });
 
 const compare = text.slice(text.indexOf("\n  compare-prepare:\n"));
-const job = (name) => {
-  const start = compare.indexOf(`\n  ${name}:\n`);
-  assert.ok(start >= 0, `job ${name}`);
-  const rest = compare.slice(start + 1);
-  const next = rest.slice(1).search(/\n {2}[a-z][a-z-]*:\n/);
-  return next < 0 ? rest : rest.slice(0, next + 1);
-};
+const { job } = workflowText(text);
 const armsScript = readFileSync(new URL("./compare-arms.sh", import.meta.url), "utf8");
 
 test("compare mode reads the pull request's commits only as git objects for the arm patches", () => {
@@ -145,6 +143,7 @@ test("compare mode runs both arms on the API key alone and stops without a cost 
     const arm = job(name);
     assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
+    assert.match(arm, /\n {6}cases: \$\{\{ inputs\.cases \}\}\n/, name);
     assert.match(arm, /\n {6}ablation: none\n/, name);
   }
   assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
@@ -153,10 +152,15 @@ test("compare mode runs both arms on the API key alone and stops without a cost 
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
   assert.ok(passes("1") && passes("12"));
   for (const value of ["", "0", "13", "2.5"]) assert.ok(!passes(value), value);
-  const filter = /read -ra tags <<<"\$TAGS"\n\s+if \[ -z "\$CASE" \].*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
+  const filter = /read -ra tags <<<"\$TAGS"\n.*?\n\s+done\n/s.exec(job("compare-prepare"))[0];
   const selects = (env) => spawnSync("bash", ["-c", filter], { env }).status === 0;
-  assert.ok(!selects({ CASE: "", TAGS: "" }), "no case and no tag runs nothing");
-  assert.ok(selects({ CASE: "p1-*", TAGS: "" }) && selects({ CASE: "", TAGS: "interview" }));
+  assert.ok(!selects({ CASE: "", CASES: "", TAGS: "" }), "no case, cases, or tag runs nothing");
+  assert.ok(selects({ CASE: "p1-*", CASES: "", TAGS: "" }));
+  assert.ok(selects({ CASE: "", CASES: "", TAGS: "interview" }));
+  assert.ok(selects({ CASE: "", CASES: "c1 c2", TAGS: "" }));
+  assert.ok(!selects({ CASE: "p1-*", CASES: "c1", TAGS: "" }), "case and cases cannot both be set");
+  assert.ok(!selects({ CASE: "", CASES: "-bad", TAGS: "" }), "cases name must not start with -");
+  assert.ok(!selects({ CASE: "", CASES: "ok -bad", TAGS: "" }), "later cases name must not start with -");
   assert.match(job("compare-record"), /if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then/);
 });
 
@@ -196,4 +200,71 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     head_repository: { full_name: "o/r" },
   };
   assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head });
+});
+
+test("cases input reaches stage-suites and run-eval through env, and rejects case+cases together", () => {
+  assert.match(text, /\n {6}cases:\n {8}description: Exact case names, space-separated; stages a suite copy with only these cases\. Not with case\.\n {8}required: false\n {8}type: string\n {8}default: ""\n/);
+  assert.match(step("Validate and stage the suites"), /CASES: \$\{\{ inputs\.cases \}\}\n/);
+  const runStep = step("Run the plugin eval");
+  assert.match(runStep, /CASES: \$\{\{ inputs\.cases \}\}\n/);
+  const runGuard = /read -ra cases <<< "\$CASES"\n\s+if \[ -n "\$CASE" \].*?\n\s+fi\n/s.exec(runStep)[0];
+  const allows = (env) => spawnSync("bash", ["-c", runGuard], { env, encoding: "utf8" });
+  const both = allows({ CASE: "a*", CASES: "b" });
+  assert.equal(both.status, 1);
+  assert.match(both.stdout, /::error::/);
+  assert.equal(allows({ CASE: "a*", CASES: "" }).status, 0);
+  assert.equal(allows({ CASE: "", CASES: "b c" }).status, 0);
+  for (const runBlock of text.matchAll(/\n {8}run: \|\n((?: {10}.*|\n)+)/g)) {
+    assert.doesNotMatch(runBlock[1], /\$\{\{\s*inputs\./);
+  }
+});
+
+test("stage-suites.sh stages evals-selected when CASES is set on a non-deterministic run and passes --cases on a deterministic run", () => {
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const stageScript = fileURLToPath(new URL("./stage-suites.sh", import.meta.url));
+  const work = mkdtempSync(join(tmpdir(), "stage-suites-"));
+  try {
+    symlinkSync(repoRoot, join(work, ".base"));
+    const plugin = join(work, "root/plugins/demo");
+    const write = (rel, body) => {
+      const full = join(plugin, rel);
+      mkdirSync(join(full, ".."), { recursive: true });
+      writeFileSync(full, body);
+    };
+    write(".claude-plugin/plugin.json", JSON.stringify({ name: "demo" }));
+    write("evals/det/prompt.md", "Say hi.\n");
+    write("evals/det/graders/says-hi.md", "---\ntype: regex\npattern: hi\n---\n");
+    write("evals/judged/prompt.md", "Explain.\n");
+    write("evals/judged/graders/clear.md", "---\ntype: llm\n---\nThe answer is clear.\n");
+
+    const runStage = (env) => {
+      const out = join(work, `gh-out-${Math.random().toString(36).slice(2)}`);
+      writeFileSync(out, "");
+      const res = spawnSync("bash", [stageScript], {
+        cwd: work,
+        env: { PATH: process.env.PATH, LIST: "plugins/demo", ROOT: "root", GITHUB_OUTPUT: out, ...env },
+        encoding: "utf8",
+      });
+      return { res, output: readFileSync(out, "utf8") };
+    };
+
+    const plain = runStage({ DETERMINISTIC: "false", CASES: "" });
+    assert.equal(plain.res.status, 0, plain.res.stderr);
+    assert.match(plain.output, /root\/plugins\/demo\tevals\n/);
+    assert.ok(!existsSync(join(plugin, "evals-selected")));
+
+    const selected = runStage({ DETERMINISTIC: "false", CASES: "judged" });
+    assert.equal(selected.res.status, 0, selected.res.stderr);
+    assert.match(selected.output, /root\/plugins\/demo\tevals-selected\n/);
+    assert.ok(existsSync(join(plugin, "evals-selected/judged/graders/clear.md")));
+    assert.ok(!existsSync(join(plugin, "evals-selected/det")));
+
+    const detSelected = runStage({ DETERMINISTIC: "true", CASES: "det" });
+    assert.equal(detSelected.res.status, 0, detSelected.res.stderr);
+    assert.match(detSelected.output, /root\/plugins\/demo\tevals-deterministic\n/);
+    assert.ok(existsSync(join(plugin, "evals-deterministic/det/graders/says-hi.md")));
+    assert.ok(!existsSync(join(plugin, "evals-deterministic/judged")));
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 });

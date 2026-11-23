@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: .github/scripts/post-merge-demotion-alert/newer-green.bash
-# Runs the `File or comment on the demotion issue` step body of
-# .github/workflows/post-merge-file-demotion-issues.yml under the shell Actions gives
-# a step with no `shell:` (bash -e), against a stub `gh`.
-#
+# test-scope: .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
@@ -30,6 +27,7 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/post-merge-file-demotion-issues.yml"
+FILE_SCRIPT=.github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -51,16 +49,19 @@ step_body() {
 }
 NAME='File or comment on the demotion issue'
 FILER_NAME='File the revert demotion issue'
-step_body "$NAME" "$TMP_ROOT/body.sh"
 step_body "$FILER_NAME" "$TMP_ROOT/filer.sh"
 
-for pair in "$NAME:body.sh" "$FILER_NAME:filer.sh"; do
-  if [[ ! -s "$TMP_ROOT/${pair##*:}" ]]; then
-    fail "no '${pair%:*}' step with a run: | body in $WORKFLOW"
-    test_harness::report
-    exit 1
-  fi
-done
+if [[ ! -s "$ROOT/$FILE_SCRIPT" || ! -s "$TMP_ROOT/filer.sh" ]]; then
+  fail "no $FILE_SCRIPT, or no '$FILER_NAME' step with a run: | body in $WORKFLOW"
+  test_harness::report
+  exit 1
+fi
+file_step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next } on && /^(      - |  [^ ]|[^ ])/ { exit } on { print }' "$WORKFLOW")"
+if [[ "$file_step" == *$'\n'"        run: bash .base/$FILE_SCRIPT"* && "$file_step" == *$'\n'"        id: file"$'\n'* ]]; then
+  ok "the '$NAME' step runs the default branch's filing script"
+else
+  fail "the '$NAME' step does not run .base/$FILE_SCRIPT"
+fi
 
 # --- Workflow shape -----------------------------------------------------------
 # Trigger names come from the two workflows' own `name:` lines.
@@ -114,7 +115,7 @@ if [[ "$uses" == $'melodic-software/ci-workflows/.github/actions/resolve-branch-
 else
   fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA, the pinned settings drop-in and its log-api-budget: '$uses'"
 fi
-if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
+if grep -qF "\${{" "$ROOT/$FILE_SCRIPT"; then
   fail "the step body interpolates an expression; pass it through env"
 else
   ok "the step body takes every event field through env"
@@ -434,11 +435,11 @@ PY
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_FIX_POST_FAIL="${FIX_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     RETRY_OUTCOME="${RETRY_OUTCOME:-}" STUB_MARK_FAIL="${MARK_FAIL:-}" STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
-    GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
+    RUNNER_TEMP='' GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
-    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-$TMP_ROOT/body.sh}" 2>&1)" && RC=0 || RC=$?
+    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "${STEP_BODY:-.base/$FILE_SCRIPT}" 2>&1)" && RC=0 || RC=$?
   # The file-revert job, when the step handed it a record (ALERT_ONLY skips it).
   FILER_OUT='' FILER_RC=''
   if [[ -z "${STEP_BODY:-}${ALERT_ONLY:-}" && -n "$(out_value revert-title)" ]]; then

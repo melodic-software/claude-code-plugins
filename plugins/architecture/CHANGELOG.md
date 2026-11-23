@@ -3,6 +3,21 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.3] - 2026-11-23
+
+### Changed
+
+- `/architecture:adr`, `/architecture:improve` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+## [6.0.2] - 2026-11-23
+
+### Fixed
+
+- The deepening scan's two deletion-test results now mean one thing everywhere: the vocabulary defines `concentrates` (a module that only forwarded calls, or shallow modules that fold into one, a candidate) and `moves` (logic every caller would copy, a module that earns its keep), and the scan briefing no longer calls `moves` a pass-through.
+- A pass-through candidate's `solution` line may name which of the three fixes applies: delete it, move work between it and what it wraps, or merge the two.
+- Design-It-Twice launches each design as a fresh subagent, never a fork.
+- `/architecture:improve` names `/testing:write` next when an agreed candidate's module has no tests to protect the refactor.
+
 ## [6.0.1] - 2026-11-22
 
 ### Changed

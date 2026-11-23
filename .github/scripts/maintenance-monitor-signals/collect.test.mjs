@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { switchHold } from "../pr-merge/merge-holds.mjs";
-import { collect, jobsCarryFile, JOBS_VERSION, KILL_SWITCH, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, QUEUE_HOLD_STEPS, restAnnotations, restJobs, VARIABLE_STEPS } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, KILL_SWITCH, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, QUEUE_HOLD_STEPS, VARIABLE_STEPS } from "./collect.mjs";
 import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
 import { ceilingFindings, detect, laneVariableFindings } from "./signals.mjs";
 
@@ -690,7 +690,6 @@ test("lane quota readings skip branch-code, fork and test-suite runs, failed min
   const data = await collect(input(api, { ownRate: null }));
   assert.deepEqual(data.gaps, []);
   assert.ok(!api.calls.some((p) => /runs\/8[12356]\/jobs|check-runs\/840\//.test(p)));
-  // pr-merge's merge job counts once, through its own source.
   assert.deepEqual(data.budgetReadings.map((r) => [r.name, r.runId]), [["lanes-app", 10], ["lane", 10]]);
 });
 
@@ -889,7 +888,6 @@ test("stalled stops: more open PRs than the read covers is a gap naming the true
   const api = fakeApi([[/\/pulls\?state=open/, openPulls(many)], [/\/issues\/9\d{3}\/comments/, []], ...routes()]);
   const data = await collect(input(api));
   assert.ok(data.gaps.some((g) => g === "stalled stops: 145 open pull requests, only the 40 most recently updated read"), data.gaps.join("\n"));
-  // One query lists them, newest update first, with their comments.
   const stalled = stalledQueries(api);
   assert.equal(stalled.length, 1);
   assert.match(stalled[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
@@ -1064,7 +1062,6 @@ test("post-merge reports: four unreadable sweeps in a row are read, newest first
     [10, 11, 12, 13].map((id) => [id, "3", CAP]),
   );
   assert.deepEqual(downloads, [70, 71, 72, 73]);
-  // The pr-merge run list is read once for both sources that need it.
   assert.equal(api.calls.filter((p) => p.includes("pr-merge.yml/runs")).length, 1);
   assert.equal(api.calls.filter((p) => p.includes("name=pr-merge-post-merge-report")).length, 1);
 });
@@ -1342,31 +1339,30 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   assert.deepEqual([off.gaps, off.laneHolds], [[], []]);
 });
 
-// Eight green pr-refine runs completed 15:40 to 16:15, listed newest first,
-// the two oldest held, after 908, already carried, at 15:38.
-const REFINE_AT = ["15:40", "15:45", "15:50", "15:55", "16:00", "16:05", "16:10", "16:15"];
-const refineRoutes = () => [
+const REFINE_AT = ["15:40", "15:45", "15:50", "15:55", "16:00", "16:05", "16:10", "16:15", "16:20", "16:25", "16:30", "16:35", "16:40", "16:45"];
+const REFINE_NOW = new Date("2026-10-19T16:46:00Z");
+const REFINE_CARRIED = { ...CARRIED, runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z")] };
+const refineRoutes = (count = REFINE_AT.length) => [
   [/workflows\/pr-refine\.yml\/runs/, {
-    workflow_runs: [...REFINE_AT.map((t, i) => run(900 + i, { event: "workflow_dispatch", updated_at: `2026-10-19T${t}:00Z` })), run(908, { event: "workflow_dispatch", updated_at: "2026-10-19T15:38:00Z" })].reverse(),
+    workflow_runs: [...REFINE_AT.slice(0, count).map((t, i) => run(i < 8 ? 900 + i : 902 + i, { event: "workflow_dispatch", updated_at: `2026-10-19T${t}:00Z` })), run(908, { event: "workflow_dispatch", updated_at: "2026-10-19T15:38:00Z" })].reverse(),
   }],
   [/runs\/90[01]\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "Fix Docs Handoff", conclusion: "success" }] })],
   [/check-runs\/90[01]0\/annotations/, [notice("Handoff evidence hold", "handoff evidence for fix-docs still missing after the read")]],
-  [/runs\/90\d\/jobs/, { jobs: [] }],
+  [/runs\/9[01]\d\/jobs/, { jobs: [] }],
   ...holdRoutes(),
 ];
 
 test("lane holds: past the cap the oldest unread runs are read, a carried one takes no slot, and the span stops at the last read", async () => {
-  const carried = { ...CARRIED, runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z")] };
   const api = fakeApi(refineRoutes());
-  const data = await collect(input(api, { holds: { rule: RULE, carried } }));
-  assert.deepEqual(data.gaps, [`lane holds partly read: over the cap of unread green runs of pr-refine (cap 6); held runs read only through 2026-10-19T16:05:00Z`]);
+  const data = await collect(input(api, { now: REFINE_NOW, holds: { rule: RULE, carried: REFINE_CARRIED } }));
+  assert.deepEqual(data.gaps, [`lane holds partly read: over the cap of unread green runs of pr-refine (cap 12); held runs read only through 2026-10-19T16:35:00Z`]);
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
     [901, "fix-docs handoff evidence missing"],
     [900, "fix-docs handoff evidence missing"],
     [908, "closed-issue listing failed"],
   ]);
-  assert.deepEqual([data.heldCarry.from, data.heldCarry.through], [CARRIED.from, "2026-10-19T16:05:00Z"]);
-  for (const id of [906, 907, 908]) assert.ok(!api.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  assert.deepEqual([data.heldCarry.from, data.heldCarry.through], [CARRIED.from, "2026-10-19T16:35:00Z"]);
+  for (const id of [914, 915, 908]) assert.ok(!api.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   // The next run, an hour on, reads the rest from where this one stopped, and the span holds.
   const later = fakeApi(refineRoutes());
   const next = await collect(input(later, {
@@ -1375,7 +1371,7 @@ test("lane holds: past the cap the oldest unread runs are read, a carried one ta
     holds: { rule: RULE, carried: data.heldCarry },
   }));
   assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
-  for (const id of [906, 907]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  for (const id of [914, 915]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
 });
 
@@ -1411,11 +1407,11 @@ test("lane hold markers: a marked listed run the scan found no hold in counts on
 });
 
 test("lane hold markers: a marker reaches a run past the scan's cap", async () => {
-  const api = fakeApi([[/artifacts\?name=lane-hold-pr-refine&/, { artifacts: [marker(7, 907)] }], ...refineRoutes()]);
-  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
-  assert.ok(!api.calls.some((c) => c.includes("runs/907/jobs")), "907 is past the cap, so the scan does not read it");
+  const api = fakeApi([[/artifacts\?name=lane-hold-pr-refine&/, { artifacts: [marker(7, 915)] }], ...refineRoutes()]);
+  const data = await collect(input(api, { now: REFINE_NOW, holds: { rule: RULE, carried: CARRIED } }));
+  assert.ok(!api.calls.some((c) => c.includes("runs/915/jobs")), "915 is past the cap, so the scan does not read it");
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
-    [907, "hold marker"],
+    [915, "hold marker"],
     [901, "fix-docs handoff evidence missing"],
     [900, "fix-docs handoff evidence missing"],
   ]);
@@ -1434,11 +1430,11 @@ test("lane hold markers: a failed marker list is a gap that reads only signal 13
 
 test("lane holds: a lane past the cap whose read runs reach the threshold still raises signal 13, and the incident files", async () => {
   const carried = {
-    ...CARRIED,
-    runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z"), carriedHold("pr-refine", 909, "2026-10-19T10:00:00Z")],
+    ...REFINE_CARRIED,
+    runs: [...REFINE_CARRIED.runs, carriedHold("pr-refine", 909, "2026-10-19T10:00:00Z")],
   };
-  const data = await collect(input(fakeApi(refineRoutes()), { holds: { rule: RULE, carried } }));
-  assert.match(data.gaps[0], /^lane holds partly read: over the cap of unread green runs of pr-refine \(cap 6\)/);
+  const data = await collect(input(fakeApi(refineRoutes()), { now: REFINE_NOW, holds: { rule: RULE, carried } }));
+  assert.match(data.gaps[0], /^lane holds partly read: over the cap of unread green runs of pr-refine \(cap 12\)/);
   assert.deepEqual(data.holdRule, RULE);
   const findings = detect(data).filter((f) => f.signal === "13 lane holds");
   assert.deepEqual(findings.map((f) => f.key), ["lane-hold:pr-refine"]);
@@ -1515,6 +1511,22 @@ test("lane holds: work-unblock reads past the default cap of 6 up to its own of 
   for (let id = 2100; id < 2108; id += 1) assert.ok(eight.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
   const over = await collect(input(fakeApi(routesFor(21)), { holds: { rule: RULE, carried: CARRIED } }));
   assert.match(over.gaps[0], /^lane holds partly read: over the cap of unread green runs of work-unblock \(cap 20\)/);
+});
+
+test("lane holds: pr-refine reads past the default cap of 6 up to its own of 12", async () => {
+  const options = { now: REFINE_NOW, holds: { rule: RULE, carried: REFINE_CARRIED } };
+  const api = fakeApi(refineRoutes(12));
+  const data = await collect(input(api, options));
+  assert.deepEqual(data.gaps, []);
+  assert.equal(data.heldCarry.through, "2026-10-19T16:46:00Z");
+  const unread = [...ids(900, 907), ...ids(910, 913)];
+  assert.deepEqual(readJobs(api, unread), unread);
+
+  const overApi = fakeApi(refineRoutes(13));
+  const over = await collect(input(overApi, options));
+  assert.deepEqual(over.gaps, ["lane holds partly read: over the cap of unread green runs of pr-refine (cap 12); held runs read only through 2026-10-19T16:35:00Z"]);
+  assert.deepEqual([...partlyReadSignals(over.gaps)], ["13 lane holds"]);
+  assert.deepEqual(readJobs(overApi, [...unread, 914]), unread);
 });
 
 // Two lanes over their caps in one window: work-resolve-issue runs 3000 to
@@ -1941,71 +1953,6 @@ test("lane variable runs: a failed listing or one over the cap is a gap, so sign
   const many = Array.from({ length: LIMITS.laneVariableRuns + 1 }, (_, i) => unblockRun(900 + i));
   const over = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, { workflow_runs: many }], ...routes()])));
   assert.deepEqual(over.gaps, [`lane variable runs: over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`]);
-});
-
-// pr-merge run 43092202279 as both APIs answered it on 2026-11-11: GraphQL's
-// check runs (newest first, no steps), REST's jobs list (oldest first, steps
-// left out), and three of its enable-auto-merge job's 28 annotations.
-const RECORDED_RUN = { id: 43092202279, run_attempt: 1 };
-const recordedCheckRun = (id, databaseId, name, conclusion) => ({ id, databaseId, name, status: "COMPLETED", conclusion });
-const RECORDED_NODE = {
-  databaseId: 43092202279,
-  runAttempt: 1,
-  checkSuite: {
-    checkRuns: {
-      totalCount: 6,
-      nodes: [
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecsxang", 130775014046, "unarmed-status", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecp1zog", 130771940258, "post-merge-dispatch", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy5Dw", 130771892495, "dispatch-full-run", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy4dg", 130771892342, "gate-check", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy3Fw", 130771891991, "merge", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpyvPw", 130771889983, "enable-auto-merge", "SUCCESS"),
-      ],
-    },
-  },
-};
-const recordedJob = (id, node_id, name, conclusion) => ({ id, node_id, name, status: "completed", conclusion });
-const RECORDED_JOBS = [
-  recordedJob(130771889983, "CR_kwDOTCGFQM8AAAAecpyvPw", "enable-auto-merge", "success"),
-  recordedJob(130771891991, "CR_kwDOTCGFQM8AAAAecpy3Fw", "merge", "skipped"),
-  recordedJob(130771892342, "CR_kwDOTCGFQM8AAAAecpy4dg", "gate-check", "skipped"),
-  recordedJob(130771892495, "CR_kwDOTCGFQM8AAAAecpy5Dw", "dispatch-full-run", "skipped"),
-  recordedJob(130771940258, "CR_kwDOTCGFQM8AAAAecp1zog", "post-merge-dispatch", "skipped"),
-  recordedJob(130775014046, "CR_kwDOTCGFQM8AAAAecsxang", "unarmed-status", "skipped"),
-];
-// That job's 28 annotations as each API answered: REST's annotations read
-// (the fields the sources read) and GraphQL's CheckRun node.
-const RECORDED = JSON.parse(readFileSync(new URL("./recorded-annotations.json", import.meta.url), "utf8"));
-const RECORDED_ANNOTATIONS_NODE = RECORDED.graphql;
-
-test("the GraphQL check-run and annotation readers answer as the REST jobs and annotations reads of the same run", () => {
-  assert.deepEqual(restJobs(RECORDED_NODE, RECORDED_RUN), RECORDED_JOBS);
-  assert.equal(RECORDED.rest.length, 28);
-  assert.deepEqual(restAnnotations(RECORDED_ANNOTATIONS_NODE, { id: RECORDED.checkRun }), RECORDED.rest);
-});
-
-test("a GraphQL answer that is cut short, holds a null, is another run's or a re-run's is no answer", () => {
-  const checkRuns = RECORDED_NODE.checkSuite.checkRuns;
-  const variants = [
-    { ...RECORDED_NODE, runAttempt: 2 },
-    { ...RECORDED_NODE, databaseId: 1 },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, totalCount: 31 } } },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, nodes: [...checkRuns.nodes.slice(1), null] } } },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { totalCount: 0, nodes: [] } } },
-    { ...RECORDED_NODE, checkSuite: null },
-    null,
-  ];
-  for (const node of variants) assert.equal(restJobs(node, RECORDED_RUN), null, JSON.stringify(node)?.slice(0, 80));
-  const annotations = RECORDED_ANNOTATIONS_NODE.annotations;
-  for (const node of [
-    { ...RECORDED_ANNOTATIONS_NODE, annotations: { ...annotations, totalCount: 101 } },
-    { ...RECORDED_ANNOTATIONS_NODE, annotations: null },
-    { ...RECORDED_ANNOTATIONS_NODE, databaseId: 1 },
-    null,
-  ]) {
-    assert.equal(restAnnotations(node, { id: 130771889983 }), null, JSON.stringify(node)?.slice(0, 80));
-  }
 });
 
 // Every source that reads jobs or annotations: pr-merge budget (run 10),

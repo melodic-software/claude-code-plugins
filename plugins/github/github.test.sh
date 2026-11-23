@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
-# Contract test for the github plugin's durable invariants:
-#   - D4 zero-vendored-knowledge: no baked endpoints, no shipped scope tables, no prices
-#   - agnostic conformance: no publisher/org/tool assumptions in prose (plugin.json author is
-#     the sanctioned exception)
-#   - area-coverage oracle: reference/areas.md rows match the canonical Brief coverage list
-#     (fixture lives here, independent of the file it checks)
-#   - recipe non-hollow contract: every primary-tier recipe carries the six contract sections
-#     and a >=10-question audit checklist
 # test-scope: plugins/github/*
 set -uo pipefail
 
-# mapfile (area oracle below) needs bash >= 4; on bash 3.x it fails silently under
-# this set posture and the oracle would spuriously pass on empty arrays.
 [[ "${BASH_VERSINFO[0]}" -ge 4 ]] || {
   echo "SKIP: bash 4+ required (mapfile)" >&2
   exit 0
@@ -50,15 +40,10 @@ sweep "D4: no baked API endpoints" "D4 endpoint pattern found:" \
 sweep "D4: no shipped prices" "D4 price pattern found:" \
   -rEn "${SELF_EXCLUDE[@]}" '\$[0-9]' "$PLUGIN_DIR"
 
-# Scope tokens in shipped prose (*.md) would be a vendored mechanics table; eval
-# scenario prompts (*.json) may legitimately posit a scope by name.
 sweep "D4: no scope names in shipped prose" "scope token in shipped prose:" \
   -r -E -i -n "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
   "$PLUGIN_DIR" --include='*.md'
 
-# Spelled out rather than routed through sweep: scripts/validate-plugin-contracts.mjs
-# reads this literal grep to keep the regex aligned with
-# scripts/org-agnosticism-tokens.txt class github.
 hits=$(grep -riEn "melodic|medley|github-iac|pulumi" "$PLUGIN_DIR" --include='*.md' || true)
 if [[ -z "$hits" ]]; then
   ok "agnosticism: no publisher/org/tool assumptions in prose"
@@ -66,9 +51,6 @@ else
   fail "agnosticism violation:"$'\n'"$hits"
 fi
 
-# Canonical area keys from the Brief coverage matrix. This fixture is the
-# independent source the router rows are diffed against — update it only when
-# the Brief's coverage list changes.
 canonical_areas=(
   rulesets
   custom-properties

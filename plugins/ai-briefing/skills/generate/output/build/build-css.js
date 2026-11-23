@@ -1,5 +1,3 @@
-// CSS generation for single-file HTML deck.
-
 export function buildCss(theme) {
   return `
 :root {

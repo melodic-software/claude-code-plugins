@@ -414,7 +414,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   --from)
     FROM_REPORT="${2:-}"
-    # Same guard-before-`shift 2` reasoning as --marketplace below.
     if [[ -z "$FROM_REPORT" ]]; then
       echo "ERROR: --from requires a report path" >&2
       exit 2
@@ -1107,7 +1106,6 @@ done
 FS_BLOCK=""
 
 error_block_to() {
-  # $1 var, $2 name, $3 error, [$4 autoUpdate "true"/"false", $5 lastUpdated]
   local __eb_name __eb_err __eb_lu
   json_string_to __eb_name "$2"
   json_string_to __eb_err "$3"

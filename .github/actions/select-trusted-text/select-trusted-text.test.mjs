@@ -1,10 +1,11 @@
+// test-scope: .github/actions/check-trusted-trigger/fixtures/trusted-actors.json
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../../scripts/lib/github-client.mjs";
 import { isDecisionComment, main } from "./select-trusted-text.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 

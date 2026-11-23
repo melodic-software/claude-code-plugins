@@ -168,3 +168,4 @@ plugins/work-items/schemas/work-items.schema.json	melodic-software/claude-code-p
 plugins/work-items/skills/decompose/context/container-lifecycle.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/work-items/skills/work/SKILL.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/writing/schemas/writing.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/planning/offers/offerable.json	melodic-software/claude-code-plugins	1	the offered plugin's install source: the offer installs domain-driven-design from this marketplace on yes

@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// The owner merges a person in a real browser, against `share.sh ensure-running` with the fake cloudflared: the
-// merge picker lists the owner first as "You", so a second identity of the owner's own (opened on another
-// device as "Admin 2") folds into the owner, its chat becoming the owner's and the person leaving the people list;
-// a merge the session refuses shows the session's own sentence, not a generic one.
-//   node plugins/planning/shared/tests/ui_merge.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the brief ("Merge into me (owner)"), the server's refusal text for a person who is gone
-// ("No such person.") and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -31,7 +23,6 @@ async function main() {
     await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
     ok("the owner's people list shows Admin 2 and Bo", await until(owner, ([a, b]) => [a, b].every(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"])`)), [twinPid, boPid]));
 
-    // ---------- the owner renames a guest from that guest's card ----------
     const boEl = `.vf-hperson:has([data-pid="${boPid}"]) [data-pid="${boPid}"]`;
     await owner.click(boEl);
     await owner.click('.vf-pcard [data-k="pa-rename"]');
@@ -45,7 +36,6 @@ async function main() {
       && !document.querySelector('.vf-pcard [data-k="rnp"]') && window.Core.snapshot().people.some(x => x.pid === p && x.name === "Bobby"), boPid));
     await owner.click('.vf-pcard [data-k="pa-rename"]');
     await owner.fill('.vf-pcard [data-k="rnp"]', "Half typed");
-    // The taller card with its form open can cover the row's avatar, so these two clicks go to it directly.
     await owner.locator(boEl).dispatchEvent("click");
     await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
     await owner.locator(boEl).dispatchEvent("click");
@@ -55,24 +45,21 @@ async function main() {
     await owner.locator(boEl).dispatchEvent("click");
     await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
 
-    // ---------- the picker offers the owner ----------
     await owner.locator(`.vf-hperson:has([data-pid="${twinPid}"]) .vf-hp-acts button`, { hasText: "Merge…" }).click();
     ok("the merge picker lists the owner first, as \"You\"", await until(owner, () => {
       const items = [...document.querySelectorAll(".vf-pcard .vf-merge-item")];
       return items[0]?.dataset.k === "m:host" && items[0].querySelector(".core-avatar + span")?.textContent === "You";
     }), await owner.evaluate(() => [...document.querySelectorAll(".vf-pcard .vf-merge-item")].map(b => `${b.dataset.k}=${b.textContent}`).join(" | ")));
 
-    // ---------- a refusal shows the session's sentence ----------
     await owner.click(`.vf-pcard [data-k="m:${boPid}"]`);
     await until(owner, () => !!document.querySelector('.vf-pcard [data-k="mg"]'));
-    await owner.evaluate(p => window.Core.merge(p, "host"), boPid); // Bo is gone before the owner's click lands
+    await owner.evaluate(p => window.Core.merge(p, "host"), boPid);
     await until(owner, p => !(p in window.Core.state.people), boPid);
     await owner.click('.vf-pcard [data-k="mg"]');
     await owner.click(".vf-cdlg .vf-btn-danger-solid");
     ok("a refused merge shows the session's own sentence", await until(owner, () => document.querySelector(".vf-toast")?.textContent === "Not merged: No such person."),
       await owner.evaluate(() => document.querySelector(".vf-toast")?.textContent));
 
-    // ---------- merging into the owner ----------
     await owner.click('.vf-pcard [data-k="mc"]');
     await owner.click('.vf-pcard [data-k="m:host"]');
     ok("the confirm button reads \"Merge into me (owner)\"", await until(owner, () => document.querySelector('.vf-pcard [data-k="mg"]')?.textContent === "Merge into me (owner)"));
@@ -86,19 +73,18 @@ async function main() {
     ok("Admin 2's chat is the owner's now", await until(owner, () => window.Core.snapshot().chat.map(m => [m.pid, m.text]).join() === "host,Hi from my phone"));
     ok("the owner is still the owner", await owner.evaluate(() => window.Core.snapshot().me.role === "owner"));
 
-    // ---------- the merged browser: told to open the owner link, never joined again ----------
-    const NOTICE = "This browser was merged into the owner. Open your owner link here."; // triage row 39's sentence
+    const NOTICE = "This browser was merged into the owner. Open your owner link here.";
     const banner = () => document.querySelector(".vf-banner:not([hidden])")?.textContent || "";
     ok("the merged browser shows the merged-into-owner notice", await until(twin, n => (document.querySelector(".vf-banner:not([hidden])")?.textContent || "").includes(n), NOTICE, 10000),
       await twin.evaluate(banner));
     ok("  and forgot its guest secret", await twin.evaluate(() => !localStorage.getItem("secret") && !localStorage.getItem("pid")));
     await twin.evaluate(() => window.Core.chat("Still me?").catch(() => {}));
-    await twin.waitForTimeout(3500); // two polls and a beat
+    await twin.waitForTimeout(3500);
     ok("  and neither joined again nor asked for a name", twinJoins.length === 0 && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))),
       `${twinJoins.length} joins`);
     await twin.reload();
     const noticeAgain = await until(twin, n => (document.querySelector(".vf-banner:not([hidden])")?.textContent || "").includes(n), NOTICE, 10000);
-    await twin.waitForTimeout(2500); // two polls, for a join or name dialog that would come after the notice
+    await twin.waitForTimeout(2500);
     ok("  reloaded, it still shows the notice and asks for no name", noticeAgain && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))) && twinJoins.length === 0,
       `${await twin.evaluate(banner)} | ${twinJoins.length} joins`);
     ok("  and the owner's people list does not get Admin 2 back", await owner.evaluate(() => window.Core.snapshot().people.every(p => p.name !== "Admin 2")));

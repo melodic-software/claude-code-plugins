@@ -23,7 +23,6 @@ BeforeAll {
     $script:QuietOverlay = @{ checks = @($catalog.checks | ForEach-Object { @{ id = $_.id; enabled = $false } }) } |
         ConvertTo-Json -Depth 5
 
-    # A StateBase whose overlay disables every shipped check.
     function Initialize-QuietStateBase {
         param([string] $Path)
         $catalogDir = Join-Path $Path 'catalog'
@@ -32,7 +31,6 @@ BeforeAll {
         return $Path
     }
 
-    # Entry names plus each file's size and write time, relative to $Root.
     function Get-TreeListing {
         param([string] $Root)
         if (-not (Test-Path -LiteralPath $Root)) { return @() }
@@ -238,7 +236,6 @@ Describe 'Invoke-MachineHealthCheck -ResultPath' -Tag 'orchestrator' {
         New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $stubDir 'Test-Stub.ps1') -Encoding utf8 `
             -Value "Set-Content -LiteralPath '$($script:marker)' -Value 'ran'"
-        # Every check off except disk-space, whose script the overlay points at the stub.
         $overlay = $script:QuietOverlay | ConvertFrom-Json
         $disk = $overlay.checks | Where-Object id -EQ 'disk-space'
         $disk.enabled = $true

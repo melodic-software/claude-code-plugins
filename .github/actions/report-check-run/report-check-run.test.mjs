@@ -186,7 +186,6 @@ test("the record drops keys it does not know", async () => {
   assert.deepEqual(JSON.parse(output.text.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
 });
 
-// The env the retired key=value summary line was built from writes nothing now.
 test("the retired lane-* env writes no summary line and no text", async () => {
   const { calls } = await run({ ACT_OUTCOME: "failure", LANE_CLASS: "rate-limit", LANE_RESETS: "2026-10-17T15:30:00Z", LANE_TURNS: "3", LANE_MAX_TURNS: "30" });
   const { output } = calls[0].body;

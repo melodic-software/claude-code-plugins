@@ -1,34 +1,4 @@
 #!/usr/bin/env bash
-# Enumerate the scan corpus: tracked markdown, minus the categorical carve-outs.
-#
-#   list-corpus.sh [target] [--paths-file F] [--show-config]
-#
-# Reasoning-free (Brief constraint C1): this script matches paths and nothing
-# else. The carve-outs that need reading a file — a conforming stamped record, a
-# quotation context, owned content, a distilled-product genre — are NOT
-# path-expressible and are judged later in the flow, by the rubric step and by
-# the fingerprint module's quote stripping. Nothing here guesses at them.
-#
-# Test-fixture trees are excluded through `excluded_paths`, never
-# unconditionally. Its bundled default lists them (DEFAULT_EXCLUDED), so a repo
-# that sets no value still declines planted copies and says so. The default is
-# matched below the scan target and skips a named file, so a run aimed at a
-# fixture reads it; any layer that sets `excluded_paths`, `[]` included,
-# replaces the default. An unconditional exclusion would leave the eval harness
-# reading prose instead of results; the harness lifts the default either way and
-# the fixtures report real findings.
-#
-# Two roots, resolved separately and deliberately:
-#   CORPUS root — the git toplevel of the target (or the cwd). It decides which
-#     files exist.
-#   CONFIG root — CLAUDE_PROJECT_DIR, falling back to the corpus root. It
-#     decides which files are excluded, per the config-cascade convention.
-# Conflating them would make a caller unable to scan one checkout while reading
-# another's exclusions, which is exactly what the eval harness does.
-#
-# Declined paths are counted and reported with a reason, never silently dropped
-# (detector-findings declined-candidate rule).
-#
 # Exit: 0 on a clean run (with corpus or empty), 2 on usage or target error.
 set -uo pipefail
 
@@ -105,11 +75,7 @@ if [[ -n "$PATHS_FILE" && -n "$TARGET" ]]; then
   exit 2
 fi
 
-# --- Roots -----------------------------------------------------------------------
-
 anchor_dir() {
-  # The directory the corpus root is resolved from: the target itself when it is
-  # a directory, its parent when it is a file, the cwd otherwise.
   if [[ -d "$TARGET" ]]; then
     printf '%s' "$TARGET"
   elif [[ -f "$TARGET" ]]; then
@@ -124,17 +90,12 @@ ROOT="$(git -C "$(anchor_dir)" rev-parse --show-toplevel 2>/dev/null || true)"
 
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$ROOT}"
 
-# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
-
 cfg_layers_init "$CONFIG_ROOT"
 
 if cfg_have_unread_layer; then
   echo "list-corpus.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
-# The last layer that defines `excluded_paths` replaces the list, the
-# config-cascade contract's sanctioned form for a closed list; an explicit empty
-# list clears an earlier layer's exclusions, the bundled default included.
 DEFAULT_EXCLUDED=('**/fixtures/**' '**/__fixtures__/**' '**/testdata/**')
 EXCLUDED_GLOBS=("${DEFAULT_EXCLUDED[@]}")
 cfg_list EXCLUDED_GLOBS excluded_paths
@@ -155,19 +116,11 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Candidate enumeration -------------------------------------------------------
-
 CANDIDATES=()
-# Where the bundled default matches from: the target directory, or nowhere for
-# named files (a file target or --paths-file entries).
 DEFAULT_BASE=""
 DEFAULT_OFF=0
 
 rel_to_root() {
-  # Repo-relative spelling of a path given relative to the cwd or absolute; every
-  # spelling of the repository root normalizes to the EMPTY prefix. Git answers
-  # this, not string arithmetic against $ROOT: under Git for Windows one directory
-  # has several absolute spellings sharing no prefix, and `--show-prefix` has one.
   local p="$1" dir base placed pfx top
   if [[ -d "$p" ]]; then
     dir="$p"
@@ -176,23 +129,12 @@ rel_to_root() {
     dir="$(dirname -- "$p")"
     base="$(basename -- "$p")"
   fi
-  # One call for both answers, since a --paths-file run asks this per entry.
   if ! placed="$(git -C "$dir" rev-parse --show-prefix --show-toplevel 2>/dev/null)"; then
-    # A parent git cannot place has no repo-relative position, so the path goes
-    # back UNCHANGED and the existence check declines it. Returning the bare
-    # basename instead would alias it onto a root-level file: a `--paths-file`
-    # entry `no-such-dir/README.md` would resolve to `README.md`, which exists,
-    # and enter the corpus as a file the caller never named.
     printf '%s' "$p"
     return 0
   fi
   pfx="${placed%%$'\n'*}"
   top="${placed#*$'\n'}"
-  # A nested checkout answers for its OWN repository, where its directory is
-  # the root and the prefix is empty, which would read here as "the whole
-  # corpus". Anything git places outside this run's root goes back unchanged
-  # for the same reason as above. Both spellings come from git on one host, so
-  # comparing them is safe in a way the caller's own path form is not.
   if [[ "$top" != "$ROOT" ]]; then
     printf '%s' "$p"
     return 0
@@ -201,8 +143,6 @@ rel_to_root() {
 }
 
 tracked_markdown() {
-  # Repo-relative tracked markdown. core.quotePath=false keeps a non-ASCII
-  # filename from arriving as a C-quoted escape that matches nothing downstream.
   git -C "$ROOT" -c core.quotePath=false ls-files -- '*.md' 2>/dev/null
 }
 
@@ -235,12 +175,7 @@ else
   exit 2
 fi
 
-# --- Carve-out matching ----------------------------------------------------------
-
 glob_match() {
-  # glob_match <repo-relative path> <glob>. A leading `**/` also matches the
-  # repository root, so `**/vendor/**` covers a top-level `vendor/` tree; bash
-  # case globbing alone would require a directory above it.
   local path="$1" g="$2"
   # shellcheck disable=SC2254
   case "$path" in "$g" | $g) return 0 ;; *) ;; esac
@@ -254,9 +189,6 @@ glob_match() {
 
 declare -A VENDORED_BY_ATTR=()
 if [[ "${#CANDIDATES[@]}" -gt 0 ]] && command -v git >/dev/null 2>&1; then
-  # One batched check-attr rather than one process per file. -z makes both the
-  # input and the NUL-separated (path, attr, value) output unambiguous for paths
-  # holding a colon or a newline.
   while IFS= read -r -d '' attr_path && IFS= read -r -d '' _attr_name && IFS= read -r -d '' attr_value; do
     case "$attr_value" in
     set | true) VENDORED_BY_ATTR["$attr_path"]=1 ;;
@@ -322,9 +254,6 @@ for candidate in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
   FILES+=("$candidate")
 done
 
-# --- JSON product ----------------------------------------------------------------
-
-# json_array <item>...: a JSON array of already-encoded items, one per line.
 json_array() {
   local first=1 item
   printf '['

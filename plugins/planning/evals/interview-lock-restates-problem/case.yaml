@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-lock-restates-problem
 description: Under lock, a task that states its problem still gets a one-line problem restatement and one confirmation question before any Brief is written
-tags: [interview, problem-framing, lock, scaffold]
+tags: [interview, problem-framing, lock, scaffold, no-network]
 expected_outcome: The reply restates the problem (the nightly invoice export timing out for accounts with more than 10,000 invoices) in one line and asks the user to confirm it with a yes, and no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh
@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: restates-problem-and-asks
     type: regex
-    pattern: '^(?=[\s\S]*\b(?:time[sd]?[ -]?outs?|timing out|large accounts?|10,?000)\b)(?=[\s\S]*(?:\b(?:is|does|did|was)\s+(?:that|this)\b[^\n?]{0,80}\?|\b(?:got|have)\s+(?:that|this)\s+right\b[^\n?]{0,40}\?|\bconfirm\s+(?:that|this|it|the\s+(?:problem|restatement))\b[^\n]{0,160}\?|,\s*(?:right|correct)\s*\?))'
+    pattern: '^(?=[\s\S]*\b(?:time[sd]?[ -]?outs?|timing out|large accounts?|10,?000)\b)(?=[\s\S]*(?:\b(?:is|does|did|was)\s+(?:that|this)\b[^\n?]{0,300}\?|\bis the problem\b[^\n?]{0,300}\?|\bshould\b[^\n?]{0,200}\bas (?:the|our|your) problem\b[^\n?]{0,200}\?|\bshould (?:the|this|that) problem(?: statement)? (?:be|read|stand|stay)\b[^\n?]{0,200}\?|\b(?:got|have)\s+(?:that|this)\s+right\b[^\n?]{0,40}\?|\bconfirm\s+(?:that|this|it|the\s+(?:problem|restatement))\b[^\n]{0,160}\?|,\s*(?:right|correct)\s*\?))'
     flags: i
     arm: both
   - name: no-plan-write

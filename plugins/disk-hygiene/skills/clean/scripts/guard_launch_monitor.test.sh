@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the guard-launch-monitor test suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

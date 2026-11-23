@@ -11,10 +11,10 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-field-options.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-assert_usage_error "$S"                                      # no --field
-assert_usage_error "$S" --field                              # no value
-assert_usage_error "$S" --field Size --field Complexity      # one field only
-assert_usage_error "$S" --field Size --repo notarepo         # malformed --repo
+assert_usage_error "$S"
+assert_usage_error "$S" --field
+assert_usage_error "$S" --field Size --field Complexity
+assert_usage_error "$S" --field Size --repo notarepo
 assert_usage_error "$S" --field Size --bogus
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"

@@ -19,19 +19,13 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Every case builds a whole fake machine: a project root, a user config dir, an
-# installed-plugin registry, and plugin directories. Nothing here reads the real
-# machine, so the registry's version-directory layout is fixture data rather than
-# a live-cache dependency.
 make_machine() {
-  # make_machine <name> — echo the fixture root; creates <root>/project and <root>/user
   local root="$TEST_TMPDIR/$1"
   mkdir -p "$root/project/.claude" "$root/user" "$root/plugins"
   printf '%s' "$root"
 }
 
 reg() {
-  # reg <root> <plugin-key> <install-path> [scope] [project-path]
   local root="$1" key="$2" path="$3" scope="${4:-user}" project="${5:-}"
   local f="$1/registry.json"
   [[ -f "$f" ]] || printf '{"plugins":{}}\n' >"$f"
@@ -41,9 +35,6 @@ reg() {
 }
 
 mkt_catalog() {
-  # mkt_catalog <dir> <marketplace-name> <plugin-name> <entry-source>: write a
-  # directory marketplace's .claude-plugin/marketplace.json with one plugin entry
-  # whose source is a path relative to <dir>
   mkdir -p "$1/.claude-plugin"
   jq -n --arg m "$2" --arg n "$3" --arg s "$4" \
     '{name:$m,owner:{name:"fixture"},plugins:[{name:$n,source:$s}]}' \
@@ -51,8 +42,6 @@ mkt_catalog() {
 }
 
 settings_mkt() {
-  # settings_mkt <root> <marketplace-name> <path>: declare a directory-source
-  # marketplace in the project settings, keeping whatever the file already holds
   local f="$1/project/.claude/settings.json"
   [[ -f "$f" ]] || printf '{}\n' >"$f"
   jq --arg m "$2" --arg p "$3" '.extraKnownMarketplaces[$m] = {source:{source:"directory",path:$p}}' \
@@ -60,8 +49,6 @@ settings_mkt() {
 }
 
 known_mkt() {
-  # known_mkt <root> <marketplace-name> <dir>: record a directory-source
-  # marketplace in the user dir's plugins/known_marketplaces.json
   local f="$1/user/plugins/known_marketplaces.json"
   mkdir -p "$1/user/plugins"
   [[ -f "$f" ]] || printf '{}\n' >"$f"
@@ -70,14 +57,12 @@ known_mkt() {
 }
 
 hook_file() {
-  # hook_file <path> <event> <matcher> <command>: write a one-hook hooks.json
   mkdir -p "$(dirname "$1")"
   jq -n --arg e "$2" --arg m "$3" --arg c "$4" \
     '{hooks:{($e):[{matcher:$m,hooks:[{type:"command",command:$c}]}]}}' >"$1"
 }
 
 run() {
-  # run <root> [args...] — invoke the script against a fixture machine
   HOOK_COVERAGE_FIXTURE_DIR="$1/project" \
     HOOK_COVERAGE_USER_DIR="$1/user" \
     HOOK_COVERAGE_INSTALLED_JSON="$1/registry.json" \
@@ -85,14 +70,9 @@ run() {
 }
 
 json_field() {
-  # json_field <json> <jq-filter>: echo the filter's raw result, or nothing
   printf '%s' "$1" | jq -r "$2" 2>/dev/null
 }
 
-# --- Case 1: a plugin's hooks/hooks.json is enumerated ------------------------
-# This is the whole point of the script: before it, a PreToolUse hook shipped by
-# an enabled plugin was invisible to the audit, and three of the skill's own
-# surfaces said the enumeration was impossible.
 m="$(make_machine plugin-hooks)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
@@ -109,7 +89,6 @@ assert_contains "case 1: matcher surfaced" "$out" "Bash"
 assert_contains "case 1: command surfaced" "$out" "block-force-push.sh"
 assert_contains "case 1: inventory declared complete" "$out" "INVENTORY: complete"
 
-# --- Case 2: settings-declared hooks are still enumerated, per scope ----------
 m="$(make_machine settings-hooks)"
 printf '%s\n' '{"hooks":{"PostToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"fmt.sh"}]}]}}' \
   >"$m/project/.claude/settings.json"
@@ -122,9 +101,6 @@ assert_contains "case 2: project scope labeled" "$out" "settings:project"
 assert_contains "case 2: user scope labeled" "$out" "settings:user"
 assert_contains "case 2: missing matcher defaults to *" "$out" "SessionStart"
 
-# --- Case 3: an enabled plugin with no registry entry is PARTIAL, not absent ---
-# The fail-open this script exists to remove. "Could not look" must never render
-# as "looked and found nothing", because Category B's narrowing 3 turns on it.
 m="$(make_machine unresolved)"
 printf '{"enabledPlugins":{"ghost@mkt":true}}\n' >"$m/project/.claude/settings.json"
 printf '{"plugins":{}}\n' >"$m/registry.json"
@@ -135,14 +111,6 @@ assert_contains "case 3: plugin marked UNRESOLVED" "$out" "UNRESOLVED"
 assert_contains "case 3: inventory declared partial" "$out" "INVENTORY: partial"
 assert_not_contains "case 3: never claims completeness" "$out" "INVENTORY: complete"
 
-# --- Case 4: a CRLF settings file still resolves its plugins ------------------
-# Regression guard for the defect found while writing this script. On Git for
-# Windows, jq writes stdout in text mode and appends a CR to every line — its
-# own output stream, not the input's line endings — so a plugin key read out of
-# jq was "name@mkt\r", every registry lookup missed, and the plugin was reported
-# as not installed on a machine where it was installed. Measured: removing the
-# CR strip fails 17 of this file's 34 checks, cases 1/5/6/9 included, whose
-# fixtures are pure LF. This case pins the harsher input on top of that.
 m="$(make_machine crlf)"
 printf '{\r\n  "enabledPlugins": {\r\n    "guard@mkt": true\r\n  }\r\n}\r\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
@@ -155,10 +123,6 @@ assert_exit "case 4: CRLF settings still complete" 0 "$rc"
 assert_contains "case 4: CRLF plugin resolved" "$out" "crlf-hook.sh"
 assert_not_contains "case 4: not reported unresolved" "$out" "UNRESOLVED"
 
-# --- Case 5: hooks declared inline in plugin.json ----------------------------
-# plugins-reference documents `hooks` as string|array|object; an object is an
-# inline config. A script that only looked for hooks/hooks.json would report
-# this plugin as hookless.
 m="$(make_machine inline-hooks)"
 printf '{"enabledPlugins":{"inline@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/inline/.claude-plugin"
@@ -170,7 +134,6 @@ out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 5: exit 0" 0 "$rc"
 assert_contains "case 5: inline hook enumerated" "$out" "inline-guard.sh"
 
-# --- Case 6: hooks declared at a custom path in plugin.json ------------------
 m="$(make_machine custom-path)"
 printf '{"enabledPlugins":{"custom@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/custom/.claude-plugin" "$m/plugins/custom/config"
@@ -184,7 +147,6 @@ out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 6: exit 0" 0 "$rc"
 assert_contains "case 6: custom-path hook enumerated" "$out" "custom-path-hook.sh"
 
-# --- Case 7: a declared hook path that does not exist is PARTIAL -------------
 m="$(make_machine missing-path)"
 printf '{"enabledPlugins":{"broken@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/broken/.claude-plugin"
@@ -196,9 +158,6 @@ out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 7: missing declared path is partial" 1 "$rc"
 assert_contains "case 7: names the missing path" "$out" "config/hooks.json"
 
-# --- Case 8: suppression levers are reported ---------------------------------
-# A hook that cannot run is not coverage, so an inventory that lists hooks
-# without listing disableAllHooks would license exactly the wrong narrowing.
 m="$(make_machine levers)"
 printf '{"disableAllHooks":true,"enabledPlugins":{}}\n' >"$m/project/.claude/settings.json"
 rc=0
@@ -207,8 +166,6 @@ assert_exit "case 8: exit 0" 0 "$rc"
 assert_contains "case 8: lever reported" "$out" "disableAllHooks"
 assert_contains "case 8: lever value reported" "$out" "true"
 
-# strictPluginOnlyCustomization is true or a per-surface array. "mcp" alone is
-# not a hook lock, and the JSON value stays an array.
 m="$(make_machine surfaces)"
 printf '%s\n' '{"strictPluginOnlyCustomization":["mcp"]}' >"$m/project/.claude/settings.json"
 rc=0
@@ -217,9 +174,6 @@ assert_exit "case 8b: exit 0" 0 "$rc"
 assert_eq "case 8b: mcp is an array value" '["mcp"]' \
   "$(json_field "$out" '.levers[0].value | tojson')"
 
-# Mod-plane keys ride in their own list, never among the levers: none of them
-# switches a settings hook off. The guard options are read from the one id
-# Claude Code reads them under, and the managed scope is read too.
 m="$(make_machine modplane)"
 printf '%s\n' '{"prependPlugins":["acme-guard@acme","sec-default@builtin"]}' >"$m/user/settings.json"
 printf '%s\n' '{"pluginConfigs":{"cc-plugin-sec-default@builtin":{"options":{"allowManagedModsOnly":true}},"sec-default@builtin":{"options":{"allowModsToOverrideDenyRules":true}}}}' >"$m/project/.claude/settings.json"
@@ -233,7 +187,6 @@ assert_eq "case 8c: every mod-plane key is listed with its scope" \
   "$(json_field "$out" '[.mod_plane[] | "\(.scope):\(.key):\(.value|tojson)"] | sort | join(" ")')"
 assert_eq "case 8c: a managed base file sets managed_scope" "true" "$(json_field "$out" '.managed_scope')"
 
-# managed_scope: a drop-in alone counts as managed settings; no managed file at all does not.
 m="$(make_machine managedscope)"
 printf '%s\n' '{}' >"$m/project/.claude/settings.json"
 rc=0
@@ -246,10 +199,6 @@ out=$(HOOK_COVERAGE_MANAGED_JSON="$m/mgd/managed-settings.json" run "$m" --json 
 assert_exit "case 8d: exit 0" 0 "$rc"
 assert_eq "case 8d: a drop-in without a base file sets managed_scope" "true" "$(json_field "$out" '.managed_scope')"
 
-# --- Case 9: --json emits parseable JSON with the inventory verdict ----------
-# A downstream engine reads this document, so every hook entry field the hook
-# schema allows (timeout, type, if, shell, args) rides along, each plugin row
-# names the directory its hooks came from, and the project root is stated.
 m="$(make_machine jsonout)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
@@ -275,14 +224,12 @@ assert_contains "case 9: hook args carried as an array" "$(json_field "$out" '.h
 assert_contains "case 9: plugin path carried" "$(json_field "$out" '.plugins[0].path')" "$m/plugins/guard"
 assert_contains "case 9: divergence array present" "$(json_field "$out" '.divergence | type')" "array"
 
-# --- Case 10: no settings scope at all is fatal, not an empty inventory -------
 m="$(make_machine nosettings)"
 rc=0
 out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 10: exit 2 with no readable scope" 2 "$rc"
 assert_contains "case 10: says why" "$out" "no readable settings scope"
 
-# --- Case 11: jq missing is fatal --------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"
@@ -291,7 +238,6 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "case 11: exit 2 when jq missing" 2 "$rc"
 assert_contains "case 11: jq required message" "$err_out" "jq required"
 
-# --- Case 12: local scope disables a plugin enabled in user scope ----------
 m="$(make_machine scope-precedence)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/user/settings.json"
 printf '{"enabledPlugins":{"guard@mkt":false}}\n' >"$m/project/.claude/settings.local.json"
@@ -304,7 +250,6 @@ out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 12: exit 0" 0 "$rc"
 assert_not_contains "case 12: locally disabled plugin not enumerated" "$out" "should-not-run.sh"
 
-# --- Case 13: project-scoped install record wins over user -------------------
 m="$(make_machine install-scope)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard-user/hooks" "$m/plugins/guard-project/hooks"
@@ -320,11 +265,6 @@ assert_exit "case 13: exit 0" 0 "$rc"
 assert_contains "case 13: project install record used" "$out" "project-hook.sh"
 assert_not_contains "case 13: user install record not used" "$out" "user-hook.sh"
 
-# --- Case 14: a directory-source marketplace is read from its checkout -------
-# The session loads a directory marketplace's plugin from the marketplace
-# directory itself, not from the registry's versioned cache snapshot. A cache
-# taken at an earlier commit can lack a hook the checkout ships, so the loaded
-# directory is what gets enumerated and the pair is reported as divergence.
 m="$(make_machine mkt-directory)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 settings_mkt "$m" "mkt" "$m/mkt"
@@ -344,11 +284,6 @@ assert_contains "case 14: divergence names the cache path" "$out" "registry cach
 assert_contains "case 14: divergence is info" "$out" "Info: the session loads the marketplace directory"
 assert_contains "case 14: inventory complete" "$out" "INVENTORY: complete"
 
-# --- Case 15: directory marketplace with no registry file is still complete --
-# Before the marketplace route, an absent installed_plugins.json made every
-# enabled plugin UNREADABLE. A plugin the session loads from a marketplace
-# directory never needed the registry, so its absence is not a gap here. The
-# relative marketplace path exercises project-root resolution.
 m="$(make_machine mkt-no-registry)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 settings_mkt "$m" "mkt" "./mkt"
@@ -362,9 +297,6 @@ assert_contains "case 15: inventory complete" "$out" "INVENTORY: complete"
 assert_not_contains "case 15: missing registry not reported" "$out" "installed_plugins.json not found"
 assert_not_contains "case 15: no divergence without a cache path" "$out" "Cache-versus-loaded divergence"
 
-# --- Case 16: a marketplace known only through known_marketplaces.json -------
-# `claude plugin marketplace add <dir>` records the marketplace in the user
-# dir's known_marketplaces.json with an installLocation and no settings entry.
 m="$(make_machine mkt-known)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 known_mkt "$m" "mkt" "$m/mkt/"
@@ -377,7 +309,6 @@ assert_contains "case 16: hook enumerated via installLocation" "$out" "known-mkt
 assert_contains "case 16: plugin row says where it loaded from" "$out" "(loaded from marketplace directory)"
 assert_contains "case 16: inventory complete" "$out" "INVENTORY: complete"
 
-# --- Case 17: a plugin absent from the catalog falls back to the registry ----
 m="$(make_machine mkt-fallback)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 settings_mkt "$m" "mkt" "$m/mkt"
@@ -392,7 +323,6 @@ assert_contains "case 17: registry path enumerated" "$out" "registry-hook.sh"
 assert_not_contains "case 17: not marked as marketplace-loaded" "$out" "(loaded from marketplace directory)"
 assert_not_contains "case 17: no divergence" "$out" "Cache-versus-loaded divergence"
 
-# --- Case 18: --json carries the divergence array ----------------------------
 m="$(make_machine mkt-json)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 settings_mkt "$m" "mkt" "$m/mkt"
@@ -416,7 +346,6 @@ assert_contains "case 18: inventory complete despite divergence" "$(json_field "
 assert_contains "case 18: args is an array, encoded once" "$(json_field "$out" '.hooks[0].args | type')" "array"
 assert_contains "case 18: lever state is complete when every scope parsed" "$(json_field "$out" '.lever_state')" "complete"
 
-# --- Case 20: a scope that does not parse leaves the lever state unknown -----
 m="$(make_machine lever-unknown)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 printf '{not json\n' >"$m/project/.claude/settings.local.json"
@@ -431,7 +360,6 @@ rc=0
 out=$(run "$m" 2>&1) || rc=$?
 assert_contains "case 20: the text report says the lever state is unknown" "$out" "lever state: UNKNOWN"
 
-# --- Case 19: an unparsable directory catalog is reported, not treated as absent
 m="$(make_machine mkt-badcatalog)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 settings_mkt "$m" "mkt" "$m/mkt"
@@ -446,22 +374,12 @@ assert_contains "case 19: the catalog is named as unreadable" "$out" "marketplac
 assert_contains "case 19: the reason is the parse failure" "$out" "not valid JSON"
 assert_contains "case 19: the registry route still enumerates the plugin" "$out" "registry-hook.sh"
 
-# --- Case 21: a record for a FOREIGN project does not break resolution --------
-# The registry can hold several records under one plugin key, and a project-scoped
-# record carries the project it belongs to. A record naming a different project
-# must simply be filtered out. In the shipped program the third select clause read
-# `($project | startswith(.projectPath + "/"))`, where `.` is the string $project,
-# so `.projectPath` raised "Cannot index string with string" and jq abandoned the
-# whole program. `or` short-circuits, so it fired only when a record carried a
-# non-empty projectPath differing from this root: exactly this fixture. The plugin
-# was then silently reported UNRESOLVED on a machine where it is installed.
 m="$(make_machine foreign-project-record)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
 printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"user-scope-hook.sh"}]}]}}' \
   >"$m/plugins/guard/hooks/hooks.json"
 reg "$m" "guard@mkt" "$m/plugins/guard" "user" ""
-# A Windows-form path, so the projectPath backslash normalization is exercised too.
 reg "$m" "guard@mkt" 'C:\Other\Project\plugins\guard' "project" 'C:\Other\Project'
 rc=0
 out=$(run "$m" 2>&1) || rc=$?
@@ -470,18 +388,6 @@ assert_contains "case 21: the record for this project still resolves" "$out" "us
 assert_not_contains "case 21: the plugin is not reported unresolved" "$out" "UNRESOLVED"
 assert_contains "case 21: inventory declared complete" "$out" "INVENTORY: complete"
 
-# --- Case 22: a ${CLAUDE_PLUGIN_ROOT} command survives the --json emitter -----
-# The emitter binds each hook command to native jq as `--arg c`. On Git for
-# Windows every jq invocation crosses CreateProcess, and MSYS rewrites any
-# argument whose tail looks like a POSIX path: the shipped placeholder
-# "${CLAUDE_PLUGIN_ROOT}"/hooks/<x>.sh came out as
-# "${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/<x>.sh, and the engine then
-# reported hook-path-missing for a file that exists. A jq --arg value is DATA,
-# never a path for the tool to open, so the emitter suppresses the conversion.
-#
-# WINDOWS-ONLY. There is no MSYS argument conversion off Git for Windows, so this
-# case passes on Linux and macOS whether the defect is present or not. A green
-# non-Windows lane is not coverage for it.
 m="$(make_machine msys-argconv)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
@@ -503,13 +409,7 @@ assert_exit "case 22: exit 0" 0 "$rc"
 # shellcheck disable=SC2016  # the expected value is the literal placeholder, not a shell expansion
 assert_eq "case 22: the placeholder command is emitted byte for byte" \
   '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh' "$(json_field "$out" '.hooks[0].command' | tr -d '\r')"
-# So a regression reads as the actual mangling, not merely as a missing substring.
 assert_not_contains "case 22: no MSYS-injected interpreter prefix" "$out" "Program Files"
-# Native jq writes stdout in TEXT mode on Git for Windows and terminates every
-# line with CRLF, so each emitter fragment carried a stray CR into the assembled
-# document. They land between tokens, where JSON counts them as whitespace, so
-# nothing was corrupted; this pins the emitter to the same output hygiene jqs()
-# has always had, so a value captured from it can never carry one.
 assert_eq "case 22: the emitted document carries no carriage return" \
   "0" "$(printf '%s' "$out" | tr -dc '\r' | wc -c | tr -d ' ')"
 

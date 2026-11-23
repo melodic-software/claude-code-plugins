@@ -88,7 +88,6 @@ pass_file "$TMP/base.json" build-1 "$TMP/base-entries" "$TMP/base-findings"
 } >"$TMP/new-findings"
 pass_file "$TMP/new.json" build-2 "$TMP/new-entries" "$TMP/new-findings"
 
-# --- no baseline -------------------------------------------------------------
 out="$(bash "$CMP" "$TMP/new.json")"
 same "no baseline: exit 0" "$?" 0
 same "no baseline: every finding is NEW, by severity" "$(labels "$out")" \
@@ -98,7 +97,6 @@ same "no baseline: the baseline build is null" "$(jq -c .builds <<<"$out")" \
 same "no baseline: counts" "$(jq -c .counts <<<"$out")" \
   '{"NEW":3,"PRE-EXISTING":0,"GONE":0,"not checked":0}'
 
-# --- with a baseline ---------------------------------------------------------
 out="$(bash "$CMP" --baseline "$TMP/base.json" "$TMP/new.json")"
 same "baseline: exit 0" "$?" 0
 same "baseline: each id's label, in report order" "$(labels "$out")" \
@@ -115,7 +113,6 @@ same "a GONE finding carries the baseline's record" \
 same "a GONE finding has no not_driven list" \
   "$(jq -r '.findings[] | select(.id == "aaaa0002") | has("not_driven")' <<<"$out")" false
 
-# --- the not-checked rule ----------------------------------------------------
 not_driven() { jq -c --arg id "$1" '.findings[] | select(.id == $id) | .not_driven' <<<"$out"; }
 same "an entry the cap left out is not checked, with the entry's reason" "$(not_driven aaaa0003)" \
   '[{"entry_point":"/search","reason":"cap"}]'
@@ -143,7 +140,6 @@ pass_file "$TMP/empty.json" build-3 "$TMP/none" "$TMP/none"
 out="$(bash "$CMP" --baseline "$TMP/empty.json" "$TMP/empty.json")"
 same "two passes with no findings: an empty list" "$(jq -c .findings <<<"$out")" '[]'
 
-# --- input checks ------------------------------------------------------------
 bash "$CMP" 2>/dev/null
 same "no file is a usage error" "$?" 2
 bash "$CMP" --baseline 2>/dev/null
@@ -197,7 +193,6 @@ same "label is stated or unstated" "$(jq -c '.["$defs"].Finding.properties.label
 same "the entry outcomes are the ones the script reads" \
   "$(jq -c '.["$defs"].Entry.properties.outcome.enum' "$SCHEMA")" '["passed","failed","not checked"]'
 
-# --- finding-id.sh: the id a map pass gives a finding ------------------------
 ID="$HERE/finding-id.sh"
 # fid <args...>: the id in $out, the exit status in $rc.
 fid() {

@@ -89,7 +89,6 @@ encode() {
   printf '%s' "${s//[^A-Za-z0-9]/-}"
 }
 
-# Forward slashes and a lower-case drive letter.
 norm() {
   local p="${1//\\//}" drive
   if [[ "$p" =~ ^([A-Za-z]):(.*)$ ]]; then

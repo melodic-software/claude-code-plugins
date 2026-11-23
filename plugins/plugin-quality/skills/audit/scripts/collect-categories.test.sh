@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract for collect-categories.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -162,7 +161,6 @@ SRC_A="https://code.claude.com/docs/en/skills saved=$SAVED_A span=$SPAN"
 SRC_B="https://code.claude.com/docs/en/changelog saved=$SAVED_B span=$SPAN"
 SRC_C="https://example.invalid/blog saved=$SAVED_C span=\"a default of 1.\""
 
-# tier_ledger <primary> [corroborator...] - an Improvements finding at tier-1.
 tier_ledger() {
   local name="$1" primary="$2" c
   shift 2
@@ -240,9 +238,6 @@ has "research-corroborators" "the url variant is not counted"
 run 1 "one corroborator does not meet the bar" --notes "$(tier_ledger t-one.md "$SRC_A" "$SRC_B")"
 has "research-corroborators" "the short corroborator count is named"
 
-# batch_ledger <name> <second finding's last corroborator> [<first finding's last
-# corroborator>] - two Errors findings from one batched research pass, sources in
-# one shared subdirectory.
 mkdir "$WORK/research"
 printf 'All hooks run in parallel.\n' >"$WORK/research/hooks.md"
 printf 'Release: hooks run in parallel.\n' >"$WORK/research/release.md"
@@ -490,7 +485,6 @@ EOF
 run 1 "a heading outside the closed set is malformed" --notes "$STRAY"
 has "unknown-section name=Notes" "the stray heading is named"
 
-# CRLF notes parse the same headings.
 CRLF="$WORK/crlf.md"
 printf '## Errors\r\nnone\r\n\r\n## Improvements\r\nnone\r\n\r\n## Quality of life\r\nnone\r\n\r\n## Standards alignment\r\nnone\r\n\r\n## Emitted findings\r\nnot-applicable\r\n' >"$CRLF"
 run 0 "CRLF notes still grade" --notes "$CRLF"

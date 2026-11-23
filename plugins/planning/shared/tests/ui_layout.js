@@ -1,27 +1,4 @@
 #!/usr/bin/env node
-// Layout in real browsers, against `share.sh ensure-running` with the fake cloudflared: no page scroll at 390x844,
-// 768x1024, 1024x768, 1440x900 and 2560x1440, dark and light, in a guest's Focus on a choice question and on a text
-// question, Compare, Tree, the chat open, and the owner's Host view; the same at 200% zoom (720x450 and 640x400 CSS px
-// at device scale 2). On a 390x844 phone with touch, in Focus: every visible control's hit area is at least 44x44 CSS
-// px and no visible element sticks out past the viewport, nor with Ask Claude open and "Run it on my own Claude" on,
-// where nothing in the panel scrolls sideways either. At 390x844 and 1440x900 the answer composer starts within
-// 24 px below the question block (question text, options, and the hint and note lines around them). A new guest's
-// first view shows the goal, the host's ask and "Start here: question 1" in view (triage 3); the ten person colors
-// meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18). With
-// an iOS keyboard of 300 to 600 px at 390x844 and 260 to 430 px at 375x667, Ask Claude shows the label, the field's
-// first 3 lines and Send request uncovered above it, the sheet at its top, and it scrolls down to "Your requests".
-// Ask Claude's tabs are Ask, Research and Explore, and the line under them opens the Propose form; that form, opened
-// from the question list at 320 to 430 px wide with a keyboard of 260 px up, shows its label, the field's first 3
-// lines and Propose above the keyboard, nothing in it clipped or scrolling sideways (triage 36, 44). At 320, 375, 390
-// and 430 px wide the page never scrolls sideways, in the default
-// view, with the chat open, or in Ask Claude with the keyboard up, and at 320 nothing in Ask Claude is clipped sideways.
-// Pinch-zoomed to 1.5, 2 and 3, the page still reads an iOS keyboard as one, and the zoom alone as none. The Inbox page
-// on a phone keeps a request being edited, its question line and Save above a 260 to 430 px keyboard.
-//   node plugins/planning/shared/tests/ui_layout.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the layout requirements of the polish plan (the sizes, the 1 px tolerance, 44x44 CSS px
-// from WCAG 2.5.5 Target Size, the 24 px composer gap) and the 200% zoom sizes worked out by hand (1440x900 / 2 =
-// 720x450, 1280x800 / 2 = 640x400), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
@@ -73,9 +50,6 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, scale 
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
 }, [up, kb, stale, setPan, scale]);
-/** What a person sees of the focused sheet's field: the label, the field's first 3 lines and its primary button must
- *  each be the topmost element at their sample points, inside the visual viewport, and the button's whole box inside
- *  it. Resolves to the problems found. */
 const fieldSeen = (page, label, field, button) => page.evaluate(([l, f, b]) => {
   const vv = visualViewport, top = vv.offsetTop, bottom = vv.offsetTop + vv.height, out = [];
   const probe = (what, el, x, y) => {
@@ -93,16 +67,12 @@ const fieldSeen = (page, label, field, button) => page.evaluate(([l, f, b]) => {
   if (br.top < top - 0.5 || br.bottom > bottom + 0.5 || br.left < -0.5 || br.right > innerWidth + 0.5) out.push(`${B.textContent.trim() || "button"} at ${br.left.toFixed(0)},${br.top.toFixed(0)} to ${br.right.toFixed(0)},${br.bottom.toFixed(0)} not whole inside the visual viewport ${top.toFixed(0)}..${bottom.toFixed(0)} by ${innerWidth}`);
   return [...new Set(out)];
 }, [label, field, button]);
-/** Wait for the page to hold still before tapping into it or measuring it; a page that never does is listed, and fails
- *  "every view held still" at the end. */
 const unsettled = [];
 const settle = async (page, what) => { if (!(await settled(page, { rects: true }))) unsettled.push(what); };
 
-/** Opens one view; resolves to "" or the reason it could not. Phone layouts use the tab bar, wider ones the view switch. */
 async function show(page, view, keepChat = false) {
   const tabs = await page.locator(".vf-tabs").isVisible().catch(() => false);
   const tab = label => page.locator(".vf-tab", { hasText: label }).click({ timeout: 5000 });
-  // A guest's simple view hides the view switch behind View options; Focus goes back to the simple view after.
   const seg = async label => {
     const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
     if (label === "Focus" && (await page.evaluate(() => document.querySelector(".vf-center")?.dataset.mode)) === "focus") return;
@@ -135,11 +105,9 @@ async function show(page, view, keepChat = false) {
       if (!(await until(page, () => document.querySelector(".vf-center")?.dataset.mode === "host", null, 5000))) return "Host did not open";
     }
   } catch (e) { const l = String(e.message).split("\n"); return [l[0], ...l.filter(x => /intercepts|not visible|waiting for locator/.test(x)).slice(-2)].join(" ").replace(/\s+/g, " "); }
-  // Measure the settled layout: an opening sheet slides in with a transform, which counts as overflow mid-flight.
   return (await settled(page, { rects: true })) ? "" : `${view} did not settle`;
 }
 
-/** Visible elements in the page beside the docked chat that reach under it, unless an ancestor clips them first. */
 const underChat = page => page.evaluate(tol => {
   const lim = document.querySelector(".vf-chat").getBoundingClientRect().left, out = [];
   for (const el of document.querySelectorAll(".vf-body *")) {
@@ -155,10 +123,8 @@ const underChat = page => page.evaluate(tol => {
   return out.slice(0, 6);
 }, TOL);
 
-/** Page and #app scroll extents against the viewport. */
 const extents = page => page.evaluate(() => {
   const s = document.scrollingElement, a = document.getElementById("app");
-  // The outermost elements in #app that reach past the viewport, to name in a failure.
   const beyond = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.bottom > innerHeight + 1 || r.right > innerWidth + 1); };
   const past = [...a.querySelectorAll("*")].filter(el => beyond(el) && !(el.parentElement !== a && beyond(el.parentElement))).slice(0, 4)
     .map(c => { const r = c.getBoundingClientRect(); return `${c.tagName.toLowerCase()}.${[...c.classList].join(".")} ${r.left.toFixed(0)},${r.top.toFixed(0)} to ${r.right.toFixed(0)},${r.bottom.toFixed(0)}`; });
@@ -167,7 +133,6 @@ const extents = page => page.evaluate(() => {
 const fits = e => e.sw <= e.iw + 1 && e.sh <= e.ih + 1 && e.aw <= e.iw + 1 && e.ah <= e.ih + 1;
 const fmt = e => `page ${e.sw}x${e.sh}, #app ${e.aw}x${e.ah}, viewport ${e.iw}x${e.ih}${e.past.length ? `; past it: ${e.past.join(", ")}` : ""}`;
 
-/** One size: a joined guest and the owner, every view in dark and light. Pushes one check per size and scheme. */
 async function sweep(s, rec, A, label, context, n) {
   const guest = await rec.open(A.localUrl, { context });
   await joinAs(guest, `Lay${n}`);
@@ -189,7 +154,6 @@ async function sweep(s, rec, A, label, context, n) {
   for (const p of [guest, owner]) await p.context().close();
 }
 
-/** Controls whose hit area (their own box, or the label around an input) is under the minimum. */
 const smallTargets = (page, min) => page.evaluate(min => {
   const shown = el => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && !el.closest("[hidden], dialog:not([open])"); };
   const sel = "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [tabindex='0']";
@@ -207,7 +171,6 @@ const smallTargets = (page, min) => page.evaluate(min => {
   return out;
 }, min);
 
-/** Visible elements past the viewport's left or right edge, unless an ancestor clips them inside the viewport. */
 const overflowing = page => page.evaluate(tol => {
   const iw = innerWidth, out = [];
   for (const el of document.body.querySelectorAll("*")) {
@@ -224,8 +187,6 @@ const overflowing = page => page.evaluate(tol => {
   return out;
 }, TOL);
 
-/** Visible scroll containers in `root` (itself included) that scroll sideways: content wider than the box, which
- *  `overflowing` cannot see because the box itself clips it inside the viewport. */
 const sideScroll = (page, root) => page.evaluate(([tol, root]) => {
   const out = [], top = document.querySelector(root);
   for (const el of top ? [top, ...top.querySelectorAll("*")] : []) {
@@ -236,15 +197,12 @@ const sideScroll = (page, root) => page.evaluate(([tol, root]) => {
   return top ? out : [`no ${root}`];
 }, [TOL, root]);
 
-/** Bottom of the question block (text, options, hint) and top of the composer, in viewport px. */
 const composerGap = page => page.evaluate(() => {
   const vis = el => el && el.getClientRects().length && getComputedStyle(el).visibility !== "hidden" && !el.closest("[hidden]");
-  // The hint line above the options and the note line under them both belong to the options.
   const parts = [".vf-qtext", ".vf-fmt-hint", ".vf-opts", ".vf-fmt-note"].map(s => document.querySelector(s)).filter(vis);
   const c = document.querySelector(".vf-composer");
   if (!parts.length || !vis(c)) return { missing: `${parts.length} question parts, composer ${vis(c) ? "shown" : "not shown"}` };
   const qb = Math.max(...parts.map(p => p.getBoundingClientRect().bottom)), ct = c.getBoundingClientRect().top;
-  // What sits in the gap, to name in a failure.
   const inGap = el => { const r = el.getBoundingClientRect(); return vis(el) && r.height > 0 && r.top >= qb - 0.5 && r.bottom <= ct + 0.5; };
   const between = [...document.querySelectorAll(".vf-scroll *")].filter(el => inGap(el) && !inGap(el.parentElement)).slice(0, 4).map(el => { const r = el.getBoundingClientRect(); return `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} ${r.top.toFixed(0)}-${r.bottom.toFixed(0)}`; });
   return { qb, ct, gap: ct - qb, between };
@@ -263,7 +221,6 @@ async function main() {
       q("Q2", TEXT, { kind: "text" }),
       q("Q3", "What worries you about the new checkout?", { kind: "text" }),
     ] }]);
-    // Some answers, so Compare and Tree have cards to lay out.
     const seed = await rec.open(A.localUrl);
     await joinAs(seed, "Seed");
     for (const [text, answer] of [[TEXT, "Below the total, always visible."], ["What worries", "That people lose their basket when the card fails."]]) {
@@ -271,7 +228,6 @@ async function main() {
       await seed.locator("#vf-answer").fill(answer);
       await seed.press("#vf-answer", "Control+Enter");
     }
-    // both answers in before the seed leaves: Q1's option cards alone already make two keys
     await until(seed, () => ["Q2", "Q3"].every(id => (window.Core.snapshot()?.cards?.[id] || []).some(c => c.kind === "person")), null, 10000);
     await seed.context().close();
 
@@ -282,7 +238,6 @@ async function main() {
     }
     for (const [w, h, label] of ZOOMED) await sweep(s, rec, A, label, { viewport: { width: w, height: h }, deviceScaleFactor: 2 }, ++n);
 
-    // ---------- the chat docked at 1100 px (its push breakpoint), the page 720 px beside it: every view fits ----------
     {
       const ctx = { viewport: { width: 1100, height: 900 } };
       const guest = await rec.open(A.localUrl, { context: ctx });
@@ -303,7 +258,6 @@ async function main() {
       for (const p of [guest, owner]) await p.context().close();
     }
 
-    // ---------- the phone in Focus: hit areas and horizontal overflow ----------
     const pia = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pia, "Pia");
     const why = await show(pia, "focus-choice");
@@ -313,10 +267,9 @@ async function main() {
     const over = await overflowing(pia);
     ok("390x844 phone, Focus: no visible element sticks out past the viewport", over.length === 0, `${over.length}: ${over.slice(0, 12).join("; ")}`);
 
-    // ---------- the phone, Ask Claude with "Run it on my own Claude" on: nothing scrolls sideways ----------
     await pia.evaluate(() => document.querySelector(".vf-asktop").click());
     const asked = await until(pia, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
-    await pia.selectOption(".vf-apq select", { index: 1 }); // the top Ask Claude opens on the whole session, which offers no own Claude
+    await pia.selectOption(".vf-apq select", { index: 1 });
     await pia.click(".vf-apself");
     const connected = await until(pia, () => !document.querySelector(".vf-apconnect").hidden);
     await settle(pia, "Ask Claude with Run it on my own Claude on, at 390x844");
@@ -325,11 +278,6 @@ async function main() {
       `${asked} ${connected} ${side.length}: ${side.slice(0, 8).join("; ")}`);
     await pia.keyboard.press("Escape");
 
-    // ---------- dogfood: the Ask Claude sheet with an iOS keyboard of every plausible height ----------
-    // Keyboard heights from 300 to 600 px at 390x844 and 260 to 430 at 375x667 (a small iPhone), each with WebKit's
-    // centering pan, and one where the last resize reads offsetTop 0. The label, the field's first 3 lines and Send
-    // request are seen above the keyboard and the sticky row, the button whole, and the sheet sits at its top. What the
-    // form shows runs down the page in DOM order, and once the keyboard closes every part it showed before is back.
     const shot = async (p, name) => {
       if (!process.env.KBD_SHOTS) return;
       const vv = await p.evaluate(() => [visualViewport.offsetTop, visualViewport.height, innerWidth]);
@@ -347,8 +295,6 @@ async function main() {
       await until(sp, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
       await settle(sp, `Ask Claude at ${w}x${h}`);
       const bad = [];
-      // The form's parts a person sees, in DOM order, and whether they also run down the page in that order (a sticky
-      // row floats over what scrolls under it, so it has no place in that order).
       const parts = () => sp.evaluate(() => {
         const shown = [...document.querySelector(".vf-apform").children].filter(c => c.getClientRects().length);
         const tops = shown.filter(c => getComputedStyle(c).position !== "sticky").map(c => c.getBoundingClientRect().top);
@@ -375,7 +321,6 @@ async function main() {
       await sp.context().close();
     }
 
-    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its title opens Propose ----------
     for (const [label, context] of [["390x844", PHONE], ["1440x900", { viewport: { width: 1440, height: 900 } }]]) {
       const g = await rec.open(A.localUrl, { context });
       await joinAs(g, `Point ${label}`);
@@ -390,12 +335,6 @@ async function main() {
       await g.context().close();
     }
 
-    // ---------- triage 44: the Propose form, from the question list, with an iOS keyboard ----------
-    // At 320, 375, 390 and 430 px wide, keyboards from 260 px up to what leaves about the room the Ask Claude sweep's
-    // smallest case does (375x667 under 430 px: 237 px; a 320 px iPhone is 568 tall, so 330 there), at pinch scale 1,
-    // each with WebKit's centering pan and one with offsetTop read 0: the label, the field's first 3 lines and Propose
-    // are seen above the keyboard, Propose whole, nothing in the form past the viewport's sides or its own, and nothing
-    // in it scrolls sideways.
     const clippedSideways = (page, sel) => page.evaluate(([sel, tol]) => {
       const top = document.querySelector(sel);
       if (!top) return [`no ${sel}`];
@@ -428,7 +367,6 @@ async function main() {
         await keyboard(pp, false);
       }
       ok(`${w}x${h}, the Propose form from the question list, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and Propose are seen above the keyboard, nothing clipped or scrolling sideways, the document never scrolled`, bad.length === 0, bad.join("; "));
-      // Report a problem, from More: the same sheet place, so the same keyboards.
       await pp.keyboard.press("Escape");
       await pp.locator(".vf-tab", { hasText: "More" }).tap();
       await pp.locator(".vf-msitem", { hasText: "Report a problem" }).tap();
@@ -464,9 +402,6 @@ async function main() {
     ok("390x844, keyboard up: the Ask Claude sheet scrolls down to \"Your requests\" and its first request, never sideways", reqs.scrolled && reqs.shown && !reqs.sideways, JSON.stringify(reqs));
     await ria.context().close();
 
-    // ---------- spec PR 9: the Inbox page on a phone, with an iOS keyboard up while the host edits a request ----------
-    // Expected: the same reveal rule as the sheets above (the row's question line, the field's first 3 lines and Save
-    // seen above the keyboard), at the 260 px floor, KB and 430 px, and the document never scrolls.
     const ivy = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(ivy, "Ivy");
     await ivy.evaluate(() => window.Core.request("Q1", "ask", "Ivy asks the host to run this one"));
@@ -492,7 +427,6 @@ async function main() {
     ok("390x844, the Inbox page's request Edit, keyboard 260 to 430 px: the row's question, the field's first 3 lines and Save are seen above the keyboard, the document never scrolled", ibad.length === 0, ibad.join("; "));
     await io.context().close(); await ivy.context().close();
 
-    // ---------- dogfood: nothing scrolls the page sideways at 320 to 430 px, keyboard or not ----------
     for (const w of [320, 375, 390, 430]) {
       const p = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: 844 } } });
       await joinAs(p, `Wid ${w}`);
@@ -508,8 +442,6 @@ async function main() {
       await until(p, () => !!document.querySelector(".vf-drawer:not([hidden])")); await settle(p, `Ask Claude at ${w}`);
       await p.locator("#vf-ap-ta").tap(); await keyboard(p, true);
       bad.push(...(await side(".vf-drawer")).map(x => `Ask Claude, keyboard up: ${x}`));
-      // .vf-apscroll hides its sideways overflow, so `sideScroll` passes it over: compare its widths outright, with
-      // "Run it on my own Claude" on too, since that panel is the widest thing in it.
       const clip = async when => { const e = await p.evaluate(() => { const a = document.querySelector(".vf-apscroll"); return [a.scrollWidth, a.clientWidth]; }); if (e[0] > e[1] + TOL) bad.push(`Ask Claude${when}: .vf-apscroll content ${e[0]} clipped in ${e[1]}`); };
       if (w === 320) {
         await clip(", keyboard up");
@@ -521,9 +453,6 @@ async function main() {
       await p.context().close();
     }
 
-    // ---------- dogfood: a pinch-zoomed phone still knows its keyboard is up, and a zoom alone is no keyboard ----------
-    // Expected: --kb is the keyboard's screen height the helper models (KB, 1 px for rounding); a zoom with no keyboard
-    // leaves --kb 0 and no data-kb.
     const zp = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(zp, "Zoe");
     await zp.evaluate(() => document.querySelector(".vf-fab").click());
@@ -544,7 +473,6 @@ async function main() {
     ok(`390x844 pinch-zoomed to 1.5, 2 and 3: a ${KB} px keyboard reads as ${KB} px, the zoom alone as none`, zoomed.length === 0, zoomed.join("; "));
     await zp.context().close();
 
-    // ---------- the composer directly under the question ----------
     for (const [page, label] of [[pia, "390x844"], [await (async () => { const d = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } }); await joinAs(d, "Dee"); return d; })(), "1440x900"]]) {
       const w = await show(page, "focus-choice");
       const g = w ? { missing: w } : await composerGap(page);
@@ -552,7 +480,6 @@ async function main() {
         !g.missing && g.gap >= -TOL && g.gap <= COMPOSER_GAP, g.missing || `question block ends at ${g.qb.toFixed(0)}, composer starts at ${g.ct.toFixed(0)}: gap ${g.gap.toFixed(0)} px${g.between.length ? `, in it: ${g.between.join(", ")}` : ""}`);
     }
 
-    // ---------- triage 3: a guest's first view says why they are here and where to start ----------
     for (const [label, context] of [["390x844", PHONE], ["1440x900", { viewport: { width: 1440, height: 900 } }]]) {
       const g = await rec.open(A.localUrl, { context });
       await joinAs(g, `First ${label}`);
@@ -562,7 +489,6 @@ async function main() {
         return { text: c.textContent, start: b.textContent, inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
       });
       ok(`${label}: a new guest's first view shows the goal, the host's ask and "Start here: question 1" without scrolling`,
-        // sweep S2: the count is what this guest owes; Seed answered Q2 and Q3, which leaves them optional (triage row 42)
         card && still && facts.text.includes(`Goal: ${GOAL}`) && /asks you to answer 1 question\./.test(facts.text) && facts.start === "Start here: question 1" && facts.inView, JSON.stringify({ still, ...facts }));
       await g.locator(".vf-orient-start").click();
       ok(`${label}: Start here focuses question 1's first option, the primary control`, await until(g, t => document.querySelector(".vf-qtext")?.textContent === t
@@ -570,8 +496,6 @@ async function main() {
       await g.context().close();
     }
 
-    // ---------- C40: person colors, distinct by default, AA in both themes ----------
-    // Ten colors: the first ten people to join get ten different ones (more than ten must share).
     const colors = (await snap(pia)).people.slice().sort((a, b) => a.joinedAt - b.joinedAt).slice(0, 10).map(p => p.color);
     ok("C40: the first ten people to join got ten distinct default colors", colors.length === 10 && new Set(colors).size === 10, colors.join(","));
     for (const scheme of ["dark", "light"]) {
@@ -593,7 +517,6 @@ async function main() {
       ok(`C40, ${scheme}: all ten person colors meet WCAG 2.2 AA (initials 4.5:1, against the page 3:1)`, bad.length === 0, bad.join("; "));
     }
 
-    // ---------- triage 18: editing my answer on a phone is a full-height sheet ----------
     await pia.emulateMedia({ colorScheme: "dark" });
     await show(pia, "focus-text");
     await pia.evaluate(() => window.Core.answerCiting("Q2", "Below the total.", []));
@@ -614,7 +537,6 @@ async function main() {
     await pia.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     ok("390x844: Cancel closes the sheet and keeps the saved answer", await until(pia, () => !document.querySelector(".vf-composer-sheet") && document.querySelector("#vf-answer").value === "Below the total."));
 
-    // ---------- dogfood: a sideways swipe moves between questions and never works the control it starts on ----------
     const swi = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(swi, "Swi");
     const cdp = await swi.context().newCDPSession(swi);
@@ -626,7 +548,6 @@ async function main() {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       await swi.waitForTimeout(400);
     };
-    // What I picked, voted and wrote on Q1 and Q2, and what has focus.
     const mine = () => swi.evaluate(() => JSON.stringify(["Q1", "Q2"].map(id => window.Core.answersFor(id).map(a => [a.id, a.pick || "", (a.votes || []).includes(window.Core.me.cid), a.cid === window.Core.me.cid ? a.text : ""]))));
     const focused = () => swi.evaluate(() => { const a = document.activeElement; return a?.matches?.("input, textarea, select") ? `${a.tagName.toLowerCase()}#${a.id}` : ""; });
     const qNow = () => swi.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
@@ -660,9 +581,6 @@ async function main() {
     ok("390x844: a tap still picks an option, votes, and focuses the answer field", tapped.length === 0, tapped.join("; "));
     await swi.context().close();
 
-    // ---------- question numbers inside the list markers ----------
-    // Expected values: Q1 shows 1 and Q12 shows 12 (the id, not the position, which is 3); a one-line row keeps its
-    // pre-change height, 44 px (52 px on a phone), the .vf-q min-block-size; text contrast 4.5:1 is WCAG 1.4.3 AA.
     const N = await s.start("qnum");
     s.apply(N.dir, [{ op: "set-title", title: "Numbers" }, { op: "open-round", questions: [
       q("Q1", "Card or cash?", { kind: "text" }), q("Q2", "Which header?", { kind: "text" }), q("Q12", "Anything else?", { kind: "text" })] }]);
@@ -696,7 +614,6 @@ async function main() {
         const bad = [];
         for (const scheme of ["dark", "light"]) {
           await own.emulateMedia({ colorScheme: scheme });
-          // the theme switch starts color transitions; measure the settled colors
           if (!(await settled(own))) bad.push(`${scheme}: the page did not settle`);
           bad.push(...await own.evaluate(scheme => {
             const cx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });

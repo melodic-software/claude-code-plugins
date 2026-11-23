@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for resolve-config.sh: it ships inside the plugin, so the
-# suite must run wherever the plugin is installed.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -16,15 +11,10 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# The empty HOME that sits beside a fixture root (`<case>/repo` and `<case>/home`).
-# It is a sibling, never inside the root: a root that contains the home is a home
-# root and has no team layer.
 home_of() {
   printf '%s' "${1%/repo}/home"
 }
 
-# A fresh consumer git repository with an empty HOME beside it, so no layer is
-# present until a case writes one.
 new_root() {
   root="$TEST_TMPDIR/case-$CASES-$RANDOM/repo"
   mkdir -p "$root/.claude" "$(home_of "$root")"
@@ -33,7 +23,6 @@ new_root() {
 }
 
 write_layer() {
-  # write_layer <path> <file_names-json> [schema]
   schema="${3:-1}"
   mkdir -p "$(dirname "$1")"
   printf '{"schema": %s, "file_names": %s}\n' "$schema" "$2" >"$1"
@@ -43,13 +32,10 @@ write_layer() {
 . "$SCRIPT_DIR/../lib/layer-yaml.sh"
 
 write_yaml() {
-  # write_yaml <path> <content>
   mkdir -p "$(dirname "$1")"
   printf '%s\n' "$2" >"$1"
 }
 
-# write_team <root> <file_names-json>, write_personal likewise: the YAML layers
-# under the default convention home, rendered from the same JSON a case states.
 write_team() {
   write_yaml "$1/docs/conventions/docs-naming.yaml" "$(layer_yaml_render "$2")"
 }
@@ -59,7 +45,6 @@ write_personal() {
 }
 
 resolve() {
-  # resolve <root> [extra args...]
   r="$1"
   shift
   bash "$SUT" resolve --root "$r" --home "$(home_of "$r")" "$@"
@@ -71,7 +56,6 @@ layers() {
   bash "$SUT" layers --root "$r" --home "$(home_of "$r")" "$@"
 }
 
-# 1. Every layer absent resolves to the bundled defaults.
 root="$(new_root)"
 out="$(resolve "$root")"
 assert_eq "no layers: rule is the bundled lower-kebab" "lower-kebab" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
@@ -79,20 +63,14 @@ assert_eq "no layers: roots is the bundled docs" "docs" "$(printf '%s' "$out" | 
 assert_eq "no layers: schema is stamped" "1" "$(printf '%s' "$out" | jq -r '.schema')"
 assert_eq "no layers: every key is provenance bundled" "" "$(layers "$root" | grep -v 'bundled$' || true)"
 
-# 2. The team layer supplies a nearest-wins key whole.
 root="$(new_root)"
 write_team "$root" '{"regex": "^team$"}'
 assert_eq "team layer: regex overrides the default" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
 assert_contains "team layer: provenance names it" "$(layers "$root")" "regex	bundled,team"
 
-# 3. The personal override beats the team layer on a nearest-wins key.
 write_personal "$root" '{"regex": "^personal$"}'
 assert_eq "personal override: nearest wins on regex" "^personal$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
-# 3b. And the team layer beats the USER-GLOBAL one, because the team layer is
-#     nearer. The additive class needs the opposite layer order, so this is the
-#     case that keeps the two from being collapsed into one loop again: a
-#     machine-wide rule must never decide what a repository enforces.
 root="$(new_root)"
 write_team "$root" '{"rule": "team-rule", "regex": "^team$"}'
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "user-rule", "regex": "^user$"}'
@@ -101,8 +79,6 @@ assert_eq "team beats the old user file on regex" "^team$" "$(resolve "$root" 2>
 assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bundled,userConfig,team"
 assert_eq "team beats the userConfig option on rule" "team-rule" "$(resolve "$root" --user-config '{"rule": "option-rule"}' 2>/dev/null | jq -r '.file_names.rule')"
 
-# 4. On an additive key the team layer REPLACES the bundled default, and a
-#    personal layer only adds to what the team decided.
 root="$(new_root)"
 write_team "$root" '{"sweep_exclude": ["docs/frozen/**"]}'
 write_personal "$root" '{"sweep_exclude": ["docs/mine/**"]}'
@@ -111,21 +87,17 @@ assert_contains "additive: the team entry survives the personal override" "$out"
 assert_contains "additive: the personal override's entry is added" "$out" '"docs/mine/**"'
 assert_lacks "additive: the team layer replaced the bundled default" "$out" '".work/**"'
 
-# 4b. With no team layer, a personal layer adds to the bundled default.
 root="$(new_root)"
 write_personal "$root" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
 assert_contains "additive: the bundled default survives a personal addition" "$out" '".work/**"'
 assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine/**"'
 
-# 5. A personal layer cannot shrink a policy-floor list: a personal `tiers` that
-#    omits the frozen released tier still resolves with it present.
 root="$(new_root)"
 write_personal "$root" '{"tiers": [{"name": "mine", "paths": ["docs/x/**"], "forms": "all"}]}'
 names="$(resolve "$root" | jq -r '.file_names.tiers[].name' | sort | tr '\n' ' ')"
 assert_eq "policy floor: the personal override adds a tier and removes none" "historical mine released " "$names"
 
-# 6. `generated` is team-layer only: a personal override's declaration is inert.
 root="$(new_root)"
 write_personal "$root" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
 out="$(resolve "$root" | jq -c '.file_names.generated')"
@@ -139,7 +111,6 @@ write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"generated": [{"path
 assert_eq "team-only: an old user file's regenerator is ignored" "[]" "$(resolve "$root" 2>/dev/null | jq -c '.file_names.generated')"
 assert_contains "team-only: an old user file's declaration is reported inert" "$(layers "$root")" "!inert:generated	userConfig"
 
-# 8. A team layer DOES supply `generated`.
 root="$(new_root)"
 write_team "$root" '{"generated": [{"path": "build/out.json", "regenerate": "make out"}]}'
 assert_eq "team layer supplies the regenerator" "build/out.json" "$(resolve "$root" | jq -r '.file_names.generated[0].path')"
@@ -154,25 +125,21 @@ assert_eq "malformed old user file exits 2" "2" "$(
 )"
 assert_contains "malformed old user file is named" "$err" "$(home_of "$root")/.claude/docs-naming.json"
 
-# 9b. A malformed team JSON at the old location is not read, so it fails nothing.
 root="$(new_root)"
 printf '{not json' >"$root/.claude/docs-naming.json"
 assert_eq "an old team JSON, even malformed, is ignored" "lower-kebab" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.rule')"
 
-# 10. A user-global layer with no schema is fatal.
 root="$(new_root)"
 mkdir -p "$(home_of "$root")/.claude"
 printf '{"file_names": {"rule": "lower-kebab"}}\n' >"$(home_of "$root")/.claude/docs-naming.json"
 err="$(resolve "$root" 2>&1 >/dev/null)"
 assert_contains "missing schema is refused" "$err" "schema 'missing'"
 
-# 11. An unknown schema is fatal.
 root="$(new_root)"
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "lower-kebab"}' 99
 err="$(resolve "$root" 2>&1 >/dev/null)"
 assert_contains "unknown schema is refused" "$err" "schema '99'"
 
-# 12. A jq that emits CRLF (native Windows behavior) still resolves clean values.
 root="$(new_root)"
 mkdir -p "$root/bin"
 {
@@ -186,7 +153,6 @@ write_team "$root" '{"regex": "^crlf$"}'
 out="$(PATH="$root/bin:$PATH" resolve "$root" | jq -r '.file_names.regex')"
 assert_eq "CRLF jq: the resolved regex carries no carriage return" "^crlf$" "$out"
 
-# 13. Usage errors exit 2.
 assert_eq "unknown action exits 2" "2" "$(
   bash "$SUT" frobnicate >/dev/null 2>&1
   printf '%s' "$?"
@@ -200,7 +166,6 @@ assert_eq "a missing --root directory exits 2" "2" "$(
   printf '%s' "$?"
 )"
 
-# 14. `paths` reports each layer's location and presence.
 root="$(new_root)"
 write_team "$root" '{"rule": "lower-kebab"}'
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
@@ -209,8 +174,6 @@ assert_contains "paths: the userConfig option is absent" "$out" "userConfig	file
 assert_lacks "paths: no old user file row when none exists" "$out" "legacy"
 assert_contains "paths: the personal override is absent, at its YAML path" "$out" "personal-override	$root/docs/conventions/docs-naming.local.yaml	absent"
 
-# 15. With no --root the resolver takes the git toplevel of the working
-#     directory, never the directory the script lives in.
 root="$(new_root)"
 git init -q "$root" >/dev/null 2>&1
 git -C "$root" config user.email fixture@example.invalid
@@ -225,8 +188,6 @@ ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq_bin/jq"
 out="$(cd "$root" && HOME="$(home_of "$root")" PATH="$jq_bin:$PATH" bash "$SUT" resolve | jq -r '.file_names.regex')"
 assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^from-cwd$" "$out"
 
-# Every tier entry carries the layer that contributed it, which is what lets a
-# consumer hold the policy floor per file rather than per key.
 root="$(new_root)"
 write_team "$root" \
   '{"tiers": [{"name": "t-team", "paths": ["docs/a/**"], "forms": "none"}]}'
@@ -238,8 +199,6 @@ assert_contains "and carries its layer" "$tiers" '"_layer":"team"'
 assert_contains "a personal tier is still appended" "$tiers" '"name":"t-personal"'
 assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"userConfig"'
 
-# Config-cascade step 2: a home or non-repo root has no team layer or personal override, and
-# the user-global file is read once, never again as team.
 home="$TEST_TMPDIR/hroot/home"
 mkdir -p "$home/.claude"
 write_layer "$home/.claude/docs-naming.json" '{"rule": "home-rule", "generated": [{"path": "y", "regenerate": "true"}]}'
@@ -254,18 +213,15 @@ out="$(bash "$SUT" paths --root "$home" --home "$home")"
 assert_contains "home root: paths marks team not-applicable" "$out" "team	-	not-applicable: home root"
 assert_contains "home root: paths marks the personal override not-applicable" "$out" "personal-override	-	not-applicable: home root"
 
-# An ancestor of the home is a home root too.
 parent="$TEST_TMPDIR/hroot"
 write_team "$parent" '{"rule": "ancestor-rule"}'
 out="$(bash "$SUT" resolve --root "$parent" --home "$home")"
 assert_eq "an ancestor of the home is a home root: its YAML is not the team layer" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
 
-# A git repository at the home directory is still a home root.
 git init -q "$home" >/dev/null 2>&1
 out="$(bash "$SUT" paths --root "$home" --home "$home")"
 assert_contains "a git repository at the home is still a home root" "$out" "team	-	not-applicable: home root"
 
-# A directory that is not a git working tree has no team layer or personal override.
 plain="$TEST_TMPDIR/plain"
 mkdir -p "$TEST_TMPDIR/plainhome"
 write_team "$plain" '{"rule": "plain-team"}'
@@ -275,9 +231,6 @@ assert_eq "a non-repo root: the bundled rule stands" "lower-kebab" "$(printf '%s
 out="$(bash "$SUT" paths --root "$plain" --home "$TEST_TMPDIR/plainhome")"
 assert_contains "a non-repo root: paths marks team not-applicable" "$out" "team	-	not-applicable: non-repo root"
 
-# The retired docs-hygiene name of the user-global file is read when the
-# docs-naming file is absent, with a stderr WARN on `resolve` and the state
-# `legacy` on `paths`; the new name wins whenever it exists.
 root="$(new_root)"
 write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
@@ -346,8 +299,6 @@ rm "$(home_of "$root")/.claude/docs-naming.json"
 out="$(resolve "$root" --user-config '["not", "an object"]' 2>/dev/null)"
 assert_eq "invalid option with no old file: the bundled regex stands" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 
-# The team and personal override files at the retired docs-hygiene name are not read at
-# all, and resolve says nothing about them.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
 write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/retired/**"]}'
@@ -358,13 +309,10 @@ assert_eq "retired team name: resolve is quiet on stderr" "" "$(cat "$TEST_TMPDI
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "retired team name: paths reports the team YAML absent" "$out" "team	$root/docs/conventions/docs-naming.yaml	absent"
 
-# --- the YAML layers under the convention home --------------------------------
-
 new_repo() {
   new_root
 }
 
-# The team YAML supplies a nearest-wins key, and the resolver names the layer.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^yaml-team$"'
 assert_eq "yaml team layer: regex overrides the default" "^yaml-team$" "$(resolve "$root" | jq -r '.file_names.regex')"
@@ -375,7 +323,6 @@ out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "yaml team layer: paths names the file and says present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 assert_eq "yaml team layer: resolve is quiet on stderr" "" "$(resolve "$root" 2>&1 >/dev/null)"
 
-# An old team JSON beside the YAML adds nothing to it.
 root="$(new_repo)"
 write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$", "sweep_exclude": ["docs/old/**"]}'
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^new$"'
@@ -386,7 +333,6 @@ assert_eq "both exist: no warning, the JSON is not read" "" "$(cat "$TEST_TMPDIR
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "both exist: paths reports the YAML" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 
-# With no YAML, the old team and personal override JSON files are not read either.
 root="$(new_repo)"
 write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$"}'
 write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
@@ -399,7 +345,6 @@ assert_contains "no YAML: paths reports the team YAML absent" "$pout" "team	$roo
 assert_contains "no YAML: paths reports the personal override YAML absent" "$pout" "personal-override	$root/docs/conventions/docs-naming.local.yaml	absent"
 assert_eq "no YAML: every key stays bundled" "" "$(layers "$root" | grep -v 'bundled$' || true)"
 
-# The resolver names the layer that supplied each value, across all three layers.
 root="$(new_repo)"
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "user-rule", "regex": "^user$", "exempt_extensions": ["rb"]}'
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^team$"
@@ -414,8 +359,6 @@ assert_contains "provenance: an additive key lists team then the personal overri
 assert_contains "provenance: an additive key the userConfig layer sets" "$lay" "exempt_extensions	bundled,userConfig"
 assert_eq "provenance: the team basenames replace the default, the personal override adds" "TEAM.md MINE.md" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.exempt_basenames | join(" ")')"
 
-# Value fidelity: root objects, tiers stamped with their layer, an explicit empty
-# list replacing a non-empty default, and a null redirect_map.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'roots:
   - "docs"
@@ -445,7 +388,6 @@ assert_eq "yaml: a regenerator with quotes survives" "bash gen.sh --flag 'a b' >
 assert_eq "yaml: a nested list survives" "generated_on" "$(printf '%s' "$out" | jq -r '.file_names.generated[0].churn[0]')"
 assert_eq "yaml: redirect_map null is JSON null" "null" "$(printf '%s' "$out" | jq -c '.file_names.redirect_map')"
 
-# A hand-written personal override YAML is held to the policy floor too.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'generated:
   - path: "x"
@@ -457,7 +399,6 @@ assert_eq "yaml personal override: the regenerator is ignored" "[]" "$(printf '%
 assert_contains "yaml personal override: the declaration is reported inert" "$(layers "$root")" "!inert:generated	personal-override"
 assert_contains "yaml personal override: an addition is still made" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
 
-# A YAML layer the parser rejects is fatal and names the file and the line.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^ok$"
 roots: {path: docs}'
@@ -469,7 +410,6 @@ assert_eq "bad yaml: exits 2" "2" "$(
 assert_contains "bad yaml: the file is named" "$err" "$root/docs/conventions/docs-naming.yaml"
 assert_contains "bad yaml: the line is named" "$err" "line 2"
 
-# The team YAML sits under the convention home the repository binds.
 root="$(new_repo)"
 mkdir -p "$root/conf"
 cat >"$root/AGENTS.md" <<'EOF'
@@ -483,14 +423,12 @@ assert_eq "convention home: the bound home supplies the team layer" "^bound-home
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "convention home: paths names the bound file" "$out" "team	$root/conf/docs-naming.yaml	present"
 
-# A home root still has no team YAML.
 home="$TEST_TMPDIR/yroot/home"
 mkdir -p "$home/docs/conventions"
 write_yaml "$home/docs/conventions/docs-naming.yaml" 'regex: "^not-a-team-layer$"'
 out="$(bash "$SUT" resolve --root "$home" --home "$home")"
 assert_eq "yaml home root: the YAML under a home directory is not a team layer" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 
-# A broken convention-home pointer stops the run instead of reading docs/conventions.
 root="$(new_root)"
 cat >"$root/AGENTS.md" <<'EOF'
 <!-- BEGIN GENERATED: convention-home -->
@@ -503,13 +441,11 @@ assert_eq "convention home: a dangling pointer exits 2" "2" "$?"
 assert_contains "convention home: a dangling pointer names the resolver failure" "$out" "convention home"
 assert_lacks "convention home: a dangling pointer does not read the default home" "$out" "^default-home$"
 
-# A declined home still falls back to docs/conventions.
 root="$(new_root)"
 printf '<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n' >"$root/AGENTS.md"
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^default-home$"'
 assert_eq "convention home: a declined home reads docs/conventions" "^default-home$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
-# An empty scalar is an error, not an undeclared key.
 for value in 'regex:' 'regex:   # todo'; do
   root="$(new_root)"
   write_yaml "$root/docs/conventions/docs-naming.yaml" "$value"

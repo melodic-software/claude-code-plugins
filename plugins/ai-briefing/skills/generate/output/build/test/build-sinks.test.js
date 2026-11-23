@@ -53,16 +53,12 @@ test("HTML news sink drops a javascript: href and keeps a safe https href", () =
 	);
 });
 
-// Drives the real build-pptx.js entrypoint against a fixture slides-data.js so the
-// buildNews/buildCondensed hyperlink sinks are exercised end-to-end, then reads the
-// emitted deck's external hyperlink relationships to confirm the filtering.
 test("PPTX news/condensed sinks drop file:// hyperlinks and keep safe ones", async () => {
 	const safeNews = "https://safe.example/keep-news";
 	const safeCondensed = "https://safe.example/keep-condensed";
 	const evilNews = "file:///etc/passwd";
 	const evilCondensed = "file:///etc/shadow";
 
-	// Named for the plugin: the build uses CLAUDE_PLUGIN_DATA only when it names ai-briefing.
 	const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-briefing-pptx-sink-"));
 	try {
 		const dataDir = path.join(stateRoot, "default", "output", "build");

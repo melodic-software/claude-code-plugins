@@ -42,7 +42,6 @@ Exit: 0 success; 1 not a git repo OR an apply had rm failures; 2 usage error.
 EOF
 }
 
-# die <message> <exit-code>
 die() {
   echo "clean-build.sh: $1" >&2
   exit "$2"
@@ -81,7 +80,6 @@ ALLOWED_CLASSES="build"
 [[ "$INCLUDE_CACHES" -eq 1 ]] && ALLOWED_CLASSES="build caches"
 
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
-  # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
   [[ -r "$MANIFEST_ARG" ]] || die "manifest not readable: $MANIFEST_ARG" 1
   MANIFEST="$MANIFEST_ARG"
 else

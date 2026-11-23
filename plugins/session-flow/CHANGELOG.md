@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [9.22.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [9.22.2] - 2026-11-23
+
+### Changed
+
+- `/session-flow:workflow` no longer gather repository context that no step read.
+
+## [9.22.1] - 2026-11-23
+
+### Changed
+
+- **The workflow navigator points at `/planning:interview` for its own rules.** The interview stage in `context/steps.md` and the ladder in `context/pre-implementation-order.md` no longer restate how the interview paces its questions or when explore, research, a PRD or a prototype runs around it; both name `/planning:interview` as the owner of those rules.
+
 ## [9.22.0] - 2026-11-22
 
 ### Added

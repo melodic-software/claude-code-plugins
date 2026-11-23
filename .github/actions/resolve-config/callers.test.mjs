@@ -10,6 +10,8 @@
 // work-resolve-issue.yml caps its concurrent runs.
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -73,14 +75,14 @@ function assertMainTip(steps, checkout, branch = "main") {
 // Sibling action directories this action's modules import, followed
 // transitively: the sparse checkout must hold each of them.
 function importedActionDirs() {
-  const actions = new URL("../", import.meta.url);
-  const files = new Set(["resolve-config/resolve-config.mjs"]);
+  const root = new URL("../../../", import.meta.url);
+  const files = new Set([".github/actions/resolve-config/resolve-config.mjs"]);
   for (const file of files) {
-    for (const [, spec] of read(`../${file}`).matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
-      files.add(new URL(spec, new URL(file, actions)).pathname.slice(actions.pathname.length));
+    for (const [, spec] of readFileSync(new URL(file, root), "utf8").matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
+      files.add(new URL(spec, new URL(file, root)).pathname.slice(root.pathname.length));
     }
   }
-  return [...new Set([...files].map((file) => `/.github/actions/${file.split("/")[0]}/`))];
+  return [...new Set([...files].map((file) => (file.startsWith(".github/actions/") ? `/.github/actions/${file.split("/")[2]}/` : `/${file}`)))];
 }
 
 const BASE_FILES = [
@@ -574,60 +576,10 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
-// The refine-issue legs as the parity check compares them: every step, in
-// order, with every field, except the places the legs may differ: the
-// credential call's leg, secrets tested and reason (its action and role stay
-// equal), the launcher's credential and fallback-ready inputs, the handoff
-// report (the fallback leg never hands off), the key leg's credit-stop marker,
-// the leg record's fallback reason, the next-leg call the fallback leg, the
-// last, does not make, and the last step's `if`.
-const UNSHARED_STEPS = new Set(["handoff", "credit-marker", "credit-marker-scan", "credit-marker-upload", "next"]);
-function refineLegShape(job) {
-  return job.steps
-    .filter((step) => !UNSHARED_STEPS.has(step.id))
-    .map((step) => {
-      const shape = structuredClone(step);
-      if (step.id === "credential") {
-        for (const input of ["leg", "credential-set", "fallback-set", "key-off", "reason"]) delete shape.with[input];
-      }
-      if (step.id === "run") {
-        delete shape.with["api-key"];
-        delete shape.with["subscription-token"];
-        delete shape.with["fallback-token"];
-        delete shape.with["fallback-ready"];
-      }
-      if (step.name === "Record the leg") delete shape.with["fallback-reason"];
-      if (step.name === "Fail without a refinement") delete shape.if;
-      return shape;
-    });
-}
-
-test("intake-triage.yml: the refine legs' parity check fails on any other difference, step order included", () => {
-  const { jobs } = workflow("intake-triage.yml");
-  const key = jobs["refine-issue"];
-  const sub = jobs["refine-issue-subscription"];
-  assert.deepEqual(refineLegShape(key), refineLegShape(sub));
-  assert.deepEqual(refineLegShape(key), refineLegShape(jobs["refine-issue-fallback"]));
-  const differs = (mutate) => {
-    const copy = structuredClone(sub);
-    mutate(copy);
-    assert.notDeepEqual(refineLegShape(key), refineLegShape(copy));
-  };
-  const step = (job, name) => job.steps.find((s) => s.name === name);
-  differs((job) => delete step(job, "Refine the issue")["continue-on-error"]);
-  differs((job) => (step(job, "Refine the issue")["timeout-minutes"] = 30));
-  differs((job) => (step(job, "Refine the issue").env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "0"));
-  differs((job) => {
-    const settings = job.steps.findIndex((s) => s.name === "Apply the Claude managed settings");
-    const isolate = job.steps.findIndex((s) => s.name === "Isolate the runner");
-    [job.steps[settings], job.steps[isolate]] = [job.steps[isolate], job.steps[settings]];
-  });
-  differs((job) => (step(job, "Collect the refinement").run += "\ntrue"));
-  differs((job) => (step(job, "Upload the refinement").with["retention-days"] = 2));
-  differs((job) => (step(job, "Check the credential").if = "always()"));
-  differs((job) => (step(job, "Check the credential").with.role = "issue-lane"));
-  differs((job) => (step(job, "Check the context").run = "true"));
-  differs((job) => job.steps.pop());
+test("intake-triage.yml, maintenance-tidy-code-upkeep.yml, post-merge-test-mutation.yml, pr-refine.yml, pr-unblock.yml and work-resolve-issue.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
@@ -805,7 +757,6 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(collect.env.MODE, "dontAsk");
     assert.match(collect.run, /check-permission-mode\.sh/);
   }
-  assert.deepEqual(refineLegShape(model), refineLegShape(sub), "the legs differ only where refineLegShape allows");
   const { "api-key": keyLegKey, "subscription-token": keyLegToken } = launcher(model).with;
   const { "api-key": subLegKey, "subscription-token": subLegToken } = launcher(sub).with;
   assert.equal(keyLegKey, "${{ secrets.INTAKE_CLAUDE_API_KEY }}");
@@ -1450,6 +1401,22 @@ test("work-resolve-issue.yml: a Work status field write to agent-ready from a pe
   assert.doesNotMatch(text, /'labeled'/);
 });
 
+test("every Work status field id written outside models.issue-status equals its field-id", () => {
+  const sites = [
+    [".github/workflows/intake-reenter.yml", /github\.event\.issue_field\.id == (\d+)/g],
+    [".github/workflows/maintenance-file-dead-links.yml", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/workflows/post-merge-file-demotion-issues.yml", /field_id: (\d+), value: "needs-human"/g],
+    [".github/scripts/maintenance-audit-lane-runs/file-findings.mjs", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/scripts/maintenance-monitor-signals/monitor.mjs", /WORK_STATUS_FIELD = (\d+);/g],
+    [".github/scripts/post-merge-demotion-alert/handoff.bash", /jq -n '\[\[(\d+), /g],
+  ];
+  for (const [path, pattern] of sites) {
+    const ids = [...read(`../../../${path}`).matchAll(pattern)].map((match) => Number(match[1]));
+    assert.ok(ids.length > 0, `${path} names the Work status field`);
+    assert.deepEqual(ids, ids.map(() => ISSUE_STATUS["field-id"]), path);
+  }
+});
+
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
 // green with a notice, and the next run reads again; no stored pause decides.
 test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green with a notice, and no cached pause is read", () => {
@@ -1472,6 +1439,13 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
     assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
   }
   assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
+  const node = pick.steps.find((item) => item.id === "node");
+  assert.equal(node.if, "steps.kill.outputs.proceed != 'false'");
+  assert.equal(wip.with["node-setup"], "${{ steps.node.outcome }}", "the cap check reads the Node setup's outcome");
+  assert.match(wip.uses, /^\.\/\.base\/\.github\/actions\/check-wip-cap\b/);
+  assert.match(readFileSync(new URL("../check-wip-cap/action.yml", import.meta.url), "utf8"), /- name: Require the pinned Node\n {6}shell: bash\n {6}env:\n {8}NODE_SETUP: \$\{\{ inputs\.node-setup \}\}\n {6}run: \|\n {8}\[\[ "\$NODE_SETUP" == success \]\] \|\| \{[^\n]*exit 1; \}\n/, "anything but a successful setup fails the check");
+  assert.equal(node["continue-on-error"], true, "a failed Node setup holds green");
+  assert.ok(pick.steps.indexOf(node) < pick.steps.indexOf(wip), "Node is set up before the check");
   assert.equal(evaluate(hold.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.capped": "" }), false, "the switch on names no hold");
   const marker = pick.steps.find((item) => item.id === "hold-marker");
   assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), false, "the switch on marks no hold");
@@ -3963,7 +3937,7 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   const api = (getContent) => ({ rest: { repos: { getBranch: async () => ({ data: { commit: { sha: GATE_TIP } } }), getContent } } });
   const served = async () => ({ data: { content: Buffer.from("export const x = 1;\n").toString("base64") } });
   const stage = { RUNNER_TEMP: root };
-  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "3\n", "getBranch and two getContent");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "2\n", "getBranch and the gate's getContent");
   assert.equal(await count("stage-scanner", "scan-stage-calls", api(refused), stage), "2\n", "a refused read still counts");
   assert.equal(await count("stage-scanner", "scan-stage-calls", { rest: { repos: { getBranch: refused } } }, stage), "1\n");
   const leak = { HEAD_SHA: "a".repeat(40) };
@@ -5280,7 +5254,7 @@ test("pr-run-activity-read.yml: a record step refuses a carried bundle that is n
 test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript job that uploads its leg's transcript holds no checkout, secret, environment or token", () => {
   const { jobs, on } = workflow("pr-run-activity-read.yml");
   for (const step of jobs.run.steps) {
-    assert.ok(!isUpload(step) && !/\/upload-lane-transcript$/.test(String(step.uses ?? "")), `run: ${step.name} uploads`);
+    assert.ok(!isUpload(step) && !/\/upload-lane-transcript@[0-9a-f]{40}$/.test(String(step.uses ?? "")), `run: ${step.name} uploads`);
   }
   const steps = runSteps();
   const at = (id) => steps.findIndex((s) => s.id === id);
@@ -9177,7 +9151,7 @@ const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
 ]);
 const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
-const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
+const isTranscriptUpload = (step) => /\/upload-lane-transcript@[0-9a-f]{40}$/.test(String(step.uses ?? ""));
 
 test("every model leg is followed by a sealed transcript upload of its own execution file, under a job id unique in its workflow", () => {
   let legs = 0;
@@ -9641,8 +9615,8 @@ test("no job loads an action from ./.base/ after a checkout that replaced it", (
   }
 });
 
-test("the read runner's scan job and the write runner's run job scan uploads with a scanner staged in RUNNER_TEMP before the head checkout", () => {
-  const run = 'node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"';
+test("the read runner's scan job and the write runner's run job scan uploads with a gate staged in RUNNER_TEMP before the head checkout", () => {
+  const gate = "${{ runner.temp }}/scan-gate/lib/publish-gate.mjs";
   const jobs = [
     [workflow("pr-run-activity-read.yml").jobs.scan, "Check out the gated head"],
     [workflow("pr-run-activity-write.yml").jobs.run, "Check out the PR head"],
@@ -9655,8 +9629,8 @@ test("the read runner's scan job and the write runner's run job scan uploads wit
     const scans = job.steps.filter((s) => /^scan-upload/.test(s.id ?? ""));
     assert.ok(scans.length > 0);
     for (const scan of scans) {
-      assert.equal(scan.uses, undefined, scan.id);
-      assert.equal(scan.run, run, scan.id);
+      assert.match(scan.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40}$/, scan.id);
+      assert.equal(scan.with?.["gate-path"], gate, scan.id);
     }
   }
 });
@@ -10225,7 +10199,7 @@ test("the release-key workflows run no ci-workflows action, and their tip steps 
   }
 });
 
-// The guards of https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/resolve-branch-tip/resolve.sh
+// The guards of https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh
 test("the inline tip read authenticates, takes the exact ref, retries only timeouts and 5xx, and fails fast on 401/403", (t) => {
   const tipRun = inlineTipSteps()[0].step.run;
   const root = tempDir("inline-tip-");
@@ -10340,19 +10314,6 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
     assert.equal(record.with["lane-id"], "maintenance-tidy-code-upkeep", id);
     assert.equal(record.with.credential, "${{ steps.run.outputs.credential }}", id);
   }
-  const shape = (id) =>
-    jobs[id].steps
-      .filter((s) => !["credit-marker", "credit-marker-scan", "credit-marker-upload", "credential", "next"].includes(s.id) && !/handoff$/.test(s.name))
-      .map((s) => {
-        const copy = structuredClone(s);
-        if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
-        if (copy.id === "seal") delete copy.env.JOB_ID;
-        if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
-        return copy;
-      });
-  assert.deepEqual(shape("sweep-areas-subscription"), shape("sweep-areas"));
-  assert.deepEqual(shape("sweep-areas-fallback"), shape("sweep-areas"));
-
   // select-model-credential decides each leg (credential-legs.test.mjs in
   // .github/scripts/maintenance-tidy-code-upkeep holds it to the old
   // conditions); these are the conditions that read it.
@@ -10387,85 +10348,57 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
   for (const id of ["sweep-areas-subscription", "sweep-areas-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
 
-// The maintenance role's `claude plugin eval` lanes run key, subscription and
-// fallback legs, one credential per job, each the key leg's steps but for the
-// credential, the leg its handoff judge names, the key's credit-stop marker
-// and the leg record's credential and fallback reason. A key reaches the CLI
-// as ANTHROPIC_API_KEY only inside the claude step, LANE_API_KEY unset first,
-// so CLAUDE_CODE_SUBPROCESS_ENV_SCRUB strips it from Bash subprocesses.
-const EVAL_LEG_CREDENTIALS = {
-  key: ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"],
-  subscription: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"],
-  fallback: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"],
-};
+const EVAL_KEY = ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"];
 // The one run-claude-cli commit maintenance-measure-skill-edit.yml pins; the
 // classifier checkouts must name it.
 const CLASSIFIER_PINS = new Set([...read("../../workflows/maintenance-measure-skill-edit.yml").matchAll(/run-claude-cli@([0-9a-f]{40}) /g)].map((m) => m[1]));
 assert.equal(CLASSIFIER_PINS.size, 1, [...CLASSIFIER_PINS].join(", "));
 const CLASSIFIER_PIN = [...CLASSIFIER_PINS][0];
-for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
-  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "pass", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY"],
-  ["pr-run-plugin-evals.yml", "check-key-credit", ["run-eval", "run-eval-subscription", "run-eval-fallback"], "eval", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY"],
+for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
+  ["maintenance-measure-skill-edit-pass.yml", "check-key-credit", "run-eval", "pass", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY", "error"],
+  ["pr-run-plugin-evals.yml", "check-key-credit", "run-eval", "eval", "key-credit-stop-MAINTENANCE_CLAUDE_API_KEY", "warning"],
 ]) {
-  test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
+  test(`${file}: the eval runs on the API key alone, and a stopped key ends the run`, () => {
     const { jobs } = workflow(file);
-    const legs = { key: keyId, subscription: subId, fallback: fbId };
-    for (const [leg, id] of Object.entries(legs)) {
-      const steps = jobs[id].steps;
-      const launchers = steps.filter((s) => isLauncherStep(s, "claude-cli"));
-      assert.ok(launchers.some((s) => /^\s*claude plugin eval /m.test(s.run)), `${id} runs the eval`);
-      const [name, value] = EVAL_LEG_CREDENTIALS[leg];
-      for (const step of launchers) {
-        assert.equal(step.env[name], value, `${id} ${step.name}`);
-        assert.deepEqual(stepSecrets(step), [value.match(/secrets\.(\w+)/)[1]], `${id} ${step.name} holds one credential`);
-        const firstClaude = step.run.search(/^\s*claude\s/m);
-        assert.ok(step.run.indexOf("unset LANE_API_KEY") < firstClaude, `${id} ${step.name} unsets LANE_API_KEY before claude runs`);
-        assert.match(step.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, /^(?:"?1"?|\$\{\{ .+ \}\})$/, `${id} ${step.name} scrubs Bash subprocesses`);
-      }
-      assert.equal(steps.find((s) => s.id === "judge").env.LEG, leg, id);
-      // A leg whose credential is empty, or whose key the gate skipped, runs
-      // nothing past its credential check: every later step but the budget
-      // log has a condition, and the first ones read `present`.
-      const credential = steps.find((s) => s.id === "credential");
-      assert.match(credential.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40}$/, id);
-      assert.equal(credential.with.leg, leg, id);
-      assert.equal(credential.with.role, "maintenance", id);
-      const after = steps.slice(steps.indexOf(credential) + 1);
-      assert.deepEqual(after.filter((s) => s.if === undefined || s.if === "always()").map((s) => s.name).filter((n) => n !== "Log the API budget at the end"), [], id);
-      assert.match(after.find((s) => s.id !== "no-credential").if, /^steps\.credential\.outputs\.present == 'true'/, id);
-      // A classifier that cannot run stops the leg red, never as a handoff.
-      for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {
-        assert.match(step.run, /eval-handoff\.mjs\) \|\|\n\s+\{ echo "::error::the handoff classifier failed[^"]*"; exit 1; \}/, `${id} ${step.name}`);
-      }
-      const checkout = steps.find((s) => s.with?.repository === "melodic-software/ci-workflows");
-      assert.equal(checkout.with.ref, CLASSIFIER_PIN, `${id} reads the classifier at the run-claude-cli pin`);
-      assert.equal(checkout.with["persist-credentials"], false);
-      assert.ok(!jobs[id].permissions || !Object.values(jobs[id].permissions).includes("write"), `${id} holds no write grant`);
-      const record = steps.find((s) => s.name === "Record the leg");
-      assert.equal(record.with.credential, value.match(/secrets\.(\w+)/)[1], id);
-      assert.equal(record.with["execution-file"], "${{ steps.judge.outputs.leg-result }}", id);
+    assert.deepEqual(Object.keys(jobs).filter((id) => /^run-eval/.test(id)), [keyId], "one eval leg");
+    assert.doesNotMatch(JSON.stringify(jobs), /secrets\.[A-Z_]*CLAUDE_CODE_OAUTH_TOKEN/, "no job reads a subscription token");
+    const steps = jobs[keyId].steps;
+    const launchers = steps.filter((s) => isLauncherStep(s, "claude-cli"));
+    assert.ok(launchers.some((s) => /^\s*claude plugin eval /m.test(s.run)), `${keyId} runs the eval`);
+    const [name, value] = EVAL_KEY;
+    for (const step of launchers) {
+      assert.equal(step.env[name], value, `${keyId} ${step.name}`);
+      assert.deepEqual(stepSecrets(step), [value.match(/secrets\.(\w+)/)[1]], `${keyId} ${step.name} holds one credential`);
+      const firstClaude = step.run.search(/^\s*claude\s/m);
+      assert.ok(step.run.indexOf("unset LANE_API_KEY") < firstClaude, `${keyId} ${step.name} unsets LANE_API_KEY before claude runs`);
+      assert.match(step.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, /^(?:"?1"?|\$\{\{ .+ \}\})$/, `${keyId} ${step.name} scrubs Bash subprocesses`);
     }
-
-    const shape = (id) =>
-      jobs[id].steps
-        .filter((s) => !["credential", "no-credential", "next", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
-        .map((s) => {
-          const copy = structuredClone(s);
-          for (const k of ["LANE_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "LEG"]) delete copy.env?.[k];
-          if (copy.name === "Record the leg") for (const k of ["credential", "fallback-reason"]) delete copy.with[k];
-          return copy;
-        });
-    assert.deepEqual(shape(subId), shape(keyId));
-    assert.deepEqual(shape(fbId), shape(keyId));
-    assert.deepEqual(Object.keys(jobs[subId].outputs), Object.keys(jobs[keyId].outputs));
-    // The key and subscription legs name the next leg from their own
-    // decision and judge, whatever failed after it; the fallback leg is last.
-    for (const id of [keyId, subId]) {
-      const next = jobs[id].steps.find((s) => s.id === "next");
-      assert.equal(next.if, "${{ always() }}", id);
-      assert.deepEqual(next.with, { state: "${{ steps.credential.outputs.state }}", handoff: "${{ steps.judge.outputs.handoff }}", "handoff-reason": "${{ steps.judge.outputs.handoff-reason }}" }, id);
+    assert.equal(steps.find((s) => s.id === "judge").env.LEG, "key");
+    const credential = steps.find((s) => s.id === "credential");
+    assert.match(credential.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40}$/);
+    assert.equal(credential.with.leg, "key");
+    assert.equal(credential.with.role, "maintenance");
+    assert.equal(credential.with.selected, `\${{ needs.${gateId}.outputs.next-leg }}`);
+    assert.equal(credential.with["key-off"], "${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}");
+    const after = steps.slice(steps.indexOf(credential) + 1);
+    assert.deepEqual(after.filter((s) => s.if === undefined || s.if === "always()").map((s) => s.name).filter((n) => n !== "Log the API budget at the end"), []);
+    assert.match(after[0].if, /^steps\.credential\.outputs\.present == 'true'/);
+    assert.equal(steps.find((s) => s.id === "next"), undefined, "no next leg");
+    assert.equal(jobs[keyId].outputs?.["next-leg"], undefined);
+    const stop = steps.find((s) => s.name === "Stop at the key's stop");
+    assert.equal(stop.if, "${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}");
+    assert.match(stop.run, new RegExp(`::${stopLevel}::The API key stopped`));
+    assert.equal(/exit 1/.test(stop.run), stopLevel === "error", `${file}: a measuring pass fails, a suite run warns`);
+    for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {
+      assert.match(step.run, /eval-handoff\.mjs\) \|\|\n\s+\{ echo "::error::the handoff classifier failed[^"]*"; exit 1; \}/, `${keyId} ${step.name}`);
     }
-    assert.equal(jobs[fbId].steps.find((s) => s.id === "next"), undefined);
+    const checkout = steps.find((s) => s.with?.repository === "melodic-software/ci-workflows");
+    assert.equal(checkout.with.ref, CLASSIFIER_PIN, `${keyId} reads the classifier at the run-claude-cli pin`);
+    assert.equal(checkout.with["persist-credentials"], false);
+    assert.ok(!jobs[keyId].permissions || !Object.values(jobs[keyId].permissions).includes("write"), `${keyId} holds no write grant`);
+    const record = steps.find((s) => s.name === "Record the leg");
+    assert.equal(record.with.credential, value.match(/secrets\.(\w+)/)[1]);
+    assert.equal(record.with["execution-file"], "${{ steps.judge.outputs.leg-result }}");
 
     const ctx = (over) => ({
       [`needs.${gateId}.result`]: "success",
@@ -10479,41 +10412,38 @@ for (const [file, gateId, [keyId, subId, fbId], keyJob, marker] of [
       "github.repository": "melodic-software/claude-code-plugins",
       ...over,
     });
-    // The key job starts whatever the gate chose; its credential call holds a
-    // skipped key off (selected), as the old SKIP_KEY did.
     const keyIf = jobs[keyId].if.replaceAll("format('refs/heads/{0}', github.event.repository.default_branch)", "'refs/heads/main'");
     assert.equal(evaluate(keyIf, ctx({})), true);
     assert.equal(evaluate(keyIf, ctx({ [`needs.${gateId}.outputs.next-leg`]: "subscription" })), true);
     assert.equal(evaluate(keyIf, ctx({ [`needs.${gateId}.result`]: "failure" })), false);
-    assert.equal(jobs[keyId].steps.find((s) => s.id === "credential").with.selected, `\${{ needs.${gateId}.outputs.next-leg }}`);
-    const sub = (over) => evaluate(jobs[subId].if, ctx({ [`needs.${keyId}.outputs.next-leg`]: "", ...over }));
-    assert.equal(sub({ [`needs.${keyId}.outputs.next-leg`]: "subscription" }), true, "a key that handed off or did not run");
-    assert.equal(sub({ [`needs.${gateId}.outputs.next-leg`]: "subscription" }), true, "a credit-stopped key");
-    assert.equal(sub({}), false, "a key leg that finished or failed before its credential");
-    assert.equal(sub({ [`needs.${keyId}.outputs.next-leg`]: "subscription", [`needs.${gateId}.result`]: "failure" }), false);
-    assert.equal(evaluate(jobs[fbId].if, { [`needs.${subId}.outputs.next-leg`]: "fallback" }), true);
-    assert.equal(evaluate(jobs[fbId].if, { [`needs.${subId}.outputs.next-leg`]: "" }), false);
-    assert.equal(jobs[subId].steps.find((s) => s.id === "credential").with.reason, `\${{ needs.${keyId}.outputs.next-reason || needs.${gateId}.outputs.next-reason }}`);
-    assert.equal(jobs[fbId].steps.find((s) => s.id === "credential").with.reason, `\${{ needs.${subId}.outputs.next-reason }}`);
-    for (const id of [subId, fbId]) {
-      assert.equal(jobs[id].steps.find((s) => s.name === "Record the leg").with["fallback-reason"], "${{ steps.credential.outputs.fallback-reason }}", id);
-    }
 
-    // The gate reads markers with actions: read and nothing else; only the key leg uploads one.
     assert.deepEqual(jobs[gateId].permissions, { actions: "read" });
     assert.equal(claudeReads(withoutPresenceChecks(jobs[gateId])).length, 0, "the gate reads no Claude credential");
     const credit = jobs[gateId].steps.find((s) => s.id === "credit");
     assert.equal(credit.with.leg, "start");
     assert.equal(credit.with["key-job"], keyJob);
     assert.equal(credit.with["probe-minutes"], "0");
+    assert.equal(jobs[gateId].steps.find((s) => s.name === "Report the skipped key leg").with.handoff, "false", "a skipped key hands off to nothing");
     const upload = jobs[keyId].steps.find((s) => s.id === "credit-marker-upload");
     assert.equal(upload.with.name, marker);
     assert.equal(upload["continue-on-error"], true);
     assert.match(jobs[keyId].steps.find((s) => s.id === "credit-marker").if, new RegExp(`'${marker.replaceAll(".", "\\.")}' && steps\\.judge\\.outputs\\.handoff-reason == 'credit-stop'`));
-    for (const id of [subId, fbId]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
     assert.equal(JSON.parse(read("../../artifact-retention.json")).families[marker]?.["retention-days"], 1, `${marker} has a retention row`);
   });
 }
+
+test("the measuring pass takes the API key and no subscription token from its callers", () => {
+  const pass = workflow("maintenance-measure-skill-edit-pass.yml");
+  assert.deepEqual(Object.keys(pass.on.workflow_call.secrets), ["MAINTENANCE_CLAUDE_API_KEY"]);
+  for (const file of ["maintenance-measure-skill-edit.yml", "pr-run-plugin-evals.yml"]) {
+    for (const [id, job] of Object.entries(workflow(file).jobs)) {
+      if (job.uses !== "./.github/workflows/maintenance-measure-skill-edit-pass.yml") continue;
+      assert.deepEqual(Object.keys(job.secrets ?? {}), ["MAINTENANCE_CLAUDE_API_KEY"], `${file} ${id}`);
+    }
+  }
+  const generate = workflow("maintenance-measure-skill-edit.yml").jobs["generate-edit"];
+  assert.doesNotMatch(JSON.stringify(generate), /CLAUDE_CODE_OAUTH_TOKEN/, "generate-edit proposes on the API key alone");
+});
 
 // Every job that runs a run-claude-cli leg writes that leg's lane-outcome
 // record (report-lane-outcome with a lane-id): the record carries the leg's
@@ -10654,15 +10584,10 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
   assert.deepEqual(readPosted(t, read, listing([], "skipped")).outputs, { "credit-stop": "false" });
 });
 
-// Every eval leg, in both workflows, runs the same policy step and the same
-// probe: the credential is the only difference, so a key leg cannot drift from
-// the subscription leg the probe was proven on. The probe reads its stream
-// line by line, so one line that is not JSON cannot hide the denials, and a
-// failed check names the probe's closed facts.
 test("every eval leg runs the same managed-policy step and the same probe", () => {
   const legs = [
-    ["maintenance-measure-skill-edit-pass.yml", ["run-eval", "run-eval-subscription", "run-eval-fallback"]],
-    ["pr-run-plugin-evals.yml", ["run-eval", "run-eval-subscription", "run-eval-fallback"]],
+    ["maintenance-measure-skill-edit-pass.yml", ["run-eval"]],
+    ["pr-run-plugin-evals.yml", ["run-eval"]],
   ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
   const step = (steps, id) => steps.find((s) => s.id === id);
   const [, , first] = legs[0];
@@ -10814,12 +10739,6 @@ test("the mutant-job check names each way a credential could reach mutated code"
   assert.equal(runsMutants({ steps: [{ run: "echo hi" }] }), false);
 });
 
-// Both of the mutation lane's model chains run key, subscription and fallback
-// legs, one credential per job, each the key leg's steps but for the
-// credential, the no-token stop, the key's credit-stop marker, the leg record's
-// fallback reason and the next-leg call the fallback leg, the last, does not
-// make. post-merge-test-mutation/credential-legs.test.mjs drives each leg's
-// start and credential through every state.
 for (const stage of ["generate", "triage"]) {
   test(`post-merge-test-mutation.yml: the ${stage} chain runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow("post-merge-test-mutation.yml");
@@ -10834,17 +10753,6 @@ for (const stage of ["generate", "triage"]) {
       assert.ok(ifTerms(jobs[id].if).includes(SAME_REPO), `${id} keeps the same-repo gate`);
       assert.doesNotMatch(run(id).with.tools, /^\s*(?:Edit|Write)\s*$/m, `${id} edits nothing`);
     }
-    const shape = (id) =>
-      jobs[id].steps
-        .filter((s) => !["credential", "no-token", "next", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
-        .map((s) => {
-          const copy = structuredClone(s);
-          if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
-          if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
-          return copy;
-        });
-    assert.deepEqual(shape(ids[1]), shape(ids[0]));
-    assert.deepEqual(shape(ids[2]), shape(ids[0]));
     // Each leg starts on the leg the one before it names; the subscription
     // leg also on the gate's, for a key job that failed before its credential.
     assert.ok(ifTerms(jobs[ids[1]].if).includes(`(needs.${ids[0]}.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.${stage}-next-leg == 'subscription')`));
@@ -10896,18 +10804,26 @@ function missingLegs(catalog, launched) {
   }
   return missing;
 }
-// Lanes that cannot take every leg yet
-// (https://github.com/melodic-software/claude-code-plugins/issues/13586): each
-// names the exact legs it waives and why, ending in that issue. The test fails
-// when an exempt lane lacks a leg its entry does not name, or runs a leg its
-// entry waives, so an entry never covers more than it says and goes once its
-// lane gains the leg.
-const COMPARE_KEY_ONLY = "owner decision Q136 (#17854): compare mode runs PR plugin text beside the eval credential on the API key alone, so no subscription token reaches it; an exemption from the leg chain of (#13586)";
+// Lanes that lack a leg: each names the exact legs it waives and why. A lane
+// that cannot take every leg yet ends its reason in
+// https://github.com/melodic-software/claude-code-plugins/issues/13586; a lane
+// key-only by owner decision ends it in the policy doc that records the
+// decision. The test fails when an exempt lane lacks a leg its entry does not
+// name, or runs a leg its entry waives, so an entry never covers more than it
+// says.
+const EVAL_KEY_ONLY = "owner decisions Q14 and Q136: evals run on the API key alone and stop at its credit stop, so no subscription token reaches PR plugin text or spends plan usage (docs/review/evals.md)";
+const evalKeyOnly = { legs: ["subscription", "fallback"], reason: EVAL_KEY_ONLY };
 const LEG_EXEMPTIONS = {
-  "pr-run-plugin-evals.yml maintenance compare-before": { legs: ["subscription", "fallback"], reason: COMPARE_KEY_ONLY },
-  "pr-run-plugin-evals.yml maintenance compare-after": { legs: ["subscription", "fallback"], reason: COMPARE_KEY_ONLY },
+  "pr-run-plugin-evals.yml maintenance run-eval": evalKeyOnly,
+  "pr-run-plugin-evals.yml maintenance compare-before": evalKeyOnly,
+  "pr-run-plugin-evals.yml maintenance compare-after": evalKeyOnly,
+  "maintenance-measure-skill-edit-pass.yml maintenance run-eval": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml maintenance measure-baseline": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml maintenance measure-baseline-again": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml maintenance generate-edit": evalKeyOnly,
+  "maintenance-measure-skill-edit.yml maintenance measure-edit": evalKeyOnly,
 };
-const EXEMPTION_ISSUE = /\(#13586\)$/;
+const EXEMPTION_ISSUE = /(?:\(#13586\)|\(docs\/review\/evals\.md\))$/;
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.
 const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");
@@ -10945,6 +10861,7 @@ test("an exemption waives only the legs it names", () => {
   assert.deepEqual(exemptionProblems(missing("R_CLAUDE_CODE_OAUTH_TOKEN"), {}, lanes), ["w.yml r run lacks its subscription leg"], "no entry at all");
   assert.deepEqual(exemptionProblems(new Map(), { "w.yml r gone": { legs: [], reason } }, lanes), ["w.yml r gone is not a catalog lane"]);
   assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), { "w.yml r run": { legs: ["key"], reason: "why" } }, lanes), ["w.yml r run names no reason and tracking issue"]);
+  assert.deepEqual(exemptionProblems(missing("R_CLAUDE_API_KEY"), { "w.yml r run": { legs: ["key"], reason: "why (docs/review/evals.md)" } }, lanes), [], "a policy reason");
 });
 
 test("the leg check fails a lane that lacks a leg and passes one that has all three", () => {

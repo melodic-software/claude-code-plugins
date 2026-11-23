@@ -5,8 +5,6 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-ScheduledTasks' `
         -AsObject 'Invoke-ScheduledTasksAsObject'
 
-    # Dot-source the check script to define Test-IsNeverRunScheduledTask here; its
-    # dot-source guard skips the main block.
     . $script:ScriptPath
 }
 

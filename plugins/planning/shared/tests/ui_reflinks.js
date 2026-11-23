@@ -19,7 +19,6 @@ const URL_IN_TEXT = "https://example.com/docs/a.html#12";
 const CONTEXT = `Background: see #123 and plugins/x.py:10. Also (plugins/w.py), docs/a.md:3-5, \`plugins/y.py\` and ${URL_IN_TEXT}; not and/or, w/e.g. this, client/server.Then, 1/2.5, /srv/x.py or example.com/x.html.`;
 const ANSWER = "<b>bold?</b> fixes #7 in plugins/z.md";
 
-/** In the page: the links in the rendered text holding `marker`, and whether that text has a <b> element. */
 function rendered(marker) {
   const box = [...document.querySelectorAll(".vf-rich")].find(el => el.textContent.includes(marker));
   if (!box) return null;

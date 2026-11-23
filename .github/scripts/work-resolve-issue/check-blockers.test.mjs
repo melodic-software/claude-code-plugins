@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, test } from "node:test";
 
-import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { main } from "./check-blockers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -87,7 +87,6 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
       return blockers.find((item) => String(item.number) === match[2] && item.repository_url.endsWith(`/repos/${match[1]}`));
     }
     if (method === "POST" && path === "/graphql") {
-      // No merged pull request closed it.
       return GRAPHQL;
     }
     throw new Error(`unexpected ${method} ${path} ${JSON.stringify(body)}`);

@@ -14,7 +14,7 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { readLimits } from "../work-resolve-issue/limits.mjs";

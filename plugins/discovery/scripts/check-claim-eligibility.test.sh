@@ -122,8 +122,6 @@ run 1 "a subject_pool claim is at most MEDIUM" --err 'at most MEDIUM, not HIGH' 
 run 0 "a subject_pool claim at MEDIUM passes" \
   "$(mkslice subject-ok "$(claim S2 MEDIUM behavior Vendor '    subject_pool: "Vendor"' "$(src 1 Vendor primary)")")"
 
-# --- the two declared fields ------------------------------------------------
-
 run 1 "a claim with no claim_kind fails" --err 'claim 1 [K1]: claim_kind is None' \
   "$(mkslice no-kind "$(claim K1 MEDIUM - Vendor '' "$(src 1 Vendor primary)")")"
 run 1 "a claim_kind outside content|behavior fails" --err "claim_kind is 'fact'" \
@@ -136,8 +134,6 @@ run 0 "claims: [] passes with claims=0" "$(mkslice none '[]')"
 printf -- '---\ntopic: t\nsection: s\nabstract: a\nclaims: []\nproduced_by: p\n---\n' >"$WORK/none/RESEARCH-s.md"
 run 0 "an empty claims list passes" "$WORK/none"
 expect_out "empty summary line" 'status=pass claims=0 high=0 flagged=0'
-
-# --- ungradeable ------------------------------------------------------------
 
 run 2 "missing slice" "$WORK/does-not-exist"
 no_index="$(mkslice no-index "$(claim X1 MEDIUM content Vendor '' "$(src 1 Vendor primary)")")"

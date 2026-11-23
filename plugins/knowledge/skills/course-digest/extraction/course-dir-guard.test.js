@@ -43,7 +43,6 @@ beforeAll(() => {
   fs.mkdirSync(home);
   fs.mkdirSync(loose);
   fs.mkdirSync(bin);
-  // A gh stand-in answering `gh api ... --jq .visibility` with FAKE_GH_ANSWER.
   fs.writeFileSync(path.join(bin, "gh"), '#!/bin/sh\nprintf "%s\\n" "$FAKE_GH_ANSWER"\n', { mode: 0o755 });
   repo(noRemote);
   repo(elsewhere, "https://gitlab.com/acme/corpus.git");

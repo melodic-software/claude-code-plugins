@@ -1,3 +1,4 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore each job's only artifact
@@ -16,29 +17,22 @@ import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { HELD_REASON, HELD_STEP, main, packReads } from "./resolve-pr.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
 const SUB = "check-intent-subscription";
 const FB = "check-intent-fallback";
 const JOBS = [KEY, SUB, FB];
-const jobText = (id) => {
-  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(found, `a job ${id}`);
-  return found[1];
-};
-// Each step starts at a `      - name:` line of its job.
-const stepsOf = (id) =>
-  jobText(id)
-    .split(/\n(?=      - name: )/)
-    .slice(1)
-    .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
+const wf = workflowText(text);
+const jobText = wf.job;
+const stepsOf = wf.steps;
 const STEPS = Object.fromEntries(JOBS.map((id) => [id, stepsOf(id)]));
 const index = (name, job = KEY) => STEPS[job].findIndex((step) => step.name === name);
 const step = (name, job = KEY) => {
   const found = STEPS[job].find((s) => s.name === name);
   assert.ok(found, `a step named ${name} in ${job}`);
-  return found.block;
+  return found.text;
 };
 const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
 const list = (block, key) => {
@@ -67,7 +61,6 @@ const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 // The key job's credit gate, read inside its credential call: a key it
 // held off runs no pre-judge setup.
 const KEY_SKIP = " && steps.credential.outputs.key-skipped != 'true'";
-const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
@@ -176,17 +169,17 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
 
 test("the verdict is each job's only artifact upload but the key job's probing and credit-stop markers, and follows the written verdict", () => {
   for (const job of JOBS) {
-    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.text));
     // The lane-hold marker is told by its artifact name, never its step name:
     // exactly one upload names lane-hold-pr-verify, only after Note the hold
     // ran (when no judge ran), with the fixed path that step wrote.
-    const markers = uploads.filter((s) => input(s.block, "name") === "lane-hold-pr-verify");
+    const markers = uploads.filter((s) => input(s.text, "name") === "lane-hold-pr-verify");
     assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
     const [marker] = markers;
-    assert.match(marker.block, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, job);
-    assert.equal(input(marker.block, "path"), "${{ runner.temp }}/lane-hold/pr-verify", job);
-    assert.equal(input(marker.block, "retention-days"), "1", job);
-    assert.equal(input(marker.block, "if-no-files-found"), "ignore", job);
+    assert.match(marker.text, /^ {8}if: steps\.note-hold\.outcome == 'success'$/m, job);
+    assert.equal(input(marker.text, "path"), "${{ runner.temp }}/lane-hold/pr-verify", job);
+    assert.equal(input(marker.text, "retention-days"), "1", job);
+    assert.equal(input(marker.text, "if-no-files-found"), "ignore", job);
     assert.match(step("Note the hold", job), /^ {8}id: note-hold$/m, job);
     assert.equal(STEPS[job].indexOf(marker), index("Log the API budget", job) - 1, job);
     assert.deepEqual(
@@ -194,7 +187,7 @@ test("the verdict is each job's only artifact upload but the key job's probing a
       job === KEY ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
       job,
     );
-    assert.ok(uploads.filter((s) => s !== marker).every((s) => !String(input(s.block, "name")).startsWith("lane-hold-")), job);
+    assert.ok(uploads.filter((s) => s !== marker).every((s) => !String(input(s.text, "name")).startsWith("lane-hold-")), job);
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
@@ -417,7 +410,8 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
   // The name the gate reads is the name the job uploads; the scan covers the same file.
@@ -428,7 +422,7 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   assert.equal(input(uploadStep, "if-no-files-found"), "error");
   for (const name of MARKER_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
   // Written after every judge step, then scanned, then uploaded.
-  const judges = STEPS[KEY].map((s, i) => (/run-claude-cli@/.test(s.block) ? i : -1)).filter((i) => i >= 0);
+  const judges = STEPS[KEY].map((s, i) => (/run-claude-cli@/.test(s.text) ? i : -1)).filter((i) => i >= 0);
   assert.ok(index(write) > Math.max(...judges));
   assert.equal(index(scan), index(write) + 1);
   assert.equal(index(upload), index(scan) + 1);
@@ -469,7 +463,8 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
   assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
@@ -679,61 +674,15 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
     // Only the lane-hold marker upload sits between it and the budget log.
     assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 2, job);
-    assert.equal(input(STEPS[job][index("Log the API budget", job) - 1].block, "name"), "lane-hold-pr-verify", job);
+    assert.equal(input(STEPS[job][index("Log the API budget", job) - 1].text, "name"), "lane-hold-pr-verify", job);
   }
   assert.equal(index("Pick the next leg", FB), -1);
 });
 
-test("the subscription job repeats the key job's steps but for the credential", () => {
-  // Each difference the two-job pattern needs, normalized away on the key
-  // job's side; everything else, the gates and hardening included, matches.
-  const lines = (block) =>
-    block
-      .split("\n")
-      .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
-      .join("\n");
-  const normalize = (blocks) =>
-    blocks
-      .filter(
-        (s) =>
-          !s.name.startsWith("Check the key leg") &&
-          !s.name.startsWith("Check the subscription leg") &&
-          s.name !== "Hand the reads on" &&
-          // The key's credit-stop marker: only a key leg's credit stop says the key is out.
-          !MARKER_STEPS.includes(s.name) &&
-          // The key's probing marker: only the key leg probes the key.
-          !PROBE_STEPS.includes(s.name) &&
-          // The credit gate: only the key leg can be out of credit.
-          !CREDIT_STEPS.includes(s.name) &&
-          !DEFER_STEPS.includes(s.name) &&
-          // Each leg's credential call, checked above.
-          s.name !== "Check the credential",
-      )
-      .map((s) =>
-        lines(s.block)
-          .replace(`\n${CARRY_ENV.join("\n")}`, "")
-          .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
-          .replace(NOT_DEFERRED, "")
-          .replace(KEY_SKIP, "")
-          .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
-          .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
-          .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(/^( {10}handoff: .*steps\.)sub(-leg)/m, "$1key$2")
-          .replace(/steps\.sub-leg/g, "steps.key-leg")
-          .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
-          .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
-          .replace(" && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true')", "")
-          .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
-      );
-  assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
-  const fallback = STEPS[FB].map((s) => ({
-    ...s,
-    block: s.block.replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
-  }));
-  assert.deepEqual(
-    normalize(fallback),
-    normalize(STEPS[KEY].filter((s) => s.name !== "Pick the next leg")).map((block) => block.replace(/\n {10}handoff: .*$/m, "")),
-  );
+test("the subscription and fallback jobs are what scripts/sync-credential-legs.mjs renders from the key job", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 // check-intent hands its reads on only from steps that finish before the
@@ -859,7 +808,8 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.ok(diff.includes('git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"\n'), job);
     assert.ok(index("Write the diff", job) < index("List the upstream run's jobs", job), job);
     assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
-    assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
+    assert.ok(step("Write the prompt and schema", job).includes("          node .base/.github/scripts/pr-verify/render-prompt.mjs\n"), job);
+    assert.equal(input(step("Write the prompt and schema", job), "DATA"), "${{ github.workspace }}/pr-verify-data", job);
     assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
   }
   assert.ok(readFileSync(new URL("./prompt.md", import.meta.url), "utf8").includes("- `JOBS_FILE`: "));
@@ -877,10 +827,10 @@ test("every data path the model reads sits under the working directory", () => {
 test("each job checks out main fresh and writes the managed settings before isolating the runner", () => {
   for (const job of JOBS) {
     assert.equal(STEPS[job][0].name, "Resolve main's tip", job);
-    assert.match(STEPS[job][0].block, /^ {10}branch: main$/m, job);
+    assert.match(STEPS[job][0].text, /^ {10}branch: main$/m, job);
     assert.equal(STEPS[job][1].name, "Check out the default branch tip", job);
-    assert.match(STEPS[job][1].block, /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m, job);
-    assert.match(STEPS[job][1].block, /^ {10}persist-credentials: false$/m, job);
+    assert.match(STEPS[job][1].text, /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m, job);
+    assert.match(STEPS[job][1].text, /^ {10}persist-credentials: false$/m, job);
     const settings = step("Apply the Claude managed settings", job);
     assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(settings)[1])?.[1], "apply-claude-managed-settings", job);
     assert.equal(/^ {8}if: (.*)$/m.exec(settings)[1], ifOf(job, "steps.agree.outcome == 'success'"), job);
@@ -901,7 +851,7 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}", job);
     assert.ok(index("Write the prompt and schema", job) === index("Judge the pull request", job) - 1, job);
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
-    assert.match(STEPS[job].at(-1).block, /exit 1/, job);
+    assert.match(STEPS[job].at(-1).text, /exit 1/, job);
   }
   assert.equal(/^ {8}if: (.*)$/m.exec(step("Report the judgment's outcome", SUB))[1], REPORT_IF);
   assert.match(step("Report the judgment's outcome", FB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
@@ -913,14 +863,14 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   assert.equal(input(step("Report the judgment's outcome", FB), "fallback-reason"), FB_REASON);
   // Only a hand-off spares the key job its red; an empty subscription token fails its job unless the fallback token takes over.
   assert.match(
-    STEPS[KEY].at(-1).block,
+    STEPS[KEY].at(-1).text,
     new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.credential\\.outputs\\.key-skipped != 'true' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
   );
   assert.match(
-    STEPS[SUB].at(-1).block,
+    STEPS[SUB].at(-1).text,
     new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.verdict\\.outcome != 'success' && !\\(steps\\.credential\\.outputs\\.present == 'false' && steps\\.credential\\.outputs\\.fallback-ready == 'true'\\) && ${legsClear("sub-leg")}$`, "m"),
   );
-  assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
+  assert.match(STEPS[FB].at(-1).text, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
 
 test("a handoff leaves one lane record per leg, the leg that handed off marked handoff", () => {
@@ -994,7 +944,7 @@ test("the chunk ceiling is set once, in chunk-diff.sh, and a 3 MB diff fits unde
 test("every job has one judge step per chunk, each repeating the first but for its chunk", () => {
   for (const job of JOBS) {
     const first = step("Judge the pull request", job);
-    assert.equal(STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/m.test(s.block)).length, SLOTS.length + 1, job);
+    assert.equal(STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/m.test(s.text)).length, SLOTS.length + 1, job);
     // The ceiling is chunk-diff.sh's; no step sets its own.
     assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), undefined, job);
     assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-verify-prompt-1.md", job);
@@ -1083,7 +1033,7 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
     const cwd = tempDir("pr-verify-prompt-");
     const scripts = path.join(cwd, ".base/.github/scripts/pr-verify");
     mkdirSync(scripts, { recursive: true });
-    for (const name of ["prompt.md", "chunk-note.md"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
+    for (const name of ["prompt.md", "chunk-note.md", "render-prompt.mjs"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
     for (const [k, count] of parts.entries()) {
       mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
       for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
@@ -1191,18 +1141,17 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
   }
 });
 
-test("the diff is folded at the line length the review reads whole", async () => {
-  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
-  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), `"${LONG_LINE_BYTES}"`, job);
+test("the diff is folded at the line length the review reads whole: no step sets its own, so chunk-diff.sh folds at diff_chunking.py's", () => {
+  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), undefined, job);
 });
 
 test("the report steps only record, so a broken one cannot stop the judgment", () => {
   for (const job of JOBS) {
-    const reports = STEPS[job].filter((s) => /actions\/report-lane-outcome@/.test(s.block));
+    const reports = STEPS[job].filter((s) => /actions\/report-lane-outcome@/.test(s.text));
     assert.equal(reports.length, SLOTS.length + 1 + (job === KEY ? 1 : 0), job);
     for (const report of reports) {
-      assert.match(report.block, /^ {8}continue-on-error: true$/m, `${job} ${report.name}`);
-      assert.doesNotMatch(report.block, /^ {8}id: /m, `${job} ${report.name}`);
+      assert.match(report.text, /^ {8}continue-on-error: true$/m, `${job} ${report.name}`);
+      assert.doesNotMatch(report.text, /^ {8}id: /m, `${job} ${report.name}`);
     }
   }
   assert.doesNotMatch(text, /steps\.report/);
@@ -1337,16 +1286,16 @@ test("no job has a job-level always()", () => {
 });
 
 test("every checkout keeps no credential in .git/config", () => {
-  const checkouts = jobIds(text).flatMap((id) => stepsOf(id)).filter((s) => /uses: actions\/checkout@/.test(s.block));
+  const checkouts = jobIds(text).flatMap((id) => stepsOf(id)).filter((s) => /uses: actions\/checkout@/.test(s.text));
   assert.ok(checkouts.length > 0);
-  for (const s of checkouts) assert.equal(input(s.block, "persist-credentials"), "false", s.name);
+  for (const s of checkouts) assert.equal(input(s.text, "persist-credentials"), "false", s.name);
 });
 
 test("pr-verify.yml checks out no pull request code", () => {
   for (const id of jobIds(text)) {
-    for (const s of stepsOf(id).filter((s) => /uses: actions\/checkout@/.test(s.block))) {
-      assert.equal(input(s.block, "ref"), "${{ steps.tip.outputs.sha }}", `${id}: ${s.name}`);
-      assert.equal(input(s.block, "path"), ".base", `${id}: ${s.name}`);
+    for (const s of stepsOf(id).filter((s) => /uses: actions\/checkout@/.test(s.text))) {
+      assert.equal(input(s.text, "ref"), "${{ steps.tip.outputs.sha }}", `${id}: ${s.name}`);
+      assert.equal(input(s.text, "path"), ".base", `${id}: ${s.name}`);
     }
   }
   assert.doesNotMatch(text, /\bgit (?:-C \S+ )?(?:checkout|switch|worktree|restore)\b/);

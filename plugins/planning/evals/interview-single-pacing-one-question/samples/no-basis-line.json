@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Round 2.\nScope check: 9 of 12 questions registered\n\n❓ Q4: **How many delivery attempts before giving up?**\n\nContext:\n- Today the sender makes one POST and retries nothing (your notes).\n\n➡️ My recommendation: **Five attempts**. Receivers deduplicate on event_id, so retries are safe (verified, user, round 1).\n\nAlternatives:\n- (a) Three attempts.\n\nIs there something else that would change this recommendation?",
+      "why": "the standard print: the basis rides in the reason, no Basis: or Origin: line"
+    },
+    {
+      "answer": "Q4: **How many attempts?**\nMy recommendation: **Five**. The basis is your round-1 answer.\n",
+      "why": "the word basis inside a sentence is not a label line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q4: **How many delivery attempts?**\n\nContext:\n- One POST today.\n\n➡️ My recommendation: **Five attempts**.\nOrigin: new (ours)\nBasis: verified, user, round 1\n",
+      "why": "the old full layout prints Origin: and Basis: lines"
+    },
+    {
+      "answer": "Q4: **How many attempts?**\nMy recommendation: **Five**.\n**Basis:** verified, your notes\n",
+      "why": "a bold Basis: label line"
+    }
+  ]
+}

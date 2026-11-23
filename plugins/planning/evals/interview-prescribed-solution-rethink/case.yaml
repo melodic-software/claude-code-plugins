@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: interview-prescribed-solution-rethink
-description: A request that prescribes a solution and states no problem gets its problem worked back out with an evidence rating and one rethink-or-accept question, and no Brief is written
-tags: [interview, problem-framing, prescribed-solution, scaffold]
-expected_outcome: The reply states the problem the retry wrapper would fix (for example, webhook deliveries lost on transient endpoint failures), rates its evidence observed, reported or inferred, and asks whether to rethink the approach against that problem or accept the retry wrapper; no Write or Edit touches PLAN.md.
+description: A request that prescribes a solution and states no problem gets, as the intake round's first question, one open rethink-or-accept question that asks what problem the work solves and states no inferred problem, and no Brief is written
+tags: [interview, problem-framing, prescribed-solution, scaffold, no-network]
+expected_outcome: Round 1's first question asks what problem the work solves, its Context names the retry wrapper and states no inferred problem or evidence rating, and its Discovery line says the answer decides whether to rethink the approach against that problem or accept the retry wrapper; no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -16,14 +16,9 @@ graders:
     tool: Skill
     input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
     arm: with-only
-  - name: evidence-rated
-    type: regex
-    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_`]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_`]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_`]{0,2}(?:observed|reported|inferred)(?![a-z])'
-    flags: i
-    arm: both
   - name: rethink-or-accept-asked
     type: regex
-    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\brethink\b)(?=[^\n]*(?:\b(?:accept|keep|go (?:ahead )?with|proceed with|stick with)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\b(?![’'']s)|\b(?:is|should)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\s+(?:stand|stay|(?:be\s+)?the right (?:fix|approach))\b))'
+    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\bwh(?:at|ich)\b[^\n?]{0,160}\bproblem\b[^\n?]{0,200}\?)(?!(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?(?:\([*_`]{0,2}(?:observed|reported|inferred)\b|\b(?:evidence|rating|rated)\b\W{0,6}(?:is\s+)?[*_`]{0,2}(?:observed|reported|inferred)\b))(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?\n[^\S\n]*[*_]{0,2}Discovery:(?=[^\n]*\b(?:rethink|reconsider|check the approach against))(?=[^\n]*\b(?:(?:accept|keep|go (?:ahead )?with|proceed with|stick with|take)\s+(?:the\s+)?(?:named\s+|prescribed\s+)?(?:retry\s+)?(?:solution|approach|it|wrapper)\b|(?:solution|approach|wrapper)\s+fits\b))'
     flags: i
     arm: both
   - name: no-plan-write

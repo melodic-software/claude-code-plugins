@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for lane-notify.sh (the autonomy lane operator-notification lib).
-#
-# Proves: master + per-channel kill switches, that the OS-toast channel passes
-# title/body as argv (never interpolated into the osascript program), and that
-# untrusted C0 control bytes are stripped before any sink. The terminal /dev/tty
-# channel is environment-dependent (no controlling TTY in CI) and is not asserted
-# here; the OS-toast branch is forced deterministically via a uname + osascript
-# shim, mirroring the desktop-notification plugin's own test scoping.
 
 set -uo pipefail
 
@@ -37,7 +29,6 @@ wait_for() {
   return 1
 }
 
-# A Darwin-forcing shim: uname→Darwin, osascript→log argv + stdin program.
 SHIM="$WORK/shim"
 mkdir -p "$SHIM"
 OSA_LOG="$WORK/osa.log"
@@ -49,9 +40,6 @@ printf '#!/usr/bin/env bash\necho Darwin\n' >"$SHIM/uname"
 } >"$SHIM/osascript"
 chmod +x "$SHIM/uname" "$SHIM/osascript"
 
-# notify <title> <body> [extra env ...] — source the lib in a Darwin-shimmed,
-# hermetic subshell and fire one alert. Terminal channel muted (no /dev/tty
-# assertion); os_toast forced through the shim.
 notify() {
   local title="$1" body="$2"
   shift 2
@@ -67,17 +55,14 @@ notify() {
   ) >/dev/null 2>&1
 }
 
-# --- Case 1: master disabled → no osascript call ---------------------------
 notify "T" "B" CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false
 sleep 0.1
 if [[ -s "$OSA_LOG" ]]; then fail "master disabled → osascript still called: $(cat "$OSA_LOG")"; else ok "master disabled → no notification fired"; fi
 
-# --- Case 2: os_toast channel disabled → no osascript call -----------------
 notify "T" "B" CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=true CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED=false
 sleep 0.1
 if [[ -s "$OSA_LOG" ]]; then fail "os_toast off → osascript still called"; else ok "os_toast channel off → no toast"; fi
 
-# --- Case 3: enabled → title + body passed as argv, program via stdin ------
 notify "Autonomy lane stopped" "Lane foo (main) stopped" CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=true
 wait_for "$OSA_LOG"
 if grep -qx 'ARGC=3' "$OSA_LOG" 2>/dev/null; then ok "os_toast → 3 argv items (- + title + body)"; else fail "ARGC wrong: $(cat "$OSA_LOG" 2>/dev/null)"; fi
@@ -87,7 +72,6 @@ PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if grep -q 'display notification (item 2 of argv)' <<<"$PROG"; then ok "program reads body from argv (no interpolation)"; else fail "program shape unexpected: $PROG"; fi
 if grep -q 'stopped' <<<"$PROG"; then fail "body text interpolated into program"; else ok "body text absent from program"; fi
 
-# --- Case 4: untrusted C0 bytes stripped before the sink -------------------
 EVIL="$(printf 'lane\033]9;INJECT\007mid\nline2')"
 notify "Autonomy lane stopped" "$EVIL" CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=true
 wait_for "$OSA_LOG"

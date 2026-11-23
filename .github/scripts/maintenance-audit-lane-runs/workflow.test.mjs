@@ -1,3 +1,4 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // maintenance-audit-lane-runs.yml's hardening, from docs/conventions/pr-pipeline/README.md
 // ("Every lane" and "The lane sweep"): only a schedule or a manual run starts
 // it, the model legs and the route jobs hold read permissions only, each leg
@@ -7,17 +8,16 @@
 // leg to the subscription leg, and from there to the fallback leg, only on a
 // clean handoff. The hourly schedule runs only the triage sweep.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { workflowText } from "../lib/workflow-text.mjs";
 import { routeSkipped } from "./handoff.mjs";
 
 const text = readFileSync(new URL("../../workflows/maintenance-audit-lane-runs.yml", import.meta.url), "utf8");
-const jobs = Object.fromEntries(
-  `\n${text.split("\njobs:\n")[1]}`
-    .split(/\n(?= {2}[a-z][a-z-]*:\n)/)
-    .slice(1)
-    .map((block) => [/^ {2}([a-z-]+):/.exec(block)[1], block]),
-);
+const wf = workflowText(text);
+const jobs = Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
 const permissions = (job) => {
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(jobs[job])[1];
   return Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]]));
@@ -33,17 +33,8 @@ const CREDENTIAL = {
   [SUB]: ["subscription-token", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"],
   [FB]: ["fallback-token", FALLBACK],
 };
-// Each step starts at a `      - name:` line of its job.
-const steps = (job) =>
-  jobs[job]
-    .split(/\n(?= {6}- name: )/)
-    .slice(1)
-    .map((block) => ({ name: /^ {6}- name: (.*)$/m.exec(block)[1], block }));
-const step = (name, job) => {
-  const found = steps(job).find((s) => s.name === name);
-  assert.ok(found, `a step named ${name} in ${job}`);
-  return found.block;
-};
+const steps = wf.steps;
+const step = (name, job) => wf.stepNamed(job, name).text;
 const value = (block, key, indent = 10) => new RegExp(`^ {${indent}}${key}: (.*)$`, "m").exec(block)?.[1];
 const list = (block, key) =>
   (new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "")
@@ -101,13 +92,13 @@ test("the model runs only in the three legs, on one pinned run-claude-cli as the
   assert.doesNotMatch(text, /claude-code-action/);
   const pins = new Set();
   for (const job of LEGS) {
-    const launchers = steps(job).filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
+    const launchers = steps(job).filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.text));
     assert.deepEqual(
       launchers.map((s) => s.name),
       ["Judge the unit"],
       job,
     );
-    const judge = launchers[0].block;
+    const judge = launchers[0].text;
     pins.add(value(judge, "uses", 8));
     assert.match(value(judge, "uses", 8), LAUNCHER, job);
     assert.equal(value(judge, "role"), "automations", job);
@@ -147,24 +138,10 @@ test("each leg reads only the data and the checkout, with Read, Grep and Glob an
   }
 });
 
-test("the later legs repeat the key leg's steps but for the credential, the leg check and the fallback reason", () => {
-  // Comments differ, and so do the lines that name the credential, the
-  // handoff and the leg's place in the chain; every other line is equal.
-  const differs = [
-    /^ {10}(api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|known-failure-class|handoff): /,
-    /^ {8}if: .*steps\.(handoff|key-leg|sub-leg)\.|^ {8}if: always\(\) /,
-    /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/,
-  ];
-  const normalize = (job) =>
-    steps(job)
-      .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$|^Pick the next leg$/.test(s.name))
-      .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.block)))
-      .map(({ name, block }) => ({
-        name,
-        lines: block.split("\n").filter((line) => line.trim() !== "" && !/^\s*#/.test(line) && !differs.some((re) => re.test(line))),
-      }));
-  assert.deepEqual(normalize(SUB), normalize(KEY));
-  assert.deepEqual(normalize(FB), normalize(KEY));
+test("the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("a unit reaches the next leg only through a clean handoff its route job reads from a marker", () => {
@@ -196,7 +173,7 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     [KEY, "key-leg"],
     [SUB, "sub-leg"],
   ]) {
-    const check = steps(job).find((s) => / leg$/.test(s.name)).block;
+    const check = steps(job).find((s) => / leg$/.test(s.name)).text;
     assert.equal(value(check, "id", 8), leg, job);
     assert.equal(value(check, "if", 8), "steps.judge.outputs.handoff == 'true'", job);
     assert.match(check, /handoff\.mjs check-leg\n/, job);
@@ -214,7 +191,7 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     assert.equal(value(step("Download the handoff markers", route), "pattern"), pattern, route);
     // A lone match would otherwise land straight in the path, several each in its own directory.
     assert.equal(value(step("Download the handoff markers", route), "merge-multiple"), "true", route);
-    const routeStep = steps(route).find((s) => s.name.startsWith("Route the handed-off units")).block;
+    const routeStep = steps(route).find((s) => s.name.startsWith("Route the handed-off units")).text;
     assert.equal(value(routeStep, "LEG"), leg, route);
     assert.match(routeStep, /\n {8}run: node \.base\/\.github\/scripts\/maintenance-audit-lane-runs\/handoff\.mjs route\n/, route);
   }

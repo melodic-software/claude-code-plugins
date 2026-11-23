@@ -27,7 +27,6 @@ export const CONFIG_PATHS = Object.freeze([
   "docs/conventions/rendered-views.local.yaml",
   ".gitmodules",
 ]);
-/** The team file, validated by plugins/review/schemas/review-digest.schema.json. */
 const TEAM_YAML = "docs/conventions/review-digest.yaml";
 export const PERSONAL_YAML = "docs/conventions/review-digest.local.yaml";
 export const RETIRED_USER = "review-digest.json";
@@ -61,8 +60,6 @@ const VALID = {
 };
 export const isValidSetting = (key, value) => Object.hasOwn(VALID, key) && VALID[key](value);
 
-// ------------------------------------------------------------ layers
-
 const real = (p) => {
   try {
     return realpathSync(p);
@@ -75,7 +72,6 @@ const within = (child, parent) => {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 };
 
-/** git's stdout, or null when it fails. */
 function gitOut(root, args) {
   try {
     return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -190,14 +186,12 @@ export function parseYamlLayer(text, label, path, warnings) {
     else if (rest.length === 1 && /^\d+$/.test(rest[0])) value[key] = [...(Array.isArray(value[key]) ? value[key] : []), raw];
     else value[key] = {};
   }
-  // The parser prints nothing for an empty flow list, which a list key accepts.
   for (const [, key] of text.matchAll(/^([A-Za-z0-9_-]+):[ \t]*\[[ \t]*\][ \t]*(?:#.*)?\r?$/gm)) {
     if (!(key in value)) value[key] = [];
   }
   return value;
 }
 
-/** The team layer as the base commit holds it: the YAML file only. */
 function readTeamDigest(base, yamlPath, warnings) {
   const yaml = base.read(yamlPath);
   if (yaml === null) {
@@ -255,8 +249,6 @@ export function resolveDigestConfig(baseOid, options = {}) {
   warnings.push(...retired);
   return { config, warnings };
 }
-
-// ------------------------------------------------------------ decision
 
 /**
  * Glob matcher: `**` spans directories (`**` + `/` also matches no directory),

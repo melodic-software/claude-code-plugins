@@ -27,7 +27,9 @@ questions and ask for research. Only the owner sends a round back to this sessio
 owner runs a guest's request. This session reads what the group settled, one round at a time.
 
 The interview loop is unchanged: survey, frontier rounds, the register, the gates and the Brief all
-run as SKILL.md states. Only the input surface differs, and the owner still confirms the shared
+run as SKILL.md states, except the round cap below ("Round cap"). The terminal layout rules (SKILL.md
+"Keep the layout whole" and "Save the full block; print it at the detail level") do not apply: the
+session's pages draw each question themselves. Only the input surface differs, and the owner still confirms the shared
 understanding and the Brief in the terminal.
 
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines, and each `${user_config.KEY}`
@@ -160,9 +162,13 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope`, `references` and an optional `for`; ids follow the `id` row there. Pick each new id as the larger of the interview ledger's
-next free `Q<N>` and the highest `Q<N>` already in the session plus one, because the session can
-hold ids that moderators created. A round holds at most 8 questions; the rest go to a later round.
+`answerScope`, `references` and an optional `for`; ids follow the `id` row there. Pick each new id as the larger of
+`round.sh next-id`'s next id for the interview ledger and the highest `Q<N>` already in the session
+plus one, because the session can hold ids that moderators created. Ids the session ran ahead of
+the ledger are declared with a gap line ([`loop.md`](loop.md) "The open-question register").
+
+**Round cap.** A shared-session round holds at most 8 questions, which the server enforces; the
+rest go to a later round. This is the only cap on a round in any lane.
 An asset id exists only after its `apply`, so add assets in one apply and the round that uses them
 in the next.
 

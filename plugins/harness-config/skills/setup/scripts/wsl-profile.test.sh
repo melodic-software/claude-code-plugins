@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for wsl-profile.sh: WSL detection, derived paths, print-only behavior,
-# and the lint that rejects Write(path) and single-slash path rules.
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wsl-profile.sh"
@@ -26,7 +24,6 @@ echo "Linux version 6.1 generic" >"$T/procv-plain"
 
 run() { env -u WSL_DISTRO_NAME HOME="$T/home/me" TMPDIR="$T/session-tmp" WSL_PROFILE_TMPDIR="$T/tmp" WSL_PROFILE_MNT_ROOT="$T/mnt" "$@"; }
 
-# --- Detection ---------------------------------------------------------------
 rc=0
 run WSL_DISTRO_NAME=Distro WSL_PROFILE_PROC_VERSION="$T/procv-plain" bash "$SCRIPT" detect || rc=$?
 assert_eq "WSL_DISTRO_NAME marks a WSL host" "0" "$rc"
@@ -41,7 +38,6 @@ out="$(run WSL_PROFILE_PROC_VERSION="$T/procv-plain" bash "$SCRIPT" print 2>&1)"
 assert_eq "print on a non-WSL host exits 1" "1" "$rc"
 case "$out" in *"does not apply"*) pass "non-WSL print says the profile does not apply" ;; *) fail "non-WSL message" "$out" ;; esac
 
-# --- The printed profile -----------------------------------------------------
 run WSL_PROFILE_PROC_VERSION="$T/procv-wsl" bash "$SCRIPT" print >"$T/profile.json" 2>/dev/null
 assert_eq "print emits valid JSON" "0" "$(jq empty "$T/profile.json" >/dev/null 2>&1 && echo 0 || echo 1)"
 assert_eq "TMPDIR is pinned from the environment" "$T/tmp" "$(jq -r '.env.TMPDIR' "$T/profile.json")"
@@ -55,16 +51,13 @@ rc=0
 bash "$SCRIPT" lint "$T/profile.json" >/dev/null || rc=$?
 assert_eq "lint passes on the printed profile" "0" "$rc"
 
-# --- Print writes nothing ----------------------------------------------------
 before="$(find "$T/home" "$T/mnt" | sort | md5sum)"
 run WSL_PROFILE_PROC_VERSION="$T/procv-wsl" bash "$SCRIPT" print >/dev/null 2>&1
 assert_eq "print leaves the filesystem unchanged" "$before" "$(find "$T/home" "$T/mnt" | sort | md5sum)"
 
-# --- No Windows user directory: placeholders ---------------------------------
 out="$(run WSL_PROFILE_MNT_ROOT="$T/empty" WSL_PROFILE_PROC_VERSION="$T/procv-wsl" bash "$SCRIPT" print 2>/dev/null)"
 case "$out" in *"<windows-user>"*) pass "missing Windows home falls back to placeholders" ;; *) fail "placeholder fallback" "$out" ;; esac
 
-# --- Lint rejects bad rules --------------------------------------------------
 printf '%s' '{"permissions":{"deny":["Write(//a/b/**)"]}}' >"$T/bad-write.json"
 printf '%s' '{"permissions":{"deny":["Edit(/a/b/**)"]}}' >"$T/bad-slash.json"
 printf '%s' '{"permissions":{"deny":["Read(~/.ssh/id_*)"]}}' >"$T/bad-tilde.json"

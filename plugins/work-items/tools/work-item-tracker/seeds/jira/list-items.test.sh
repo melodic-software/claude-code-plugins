@@ -10,12 +10,10 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$(dirname "$S")/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --state bogus
 assert_usage_error "$S" --unknown-flag
 
-# --- offline fixture harness: temp binding + mock curl (call-count sequenced) ---
 jira_fixture_init
 trap 'rm -rf "$JIRA_FIX"' EXIT
 jira_write_binding '["SW2","ABC"]'
@@ -62,7 +60,6 @@ assert_eq "open-state JQL scopes projects + excludes done" \
   'project in ("SW2","ABC") AND statusCategory not in ("done","completed") ORDER BY created ASC' \
   "$(sent_jql 1)"
 
-# --repo narrows to one project.
 rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status"
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
@@ -92,7 +89,6 @@ else
   fail "a whitespace --label made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# --repo narrows to one project; a site mismatch is a usage error (before network).
 jira_run "$S" --repo "wrong.atlassian.net/SW2"
 assert_eq "cross-site --repo → usage (2)" "2" "$RC"
 
@@ -186,7 +182,6 @@ rc_for_jira "empty blocked_by_link_type → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:""}'
 rc_for_jira "non-string blocked_by_link_type → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:[]}'
-# A valid non-empty override is accepted (proceeds past config to the request).
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
 rc_for_jira "valid blocked_by_link_type accepted" "0" \
@@ -209,8 +204,6 @@ assert_eq "lookup names both done blockers" 'key in ("ABC-7","SW2-4")' "$(sent_j
 assert_eq "wont_do blocker keeps its dependent blocked" "1/1" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
 assert_eq "completed blocker resolves its dependent" "0/0" "$(jq -r '.items[1] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
 
-# A failed lookup keeps every done blocker on the page blocking, counts none as
-# won't-do, warns on stderr, and still emits the page.
 printf '500' >"$JIRA_FIX/2.status"
 jira_run "$S" --state open
 assert_eq "failed lookup → exit 0" "0" "$RC"
@@ -246,14 +239,12 @@ assert_eq "a 400 on the second chunk keeps only its key blocking" "1/0" "$(jq -r
 rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status" "$JIRA_FIX/3.body" "$JIRA_FIX/3.status"
 jira_write_binding '["SW2","ABC"]'
 
-# A single empty page (no token) terminates cleanly with an empty envelope.
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
 jira_run "$S" --state all
 assert_eq "empty result exit 0" "0" "$RC"
 assert_eq "empty result → empty items" "0" "$(jq -r '.items | length' <<<"$OUT")"
 
-# Auth failure surfaces from the search call as exit 4.
 printf '401' >"$JIRA_FIX/1.status"
 printf '{"errorMessages":["Unauthorized"]}' >"$JIRA_FIX/1.body"
 jira_run "$S" --state open

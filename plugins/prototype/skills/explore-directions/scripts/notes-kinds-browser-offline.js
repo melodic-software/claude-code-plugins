@@ -1,6 +1,4 @@
 async page => {
-  // The notes server was stopped under the open host page: the page says no session, a note written
-  // now is kept, and Copy all notes returns the block, which this script returns on its last line.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   let block = "";
   try {

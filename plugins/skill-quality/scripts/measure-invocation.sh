@@ -107,7 +107,6 @@ load_listing() {
   printf '%s\n%s\n' "$desc" "$wtu"
 }
 
-# Quoted 'trigger phrases' plus remaining content tokens (length >= 3).
 listing_tokens() {
   local text="$1"
   printf '%s\n' "$text" | skill_frontmatter::extract_triggers | sed "s/^'//;s/'$//" | tr '[:upper:]' '[:lower:]'
@@ -151,8 +150,6 @@ resolve_skill_md() {
   return 1
 }
 
-# read_query <probe-file> <index>: sets the caller's id, split, expect and
-# request from one query.
 read_query() {
   id="$(jq -r ".queries[$2].id" "$1")"
   split="$(jq -r ".queries[$2].split" "$1")"
@@ -160,8 +157,6 @@ read_query() {
   request="$(jq -r ".queries[$2].request" "$1")"
 }
 
-# flag_ids <probe-file> <skill> <message> <jq-filter>: FAILs with the ids the
-# filter prints, space-joined, when it prints any.
 flag_ids() {
   local ids
   ids="$(jq -r "$4" "$1")"
@@ -170,7 +165,6 @@ flag_ids() {
   fi
 }
 
-# positive_int <flag> <value>: exits 2 unless value is a positive integer.
 positive_int() {
   if [[ ! "${2:-}" =~ ^[1-9][0-9]*$ ]]; then
     printf 'Error: %s needs a positive integer\n' "$1" >&2
@@ -178,8 +172,6 @@ positive_int() {
   fi
 }
 
-# copied_span <request> <listing> <n>: prints the first run of n consecutive
-# words the request shares with the listing (lowercase, alphanumeric words).
 copied_span() {
   jq -nr --arg r "$1" --arg l "$2" --argjson n "$3" '
     def words: ascii_downcase | [scan("[a-z0-9]+")];
@@ -243,7 +235,6 @@ cmd_validate() {
         warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; a rewrite in that plugin moves this probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival)"
       done
     elif ((${#foreign[@]} > 0)); then
-      # One line per file; warns still counts each competitor.
       printf "WARN: %s (%s): %s competitor(s) not from plugin '%s': %s\n" "$f" "$skill" "${#foreign[@]}" "$plugin" \
         "$(printf "'%s', " "${foreign[@]}" | sed 's/, $//')" >&2
       warns=$((warns + ${#foreign[@]}))
@@ -429,7 +420,6 @@ cmd_score() {
         fi
       done
       local correct=false
-      # predicted is always true or false, so a match means expect is the same boolean.
       if [[ "$expect" == "$predicted" ]]; then
         correct=true
       fi
@@ -546,15 +536,12 @@ cmd_compare() {
   printf '%s\n' "$report"
 }
 
-# rival_plugins <probe-file>: distinct plugins of the plugin:skill competitors,
-# sorted, without the file's own plugin.
 rival_plugins() {
   jq -r '(.plugin // "") as $own
     | [.competitors[]? | select(type == "string" and contains(":")) | split(":")[0] | select(. != $own)]
     | unique[]' "$1"
 }
 
-# rel_path <from> <to>: relative path between two absolute, symlink-free paths.
 rel_path() {
   local from="$1" to="$2" up=""
   while [[ -n "$from" && "$to" != "$from" && "$to" != "$from/"* ]]; do
@@ -567,12 +554,6 @@ rel_path() {
   printf '%s\n' "${rest:-.}"
 }
 
-# plugin_eval_runs_setting <root>: prints the plugin_eval_runs key from the
-# skill-quality settings layers check-skill.sh reads (<home>/skill-quality.yaml,
-# then .local.yaml; <home> per lib/resolve-convention-home.sh, docs/conventions
-# when no home is bound) into RUNS and its layer into RUNS_LAYER; 3 and
-# "default" when no layer sets it. A layer with a value that is not a whole
-# number from 1 to 999999, or that does not parse, is named in a WARN and dropped.
 plugin_eval_runs_setting() {
   local root="$1" home rel value status lib="$SCRIPT_DIR/../lib"
   RUNS=3

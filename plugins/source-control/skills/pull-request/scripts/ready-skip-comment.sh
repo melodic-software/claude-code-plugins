@@ -24,7 +24,6 @@ die() {
   exit 2
 }
 
-# The reason as inert text for a rendered comment.
 neutralize() {
   local s="$1" re
   s="${s//[[:cntrl:]]/ }"

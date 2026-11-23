@@ -1,37 +1,23 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // pr-rate-merge-risk.yml's controls (#13657), pinned on the file's text:
 // the run-name the arm side matches, a read-only job token, no pull request
 // code, base-side scripts only, one credential per leg job (#13586), the
 // model's tool cage, and the names the arm side reads.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { workflowText } from "../lib/workflow-text.mjs";
 import { ARTIFACT_PREFIX, RATING_WORKFLOW_PATH, runTitle } from "../pr-merge/merge-risk-line.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-rate-merge-risk.yml", import.meta.url), "utf8");
 const LEGS = { key: "rate-merge-risk", subscription: "rate-merge-risk-subscription", fallback: "rate-merge-risk-fallback" };
-// Each job's text, by its id: from its id line to the next job's, less the
-// next job's header comment.
-const jobsText = text.split("\njobs:\n")[1];
-const starts = [...jobsText.matchAll(/^ {2}([a-z-]+):$/gm)];
-const jobs = new Map(starts.map((match, i) => [match[1], jobsText.slice(match.index, starts[i + 1]?.index).replace(/\s*(?:\n {2}#[^\n]*)*\s*$/, "\n")]));
-const job = (id) => {
-  assert.ok(jobs.has(id), `no job ${id}`);
-  return jobs.get(id);
-};
-// A job's steps' text, by step name, less the next step's comment.
-const stepsOf = (id) =>
-  new Map(
-    job(id)
-      .split(/\n(?= {6}- name: )/)
-      .slice(1)
-      .map((block) => [/^ {6}- name: (.+)$/m.exec(block)[1], block.replace(/\s*(?:\n {6}#[^\n]*)*\s*$/, "\n")]),
-  );
-const step = (id, name) => {
-  const steps = stepsOf(id);
-  assert.ok(steps.has(name), `${id} has no step named ${name}`);
-  return steps.get(name);
-};
+const wf = workflowText(text);
+const { job } = wf;
+const stepsOf = (id) => new Map(wf.steps(id).map((s) => [s.name, s.text]));
+const step = (id, name) => wf.stepNamed(id, name).text;
 const list = (block, key) =>
   new RegExp(`\\n {10}${key}: \\|\\n((?: {12}.+\\n)+)`)
     .exec(block)[1]
@@ -48,7 +34,7 @@ test("the run-name renders as runTitle, so a run still going is found for its he
 
 test("the workflow grants nothing, its three jobs are the three legs, and each job token only reads", () => {
   assert.match(text, /\npermissions: \{\}\n/);
-  assert.deepEqual([...jobs.keys()], Object.values(LEGS));
+  assert.deepEqual(wf.ids, Object.values(LEGS));
   for (const id of Object.values(LEGS)) {
     assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}(?:outputs|steps):/, id);
   }
@@ -122,8 +108,6 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(step(LEGS.key, "Report the skipped key leg"), /if: steps\.credential\.outputs\.key-skipped == 'true'\n/);
   assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-PR_VERIFY_CLAUDE_API_KEY' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-PR_VERIFY_CLAUDE_API_KEY\n/);
-  // The key and subscription legs name the next leg the same way; the
-  // fallback leg, last, names none.
   assert.equal(step(LEGS.key, "Pick the next leg"), step(LEGS.subscription, "Pick the next leg"));
   assert.ok(!stepsOf(LEGS.fallback).has("Pick the next leg"));
   for (const [leg, id] of Object.entries(LEGS)) {
@@ -131,27 +115,10 @@ test("each leg starts only after the one before named it as the next leg, and a 
   }
 });
 
-// Every leg is the key leg's steps but for its credential, the key's credit
-// gate and marker, the next-leg call, the lane record's fallback reason, and
-// the key trigger check's wait on the credential decision.
-test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
-  const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
-  const shape = (id) =>
-    [...stepsOf(id)]
-      .filter(([name]) => !KEY_ONLY.includes(name) && name !== "Check the credential" && name !== "Pick the next leg")
-      .map(([name, block]) =>
-        name === "Rate the pull request"
-          ? block.replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): [^\n]+/g, "")
-          : name === "Report the rating's outcome"
-            ? block.replace(/\n {10}fallback-reason: [^\n]+/, "")
-            : name === "Check the trigger" && id === LEGS.key
-              ? block.replace(" && steps.credential.outputs.present == 'true'\n", "\n")
-              : block,
-      );
-  const key = shape(LEGS.key);
-  assert.ok(key.length >= 20, `the key leg has ${key.length} shared steps`);
-  assert.deepEqual(shape(LEGS.subscription), key);
-  assert.deepEqual(shape(LEGS.fallback), key);
+test("the subscription and fallback legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 // A step runs only when every step its if: requires ran: a conjunction (no

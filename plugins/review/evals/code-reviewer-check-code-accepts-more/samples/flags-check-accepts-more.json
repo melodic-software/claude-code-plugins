@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "**CRITICAL**\n- `scripts/check-changelog.mjs:8`: Fail a change that loosens a check (a check's own code changed so it accepts more): Markdown files now skip the changelog requirement, which also lets this change's README edit through. #71 asks only for the wording fix and gives no reason; the PR body's reason does not count. Drop the skip. Confidence: high",
+      "answer": "**CRITICAL**\n- `scripts/check-changelog.mjs:8`: Fail a change that loosens a check (a check's own code changed so it accepts more): Markdown files now skip the changelog requirement, which also lets this change's README edit through. #71 asks only for the wording fix and gives no reason; the PR body has no Loosened checks section, so its reason does not count. Drop the skip. Confidence: high",
       "why": "blocking finding naming what the check now accepts and the missing spec reason"
     }
   ],

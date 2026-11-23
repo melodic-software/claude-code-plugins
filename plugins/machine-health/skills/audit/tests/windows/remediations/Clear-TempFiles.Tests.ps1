@@ -91,8 +91,6 @@ Describe 'Clear-TempFiles -- reparse-point safety' -Tag 'remediation' {
         Mock Get-ChildItem { @($symlink, $normal) }.GetNewClosure()
 
         Invoke-ClearTempFilesAsObject | Out-Null
-        # Any entry with the ReparsePoint attribute must be skipped entirely;
-        # deleting through one would reach files outside the temp tree.
         Should -Invoke Remove-Item -Times 0 -ParameterFilter {
             $LiteralPath -eq 'C:\temp\evil-symlink.txt'
         }
@@ -104,8 +102,6 @@ Describe 'Clear-TempFiles -- reparse-point safety' -Tag 'remediation' {
 
 Describe 'Clear-TempFiles -- failure handling' -Tag 'remediation' {
     BeforeAll {
-        # Only one temp path exists on the mocked host -- keeps the delete
-        # loop from processing the same fixture multiple times.
         Mock Test-Path -ParameterFilter { $LiteralPath -like '*Temp*' } -MockWith { $true }
         Mock Test-Path -MockWith { $false }
     }
@@ -121,8 +117,6 @@ Describe 'Clear-TempFiles -- failure handling' -Tag 'remediation' {
         }
 
         $result = Invoke-ClearTempFilesAsObject
-        # Mocked Get-ChildItem returns the same fixture for each path
-        # included after Test-Path filter; assert ratio rather than count.
         $result.after.deleted_count | Should -BeGreaterThan 0
         $result.after.skipped_locked | Should -Be $result.after.deleted_count
     }

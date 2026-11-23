@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/question_shape.py
 """share.py, the CLI the skill calls: ensure-running, stop, restart, status, url, list, apply, lease.
 
 Each test runs share.py in a child process against the fake cloudflared (support.FAKE), as the

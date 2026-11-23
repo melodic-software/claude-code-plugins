@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The explain-change template inlines the rendered-views chrome tokens. This test
-# fails, naming the token, when an inlined value drifts from the reference.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,15 +12,13 @@ fi
 
 FAIL=0
 
-# value NAME FILE [dark]: the lowercased value of the first (or, with dark,
-# the second) '--NAME: value;' declaration, whitespace removed.
 value() {
   local n
   if [[ "${3:-}" == dark ]]; then n=2; else n=1; fi
   grep -oE -- "--$1:[^;]+;" "$2" | sed -n "${n}p" | sed -E 's/^[^:]+:[[:space:]]*//; s/;$//' | tr '[:upper:]' '[:lower:]'
 }
 
-check() { # label expected actual
+check() {
   if [[ -n "$2" && "$2" == "$3" ]]; then
     echo "ok: $1 = $2"
   else
@@ -38,7 +34,6 @@ done
 # Dark-mode --focus is the reference's clay-soft; the template holds the literal.
 check "dark --focus" "$(value clay-soft "$CHROME")" "$(value focus "$TEMPLATE" dark)"
 
-# Focus rule: same declarations as the reference's focus-visible rule.
 rule() { tr '\n' ' ' <"$1" | grep -oE 'a:focus-visible[^}]*\}' | head -n1 | tr -s '[:space:]' ' ' | sed 's/ *}/ }/; s/; }/;}/'; }
 check "focus rule" "$(rule "$CHROME")" "$(rule "$TEMPLATE")"
 

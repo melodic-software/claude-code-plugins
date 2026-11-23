@@ -54,7 +54,6 @@ function Read-PrefetchEvidence {
         return [pscustomobject]@{ Source = 'prefetch'; ReadState = 'error'; Entries = @() }
     }
 
-    # APP.EXE-0123ABCD.pf: the executable name, a dash, a path hash.
     $entries = @($listing | Where-Object { $_.Name -match '^(.+)-[0-9A-Fa-f]{8}\.pf$' } |
             Group-Object { ($_.Name -replace '-[0-9A-Fa-f]{8}\.pf$', '').ToLowerInvariant() } |
             ForEach-Object {

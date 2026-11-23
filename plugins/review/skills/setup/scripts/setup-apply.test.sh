@@ -13,8 +13,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -49,7 +47,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-# new_root <name>: a fresh repository root with docs/conventions/ present.
 new_root() {
   local r="$TEST_TMPDIR/$1"
   mkdir -p "$r/docs/conventions"
@@ -120,8 +117,6 @@ out="$(run --root "$R5Q" --check)"
 assert_eq "case 5: --check on a quoted listed value exits 0" "0" "$?"
 assert_contains "case 5: a quoted listed value reports the bare value" "$out" "PASS downstream_probe: report"
 
-# check_warns <label> <file body>: --check exits 1 with a WARN, and apply over
-# the same file refuses unless its result validates.
 check_warns() {
   local r
   r="$(new_root "w-$1")"
@@ -224,7 +219,6 @@ assert_eq "case 11: --check with a key=value exits 2" "2" "$?"
 run --root "$TEST_TMPDIR/no-such-root" downstream_probe=run >/dev/null
 assert_eq "case 11: a missing root exits 2" "2" "$?"
 
-# one_line <label> <output>: a refusal is exactly one line with no stack frame.
 one_line() {
   assert_eq "$1: the refusal is one line" "1" "$(printf '%s\n' "$2" | grep -c .)"
   assert_eq "$1: the refusal carries no stack trace" "0" "$(printf '%s\n' "$2" | grep -c '^    at ')"
@@ -263,9 +257,7 @@ apply_refuses "an empty single-quoted string" $'downstream_probe: \'\'\n'
 apply_refuses "an unknown key set twice" $'stray: 1\nstray: 2\n'
 apply_refuses "an unknown key holding a block map" $'stray:\n  a: 1\n'
 apply_refuses "an unknown key holding a flow list" $'stray: [1]\n'
-# An unknown key in the file is named in one warning, ignored, and its line is
-# kept byte for byte; the asked-for key is written.
-apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file>
+apply_keeps_unknown() {
   local r f out
   r="$(new_root "ak-$1")"
   f="$(yaml_of "$r")"
@@ -374,7 +366,7 @@ chmod 644 "$(yaml_of "$R16")"
 
 # Preloads stand in for failures the file system will not produce on demand.
 # Each patches node:fs before the script's ESM imports bind.
-preload() { # preload <name> <body lines...>
+preload() {
   local p="$TEST_TMPDIR/$1.cjs"
   shift
   printf '%s\n' 'const fs = require("node:fs");' "$@" 'require("node:module").syncBuiltinESMExports();' >"$p"
@@ -572,7 +564,7 @@ done
 # ADR 0064 Decision 7 drops the layer an invalid value sits in, per key. A bad
 # fanout_diversity value must not void a valid downstream_probe: report, or the
 # policy floor would fall back to run.
-per_key() { # per_key <label> <fanout_diversity line(s)>
+per_key() {
   local r out
   r="$(new_root "pk-$1")"
   printf '%sdownstream_probe: report\n' "$2" >"$(yaml_of "$r")"
@@ -589,7 +581,7 @@ per_key "a null value" $'fanout_diversity: null\n'
 per_key "an empty quoted string" $'fanout_diversity: ""\n'
 per_key "a flow list" $'fanout_diversity: [lens]\n'
 per_key "a block list" $'fanout_diversity:\n  - lens\n'
-file_level_dup() { # a key set twice is a parse error, so no key keeps a PASS line
+file_level_dup() {
   local r out
   r="$(new_root "fl-dup")"
   printf 'fanout_diversity: lens\nfanout_diversity: model\ndownstream_probe: report\n' >"$(yaml_of "$r")"
@@ -599,7 +591,7 @@ file_level_dup() { # a key set twice is a parse error, so no key keeps a PASS li
   assert_eq "case 24: a key set twice prints no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
 }
 file_level_dup
-file_level() { # file_level <label> <file body>
+file_level() {
   local r out
   r="$(new_root "fl-$1")"
   printf '%s' "$2" >"$(yaml_of "$r")"
@@ -692,7 +684,7 @@ for k in council_lanes council_max_rounds council_scores council_members council
   assert_contains "case 28: --check prints PASS for $k" "$out" "PASS $k"
 done
 assert_eq "case 28: no WARN" "0" "$(printf '%s\n' "$out" | grep -c '^WARN')"
-council_warn() { # council_warn <label> <file body> <expected WARN text>
+council_warn() {
   local r
   r="$(new_root "c28-$CASE_NUM")"
   printf '%s' "$2" >"$(yaml_of "$r")"
@@ -726,7 +718,6 @@ for bad in maybe ../outside.md /etc/smells.md docs/smells.txt; do
   assert_contains "case 29: the refusal of $bad names the key" "$out" "smell_baseline"
 done
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 R="$(new_root record-chosen)"
 out="$(run --root "$R" downstream_probe=report)"

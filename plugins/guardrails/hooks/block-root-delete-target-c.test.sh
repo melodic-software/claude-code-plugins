@@ -33,12 +33,6 @@ source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 rdt_allowed_roots_fixture
 rdt_worktree_fixture
 
-# --- 2k. interpreter deletes (#9762) ------------------------------------------
-# The program a python -c, node -e, perl -e or ruby -e runs, or one it reads
-# from a heredoc or a here-string, is read for its deleter calls and for the
-# commands it runs. A literal path is judged as a recursive rm operand. Every
-# form runs against a root, HOME, `~`, a path outside the allowed roots and a
-# path strictly inside the tree.
 RDT_IX_FORMS=()
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] && RDT_IX_FORMS+=("$rdt_cmd")
@@ -95,9 +89,6 @@ rdt_ar 'interpreter: a delete of the root itself blocks' 2 \
 expect_both 'interpreter: a delete of the toplevel blocks' 2 "${RDT_CWD[@]}" \
   --command "python3 -c \"import shutil; shutil.rmtree('.')\""
 
-# The mechanism as quoted prose, a deleter named inside a string or a comment
-# of the code, a command that deletes nothing, a script file, a module, and a
-# heredoc that is data for a script or belongs to another command.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "interpreter: $rdt_cmd allowed" 0 --command "$rdt_cmd"
@@ -127,18 +118,9 @@ for rdt_cmd in \
   expect_both "interpreter: a heredoc no interpreter reads as its program ($rdt_ix_n) allowed" 0 \
     "${RDT_CWD[@]}" --command "$rdt_cmd"
 done
-# When an interpreter reads a here-doc, every body in the command is judged as
-# its program: the body it reads cannot be named for certain by counting
-# openers, so another command's body that would delete a root denies too.
 expect_both "interpreter: beside an interpreter's here-doc, every body is judged as its program" 2 \
   "${RDT_CWD[@]}" --command $'cat <<A\nimport shutil; shutil.rmtree("/")\nA\npython3 - <<B\nprint(1)\nB'
 
-# A path the code computes cannot be placed, so the call is refused: an
-# argument, an expression, an interpolated string, a list element, a `$` the
-# shell may have expanded, and a command built from one. A substitution body
-# is read too. So is a deleter, a backtick, a ruby %x or a perl qx after a
-# comment character that a `/` regex literal on its line may hold (`/\//`,
-# `/\/*/`, `/#/`, `/\#/`).
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "interpreter: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -176,9 +158,6 @@ perl -e '$x =~ /\#/; `rm -rf /`'
 perl -e '$x =~ /\#/; qx(rm -rf /)'
 EOF
 
-# A ruby delete that holds none of the other prefilter words, a program read
-# from /dev/stdin, an unquoted heredoc whose backslash-newline bash removes,
-# and a heredoc judged from where its interpreter ran, not after a later `cd -`.
 expect_both 'interpreter: ruby Dir.delete outside the tree blocks' 2 "${RDT_CWD[@]}" \
   --command 'ruby -e '\''Dir.delete("/opt/nonexistent-rdt/x")'\'''
 expect_both 'interpreter: a program read from /dev/stdin blocks' 2 \
@@ -187,7 +166,6 @@ expect_both 'interpreter: an unquoted heredoc with a backslash-newline blocks' 2
   --command $'python3 - <<EOF\nimport shutil; shutil.rm\\\ntree("/")\nEOF'
 expect_both 'interpreter: a heredoc before a later cd - blocks' 2 "${RDT_CWD[@]}" \
   --command $'python3 - <<"EOF"\nimport shutil; shutil.rmtree("..")\nEOF\ncd -'
-# The items xargs hands an interpreter are its argv, not targets.
 expect_both 'interpreter: xargs into python with a literal path inside the tree allowed' 0 "${RDT_CWD[@]}" \
   --command "ls | xargs python3 -c \"import shutil; shutil.rmtree('build/rdt-x')\""
 
@@ -198,12 +176,6 @@ guard_invoke "${RDT_CWD[@]}" --command "python3 -c \"import shutil; shutil.rmtre
 assert_exit 'interpreter: an outside path exits 2' 2 "$GUARD_RC"
 assert_contains 'interpreter: the refusal names the path' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
-# --- 2l. decoder sinks (#9763) ------------------------------------------------
-# A decoder feeding an execution sink is refused outright, whatever the decoded
-# text targets. Every form runs with a payload that decodes to a delete of a
-# root, of HOME, of a path outside the allowed roots and of a path strictly
-# inside the tree: B64 is that delete in base64, HEX in hex. The guard decodes
-# nothing; the payloads only make each case read as the delete it hides.
 RDT_DS_FORMS=()
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] && RDT_DS_FORMS+=("$rdt_cmd")
@@ -258,8 +230,6 @@ rdt_ds 'rm -rf $HOME blocks' 2 cm0gLXJmICRIT01F 726d202d72662024484f4d45
 rdt_ds 'rm -rf outside the tree blocks' 2 cm0gLXJmIC9vcHQveA== 726d202d7266202f6f70742f78 "${RDT_CWD[@]}"
 rdt_ds 'rm -rf inside the tree blocks too' 2 cm0gLXJmIGJ1aWxk 726d202d7266206275696c64 "${RDT_CWD[@]}"
 
-# Decoded text written to a file strictly inside the tree, the scratchpad or an
-# allowed root is data, and so is decoded text a pager shows.
 expect_both 'decoder sink: decoded to a file inside the tree allowed' 0 "${RDT_CWD[@]}" \
   --command 'echo cm0gLXJmIC8= | base64 -d > build/rdt-x.sh'
 expect_both 'decoder sink: decoded to a file under the scratchpad allowed' 0 \
@@ -287,7 +257,6 @@ git commit -m 'eval "$(echo cm0gLXJmIC8= | base64 -d)"'
 echo 'bash <(xxd -r -p build/rdt-x.hex)'
 EOF
 
-# PowerShell: [Convert]::FromBase64String reaching Invoke-Expression.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "decoder sink: PS $rdt_cmd blocks" 2 --tool PowerShell --command "$rdt_cmd"
@@ -315,13 +284,6 @@ guard_invoke --command 'echo cm0gLXJmIC8= | base64 -d | sh'
 assert_exit 'decoder sink: a decoder piped into sh exits 2' 2 "$GUARD_RC"
 assert_contains 'decoder sink: the refusal names the mechanism' "$GUARD_ERR" 'decoded text'
 
-# --- 2m. PowerShell deletes behind indirection and pipelines (#9765) ----------
-# A delete run through Start-Process, Invoke-Expression, pwsh -Command, a
-# decoded -EncodedCommand, a pipeline removal or a .NET delete is judged as the
-# delete itself. Every form runs against a drive root, HOME, a path outside the
-# allowed roots and a path strictly inside the tree. ENC stands for the form's
-# delete passed as -EncodedCommand: rdt_enc builds the base64 of its UTF-16LE
-# bytes, so no case runs a delete.
 rdt_enc() { # <ascii text>: the -EncodedCommand value that decodes to it
   local s="$1" i
   for ((i = 0; i < ${#s}; i++)); do
@@ -377,8 +339,6 @@ rdt_psi 'HOME blocks' 2 '$HOME'
 rdt_psi 'outside the tree blocks' 2 'D:\rdt-x\y' "${RDT_CWD[@]}"
 rdt_psi 'inside the tree allowed' 0 'build\rdt-x' "${RDT_CWD[@]}"
 
-# Strictly inside the scratchpad or an allowed root passes; the root itself,
-# and a delete outside every root, do not.
 while IFS='|' read -r rdt_want rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   rdt_cmd="${rdt_cmd//SPT/"$RDT_SPT"}"
@@ -404,7 +364,6 @@ rdt_arp 'unset key: [IO.Directory]::Delete under the root blocks' 2 "[IO.Directo
 rdt_arp 'iex Remove-Item of the root itself blocks' 2 "iex \"Remove-Item -Recurse '$RDT_AR'\"" "$RDT_AR"
 rdt_arp 'gci | % Delete outside the root blocks' 2 "gci '$RDT_AO/x' | % { \$_.Delete() }" "$RDT_AR"
 
-# The mechanism as quoted prose, and the same commands doing nothing that deletes.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "PS indirection: $rdt_cmd allowed" 0 --tool PowerShell --command "$rdt_cmd"
@@ -425,13 +384,6 @@ Get-ChildItem C:\ | ForEach-Object { $_.Name }
 [IO.File]::Exists('C:\x')
 EOF
 
-# A removal fed by anything but a listing names no target, and neither does a
-# listing a pipe feeds, a grouping, an array or a call as a .NET delete's path,
-# or a grouping .Delete() is called on that is not one listing. Every element
-# of a listing's comma list is judged, a one-word grouping is read as iex's
-# string, and a -WorkingDirectory this guard cannot place leaves the later
-# targets judged. An -EncodedCommand it cannot decode is denied, attended or
-# not.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "PS indirection: $rdt_cmd blocks" 2 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -463,12 +415,6 @@ guard_invoke --tool PowerShell "${RDT_CWD[@]}" --command "Start-Process cmd -Arg
 assert_exit 'PS indirection: Start-Process of an outside rd /s exits 2' 2 "$GUARD_RC"
 assert_contains 'PS indirection: the refusal says the target is outside the tree' "$GUARD_ERR" 'outside the working tree'
 
-# --- 2n. moves and content destroyers (#9767) ----------------------------------
-# An mv source, the file a truncate, shred or dd of= destroys, and on the
-# PowerShell tool a Move-Item or Clear-Content path or a Set-Content of several
-# files are each judged as a recursive rm operand. Every form runs against a
-# root, HOME, a path outside the allowed roots and a path strictly inside the
-# tree. No case runs the command.
 RDT_MV_FORMS=(
   'mv TGT build/rdt-out'
   'mv TGT /dev/null'
@@ -515,8 +461,6 @@ rdt_mv 'outside the tree blocks' 2 /opt/nonexistent-rdt/x 'D:\rdt-x\y' "${RDT_CW
 rdt_mv 'inside the tree allowed' 0 plugins/rdt-nonexistent 'build\rdt-x' "${RDT_CWD[@]}"
 expect_both 'moves: mv ~ /dev/null blocks' 2 --command 'mv ~ /dev/null'
 
-# Strictly inside the scratchpad or an allowed root passes; the root itself
-# does not.
 expect_both 'moves: a source under the scratchpad allowed' 0 \
   --payload "$(rdt_pl "mv '$RDT_SPT/x' build/rdt-out" "$RDT_TOP" "$RDT_SPT")"
 expect_both 'moves: truncate under the scratchpad allowed' 0 \
@@ -540,8 +484,6 @@ rdt_arp 'unset key: Clear-Content under the root blocks' 2 "Clear-Content '$RDT_
 rdt_arp 'Clear-Content under the root allowed' 0 "Clear-Content '$RDT_AR/child/x.txt'" "$RDT_AR"
 rdt_arp 'Move-Item of the root itself blocks' 2 "Move-Item '$RDT_AR' '$RDT_AR2/moved'" "$RDT_AR"
 
-# The mechanism as quoted prose, a move out of the tree, a write to the null
-# device, and a Set-Content of one file.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "moves: $rdt_cmd allowed" 0 --command "$rdt_cmd"
@@ -578,10 +520,6 @@ Move-Item build\rdt-x D:\rdt-x\y
 Move-Item -Destination D:\rdt-x\y -Path build\rdt-x
 EOF
 
-# A source or file outside the tree, the toplevel or a .git moved away, a last
-# word that can become several, an empty or bare-variable target, a feed no
-# listing produced, a grouping as a path, a Set-Content of several files, and
-# the same commands in a substitution or a child shell.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "moves: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"

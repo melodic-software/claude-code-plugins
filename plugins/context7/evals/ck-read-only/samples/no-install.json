@@ -36,6 +36,17 @@
         {
           "tool": "Bash",
           "input": {
+            "command": "npx --version"
+          }
+        }
+      ],
+      "why": "this case counts any npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
             "command": "npm install -g ctx7@latest",
             "description": "Run command"
           }

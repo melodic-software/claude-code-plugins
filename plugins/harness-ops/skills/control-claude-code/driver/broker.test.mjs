@@ -1,10 +1,3 @@
-// Runs with no node_modules: claude and the terminal engine are stubs. Expected
-// values come from the broker contract: the verbs launch, ready and log only; a
-// session name matching ^[A-Za-z0-9_][\w-]{0,31}$; --plugin-dir and --out under
-// the roots the broker starts with, each passed as one --opt=value argument; the
-// driver it starts with run by absolute path with --unattended, from directories
-// the broker cannot write; a ccd-dummy- key read at start handed only to the
-// driver child; replies streamed as {stdout}, {stderr} and a final {exit}.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -22,7 +15,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DRIVER = join(HERE, 'driver.mjs');
 const BROKER = join(HERE, 'broker.mjs');
 const posixOnly = { skip: process.platform === 'win32' && 'the broker serves a Unix socket; the stubs are POSIX scripts' };
-// The broker refuses directories it can write, and root can write any directory a mode closes.
 const unprivileged = {
   skip: (process.platform === 'win32' && 'the broker serves a Unix socket') || (process.getuid?.() === 0 && 'root can write a read-only directory'),
 };
@@ -37,7 +29,6 @@ after(() => {
   for (const dir of boxes) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A copy of the driver in directories the broker cannot write, as the workflow mounts the base checkout; returns its path. */
 function readOnlyDriver(b) {
   const skill = join(b.top, 'base', 'control-claude-code');
   const dirs = { driver: join(skill, 'driver'), config: join(skill, 'config') };
@@ -56,7 +47,6 @@ const lock = (...dirs) => {
   }
 };
 
-/** A private tree: a root holding a plugin, an outside dir, a bin for stubs, a deps dir and a runtime dir. */
 function box() {
   const top = realpathSync(mkdtempSync(join(tmpdir(), 'ccd-broker-')));
   boxes.push(top);
@@ -74,7 +64,6 @@ const refuses = (request, pattern, b = box()) =>
     (err) => err instanceof Refused && pattern.test(err.message),
   );
 
-// ---- the verb table ----
 
 test('the broker runs exactly launch, ready and log', posixOnly, () => {
   assert.deepEqual(Object.keys(VERBS).sort(), ['launch', 'log', 'ready']);
@@ -189,7 +178,6 @@ test('the driver child gets the start key and no other credential or broker sock
   assert.equal(env.ANTHROPIC_API_KEY, 'from-env', 'the broker environment is not changed');
 });
 
-/** startConfig as a broker copy beside `values.driver` runs it, the way the workflow starts one. */
 const startAt = (values, key) => startConfig(values, key, dirname(realpathSync(values.driver)));
 
 test('the broker refuses to start on a driver inside a root, an empty key, or a socket directory others can open', unprivileged, () => {
@@ -222,7 +210,6 @@ test('the broker starts only on a ccd-dummy- key and refuses one shaped like a r
 test('the broker refuses a driver dir, driver config dir or deps dir it can write, and a deps dir inside a root', unprivileged, () => {
   const b = box();
   const base = { socket: join(b.rt, 'broker.sock'), root: [b.root] };
-  // The working tree's own driver sits in directories this process can write.
   assert.throws(() => startAt({ ...base, driver: DRIVER }, KEY), new RegExp(`${dirname(realpathSync(DRIVER))} is writable by the broker`));
   const driver = readOnlyDriver(b);
   const config = join(dirname(driver), '..', 'config');
@@ -275,12 +262,10 @@ test("pin: the broker's dummy-key prefix is the one the driver's --in-sandbox re
   assert.equal(KEY_PREFIX, DRIVER_KEY_PREFIX);
 });
 
-// ---- over the socket, against a stub claude ----
 
 const initLine = (source) =>
   JSON.stringify({ type: 'system', subtype: 'init', apiKeySource: source, claude_code_version: '9.9.9', plugins: [{ name: 'demo', path: '/p' }] });
 
-/** A claude that records its argv, key and broker socket variable, prints the init event, then runs `rest`. */
 function stubClaude(b, source, rest = 'exec sleep 30') {
   const script = [
     '#!/bin/sh',
@@ -300,7 +285,6 @@ const brokerEnv = (b) => ({
   ANTHROPIC_API_KEY: 'from-broker-env',
 });
 
-/** Starts the broker on a read-only driver copy and deps dir, with `key` on stdin, and resolves once it listens. */
 function startBroker(b, key = KEY) {
   const sock = join(b.rt, 'broker.sock');
   const driver = readOnlyDriver(b);
@@ -321,7 +305,6 @@ function startBroker(b, key = KEY) {
   });
 }
 
-/** Runs the driver CLI as the outer session would, in `cwd`, with CCD_BROKER_SOCK set. */
 function client(b, sock, args, cwd = b.root) {
   const env = { ...process.env, CCD_BROKER_SOCK: sock, CCD_RUNTIME_DIR: b.rt };
   delete env.ANTHROPIC_API_KEY;
@@ -334,7 +317,6 @@ function client(b, sock, args, cwd = b.root) {
   return new Promise((done) => child.on('close', (code) => done({ code, stdout, stderr })));
 }
 
-/** Sends raw bytes to the broker and resolves with the reply lines. */
 function raw(sock, bytes) {
   return new Promise((done, fail) => {
     const conn = net.createConnection(sock);

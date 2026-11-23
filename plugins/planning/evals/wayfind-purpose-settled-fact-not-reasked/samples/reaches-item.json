@@ -3,12 +3,20 @@
     {
       "answer": "Working 'Choose the delivery channel and file retention' (#703). 1. Which channel should statements go out on: SFTP, S3 or email? Recommend SFTP.",
       "why": "meets the rule"
+    },
+    {
+      "answer": "Claim (written out): add label `in-progress` to #703.\n\nWorking 'Choose the delivery channel and file retention' (#703) through the interview.\n\n### Round 1: intake\n\nScope check: 2 of 27 questions registered\nLater: delivery channel, retention period\n\n❓ Q1: **Who receives the delivered statement files?**\n\nContext:\n- Each statement is one monthly export for one customer (the map's settled facts).\n\nDiscovery: whose systems the delivery channel must reach.\n\n---\n\n❓ Q2: **Does this item cover deleting old files, or only delivering new ones?**\n\nDiscovery: what the retention half of the item includes.\n\nIs there something else that would change these recommendations?",
+      "why": "takes up the item and asks open intake questions about its users and scope"
     }
   ],
   "fail": [
     {
       "answer": "I can't reach the tracker, so I'm stopping.",
       "why": "breaks the rule"
+    },
+    {
+      "answer": "Claim (written out): add label `in-progress` to #703.\n\nWorking 'Choose the delivery channel and file retention' (#703) through the interview.\n\n### Round 1: intake\n\nScope check: 2 of 27 questions registered\nLater: delivery channel, retention period\n\n❓ Q1: **Who reviews the map's progress each week?**\n\nContext:\n- The map tracks the invoice export effort (the map's settled facts).\n\nDiscovery: who reads the map's status.\n\nIs there something else that would change these recommendations?",
+      "why": "the same opening, but its one question is about the map's upkeep, not the delivery-channel item"
     }
   ]
 }

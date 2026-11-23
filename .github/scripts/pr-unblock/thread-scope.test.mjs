@@ -240,7 +240,6 @@ test("a file outside plugins/ the PR does not change stays outside a thread's sc
 test("a fix that adds a file the PR lists gets no pr_paths scope", () => {
   const prPaths = new Set([DOC, "src/b.js"]);
   assert.equal(inThreadScope("src/b.js", new Set([DOC]), [], { prPaths, added: true }), false);
-  // A new file stays in the thread's own scope as before.
   assert.equal(inThreadScope("plugins/p/skills/s/new.md", new Set([DOC]), [], { prPaths, added: true }), true);
 });
 

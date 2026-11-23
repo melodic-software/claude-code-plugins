@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -5,7 +6,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
-import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../../scripts/lib/github-client.mjs";
 import { main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -469,7 +470,6 @@ function workflowJobs(name) {
   return jobs;
 }
 
-// The write runner runs no model.
 test("pr-run-activity-write.yml: no job runs claude-code-action or run-claude-cli", () => {
   assert.deepEqual([...workflowJobs("pr-run-activity-write.yml")].filter(([, job]) => job.model).map(([name]) => name), []);
 });

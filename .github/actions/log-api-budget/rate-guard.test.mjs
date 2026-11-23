@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -338,8 +339,6 @@ test("a holding latch words a server error hold as a notice under its own title"
   assert.ok(lines.every((line) => line.endsWith("this step holds")), lines.join("\n"));
 });
 
-// Every real limit signal keeps today's wording when it arrives on a 5xx, as
-// on a 403 or 429 with retry-after.
 test("a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays a rate limit", async () => {
   const graphql = "https://api.github.com/graphql";
   const cases = [
@@ -456,7 +455,6 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   await fetch(URL_B);
   assert.equal(gh.sent.length, 2);
   assert.equal(lines.filter((line) => line.startsWith("::warning::")).length, 1);
-  // The warning says what happens: nothing stops.
   assert.match(lines.find((line) => line.startsWith("::warning::")), /reads continue$/);
   assert.doesNotMatch(lines.join("\n"), /reads stop/);
   assert.equal(failed(), 0);
@@ -665,7 +663,7 @@ test("the built-in defaults are the values rate-limits.json ships", () => {
 // and the process exits 1 although main set exitCode 0, unless the step holds.
 test("one limit stops every helper in the process, and the process exits red unless the step holds", () => {
   const script = `
-    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    import { createGitHub } from "./.github/scripts/lib/github-client.mjs";
     import { budgetedFetch } from "./.github/scripts/pr-unblock/request-budget.mjs";
     let sent = 0;
     const fetchImpl = async () => {
@@ -711,8 +709,6 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
     assert.equal(gh.sent.length, 1);
   }));
 
-// A stop the job's stop file could not take is reported, and this process's
-// latch still refuses the pool.
 test("a stop the stop file cannot take is reported in the error line, and the latch still holds", { skip: ROOT && "root writes past any file mode" }, async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
@@ -866,8 +862,6 @@ for (const vector of VECTORS.stop_file_errors) {
     }));
 }
 
-// Every guarded answer leaves one reading for the job-end notice, under the
-// bucket API_BUDGET_TOKEN names; without that name it leaves none.
 test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none without it", async () =>
   withDir(async (dir) => {
     const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
@@ -982,12 +976,7 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
 });
 
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
-const jobOf = (text, id) => {
-  const start = text.indexOf(`\n  ${id}:\n`);
-  assert.ok(start >= 0, `${id} is a job`);
-  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
-  return text.slice(start, next < 0 ? undefined : start + 1 + next);
-};
+const jobOf = (text, id) => workflowText(text).job(id);
 const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
 
 test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps the step waits' default", () => {

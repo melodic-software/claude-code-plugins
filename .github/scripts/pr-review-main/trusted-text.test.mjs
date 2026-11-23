@@ -12,29 +12,23 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { admits } from "../lib/gate-expression.mjs";
+import { ifOf as stepIf, workflowText } from "../lib/workflow-text.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 const TAKE = new URL("./take-shared-text.sh", import.meta.url).pathname;
 const LEGS = ["review", "review-subscription", "review-fallback"];
 const TEXT = "collect-trusted-text";
-const jobText = (id) => {
-  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(found, `a job ${id}`);
-  return found[1];
-};
-const stepsOf = (id) =>
-  jobText(id)
-    .split(/\n(?=      - name: )/)
-    .slice(1)
-    .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block: block.replace(/\n\n {2}(?: {4})?#[\s\S]*$/, "") }));
+const wf = workflowText(text);
+const jobText = wf.job;
+const stepsOf = wf.steps;
 const step = (job, name) => {
   const found = stepsOf(job).find((s) => s.name === name);
   assert.ok(found, `a step named ${name} in ${job}`);
-  return found.block;
+  return found.text;
 };
-const ifOf = (block) => /^ {8}if: (.*)$/m.exec(block)?.[1];
+const ifOf = (block) => stepIf(block, 8);
 const envOf = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
-const jobGate = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
+const jobGate = wf.jobIf;
 
 const PR = 7;
 const HEAD = "b".repeat(40);
@@ -166,7 +160,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
     // The age limit is set once, for the whole workflow.
     assert.equal(envOf(take, "SHARED_TEXT_MAX_AGE_MINUTES"), undefined, job);
     assert.match(text, /^env:\n(?: {2}#.*\n)* {2}SHARED_TEXT_MAX_AGE_MINUTES: "[1-9][0-9]*"$/m);
-    // The download lands where the take step reads it.
     assert.equal(envOf(download, "path"), "${{ runner.temp }}/pr-review-main-shared-text", job);
     const reviewed = { steps: { diff: { outcome: "success", outputs: { stop: "" } } } };
     const select = ifOf(step(job, "Select the trusted PR text"));
@@ -210,7 +203,7 @@ test("the collect-trusted-text job never fails the run, and runs only where this
   // Each step that can fail carries its own continue-on-error, so the job ends green.
   for (const s of stepsOf(TEXT)) {
     if (s.name === "Report the kill switch") continue;
-    assert.match(s.block, /^ {8}continue-on-error: true$/m, s.name);
+    assert.match(s.text, /^ {8}continue-on-error: true$/m, s.name);
   }
   const runs = (trigger, github = upstreamRun) => admits(jobGate(TEXT), { github, needs: { "check-trigger": trigger } });
   assert.ok(runs(triggered));

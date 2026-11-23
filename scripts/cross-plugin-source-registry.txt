@@ -117,6 +117,9 @@ evals/ck-notice-reads-checker/samples/ran-checker.json
 # No dedicated check. Canonical copy: plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/scaffold.sh
 
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/matchers.json
+
 # No dedicated check: accepted, as above. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/samples/no-edit.json
 
@@ -128,6 +131,9 @@ evals/ck-notice-runs-own-report/samples/no-install.json
 
 # No dedicated check. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/scaffold.sh
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/matchers.json
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
@@ -378,8 +384,8 @@ evals/ck-notice-runs-bundled-checker/samples/no-write.json
 # Canonical copy: the file under plugins/discovery/evals/.
 evals/ck-notice-alone-installs-nothing/samples/ran-checker.json
 
-# No dedicated check: accepted. The seven formatter plugins' copies of this case
-# build no-install from one matchers.json, rendered by check-matchers into each
+# No dedicated check: accepted. Every plugin's copy of this case builds
+# no-install from one matchers.json, rendered by check-matchers into each
 # case.yaml; this script's own --check is the gate. Canonical copy: the file
 # under plugins/bash-format/evals/.
 evals/ck-notice-runs-bundled-checker/matchers.json
@@ -596,6 +602,15 @@ scripts/docs-cache.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/fetch-docs-generic.sh, carried beside each copy of fetch-docs.sh, which
+# sources it for the generic profile.
+scripts/fetch-docs-generic.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/fetch-docs-generic.sh -> plugins/*/scripts/fetch-docs-generic.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to
@@ -883,3 +898,27 @@ reference/config-locations.md
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the canonical contract and the copies.
 docs/contracts/config-cascade/locations.md -> plugins/*/reference/config-locations.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/mod-load-check.sh.
+lib/mod-load-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/mod-load-check.sh -> plugins/*/lib/mod-load-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/hook-registration-check.sh.
+lib/hook-registration-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/hook-registration-check.sh -> plugins/*/lib/hook-registration-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/opt-value.sh.
+lib/opt-value.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/opt-value.sh -> plugins/*/lib/opt-value.sh plugins/*/skills/*/scripts/lib/opt-value.sh

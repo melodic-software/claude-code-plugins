@@ -154,6 +154,8 @@ where no third-party package is provisioned.
 """
 
 import argparse
+import glob
+import importlib.util
 import json
 import os
 import re
@@ -162,6 +164,27 @@ import subprocess
 import sys
 
 MIN_PYTHON = (3, 8)
+
+CASE_SKILLS_PY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    os.pardir,
+    os.pardir,
+    os.pardir,
+    "scripts",
+    "case_skills.py",
+)
+
+
+def _load_case_skills(path=CASE_SKILLS_PY):
+    spec = importlib.util.spec_from_file_location("evals_case_skills", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+case_skills = _load_case_skills()
+REFERENCE_KINDS = case_skills.REFERENCE_KINDS
 
 # The complete `prompt.md` frontmatter key set. An unknown key is an error in the
 # binary ("prompt.md: unknown frontmatter key"), which is why this is a FAIL.
@@ -1094,6 +1117,101 @@ def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
             return
 
 
+CONTEXT_PATHS = ("scaffold_script", "history_file", "add_dirs")
+
+
+def plugins_root(eval_dir):
+    """The nearest `plugins` directory above the suite, or None when the suite
+    is not under one, which leaves the name checks off."""
+    here = eval_dir
+    while True:
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        if os.path.basename(parent) == "plugins":
+            return parent
+        here = parent
+
+
+def missing_reference(root, kind, plugin, name, prefix=False):
+    """The `plugins/...` path a reference needs when it does not exist, else
+    None. With prefix, any name starting with `name` resolves it."""
+    parts = REFERENCE_KINDS[kind](plugin, name)
+    if os.path.isfile(os.path.join(root, *parts)):
+        return None
+    if prefix:
+        wanted = REFERENCE_KINDS[kind](glob.escape(plugin), glob.escape(name) + "*")
+        if glob.glob(os.path.join(glob.escape(root), *wanted)):
+            return None
+        parts = REFERENCE_KINDS[kind](plugin, name + "*")
+    return "/".join(("plugins",) + parts)
+
+
+def check_context_paths(case_dir, context, case, findings):
+    """FAIL a context path that names nothing in the case directory."""
+    for field in CONTEXT_PATHS:
+        value = context.get(field)
+        for entry in value if isinstance(value, list) else [value]:
+            if not isinstance(entry, str) or not entry:
+                continue
+            if os.path.exists(os.path.join(case_dir, entry)):
+                continue
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    "case.yaml",
+                    'context.%s "%s" names no file or directory in the case '
+                    "directory" % (field, entry),
+                )
+            )
+
+
+def check_references(root, prompt, prompt_file, tag_sources, graders, case, findings):
+    """FAIL a leading /plugin:skill, a plugin:skill tag, or a literal
+    plugin:skill or plugin:agent token in a Skill or Agent tool_used
+    input_match that names nothing under the plugins root. A `/` before a
+    token makes it a skill; a token the pattern leaves open on the right (at
+    the end, or before `|` or `)`) matches as a substring, so a prefix of a
+    real name resolves it."""
+    for ref in case_skills.references(prompt, prompt_file, tag_sources, ()):
+        if ref.form != "literal":
+            continue
+        missing = missing_reference(root, ref.kind, ref.plugin, ref.name, ref.prefix)
+        if not missing:
+            continue
+        if ref.source == "prompt":
+            message = (
+                "the prompt's leading /%s:%s names no skill: %s does not exist"
+                % (ref.plugin, ref.name, missing)
+            )
+        else:
+            message = 'tag "%s:%s" names no skill: %s does not exist' % (
+                ref.plugin,
+                ref.name,
+                missing,
+            )
+        findings.append(Finding("FAIL", case, ref.file, message))
+    for grader in graders:
+        name = grader[0]
+        for ref in case_skills.references("", prompt_file, (), (grader,)):
+            if ref.form != "literal":
+                continue
+            missing = missing_reference(
+                root, ref.kind, ref.plugin, ref.name, ref.prefix
+            )
+            if missing:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        case,
+                        ref.file,
+                        'grader "%s" input_match names %s:%s, but %s does not exist'
+                        % (name, ref.plugin, ref.name, missing),
+                    )
+                )
+
+
 def valid_look_at(value):
     """True for a name in LOOK_AT_NAMES or a file source with a string path."""
     if isinstance(value, dict):
@@ -1588,28 +1706,29 @@ def judge_js_engines(jobs, runs, findings):
             findings.append(Finding("FAIL", case, job["sample_path"], message))
 
 
-def check_js_engine(case, graders, samples, findings):
+def check_js_engine(jobs, findings):
     """Compile each regex grader and tool_used `input_match` with JavaScript's
     RegExp and grade its samples there, under node (V8) and bun
     (JavaScriptCore, the engine of the Bun-built `claude` binary that runs
-    `claude plugin eval`). An engine not on PATH is skipped; with bun absent
-    the findings are node's alone, worded as before."""
-    jobs = js_jobs(case, graders, samples)
+    `claude plugin eval`), one process per engine for the whole suite. An
+    engine not on PATH is skipped; with bun absent the findings are node's
+    alone, worded as before."""
     runs = {}
     for engine in JS_ENGINES:
         results, problem = run_js_jobs(jobs, engine)
         if results is not None:
             runs[engine] = results
         elif problem:
-            findings.append(
-                Finding(
-                    "WARN",
-                    case,
-                    "graders/",
-                    "graders not checked under JavaScript: %s failed (%s)"
-                    % (engine, problem),
+            for case in dict.fromkeys(job["case"] for job in jobs):
+                findings.append(
+                    Finding(
+                        "WARN",
+                        case,
+                        "graders/",
+                        "graders not checked under JavaScript: %s failed (%s)"
+                        % (engine, problem),
+                    )
                 )
-            )
     if list(runs) == ["node"]:
         judge_js_jobs(jobs, runs["node"], findings)
     elif runs:
@@ -1896,10 +2015,13 @@ def check_samples(case, graders, samples, findings):
         )
 
 
-def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
-    """Validate one case, appending its findings."""
+def analyze_case(
+    case_dir, case, findings, plugin_root, containment, references, js_jobs_out
+):
+    """Validate one case, appending its findings and its JavaScript jobs."""
     fields = {}
     tags = None
+    tag_sources = []
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
     prompt_path = os.path.join(case_dir, "prompt.md")
@@ -1931,8 +2053,11 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
                 if key in yaml_data:
                     fields[key] = (yaml_data[key], "case.yaml")
             tags = yaml_data.get("tags")
+            if isinstance(tags, list):
+                tag_sources.append((tags, "case.yaml"))
             context = yaml_data.get("context")
             if isinstance(context, dict):
+                check_context_paths(case_dir, context, case, findings)
                 check_history_chain(
                     case_dir, case, context.get("history_file"), findings
                 )
@@ -2001,6 +2126,7 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
                         fields[key] = (prompt_fm[key], "prompt.md")
                 prompt_tags = prompt_fm.get("tags")
                 if isinstance(prompt_tags, list):
+                    tag_sources.append((prompt_tags, "prompt.md"))
                     tags = prompt_tags + (tags if isinstance(tags, list) else [])
 
     if not unread:
@@ -2016,6 +2142,11 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
         check_plugins(case_dir, containment, value, case, path, findings)
 
     graders = collect_graders(case_dir, case, yaml_data, findings)
+    if references is not None:
+        prompt_file = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
+        check_references(
+            references, prompt, prompt_file, tag_sources, graders, case, findings
+        )
     if not graders:
         findings.append(
             Finding(
@@ -2061,7 +2192,7 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
 
     samples = load_samples(case_dir, case, findings)
     check_samples(case, graders, samples, findings)
-    check_js_engine(case, graders, samples, findings)
+    js_jobs_out.extend(js_jobs(case, graders, samples))
 
     if kinds and all(kind in JUDGE_TYPES for kind in kinds):
         findings.append(
@@ -2093,9 +2224,14 @@ def validate(eval_dir):
         return findings
 
     root = containment_root(eval_dir)
+    references = plugins_root(eval_dir)
+    jobs = []
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
-        analyze_case(case_dir, case, findings, os.path.dirname(eval_dir), root)
+        analyze_case(
+            case_dir, case, findings, os.path.dirname(eval_dir), root, references, jobs
+        )
+    check_js_engine(jobs, findings)
 
     findings.sort(key=Finding.sort_key)
     return findings

@@ -50,7 +50,6 @@ slug() { printf '%s' "$1" | sed 's/[:\\/.]/-/g'; }
 # tr -d '\r' strips Git Bash CRLF from piped git output.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 
-# Outside a git repo the cwd is the project key (memory doc).
 in_repo=1
 if [[ -n "$repo_root" ]]; then
   repo_root=$(windows_path "$repo_root")
@@ -77,7 +76,6 @@ if [[ "$in_repo" -eq 1 ]]; then
   done
 fi
 
-# No memory written yet: emit the normal-clone path so callers have a stable target.
 [[ -z "$memory_dir" ]] && memory_dir="$session_data_dir/memory"
 
 printf '%s\n' "$memory_dir"
