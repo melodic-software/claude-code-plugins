@@ -1346,7 +1346,13 @@ warns of a [classifier gap](README.md#classifier-gaps).
    read-only token, reads the PR head, failing with no head output when the head is in another
    repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
-   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
+   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`. One whose
+   only CI Status failure is the trust-gate hold (`#<n> is by an author no review lane reviews
+   and changes trust-gate paths`), which only a trusted approver clears, skips `gate-hold`
+   with no model turn and no escalation, so no human-gated label goes on (that label would keep
+   CI Status red after the approval); its step summary says the lane did not judge the update's
+   content. The dispatcher does not record that skip as handled: once CI Status passes on the
+   head it sends review-dependency again, and while CI Status stays red it sends nothing.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or
