@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.15] - 2026-11-23
+
+### Changed
+
+- add a `## Next` section to `/autonomy:setup`: `check` after `apply`, then the work loop
+
 ## [5.2.14] - 2026-11-22
 
 ### Changed

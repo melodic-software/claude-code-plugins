@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6] - 2026-11-23
+
+### Changed
+
+- `/naming:name-it-better` names its usual successors in a `## Next` section: `/docs-hygiene:rename-references` and `/domain-driven-design:ubiquitous-language curate`.
+
 ## [0.7.5] - 2026-11-15
 
 ### Changed
