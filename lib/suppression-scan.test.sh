@@ -329,7 +329,6 @@ assert_eq "the scanner's glob matcher agrees with pathglob.py on every glob/path
 out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude '[z-a]' 2>/dev/null)"
 assert_eq "an unusable glob exits 2 with nothing on stdout" "2:" "$?:$out"
 
-# ---- --diff -------------------------------------------------------------------
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"
 g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
@@ -418,7 +417,6 @@ assert_eq "and is not named as unread" "" "$(cat "$TEST_TMPDIR/unread-cr.txt")"
 out="$(cd "$UNR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/no-such-dir/x.txt" . 2>/dev/null)"
 assert_eq "an --unread-to file that cannot be written exits 2 with nothing on stdout" "2:" "$?:$out"
 
-# ---- exit 2 -------------------------------------------------------------------
 expect_usage() {
   local name="$1" out rc
   shift

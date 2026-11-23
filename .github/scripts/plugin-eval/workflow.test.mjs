@@ -40,7 +40,6 @@ test("a pull request run proves the policy denies the reads before any case runs
   assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_run'\n/);
   assert.match(probe, /RUNNER_ROOT: \$\{\{ steps\.deny\.outputs\.runner-root \}\}/);
   assert.match(probe, /--allowedTools Read Grep Glob /);
-  // policy-probe.mjs judges the four calls; only its exit 0 lets the step pass.
   const judge = 'reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?';
   assert.ok(probe.includes(judge), "the judge runs from the base checkout without the credential");
   assert.match(probe, /\n {10}case \$judged in\n {12}0\) echo "\$reason" ;;\n {12}3\) echo "::error::[^\n]*"; exit 1 ;;\n {12}\*\) echo "::error::[^\n]*"; exit 1 ;;\n {10}esac\n/);

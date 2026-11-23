@@ -533,7 +533,6 @@ test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   assert.equal(evalIf("enable-auto-merge", dispatch, { pr: "12" }), true);
   assert.equal(evalIf("merge", dispatch, { pr: "12" }), false);
   assert.equal(evalIf("dispatch-post-merge-runs", dispatch, { pr: "12" }), false);
-  // A hand-started sweep (no pr) still runs both.
   assert.equal(evalIf("merge", dispatch, { pr: "" }), true);
   assert.equal(evalIf("dispatch-post-merge-runs", dispatch, { pr: "" }), true);
   assert.equal(evalIf("dispatch-post-merge-runs", { event_name: "schedule", event: {} }), true);
@@ -1061,7 +1060,6 @@ test("the pre-check comes first, and its uncovered answer skips every read and t
     assert.match(step, /steps\.precheck\.outputs\.uncovered != 'true'/, name);
     assert.ok(at(PRECHECK_STEP) < at(name), `${name} comes after the pre-check`);
   }
-  // With no report standing, the arm step and its own reads stay skipped.
   assert.match(arm, /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: [^\n]*steps\.keep-report\.outputs\.stands != 'true'/);
   const report = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(report, /\n {10}UNCOVERED: \$\{\{ steps\.precheck\.outputs\.uncovered \}\}\n/);
@@ -2230,7 +2228,6 @@ test("enable-auto-merge reads the skip records only from a trusted run and uploa
   const scan = arm.split("\n      - name: Upload the skip records for the next run\n")[0].split("\n      - name: ").at(-1);
   assert.ok(scan.startsWith(`Scan the upload for credentials\n        id: scan-upload\n        if: >-\n          ${predicate}\n`), scan);
   assert.match(scan, new RegExp(`\\n {8}uses: ${CI_SCAN}\\n {8}with:\\n {10}gate-path: \\.base/lib/publish-gate\\.mjs\\n`), scan);
-  // A best-effort upload: neither it nor its scan can fail the job.
   for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
   assert.ok(scan.includes("\n          path: ${{ runner.temp }}/verify-answers/eam-skip.json\n"), scan);
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);

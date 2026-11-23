@@ -743,7 +743,6 @@ jobs:
           PASSES: ${{ needs.select-passes.outputs.passes }}
           FILES: ${{ needs.select-passes.outputs.files }}
           STARTED_AT: ${{ needs.select-passes.outputs.started-at }}
-          # fix-docs's jobs and their results, and its push job's outputs.
           FIX_DOCS_RESULTS: >-
             {"fix-docs-head": "${{ needs.select-passes.outputs.head-result }}",
             "fix-docs": "${{ needs.fix-docs.result }}",

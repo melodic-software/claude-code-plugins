@@ -396,7 +396,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     if (run.config_unreadable || pairs === null) {
       return end("escalate", "dependency-config-unreadable");
     }
-    // The model saw only part of the files listing.
     if (run.files_truncated) {
       return end("escalate", "dependency-files-truncated");
     }

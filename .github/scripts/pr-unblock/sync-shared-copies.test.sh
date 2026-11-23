@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: scripts/lib/*
 # Tests for sync-shared-copies.sh on fixture repositories that carry this
 # repository's real scripts/sync-shared-copies.sh and scripts/lib.
 # shellcheck disable=SC2310  # run chains its steps with &&, so its status is the first failure's

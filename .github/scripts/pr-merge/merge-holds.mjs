@@ -349,6 +349,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge-risk/input.mjs", "gate"],
   [".github/scripts/pr-merge-risk/write-rating.mjs", "gate"],
   [".github/actions/report-check-run/posting-run.mjs", "gate"],
+  [".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh", "gate"],
   ["scripts/sync-hold-floor.py", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],

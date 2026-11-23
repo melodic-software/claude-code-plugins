@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/projects/-work-repo/*.jsonl plugins/session-flow/scripts/save_point.py
 """Sections a shape-4 `fill` moved to this hop's file stay whole and checked: a
 retry `new` refuses to erase them, `amend` appends into the moved body, and the
 UNVERIFIED settle check reads the moved body. Expected values come from the

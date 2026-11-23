@@ -1129,7 +1129,6 @@ test("a head whose tested run is being re-run waits for the re-run's result", as
   assert.ok(lines.includes("skip fix-ci #7: run 40119285048 attempt 3 is waiting; its result decides"), lines.join("\n"));
 });
 
-// Once per head: an infra-only failure gets one re-run, then fix-ci.
 test("an infra-only head gets one re-run; once it failed again at attempt 2, fix-ci takes it", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const requiredRuns = new Map([
@@ -1191,7 +1190,6 @@ test("a real failure goes straight to fix-ci at attempt 1, and the log names its
     [head(5), { run: tested(1), jobs: MIXED_JOBS }],
     [head(6), { run: tested(2), jobs: MIXED_JOBS }],
     [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
-    // Only ci-status failed.
     [head(8), { run: tested(1), jobs: [{ name: "Lint Repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
     [head(9), { run: tested(1), jobs: typos }],
   ]);
@@ -1413,7 +1411,6 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
     stops: new Map([[head, [stop("10:05"), stop("10:35")]]]),
   });
   assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
-  // A push job that did not stop leaves the run handling the head.
   const pushed = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00")]]]), stops: new Map([[head, [{ ...stop("10:05"), output: { title: "Pushed" }, conclusion: "success" }]]]) });
   assert.ok(pushed.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), pushed.lines.join("\n"));
   // A select job's own stop (the round cap) on the fix-ci check is final.
@@ -1453,10 +1450,8 @@ test("a fix-ci run the gate stopped head-lag on the current head is sent again o
   const once = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]) });
   assert.deepEqual(once.result.dispatched.map((d) => d.number), [7], once.lines.join("\n"));
   assert.ok(once.lines.includes(`refire: #7: head ${head}'s pr-unblock / fix-ci was stopped head-lag; sending it again`), once.lines.join("\n"));
-  // The round it sent is still going: not sent twice.
   const going = await run({ pages: [[lagPr()]], history: new Map([[head, [lagged("10:00")]]]), workflowRuns: [{ id: 99, status: "queued", display_title: "PR Unblock fix-ci #7" }] });
   assert.deepEqual(going.result.dispatched, [], going.lines.join("\n"));
-  // A newer run pushed a fix: the head is handled.
   const fixed = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at("10:30"), completed_at: at("10:30") };
   const newer = await run({ pages: [[pr(7, { checks: [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", { title: "Fixed" })] })]], history: new Map([[head, [lagged("10:00"), fixed]]]) });
   assert.deepEqual(newer.result.dispatched, [], newer.lines.join("\n"));
@@ -1485,7 +1480,6 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   const pair = [fixCi("10:00", 1, "Passed: no changes"), fixCi("10:10", 1, "Fixed")];
   const once = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 1)]]]) });
   assert.ok(once.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), once.lines.join("\n"));
-  // A stop in another workflow run marks only that run.
   const other = await run({ pages: [[pr(7)]], history: new Map([[head, pair]]), stops: new Map([[head, [stop("10:15", 2)]]]) });
   assert.ok(other.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), other.lines.join("\n"));
   // A stopped pair and one failed run are three model runs, the per-head cap.
@@ -1515,11 +1509,9 @@ test("an escalated head whose rollup shows a passed fix-ci check is retried once
   const stop = { ...toRest(check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })), started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:40843021992:1" };
   const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop]]]) });
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
-  // With no lane stop, the passed check handles the head.
   const handled = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]) });
   assert.deepEqual(handled.api.calls.dispatch, []);
   assert.ok(handled.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), handled.lines.join("\n"));
-  // With no stop in the rollup, the listing pass skips the head unread.
   const unread = await run({ pages: [[pr(7, { checks: rollup.slice(0, 2) })]], history: new Map([[head, [fixCi]]]) });
   assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
 });
@@ -1556,7 +1548,6 @@ test("a stop in a run's first attempt leaves the head handled when the re-run fi
   const rerun = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1), fixCi("10:30", 2)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
   assert.ok(rerun.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), rerun.lines.join("\n"));
   assert.deepEqual(rerun.api.calls.dispatch, []);
-  // A stop in the same attempt still marks it.
   const same = await run({ pages: [[pr(7)]], history: new Map([[head, [fixCi("10:00", 1)]]]), stops: new Map([[head, [stop("10:05", 1)]]]) });
   assert.ok(same.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), same.lines.join("\n"));
 });
@@ -1608,7 +1599,6 @@ test("a fix-ci stop is left on a head with a check failing or going, a run since
   const opts = { base: "main", appSenderId: APP, holdLabels: ["do-not-merge"], gateLabel: "needs-human" };
   assert.equal(staleStop(settled([lanes("SUCCESS"), check("lint", "FAILURE"), fixCiStop()]), opts), null);
   assert.equal(staleStop(settled(green), opts).state, "FAILURE");
-  // A run from before the stop does not hold it.
   const older = await run({ pages: [[settled(green)]], workflowRuns: [{ id: 2, status: "completed", display_title: "PR Unblock fix-ci #9", created_at: "2026-10-22T10:00:00Z" }] });
   assert.equal(older.api.calls.dispatch.length, 1);
 });

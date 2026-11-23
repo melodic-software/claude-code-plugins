@@ -228,8 +228,6 @@ for (const stage of Object.keys(CHAINS)) {
       started.add(before.started.join(","));
       for (const [id, leg] of Object.entries(before.legs)) if (leg.failed) failed.add(id);
     }
-    // Every shape of the chain is reached: none, key only, key then
-    // subscription, and on to fallback.
     const legs = [stage, `${stage}-subscription`, `${stage}-fallback`];
     for (const shape of ["", legs[0], legs.slice(0, 2).join(","), legs.join(",")]) {
       assert.ok(started.has(shape), `reached ${shape || "no leg"}`);

@@ -588,7 +588,6 @@ const EMPTY_HEAD = ended(
   job("Fix Docs / Report", "success"),
   job("Fix Docs Handoff", "success"),
 );
-// The broker refused it: record-broker-allow and the run job skipped.
 const REFUSED = ended(
   job("Fix Docs Head", "success"),
   job("Fix Docs / Check Broker", "failure"),
