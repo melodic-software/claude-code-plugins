@@ -33,6 +33,25 @@ test("a pinned file is read by git fetch into its own cache, whatever GIT_DIR th
   }
 });
 
+test("main is resolved to its tip's full sha before anything is cached, for the contract read too", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ci-workflows-at-pin-test-"));
+  try {
+    const out = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", "const m = await import(process.argv[1]); process.stdout.write(JSON.stringify(await m.contractFilesAtPin('main')));", MODULE],
+      { encoding: "utf8", env: { ...process.env, TMPDIR: dir } },
+    );
+    assert.equal(out.status, 0, out.stderr);
+    assert.ok(JSON.parse(out.stdout).length > 0, out.stdout);
+    const tip = execFileSync("git", ["ls-remote", "https://github.com/melodic-software/ci-workflows.git", "refs/heads/main"], { encoding: "utf8" }).split("\t")[0];
+    const cached = readdirSync(join(dir, "ci-workflows-at-pin"));
+    assert.ok(cached.includes(tip), `${tip} in ${cached.join(", ")}`);
+    assert.ok(cached.every((name) => /^[0-9a-f]{40}$/.test(name)), cached.join(", "));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a ref that is neither main nor a full commit sha is refused before any fetch", async () => {
   const { fetchAtPin } = await import(MODULE);
   await assert.rejects(fetchAtPin("v1", "README.md"), /neither main nor a full commit sha/);

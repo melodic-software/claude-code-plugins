@@ -41,6 +41,7 @@ function commitOf(ref) {
 }
 
 function pinned(pin) {
+  if (!PIN.test(pin)) throw new Error(`ci-workflows pin is not a full commit sha: ${pin}`);
   const dir = join(CACHE, pin);
   if (existsSync(join(dir, "ready"))) return dir;
   mkdirSync(CACHE, { recursive: true });
