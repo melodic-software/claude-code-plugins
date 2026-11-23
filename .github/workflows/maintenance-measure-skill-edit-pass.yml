@@ -41,6 +41,11 @@ on:
         required: false
         type: string
         default: ""
+      cases:
+        description: Exact case names, space-separated; stages a suite copy with only these cases. Not with case.
+        required: false
+        type: string
+        default: ""
       pass:
         description: The pass's name in its artifact, unique in the run, such as a, a2 or b.
         required: true
@@ -220,10 +225,21 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
+          CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
         run: |
+          read -ra cases <<<"$CASES"
+          if [ -n "$CASE" ] && [ "${#cases[@]}" -gt 0 ]; then
+            echo "::error::case and cases cannot both be set"
+            exit 1
+          fi
           eval_dir=$(jq -r '.experimental.evals // "evals"' "$DIR/.claude-plugin/plugin.json" 2>/dev/null || echo evals)
           python3 .base/plugins/evals/skills/validate/scripts/validate-cases.py "$DIR/$eval_dir"
-          split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$DIR" evals-deterministic)
+          stage_args=()
+          if [ "${#cases[@]}" -gt 0 ]; then
+            stage_args=(--cases "$CASES")
+          fi
+          split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$DIR" evals-deterministic "${stage_args[@]}")
           echo "$split"
           if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
             echo "::error::the suite has no case with deterministic graders only"
