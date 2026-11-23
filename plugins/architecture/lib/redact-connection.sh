@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Connection-shape redaction shared by map-context, map-containers, and
-# map-deployment.
-#
-# Source this file. redact_connection_shape KEY VALUE prints zero or more
-# lines of "kind<TAB>host<TAB>port" and returns 0 when it printed a line, 1
-# when the value yielded no external shape. A shape that names a database or a
-# URL scheme (sql only) adds "<TAB>database<TAB>scheme" to its line, either
-# field empty when the value names none. The raw value is never printed.
-# redact_is_secret KEY VALUE returns 0 when either one carries a credential.
-#
-# Executing this file prints usage and exits 2. The awk implementation is
-# redact-connection.awk beside this file.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'redact-connection.sh: source this file; it is not a command\n' >&2
