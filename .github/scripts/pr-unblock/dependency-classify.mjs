@@ -430,6 +430,32 @@ export function pushRefusal(activities, head, commits, appId) {
 export const FIX_MODE = 0o100644;
 export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX_MODE;
 
+export const SKIP_MARKER = "[dependabot skip]";
+
+export async function cdnSyncRefusal(detail, appId, paths, entry) {
+  if (!(paths instanceof Set) || paths.size === 0) return "cdn-sync-base-unreadable";
+  const verification = detail?.commit?.verification;
+  if (
+    !Number.isInteger(appId) ||
+    detail?.author?.id !== appId ||
+    detail?.committer?.id !== WEB_FLOW_ID ||
+    verification?.verified !== true ||
+    verification.reason !== "valid"
+  ) {
+    return "cdn-sync-author";
+  }
+  if (!Array.isArray(detail.parents) || detail.parents.length !== 1) return "cdn-sync-parents";
+  if (!String(detail.commit?.message ?? "").includes(SKIP_MARKER)) return "cdn-sync-message";
+  if (!Array.isArray(detail.files) || detail.files.length === 0) return "cdn-sync-files";
+  for (const file of detail.files) {
+    const path = String(file?.filename ?? "");
+    if (file?.status !== "modified" || file.previous_filename) return `cdn-sync-status:${path}`;
+    if (!paths.has(path)) return `cdn-sync-scope:${path}`;
+    if (!isFixFile(await entry("before", path)) || !isFixFile(await entry("after", path))) return `cdn-sync-mode:${path}`;
+  }
+  return null;
+}
+
 const DEPENDENCY_SECTIONS = Object.freeze(["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]);
 const RANGE_VERSION = /^v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
 const COMPARATOR = /^(\^|~|[<>]=?|=)?v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
