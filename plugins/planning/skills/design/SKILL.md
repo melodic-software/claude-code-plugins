@@ -12,16 +12,6 @@ metadata:
 e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss,
 /planning:design handoff
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -110,7 +100,7 @@ there. Placement:
 `/planning:design-handoff` writes the durable content (module layout, contracts, variation
 verdicts, conventions followed) into PLAN.md's `## Design`, the copy that reaches the plan, the
 implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive
-`<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip
+`<topic-slug>` from the task or branch name (`git branch --show-current`; the task alone when that fails), kebab-case, ≤40 chars, shared with `/planning:interview` and `/planning:plan`. Skip
 artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
