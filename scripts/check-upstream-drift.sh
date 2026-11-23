@@ -20,10 +20,14 @@
 # Trees are read with `gh api 'repos/<o>/<r>/git/trees/<sha>:<path>?recursive=1'`
 # at the pin and at upstream HEAD. A truncated tree, a failed call, or a tree
 # path holding a control character exits 2 and is never a clean report. When an
-# owner's IP allow list refuses the token, that owner's calls retry anonymously
-# with curl; a page with any read still refused is reported
-# `status=unreachable`, named on stderr, and skipped; --report goes on and exits
-# by drift alone, the other modes exit 2 after every page is read.
+# owner's IP allow list refuses the token, that owner's repositories are read
+# anonymously over git instead (ls-remote for HEAD, a blobless depth-1 fetch of
+# each commit into a temporary bare repository, ls-tree for its tree), which no
+# REST rate limit meters; UPSTREAM_DRIFT_GIT_BASE (default https://github.com)
+# is the base URL, a test seam. A page with any read still refused is reported
+# `status=unreachable`, named on stderr with git's error, and skipped; --report
+# goes on and exits by drift alone, the other modes exit 2 after every page is
+# read.
 #
 # Fixture seam, for tests: with UPSTREAM_DRIFT_FIXTURE_DIR set, gh is not used.
 # <dir>/<owner>__<repo>/HEAD holds a SHA; <dir>/<owner>__<repo>/<sha>.tree
@@ -34,7 +38,8 @@
 # contract"): findings on stderr, the clean statement on stdout; --report prints
 # its report on stdout for exit 0 and 1. Exit: 0 clean, 1 drift (or a bad link
 # under --links), 2 environment or usage; on exit 2 nothing reaches stdout.
-# Read-only: the script writes no file.
+# Read-only: the script writes no file outside the temporary directory an
+# anonymous read creates, which it removes on exit.
 set -uo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
 # api-budget notice (.github/actions/log-api-budget).
@@ -198,29 +203,77 @@ OUT_API=""
 API_STATUS=""
 PAGE_UNREACH="" # set when a read for the current page stays refused
 
-# api <owner> <path>: GETs a REST path into OUT_API, the HTTP status of a
-# failure in API_STATUS. Returns 1 on a failure, 5 when <owner>'s IP allow list
-# refuses the token and the anonymous retry fails too.
 api() {
-  local o="$1" url="$2" resp
+  local o="$1" url="$2"
   API_STATUS=""
-  if [[ -z "${ANON[$o]:-}" ]]; then
-    OUT_API="$(gh api "$url" 2>/dev/null)" && return 0
-    API_STATUS="$(jq -r '.status // empty' <<<"$OUT_API" 2>/dev/null)"
-    jq -e '.message // "" | test("IP allow list")' <<<"$OUT_API" >/dev/null 2>&1 || return 1
-    ANON[$o]=1
-    printf '%s: %s: IP allow list refused the token; reading anonymously\n' "$SELF" "$o" >&2
+  OUT_API="$(gh api "$url" 2>/dev/null)" && return 0
+  API_STATUS="$(jq -r '.status // empty' <<<"$OUT_API" 2>/dev/null)"
+  jq -e '.message // "" | test("IP allow list")' <<<"$OUT_API" >/dev/null 2>&1 || return 1
+  ANON[$o]=1
+  printf '%s: %s: IP allow list refused the token; reading anonymously over git\n' "$SELF" "$o" >&2
+  return 6
+}
+
+GIT_BASE="${UPSTREAM_DRIFT_GIT_BASE:-https://github.com}"
+GIT_TMP=""
+trap '[[ -z "$GIT_TMP" ]] || rm -rf "$GIT_TMP"' EXIT
+anon_git() {
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 timeout 300 git "$@"
+}
+
+anon_unreach() {
+  local line
+  line="$(grep -v '^warning:' "$1" | grep -v '^[[:space:]]*$' | tail -n 1)"
+  PAGE_UNREACH="git: ${line:-no error text}"
+}
+
+ANON_REPO=""
+anon_repo() {
+  command -v git >/dev/null 2>&1 || die "git is required to read $1/$2 anonymously"
+  if [[ -z "$GIT_TMP" ]]; then
+    GIT_TMP="$(mktemp -d)" || die "cannot create a temporary directory"
   fi
-  resp="$(curl -sS -H 'Accept: application/vnd.github+json' -w '\n%{http_code}' "https://api.github.com/$url" 2>/dev/null)" || {
-    PAGE_UNREACH="curl failed"
-    return 5
-  }
-  API_STATUS="${resp##*$'\n'}"
-  OUT_API="${resp%$'\n'*}"
-  [[ "$API_STATUS" == 2?? ]] && return 0
-  [[ "$API_STATUS" == 404 || "$API_STATUS" == 422 ]] && return 1
-  PAGE_UNREACH="HTTP ${API_STATUS:-none}"
+  ANON_REPO="$GIT_TMP/$1__$2.git"
+  [[ -d "$ANON_REPO" ]] || anon_git init -q --bare "$ANON_REPO" 2>"$GIT_TMP/err" ||
+    die "git init failed: $(cat "$GIT_TMP/err")"
+}
+
+anon_fetch() {
+  anon_repo "$1" "$2"
+  anon_git -C "$ANON_REPO" cat-file -e "$3^{commit}" 2>/dev/null && return 0
+  anon_git -C "$ANON_REPO" fetch -q --no-tags --depth=1 --filter=blob:none "$GIT_BASE/$1/$2.git" "$3" 2>"$GIT_TMP/err" && return 0
+  grep -q 'not our ref' "$GIT_TMP/err" && return 1
+  anon_unreach "$GIT_TMP/err"
   return 5
+}
+
+anon_head() {
+  local out
+  anon_repo "$1" "$2"
+  if out="$(anon_git -C "$ANON_REPO" ls-remote "$GIT_BASE/$1/$2.git" HEAD 2>"$GIT_TMP/err")"; then
+    OUT_SHA="${out%%[[:space:]]*}"
+    return 0
+  fi
+  anon_unreach "$GIT_TMP/err"
+  return 5
+}
+
+anon_tree() {
+  anon_fetch "$1" "$2" "$3"
+  case $? in
+  0) ;;
+  1) die "$1/$2@$3 is not a commit upstream" ;;
+  *) return 5 ;;
+  esac
+  OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
+    awk -v RS='\0' '
+      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1) }
+      p ~ /[[:cntrl:]]/ { print "control"; exit }
+      m[2] == "blob" { print m[3] " " p }')" ||
+    die "git ls-tree $1/$2@$3 failed"
+  [[ "$OUT_TREE" != control && "$OUT_TREE" != *$'\n'control ]] ||
+    die "$1/$2@${3:0:12}: a tree path holds a control character"
+  return 0
 }
 
 # check_tree_lines <text> <source>: dies on a truncated mark, a malformed line,
@@ -246,16 +299,22 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
     [[ -f "$FIXTURE/$1__$2/HEAD" ]] || die "fixture missing: $FIXTURE/$1__$2/HEAD"
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
-    api "$1" "repos/$1/$2/commits/HEAD"
-    case $? in
-    0) ;;
-    5)
-      OUT_SHA=""
-      return 0
+    local rc=6
+    [[ -n "${ANON[$1]:-}" ]] || {
+      api "$1" "repos/$1/$2/commits/HEAD"
+      rc=$?
+    }
+    case $rc in
+    0) sha="$(jq -r '.sha // empty' <<<"$OUT_API")" ;;
+    6)
+      anon_head "$1" "$2" || {
+        OUT_SHA=""
+        return 0
+      }
+      sha="$OUT_SHA"
       ;;
     *) die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}" ;;
     esac
-    sha="$(jq -r '.sha // empty' <<<"$OUT_API")"
   fi
   [[ "$sha" =~ $SHA_RE ]] || die "$key: HEAD is not a commit SHA: $(printf '%q' "$sha")"
   HEADS[$key]="$sha"
@@ -293,7 +352,7 @@ gh_tree() {
   ((rec)) && url+="?recursive=1"
   if ! api "$o" "$url"; then
     status="$API_STATUS"
-    [[ -n "$PAGE_UNREACH" ]] && return 5
+    [[ -n "${ANON[$o]:-}" ]] && return 6
     case "$status" in
     404) return 3 ;;
     422) return 4 ;;
@@ -326,13 +385,23 @@ tree_list() {
       check_tree_lines "${FIXTURE_FILES[$file]}" "$o/$r@${sha:0:12}"
     fi
     OUT_TREE="$(filter_under "${FIXTURE_FILES[$file]}" "$p")"
+  elif [[ -n "${ANON[$o]:-}" ]]; then
+    if [[ -n "$p" ]]; then
+      tree_list "$o" "$r" "$sha" ""
+      OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
+    else
+      anon_tree "$o" "$r" "$sha" || OUT_TREE=""
+    fi
   elif [[ -n "$P_SCOPE" && -n "$p" && "$p" != "$P_SCOPE" && "$p" == "$P_SCOPE"/* ]]; then
     tree_list "$o" "$r" "$sha" "$P_SCOPE"
     OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
   else
     gh_tree "$o" "$r" "$sha" "$p"
     rc=$?
-    if ((rc == 3 || rc == 5)); then
+    if ((rc == 6)); then
+      tree_list "$o" "$r" "$sha" "$p"
+      return 0
+    elif ((rc == 3)); then
       OUT_TREE=""
     elif ((rc == 4)); then
       # A blob path: list its directory and keep the one entry.
@@ -402,7 +471,7 @@ UNREACHABLE=()
 # unreachable_page: records the current page as unreachable; its other results
 # are dropped.
 unreachable_page() {
-  UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous read ($PAGE_UNREACH); not checked")
+  UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous git read failed ($PAGE_UNREACH); not checked")
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
 }
 drifted=0
@@ -417,8 +486,17 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   # Without this, an unknown pin reads as every path absent. The fixture seam
   # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
-    api "$o" "repos/$o/$r/git/commits/$pin"
-    case $? in
+    rc=6
+    [[ -n "${ANON[$o]:-}" ]] || {
+      api "$o" "repos/$o/$r/git/commits/$pin"
+      rc=$?
+    }
+    if ((rc == 6)); then
+      OUT_API="" API_STATUS=""
+      anon_fetch "$o" "$r" "$pin"
+      rc=$?
+    fi
+    case $rc in
     0) ;;
     5)
       unreachable_page
