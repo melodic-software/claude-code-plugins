@@ -206,10 +206,11 @@ follows this cadence:
   a third of the hourly REST budget. A `304 Not Modified` answer to a conditional request is not
   counted, so the pull-request monitor's seven reads count only when their answer changed. Measured
   on 2026-11-23: none on an idle poll, and two, three and four (an average of three) on polls while
-  CI ran; the worst case is seven, every read changed, and a push alone changes at least four (the
-  PR, and the runs, check runs and status of the new head). Ten monitors at the average fit the 90 s
-  default (about 1,200 counted requests an hour); ten at the worst case at once would count about
-  2,800 an hour, so pass a larger `--interval` when many watched PRs are pushed together.
+  CI ran; the worst case is seven, every read changed, plus one request per extra page, and a push
+  alone changes at least four (the PR, and the runs, check runs and status of the new head). Ten
+  monitors at the average fit the 90 s default (about 1,200 counted requests an hour); ten at the
+  worst case at once would count about 2,800 an hour, so pass a larger `--interval` when many
+  watched PRs are pushed together.
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes.** One at a time, at least 1 s apart, never in a retry loop. Secondary limits cap

@@ -13,4 +13,6 @@ bump: patch
   cached only once the whole read succeeded, and a surface whose pages all answered 304 is not
   re-reported. The cache needs no Bash 4 feature, so the script still runs on macOS Bash 3.2. The
   event lines are unchanged.
-- The monitor's default poll interval is 90 seconds, up from 60, and the monitor docs state 90.
+- The floor for any GitHub watch or poll is 90 seconds, up from 60: the monitor's default
+  interval, the API budget, and the merge, merge-queue, async-merge and babysit docs that gave a
+  60-second GitHub poll cadence now state 90.
