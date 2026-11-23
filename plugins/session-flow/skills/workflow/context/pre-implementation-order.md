@@ -18,7 +18,7 @@ this order when you run several:
 3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
    record. It routes to a **PRD**, `/planning:prd`, by its own rule. When an interview outgrows one session because the effort is too big to hold at
    once and still too foggy to phrase as decisions, escalate to **wayfind**,
-   `/planning:wayfind`, which charts a decision map from the interview's ledger and hands
+   `/planning:wayfind`, which charts a map of decision items from the interview's ledger and hands
    back once the fog clears. Wayfind is never the first pass.
 4. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.

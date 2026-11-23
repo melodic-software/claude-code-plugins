@@ -218,14 +218,14 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 
 ## Next
 
-- /session-flow:audit-sessions trends: the score history session, quick and ci-runs modes write,
-  across sessions and per lane, with delivery metrics.
-- /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
-  session on the machine.
-- /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
+- A finding to turn into a check or an instruction line, a reviewer miss included:
+  /corrections:codify "<the mistake>".
+- Check whether what this retro found recurs across every session on the machine, or see the score
+  history with delivery metrics: /session-flow:audit-sessions sweep, or
+  /session-flow:audit-sessions trends.
+- Every stored session for one work item: /session-flow:audit-sessions ticket --pattern '<regex>'.
   Session mode calls it when given `--pattern` ([context/session.md](context/session.md), "Ticket section").
-- /session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill
-  the session missed.
+- The retro found a skill the session missed: /session-flow:recommend-skills.
 
 ## Related
 

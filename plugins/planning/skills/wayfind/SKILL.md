@@ -6,7 +6,7 @@ disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: interview
-  summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
+  summary: Chart a too-big, foggy effort as a map of decision items worked one decision at a time
 ---
 
 **Arguments.** `[chart|work|<item link>] [topic|map] [item]`. e.g., /planning:wayfind chart <topic>, /planning:wayfind work, /planning:wayfind work <map> <item>, /planning:wayfind <item link>
@@ -162,7 +162,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
 1. **Survey, interview, fog test.** Read the repository's glossary and work-item conventions
    first, when it has them, so questions use its terms and items follow its tracker rules (the
    glossary is found the way `/planning:interview`'s survey finds it). Then ground in the effort
-   (any existing `<memory_dir>/<slug>/`, recent commits, the topic).
+   (any existing `<memory_dir>/<slug>/`, recent commits, the topic). With no glossary found and
+   `/domain-driven-design:ubiquitous-language` enabled, offer its `seed` action once, before the map
+   is proposed, so items use settled terms from the start; a no goes on without it.
    - **Seed from the interview:** when the slice holds an interview ledger
      (`interview-checklist.md`), its settled answers become one seed decision item, created with
      the others in step 4, whose resolution comment lists them; close it at once with one
@@ -199,6 +201,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
      confirmed as one or two lines. Its kind sets the closure target (work step 8): a PRD, a
      set of build items to decompose, one change, a decision record, or a general summary.
      Recommend a PRD for a coding effort, and a decision record or summary for one that is not.
+     A non-coding destination may name the finished thing itself (a course, a built office): the
+     map still plans only, and closes to a summary whose task items, filed outside the map,
+     build it.
      Narrow it to one bounded destination when it reads like a whole product. Put this question
      to the user in the first message that asks them anything, step 1's interview offer
      included; saying that creation waits for a destination does not ask it.
@@ -229,7 +234,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
      item's resolution comment, never recopied here; wrongly scoped closures get no pointer.
    - **Not-yet-specified**: fog, one bullet per uncertainty, each opening with a short bold
      label. Fog never moves into Out-of-scope for being unphrasable, only by an explicit scope
-     ruling at closure (work step 8).
+     ruling from the user, in any work session or at closure (work step 8).
    - **Out-of-scope**: scope exclusions, not unphraseable fog.
 
    Template and tracker actions: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
@@ -259,11 +264,16 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    *Decisions-so-far* pointer line (closed-as-out-of-scope items have an Out-of-scope line
    instead; closed-as-moot items have only their closing comment); no item resolved-in-comment
    but still open; no Not-yet-specified bullet that an item already charts (delete it). Fix
-   violations before proceeding.
+   violations before proceeding. An open map whose newest counted closing comment (author rule:
+   [`map-source.md`](../../context/map-source.md), "Closed map") ends `Handoff: pending`
+   and whose frontier is empty resumes that handoff (step 8's hand-off to the destination's
+   skill) and posts no second closing comment.
 2. **Load the map at low resolution.** Read the map body, its child list and the seed item's
    resolution comment when the map has one (it holds the settled answers and facts, so none is
    asked again); open an item's body
    only when the step at hand needs it (the picked item, a blocker, a decision the sweep checks).
+   For the picked item, also read each blocker's resolution comment: the item rests on those
+   decisions.
 3. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (count open
    blockers, not the raw edge count), in creation order. In a non-interactive session, filter out
    `<human-gated>` items; if that empties the frontier, stop with a truthful "all remaining decisions
@@ -288,7 +298,11 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    "Graduate a research item"). Never fan out a `<human-gated>` item.
 5. **Consult the Notes skills, then route by type.** First invoke each skill the map's Notes lists
    for every session, one Skill call per skill. Then invoke the target skill for the item's type
-   label (never a type its body states); its own Q&A supplies the HITL loop:
+   label (never a type its body states), passing it the blockers' resolutions and each
+   Decisions-so-far line the item touches as settled decisions; its own Q&A supplies the HITL
+   loop. An answer that contradicts one of those decisions is named, with the decision's link,
+   before it is recorded, and the user holds or changes it; a held answer resolves through step
+   7's supersession, never by editing the old decision:
 
    | Type label | Usually | Routes to |
    |---|---|---|
@@ -313,8 +327,14 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    **Wrongly scoped** (on the tracker
    but not this effort): add one Out-of-scope line linking it, then close it, with no
    Decisions-so-far pointer. Fog stays in Not-yet-specified and never moves into Out-of-scope for
-   being unphrasable, only by an explicit scope ruling at closure (step 8). If the resolution sharpened previously-foggy uncertainty, chart the new sharp
+   being unphrasable, only by an explicit scope ruling from the user, here or at closure (step 8).
+   If the resolution sharpened previously-foggy uncertainty, chart the new sharp
    items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
+   Each question the resolution defers becomes, in the same step, a decision item (sharp) or a
+   Not-yet-specified bullet (foggy), so the map cannot close while it is open.
+   **Provisional confirmed.** When a prototype's verdict confirms a provisional decision and
+   `/architecture:adr` is enabled, offer it the confirmed decision; a decision still provisional
+   is never offered.
    **Data-sharing item.** When the resolution selects an outside service that will receive user
    data, chart one `interview` item for that service: which fields cross to it and under what
    agreement. One item per selected service, its questions
@@ -331,6 +351,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
      other. When it resolves, add its pointer to Decisions-so-far and change the old decision's
      line to `[<old title>](<old URL>): superseded by [<new title>](<new URL>) (resolved <date>)`.
      Never reopen the old item or edit its resolution comment.
+   - An open item the resolution changes without invalidating (a limit it must respect, a fact it
+     can use): comment on that item with the finding and a link to the resolution.
 
    **Report the item.** Then report the closed item, its new Decisions-so-far line, the items
    charted from it and what it unblocked. When the frontier still holds an item, end with one line,
@@ -342,8 +364,13 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
    the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
-   to the destination's skill in a source form it accepts:
+   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it), and ends with the line `Handoff: pending` until the map closes. Then hand the decisions
+   to the destination's skill in a source form it accepts, and close the map issue once that
+   skill reports its artifact (for a general summary, at once); for a set of build items that is
+   the PLAN.md `/planning:plan` reports, or `/work-items:decompose`'s publish on the slices route.
+   A question that skill raises first becomes a decision item on the map and is worked like any
+   other; once it resolves, post a new closing comment that opens `Supersedes <link to the earlier
+   closing comment>` and states every decision again, then resume the handoff:
 
    | Destination | Closes to |
    |---|---|
@@ -410,10 +437,9 @@ intent is unsettled and escalating here when it outgrows one session → referen
 ## Next
 
 - The map is charted: /planning:wayfind work.
-- The effort keeps the map but has no interview behind it yet: /planning:interview.
-- The map closed on a set of build items: /planning:plan.
-- The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.
-- The map closed on a PRD: /planning:prd.
+- The map closed on a PRD: /planning:plan.
+- The map closed on a plan of build items: /work-items:decompose.
+- A prototype confirmed a provisional decision: /architecture:adr.
 
 ## Related
 
