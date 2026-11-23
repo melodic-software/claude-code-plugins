@@ -1,7 +1,7 @@
 # Action: `view`
 
 Read one item's text: the entry point for another plugin that needs an item's body (a spec, a
-container's acceptance criteria, a decision map) without naming a tracker's commands. Read-only.
+container's acceptance criteria, a wayfind map) without naming a tracker's commands. Read-only.
 
 ## Usage
 
