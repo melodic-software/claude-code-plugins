@@ -32,3 +32,17 @@ PY
 
 git add .
 git commit -q -m "chore: reports package"
+
+mkdir -p .work/orders-csv
+cat >.work/orders-csv/interview-checklist.md <<'MD'
+# /planning:interview Checklist
+
+## Constraint ledger
+
+- C1 | confirmed | a throwaway prototype that never ships; only the user runs it | user, round 1
+
+## Open-question register
+
+- Q1 | answered | round 1 | What must the report show finance? | last month's order count and revenue per day; kind:: discovery
+- Q2 | answered | round 1 | Where do you start from? | nothing in this repository yet; a Shopify Admin API access token is in hand; kind:: discovery
+MD

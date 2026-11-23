@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-unknown-field-candidates
 description: A Problem field the request leaves unstated gets candidate values from the repository, each with its source, for the user to confirm or correct, instead of a bare unknown or a guess stated as fact
-tags: [interview, problem-framing, unknown-field, scaffold]
+tags: [interview, problem-framing, unknown-field, scaffold, no-network]
 expected_outcome: The reply proposes at least one candidate value for a Problem field the request did not state (for example the cost, from the 5 percent credit in docs/service-levels.md, or who and how many, from the accounts in logs/export.log), names its source, and asks the user to confirm or correct it; no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

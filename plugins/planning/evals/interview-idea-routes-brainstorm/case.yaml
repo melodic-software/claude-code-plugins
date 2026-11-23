@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-idea-routes-brainstorm
 description: A half-formed idea with no problem or direction gets a recommendation to run /planning:brainstorm first, not a spec interview or a Brief
-tags: [interview, intake, idea-stage, brainstorm, scaffold]
+tags: [interview, intake, idea-stage, brainstorm, scaffold, no-network]
 expected_outcome: The reply recommends /planning:brainstorm as the next step for the idea (it may also ask what problem the idea solves or why the user wants it); it does not auto-invoke brainstorm, does not ask scoping or acceptance-criteria questions as if the idea were settled, and no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

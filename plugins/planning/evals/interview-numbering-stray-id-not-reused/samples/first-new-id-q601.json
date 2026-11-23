@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Round 2.** A production month-end export for finance.\nScope check: 5 of 12 questions registered\n\n❓ Q601: **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**.\n\n---\n\n❓ Q602: **How are amounts written?**",
+      "why": "new ids start at Q601"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Round 2.** A production month-end export for finance.\nScope check: 5 of 12 questions registered\n\n❓ Q3: **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**.\n\n---\n\n❓ Q4: **How are amounts written?**",
+      "why": "the gap is filled"
+    },
+    {
+      "answer": "**Round 2.** A production month-end export for finance.\nScope check: 5 of 12 questions registered\n\n❓ Q602: **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**.\n\n---\n\n❓ Q601: **How are amounts written?**",
+      "why": "Q601 is not the first question shown"
+    }
+  ]
+}

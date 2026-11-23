@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """check-matchers - prove the shared grader matchers and every grader built from them.
 
-    check-matchers [--write] [--fragments <file>] <eval-dir>...
+    check-matchers [--write] [--fragments <file-or-dir>] <eval-dir>...
 
 A case grader's regex is static text in case.yaml: the binary cannot call code
-when it grades. So the shared sub-patterns live in one file,
-`plugins/evals/matchers/fragments.json`, and a case that builds a grader from
-them says how in `<case>/matchers.json`:
+when it grades. So the shared sub-patterns live once, in the `*.json` files of
+`plugins/evals/matchers/` (a fragment name appears in one file only), and a case
+that builds a grader from them says how in `<case>/matchers.json`:
 
     {"no-token-shell": [{"use": "command_position"}, "curl\\\\b",
                         {"use": "token_argument"}, "AbCdEf"]}
@@ -47,9 +47,7 @@ import shutil
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FRAGMENTS = os.path.normpath(
-    os.path.join(HERE, "..", "..", "..", "matchers", "fragments.json")
-)
+FRAGMENTS = os.path.normpath(os.path.join(HERE, "..", "..", "..", "matchers"))
 MATCHERS = "matchers.json"
 SLOT = re.compile(r"\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}")
 FIELD = {"regex": "pattern", "tool_used": "input_match"}
@@ -148,17 +146,44 @@ def grade_python(case, path, name, options, data, findings):
             )
 
 
-def check_fragments(fragments, findings, jobs):
+def load_fragments(path):
+    """Every fragment in a file, or in each *.json file of a directory, with the
+    file each came from. Raises ValueError on a name two files define."""
+    if os.path.isdir(path):
+        files = sorted(
+            os.path.join(path, f) for f in os.listdir(path) if f.endswith(".json")
+        )
+    else:
+        files = [path]
+    fragments, origin = {}, {}
+    for file in files:
+        with open(file, encoding="utf-8") as handle:
+            data = json.load(handle)
+        if not isinstance(data, dict):
+            raise ValueError("%s must map fragment names to fragments" % file)
+        for name, fragment in data.items():
+            if name in fragments:
+                raise ValueError(
+                    'fragment "%s" is in both %s and %s'
+                    % (name, origin[name], os.path.basename(file))
+                )
+            fragments[name] = fragment
+            origin[name] = os.path.basename(file)
+    return fragments, origin
+
+
+def check_fragments(fragments, origin, findings, jobs):
     label = "matchers"
     for name in sorted(fragments):
         fragment = fragments[name]
+        source = origin[name]
         problem = fragment_problem(name, fragment)
         if problem:
             findings.append(
                 vc.Finding(
                     "FAIL",
                     label,
-                    "fragments.json",
+                    source,
                     'fragment "%s" %s' % (name, problem),
                 )
             )
@@ -172,12 +197,12 @@ def check_fragments(fragments, findings, jobs):
                 vc.Finding(
                     "FAIL",
                     label,
-                    "fragments.json",
+                    source,
                     'fragment "%s" probe: %s' % (name, error),
                 )
             )
             continue
-        path = "fragments.json#" + name
+        path = source + "#" + name
         grade_python(label, path, name, options, fragment["samples"], findings)
         jobs.extend(
             vc.js_jobs(
@@ -336,7 +361,7 @@ def main(argv=None):
     parser.add_argument(
         "--fragments",
         default=FRAGMENTS,
-        help="the fragments file (default: the plugin's)",
+        help="a fragments file, or a directory of them (default: the plugin's matchers/)",
     )
     args = parser.parse_args(argv)
 
@@ -350,14 +375,13 @@ def main(argv=None):
             sys.stderr.write("error: not a directory: %s\n" % eval_dir)
             return 2
     try:
-        with open(args.fragments, encoding="utf-8") as handle:
-            fragments = json.load(handle)
+        fragments, origin = load_fragments(args.fragments)
     except (OSError, ValueError) as error:
         sys.stderr.write("error: cannot read %s (%s)\n" % (args.fragments, error))
         return 2
 
     findings, jobs = [], []
-    check_fragments(fragments, findings, jobs)
+    check_fragments(fragments, origin, findings, jobs)
     checked = 0
     for eval_dir in args.eval_dirs:
         for case_dir in discover(os.path.abspath(eval_dir)):

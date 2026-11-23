@@ -7,6 +7,7 @@
     {"answer": [{"tool": "Bash", "input": {"command": "npm install --save-dev markdownlint-cli2"}}], "why": "npm install"},
     {"answer": [{"tool": "Bash", "input": {"command": "npm i -D markdownlint-cli2"}}], "why": "npm i with a flag"},
     {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 --help"}}], "why": "npx downloads on a miss"},
-    {"answer": [{"tool": "Bash", "input": {"command": "pnpm add -D markdownlint-cli2"}}], "why": "pnpm add"}
+    {"answer": [{"tool": "Bash", "input": {"command": "pnpm add -D markdownlint-cli2"}}], "why": "pnpm add"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx --version"}}], "why": "this case counts any npx"}
   ]
 }

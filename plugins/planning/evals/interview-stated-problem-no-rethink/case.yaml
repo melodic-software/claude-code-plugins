@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-stated-problem-no-rethink
 description: A request that states its problem and a solution gets the problem restated and confirmed, and no rethink-or-accept question
-tags: [interview, problem-framing, stated-problem, scaffold]
+tags: [interview, problem-framing, stated-problem, scaffold, no-network]
 expected_outcome: The reply asks no rethink-or-accept question and does not question the retry wrapper as the fix; it may restate the stated problem (webhook deliveries dropped when customer endpoints return 503 during their deploys) and ask the user to confirm it now or in a later round; no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

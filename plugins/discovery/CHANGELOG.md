@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [2.2.11] - 2026-11-23
+
+### Changed
+
+- `scripts/check-dispatch-artifact.sh` takes its option-value guard from the shared `lib/opt-value.sh`: an empty or `-`-leading value for `--index-name`, `--newer-than`, `--expect-index` or `--expect-sidecars` is now a usage error (exit 2, as before), and the message reads `check-dispatch-artifact.sh: <option> requires a value`.
+
+## [2.2.10] - 2026-11-23
+
+### Changed
+
+- `scripts/check-hook-registration.sh` now runs the shared hook registration check (`lib/hook-registration-check.sh`, generated from the repository's `lib/`); its rows, wording and exit codes are unchanged.
+
 ## [2.2.9] - 2026-11-22
 
 ### Changed

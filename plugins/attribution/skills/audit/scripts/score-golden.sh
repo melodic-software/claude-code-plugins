@@ -1,35 +1,4 @@
 #!/usr/bin/env bash
-# Tally case-level precision and recall over the golden set.
-#
-#   score-golden.sh --golden DIR --actual FILE [--show-config]
-#
-# Reasoning-free (Brief constraint C1): the verdicts are already decided before
-# this runs. `expected.json` carries the hand-scored truth for a case and the
-# actual run carries what the audit produced; this script does arithmetic on
-# the two, matching on class equality and span overlap. It never judges whether
-# a finding is right — that judgment is what the golden set records.
-#
-# The confusion matrix is CASE-level, per the Brief. One case can be both a
-# false negative and a false positive: a positive case where the run missed the
-# real span and emitted a different one has failed twice, and collapsing that
-# into a single cell would flatter one of the two metrics.
-#
-#   tp  the case has at least one actual finding matching an expected one
-#   fn  a positive case with no matching finding
-#   fp  a case with at least one actual finding matching nothing expected
-#   tn  a hard negative with no actual findings
-#
-# What this script refuses to guess: a golden case the run never scored is
-# DECLINED and excluded from the tally rather than counted as a miss. Scoring a
-# case nobody ran would report a recall failure that describes the harness, not
-# the detector. That refusal needs the run to declare its coverage, so the
-# actual file carries `cases_run`; without it, `coverage_declared` reports false
-# and every case is scored, so the assumption is visible in the product.
-#
-# Gates bind fix-mode eligibility and release readiness only, never the report
-# surface (the Q16 posture). A class below `min_n_per_class` ships report-only:
-# a precision bar measured on three cases is not a measurement.
-#
 # Exit: 0 on a clean run, 2 on usage or input error, 3 when the golden
 # directory holds no scoreable case, 4 when jq is absent.
 set -uo pipefail
@@ -94,16 +63,11 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
-
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
 cfg_layers_init "$CONFIG_ROOT"
 
-# The last layer with a numeric value wins. A non-numeric value is ignored
-# rather than propagated, so a typo in one layer falls back instead of
-# poisoning the arithmetic.
 NUM='^[0-9]+(\.[0-9]+)?$'
 FIX_PRECISION_BAR="" REPORT_RECALL_FLOOR="" MIN_N_PER_CLASS=""
 cfg_scalar FIX_PRECISION_BAR gates.fix_precision_bar "$NUM"
@@ -124,8 +88,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Inputs ----------------------------------------------------------------------
-
 [[ -n "$GOLDEN" && -n "$ACTUAL" ]] || {
   echo "score-golden.sh: --golden and --actual are both required" >&2
   usage >&2
@@ -144,9 +106,6 @@ jq -e . "$ACTUAL" >/dev/null 2>&1 || {
   exit 2
 }
 
-# One object keyed by case id. A case directory whose expected.json will not
-# parse is skipped loudly rather than silently: an unreadable expectation would
-# otherwise vanish from the denominator.
 EXPECTED_PARTS=()
 MALFORMED=()
 while IFS= read -r dir; do
@@ -169,8 +128,6 @@ fi
 
 EXPECTED_JSON="$(printf '%s\n' "${EXPECTED_PARTS[@]}" | jq -s 'add // {}')"
 MALFORMED_JSON="$(printf '%s\n' ${MALFORMED[@]+"${MALFORMED[@]}"} | jq -R -s 'split("\n") | map(select(. != ""))')"
-
-# --- Tally -----------------------------------------------------------------------
 
 jq -n \
   --arg golden "$GOLDEN" \

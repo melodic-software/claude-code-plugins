@@ -7,13 +7,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { workflowText } from "../lib/workflow-text.mjs";
+
 const text = readFileSync(new URL("../../workflows/maintenance-delete-stale-branches.yml", import.meta.url), "utf8");
-const job = (name) => {
-  const start = text.indexOf(`\n  ${name}:\n`);
-  assert.ok(start > 0, `job ${name}`);
-  const next = text.slice(start + 1).search(/\n {2}[a-z-]+:\n/);
-  return next < 0 ? text.slice(start) : text.slice(start, start + 1 + next);
-};
+const wf = workflowText(text);
+const { job } = wf;
 const grants = (body) =>
   /\n {4}permissions:\n((?: {6}.+\n)+)/
     .exec(body)[1]
@@ -21,7 +19,7 @@ const grants = (body) =>
     .split("\n")
     .map((line) => line.trim().replace(/ #.*$/, ""))
     .sort();
-const step = (body, name) => body.slice(body.indexOf(`- name: ${name}`)).split("\n      - name:")[0];
+const step = (id, name) => wf.stepNamed(id, name).text;
 
 test("the select-stale-branches job's token writes nothing; the delete job's writes contents and reads no issues", () => {
   assert.match(text, /\npermissions: \{\}\n/);
@@ -36,13 +34,13 @@ test("each job checks the kill switch before every step that reads or deletes", 
   ]) {
     const body = job(name);
     assert.match(body, /uses: \.\/\.base\/\.github\/actions\/check-kill-switch/, name);
-    for (const s of steps) assert.match(step(body, s), /steps\.kill\.outputs\.proceed == 'true'/, `${name}: ${s}`);
+    for (const s of steps) assert.match(step(name, s), /steps\.kill\.outputs\.proceed == 'true'/, `${name}: ${s}`);
   }
 });
 
 test("only the plan stage reads issue and pull request text; the delete stage takes the select-stale-branches job's list", () => {
-  assert.match(step(job("select-stale-branches"), "Plan the deletes"), /STAGE: plan\n/);
-  assert.match(step(job("delete"), "Delete stale branches"), /STAGE: delete\n/);
+  assert.match(step("select-stale-branches", "Plan the deletes"), /STAGE: plan\n/);
+  assert.match(step("delete", "Delete stale branches"), /STAGE: delete\n/);
   assert.match(job("delete"), /needs: select-stale-branches\n/);
 });
 
@@ -52,9 +50,9 @@ test("only the plan stage reads issue and pull request text; the delete stage ta
 test("the delete job downloads the artifact name the select-stale-branches job uploaded", () => {
   const name = "branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}";
   assert.ok(job("select-stale-branches").includes(`\n      candidates: ${name}\n`));
-  assert.ok(step(job("select-stale-branches"), "Upload the candidate list").includes(`\n          name: ${name}\n`));
-  assert.match(step(job("delete"), "Download the candidate list"), /\n {10}name: \$\{\{ needs\.select-stale-branches\.outputs\.candidates \}\}\n/);
-  assert.doesNotMatch(step(job("delete"), "Download the candidate list"), /github\.run_attempt/);
+  assert.ok(step("select-stale-branches", "Upload the candidate list").includes(`\n          name: ${name}\n`));
+  assert.match(step("delete", "Download the candidate list"), /\n {10}name: \$\{\{ needs\.select-stale-branches\.outputs\.candidates \}\}\n/);
+  assert.doesNotMatch(step("delete", "Download the candidate list"), /github\.run_attempt/);
 });
 
 test("a manual run is a dry-run unless set and starts no delete job, and the schedule deletes", () => {
@@ -70,7 +68,7 @@ test("a manual run is a dry-run unless set and starts no delete job, and the sch
 });
 
 test("the ledger artifact uploads after a failed step too", () => {
-  const body = step(job("delete"), "Upload the ledger");
+  const body = step("delete", "Upload the ledger");
   assert.match(body, /if: always\(\) && steps\.kill\.outputs\.proceed == 'true'/);
   assert.match(body, /path: \$\{\{ runner\.temp \}\}\/branch-cleanup-ledger\.jsonl/);
 });

@@ -1,6 +1,6 @@
 # planning
 
-A Claude Code plugin for the **pre-implementation planning pipeline**: everything
+A Claude Code plugin for the **pre-implementation planning pipeline**, covering everything
 between a rough idea and approved, executable work. Ten pipeline skills covering
 charting a too-big, foggy effort as a map of decision items, divergence, product intent, the
 engineering contract (including hand-off of a decision another person holds), contract
@@ -22,7 +22,7 @@ where artifacts land in the consuming repo.
 | `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a fresh-context `plan-reviewer` stress-test, run by default on MEDIUM-or-higher plans and on request and set per mode by `plan_stress_test`, and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | `check` inspects the standards index read-only; `apply` interviews the consumer and bootstraps the standards index (idempotent; re-run to reconfigure). |
 
-The pipeline composes end-to-end. `wayfind` charts the fog upstream when an effort
+The pipeline composes end-to-end. `wayfind` charts the undecided questions upstream when an effort
 is too big to hold at once, then `brainstorm → interview → design →
 design-handoff → plan`, the interview calling `prd` when product intent is unsettled, with `devils-advocate` attacking the plan before
 approval, while `/domain-driven-design:ubiquitous-language curate` is invoked whenever
@@ -144,6 +144,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `surface` | string | `"terminal"` | Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line. |
 | `question_pacing` | string | `"round"` | How /planning:interview asks a frontier: round (default, one message), single (one question per message, largest blast radius first) or auto (single for a broad, open-ended topic, else round). A session request overrides it there; a repository's planning.yaml overrides this value. |
+| `question_detail` | string | `"standard"` | How much of each question /planning:interview prints: standard (default; hides Origin, Basis, Checked against and the source quote), full (the whole block) or minimal (answer lines and an alternatives count). The round file keeps the full block; a session request or planning.yaml overrides it. |
 | `use_ask_user_question` | boolean | `false` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
 | `use_emoji_question_markers` | boolean | `true` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: on; turn off for plain text. |
 | `shared_session_open_browser` | boolean | `true` | When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on. |
