@@ -47,7 +47,7 @@ import { appendFileSync } from "node:fs";
 import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
-import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
@@ -57,7 +57,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, s
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { shareWorkflowRuns } from "./feedback-dispatch.mjs";
-import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, dispatchTestScope, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
@@ -142,8 +142,6 @@ function lagRefire(log, node, checkName, existing, handled) {
     log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
   }
 }
-
-export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 // A merge commit on a Dependabot head stops Dependabot's own rebases, which
 // resolve its conflicts, and breaks the pr-merge Dependabot tier.
@@ -680,6 +678,13 @@ export function createGitHubApi({
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
+    listIssueComments: (number) => paginate(`issues/${Number(number)}/comments`),
+    async rerunJob(jobId) {
+      if (!RUN_ID.test(String(jobId))) {
+        throw new Error("not a job id");
+      }
+      return request(`${repoUrl}/actions/jobs/${jobId}/rerun`, "POST");
+    },
     // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
     async listCommitCheckRuns(sha) {
@@ -939,6 +944,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
+    laneAppId: appSenderId,
   });
   // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
   // human-gated label is read only when owners are adopted; an unreadable
@@ -952,7 +958,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   let ownersHeld = "";
   if (adoption["idle-hours"] !== undefined) {
     try {
-      ownerIds = adoptableOwnerIds(loadTrustedList(`${basePath(env)}/${TRUSTED_ACTORS_PATH}`).ids);
+      ownerIds = adoptableOwnerIds(loadTrustedList(trustedActorsPath(basePath(env))).ids);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
       log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);
@@ -981,8 +987,9 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
   const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...copies.dispatched];
-  const failed = conflicts.failed + reviews.failed + fixes.failed + copies.failed;
+  const scopes = await dispatchTestScope({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...copies.dispatched, ...scopes.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed + copies.failed + scopes.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

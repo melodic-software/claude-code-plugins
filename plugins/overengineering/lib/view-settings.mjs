@@ -263,7 +263,9 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
   let personalTrusted = false;
   if (personal && mediumOf(personal)?.publishes) {
     const warnings = [];
-    personalTrusted = personalOverrideApplies(root, join(root, PERSONAL_FILE), warnings, { requireIgnored: true });
+    const personalPath = layers.find((l) => l.name === "local").path;
+    const checkout = resolve(personalPath, ...PERSONAL_FILE.split("/").map(() => ".."));
+    personalTrusted = personalOverrideApplies(checkout, personalPath, warnings, { requireIgnored: true });
     for (const w of warnings) notices.push({ kind: "ignored", text: w });
   }
   // Highest precedence first (ADR 0075: the personal override, then team, then userConfig).

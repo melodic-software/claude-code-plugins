@@ -406,6 +406,12 @@ writing it into a brief: we never rely on a `${…}` token in a file read from d
 later. Where each plugin variable resolves: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Next
+
+- Commit with configured convention: /source-control:commit.
+- Open or manage a PR: /source-control:pull-request.
+- Run fleet PR pass with babysit config: /source-control:babysit-prs.
+
 ## Gotchas
 
 - **Omitting a key never resets it.** Per-key fallthrough means a section left out of a higher

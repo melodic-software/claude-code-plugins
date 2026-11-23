@@ -53,6 +53,7 @@ import { runAsScript } from "../lib/run-main.mjs";
 import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
+import { loadTrustedList, readRawTrustedActors, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
@@ -1219,9 +1220,8 @@ export async function linkedSpec(env, log) {
   try {
     const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
     const { createGitHub } = await import("../lib/github-client.mjs");
-    const { loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
     const { loadRules } = await import("../intake-triage/admit.mjs");
-    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
     const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
     const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
@@ -1349,9 +1349,6 @@ export async function select({
     // The merge gate refuses the head verify:earlier-fail, so a round must
     // move it; the FAIL's notes come from its verdict artifact, since their
     // threads are resolved (#12809).
-    // Its feedback-already-addressed stop releases the head (a reply job's
-    // lane-stopped), so a stop of this head already queued for a session
-    // builder stands down here too, before any read or model turn.
     if (earlierFailHeads.length > 0 && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
       return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
@@ -2013,7 +2010,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
     // as of 2026-10-21; recheck when that section changes its size limits);
     // null when the path is absent.
-    async getText(path, ref) {
+    async getText(path, ref, { exactUtf8 = false } = {}) {
       const url = `${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`;
       const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
       if (response.status === 404) {
@@ -2022,7 +2019,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       if (!response.ok) {
         throw new Error(`GET ${url} returned ${response.status}`);
       }
-      return response.text();
+      return exactUtf8 ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer()) : response.text();
     },
     async listThreads(pr) {
       const nodes = [];
@@ -2174,7 +2171,7 @@ export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "REVIEW_ROUNDS");
 }
 
-const readActors = (path) => JSON.parse(readFileSync(path, "utf8")).actors ?? [];
+const readActors = (path) => readRawTrustedActors(path).actors ?? [];
 
 // The ids of the people on the base's trusted-actors list.
 export function trustedHumansFrom(trustedActorsPath) {
@@ -2215,7 +2212,7 @@ export async function ownerAdoption(env, log = () => {}) {
     if (idleHours === undefined) {
       return NO_ADOPTION;
     }
-    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || trustedActorsPath(env.BASE_PATH)), idleHours };
   } catch (error) {
     log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
     return NO_ADOPTION;

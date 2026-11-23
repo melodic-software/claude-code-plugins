@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.4] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
 ## [0.22.3] - 2026-11-23
 
 ### Changed

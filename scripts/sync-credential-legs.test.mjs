@@ -217,11 +217,13 @@ test("a job's span ends at its last non-blank line, before the next job's commen
   assert.throws(() => jobSpan(lines, "c"), /no job c/);
 });
 
-test("an eval lane is key-only, so it gets no subscription or fallback job", () => {
-  for (const job of ["run-eval-subscription", "run-eval-fallback"]) {
-    assert.throws(() => checkFunding(FUNDING, ".github/workflows/pr-run-plugin-evals.yml", job, ""), /funds no .* lane in pr-run-plugin-evals\.yml/, job);
+test("an eval lane gets no fallback job, and a subscription job only on the token alone", () => {
+  for (const workflow of [".github/workflows/pr-run-plugin-evals.yml", ".github/workflows/maintenance-measure-skill-edit-pass.yml"]) {
+    assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-fallback", ""), /funds no/, workflow);
+    assert.doesNotThrow(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"), workflow);
+    assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"), /reads MAINTENANCE_CLAUDE_API_KEY/, workflow);
+    assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"), /reads FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/, workflow);
   }
-  assert.throws(() => checkFunding(FUNDING, ".github/workflows/maintenance-measure-skill-edit-pass.yml", "run-eval-subscription", ""), /funds no/);
 });
 
 test("a derived job reads only the secrets lane-funding.json funds its lane with, and never the API key", () => {

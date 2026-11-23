@@ -274,7 +274,6 @@ def covers(src: tuple, claim: tuple) -> bool:
         return False
     parts = [v for v in (src[2], src[3], claim[2], claim[3]) if v is not None]
     width = max(len(v) for v in parts) + 1
-    # An open (+) high bound is an empty prefix: every version.
     return pad(src[2], width, 0) <= pad(claim[2], width, 0) and pad(
         claim[3] or (), width, INF
     ) <= pad(src[3] or (), width, INF)

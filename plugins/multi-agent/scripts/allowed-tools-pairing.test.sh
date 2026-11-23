@@ -46,7 +46,7 @@ expected_granted() {
 
 expected_workflow_grant() {
   case "$1" in
-  audit-defaults) echo "multi-agent:drift-audit" ;;
+  audit-defaults) echo '["Workflow(multi-agent:drift-audit)", "Workflow(multi-agent:registry-audit)"]' ;;
   *) echo "" ;;
   esac
 }
@@ -105,14 +105,12 @@ for skill in "${SKILLS[@]}"; do
   # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
 
-  # A skill that launches this plugin's own workflow grants that one named
-  # workflow and nothing else: never bare Workflow, never a script.
   workflow_grant="$(expected_workflow_grant "$skill")"
   if [[ -n "$workflow_grant" ]]; then
-    if [[ "$at" == "allowed-tools: [\"Workflow($workflow_grant)\"]" ]]; then
-      pass "$skill: allowed-tools grants only the named $workflow_grant workflow"
+    if [[ "$at" == "allowed-tools: $workflow_grant" ]]; then
+      pass "$skill: allowed-tools grants only the named workflow(s) $workflow_grant"
     else
-      fail "$skill: allowed-tools must be exactly [\"Workflow($workflow_grant)\"], got: $at"
+      fail "$skill: allowed-tools must be exactly $workflow_grant, got: $at"
     fi
     continue
   fi

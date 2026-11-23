@@ -98,7 +98,6 @@ class OnDemandInstall(unittest.TestCase):
     def test_second_session_is_a_no_op(self):
         self.assertEqual(self.pydeps('install', '--data-dir', str(self.data)).stdout.strip(), 'installed')
         before = self.installs()
-        # Aim pip at an empty folder: a second pip run could not find the wheel and would fail.
         empty = self.tmp / 'empty'
         empty.mkdir()
         r = self.pydeps('install', '--data-dir', str(self.data), env={**self.env, 'PIP_FIND_LINKS': str(empty)})
@@ -228,7 +227,7 @@ class Launcher(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
-            (fake / 'python3.13').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # not supported
+            (fake / 'python3.13').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
             (fake / 'python3.12').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n',
                                              encoding='utf-8')
             for f in fake.iterdir():
@@ -250,7 +249,6 @@ class Launcher(unittest.TestCase):
                 f'over=[${pydeps.HANDED_OVER}]" >> {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
-            # A real foreign home would break this test's own Python, so set it only for main()'s subprocesses.
             code = ('import os, sys, pydeps; '
                     'os.environ.update(PYTHONHOME="/opt/py314", PYTHONPATH="/opt/py314/lib", '
                     'UV_INTERNAL__PYTHONHOME="/opt/py314"); '
@@ -442,7 +440,7 @@ class ReadyStamp(unittest.TestCase):
             'python3.13=', 'python3.12=', f'python3={python3}', 'python='])
 
     def test_an_interpreter_only_the_launcher_listed_writes_no_stamp(self):
-        self.install_as(sys.executable)   # not on PATH, as a python.exe that only py -0p lists
+        self.install_as(sys.executable)
         self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
         self.assertFalse(self.stamp.exists())
 
@@ -465,7 +463,7 @@ class ReadyStamp(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
             self.assertFalse(self.stamp.exists())
-            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)   # no stamp to drop
+            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
         self.install_here()
         self.stamped()
         self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 0)

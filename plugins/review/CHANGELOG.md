@@ -3,6 +3,34 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.10.1] - 2026-11-23
+
+### Changed
+
+- give eight skills a `## Related` section that matches the committed skill-link table
+
+  code-review, council, fanout, merge-risk, quality-gate and security-review
+  gain one. explain-change and reviewer-media move theirs after `## Next` and
+  reword it to one condition per line; explain-change also gains the table's
+  merge-risk link.
+
+## [10.10.0] - 2026-11-23
+
+### Added
+
+- route two pilot steps through the route caller contract
+
+  /review:fanout's leaf reviewer dispatch and /codebase-health:audit's
+  per-file discovery fan-out now point at the caller contract of
+  /multi-agent:route (if enabled); otherwise they run here as before.
+
+## [10.9.1] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver and the reviewer-media decision check a personal override's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
 ## [10.9.0] - 2026-11-23
 
 ### Changed

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Exit-code contract of update.sh (0 no drift, 1 drift, 2 unverifiable),
-# network-free: the script runs from a copied skill tree with a PATH that holds
-# only the tools it needs and a curl stub that serves a local fixture.
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update.sh"

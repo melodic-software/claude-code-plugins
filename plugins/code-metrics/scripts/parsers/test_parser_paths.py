@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the readers every coverage parser in this directory shares, through
-the module loaded by path and through one parser's command line (the lcov
-parser, whose fixtures exercise both readers on the same run)."""
 
 from __future__ import annotations
 

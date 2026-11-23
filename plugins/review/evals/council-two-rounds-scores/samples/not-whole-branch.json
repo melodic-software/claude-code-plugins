@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Round 2 reviews only what the fix pass changed, plus its Not applied rows, not the whole branch. Marks decide nothing."
+    },
+    {
+      "answer": "It doesn't re-review the full diff; marks never gate anything.",
+      "why": "negated"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Marks gate nothing; they sit in the run file's Marks section.",
+      "why": "marks gate nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Round 2 re-reviews the whole branch diff.",
+      "why": "whole branch"
+    },
+    {
+      "answer": "Round 2 reviews the entire change again with the fixes applied.",
+      "why": "entire change"
+    },
+    {
+      "answer": "The marks rank the members and stop the loop when high enough.",
+      "why": "marks rank"
+    }
+  ]
+}

@@ -244,6 +244,10 @@ The `context/` files write the plugin root as `<plugin-root>`, which is `${CLAUD
 - No blocking findings: /verification:confirm.
 - A configured panel chosen for this change, with fix rounds: /review:council.
 
+## Related
+
+- Single-lens focused review: /review:quality-gate.
+
 ## What this skill does not do
 
 - **Review modes do not apply fixes**. Mutation happens only through the explicit `fix` action; it never auto-runs after a review.

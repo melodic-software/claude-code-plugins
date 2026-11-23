@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for scripts/check-next-graph.py, each against a fixture tree."""
 
 from __future__ import annotations
 
@@ -259,7 +258,6 @@ class NextGraphTest(unittest.TestCase):
         self.assertIn("unstaged: /p:design has workflow-stage ''", err)
 
     def test_unresolved_target_fails_anywhere_in_tree(self) -> None:
-        # The resolution check covers every skill's Next, not only the roster.
         self.fx.skill("q:outside", "anytime", "/q:renamed-away")
         rc, _, err = self.fx.run()
         self.assertEqual(rc, 1)

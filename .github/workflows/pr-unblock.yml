@@ -67,7 +67,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, sync-shared-copies]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, sync-shared-copies, fix-test-scope]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -129,7 +129,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: inputs.dispatcher-run-id != ''
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -212,7 +212,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -448,7 +448,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -557,7 +557,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -658,7 +658,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -804,7 +804,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -910,7 +910,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1135,7 +1135,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.sync.outputs.state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/sync-shared-copies-patch/patch.diff
@@ -1184,7 +1184,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1276,6 +1276,262 @@ jobs:
       # which gate-recheck.mjs reads again right before the push.
       patch-human-gate: lane-escalation
 
+  fix-test-scope-select:
+    name: Fix Test Scope Select
+    needs: check-dispatcher-current
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-test-scope'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.check-dispatcher-current.outputs.stale != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      proceed: >-
+        ${{ steps.build.outputs.state == 'written' && 'true'
+        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.locate.outputs.skip-reason != '' || steps.locate.outputs.escalation-reason != '' || steps.build.outputs.skip-reason != '' || steps.build.outputs.escalation-reason != '') && 'false' || '' }}
+      apply: ${{ steps.build.outputs.apply == 'true' && 'true' || 'false' }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      patch-sha256: ${{ steps.build.outputs.sha256 }}
+      patch-attempt: ${{ steps.build.outputs.state == 'written' && github.run_attempt || '' }}
+      escalation-reason: ${{ steps.locate.outputs.escalation-reason || steps.build.outputs.escalation-reason || '' }}
+      skip-reason: >-
+        ${{ steps.head.outputs.applicable == 'false' && 'not-applicable'
+        || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        || steps.locate.outputs.skip-reason || steps.build.outputs.skip-reason || '' }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          branch: ${{ github.event.repository.default_branch }}
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Read the PR head
+        id: head
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the pr-number input is not a PR number"
+            exit 1
+          fi
+          read_pr_fields "$PR_NUMBER" '.head.sha, .base.ref, .head.repo.full_name, .user.login' || exit 1
+          { read -r sha && read -r base && read -r head_repo && read -r author; } <<<"$pr_fields" || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" || ${base:-} != "$DEFAULT_BRANCH" || ${author:-} == 'dependabot[bot]' ]]; then
+            echo "::notice::fix-test-scope works only same-repository pull requests into the default branch that Dependabot did not open"
+            echo "applicable=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "applicable=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve the slot
+        id: slot
+        if: steps.head.outcome == 'success' && steps.head.outputs.applicable == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-test-scope
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ inputs.pr-number }}
+          head-sha: ${{ steps.head.outputs.sha }}
+
+      - name: Find the failed selection trace
+        id: locate
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_DIR: ${{ github.workspace }}/.base
+        run: node .base/.github/scripts/pr-unblock/declare-test-scope.mjs locate
+
+      - name: Download the selection trace
+        if: steps.locate.outputs.run-id != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: selection-trace-${{ steps.locate.outputs.run-id }}-${{ steps.locate.outputs.run-attempt }}
+          path: ${{ runner.temp }}/selection-trace
+          run-id: ${{ steps.locate.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Check out the PR head
+        if: steps.locate.outputs.run-id != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.head.outputs.sha }}
+          path: head
+          persist-credentials: false
+
+      - name: Build the test-scope declarations
+        id: build
+        if: steps.locate.outputs.run-id != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          TRACE_DIR: ${{ runner.temp }}/selection-trace
+          HEAD_DIR: ${{ github.workspace }}/head
+          BASE_DIR: ${{ github.workspace }}/.base
+          PATCH_OUT: ${{ runner.temp }}/declare-test-scope-patch/patch.diff
+        run: |
+          mkdir -p "$(dirname "$PATCH_OUT")"
+          node .base/.github/scripts/pr-unblock/declare-test-scope.mjs build
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: steps.build.outputs.state == 'written'
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/declare-test-scope-patch/patch.diff
+
+      - name: Upload the patch
+        if: (steps.build.outputs.state == 'written') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-pr-unblock-fix-test-scope-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/declare-test-scope-patch/patch.diff
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  fix-test-scope-not-run:
+    name: Fix Test Scope Not Run
+    needs: fix-test-scope-select
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'fix-test-scope'
+      && (needs.fix-test-scope-select.outputs.proceed != '' || needs.fix-test-scope-select.result == 'failure')
+      && needs.fix-test-scope-select.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          branch: ${{ github.event.repository.default_branch }}
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Read the stop's skip reason
+        id: stop
+        env:
+          REASON: ${{ needs.fix-test-scope-select.outputs.escalation-reason }}
+        run: echo "skip=$(node .base/.github/scripts/pr-unblock/escalation-routes.mjs skip)" >>"$GITHUB_OUTPUT"
+
+      - name: Post the fix-test-scope check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-test-scope
+          run-result: ${{ needs.fix-test-scope-select.result == 'failure' && 'failure' || 'skipped' }}
+          not-run-reason: >-
+            ${{ needs.fix-test-scope-select.result != 'failure'
+            && (needs.fix-test-scope-select.outputs.proceed == 'true' && 'no-model-turn'
+            || needs.fix-test-scope-select.outputs.skip-reason
+            || steps.stop.outputs.skip) || '' }}
+          head-sha: ${{ needs.fix-test-scope-select.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.fix-test-scope-select.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  apply-test-scope:
+    name: Apply Test Scope
+    needs: fix-test-scope-select
+    if: ${{ !cancelled() && needs.fix-test-scope-select.outputs.proceed == 'true' && needs.fix-test-scope-select.outputs.apply == 'true' }}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: apply-test-scope
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: written
+      patch-sha256: ${{ needs.fix-test-scope-select.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-test-scope-select.outputs.patch-attempt }}
+      patch-activity: fix-test-scope
+      patch-prepare: test-scope
+      patch-head-sha: ${{ needs.fix-test-scope-select.outputs.head-sha }}
+
   # address-feedback is five jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
   # Before any model turn it reads the PR head, resolves the slot (draft and
@@ -1337,7 +1593,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1463,7 +1719,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: |
@@ -1513,7 +1769,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1626,7 +1882,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1728,7 +1984,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1884,7 +2140,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: start
           role: pr-unblock
@@ -1898,7 +2154,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: skipped
           lane: adjudicate-feedback
@@ -1945,7 +2201,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -2024,7 +2280,7 @@ jobs:
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: key
           role: pr-unblock
@@ -2035,7 +2291,7 @@ jobs:
       - name: Check the subscription token
         id: sub
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: subscription
           role: pr-unblock
@@ -2045,7 +2301,7 @@ jobs:
       - name: Check the fallback token
         id: fb
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: fallback
           role: pr-unblock
@@ -2055,7 +2311,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -2094,7 +2350,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2133,7 +2389,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript
         if: always() && steps.judge-0.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2146,7 +2402,7 @@ jobs:
       - name: Record disputed thread 0's leg
         if: always() && steps.judge-0.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0.outcome }}
           execution-file: ${{ steps.judge-0.outputs.execution-file }}
@@ -2166,7 +2422,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-0.outputs.handoff }}
@@ -2177,7 +2433,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2217,7 +2473,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript on the subscription
         if: always() && steps.judge-0-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2230,7 +2486,7 @@ jobs:
       - name: Record disputed thread 0's leg on the subscription
         if: always() && steps.judge-0-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0-subscription.outcome }}
           execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
@@ -2251,7 +2507,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-0.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
@@ -2262,7 +2518,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2301,7 +2557,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript on the fallback token
         if: always() && steps.judge-0-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2314,7 +2570,7 @@ jobs:
       - name: Record disputed thread 0's leg on the fallback token
         if: always() && steps.judge-0-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0-fallback.outcome }}
           execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
@@ -2355,7 +2611,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2394,7 +2650,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript
         if: always() && steps.judge-1.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2407,7 +2663,7 @@ jobs:
       - name: Record disputed thread 1's leg
         if: always() && steps.judge-1.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1.outcome }}
           execution-file: ${{ steps.judge-1.outputs.execution-file }}
@@ -2427,7 +2683,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-1.outputs.handoff }}
@@ -2438,7 +2694,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2478,7 +2734,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript on the subscription
         if: always() && steps.judge-1-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2491,7 +2747,7 @@ jobs:
       - name: Record disputed thread 1's leg on the subscription
         if: always() && steps.judge-1-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1-subscription.outcome }}
           execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
@@ -2512,7 +2768,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-1.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
@@ -2523,7 +2779,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2562,7 +2818,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript on the fallback token
         if: always() && steps.judge-1-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2575,7 +2831,7 @@ jobs:
       - name: Record disputed thread 1's leg on the fallback token
         if: always() && steps.judge-1-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1-fallback.outcome }}
           execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
@@ -2616,7 +2872,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2655,7 +2911,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2668,7 +2924,7 @@ jobs:
       - name: Record disputed thread 2's leg
         if: always() && steps.judge-2.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2688,7 +2944,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-2.outputs.handoff }}
@@ -2699,7 +2955,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2739,7 +2995,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript on the subscription
         if: always() && steps.judge-2-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2752,7 +3008,7 @@ jobs:
       - name: Record disputed thread 2's leg on the subscription
         if: always() && steps.judge-2-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2-subscription.outcome }}
           execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
@@ -2773,7 +3029,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-2.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
@@ -2784,7 +3040,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2823,7 +3079,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript on the fallback token
         if: always() && steps.judge-2-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2836,7 +3092,7 @@ jobs:
       - name: Record disputed thread 2's leg on the fallback token
         if: always() && steps.judge-2-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2-fallback.outcome }}
           execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
@@ -2882,7 +3138,7 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -2913,7 +3169,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/adjudication/verdicts.json
@@ -3097,6 +3353,9 @@ jobs:
       relock-state: ${{ steps.upload-relock.outcome == 'success' && 'written' || '' }}
       relock-sha256: ${{ steps.upload-relock.outcome == 'success' && steps.select.outputs.relock-sha256 || '' }}
       relock-attempt: ${{ steps.upload-relock.outcome == 'success' && github.run_attempt || '' }}
+      cdn-sync-state: ${{ steps.upload-cdn-sync.outcome == 'success' && 'written' || '' }}
+      cdn-sync-sha256: ${{ steps.upload-cdn-sync.outcome == 'success' && steps.select.outputs.cdn-sync-sha256 || '' }}
+      cdn-sync-attempt: ${{ steps.upload-cdn-sync.outcome == 'success' && github.run_attempt || '' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -3104,7 +3363,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3190,8 +3449,10 @@ jobs:
           # A stale install-script pin's patch (install-script-pin.mjs).
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
           RELOCK_DIR: ${{ runner.temp }}/dependency-relock
+          BASE_DIR: .base
+          CDN_SYNC_DIR: ${{ runner.temp }}/cdn-pins-request
         run: |
-          mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")" "$RELOCK_DIR"
+          mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")" "$RELOCK_DIR" "$CDN_SYNC_DIR"
           DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
           export DEPENDENCY_REVIEW_ROUNDS
           DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" CONTEXT_RUN_FILE="$DEPENDENCY_DIR/context.json" \
@@ -3210,7 +3471,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: |
@@ -3233,7 +3494,7 @@ jobs:
       - name: Scan the pin patch for credentials
         id: scan-pin
         if: steps.select.outputs.pin-state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
@@ -3253,7 +3514,7 @@ jobs:
       - name: Scan the relock request for credentials
         id: scan-relock
         if: steps.select.outputs.relock-state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-relock
@@ -3265,6 +3526,24 @@ jobs:
         with:
           name: dependency-relock-request-${{ github.run_attempt }}
           path: ${{ runner.temp }}/dependency-relock
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Scan the CDN sync request for credentials
+        id: scan-cdn-sync
+        if: steps.select.outputs.cdn-sync-state == 'written'
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Upload the CDN sync request
+        id: upload-cdn-sync
+        if: (steps.select.outputs.cdn-sync-state == 'written') && steps.scan-cdn-sync.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cdn-pins-request-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
           retention-days: 1
           if-no-files-found: error
 
@@ -3298,7 +3577,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3396,7 +3675,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3497,7 +3776,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3697,7 +3976,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3745,7 +4024,7 @@ jobs:
       - name: Scan the relock patch for credentials
         id: scan-pin
         if: steps.patch.outputs.pin-sha256 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
@@ -3787,6 +4066,182 @@ jobs:
       patch-attempt: ${{ needs.review-dependency-relock-patch.outputs.pin-attempt }}
       patch-activity: review-dependency
       patch-prepare: dependency-relock
+      patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+
+  review-cdn-pins-sync:
+    name: Review CDN Pins Sync
+    needs: review-dependency-select
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.cdn-sync-state == 'written' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    outputs:
+      result-attempt: ${{ steps.upload-result.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      - name: Download the CDN sync request
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-request-${{ needs.review-dependency-select.outputs.cdn-sync-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Sync the CDN pins
+        env:
+          CDN_SYNC_IMAGE: node:24.21.0-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
+          REQUEST_SHA256: ${{ needs.review-dependency-select.outputs.cdn-sync-sha256 }}
+        run: |
+          request="$RUNNER_TEMP/cdn-pins-request"
+          result="$RUNNER_TEMP/cdn-pins-result"
+          sum=$(sha256sum <"$request/request.json")
+          [[ ${sum%% *} == "$REQUEST_SHA256" ]]
+          mkdir "$result"
+          docker run --rm -i --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+            -v "$request:/request:ro" -v "$result:/result" "$CDN_SYNC_IMAGE" node --input-type=module <<'JS'
+          import { execFileSync } from "node:child_process";
+          import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+          import { dirname, join } from "node:path";
+
+          const request = JSON.parse(readFileSync("/request/request.json", "utf8"));
+          const work = mkdtempSync("/tmp/cdn-pins-");
+          const script = join(work, "lib/cdn-pins/sync.mjs");
+          const inputs = {
+            ...request.files,
+            "lib/cdn-pins/package.json": request.manifest,
+            "lib/cdn-pins/sync.mjs": request.script,
+          };
+          for (const [path, text] of Object.entries(inputs)) {
+            const dest = join(work, path);
+            mkdirSync(dirname(dest), { recursive: true });
+            writeFileSync(dest, text);
+          }
+          execFileSync(process.execPath, [script, "sync", work], { stdio: "inherit" });
+          for (const [path, before] of Object.entries(request.files)) {
+            const synced = join(work, path);
+            if (!lstatSync(synced).isFile()) throw new Error(`${path} is not a regular sync result`);
+            if (readFileSync(synced).equals(Buffer.from(before))) continue;
+            const dest = join("/result", path);
+            mkdirSync(dirname(dest), { recursive: true });
+            copyFileSync(synced, dest);
+          }
+          JS
+
+      - name: Upload the synced CDN pins
+        id: upload-result
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cdn-pins-result-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cdn-pins-result
+          retention-days: 1
+          if-no-files-found: error
+
+  review-cdn-pins-sync-patch:
+    name: Review CDN Pins Sync Patch
+    needs: [review-dependency-select, review-cdn-pins-sync]
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.cdn-sync-state == 'written' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      pin-state: ${{ steps.upload-pin.outcome == 'success' && 'written' || '' }}
+      pin-sha256: ${{ steps.upload-pin.outcome == 'success' && steps.patch.outputs.pin-sha256 || '' }}
+      pin-attempt: ${{ steps.upload-pin.outcome == 'success' && github.run_attempt || '' }}
+      escalation-reason: ${{ steps.upload-pin.outcome != 'success' && 'dependency-pin-invalid' || '' }}
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          branch: ${{ github.event.repository.default_branch }}
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Download the CDN sync request
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-request-${{ needs.review-dependency-select.outputs.cdn-sync-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Download the synced CDN pins
+        id: download-result
+        if: needs.review-cdn-pins-sync.outputs.result-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-result-${{ needs.review-cdn-pins-sync.outputs.result-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-result
+
+      - name: Build the CDN pins patch
+        id: patch
+        if: steps.download-result.outcome == 'success'
+        env:
+          REQUEST_SHA256: ${{ needs.review-dependency-select.outputs.cdn-sync-sha256 }}
+        run: |
+          sum=$(sha256sum <"$RUNNER_TEMP/cdn-pins-request/request.json")
+          if [[ ${sum%% *} != "$REQUEST_SHA256" ]]; then
+            echo "::error::the CDN sync request is not the one the select job wrote"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/dependency-pin"
+          node .base/.github/scripts/pr-unblock/cdn-pins-sync.mjs patch "$RUNNER_TEMP/cdn-pins-request/request.json" \
+            "$RUNNER_TEMP/cdn-pins-result" "$RUNNER_TEMP/dependency-pin/patch.diff" || exit 0
+          sum=$(sha256sum <"$RUNNER_TEMP/dependency-pin/patch.diff")
+          echo "pin-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the CDN pins patch for credentials
+        id: scan-pin
+        if: steps.patch.outputs.pin-sha256 != ''
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
+
+      - name: Upload the CDN pins patch
+        id: upload-pin
+        if: (steps.patch.outputs.pin-sha256 != '') && steps.scan-pin.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-pr-unblock-review-dependency-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
+          retention-days: 1
+          if-no-files-found: error
+
+  apply-cdn-pins-sync:
+    name: Apply CDN Pins Sync
+    needs: [review-dependency-select, review-cdn-pins-sync-patch]
+    if: ${{ !cancelled() && needs.review-cdn-pins-sync-patch.outputs.pin-state == 'written' }}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: apply-dependency-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: written
+      patch-sha256: ${{ needs.review-cdn-pins-sync-patch.outputs.pin-sha256 }}
+      patch-attempt: ${{ needs.review-cdn-pins-sync-patch.outputs.pin-attempt }}
+      patch-activity: review-dependency
+      patch-prepare: cdn-pins-sync
       patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
 
   # The verdict job, a script with no model: it holds pull-requests and
@@ -3887,7 +4342,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3939,7 +4394,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.context.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/ci-context/context.json
@@ -3985,7 +4440,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4086,7 +4541,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4190,7 +4645,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4375,7 +4830,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4475,7 +4930,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4602,7 +5057,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4685,18 +5140,22 @@ jobs:
       - apply-dependency-patch
       - apply-dependency-pin
       - review-dependency-relock-patch
+      - review-cdn-pins-sync-patch
       - apply-dependency-relock
+      - apply-cdn-pins-sync
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
       - sync-shared-copies-select
       - apply-shared-copies
+      - fix-test-scope-select
+      - apply-test-scope
     if: >-
       ${{ !cancelled()
       && (needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
       || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha
-      || needs.sync-shared-copies-select.outputs.head-sha || '') != ''
+      || needs.sync-shared-copies-select.outputs.head-sha || needs.fix-test-scope-select.outputs.head-sha || '') != ''
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
       || needs.check-conflict-scan-refusal.outputs.escalation-reason != ''
@@ -4707,11 +5166,15 @@ jobs:
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.review-dependency-relock-patch.outputs.escalation-reason != ''
+      || needs.review-cdn-pins-sync-patch.outputs.escalation-reason != ''
       || needs.apply-dependency-relock.outputs.escalation-reason != ''
+      || needs.apply-cdn-pins-sync.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
       || needs.apply-shared-copies.outputs.escalation-reason != ''
+      || needs.fix-test-scope-select.outputs.escalation-reason != ''
+      || needs.apply-test-scope.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -4721,9 +5184,11 @@ jobs:
       || needs.apply-dependency-verdict.result == 'success' && needs.apply-dependency-verdict.outputs.skip-reason == ''
       || needs.apply-dependency-pin.result == 'success' && needs.apply-dependency-pin.outputs.skip-reason == ''
       || needs.apply-dependency-relock.result == 'success' && needs.apply-dependency-relock.outputs.skip-reason == ''
+      || needs.apply-cdn-pins-sync.result == 'success' && needs.apply-cdn-pins-sync.outputs.skip-reason == ''
       || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
       || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
       || needs.apply-shared-copies.result == 'success' && needs.apply-shared-copies.outputs.skip-reason == ''
+      || needs.apply-test-scope.result == 'success' && needs.apply-test-scope.outputs.skip-reason == ''
       || needs.address-feedback-select.result == 'success' && needs.address-feedback-select.outputs.stop-resolved == 'true'
       || needs.fix-ci-context.result == 'success' && needs.fix-ci-context.outputs.stop-resolved == 'true') }}
     runs-on: ubuntu-24.04
@@ -4742,7 +5207,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4776,8 +5241,10 @@ jobs:
             || needs.apply-feedback-patch.outputs.pushed-commit || needs.address-feedback-select.outputs.head-sha
             || needs.apply-dependency-patch.outputs.pushed-commit || needs.apply-dependency-pin.outputs.pushed-commit
             || needs.apply-dependency-relock.outputs.pushed-commit
+            || needs.apply-cdn-pins-sync.outputs.pushed-commit
             || needs.review-dependency-select.outputs.head-sha
-            || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha }}
+            || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha
+            || needs.fix-test-scope-select.outputs.head-sha }}
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
             || needs.apply-conflict-patch.outputs.escalation-reason
@@ -4789,7 +5256,9 @@ jobs:
             || needs.apply-dependency-verdict.outputs.escalation-reason
             || needs.apply-dependency-pin.outputs.escalation-reason
             || needs.review-dependency-relock-patch.outputs.escalation-reason
+            || needs.review-cdn-pins-sync-patch.outputs.escalation-reason
             || needs.apply-dependency-relock.outputs.escalation-reason
+            || needs.apply-cdn-pins-sync.outputs.escalation-reason
             || needs.fix-ci-context.outputs.escalation-reason
             || needs.apply-patch.outputs.escalation-reason
             || needs.apply-patch-rung-up.outputs.escalation-reason
@@ -4797,7 +5266,9 @@ jobs:
             && !(needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')
             && 'ci-fix-escalated'
             || needs.sync-shared-copies-select.outputs.escalation-reason
-            || needs.apply-shared-copies.outputs.escalation-reason || '' }}
+            || needs.apply-shared-copies.outputs.escalation-reason
+            || needs.fix-test-scope-select.outputs.escalation-reason
+            || needs.apply-test-scope.outputs.escalation-reason || '' }}
           ACTIVITY: ${{ inputs.activity }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh "$([ -n "$ESCALATION_REASON" ] && echo status || echo clear)"
@@ -4823,31 +5294,18 @@ jobs:
       - apply-dependency-patch
       - apply-dependency-pin
       - review-dependency-relock-patch
+      - review-cdn-pins-sync-patch
       - apply-dependency-relock
+      - apply-cdn-pins-sync
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
       - sync-shared-copies-select
       - apply-shared-copies
+      - fix-test-scope-select
+      - apply-test-scope
       - report-stop-status
-    # A reply job that failed with no reason (its lane token, a script error)
-    # stops as feedback-publish-failed, derived here from its result. When
-    # report-stop-status withheld that stop's status, because the feedback
-    # sweep sends a workflow-modified refusal again, no comment posts either;
-    # a skipped or failed report-stop-status leaves the output empty, so the
-    # comment posts.
-    # escalation-reason is set only by the write runner's own steps, the
-    # base's reply, verdict and apply-patch scripts, and the base scripts of
-    # resolve-conflicts-select, check-conflict-scan-refusal, address-feedback-select,
-    # review-dependency-select, fix-ci-context and sync-shared-copies-select.
-    # At most one escalates: one activity runs per dispatch, a reply, verdict
-    # or push job runs only after a select job proceeded, and a select job,
-    # or fix-ci-context, escalates only before any model turn. A rung-up stop
-    # escalates here too unless apply-patch-rung-up applied the retry's patch
-    # cleanly: its own reason, else ci-fix-escalated. On a cancelled run this
-    # always() branch fires, but the write workflow's run job skips, so no
-    # label is applied and ci-status stays red.
     if: >-
       ${{ (!cancelled() && needs.report-stop-status.outputs.status-withheld != 'true'
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
@@ -4860,11 +5318,15 @@ jobs:
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.review-dependency-relock-patch.outputs.escalation-reason != ''
+      || needs.review-cdn-pins-sync-patch.outputs.escalation-reason != ''
       || needs.apply-dependency-relock.outputs.escalation-reason != ''
+      || needs.apply-cdn-pins-sync.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
-      || needs.apply-shared-copies.outputs.escalation-reason != ''))
+      || needs.apply-shared-copies.outputs.escalation-reason != ''
+      || needs.fix-test-scope-select.outputs.escalation-reason != ''
+      || needs.apply-test-scope.outputs.escalation-reason != ''))
       || (always() && needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -4896,13 +5358,17 @@ jobs:
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.apply-dependency-pin.outputs.escalation-reason
         || needs.review-dependency-relock-patch.outputs.escalation-reason
+        || needs.review-cdn-pins-sync-patch.outputs.escalation-reason
         || needs.apply-dependency-relock.outputs.escalation-reason
+        || needs.apply-cdn-pins-sync.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
         || needs.apply-patch.outputs.escalation-reason
         || needs.apply-patch-rung-up.outputs.escalation-reason
         || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated'
         || needs.sync-shared-copies-select.outputs.escalation-reason
-        || needs.apply-shared-copies.outputs.escalation-reason || '' }}
+        || needs.apply-shared-copies.outputs.escalation-reason
+        || needs.fix-test-scope-select.outputs.escalation-reason
+        || needs.apply-test-scope.outputs.escalation-reason || '' }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
@@ -4935,7 +5401,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4952,7 +5418,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -4980,7 +5446,7 @@ jobs:
         if: steps.credit-marker-resolve-conflicts.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
@@ -5021,7 +5487,7 @@ jobs:
         if: steps.credit-marker-address-feedback.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
@@ -5062,7 +5528,7 @@ jobs:
         if: steps.credit-marker-review-dependency.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
@@ -5103,7 +5569,7 @@ jobs:
         if: steps.credit-marker-fix-ci.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
@@ -5144,7 +5610,7 @@ jobs:
         if: steps.credit-marker-fix-ci-rung-up.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id

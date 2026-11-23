@@ -446,12 +446,13 @@ present. The four-part records live in
 
 ## Spoke paths
 
-The `reference/` files write this skill's directory as `<skill-dir>`, which is
-`${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put each path in place of its placeholder before running a command or
-writing it into a brief: we never rely on a `${…}` token in a file read from disk being expanded
-later. Where each plugin variable resolves: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+The `reference/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put each path in place of its placeholder before running a command or writing it into a brief: we never rely on a `${…}` token in a file read from disk being expanded later. Where each plugin variable resolves: the plugins reference, <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+
+## Related
+
+- Standing or drain loop over one repo: /source-control:babysit-loop.
+- Single-PR lifecycle: /source-control:pull-request.
+- Escalated PRs needing operator decisions: /work-items:attend-queue.
 
 ## Gotchas
 
@@ -475,7 +476,7 @@ later. Where each plugin variable resolves: the plugins reference,
   so the merge gate correctly refuses. Breaking the cycle is a one-time human admin-merge
   bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
   never as a reason to route around the gate
-- **Every worker draws on one forge [API budget](../../reference/providers/github/README.md#api-budget):** one background watcher per PR at 60 s or slower, writes one at a time, stop at the first rate-limit error
+- **Every worker draws on one forge [API budget](../../reference/providers/github/README.md#api-budget):** one background watcher per PR at 90 s or slower, writes one at a time, stop at the first rate-limit error
 
 ## Reference index. Load on demand
 

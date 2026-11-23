@@ -71,11 +71,13 @@ exception: it comes from reading the path's callers, so it ranks E3 until a meas
 
 ## Slow checks, hooks and CI
 
-A repository's checks run in lanes: a commit hook, a push hook and CI. Treat each lane as a layer
-and attribute before choosing.
+A repository's checks run in lanes: a commit hook, a push hook, the pre-PR check (run once per
+head before a pull request opens) and CI. Treat each lane as a layer and attribute before choosing.
 
 1. **Inventory each check and its lane** from the repository's hook-manager config, its check
-   scripts and its CI workflows. Read the repository's own placement record and budgets first (rules,
+   scripts and its CI workflows. For hook timings, the git-hooks installer's read-only `inspect`
+   inventory, run through a format plugin's `setup check inspect` (if enabled), lists every hook
+   per stage and times the plugin's own entries. Read the repository's own placement record and budgets first (rules,
    conventions, agent instructions); they override this skill. This repository's worked case is the
    [check-placement contract, Duration budgets](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#duration-budgets);
    borrow no number from it. With no recorded budget, setting one is `/performance:goal`'s job.
@@ -85,7 +87,7 @@ and attribute before choosing.
    typical change, a large change), never a single run. `/performance:goal` records that list.
 4. **Rank these moves per candidate**, each at the tier its evidence earns:
    - **Scope to the change**: the check reads only the staged or pushed files it applies to.
-   - **Move to a later lane**: a slow check goes from commit to push, or from push to CI. Never drop
+   - **Move to a later lane**: a slow check goes from a hook to the pre-PR check or CI. Never drop
      it: CI stays the hard stop, whatever a local hook runs.
    - **Run in parallel**: the runner must report every job's failure and exit non-zero on any; a
      runner that returns only its last job's status passes a failed check. Confirm the shell's or

@@ -358,6 +358,26 @@ activities:
       # hold unless the select job read pr-merge's shared-copy refusal.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
+  fix-test-scope:
+    script: .github/scripts/pr-unblock/declare-test-scope.mjs
+    effect: read
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-session, "security: outside-actor"]
+      draft: [false]
+  apply-test-scope:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    checkout: base
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-session, "security: outside-actor"]
+      draft: [false]
   resolve-issue:
     # Works one issue at Work status agent-ready: either leaves the change in the
     # working tree, or stops and says why. The runner adds `--issue <number>`.
@@ -759,6 +779,18 @@ activities:
     gating: advisory
     # Posts the plan's titles and bodies, which the model wrote.
     reads-untrusted: true
+  push-native-baseline-branch:
+    script: .github/scripts/upstream-apply-changelog/native-baseline-publish.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+  publish-native-baseline-pr:
+    script: .github/scripts/upstream-apply-changelog/native-baseline-publish.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: true
   apply-upkeep-branches:
     # Recreates each chore/tidy-adhoc-<slug>-<date> branch the code-tidying upkeep
     # model job committed, as one lanes App commit through the Git Data API. A
@@ -867,9 +899,12 @@ lanes:
       # Runs after sync-shared-copies, in its own job with its own token.
       - activity: apply-shared-copies
         needs: [sync-shared-copies]
+      - activity: fix-test-scope
+      - activity: apply-test-scope
+        needs: [fix-test-scope]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies]
+        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies, fix-test-scope, apply-test-scope]
   pr-merge:
     stage: merge
     slots:
@@ -904,6 +939,9 @@ lanes:
         needs: [apply-changelog]
       - activity: publish-changelog-intake
         needs: [apply-changelog-branches]
+      - activity: push-native-baseline-branch
+      - activity: publish-native-baseline-pr
+        needs: [push-native-baseline-branch]
   # Started daily and by a listed human's dispatch
   # (.github/workflows/maintenance-tidy-code-upkeep.yml). Push and pull request
   # open are separate jobs: the broker refuses contents and pull-requests write in
@@ -1063,8 +1101,6 @@ models:
       medium:
         base-turns: 150
         timeout-minutes: 115
-      # Too big for one run: the lane skips it (split-required) before any
-      # model turn, and triage sends it to /work-items:decompose.
       large: split
     # A trusted size-split sub-issue rated Large (admission takes it whatever
     # its Size, owner Q93) runs at this size instead of split-required: it
@@ -1153,6 +1189,8 @@ models:
       - confirmed
       - needs-triage
 
+test-scope:
+  apply: false
 loop:
   review-rounds: 3
   # What a review lane reports on heads after the first one it reviewed
@@ -1523,6 +1561,7 @@ merge:
   # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
   # both. Absent is native.
   lane-prs: native
+  baseline-file: docs/upstream/claude-code-native-surfaces.min.json
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
   # to a pull request from one, and pr-unblock never runs fix-ci on one
@@ -1662,8 +1701,18 @@ merge:
     # organization's code, not third-party code (owner decision 2026-11-15,
     # the Dependabot policy's `fastTrack`).
     trusted-action-owners:
+      - actions
       - anthropics
+      - aws-actions
+      - azure
+      - docker
+      - github
+      - google
+      - google-github-actions
+      - hashicorp
       - melodic-software
+      - microsoft
+      - openai
   diff-check:
     denied-paths: []
     high-path-floor: false
@@ -1672,6 +1721,8 @@ merge:
       - glob: ".github/actions/check-trusted-trigger/**"
         class: trust
       - glob: ".github/scripts/lib/github-client.mjs"
+        class: trust
+      - glob: ".github/scripts/lib/trusted-actors.mjs"
         class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
@@ -1781,11 +1832,15 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-verify/resolve-pr.mjs"
         class: enforcement
+      - glob: ".github/scripts/pr-verify/spec-source.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-verify/write-verdict.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/admit.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/size-split.mjs"
+        class: enforcement
+      - glob: ".github/scripts/intake-triage/issue-spec.mjs"
         class: enforcement
       - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
         class: enforcement
@@ -1812,6 +1867,8 @@ merge:
       - glob: ".github/scripts/apply-patch/predicates.mjs"
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/cdn-paths.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/run-main.mjs"
         class: enforcement
@@ -1876,6 +1933,12 @@ merge:
         class: gate
         author-lift: false
       - glob: ".github/scripts/plugin-eval/policy-probe-prompt.txt"
+        class: gate
+        author-lift: false
+      - glob: ".github/scripts/pr-unblock/test-scope.mjs"
+        class: gate
+        author-lift: false
+      - glob: ".github/scripts/pr-unblock/declare-test-scope.mjs"
         class: gate
         author-lift: false
       # BEGIN hold-floor GATE_WORKFLOWS: generated by scripts/sync-hold-floor.py

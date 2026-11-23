@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Three members run, briefed correctness, design and adversarial, each on Opus as brief-reviewer, for one round with scores off."},
+    {"answer": "The defaults do not run on Fable even in a Fable session; each member is opus.", "why": "negated wrong model"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "Each default member runs on Fable, the flagship.", "why": "wrong model"},
+    {"answer": "The three members use sonnet as brief-reviewer agents.", "why": "wrong model"},
+    {"answer": "With no review.yaml, nothing runs.", "why": "nothing runs"}
+  ]
+}

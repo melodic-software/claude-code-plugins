@@ -346,9 +346,6 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 "counted in the lane row"
             )
     else:
-        # Nothing listed matched (mypy named its modules from a base this
-        # adapter cannot recover), or nothing was listed at all: the lane row
-        # is mypy's own Total.
         lane_counts = total
         if modules:
             notes.append(

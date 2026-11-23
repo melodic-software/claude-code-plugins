@@ -1,5 +1,37 @@
 # Changelog for the PR pipeline convention
 
+## [12.7.0] - 2026-11-23
+
+### Added
+
+- `test-scope.apply` (boolean, default false) configures pr-unblock's fix-test-scope activity: on a same-repository pull request whose pr-require-checks run failed only at Test Selection's trace, the select job builds the missing `// test-scope:` lines as a patch, and with `apply: true` apply-test-scope pushes it as one lanes App commit.
+
+## [12.6.0] - 2026-11-23
+
+### Added
+
+- `CI Status`'s trust-gate hold clears for a Dependabot pull request whose every change swaps an action's pinned SHA for a commit a tag of that action's repository points to, whatever the owner, once the lanes App's newest review-dependency round marker names the current head with `verdict=merge` (owner decision 2026-11-23, [#18492](https://github.com/melodic-software/claude-code-plugins/issues/18492)). The owner-list exception and this one share one shape and tag check. Until the verdict, the hold reads `#<n> by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths`; `review-dependency-select` sends that hold to the model instead of skipping it `gate-hold`, with `merge_clears_gate_hold: true` in `dependency.json`, and the pr-unblock dispatcher re-runs the head's `CI Status` job once a merge marker newer than it stands.
+
+- The upstream changelog workflow checks the release's npm native build against `docs/upstream/claude-code-native-surfaces.min.json`. A changed passing summary opens a baseline-only pull request, ready for review, in two jobs, `push-native-baseline-branch` and `publish-native-baseline-pr`, each with its own broker token. The new `merge.baseline-file` setting names that file: a lanes App pull request whose changed files are exactly it merges unattended with no linked issue and no pr-verify verdict (owner decision Q152 (B)): pr-verify skips it, and enable-auto-merge and ci-status's merge-queue step take it without one. Its risk score, the clean security review that clears the `docs/upstream/**` review path, and every other hold still apply. The host fallback is changelog apply Phase 5 in the harness-ops plugin.
+
+## [12.5.1] - 2026-11-23
+
+### Changed
+
+- `merge.dependabot.trusted-action-owners` also lists the major vendors' GitHub-verified organizations (`actions`, `github`, `google`, `google-github-actions`, `microsoft`, `azure`, `aws-actions`, `docker`, `openai`, `hashicorp`), so a Dependabot pull request that only moves one of their action pins to a tagged commit skips `CI Status`'s trust-gate hold (owner decision 2026-11-23).
+
+### Fixed
+
+- An address-feedback round that finds every note of an earlier pr-verify FAIL already addressed stops `feedback-already-addressed` without the `needs-session` label. No session builder is queued: the lane's next sweep run on that head clears the failing status, and the `verify:earlier-fail` refusal keeps holding the merge until pr-verify, which judges the head on its own, passes it ([#18133](https://github.com/melodic-software/claude-code-plugins/pull/18133)).
+
+- `review-dependency-select` skips a Dependabot pull request whose only CI Status failure is the trust-gate hold with the new `gate-hold` skip reason, with no model turn and no escalation, so it adds no human-gated label that would keep CI Status red after a trusted approval; its step summary says the lane did not judge the update's content. The dependency dispatcher does not record a `gate-hold` skip as handled, and sends review-dependency again once CI Status passes on that head. `dependency-escalate-security` now says the review chose owner reason `security` instead of asserting a HIGH or CRITICAL finding.
+
+## [12.5.0] - 2026-11-23
+
+### Changed
+
+- The lane run report posts a pull request comment only for a run that failed or was cancelled (a designed skip counts as clean) or recorded a failed GitHub API call, one comment per workflow run (`<!-- lane-run-report run=<run id> -->`) with a section per failed activity. A clean run writes the report to the job summary only. Comments under the old per-activity marker are left as they are.
+
 ## [12.4.1] - 2026-11-23
 
 ### Fixed

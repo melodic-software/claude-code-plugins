@@ -1,5 +1,3 @@
-"""`babysit_check_inputs.changed_since_merge_base` over real git clones."""
-
 from __future__ import annotations
 
 import os

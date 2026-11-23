@@ -726,8 +726,6 @@ class AnUnseenQueueResultIsHeldUntilConfirmed(AsyncMergeHarness):
         self.assertEqual(self._merge_commands(), [])
         record = self._records()["owner/repo#1"]
         self.assertNotIn("unconfirmed", record)
-        # Confirmed, it follows the queued-entry rule: leaving the queue unmerged
-        # is a dequeue on the very next read.
         code = self._later_run(_queue())
         self.assertEqual(code, 10)
         self.assertTrue(self.output["dequeued"])
@@ -924,7 +922,6 @@ class MergeQueueReadBack(unittest.TestCase):
             ([], 0),
             ([COMMIT, _removed(), _removed()], 2),
             ([_removed(), _removed(), _removed()], 3),
-            # A head change inside a full window still bounds the count.
             ([COMMIT] + [_removed("manually_removed")] * (LIMIT - 1), 0),
             ([_removed(), _removed(), COMMIT], 0),
             ([_removed(), _removed(), FORCE_PUSH, _removed()], 1),
@@ -972,7 +969,6 @@ class MergeQueueReadBack(unittest.TestCase):
             ([added, _removed(), COMMIT], None),
             ([added, _removed(), FORCE_PUSH], None),
             ([added, COMMIT, _removed()], None),
-            # The lane's retry ejected: its own enqueue, which no person made.
             (
                 [added, _removed(), lane, out],
                 found(lane),
@@ -990,7 +986,6 @@ class MergeQueueReadBack(unittest.TestCase):
                 pr["queueEvents"] = None if events is None else {"nodes": events}
                 result = self._read(payload)
                 self.assertEqual(result["ejectedEnqueue"], expected)
-        # The extra read leaves the ejection count and removal reason alone.
         payload = _queue(timeline=[COMMIT, _removed()])
         payload["data"]["repository"]["pullRequest"]["queueEvents"] = {
             "nodes": [added, _removed()]
@@ -1040,8 +1035,6 @@ class MergeQueueReadBack(unittest.TestCase):
         self.assertIn("RemovedFromMergeQueueEvent{reason createdAt}", timeline)
 
     def test_an_unreadable_timeline_counts_nothing(self) -> None:
-        # A full window with no head change in it: older failed-check
-        # removals may lie beyond it, so the count is unreadable.
         full = [_removed("manually_removed")] * (LIMIT - 1) + [_removed()]
         for timeline in (
             None,
@@ -1199,7 +1192,6 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
     def test_a_removal_the_gate_failed_on_a_reset_rate_limit_is_not_counted(
         self,
     ) -> None:
-        # The earlier removal failed a lane; only the rate-limited one drops.
         self.runs.append(
             self._run(8, "4" * 40, "2026-11-12T02:00:00Z", "2026-11-12T02:10:00Z")
         )
@@ -1304,7 +1296,6 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.assertEqual(self.paths, [])
 
     def test_a_certain_refusal_stops_reading(self) -> None:
-        # The two newest removals failed a lane: a third changes nothing.
         self.jobs[9] = [*GATE_JOBS, _job(4, "test-node")]
         self.hold([REMOVED_AT] * 3)
         self.assertEqual(sum("/jobs" in p for p in self.paths), 2)
@@ -2285,7 +2276,7 @@ class GateEvaluation(unittest.TestCase):
         ]
         for number in (2, 3):
             self.views[number]["statusCheckRollup"] = reviewed
-        self.views[1]["statusCheckRollup"] = reviewed[1:]  # claude-review-status absent
+        self.views[1]["statusCheckRollup"] = reviewed[1:]
         result = self._evaluate()
         self.assertTrue(result["ready"], result["blockers"])
         self.assertFalse(result["autoMerge"]["ready"])

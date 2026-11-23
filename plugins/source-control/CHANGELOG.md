@@ -3,6 +3,65 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.10.1] - 2026-11-23
+
+### Changed
+
+- `/source-control:pull-request merge` now says that where the guardrails `block-unresolved-pr-merge` hook is enabled, a head pr-verify has not passed stays held after the 30-minute verdict wait instead of merging with no verdict read.
+
+- Skills now list their context-dependent links under `## Related`, placed after `## Next`, and `setup` names its successors under `## Next`, matching the committed skill-link table.
+
+## [13.10.0] - 2026-11-23
+
+### Changed
+
+- `pull-request` `dependency --ci` tells the model that when `merge_clears_gate_hold` is true its `merge` alone clears the trust-gate hold on an action of an owner the repository does not trust by name, so it applies the review-only checks and reads the code between the old and new action commit before `merge`.
+
+- babysit-prs: `evidence --lane-link --lane-reviews` takes a lanes App pull request whose changed files are exactly the repository's new `merge.baseline-file` setting (`docs/conventions/pr-pipeline.yaml`) with no issue link and no verdict, and still scores its risk. Unset, it takes none; the base and the default branch head must name the same file. Only a missing or malformed link is set aside: an unreadable link or a trust hold on the linked issue still refuses. `babysit_merge_policy.baseline_only` is the rule.
+
+- The pull-request monitor's poll script (`monitor-poll.sh`) sends every REST read as a
+  conditional request and replays the cached body on a `304 Not Modified`, which GitHub does not
+  count against the primary rate limit. A poll where nothing changed now costs no REST requests,
+  down from seven; a read that did change costs one request per page, as before. Each page is read
+  conditionally on its own, a full page with no next link still reads the page after it, the
+  comment reads keep `since` fixed at the watch's start so their ETags hold, a read's answers are
+  cached only once the whole read succeeded, and a surface whose pages all answered 304 is not
+  re-reported. The cache needs no Bash 4 feature, so the script still runs on macOS Bash 3.2. The
+  event lines are unchanged.
+- The floor for any GitHub watch or poll is 90 seconds, up from 60: the monitor's default
+  interval, the API budget, and the merge, merge-queue, async-merge and babysit docs that gave a
+  60-second GitHub poll cadence now state 90, and the babysit merge gate polls an async merge
+  every 90 seconds for up to 90.
+- The pull-request skill and its monitor reference no longer restate how GitHub counts a
+  conditional request against the rate limit: they link GitHub's guidance on conditional requests.
+
+### Fixed
+
+- **babysit-prs runs Git Bash on Windows, never the WSL relay.** The post-merge lift's canary scan now runs bash by the full path the merge policy resolves.
+- **The job's stop and cause files end each line in LF on Windows.** A stop recorded on Windows was written with CRLF, which the stop-file reader skipped, so later steps did not see it.
+- **A stop file under a file holds every pool on Windows too.** Windows reports that path as not found; it now holds every pool, as it does on Linux, instead of reading as no stop.
+
+## [13.9.0] - 2026-11-23
+
+### Changed
+
+- `pull-request evidence` names the two sources of a `--before` report: the `/debugging:debug` reproduction run's drive report, or an `/app-control:drive` run on a worktree at the PR's base commit.
+
+- `pull-request` prep §1.5 is called the pre-PR check throughout, and `create` and `ready` name it the same way. Each SKIP it reports carries its reason, and a run where every check skipped is "not verified", never clean.
+
+### Fixed
+
+- **Review evidence and an earlier head's kill-switch failure.** A run on an earlier head whose kill-switch job failed before any lane job existed (a setup error, for one) reviewed nothing, so it no longer unbinds the lane with `no-lane-job`. At the pinned head such a run still unbinds.
+
+## [13.8.6] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+- The pull-request skill's dependency review sets owner reason `security` only for a HIGH or CRITICAL risk the update itself carries, named with its severity in `reasons`; a red `ci-status` from a repository hold, such as the trust-gate hold, never sets it.
+
 ## [13.8.5] - 2026-11-23
 
 ### Changed

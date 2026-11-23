@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "codex: model sparrow-1 @ effort medium (basis: claude-cannot; Claude cannot generate images, Codex supports image generation)",
+      "why": "exact recommendation line with basis claude-cannot"
+    },
+    {
+      "answer": "- `codex: model sparrow-1 (default) @ effort medium` (basis: claude-cannot; image work)",
+      "why": "bulleted line with a note after the model id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday task)",
+      "why": "recommends Claude for image generation"
+    },
+    {
+      "answer": "codex: model sparrow-1 @ effort medium (basis: default; image task)",
+      "why": "wrong basis"
+    }
+  ]
+}

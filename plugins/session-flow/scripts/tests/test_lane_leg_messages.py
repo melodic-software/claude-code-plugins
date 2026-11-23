@@ -1,5 +1,3 @@
-"""Tests for lane_leg_messages.py: a sealed lane leg's messages, one per line with their array index."""
-
 from __future__ import annotations
 
 import gzip

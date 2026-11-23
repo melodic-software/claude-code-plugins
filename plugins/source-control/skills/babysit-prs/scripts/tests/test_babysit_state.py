@@ -1,13 +1,3 @@
-"""Durable queue-state storage.
-
-Ports the state-persistence coverage onto `babysit_state`: the scope-aware
-`save_state` (scoped-run clobber fix and non-livelock staleness guard), the
-schema-version stamp/refusal, corrupt-JSON quarantine, persisted sweep
-counters, the error quarantine, and the resolve helpers. Snapshot PR records
-are produced by the real `classify_pr` so their shape matches
-`persisted_pr_state` exactly.
-"""
-
 from __future__ import annotations
 
 import pathlib

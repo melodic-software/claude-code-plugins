@@ -462,6 +462,11 @@ expanded later. Where each plugin variable resolves: the plugins reference,
 
 `/work-items:attend-queue` for the escalations this lane raised and the attended queue they join.
 
+## Related
+
+- Single-pass fleet PR sweep without a loop: /source-control:babysit-prs.
+- Single-PR lifecycle: /source-control:pull-request.
+
 ## Gotchas
 
 - **The loop never merges, babysit-prs does, through its pinned gate.** This layer holds no merge

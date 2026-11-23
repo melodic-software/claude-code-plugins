@@ -193,7 +193,6 @@ def check(root: Path) -> list[str]:
     roster = read_roster(root)
     findings: list[str] = []
 
-    # Every Next target in the tree resolves.
     for skill_md in sorted((root / "plugins").glob("*/skills/*/SKILL.md")):
         text = skill_md.read_text(encoding="utf-8")
         rel = skill_md.relative_to(root).as_posix()

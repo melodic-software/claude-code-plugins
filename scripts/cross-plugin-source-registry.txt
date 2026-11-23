@@ -384,6 +384,10 @@ evals/ck-notice-runs-bundled-checker/samples/no-write.json
 # Canonical copy: the file under plugins/discovery/evals/.
 evals/ck-notice-alone-installs-nothing/samples/ran-checker.json
 
+# No dedicated check: accepted, for the reason on the entries above.
+# Canonical copy: the file under plugins/discovery/evals/.
+evals/ck-notice-alone-installs-nothing/matchers.json
+
 # No dedicated check: accepted. Every plugin's copy of this case builds
 # no-install from one matchers.json, rendered by check-matchers into each
 # case.yaml; this script's own --check is the gate. Canonical copy: the file

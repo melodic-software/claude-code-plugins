@@ -164,9 +164,6 @@ def limit(text: str | None, default: int) -> int:
     return 0 if _malformed(text) else int(text)
 
 
-# --- Reads ---------------------------------------------------------------
-
-
 def main_inputs(base: Path) -> dict[str, str]:
     """The blob or tree id of each `MAIN_PATHS` entry at the clone's HEAD,
     `absent` for a path it lacks. Raises `RuntimeError` when the clone has
@@ -349,9 +346,6 @@ def state_key(
     }
     text = json.dumps(body, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()
-
-
-# --- Filter ----------------------------------------------------------------
 
 
 def _row(value: Any, number: int) -> dict[str, Any] | None:
@@ -613,9 +607,6 @@ def run_filter(args: argparse.Namespace) -> int:
         f"of {len(candidates)} graphql-cost={cost}"
     )
     return 0
-
-
-# --- Record ----------------------------------------------------------------
 
 
 def stable(output: Mapping[str, Any]) -> bool:

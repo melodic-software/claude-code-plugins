@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/disk-hygiene/*
-"""Behavioral tests for the old-policy migration the setup skill runs."""
 
 from __future__ import annotations
 

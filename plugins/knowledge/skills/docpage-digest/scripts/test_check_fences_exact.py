@@ -67,7 +67,6 @@ class TestCleanPass(GateHarness):
         self.assertIn("Nothing outside Key claims", out)
 
     def test_trailing_space_preserved(self):
-        # SOURCE has "keep me \\n" — the fence payload must keep the space.
         proc = self.run_gate(CLEAN, 0)
         self.assertIn(b"PASS", proc.stdout)
 

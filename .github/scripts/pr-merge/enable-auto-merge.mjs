@@ -235,6 +235,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -679,7 +680,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 // decision clears.
 function trustedHumans(env) {
   try {
-    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    const { actors } = readRawTrustedActors(env.TRUSTED_ACTORS || trustedActorsPath());
     return humansOf(actors);
   } catch {
     return new Set();
@@ -1454,7 +1455,6 @@ export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 // timeout still reads as unreadable, which holds the lane.
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
-// The reasons a pull request whose verdict this run does not read is left.
 const NO_TIME_LEFT = "no time left in this run to read its verifier verdict";
 const READER_RUNS_ARM = "only a scheduled or hand-started run arms it, on the gate's verifier verdict";
 
@@ -1683,7 +1683,7 @@ const SKIP_CHUNK = 20;
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   "docs/conventions/work-items.yaml",
-  ".github/standards/trusted-actors/trusted-actors.json",
+  TRUSTED_ACTORS_PATH,
   ".github/workflows/pr-merge.yml",
   ".github/actions",
   ".github/scripts",
@@ -2312,12 +2312,10 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       // A widening read finding no partial comment reads nothing past the discussion.
       let unmarked = false;
       const judged = widen ? { ...pull, labels: unlabeledAs(pull.labels, humanGated) } : pull;
-      // Whether a widening read got the verifier's answer.
       let answered = false;
       if (widen) {
         action = "read";
       }
-      // This pull request's skip key, when its outcome may be kept or skipped.
       const key = skipMain !== null && action === "read" && !widen && held === null && stopped === null && pull.autoMergeRequest == null && rollups.has(pull.number) ? skipKey(pull, rollups.get(pull.number), skipMain) : null;
       const prior = key === null ? undefined : skipStore[pull.number];
       if (prior !== undefined && prior.key === key && prior.head === pull.headRefOid) {
@@ -2541,7 +2539,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         }
         continue;
       }
-      // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {
         ({ action, reason, clears, comment, withdraw } = { action: "none", reason: "its verifier verdict is not read yet" });
       }

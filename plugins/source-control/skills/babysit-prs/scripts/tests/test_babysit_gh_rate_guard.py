@@ -109,9 +109,9 @@ class SharedStopCauses(unittest.TestCase):
             with self.subTest(vector["name"]), tempfile.TemporaryDirectory() as tmp:
                 budget = pathlib.Path(tmp, "api-budget")
                 budget.mkdir()
-                (budget / "stop").write_text(vector["stop"], encoding="utf-8")
+                (budget / "stop").write_bytes(vector["stop"].encode("utf-8"))
                 if vector["cause"] is not None:
-                    (budget / "cause").write_text(vector["cause"], encoding="utf-8")
+                    (budget / "cause").write_bytes(vector["cause"].encode("utf-8"))
                 gh.reset_rate_guard()
                 with mock.patch.dict(os.environ, {"RUNNER_TEMP": tmp}):
                     got = {
@@ -756,7 +756,7 @@ class TheProcessExitsRed(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             stop = pathlib.Path(temp, "api-budget", "stop")
             stop.parent.mkdir()
-            stop.write_text("core 4102444800\n", encoding="utf-8")
+            stop.write_bytes(b"core 4102444800\n")
             proc = self.run_python(
                 """
                 import babysit_gh as gh
@@ -929,6 +929,16 @@ class TheJobStopFile(GuardCase):
                     self.assertEqual(len(errors), 1, err.getvalue())
                     self.assertIn(str(self.stop_file), errors[0])
 
+    def test_not_found_under_a_file_holds_every_pool_as_enotdir_does(self) -> None:
+        self.make_stop_error("api-budget-is-file")
+        not_found = FileNotFoundError(2, "No such file or directory")
+        with (
+            mock.patch.object(gh.Path, "read_bytes", side_effect=not_found),
+            mock.patch("sys.stderr", new_callable=io.StringIO) as err,
+        ):
+            self.assertEqual(gh.stopped_until("core"), gh.MAX_RESET)
+        self.assertIn(str(self.stop_file), err.getvalue())
+
     def test_a_stop_file_that_cannot_be_read_sends_nothing(self) -> None:
         self.make_stop_error("stop-is-directory")
         for args in (
@@ -958,6 +968,28 @@ class TheJobStopFile(GuardCase):
             gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertEqual(
             self.stop_file.read_text(encoding="utf-8"), "core 4102444800\n"
+        )
+
+    def test_the_stop_and_cause_lines_end_in_lf_alone(self) -> None:
+        def crlf_open(*args: Any, **kwargs: Any) -> Any:
+            return open(*args, **({"newline": "\r\n"} | kwargs))
+
+        self.answer(
+            1,
+            head(503, **core(4000, Retry_After="120")),
+            "gh: (HTTP 503)",
+        )
+        with (
+            mock.patch.object(gh, "open", crlf_open, create=True),
+            mock.patch("sys.stderr", new_callable=io.StringIO),
+            self.assertRaises(gh.RateLimitExhausted) as raised,
+        ):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        reset = int(raised.exception.reset)
+        self.assertEqual(self.stop_file.read_bytes(), f"* {reset}\n".encode())
+        self.assertEqual(
+            self.stop_file.with_name("cause").read_bytes(),
+            f"* {reset} server-503\n".encode(),
         )
 
     def test_a_secondary_latch_appends_a_stop_for_every_pool(self) -> None:

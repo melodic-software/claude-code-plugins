@@ -13,7 +13,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLayers } from "../../../lib/config-cascade.mjs";
 import { LEVELS, addSetting, baseReader, isSha, projectRootOf, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
@@ -104,9 +104,9 @@ export function resolveConfig(root, baseOid) {
   const base = baseReader(root, baseOid, warnings);
   const team = { path: `${base.ref}:${TEAM_YAML}`, text: base.read(TEAM_YAML) };
   const { layers } = readLayers({ plugin: PLUGIN, projectRoot: root, schema: SCHEMA, teamOnly: TEAM_ONLY, team, userHome: homedir() });
-  const localPath = join(root, LOCAL_YAML);
   for (const layer of layers) {
-    if (layer.name === "local" && (!existsSync(localPath) || !personalOverrideApplies(root, localPath, warnings))) continue;
+    const checkout = layer.name === "local" && resolve(layer.path, ...LOCAL_YAML.split("/").map(() => ".."));
+    if (checkout && (!existsSync(layer.path) || !personalOverrideApplies(checkout, layer.path, warnings))) continue;
     warnings.push(...layer.errors);
     const source = layer.name === "team" ? `team ${team.path}` : `personal-override ${LOCAL_YAML}`;
     for (const [key, value] of Object.entries(layer.values)) {

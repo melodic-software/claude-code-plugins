@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the disk-hygiene Python telemetry emitter."""
 
 from __future__ import annotations
 
@@ -47,13 +46,12 @@ class HookTelemetryTests(unittest.TestCase):
                     try:
                         return json.loads(text)
                     except json.JSONDecodeError:
-                        pass  # truncated mid-write; keep polling until deadline
+                        pass
             time.sleep(0.05)
         self.fail(f"timed out waiting for the telemetry sink to write {out_file}")
 
     def test_unset_sink_is_noop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            # A project dir is set so a sink wrongly treated as set would resolve and launch.
             with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": tmp}, clear=True):
                 with mock.patch.object(telemetry.subprocess, "Popen") as popen:
                     telemetry.emit("destructive-guard", "PreToolUse", "ok", time.perf_counter())

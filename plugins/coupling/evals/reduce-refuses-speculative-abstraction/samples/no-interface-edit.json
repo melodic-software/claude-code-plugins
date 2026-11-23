@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/report.ts",
+            "old_string": "const x = 1",
+            "new_string": "const RETRY_LIMIT = 1"
+          }
+        }
+      ],
+      "why": "a contained rename"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "old_string": "## Open",
+            "new_string": "## Open\n- Rejected: Mediator for one-to-one flow"
+          }
+        }
+      ],
+      "why": "ledger update"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/report.ts",
+            "old_string": "class Report",
+            "new_string": "interface IReport {}\nclass Report"
+          }
+        }
+      ],
+      "why": "wraps in an interface"
+    }
+  ]
+}

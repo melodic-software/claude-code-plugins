@@ -100,6 +100,12 @@ is `prune`; anything else asks which action.
 - `audit` found prune candidates: /domain-driven-design:ubiquitous-language prune.
 - The work goes on to a plan: /planning:plan.
 
+## Related
+
+- Bounded contexts not yet established: /event-storming:simulation.
+- Record an architectural decision instead of a term: /architecture:adr.
+- Choose a fresh name for a domain term: /naming:name-it-better.
+
 ## Gotchas
 
 - The nearest glossary is not automatically the right one in a multi-context repo; route through the

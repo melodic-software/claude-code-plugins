@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the agent definitions in this directory.
-#
-# The defect this locks: `agents/researcher.md` carried a "Tool honesty"
-# paragraph copied from `agents/explorer.md`, where it is true. The explorer
-# declares a `tools:` allowlist that omits `Edit`, so "Edit is absent from your
-# tool list" is a property of that file. The researcher declares no allowlist at
-# all — it inherits every tool available to a subagent, `Edit` included — so the
-# same sentence sitting in that file was simply false, and it was the calibration
-# input for a write boundary the file itself says is held by instruction only.
-#
-# Least-privilege UNDERSTATEMENT is the dangerous polarity: an agent told it
-# cannot do something it can do will not guard against doing it. The class is
-# mechanically detectable, so it is checked here rather than left to review.
-#
-# Scoped to plugins/discovery/agents/*.md on purpose. A sweep over every
-# plugin's agents would fail this plugin's test on another plugin's drift, which
-# reports the defect in the wrong place and blocks the wrong change.
 # test-scope: plugins/discovery/agents/*.md
 set -uo pipefail
 
@@ -36,15 +19,8 @@ fm_value() {
   frontmatter "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1 | tr -d '"'
 }
 
-# A literal backtick, built rather than quoted. The prose these checks match
-# names its tools in markdown code spans, and a backtick inside a shell literal
-# reads as command substitution to every linter that looks at this file.
 BT="$(printf '\140')"
 
-# claims_about <file> <predicate> — every tool name the body asserts <predicate>
-# about, one per line, deduplicated. Matching the sentence SHAPE rather than a
-# fixed tool name means a future paragraph making the same claim about a
-# different tool is covered without editing this test.
 claims_about() {
   body "$1" |
     grep -oE "${BT}[A-Za-z]+${BT} $2" |
@@ -63,22 +39,10 @@ if [[ ${#agents[@]} -eq 0 ]]; then
 fi
 
 for agent in "${agents[@]}"; do
-  # Read once and matched from a here-string. `body | grep -q` under pipefail
-  # fails whenever grep exits on its match before awk finishes writing: awk
-  # takes SIGPIPE, the pipeline returns 141, and the check reports a field
-  # that is present as missing. Scheduling decides the race (#3694).
   agent_body="$(body "$agent")"
   tools="$(fm_value "$agent" tools)"
   denied="$(fm_value "$agent" disallowedTools)"
 
-  # ---------------------------------------------------------------------------
-  # 1. A file that says a tool is absent from its tool list must actually
-  #    declare a tool list, and that list must actually omit the tool.
-  #
-  #    The claim is matched on the sentence shape the two files share rather
-  #    than on a fixed tool name, so a future paragraph making the same claim
-  #    about a different tool is covered without editing this test.
-  # ---------------------------------------------------------------------------
   while IFS= read -r claimed; do
     [[ -n "$claimed" ]] || continue
 
@@ -95,11 +59,6 @@ for agent in "${agents[@]}"; do
     pass "$agent: the claim that \`$claimed\` is absent is backed by the \`tools:\` allowlist"
   done < <(claims_about "$agent" 'is absent from your tool list')
 
-  # ---------------------------------------------------------------------------
-  # 2. A file that claims a tool is LISTED must declare a list containing it.
-  #    Same defect, opposite polarity: the researcher asserted `Agent` was
-  #    listed in frontmatter that listed nothing.
-  # ---------------------------------------------------------------------------
   while IFS= read -r claimed; do
     [[ -n "$claimed" ]] || continue
 
@@ -116,35 +75,18 @@ for agent in "${agents[@]}"; do
     pass "$agent: the claim that \`$claimed\` is listed is backed by the \`tools:\` allowlist"
   done < <(claims_about "$agent" 'is listed')
 
-  # ---------------------------------------------------------------------------
-  # 3. Every agent declares its posture one way or the other. An agent with
-  #    neither key inherits everything silently, which is how the original
-  #    defect became invisible: nothing in the file said what it held, so the
-  #    prose was the only inventory and nobody rechecked it.
-  # ---------------------------------------------------------------------------
   if [[ -z "$tools" && -z "$denied" ]]; then
     fail "$agent: declares neither \`tools:\` nor \`disallowedTools:\` — the inherited pool is then undeclared, and the prose becomes the only inventory"
   else
     pass "$agent: declares its tool posture in frontmatter"
   fi
 
-  # ---------------------------------------------------------------------------
-  # 4. Both agents' artifacts are graded off disk by the parent, in the parent's
-  #    checkout. `isolation: worktree` writes them into an isolated copy the
-  #    gate never looks at, so the run reads as having produced nothing. The
-  #    decision to stay un-isolated is deliberate; this keeps it deliberate.
-  # ---------------------------------------------------------------------------
   if [[ -n "$(fm_value "$agent" isolation)" ]]; then
     fail "$agent: sets \`isolation:\` — an isolated checkout puts the artifact set where the parent's acceptance gate cannot see it"
   else
     pass "$agent: does not set \`isolation:\`, so its writes land where the gate grades"
   fi
 
-  # ---------------------------------------------------------------------------
-  # 5. The by-value recovery rung only exists if the payload can express it.
-  #    A read-only agent, one whose allowlist holds no Write, has no disk
-  #    axis to report.
-  # ---------------------------------------------------------------------------
   if [[ -n "$tools" && ",${tools// /}," != *",Write,"* ]]; then
     pass "$agent: read-only allowlist, so no \`persistence:\` axis is owed"
   elif grep -q '^persistence: ' <<<"$agent_body"; then
@@ -153,16 +95,6 @@ for agent in "${agents[@]}"; do
     fail "$agent: the return payload has no \`persistence:\` field — a completed run whose write was refused cannot be told apart from one that never ran"
   fi
 
-  # ---------------------------------------------------------------------------
-  # 6. The echo-back field. Every other check in the acceptance gate keys on
-  #    absence; this is the only one that can fire on an input that is present
-  #    and wrong.
-  # ---------------------------------------------------------------------------
-  #    sweep-worker is exempt: the research-sweep workflow dispatches it with a
-  #    schema, so its return is the structure that schema forces, validated by
-  #    the workflow script, and no parent acceptance gate reads an echo field.
-  #    docs-fetcher is exempt the same way, and its output's docs-raw header
-  #    names the URL read, which the workflow matches against the URL it sent.
   if [[ "$agent" == sweep-worker.md || "$agent" == docs-fetcher.md ]]; then
     pass "$agent: returns a workflow-schema structure, so no echo-back field is owed"
   elif grep -qE '^(scope|topic|target)_as_received: ' <<<"$agent_body"; then

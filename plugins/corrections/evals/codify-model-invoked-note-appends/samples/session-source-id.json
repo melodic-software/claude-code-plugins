@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        }
+      ],
+      "why": "session source_id on the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"#0\"}\n"
+          }
+        }
+      ],
+      "why": "made-up PR id"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/notes/row.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        }
+      ],
+      "why": "row outside .work/codify/notes/"
+    }
+  ]
+}

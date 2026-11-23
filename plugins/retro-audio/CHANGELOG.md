@@ -3,6 +3,12 @@
 All notable changes to the `retro-audio` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.23] - 2026-11-23
+
+### Changed
+
+- `music` and `sfx` gain a `## Related` section per the accepted skill-link table.
+
 ## [0.2.22] - 2026-11-21
 
 ### Changed

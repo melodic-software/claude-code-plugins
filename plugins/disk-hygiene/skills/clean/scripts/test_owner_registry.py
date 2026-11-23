@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/disk-hygiene/*.py plugins/disk-hygiene/*.sh plugins/disk-hygiene/*.mjs plugins/disk-hygiene/*.ps1 plugins/disk-hygiene/hooks/hooks.json
-"""Tests for the bundled managed-state owner registry."""
 
 from __future__ import annotations
 
@@ -202,8 +201,6 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.base = Path(temporary.name)
         self.home = self.base / "home"
-        # Each registry path gets a control: same parent, same content shape,
-        # a name no registry entry mentions.
         self.controls: dict[str, str] = {}
         for index, (path, _) in enumerate(registry_matches()):
             control = str(PurePosixPath(path).parent / f"control-{index}")
@@ -350,17 +347,7 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
 PLUGIN = Path(__file__).resolve().parents[3]
 TELEMETRY_PATH = PLUGIN / "lib" / "hook_telemetry.py"
 EXECUTORS = {ENGINE_PATH, TELEMETRY_PATH}
-# The read-only inventory names products as /tmp producer labels. It stays subject to every
-# deletion and process-runner check; only the tool-name constant check is skipped for it.
 LABEL_ONLY = {SCRIPTS / "deep_inventory.py"}
-# The engine functions that may delete. `apply_plan` and `handoff_apply` are the two
-# lanes, each reached only from the CLI behind its own gates. `anchored_remove`, and
-# `purge_directory_contents` beneath it, are the removers both lanes share; the
-# handoff lane reaches it through `unlink_handoff_path`, and recycles through
-# `recycle_handoff_path` and `windows_recycle` on Windows.
-# `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves,
-# and `close_clean_runs` only the calling session's clean-belt run marker under the data
-# root.
 DELETERS = {
     "apply_plan",
     "handoff_apply",
@@ -372,8 +359,6 @@ DELETERS = {
     "sweep_orphaned_inventory_partials",
     "prune_inventory_reports",
 }
-# The only function that may name a registry command or tool: `apply_plan` carries
-# the plan's owner claim, which `handoff_apply` has no parameter to receive.
 REGISTRY_NAMERS = {"apply_plan"}
 FENCED = (
     "apply_plan",
@@ -408,9 +393,6 @@ ACTIONS = re.compile(
     r"\b(?:rm|rmdir|unlink|rimraf|rmSync|unlinkSync|Remove-Item|child_process)\b"
     r"|\s-delete\b"
 )
-# What the launchers already do: remove a cache temp file or a verdict-marker
-# directory, spawn bash. The shared prerequisites checker spawns each declared
-# detect command.
 LAUNCHER_ACTIONS = {
     PLUGIN / "hooks" / "run-python-hook.sh": 2,
     PLUGIN / "hooks" / "exec-bash.mjs": 3,

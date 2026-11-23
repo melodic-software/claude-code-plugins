@@ -201,6 +201,7 @@ import { laneBranchPattern, laneBranchPrefix, parseLaneBranch, WORK_RESOLVE_ISSU
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
+import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
 import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
@@ -215,7 +216,6 @@ export const EVAL_GATED_LABEL = "eval-gated";
 export const evalHoldComment = (issueNumber) =>
   `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
 const EXITS = new Set(["done", "pushback", "stopped"]);
-// The causes a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 // A pushback's stop: the hold row its reason or its cause explicitly opens
 // with (security-risk, cost-risk, design-change, intent-change); else pushback for
@@ -325,7 +325,6 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 // marker follows on the next line.
 export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
-// The lane name its stop-reason markers carry.
 const LANE = "work-resolve-issue";
 const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=(ISSUE_LANE_CLAUDE_API_KEY|ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN))?(?: fallback=(credit-stop|no-key))? -->/;
 
@@ -735,7 +734,6 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // closes the issue. No route writes a status label: the field is the state.
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
 const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
-// The label whose Work status state a park writes.
 const PARK_STATUS = "status: confirmed";
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
@@ -1651,7 +1649,6 @@ export function decide({
       runId,
     });
   }
-  // A PR that names work it leaves for later links without closing.
   const refs = outcome.remaining.length > 0;
   const hold = mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks });
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
@@ -1918,7 +1915,7 @@ export function pruneBranches({ issueNumber, bot, branches, markers, prior, runI
 
 // The listed humans' ids in trusted-actors.json; throws when it cannot be read.
 export function readHumans(path) {
-  const list = JSON.parse(readFileSync(path, "utf8"));
+  const list = readRawTrustedActors(path);
   if (list?.version !== 1 || !Array.isArray(list.actors)) {
     throw new Error("the trusted-actor list does not match its schema");
   }
@@ -2612,7 +2609,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
     let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
-    // A run whose scan refused its output left no outcome: say so.
     const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR, env.GITHUB_RUN_ATTEMPT) : "";
     if (refusal) {
       outcome = { ...stopped(SCAN_REFUSALS[refusal]), unread: true, stop: `scan-refused-${refusal}` };
@@ -2706,7 +2702,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const trustedIssue = (author.type === "User" && listedHumans().has(author.id)) || (author.type === "Bot" && author.login === bot);
     const linkage = trustedIssue ? linkageLines(issue.body, issueNumber) : [];
     const limits = readLimits(resolvedPath);
-    // Only a turn cap with no outcome of the run's own reads the issue's history.
     const capped = !unreported && funding === null && turnCap !== null && outcome?.unread === true;
     const comments = capped ? await paginate(github, `${repo}/issues/${issueNumber}/comments`) : [];
     const turnCapRestarts = capped
@@ -2718,7 +2713,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         })
       : 0;
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
-    // Only a pushback reads the comments; a failed read leaves the link out.
     const unmarked =
       !unreported && outcome?.exit === "pushback"
         ? await paginate(github, `${repo}/issues/${issueNumber}/comments`)

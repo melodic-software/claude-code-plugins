@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Conformance check for a findings-buffer adapter: conformance.sh <adapter-dir>
-# Runs the adapter's append.sh and read.sh inside a throwaway git repository.
 # Exit: 0 every check passed, 1 a check failed, 2 usage, 3 jq missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
@@ -39,7 +38,6 @@ git init -q -b main "$REPO" >/dev/null 2>&1 || {
 append() { (cd "$REPO" && bash "$ADAPTER/append.sh" "$@"); }
 read_rows() { (cd "$REPO" && bash "$ADAPTER/read.sh" "$@"); }
 
-# capabilities.json
 CAPS="$ADAPTER/capabilities.json"
 if [[ -f "$CAPS" ]] \
   && jq -e '.schema_version == "1.0" and (.adapter | type == "string" and length > 0)' "$CAPS" >/dev/null 2>&1; then
@@ -48,7 +46,6 @@ else
   fail "capabilities.json declares schema_version 1.0 and an adapter name"
 fi
 
-# 8 concurrent appends, distinct rows
 N=8
 pids=()
 for i in $(seq 1 $N); do
@@ -81,7 +78,6 @@ else
   fail "read.sh returns every appended row exactly once" "exit $RC, rows $total, off:$miss"
 fi
 
-# --since compares the top-level ts, not a nested one
 printf '{"obs_id":"nested","ctx":{"ts":"2026-01-01T00:00:00Z"},"ts":"2026-10-21T10:00:09Z"}\n' \
   | append >/dev/null 2>&1
 
@@ -100,7 +96,6 @@ else
   fail "read.sh --since returns every row with ts >= since" "exit $RC, missing:$miss"
 fi
 
-# a malformed row is a usage error and stores nothing from that call
 printf '{oops}\n{"obs_id":"bad-call","ts":"2026-10-21T10:00:00Z"}\n' | append >/dev/null 2>&1
 RC=$?
 if [[ $RC -eq 2 ]] && ! grep -q '"obs_id":"bad-call"' <<<"$(read_rows 2>/dev/null)"; then
@@ -109,8 +104,7 @@ else
   fail "append.sh rejects a malformed row with exit 2 and stores nothing" "exit $RC"
 fi
 
-# malformed arguments
-expect_usage() { # <exit code> <name>
+expect_usage() {
   if [[ "$1" -eq 2 ]]; then pass "$2"; else fail "$2" "got exit $1"; fi
 }
 read_rows --bogus >/dev/null 2>&1

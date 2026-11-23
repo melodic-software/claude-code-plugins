@@ -261,7 +261,14 @@ apply_layer() {
     verification | verification_skills.*) continue ;;
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
-    vendors.routing | vendors.trials | vendors.auto_delegation) field=bool ;;
+    vendors.auto_delegation)
+      if [[ "$label" != user-config && "$label" != user-global ]]; then
+        NOTES+=("$label: vendors.auto_delegation ignored: only the user layer (role_map_file) sets it, never a file inside a repository")
+        continue
+      fi
+      field=bool
+      ;;
+    vendors.routing | vendors.trials) field=bool ;;
     vendors.trials_prove) field=trials_prove ;;
     vendors.trials_fail) field=trials_fail ;;
     vendors.tiebreak)

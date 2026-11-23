@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, posix, win32 } from "node:path";
+import { dirname, join, posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolve } from "../../lib/config-cascade.mjs";
 
@@ -38,13 +38,14 @@ export function loadConfig({ projectRoot, home = "docs/conventions", userConfig 
     userConfig,
   });
   const errors = result.layers.flatMap((layer) => layer.errors ?? []);
+  const personalFile = result.layers.find((layer) => layer.name === "local").path;
   for (const [product, settings] of Object.entries(result.values)) {
     const path = settings?.binary_path;
     if (path === undefined) continue;
     const key = `${product}.binary_path`;
     const why = result.provenance[key] !== "local"
       ? "is set only in the personal layer, never a committed team file, since it picks the executable that runs"
-      : isTracked(projectRoot, join(isAbsolute(home) ? home : join(projectRoot, home), "external-agents.local.yaml"))
+      : isTracked(dirname(personalFile), personalFile)
         ? "comes from a personal file tracked by git, so a branch could choose the executable that runs"
         : !(posix.isAbsolute(path) || win32.isAbsolute(path)) && "must be an absolute path";
     if (!why) continue;

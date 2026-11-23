@@ -246,6 +246,14 @@ the menu. When a request could be either, "what comes next" is a stage question 
 - **Verify stage completion from artifacts**. A stage is done when its output exists, not when it
   was mentioned
 
+## Related
+
+- Full ranked menu of installed skills: /session-flow:recommend-skills.
+- Read-only current-state briefing: /session-flow:orient.
+- Save-point before /clear at phase boundary: /session-flow:handoff.
+- Background continuation at phase boundary: /session-flow:continue-in-background.
+- End-of-session retrospective: /session-flow:retro.
+
 ## Gotchas
 
 - **Marking a stage done from conversation vibes**. Verify the artifact or output exists before

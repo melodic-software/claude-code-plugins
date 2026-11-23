@@ -258,6 +258,11 @@ records why and holds the pointer.
 
 `/overengineering:realign`. It acts on the queued verdict changes, one finding at a time.
 
+## Related
+
+- Running a full enforcement-surface walk: /overengineering:audit.
+- Filing queued verdict changes as a work item: /work-items:track.
+
 ## Gotchas
 
 - **The baseline is the previous cycle's post-audit spine, captured at the end of that cycle.** A

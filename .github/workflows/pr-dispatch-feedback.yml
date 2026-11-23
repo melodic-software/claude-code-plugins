@@ -140,14 +140,12 @@ jobs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
       pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -158,7 +156,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -265,7 +263,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.deferred.outputs.name != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-deferred.txt
@@ -348,15 +346,12 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-      # Each guarded API call's rate-limit reading, for the job-end api-budget
-      # notice (.github/actions/log-api-budget).
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -366,13 +361,13 @@ jobs:
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -399,19 +394,11 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # The script resolves the pr-unblock lane's address-feedback slot with
-      # the base's resolve-config once it has found the PR and its head, and
-      # dispatches only when the lane and both address-feedback slots are
-      # enabled and the slot applies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # The gate's verifier reader (babysit_verify_evidence.py), which the
-      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
-      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
-      # A failed install warns; the reader then fails and the round runs.
       - name: Set up Python
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -435,12 +422,6 @@ jobs:
           # more index names than one whole listing costs reads that listing,
           # saved here for the next such read instead of every page again.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
-          # The FAIL run records, run heads on main and head refs pr-merge's
-          # last scheduled or hand-started run on main kept, which
-          # verify-cap.mjs fetches on the first FAIL-cap read only, so a run
-          # that reads no FAIL cap spends none of their calls: the reader
-          # otherwise reads them for every FAIL it counts, and each read shares
-          # what it adds here.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
@@ -452,7 +433,6 @@ jobs:
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: |
-          # The listed review bots' ids (review-threads.reviewer-ids), one per line.
           REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
@@ -483,7 +463,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched.json
@@ -518,7 +498,7 @@ jobs:
         id: scan-upload-2
         if: >-
           always() && steps.dispatch.outputs.run-id-2 != '' && steps.record-2.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-2.json
@@ -553,7 +533,7 @@ jobs:
         id: scan-upload-3
         if: >-
           always() && steps.dispatch.outputs.run-id-3 != '' && steps.record-3.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-3.json
@@ -588,7 +568,7 @@ jobs:
         id: scan-upload-4
         if: >-
           always() && steps.dispatch.outputs.run-id-4 != '' && steps.record-4.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-4.json
@@ -623,7 +603,7 @@ jobs:
         id: scan-upload-5
         if: >-
           always() && steps.dispatch.outputs.run-id-5 != '' && steps.record-5.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-feedback-dispatched-5.json
@@ -642,7 +622,7 @@ jobs:
         id: scan-lane-records
         if: always() && steps.dispatch.outputs.lane-records == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/feedback-lane-records.json
@@ -740,15 +720,13 @@ jobs:
       contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the trusted-actors list
@@ -764,6 +742,7 @@ jobs:
             /.github/actions/log-api-budget/
             /.github/actions/check-trusted-trigger/
             /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/
             /.github/scripts/pr-dispatch-feedback/
             /lib/publish-gate.mjs
@@ -772,7 +751,7 @@ jobs:
 
       - name: Set up Node
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -818,7 +797,7 @@ jobs:
         if: >-
           steps.find.outputs.record != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/rerun-ci-status-record.json

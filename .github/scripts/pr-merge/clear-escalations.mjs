@@ -176,7 +176,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate, retryServerErrors } from "../lib/github-client.mjs";
-import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {
@@ -351,7 +351,6 @@ const reportError = (number, error) =>
 // finding, a merge-risk hold, an owner reason, an unknown one) keeps it for a
 // person or a trusted push (owner direction on the security finding).
 export const LANE_ONLY = Object.freeze(["feedback-not-landed"]);
-// Any lane's escalation line.
 const ANY_ESCALATION = "<!-- work-items:escalation";
 
 // The first escalation recorded against the label since it was last removed
@@ -802,7 +801,6 @@ function pairedWithPrMerge(appComments, since) {
 // A read that fails, or a listing that may be cut short, keeps the hold.
 
 export const STALE_HOLD = "stale-review-hold";
-// Each review caller's lane id, as its notices and comments name it.
 const LANE_OF = Object.freeze(Object.fromEntries(LANE_RECORDS.map(({ file, lane }) => [file, lane])));
 const SECURITY_LANE = "claude-security-review";
 // The security lane's per-finding severity line (/review:security-review
@@ -1985,7 +1983,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     // history; without it, or without the trusted list, no stop clears on a
     // trusted move.
     reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? client(env.BABYSIT_VERIFY_GH_TOKEN)) : null;
-    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     // MAIN_TIP_SHA is the step's git ls-remote of refs/heads/main.
     const tip = SHA.test(env.MAIN_TIP_SHA ?? "") ? null : await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip === null ? env.MAIN_TIP_SHA : tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;

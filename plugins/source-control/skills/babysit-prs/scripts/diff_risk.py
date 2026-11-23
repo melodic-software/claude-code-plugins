@@ -488,6 +488,13 @@ LANES: dict[str, tuple[str, Risk]] = {
     "claude-security-review": ("security-finding", Risk.HIGH),
 }
 _HOLDING_LANE = "claude-security-review"
+RERUN_NOT_ALLOWED = "rerun-not-allowed"
+RERUN_NOT_ALLOWED_FIX = (
+    "the merge gate's whole-review request clears this with a new run at the same"
+    " head, retried on a later sweep when a limit skips it, and at the per-PR cap of"
+    " two requests or once this head's request has run, a new head clears it: `gh pr update-branch <n>` when the branch is behind"
+    " its base, else a new commit, never a hand re-run of the lane run"
+)
 # The security lane's open findings below the holding tier: reported only.
 REPORTED_SECURITY_CODE = "findings:claude-security-review"
 
@@ -2318,6 +2325,8 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             parts = [] if bound else ["not bound"]
             if isinstance(unbound_reason, str) and unbound_reason:
                 parts.append(unbound_reason)
+                if unbound_reason == RERUN_NOT_ALLOWED:
+                    parts.append(RERUN_NOT_ALLOWED_FIX)
             elif unbound_reason is not None:
                 parts.append(f"unbound_reason {_show(unbound_reason)}")
             if bound and not _is_count(count):

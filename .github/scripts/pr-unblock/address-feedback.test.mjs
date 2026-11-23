@@ -2256,21 +2256,21 @@ test("an earlier-fail round keeps the thread rules first: kept threads, untaken 
   assert.deepEqual([capped.decision, capped.escalationReason], ["escalate", "feedback-verifier-open"]);
 });
 
-// The reply job's feedback-already-addressed stop is lane-stopped, which
-// releases the head for the dispatcher; with that stop queued for a session
-// builder on this head, the next round stands down before any read or model.
-test("an earlier-fail round whose already-addressed stop on this head is queued for a session stands down", async () => {
+test("an earlier-fail round stands down only on this head's stop queued for a session", async () => {
   let reads = 0;
   const readFailNotes = async () => {
     reads += 1;
     return NOTES;
   };
-  const queued = { threads: [resolvedNote], labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-already-addressed")] };
+  const queued = { threads: [resolvedNote], labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-protected-path")] };
   const result = await runEarlier(fakeApi(queued), { readFailNotes });
   assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-session"]);
   assert.equal(reads, 0);
-  const older = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-already-addressed", { head: OLD_HEAD })] }), { readFailNotes });
+  const older = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-protected-path", { head: OLD_HEAD })] }), { readFailNotes });
   assert.equal(older.decision, "proceed");
+  const addressed = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-already-addressed")] }), { readFailNotes });
+  assert.equal(addressed.decision, "proceed", "an already-addressed stop is not queued for a session");
+  assert.equal(reads, 2);
 });
 
 test("main select takes the FAILed heads only from a dispatcher's model round, as other heads' commit ids", async (t) => {

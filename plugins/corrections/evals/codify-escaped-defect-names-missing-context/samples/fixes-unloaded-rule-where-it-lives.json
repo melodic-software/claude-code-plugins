@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "The rule was never loaded, so it is also fixed where it lives: move the null-price rule next to the checkout code so the reader meets it."},
+    {"answer": "Because the pricing rules file was never opened, make it load for checkout files with a path-scoped rule, as well as adding the check.", "why": "never opened, path-scoped"},
+    {"answer": "Fix it where it lives as well as on the unit-test rung.", "why": "verbatim phrase"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Move it up the ladder: add a required CI check for null prices.", "why": "only climbs the ladder"},
+    {"answer": "Rung: unit-test. Proof: exit 1 on the old ref, exit 0 on HEAD.", "why": "no context fix"}
+  ]
+}

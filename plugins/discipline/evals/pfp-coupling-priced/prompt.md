@@ -1,5 +1,5 @@
 ---
-description: "Legacy pick-for-the-problem 2. A third-party dependency proposed on sight. coupling-costs-named (llm) quotes legacy expectation 1 and needs all five coupling costs of SKILL.md lines 55-57, each its own item; research-not-recall (llm) quotes legacy expectations 2-3. The discovery plugin is not loaded and the run has no network, so the degrade path and the withheld verdict of SKILL.md lines 64-74 are what this run shows. Read-only."
+description: "Legacy pick-for-the-problem 2. A third-party dependency proposed on sight. coupling-costs-named (regex) needs each of the five coupling costs of the SKILL.md rule 'Every dependency is a coupling point' named in the reply; research-not-recall (regex) needs the reply to route to research and withhold the verdict. The discovery plugin is not loaded and the run has no network, so the degrade path and the withheld verdict of the 'Mandatory routing' section are what this run shows. Read-only."
 tags: [discipline, pick-for-the-problem, outcome, no-network]
 max_turns: 12
 timeout_seconds: 400

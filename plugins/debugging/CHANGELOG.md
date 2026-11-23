@@ -3,6 +3,21 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.0] - 2026-11-23
+
+### Changed
+
+- `debug` keeps the reproduction's drive `report.json` path and names it as the `--before` evidence in the fix hand-off.
+- `debug`'s surface pass reads a `conversations` data source, when one exists, for what users reported about the failure.
+- `debug`'s `## Next` names `/app-control:map refresh` for the report's lessons.
+
+## [2.2.5] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
 ## [2.2.4] - 2026-11-23
 
 ### Changed

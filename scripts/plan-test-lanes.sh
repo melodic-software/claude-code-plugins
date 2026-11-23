@@ -137,8 +137,6 @@ done
 WORK="$(mktemp -d)" || exit 2
 trap 'rm -rf "$WORK"' EXIT
 
-# --- the change -------------------------------------------------------------
-
 whole=0
 whole_windows=0
 python_pin=0
@@ -147,9 +145,6 @@ coinstall=0
 if [[ -n "$base" ]]; then
   changed_files::verify_base "$base" || die "base ref '$base' does not resolve to a commit"
   mb="$(git merge-base "$base" HEAD)" || die "'$base' and HEAD have no merge base"
-  # The selector's own reading of a diff: the working tree against the merge
-  # base, deletions included, plus untracked files. A failed listing is fatal,
-  # never an empty change.
   changed_files::into changed "$mb" --include-deleted || die "listing the files changed since $mb failed"
   git ls-files --others --exclude-standard >"$WORK/untracked" || die "listing the untracked files failed"
   mapfile -t -O "${#changed[@]}" changed <"$WORK/untracked"
@@ -180,8 +175,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
   esac
 done
 
-# --- the selection ----------------------------------------------------------
-
 # select_into <out> <path>...: the selector's suites for <path>... into <out>; adds
 # its report's count to `unmapped`.
 select_into() {
@@ -201,10 +194,6 @@ select_into() {
   esac
 }
 
-# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT.
-# The selector walks each changed file on its own and unions what they reach,
-# so the selection is that of the Windows files plus that of the inert ones,
-# and no file is walked twice.
 inert=() win_changed=() inert_changed=()
 read_list::into inert "$WINDOWS_INERT" --comments inline || exit 2
 for f in ${changed[@]+"${changed[@]}"}; do
@@ -233,10 +222,6 @@ read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 read_list::into subprojects "$SUBPROJECTS_LIST" --comments inline || exit 2
 
-# Triggers beyond its own directory for a package in the outside list: the
-# workflows and shared files its tests read. A suite that lists
-# .github/workflows/ names no workflow, so the selector never reaches it from
-# one; its package takes the whole directory as a trigger.
 declare -A OUTSIDE_TRIGGERS=(
   [.github/actions/check-signed-commits]=".github/workflows/"
   [.github/actions/check-wip-cap]=".github/workflows/"
@@ -248,7 +233,7 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
   [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"
   [.github/scripts/upstream-apply-changelog]=".github/workflows/upstream-apply-changelog.yml .github/scripts/lib/"
-  [.github/scripts/pr-review]=".github/scripts/pr-unblock/request-budget.mjs .github/actions/log-api-budget/ .github/actions/check-trusted-trigger/ .github/scripts/lib/github-client.mjs lib/test-tmp.mjs"
+  [.github/scripts/pr-review]=".github/scripts/pr-unblock/request-budget.mjs .github/actions/log-api-budget/ .github/actions/check-trusted-trigger/ .github/scripts/lib/github-client.mjs .github/scripts/lib/trusted-actors.mjs lib/test-tmp.mjs"
   [.github/scripts/pr-review-main]=".github/workflows/pr-review-main.yml .github/scripts/lib/"
   [.github/scripts/pr-merge-risk]=".github/workflows/pr-rate-merge-risk.yml .github/scripts/lib/"
   [.github/scripts/post-merge-test-mutation]=".github/workflows/post-merge-test-mutation.yml .github/scripts/lib/"
@@ -344,9 +329,6 @@ else
   fi
 fi
 
-# A package runs on the whole tree, on a Node pin, when a selected suite sits
-# under its owner, or when a file under it, its trigger or a `file:` dependency
-# changed.
 node_packages=""
 while read -r pkg owner trigger; do
   [[ -n "$pkg" ]] || continue
@@ -373,8 +355,6 @@ while read -r pkg owner trigger; do
   fi
   ((run)) && node_packages+="${node_packages:+ }$pkg"
 done <<<"$packages"
-
-# --- legs -------------------------------------------------------------------
 
 # pack <lane> <budget> <cap> <force> <workers> <list> [<serial-list>]: the
 # lane's legs, plan and needs. A leg runs <workers> suites at a time
@@ -500,15 +480,12 @@ tr ' ' '\n' <<<"$node_packages" | grep . >"$WORK/node"
 pack node 140 8 0 1 "$WORK/node"
 echo "node_packages=$node_packages"
 
-# --- test-windows -----------------------------------------------------------
-
 read_list::into rows "$WINDOWS_LIST" --comments inline || exit 2
 declare -A KEY_ON=() JOB_ON=()
 declare -a keys=() jobs=()
 for row in "${rows[@]}"; do
   read -r job key pats <<<"$row"
   [[ -n "$key" ]] || die "$WINDOWS_LIST: '$row' names a job and no step key"
-  # read -a splits without globbing, so a pattern stays a pattern.
   read -r -a patterns <<<"${pats:-$key}"
   [[ -n "${JOB_ON[$job]+x}" ]] || {
     JOB_ON["$job"]=0

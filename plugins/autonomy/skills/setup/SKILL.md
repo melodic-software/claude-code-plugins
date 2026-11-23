@@ -317,6 +317,11 @@ specified by the [runner topology leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/t
 it directly when placing a runner obligation on its home, since this note does not re-derive the
 split.
 
+## Next
+
+- After `apply`: /autonomy:setup check.
+- The binding checks clean: /work-items:work-loop, launched via /loop.
+
 ## Gotchas
 
 Run-time failure modes, the two-binding split (repo-local autonomy binding vs the separate

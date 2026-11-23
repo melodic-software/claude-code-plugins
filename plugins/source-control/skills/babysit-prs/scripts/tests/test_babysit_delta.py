@@ -1,12 +1,3 @@
-"""Per-PR classifier and fan-out delta engine.
-
-Ports the pull-request classification coverage onto `babysit_delta`: branch
-freshness, the trust-boundary mutation policy, foreign-activity (L3)
-detection, the twelve `worker_actionable_delta` arms (each suppressible arm
-tested on both the direct-gate-ready and not-ready sides), the quiet-recheck
-and branch-uniqueness-cleared paths, and cadence recommendation.
-"""
-
 from __future__ import annotations
 
 import pathlib

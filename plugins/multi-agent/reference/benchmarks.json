@@ -31,6 +31,36 @@
       "status": "permanent",
       "task_set": "webdev-arena",
       "expect": "WebDev"
+    },
+    {
+      "id": "vals-index",
+      "workloads": ["coding", "knowledge"],
+      "link": "https://www.vals.ai/benchmarks/vals_index",
+      "publisher": "vals.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "vals-index",
+      "expect": "Vals Index"
+    },
+    {
+      "id": "gdpval-aa",
+      "workloads": ["knowledge"],
+      "link": "https://artificialanalysis.ai/evaluations/gdpval-aa",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "gdpval",
+      "expect": "GDPval-AA"
+    },
+    {
+      "id": "aa-image-t2i",
+      "workloads": ["image"],
+      "link": "https://artificialanalysis.ai/image/leaderboard/text-to-image",
+      "publisher": "artificialanalysis.ai",
+      "provider_own": false,
+      "status": "support-only",
+      "task_set": "aa-image-t2i",
+      "expect": "AA-Image"
     }
   ]
 }

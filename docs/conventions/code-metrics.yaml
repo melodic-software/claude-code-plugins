@@ -10,6 +10,7 @@ scope:
     - "**/CHANGELOG.md"
     - "plugins/themes/hooks/bedroom/lights.ts"
     - "scripts/shared-copies.txt"
+    - "scripts/skill-links.json"
   registries: [scripts/cross-plugin-source-registry.txt]
 size:
   check: crossing

@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/main/findings.md",
+            "content": "# Findings\n"
+          }
+        }
+      ],
+      "why": "writes findings only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/main/findings.md",
+            "content": "# Findings\n"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/config/limits.json",
+            "old_string": "5",
+            "new_string": "10"
+          }
+        }
+      ],
+      "why": "a contained edit outside the writers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/app/admin-api/save.ts",
+            "old_string": "write",
+            "new_string": "billing.write"
+          }
+        }
+      ],
+      "why": "edits a writer"
+    }
+  ]
+}

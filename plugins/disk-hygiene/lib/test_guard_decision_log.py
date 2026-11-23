@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the disk-hygiene bounded guard-decision record."""
 
 from __future__ import annotations
 
@@ -32,10 +31,6 @@ def b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# A stateless installation token is ghs_ then a JWT of about 520 characters, with
-# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
-# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
-# alphanumeric minimum is met. Payload and signature are fake.
 STATELESS_HEADERS = (
     b64url(b'{"alg":"RS256","typ":"JWT"}'),
     b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
@@ -63,8 +58,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         return decision_log.log_path(str(self.data_root))
 
     def read_records(self, path: Path | None = None) -> list[dict]:
-        # A rotation leaves no live file until the next append, so an absent
-        # file is a real state rather than a test failure.
         path = self.log_file if path is None else path
         if not path.exists():
             return []
@@ -92,14 +85,10 @@ class GuardDecisionLogTests(unittest.TestCase):
             stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
         )
 
-    # --- the record exists at all, with no configuration -------------------
 
     def test_record_creates_the_log_under_the_data_root(self) -> None:
         self.assertTrue(self.write_one())
         self.assertTrue(self.log_file.is_file())
-        # The on-disk location is the contract README.md publishes
-        # (`<CLAUDE_PLUGIN_DATA>/guard-decisions/decisions.jsonl`). Literals,
-        # not the module constants, so a renamed directory or file fails here.
         self.assertEqual(
             self.data_root / "guard-decisions" / "decisions.jsonl",
             self.log_file,
@@ -122,8 +111,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.write_one(decision="deny")
         entries = self.read_records()
         self.assertEqual(["allow", "deny"], [entry["decision"] for entry in entries])
-        # One JSON object per physical line is what makes the file readable
-        # with `tail`/`grep` and parseable a line at a time.
         self.assertEqual(2, len(self.log_file.read_text(encoding="utf-8").splitlines()))
 
     def test_a_command_containing_a_newline_stays_one_line(self) -> None:
@@ -145,7 +132,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertEqual(2, entry["failure_count"])
         self.assertEqual(1, entry["exit_code"])
 
-    # --- bounded, enforced -------------------------------------------------
 
     def test_long_command_and_reason_are_truncated(self) -> None:
         self.write_one(command="x" * 5000, reason="y" * 5000)
@@ -169,7 +155,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertIn(decision_log.REDACTED, entry["reason"])
 
     def test_github_app_installation_token_jwt_form_is_redacted(self) -> None:
-        # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
         payload = "FAKEpayload" + ("A" * 450)
         token = "ghs" + "_1234567_eyJFAKE." + payload + ".FAKEsignatureNOTreal"
         self.write_one(command="echo " + token)
@@ -204,7 +189,6 @@ class GuardDecisionLogTests(unittest.TestCase):
             self.assertEqual(text, decision_log._redact_secrets(text))
 
     def test_redaction_of_adversarial_commands_finishes_promptly(self) -> None:
-        # Shapes that made a backtracking pattern take seconds to minutes.
         for command in (
             "ghs_1_-" * 50000,
             "ghs_1_eyJ" * 30000,
@@ -221,9 +205,6 @@ class GuardDecisionLogTests(unittest.TestCase):
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_secret_shapes_finish_promptly_on_adversarial_text(self) -> None:
-        # MAX_SCAN_CHARS keeps the record path short; these shapes made the
-        # JWT, connection string and private key patterns themselves take
-        # 20 to 40 seconds.
         header = "-----BEGIN a PRIVATE" " KEY-----"
         for text in (
             ("ghs_1_eyJ" + "A" * 600) * 1000,
@@ -244,11 +225,8 @@ class GuardDecisionLogTests(unittest.TestCase):
 
     def test_bounded_secret_shapes_still_redact_realistic_secrets(self) -> None:
         redacted = decision_log.REDACTED
-        # Header, payload and signature spell FAKE.
         jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
-        # Headers past the bound, as with an embedded x5c chain, are redacted
-        # whole, payload and signature included.
         past_bound = [
             "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
             for size in (513, 4000)
@@ -258,8 +236,6 @@ class GuardDecisionLogTests(unittest.TestCase):
             for size in (513, 4000)
         ]
         long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
-        # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
-        # (RFC 7468); this body spells FAKE.
         body = "\n".join(["FAKE" * 16] * 52)
         pems = [
             f"-----BEGIN {label}PRIVATE KEY-----\n{body}\n"
@@ -285,8 +261,6 @@ class GuardDecisionLogTests(unittest.TestCase):
                 self.assertEqual(f"echo {redacted} x", record["command"])
 
     def test_secret_cut_at_the_scan_bound_stays_out_of_the_record(self) -> None:
-        # Two redacted assignments shrink the scanned text to a few dozen
-        # characters, which would pull a token cut at the bound into view.
         assignments = ("token=" + "v" * 2000 + " ") * 2
         token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsig"
         self.write_one(command=assignments + token)
@@ -296,8 +270,6 @@ class GuardDecisionLogTests(unittest.TestCase):
     def test_secret_starting_in_view_and_running_past_the_scan_bound_is_redacted(
         self,
     ) -> None:
-        # Each starts in the first 400 characters and ends past the scan bound,
-        # so no complete-shape rule can match it inside the scanned prefix.
         pem_header = "-----BEGIN " + "RSA PRIVATE KEY-----"
         for label, secret in (
             ("pem", pem_header + "\nMIIJFAKEbody" + "Q" * 6000),
@@ -350,10 +322,6 @@ class GuardDecisionLogTests(unittest.TestCase):
                 self.write_one()
             rotated = self.log_file.parent / decision_log.ROTATED_FILENAME
             self.assertTrue(rotated.is_file())
-            # The bound is two generations of MAX_BYTES plus the line that
-            # crossed it, enforced on the write path rather than advertised.
-            # A write that crosses the bound rotates the live file away, so
-            # the live path may be absent until the next append.
             live_size = self.log_file.stat().st_size if self.log_file.exists() else 0
             total = live_size + rotated.stat().st_size
             self.assertLess(total, 2 * 2000 + 4096, total)
@@ -368,11 +336,9 @@ class GuardDecisionLogTests(unittest.TestCase):
         surviving = [
             entry["rule"] for entry in self.read_records(rotated) + self.read_records()
         ]
-        # The most recent decisions are the ones that survive the bound.
         self.assertIn("rule-199", surviving)
         self.assertNotIn("rule-0", surviving)
 
-    # --- never changes anything, never raises ------------------------------
 
     def test_absent_data_root_records_nothing_and_reports_false(self) -> None:
         self.assertFalse(decision_log.record(None, hook="h", decision="deny", rule="r"))
@@ -390,8 +356,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertTrue(self.write_one())
 
     def test_an_unwritable_data_root_reports_false_and_does_not_raise(self) -> None:
-        # The data root's parent is a FILE, so both the append and the mkdir
-        # that follows it fail: the full-disk / read-only-root shape.
         blocker = Path(self._tmp.name) / "not-a-directory"
         blocker.write_text("", encoding="utf-8")
         self.assertFalse(
@@ -415,7 +379,6 @@ class GuardDecisionLogTests(unittest.TestCase):
             mock.patch.object(decision_log.os, "replace", side_effect=OSError("busy")),
         ):
             self.assertFalse(self.write_one())
-        # The line still landed before the rotation attempt failed.
         self.assertEqual(1, len(self.read_records()))
 
 

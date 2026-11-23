@@ -23,7 +23,7 @@ import elevenlabs  # noqa: E402
 
 KEY = 'sk-test-key-0123456789'
 TEXT = 'Hello, world. Two words!\n'
-QUOTA = (9000, 10000)   # 1000 characters left
+QUOTA = (9000, 10000)
 
 
 def reply(text=TEXT.strip(), seconds=0.5):
@@ -349,7 +349,7 @@ class Retries(unittest.TestCase):
         result, opens, sleeps = self.call(errors)
         self.assertEqual(len(opens), elevenlabs.MAX_ATTEMPTS)
         self.assertEqual(len(sleeps), elevenlabs.MAX_ATTEMPTS - 1)
-        for attempt, delay in enumerate(sleeps, 1):   # attempt n waits within [step/2, step], step = 1 s * 2^(n-1)
+        for attempt, delay in enumerate(sleeps, 1):
             step = 2 ** (attempt - 1)
             self.assertTrue(step / 2 <= delay <= step, (attempt, delay))
         self.assertIsInstance(result, elevenlabs.Failed)
@@ -417,7 +417,6 @@ class Outputs(unittest.TestCase):
         self.assertEqual((record['backend'], record['audio'], record['duration']), ('elevenlabs', 'narration.wav', 0.5))
 
     def test_a_word_ending_past_the_audio_is_clamped_to_the_audio_duration(self):
-        # 0.4 s of audio; 'cd' ends at 0.5 s in the alignment, 'ab' at 0.2 s.
         with tempfile.TemporaryDirectory() as tmp:
             record = elevenlabs.write_outputs('ab cd', Path(tmp), reply('ab cd', seconds=0.4), META,
                                               elevenlabs.DEFAULT_VOICE, 'eleven_v4', {}, False)
@@ -426,7 +425,6 @@ class Outputs(unittest.TestCase):
         self.assertEqual([(w['start'], w['end']) for w in on_disk['words']], [(0.0, 0.2), (0.3, 0.4)])
 
     def test_a_word_starting_past_the_audio_never_ends_before_it_starts(self):
-        # 0.25 s of audio; 'cd' starts at 0.3 s in the alignment, so both its times clamp to 0.25 s.
         with tempfile.TemporaryDirectory() as tmp:
             elevenlabs.write_outputs('ab cd', Path(tmp), reply('ab cd', seconds=0.25), META,
                                      elevenlabs.DEFAULT_VOICE, 'eleven_v4', {}, False)

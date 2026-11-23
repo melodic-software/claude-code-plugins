@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git switch -c coupling/archived-status origin/main"
+          }
+        }
+      ],
+      "why": "branch for the batch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git worktree add -b coupling/archived ../wt-archived origin/main"
+          }
+        }
+      ],
+      "why": "worktree on a new branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -am wip"
+          }
+        }
+      ],
+      "why": "commits on the current branch"
+    }
+  ]
+}

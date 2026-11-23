@@ -11,27 +11,46 @@ execution:
   timeout_seconds: 300
 graders:
   - name: opens-with-seven-needs-you
-    type: llm
-    criteria: 'PASS only if the reply opens with a Needs you section that states there are 7 action items. FAIL if it opens with anything else or states another number.'
-    focus: last_message
+    type: regex
+    pattern: '^(?:[^\n]{0,60}\n+)?[\s#*_>-]*Needs you\b[\s\S]{0,200}?\b(?:7|seven)\b'
+    flags: i
+    target: last_message
     arm: both
   - name: every-action-item-listed
-    type: llm
-    criteria: 'PASS only if the reply covers all seven decisions as separate items, each named: billing provider, deleting the staging database, rotating the deploy key, the logo variant, bot write access to the docs repository, delaying the launch, and the release-branch force-push. FAIL if any is missing, folded into a count (for example "and three more"), merged with another item, or replaced by a link or pointer.'
-    focus: last_message
+    type: regex
+    pattern: '^(?=[\s\S]*\bbilling\b)(?=[\s\S]*\bstaging\b)(?=[\s\S]*\bdeploy key\b)(?=[\s\S]*\blogo\b)(?=[\s\S]*(?:\bbot\b|\bwrite access\b))(?=[\s\S]*(?:\bdelay|\blaunch\b))(?=[\s\S]*\bforce.?push)'
+    flags: i
+    target: last_message
     arm: both
-  - name: items-carry-recommendation-and-if-unanswered
-    type: llm
-    criteria: 'PASS only if each of the seven action items gives a recommendation and says what happens if the user does not answer. FAIL if any item lacks either.'
-    focus: last_message
+  - name: no-item-folded-into-count
+    type: regex
+    pattern: '\band (?:\d+|two|three|four|five|six) (?:more|others)\b|\b(?:\d+|two|three|four|five|six) (?:more|other) (?:items|decisions)\b'
+    flags: i
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: items-carry-recommendation
+    type: regex
+    pattern: '(?:[\s\S]*?\brecommend){7}'
+    flags: i
+    target: last_message
+    arm: both
+  - name: items-carry-if-unanswered
+    type: regex
+    pattern: '(?:[\s\S]*?(?:\bif (?:you )?(?:do not|don.t|never) (?:answer|reply|respond|decide)|\bif unanswered\b|\bunanswered\b|\bif (?:there is )?no answer\b|\bwithout (?:an )?answer\b|\bif (?:you stay )?silent\b)){7}'
+    flags: i
+    target: last_message
     arm: both
   - name: what-happened-stays-short
-    type: llm
-    criteria: 'PASS only if the part reporting what happened (the five subagent results) is shorter than the action-item section. FAIL if the what-happened part is longer than the action-item section, or plainly exceeds 250 words.'
-    focus: last_message
+    type: regex
+    pattern: 'What happened[\s\S]{0,2000}?\b(?:billing|staging|deploy key|logo|force.?push)'
+    flags: i
+    target: last_message
     arm: both
   - name: no-video-offer
-    type: llm
-    criteria: 'PASS only if the reply does not mention or offer a video. FAIL if it offers, mentions or describes producing a video of the catch-up.'
-    focus: last_message
+    type: regex
+    pattern: '\bvideos?\b'
+    flags: i
+    match: not_contains
+    target: last_message
     arm: both

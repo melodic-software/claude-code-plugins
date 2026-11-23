@@ -39,7 +39,8 @@ Report which depth ran and why (strict verification level / argument / configure
    while the trivial / non-load-bearing ones are resolved inline (and still get a ledger row);
    under **full**, every item goes through the fan-out. Dispatch per
    [`fan-out.md`](../../../context/fan-out.md): blind fresh-context subagents, bounded waves,
-   failed-subset retry.
+   failed-subset retry. Route these per-item subagents per the caller contract of
+   `/multi-agent:route` (if enabled); otherwise run them here as before.
 3. **Match the method to the item type.** An externally-verifiable item (an asserted fact, a
    concrete specific) resolves against a source or the live environment. An internal item (an
    assumption, or a load-bearing premise with no external referent) has no citation to fetch. Its

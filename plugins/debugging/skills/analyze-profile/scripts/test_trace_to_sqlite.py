@@ -1,5 +1,3 @@
-"""Tests for trace_to_sqlite.py. Expected counts are hand-counted from the fixtures."""
-
 import base64
 import contextlib
 import gzip
@@ -175,8 +173,6 @@ class RefusesBadInput(TempDirCase):
         self.assert_refused(run("--in", path, "--out", out), out)
 
     def test_heap_negative_type_or_name_index(self):
-        # nodes are 7 fields (type, name first); edges are 3 (type, name_or_index,
-        # to_node), and edge 2 is a property edge, so its name indexes strings.
         for label, array, at in (
             ("node type", "nodes", 0),
             ("node name", "nodes", 1),
@@ -279,9 +275,6 @@ class TreatsContentAsData(TempDirCase):
 
 
 GITHUB_TOKEN = "ghp_" + "Zx4" * 12
-# The stateless installation token is ghs_ then a JWT of about 520 characters: three
-# base64url segments joined by '.', each segment obviously fake, with and without an
-# app-id-like prefix.
 JWT_SEGMENT = "FAKE-not_a_token" * 10
 JWT = ".".join([JWT_SEGMENT] * 3)
 STATELESS_TOKEN = "ghs" + "_123456_" + JWT
@@ -292,9 +285,6 @@ def b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# A real RS256 JWT header encodes to 36 alphanumerics, the length gh[pousr]_ accepts,
-# so a token built from it shows whether the redactor takes the whole JWT or only ghs_
-# plus its header. Payload and signature are fake.
 RS256_HEADER = b64url(b'{"alg":"RS256","typ":"JWT"}')
 FAKE_PAYLOAD = b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
 FAKE_SIGNATURE = b64url(b"\xfb\xff\xfeFAKE signature, not a real token" * 8)
@@ -500,7 +490,6 @@ FORMATS_DIR = HERE.parent / "reference" / "formats"
 
 
 def doc_query(page, lead):
-    """The first ```sql block after the line starting with lead on a format page."""
     text = (FORMATS_DIR / page).read_text(encoding="utf-8")
     after = text[text.index("\n" + lead) :]
     start = after.index("```sql\n") + len("```sql\n")
@@ -534,7 +523,6 @@ class FormatPageQueries(TempDirCase):
     """The format pages' queries keep two profiles of one trace apart."""
 
     def two_profile_db(self):
-        # Both profiles number their nodes from 1, as each pid:id profile does.
         trace = self.write_json(
             "two.trace.json",
             [
@@ -615,8 +603,6 @@ class SamplesOnTheTraceClock(TempDirCase):
         self.assertEqual([(r[2], r[-1]) for r in rows], [("leaf", 2)])
 
     def test_trace_without_start_time_leaves_ts_null(self):
-        # A Profile event with no args.data.startTime, and a profile with no
-        # Profile event at all: both keep their samples with ts NULL.
         trace = self.write_json(
             "nostart.trace.json",
             [

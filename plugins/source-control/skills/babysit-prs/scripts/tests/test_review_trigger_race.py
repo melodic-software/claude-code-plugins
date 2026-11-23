@@ -1,11 +1,3 @@
-"""Config-driven review-trigger gate and request-state machine.
-
-Ports the review-trigger coverage onto `babysit_review_trigger`, reoriented
-from the monolith's CLI race suite to the module's pure config-driven surface:
-the gate is dormant until configured, and the trigger recognizer derives from
-exactly one configured phrase.
-"""
-
 from __future__ import annotations
 
 import contextlib

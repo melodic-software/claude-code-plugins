@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Build the illustrate explainer from one JSON model: the markdown record, and
-// optionally the interactive page view of it.
-//
-//   build-explainer.mjs --out-dir <dir> [--format page|markdown] --model <model.json>
-//   build-explainer.mjs --record <out.md> [--page <out.html>] [--model <model.json>]
-//   build-explainer.mjs --check <page.html>
-//
-// The model is read from --model when given, else from stdin. With --out-dir the
-// model's "slug" (lowercase letters, digits and hyphens, else exit 2) names the
-// outputs: <dir>/records/<slug>.md and, unless --format markdown, <dir>/views/<slug>.html,
-// so the caller's command never carries a model-chosen string.
-//
-// The page comes only from the checked-in template plus the model as JSON data,
-// through the shared view builder's interactive profile, so no model text is
-// written into markup except the title, which the builder escapes into <title>. Exit 0 ok, 1 the page fails its profile, 2 usage
-// or a model the page cannot draw (an unknown kind, a compare of the wrong width).
-// A label cut to the cap prints one warning line on stderr and still exits 0.
 
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -44,11 +27,6 @@ function capLabel(label) {
 
 const EMPTY = { flow: [], flowcol: [], stack: [], center: "", branches: [], points: [], columns: [], before: [], after: [] };
 
-/**
- * @param {Record<string, unknown>} diagram
- * @param {number} d the diagram's position, from 0
- * @param {string[]} warnings
- */
 function shape(diagram, d, warnings) {
   const name = `diagram ${d + 1}`;
   const kind = [undefined, null, ""].includes(diagram.kind) ? "flow" : diagram.kind;
@@ -97,10 +75,6 @@ function shape(diagram, d, warnings) {
   return { ...EMPTY, before: labels(diagram.before, "before"), after: labels(diagram.after, "after") };
 }
 
-/**
- * @param {Record<string, unknown>} model
- * @param {string[]} [warnings] receives one line per label cut to the cap
- */
 function normalize(model, warnings = []) {
   const source = model && typeof model === "object" ? model : {};
   return {
@@ -119,7 +93,6 @@ function normalize(model, warnings = []) {
   };
 }
 
-/** @param {ReturnType<typeof normalize>} data */
 function explainerPage(data) {
   return buildView({
     profile: "interactive",
@@ -152,7 +125,6 @@ const cell = (value) => md(value).replaceAll("|", "\\|");
 
 const bullets = (items) => items.map((item) => `- ${md(item)}`);
 
-/** @param {{heading: string, items: string[]}[]} columns */
 function table(columns) {
   const depth = Math.max(0, ...columns.map((column) => column.items.length));
   const line = (cells) => `| ${cells.join(" | ")} |`;
@@ -172,11 +144,6 @@ const mermaidLabel = (value) =>
     .trim()
     .replace(/[#"%&<>]/g, (char) => MERMAID_ENTITIES[char]) || " ";
 
-/**
- * The diagram as mermaid source, built only from builder-made ids and quoted labels, or null when
- * it has nothing to draw. Every kind is a flowchart so one label rule covers them all.
- * @param {ReturnType<typeof normalize>["diagrams"][number]} diagram
- */
 function mermaid(diagram) {
   let count = 0;
   const lines = [];
@@ -223,7 +190,6 @@ function mermaid(diagram) {
   return lines.length ? ["```mermaid", `flowchart ${direction}`, ...lines, "```"] : null;
 }
 
-/** @param {ReturnType<typeof normalize>} view */
 function explainerRecord(view) {
   const out = [`# ${md(view.title)}`, ""];
   for (const line of view.summary) out.push(md(line), "");

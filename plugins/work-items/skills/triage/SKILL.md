@@ -93,7 +93,7 @@ A reversible change with a well-grounded recommendation (the decision-defaulted 
 none of them: it takes the decision-defaulted exit, never this label. The rules in
 [`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for an
 untrusted-provenance or signal-marked item, a decomposition or probe a person must start, or the
-work-loop intake sweep's proposed role-label swap awaiting a person's admission, are instances of part 2.
+work-loop intake sweep's proposed role-label swap awaiting a person who approves it, are instances of part 2.
 
 ```text
 raw → verified → briefed
@@ -469,12 +469,7 @@ Only after verification (or for enhancements, where the open question is scope, 
 
 ### 5. Apply outcome
 
-Read [context/apply-outcome.md](context/apply-outcome.md) once the category and state are settled,
-before writing anything to the tracker: it owns the per-outcome mutation, the raw-intake marker
-rules that keep an item reachable, the comment bodies including the needs-info comment, and what
-each outcome does to the item's labels and issue dimensions, including the human-gated route for
-an item too large for one run or not ready to run. Every outcome is a transition off raw intake,
-never a layer on top of it.
+Read [context/apply-outcome.md](context/apply-outcome.md) once the category and state are settled, before writing anything to the tracker: it owns the per-outcome mutation, the raw-intake marker rules that keep an item reachable, the comment bodies including the needs-info comment, and what each outcome does to the item's labels and issue dimensions, including the human-gated route for an item too large for one run or not ready to run. Every outcome is a transition off raw intake, never a layer on top of it.
 
 **Objection window.** When `triage_objection_window_hours` resolved above 0, every outcome that
 applies the autonomous-eligible role label also posts an "Objection window until <UTC>" comment
@@ -491,9 +486,11 @@ or interactively; the `/work-items:work-loop` admission gate enforces it.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
 - A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`.
 
+## Related
+
+- Escalations and held PRs needing operator decisions: /work-items:attend-queue.
+- Shape an unstructured bug report first: /bugs:write.
+
 ## AI disclaimer
 
-Whether comments and items created during autonomous/agent triage sessions carry the AI disclaimer,
-and its canonical form, are in
-[`${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md`](${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md)
-(`{lane}` → `triage`; the per-user value it reads is `${user_config.ai_disclaimer}`).
+Whether comments and items created during autonomous/agent triage sessions carry the AI disclaimer, and its canonical form, are in [`${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md`](${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md) (`{lane}` → `triage`; the per-user value it reads is `${user_config.ai_disclaimer}`).

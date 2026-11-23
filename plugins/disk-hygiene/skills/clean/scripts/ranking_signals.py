@@ -25,16 +25,12 @@ from typing import Any
 SIGNAL_HINT = "discovery-hint"
 SIGNAL_MTIME_CLUSTER = "sibling-mtime-cluster"
 SIGNAL_SIZE_COLLISION = "size-collision"
-# Fixed order: it is the order signals are listed on an entry and the order
-# that picks the group an entry is presented under.
 SIGNALS = (SIGNAL_HINT, SIGNAL_MTIME_CLUSTER, SIGNAL_SIZE_COLLISION)
 SIGNAL_READS = {
     SIGNAL_HINT: ["hints"],
     SIGNAL_MTIME_CLUSTER: ["path", "kind", "mtime_ns"],
     SIGNAL_SIZE_COLLISION: ["path", "kind", "stat_size", "device", "inode"],
 }
-# Siblings whose modification times chain together with no gap wider than this
-# are one cluster: one write-second plus the neighbor it rounds into.
 MTIME_CLUSTER_WINDOW_NS = 2_000_000_000
 RANKING_BASIS = (
     "Presentation order only. A signal is evidence, never proof an entry is "

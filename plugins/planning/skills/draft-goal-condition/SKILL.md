@@ -290,6 +290,12 @@ in [reference/native-goal.md](reference/native-goal.md).
 - The lever routed to multi-window work with no tickets yet: /work-items:decompose.
 - The intent was too vague to name a structure or a content list: /planning:interview.
 
+## Related
+
+- Metric hill-climb on runtime speed or counters: /performance:goal.
+- Hill-climb against an eval suite: /evals:methodology.
+- Multi-window backlog already decomposed: /work-items:work.
+
 ## Gotchas
 
 - **Read the limit's unit live**, from the section Step 1 fetched (pointer in the length-guard

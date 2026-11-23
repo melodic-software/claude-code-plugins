@@ -45,9 +45,6 @@ def test_tracer_end_to_end(data_dir, copy_fixture):
     assert sweep_env["data"]["metrics"]["tokens.main"]["value"] == TRACER_OUTPUT_TOKENS
 
 
-# --- multi fixture: proj-a/sess-a1 (rich, one subagent), proj-a/sess-a2, proj-b/sess-b1 ---
-
-
 @pytest.fixture
 def multi(copy_fixture, tmp_path):
     """The multi fixture with `cwd` placeholders pointing at a real and a removed directory."""
@@ -336,8 +333,6 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
         rec.pop("ingested_at")
     assert skipped == forced
 
-
-# --- the collector digest: what forces a full re-ingest ---
 
 # The files that decide what a record holds, relative to the plugin root, as the requirement lists them.
 HASHED_INPUTS = (
@@ -972,9 +967,6 @@ def test_resolve_bash_follows_exec_bash_order(env, platform, present, expected):
     import collect as collect_module
 
     assert collect_module.resolve_bash(env, platform, exists=present.__contains__) == expected
-
-
-# --- Stop wait and gap-based active time ---
 
 
 def _stamp(seconds: int) -> str:

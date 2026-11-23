@@ -83,8 +83,9 @@ import { createGitHub, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
-import { SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope } from "../intake-triage/size-split.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftShaped, finishedParent, humanWritten, REFINE_MARKER, webHostsFrom } from "../intake-triage/admit.mjs";
+import { driftIssue, loadRules, parentOf, personChecks, refinementSpec, specOf, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec } from "../intake-triage/issue-spec.mjs";
+import { splitParentOf } from "../intake-triage/size-split.mjs";
 import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { laneBranchPattern, WORK_RESOLVE_ISSUE } from "../lib/lane-branch.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
@@ -163,8 +164,6 @@ async function readAdmission(github, repository, number, { lanesAppId, humans, s
   return admittedAt({ comments, appId: lanesAppId, fieldEvents: events, fieldId: state ? config["field-id"] : null, humans, sender, triggerAt });
 }
 
-// The resume record, or undefined when the run resumes nothing. Any value
-// that is not its expected shape, or a failed comparison, throws.
 const SHA = /^[0-9a-f]{40}$/;
 export const MAX_RESUME_COMMITS = 50;
 export const MAX_RESUME_FILES = 100;
@@ -180,11 +179,6 @@ async function readResume(github, env) {
   return { branch, cause, tip, ...(await branchWork(github, env, base, tip)) };
 }
 
-// The stale-branch record, or undefined when the run started past none: the
-// lane branch issue-prior would have resumed but for being behind the default
-// branch, at the tip it checked every commit of, which this run does not start
-// from. Any value that is not its expected shape, or a failed comparison,
-// throws.
 async function readStale(github, env) {
   const { STALE_BRANCH: branch = "", STALE_TIP: tip = "", BASE_SHA: base = "" } = env;
   if (!branch && !tip) {

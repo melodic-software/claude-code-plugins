@@ -92,8 +92,6 @@ jobs:
       # cannot apply; the refusal step below shows why.
       claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
       instructions: ${{ steps.rubric.outputs.instructions }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -116,6 +114,7 @@ jobs:
             /.github/scripts/intake-triage/triage-rubric.txt
             /.github/scripts/lib/github-client.mjs
             /.github/scripts/lib/lane-vocabulary.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/scripts/pr-merge/merge-holds.mjs
             /.github/standards/github-actions-conventions/vocabulary.json
             /.github/standards/trusted-actors/
@@ -126,7 +125,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -209,7 +208,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch
@@ -227,7 +226,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -237,7 +236,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       # Skips the run while Actions or npm installs report a degraded component,
@@ -305,8 +303,6 @@ jobs:
       # The key's credit window every model lane reads (callers.test.mjs
       # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
       key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-      # The time the key was last replaced: a credit stop before it no longer
-      # holds the key off.
       key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.check-born-triaged.outputs.human-ids }}
@@ -371,7 +367,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -382,7 +378,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -559,19 +555,16 @@ jobs:
       # apply-refinement posts the reason), else `refine`.
       mode: ${{ steps.select.outputs.mode }}
       context-sha256: ${{ steps.hash.outputs.sha256 }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -582,7 +575,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -592,7 +585,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
           wait-seconds: "1200"
 
@@ -611,8 +603,6 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
-      # refine.mjs --select imports resolve-config.mjs, whose packages (ajv)
-      # only the resolve-config action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.who.outputs.proceed == 'true'
@@ -642,7 +632,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: steps.select.outputs.refine == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/refine-context/context.json
@@ -689,7 +679,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: start
           role: intake
@@ -698,12 +688,10 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: skipped
           lane: Refine issue
@@ -742,14 +730,12 @@ jobs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
       refined: ${{ steps.upload.outcome == 'success' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -760,7 +746,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -808,7 +794,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: key
           role: intake
@@ -852,7 +838,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       # bwrap for the env scrub, then no sudo or docker. A failure here stops
       # the job, so the model never runs without isolation.
@@ -874,7 +860,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -917,7 +903,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -957,7 +943,7 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -975,12 +961,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -1015,7 +999,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/refinement/refinement.json
@@ -1049,7 +1033,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -1093,14 +1077,12 @@ jobs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
       refined: ${{ steps.upload.outcome == 'success' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -1111,7 +1093,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1153,7 +1135,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: subscription
           role: intake
@@ -1194,7 +1176,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
@@ -1207,7 +1189,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1251,7 +1233,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -1272,12 +1254,10 @@ jobs:
           esac
           echo "::notice::refine-issue-fallback refines on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -1309,7 +1289,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/refinement/refinement.json
@@ -1347,7 +1327,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.run.outputs.handoff }}
@@ -1386,14 +1366,12 @@ jobs:
       contents: read # check out main
     outputs:
       refined: ${{ steps.upload.outcome == 'success' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -1404,7 +1382,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1446,7 +1424,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: fallback
           role: intake
@@ -1486,7 +1464,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
@@ -1499,7 +1477,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -1542,7 +1520,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -1550,12 +1528,10 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.run.outcome }}
           execution-file: ${{ steps.run.outputs.execution-file }}
@@ -1587,7 +1563,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/refinement/refinement.json
@@ -1647,7 +1623,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch tip
@@ -1658,7 +1634,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1689,7 +1665,6 @@ jobs:
           name: refine-context-${{ github.run_attempt }}
           path: ${{ runner.temp }}/refine-data
 
-      # A size-split decline ran no model, so it has no refinement.
       - name: Download the refinement
         if: steps.who.outputs.proceed == 'true' && needs.refine-select.outputs.mode != 'size-decline'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1841,7 +1816,6 @@ jobs:
             fi
           done
           calls=0
-          # The count never changes the step's exit status.
           trap '{ echo "$calls" >"$RUNNER_TEMP/intake-dispatch-calls"; } 2>/dev/null || :' EXIT
           for child in "${children[@]}"; do
             calls=$((calls + 1))
@@ -1849,7 +1823,6 @@ jobs:
               -f ref=main -f "inputs[issue-number]=$child"
           done
 
-      # The hub's api-calls notice, as dispatch-refined-triage writes it.
       - name: Log the API calls at the end
         if: always()
         run: |

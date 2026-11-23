@@ -180,10 +180,25 @@ tiebreak list, or `vendors.tiebreak=` to clear it.
 - `vendors.trials: true` with `trials_prove` or `trials_fail` unset: trials stay
   inactive and routing emits one note saying so.
 - `vendors.<vendor>.in_use`: `false` skips the vendor silently; `true` when the
-  vendor is unavailable in `external-agents models` emits one note line.
+  vendor is unavailable in `external-agents models` emits one note line. A
+  vendor whose `breaker.open` is `true` is skipped with one note naming
+  `reset_at` (unless `in_use: false`).
+- `vendors.auto_delegation`: `false` (default) recommends the chosen vendor and
+  shows how to run it; `true` runs `external-agents run <product> --use task --mode write`
+  for `image` requests (using a prompt built strictly from the user's task and
+  naming the vendor's built-in image tool), reports the CLI and output path, and
+  reviews the image before recording any trial verdict. Only the user layer
+  (`role_map_file`) sets it; a team or personal-override value, both files inside a
+  repository, is ignored with a note.
+- `vendors.auto_delegation` for `coding`, `web-ui` and `knowledge` work: `true`
+  runs a caller's brief through route's `delegate` script (`--use investigate`
+  read-only, or `--use task --mode write`) per the Caller contract in `vendors.md`.
 - `vendors.tiebreak`: a higher layer's valid list replaces the lower layer's
   list whole. With no tiebreak set, a tie across trusted sources keeps the
-  caller's vendor.
+  caller's vendor. When `most-usage-left` is listed, `/multi-agent:route vendors`
+  queries `external-agents usage <product>` per in-use vendor and Claude's
+  `rate-limits` status tool (when enabled) before deciding; any missing or
+  `unavailable` reading falls back to `vendor-order` with one note.
 - `vendors.sources.<id>.enabled: false`: disables a shipped or team benchmark
   row during fetch and decision.
 

@@ -12,6 +12,10 @@
 // - the PR is not a draft and not a dependency manager's (a Bot account with
 //   one of DEPENDENCY_MANAGERS' logins), and the run did not start while it
 //   was a draft (draftRun), whose suites all skipped;
+// - it is not the lanes App's pull request changing only main's
+//   merge.baseline-file (merge-holds.mjs baselineOnly, reason
+//   `native-baseline`), which merges with no verdict
+//   (https://github.com/melodic-software/architecture/pull/197);
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
@@ -70,10 +74,11 @@ import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trust
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
-import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { specSource } from "./spec-source.mjs";
+import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, briefedIssue, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
-import { SPLIT_CHILD_MARKER, splitChildBody, splitScope } from "../intake-triage/size-split.mjs";
+import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
+import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -1121,21 +1126,24 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       const person = [...new Set([...checks, ...marked])].sort((a, b) => a - b);
       const childBody = childBodies.get(issue.number);
       const sources = sourceLabels(issue.labels?.nodes);
-      const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
-      const briefed = !written(issue) && childBody === undefined && ownBody === null && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && briefedIssue({ ...issue, comments: issue.comments.nodes }, laneAppId) ? String(issue.body ?? "") : null;
-      const recurring = written(issue) || childBody !== undefined || ownBody !== null || briefed !== null ? null : recurringSpec(issue, schedule);
-      const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
-      const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
+      const spec = specSource({
+        written: written(issue),
+        body: issue.body,
+        splitChild: childBody,
+        splitMarked: String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER),
+        ownFiling: sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds),
+        briefed: briefedIssue({ ...issue, comments: issue.comments.nodes }, laneAppId),
+        recurring: recurringSpec(issue, schedule),
+        drift: driftBodies.get(issue.number) ?? null,
+        incident: mainRedIncident(issue) ? MAIN_RED_SPEC : null,
+      });
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
       // its done-when lines apply only to these targets.
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
-        ...(recurring !== null && { source: "recurring-schedule" }),
-        ...(upstreamDrift !== null && { source: "upstream-drift" }),
-        ...(incident !== null && { source: "main-red-incident" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? briefed ?? recurring ?? upstreamDrift ?? incident),
+        ...spec,
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         ...(person.length > 0 && { person_checks: person.map((n) => items[n - 1].text) }),
@@ -1147,7 +1155,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -1207,6 +1215,13 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
+  }
+  if (baselineOnly(pull.user, [baselineFile], laneAppId, baselineFile)) {
+    const files = await github("GET", `/repos/${repository}/pulls/${pull.number}/files?per_page=100`);
+    const paths = Array.isArray(files) ? files.flatMap((file) => [file?.filename, ...(file?.previous_filename ? [file.previous_filename] : [])]) : null;
+    if (baselineOnly(pull.user, paths, laneAppId, baselineFile)) {
+      return skip("native-baseline");
+    }
   }
   // An unreadable draft state throws, as any other failed read here does: the
   // step holds before its judgment (closing), so it writes no verdict, and the
@@ -1540,6 +1555,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     // The lanes App's id: merge.agent-identity's entry on the trusted list,
     // with or without its [bot] suffix.
     laneAppId: trusted.logins.get(`${loginKey(env.LANE_IDENTITY)}[bot]`),
+    baselineFile: env.BASELINE_FILE,
     // Admission's task-list marker, from the checkout this script runs from
     // (main's, in pr-verify.yml): a split sub-issue counts only by it.
     taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],

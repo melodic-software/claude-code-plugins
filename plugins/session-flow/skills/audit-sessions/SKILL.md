@@ -337,6 +337,11 @@ without that flag, make the suggestion to the person. For `trends`, make the sug
 - A finding the person chose to turn into a check or an instruction line: /corrections:codify.
 - A `permission` lens finding: /session-flow:audit-friction.
 
+## Related
+
+- Single-session retrospective: /session-flow:retro.
+- Delivery metrics beside score trends: /work-items:measure-delivery.
+
 ## Gotchas
 
 - **Do not hand-edit store records.** Collect replaces each one from its transcript, and sweep

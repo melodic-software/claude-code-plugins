@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /w/.work/codify"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [],
+      "why": "no command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/settings.json"
+          }
+        }
+      ],
+      "why": "reads the settings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /w/.work/codify/block-force-push.sh /w/.git/hooks/pre-push"
+          }
+        }
+      ],
+      "why": "copies into .git/hooks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp block.sh \"$CLAUDE_PROJECT_DIR/.git/hooks/pre-push\""
+          }
+        }
+      ],
+      "why": "quoted hook path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.hooks += {}' .claude/settings.json > t && mv t .claude/settings.json"
+          }
+        }
+      ],
+      "why": "relative settings path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\nchmod +x .git/hooks/pre-push"
+          }
+        }
+      ],
+      "why": "multi-line command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git config core.hooksPath .work/codify/hooks"
+          }
+        }
+      ],
+      "why": "points git at a hooks folder"
+    }
+  ]
+}

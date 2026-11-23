@@ -364,7 +364,9 @@ counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`
 `verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
 or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
 named note ends as any fix round; no push with every note already addressed stops
-`feedback-already-addressed` for a session builder.
+`feedback-already-addressed` with no label: pr-verify judges the head on its own. The next sweep
+run on that head clears the failing status, and the `verify:earlier-fail` refusal keeps holding
+the merge until pr-verify passes the head.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -1228,7 +1230,9 @@ no stop standing on its head, whether or not one ever did), `awaiting-session` (
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
 again), `owned-branch` (a fix-ci select job on a pull request whose head branch
 `merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
-would race the rebuild), or, for an issue run under
+would race the rebuild), `gate-hold` (a review-dependency select job whose head's only CI Status
+failure is the trust-gate hold only a person clears: no model turn ran, and the dispatcher sends
+the head again once CI Status passes on it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -2409,7 +2413,9 @@ pull request. The linked issue is its closing issues here, or with none, the one
 containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
 one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
 lanes App pull request that does not link exactly one issue here also fails, so dropping the link
-after arming does not skip the check; another automation's pull request that links none passes. An
+after arming does not skip the check, unless its files, read whole, are exactly the base's
+`merge.baseline-file` (`merge-holds.mjs` `baselineOnly`, owner decision Q152 (B)); another automation's pull
+request that links none passes. An
 unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
 the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
@@ -3397,12 +3403,20 @@ them on every `pull_request` run, contract-only runs included:
   (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
   workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
   of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
-  (this repository: `anthropics` and `melodic-software`), read from the diff in the broker step's file pages. Both refs
+  (this repository: `anthropics`, `melodic-software` and the major vendors' GitHub-verified
+  organizations, owner decision 2026-11-23), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
-  owner list fails closed. The same holds a same-repository PR that changes a trust-gate
+  owner list fails closed. The same shape and tag check for an owner the list leaves out
+  (owner decision 2026-11-23, dependency review verdict for any owner) clears the hold once the
+  lanes App's newest pr-unblock review-dependency round marker on the PR names the head with
+  `verdict=merge`; until then ci-status fails with `#<n> by Dependabot swaps only action refs,
+  each to a tagged commit, on trust-gate paths`, which review-dependency reviews instead of
+  skipping, and the pr-unblock dispatcher re-runs ci-status after the verdict. A marker by any
+  other account, for another head, a newer non-merge marker, or unreadable comments keep the
+  hold. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the

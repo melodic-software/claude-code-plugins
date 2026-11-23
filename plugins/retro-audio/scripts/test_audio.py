@@ -1,7 +1,3 @@
-"""Checks for wav.py, tone.py, presets.py, sfx.py, and mml.py.
-
-Sound effects and MML render to WAV with the standard library only.
-"""
 import contextlib
 import io
 import pathlib

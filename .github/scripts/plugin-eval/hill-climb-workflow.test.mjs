@@ -136,7 +136,7 @@ test("every ci-workflows action is pinned to one full commit", () => {
   for (const found of pins) assert.equal(found, pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, [pin]);
+  assert.deepEqual(classifier, [pin, pin]);
 });
 
 test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {

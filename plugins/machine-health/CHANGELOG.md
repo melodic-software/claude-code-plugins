@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.6] - 2026-11-23
+
+### Changed
+
+- `audit` gains a `## Related` section per the accepted skill-link table.
+
 ## [0.27.5] - 2026-11-21
 
 ### Changed

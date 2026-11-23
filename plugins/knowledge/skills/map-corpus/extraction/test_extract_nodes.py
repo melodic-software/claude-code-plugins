@@ -246,7 +246,6 @@ class TestEncodings(unittest.TestCase):
         assert_partition(self, m, data)
         titles = [n["title"] for n in m["nodes"] if n["kind"] == "section"]
         self.assertEqual(titles, ["Title"])
-        # BOM bytes land in a preamble node, not lost, not a heading shift
         self.assertEqual(m["nodes"][0]["kind"], "preamble")
         self.assertEqual(m["nodes"][0]["end_byte"], 3)
 

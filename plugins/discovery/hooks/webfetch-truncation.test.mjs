@@ -1,7 +1,3 @@
-// Contract tests for the WebFetch truncation hook. The three fixtures are
-// PostToolUse payloads captured from Claude Code 2.1.289 (each file's
-// _capture key says how). Placeholder phrasings come from those captures and
-// from the earlier visible-text probe of the same pages.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -23,15 +19,8 @@ const fired = (decideFn, payload) => decideFn(payload) !== null
 
 const hooks = fixture('hooks')
 
-// The read-on note WebFetch appends when a page is over its read cap, in the
-// form observed on Claude Code 2.1.296 (2026-10-10). Synthesized from that
-// probe onto the captured hooks payload, not a stdin capture.
 const readOnNote = '[WebFetch note: this page\'s text is 250017 characters long and the answer above covers only characters 0 to 100000; the final 150017 were not read — to read on, call WebFetch again with the same url and offset: 100000.]'
 
-// Every case the hook must flag. The captured hooks payload ends in
-// "[... content continues ...]". The visible-text probe recorded
-// "[Content truncated for length...]" and "[The variables table continues ...]";
-// "[Content truncated due to length...]" is a defensive pattern, not an observed one.
 const mustFire = {
   'captured hooks payload ([... content continues ...])': hooks,
   'marker: [Content truncated for length...]': lastLineSwapped(hooks, '[Content truncated for length...]'),
@@ -59,7 +48,6 @@ test('noop-control: every must-fire case reports not fired against a stub that n
 })
 
 const stayQuiet = {
-  // A page summarized with no marker or placeholder: the hook is partial by design.
   'captured CHANGELOG payload (summary, no placeholder)': fixture('changelog'),
   'captured env-vars payload (prose summary, no bracketed placeholder)': fixture('env-vars'),
   'a normal full result (the hooks capture without its placeholder line)':
