@@ -43,7 +43,8 @@ rules are the ones above: a root `find` cannot read makes the sandbox count `unk
 `sealed/` `du` cannot enter makes the size `at least <total>`.
 
 Preflight lists these roots and removes none of them. The next run's start removes each one
-[Pruning stale run roots](#pruning-stale-run-roots) accepts. It keeps a root that holds no
+[Pruning stale run roots](#pruning-stale-run-roots) accepts; that check also reads every entry's
+mtime under the root, so it keeps a listed root with a file changed within 3 days. It keeps a root that holds no
 `claude-eval-*` sandbox, a run that stopped before its first case: remove that one by
 [Removing a run root](#removing-a-run-root).
 
@@ -62,9 +63,12 @@ It checks every direct child of `$HOME/.ev` and removes one only when all of the
 - it is a directory, not a symlink, and its `realpath` is a direct child of the `realpath` of
   `$HOME/.ev`;
 - it holds at least one `claude-eval-*` directory;
-- nothing in it changed for 3 days, the age [Stale run roots](#stale-run-roots) reports by: no
-  entry under it, read without following symlinks, has a newer mtime. A directory it cannot open,
-  such as a mode-000 `sealed/`, counts by its own mtime;
+- nothing in it changed for 3 days: neither the root nor any entry under it, read without
+  following symlinks, has a newer mtime. A directory it cannot open, such as a mode-000 `sealed/`,
+  counts by its own mtime. This is stricter than the age [Stale run roots](#stale-run-roots)
+  reports by, which reads only the root's own mtime, so the prune can keep a root preflight lists,
+  such as one whose `trace.jsonl` changed within 3 days, and prints `kept (changed within 3 days)`
+  for it;
 - no process has a file open under it or its working directory there, read from `/proc`. A
   `/proc` mount shows only the processes of the PID namespace that mounted it
   ([pid_namespaces(7)](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)), so a
