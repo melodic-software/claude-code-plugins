@@ -2290,6 +2290,58 @@ test("a split record holds only under the issue lane's configured web hosts", as
   }
 });
 
+test("a done-when item an owner's body starts with `Person check:` reaches the verifier as a person check", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const outsider = { __typename: "User", login: "outsider", databaseId: 200 };
+  const marked = "Person check: the owner reads the summary and agrees.";
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", `- [ ] ${marked}`, "- [ ] Tests pass."].join("\n");
+  const entry = async (overrides = {}, nodes = []) =>
+    (await resolve({ issues: [{ ...ISSUE, body, ...overrides, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+  const edited = (editor) => ({ lastEditedAt: "2026-10-16T00:00:00Z", editor });
+
+  assert.deepEqual((await entry()).person_checks, [marked], "an owner's never-edited body");
+  assert.deepEqual((await entry(edited(ISSUE.author))).person_checks, [marked], "an owner's body an owner last edited");
+  for (const [why, overrides] of [
+    ["a body another User wrote", { author: outsider }],
+    ["an owner's body another User last edited", edited(outsider)],
+    ["an owner's body the lanes App last edited", edited(lanes)],
+    ["a body the lanes App filed", { author: lanes }],
+  ]) {
+    assert.equal((await entry(overrides)).person_checks, undefined, why);
+  }
+  for (const text of ["Line 9 says 27 checks.", "person check: the owner reads the summary.", "Then, Person check: the owner reads the summary.", "Person check the owner reads the summary."]) {
+    assert.equal((await entry({ body: `## Done when\n\n- [ ] ${text}` })).person_checks, undefined, `not marked: ${text}`);
+  }
+});
+
+test("owner-marked person checks join the refinement's, once each, in body order", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const marked = "Person check: the owner reads the summary and agrees.";
+  const split = (text, items) => ({
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine(items)}\n**Refinement.**`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+  });
+  const entry = async (body, nodes) =>
+    (await resolve({ issues: [{ ...ISSUE, body, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+
+  const both = ["## Done when", "", `- [ ] ${marked}`, "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const merged = await entry(both, [split(both, [3])]);
+  assert.deepEqual(merged.person_checks, [marked, "Run it on a Windows 11 host."]);
+  assert.equal(merged.comments.length, 1, "the standing split refinement still reaches the verifier");
+
+  const same = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Person check: run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  assert.deepEqual((await entry(same, [split(same, [2])])).person_checks, ["Person check: run it on a Windows 11 host."], "an item both name is listed once");
+
+  const stale = await entry(both, [split(`${both}\n- [ ] Added since.`, [3])]);
+  assert.deepEqual(stale.person_checks, [marked], "a split record for another body adds nothing");
+  assert.deepEqual(stale.comments, [], "the owner's mark does not let a split refinement that does not stand reach the verifier");
+});
+
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
   const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");

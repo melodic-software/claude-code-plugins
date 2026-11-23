@@ -2775,7 +2775,13 @@ before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
-such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml` filed
+such a pass as any closing one. A done-when item only a person can prove, such as an eval run
+whose results stay in `.work/`, is a person check when its text, after the task-list marker,
+starts with `Person check:` (owner decision 2026-11-22 on #18277): resolve-pr lists it in the
+entry's `person_checks` beside the items intake's split refinement records, in body order, and the
+verifier judges the diff without it. The mark counts only in a body a trusted person wrote and, if
+it was ever edited, last edited; in any other body it is ignored, so an edit by anyone else drops
+every mark. An issue `maintenance-file-recurring-issues.yml` filed
 (github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
 from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
 it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`

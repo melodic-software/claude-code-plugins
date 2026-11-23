@@ -946,6 +946,8 @@ async function compareFiles(github, repository, base, head) {
   return answer.files.map((file) => (texts.has(file?.filename) ? { ...file, texts: texts.get(file.filename) } : file));
 }
 
+export const PERSON_CHECK = "Person check:";
+
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
@@ -956,9 +958,9 @@ async function compareFiles(github, repository, base, head) {
 // request, so nothing the App posts once a lane run has the issue becomes
 // spec (`specText`), with the body's done-when items that refinement lists
 // as checks a person runs (`person_checks`, admit.mjs personChecks under the
-// issue lane's `webHosts`); a split refinement whose record does not stand is
-// left out. Other Bot and App text is left out even where
-// select-trusted-text keeps it, except the body of a sub-issue the lanes App
+// issue lane's `webHosts`) and those the body marks with PERSON_CHECK; a
+// split refinement whose record does not stand is left out. Other Bot and
+// App text is left out even where select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
 // admission's `task-list` (admit.mjs splitChildBody, its one home), and the
 // body of an own-agent filing no other account edited that carries exactly
@@ -1113,6 +1115,9 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       // in no form, so its prose names no item a person runs; a split drafts
       // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
+      const items = taskItems(issue.body, taskList);
+      const marked = written(issue) ? items.flatMap(({ text }, i) => (text.startsWith(PERSON_CHECK) ? [i + 1] : [])) : [];
+      const person = [...new Set([...checks, ...marked])].sort((a, b) => a - b);
       const childBody = childBodies.get(issue.number);
       const sources = sourceLabels(issue.labels?.nodes);
       const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
@@ -1132,9 +1137,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? briefed ?? recurring ?? upstreamDrift ?? incident),
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
-        // The body's done-when items that refinement lists as checks a
-        // person runs (admit.mjs personChecks), each as written.
-        ...(checks.length > 0 && { person_checks: checks.map((n) => taskItems(issue.body, taskList)[n - 1].text) }),
+        ...(person.length > 0 && { person_checks: person.map((n) => items[n - 1].text) }),
         ...(siblings.some((sibling) => sibling.issue === issue.number) && {
           credited_siblings: siblings.filter((sibling) => sibling.issue === issue.number).map(({ number: sibling, body }) => ({ number: sibling, body })),
         }),

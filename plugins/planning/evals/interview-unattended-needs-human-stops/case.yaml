@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-unattended-needs-human-stops
 description: An unattended lock whose task contradicts the app's recorded Vision stops for a human, writing the Brief with a USER-RESERVED blocked row naming the contradiction and ending on a Stopped needs-a-human line
-tags: [interview, problem-framing, unattended, lock, finish-line, scaffold]
+tags: [interview, problem-framing, unattended, lock, finish-line, scaffold, no-network]
 expected_outcome: The run writes .work/timeout-literals/PLAN.md whose ### Deferred questions carries a Q<N> entry tagged arbiter USER-RESERVED that names the conflict with the recorded Vision (every setting has one source of truth, no module hardcodes a setting), and its reply ends with a line starting "Stopped: needs a human:" naming that reason; no Write or Edit touches src/ or config/.
 context:
   scaffold_script: scaffold.sh

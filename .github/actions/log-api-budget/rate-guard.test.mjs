@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -982,12 +983,7 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
 });
 
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
-const jobOf = (text, id) => {
-  const start = text.indexOf(`\n  ${id}:\n`);
-  assert.ok(start >= 0, `${id} is a job`);
-  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
-  return text.slice(start, next < 0 ? undefined : start + 1 + next);
-};
+const jobOf = (text, id) => workflowText(text).job(id);
 const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
 
 test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps the step waits' default", () => {

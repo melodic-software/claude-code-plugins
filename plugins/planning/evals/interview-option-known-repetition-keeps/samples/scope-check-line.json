@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Round 2.** What we have so far: the problem and the users from round 1.\nScope check: 4 of 12 questions registered; round 1 added 2, settled 2\n\n❓ Q3: **Should the first version cover only the case you named?**",
+      "why": "the round header carries the Scope check: line"
+    },
+    {
+      "answer": "Round 2.\n- Scope check: 3 of 12 registered; round 1 added 2, settled 2\n\nQ3: **Which option?**",
+      "why": "a short list marker before the label still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Round 2.** What we have so far: the problem and the users.\n\n❓ Q3: **Should the first version cover only the case you named?**",
+      "why": "no Scope check: line in the header"
+    },
+    {
+      "answer": "**Round 2.** We should scope check this later.\n\n❓ Q3: **Which option?**",
+      "why": "the words appear mid-sentence and lowercase, not as the header label"
+    }
+  ]
+}

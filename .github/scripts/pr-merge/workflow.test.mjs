@@ -24,15 +24,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { evaluate } from "../lib/gate-expression.mjs";
+import { ifOf, workflowText } from "../lib/workflow-text.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
 const jobs = merge.slice(merge.indexOf("\njobs:\n"));
-const job = (id) => {
-  const match = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(jobs);
-  assert.ok(match, `job ${id}`);
-  return match[1];
-};
+const { job } = workflowText(merge);
 
 test("every push to main reaches the dispatch job, with no author filter", () => {
   assert.match(merge, /\n {2}push:\n {4}branches: \[main\]\n/);
@@ -424,15 +422,7 @@ const checksConcurrency = () => {
   const checks = read("pr-require-checks.yml");
   const block = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress: (.*)\n(?=\S|\n)/.exec(checks);
   assert.ok(block, "a workflow-level concurrency block");
-  const unwrap = (text) => text.trim().replace(/^\$\{\{\s*/, "").replace(/\s*\}\}$/, "").replaceAll("\n", " ");
-  const evaluate = (text, github) =>
-    new Function("github", "contains", "fromJSON", "format", `return (${unwrap(text)});`)(
-      github,
-      (list, item) => list.includes(item),
-      JSON.parse,
-      (template, ...values) => template.replace(/\{(\d+)\}/g, (_, i) => String(values[i])),
-    );
-  return { checks, block, group: (github) => evaluate(block[1], github), cancel: (github) => evaluate(block[2], github) };
+  return { checks, block, group: (github) => evaluate(block[1], { github }), cancel: (github) => evaluate(block[2], { github }) };
 };
 const prEvent = (action, number = 5) => ({
   event_name: "pull_request",
@@ -505,23 +495,14 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
 
-// A bot-sent pull_request_target run would wait in the queue and then stop at
-// who.mjs (a bot is never a listed human), so the job's condition skips it
-// first. The condition's syntax is the subset JavaScript reads the same way,
-// so the test evaluates it against hand-written events.
 // A job another job skipped has no outputs, so `needs` defaults to none.
-const evalIf = (id, event, inputs = {}, needs = {}) => {
-  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(`\n${job(id)}`)[1].replaceAll("\n", " ").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]');
-  const format = (template, value) => template.replace("{0}", value);
-  return new Function("github", "vars", "cancelled", "format", "inputs", "needs", `return (${text});`)(
-    { ref: "refs/heads/main", repository: "o/r", ...event },
-    { AUTOMATION_LANES_APP_SENDER_ID: "99" },
-    () => false,
-    format,
+const evalIf = (id, event, inputs = {}, needs = {}) =>
+  evaluate(ifOf(job(id), 4), {
+    github: { ref: "refs/heads/main", repository: "o/r", ...event },
+    vars: { AUTOMATION_LANES_APP_SENDER_ID: "99" },
     inputs,
-    { "dispatch-post-merge-runs": { outputs: {} }, ...needs },
-  );
-};
+    needs: { "dispatch-post-merge-runs": { outputs: {} }, ...needs },
+  });
 
 test("a paced schedule tick skips the merge sweep and still arms", () => {
   const paced = (value) => ({ "dispatch-post-merge-runs": { outputs: { paced: value } } });
@@ -1447,7 +1428,7 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
   assert.match(dispatch, /\n {10}cp "\$RUNNER_TEMP\/post-merge\.json" "\$kept\/post-merge\.json"\n/);
   const arm = job("enable-auto-merge");
-  assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[dispatch-post-merge-runs\]\n/);
+  assert.match(arm, /^ {2}enable-auto-merge:\n {4}# [\s\S]*?\n {4}needs: \[dispatch-post-merge-runs\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
   // No check of its own on a sweep: the report comes from this run's job
   // alone. Only a PR-scoped run, which has no dispatch-post-merge-runs job, runs
@@ -1521,7 +1502,7 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("report-unarmed-status");
-  assert.match(post, /^ {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
+  assert.match(post, /^ {2}report-unarmed-status:\n {4}name: Report Unarmed Status\n {4}needs: \[merge, enable-auto-merge\]\n/);
   // It runs whenever enable-auto-merge handed it statuses, after a failed
   // step too, and only then.
   assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && \(needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \|\| needs\.merge\.outputs\.mended-heads != ''\) \}\}\n/);

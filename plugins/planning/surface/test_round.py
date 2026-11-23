@@ -4377,6 +4377,101 @@ class TestGappedLedgerIds(DirCase):
         self.assertFalse([r for r in rows if "[Q" in r], rows)
 
 
+class TestNextId(DirCase):
+    """next-id prints the ids after the highest the ledger, and the data dir when given, holds."""
+
+    REGISTER = "# Interview ledger\n\n## Open-question register\n\n"
+
+    def ledger(self, rows):
+        path = self.tmp / "interview-checklist.md"
+        path.write_bytes((self.REGISTER + rows).encode("utf-8"))
+        return str(path)
+
+    def next_id(self, *args):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "next-id", *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def test_a_stray_high_id_is_never_filled_below(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n"
+            "- Q2 | open | round 1 | Two? |\n"
+            "- Q600 | open | round 1 | Stray? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q601\n")
+
+    def test_count_prints_one_id_per_line(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "3")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q3\nQ4\nQ5\n")
+
+    def test_a_declared_gap_is_never_reused(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n"
+            "- gap | Q2-Q9 | the shared session's ids ran ahead\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q10\n")
+
+    def test_the_data_dir_counts_its_page_ids_and_their_export_numbers(self):
+        doc = base_doc()
+        doc["questions"].append(question("J1", group="g2", round=1))
+        self.write_doc(doc)
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q5\n")
+
+    def test_a_renumbered_row_lead_is_never_reused(self):
+        ledger = self.ledger(
+            "- Q1 | answered | round 1 | Seven? | [Q7] free-text: first\n"
+            "- Q2 | answered | round 1 | Jay? | [J1] free-text: second\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q8\n")
+
+    def test_a_pending_proposal_id_is_never_reused(self):
+        doc = base_doc()
+        doc["questions"].append(question("Q9", group="g2", round=1, proposed=True))
+        self.write_doc(doc)
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q10\n")
+
+    def test_a_file_with_no_register_heading_is_refused(self):
+        path = self.tmp / "notes.md"
+        path.write_bytes(b"# Notes\n\n- Q1 | open | round 1 | One? |\n")
+        rc, out, err = self.next_id("--ledger", str(path))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertEqual(out, "")
+        self.assertIn("open-question register heading", err)
+
+    def test_a_count_below_one_is_refused(self):
+        ledger = self.ledger("- Q1 | open | round 1 | One? |\n")
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "0")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertEqual(out, "")
+        self.assertIn("--count", err)
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "1")
+        self.assertEqual((rc, out), (0, "Q2\n"), err)
+
+
 class TestSupersedeResolve(DirCase):
     """supersede and resolve edit one register row of a ledger and need no data dir."""
 
@@ -4698,6 +4793,194 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(rc, 1, out + err)
         self.assertIn("refused: cannot read proposal file", err)
         self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+
+
+class TestReopen(DirCase):
+    """reopen sets an answered row back to open under its own number, moves its answer and the
+    fact to `## Reopened answers`, and flags every row built on it; --rechecked clears the flag."""
+
+    HEAD = "# Interview ledger\n\n## Open-question register\n\n"
+    ROWS = [
+        "- Q1 | answered | round 1 | Which store? | accepted: Postgres; kind:: discovery",
+        "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+        "depends:: Q1, Q4",
+        "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2",
+        "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; recheck:: Q5",
+        "- Q5 | answered | round 2 | Which log? | stdout",
+    ]
+    TAIL = "\n## Notes\n\nkept as written\n"
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        self.write("\n".join(self.ROWS) + "\n")
+
+    def write(self, rows, eol="\n"):
+        text = self.HEAD + rows + self.TAIL
+        self.ledger.write_bytes(text.replace("\n", eol).encode("utf-8"))
+
+    def cmd(self, *args):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "reopen", "--ledger", str(self.ledger), *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def fact(self, text):
+        path = self.tmp / f"fact-{len(list(self.tmp.iterdir()))}.txt"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def reopen(self, qid, rnd, fact):
+        rc, out, err = self.cmd(qid, "--round", str(rnd), "--fact-file", self.fact(fact))
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def text(self):
+        return self.ledger.read_bytes().decode("utf-8")
+
+    def test_a_reopen_flags_every_row_built_on_it_three_deep(self):
+        out = self.reopen("Q1", 3, "the host has no Postgres (ops.md:3)\n")
+        self.assertEqual(
+            self.text(),
+            self.HEAD
+            + "- Q1 | open | round 1 | Which store? | kind:: discovery; reopened:: round 3\n"
+            "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+            "depends:: Q1, Q4; recheck:: Q1\n"
+            "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2; "
+            "recheck:: Q1\n"
+            "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; "
+            "recheck:: Q5, Q1\n"
+            "- Q5 | answered | round 2 | Which log? | stdout\n"
+            "\n## Reopened answers\n\n"
+            "- Q1 | round 3 | was: accepted: Postgres | fact: the host has no Postgres "
+            "(ops.md:3)\n" + self.TAIL,
+        )
+        self.assertEqual(re.findall(r"^marked (Q\d+)$", out, re.M), ["Q2", "Q3", "Q4"])
+
+    def test_rechecked_clears_only_the_named_rows(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        rc, out, err = self.cmd("--rechecked", "Q2", "Q3")
+        self.assertEqual(rc, 0, out + err)
+        rows = [x for x in self.text().splitlines() if re.match(r"^- Q[234] \| answered", x)]
+        self.assertEqual(
+            rows,
+            [
+                "- Q2 | answered | round 1 | Which schema? | answer:: accepted: one table; "
+                "depends:: Q1, Q4",
+                "- Q3 | answered | round 2 | Which index? | free-text: btree; depends:: Q2",
+                "- Q4 | answered | round 2 | Which cache? | accepted: none; depends:: Q3; "
+                "recheck:: Q5, Q1",
+            ],
+        )
+        before = self.text()
+        rc, out, err = self.cmd("--rechecked", "Q2")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("refused: Q2 carries no recheck::", err)
+        self.assertEqual(self.text(), before)
+
+    def test_a_second_reopen_adds_to_the_reopened_answers_section(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        self.cmd("--rechecked", "Q2", "Q3", "Q4")
+        out = self.reopen("Q4", 4, "a cache is required")
+        self.assertEqual(re.findall(r"^marked (Q\d+)$", out, re.M), ["Q2", "Q3"])
+        section = self.text().split("## Reopened answers\n\n")[1].split("\n\n")[0]
+        self.assertEqual(
+            section.splitlines(),
+            [
+                "- Q1 | round 3 | was: accepted: Postgres | fact: the host has no Postgres",
+                "- Q4 | round 4 | was: accepted: none | fact: a cache is required",
+            ],
+        )
+        self.assertIn(
+            "- Q4 | open | round 2 | Which cache? | depends:: Q3; reopened:: round 4\n",
+            self.text(),
+        )
+
+    def test_only_an_answered_row_reopens(self):
+        self.reopen("Q1", 3, "the host has no Postgres")
+        before = self.text()
+        rc, out, err = self.cmd("Q1", "--round", "4", "--fact-file", self.fact("again"))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("refused: Q1 is open", err)
+        rc, out, err = self.cmd("Q5", "--round", "4", "--fact-file", self.fact("  \n"))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("fact", err)
+        self.assertEqual(self.text(), before)
+
+    def gate(self):
+        p = subprocess.run(
+            [shutil.which("bash"), str(HERE.parent / "scripts" / "check-open-questions.sh"),
+             "--ledger", str(self.ledger)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout
+
+    def test_reopen_and_rechecked_keep_a_rows_stale_mark(self):
+        self.write(
+            "- Q1 | answered | round 1 | Which store? | accepted: Postgres; stale:: C1\n"
+            "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+            "stale:: C2\n"
+        )
+        self.reopen("Q1", 3, "the host has no Postgres")
+        rows = [
+            x for x in self.text().splitlines() if re.match(r"^- Q[12] \| (open|answered) ", x)
+        ]
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Which store? | reopened:: round 3; stale:: C1",
+                "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+                "recheck:: Q1; stale:: C2",
+            ],
+        )
+        rc, out, err = self.cmd("--rechecked", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+            "stale:: C2\n",
+            self.text(),
+        )
+        rc, verdict = self.gate()
+        self.assertEqual(rc, 1, verdict)
+        self.assertIn("stale=2", verdict)
+
+    def test_a_new_section_goes_after_the_registers_deferred_questions(self):
+        self.TAIL = "\n### Deferred questions\n\n- none\n" + TestReopen.TAIL
+        self.write("\n".join(self.ROWS) + "\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        self.assertIn(
+            "### Deferred questions\n\n- none\n\n## Reopened answers\n\n- Q5 | round 2 | was: "
+            "stdout | fact: logs go to a file\n\n## Notes",
+            self.text(),
+        )
+
+    def test_a_reopen_lists_its_entry_under_the_sections_own_text(self):
+        intro = "\n## Reopened answers\n\nOne line per reopened answer.\n"
+        self.TAIL = intro + TestReopen.TAIL
+        self.write("\n".join(self.ROWS) + "\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        self.assertIn(
+            "One line per reopened answer.\n\n- Q5 | round 2 | was: stdout | fact: logs go to "
+            "a file\n\n## Notes",
+            self.text(),
+        )
+        self.assertEqual(self.text().count("## Reopened answers"), 1)
+
+    def test_a_reopen_keeps_crlf_line_endings(self):
+        self.write("\n".join(self.ROWS) + "\n", eol="\r\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        data = self.ledger.read_bytes()
+        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+        self.assertIn(
+            b"\r\n## Reopened answers\r\n\r\n- Q5 | round 2 | was: stdout | fact: logs go to "
+            b"a file\r\n\r\n## Notes",
+            data,
+        )
 
 
 class TestLedgerCheck(DirCase):
@@ -5562,6 +5845,362 @@ class TestConstraintRecheck(DirCase):
         rows = [line for line in text.splitlines() if line.startswith("- Q")]
         self.assertTrue(all(line.endswith("stale:: C2") for line in rows), rows)
         self.assertNotIn("stale::", " ".join(row[4] for row in parse_register(text)))
+
+
+ROUND_FULL = FIXTURES / "round-file" / "round-full.md"
+
+
+def run_bytes(*args):
+    """(exit code, stdout bytes, stderr text) of round.py run with no data dir."""
+    p = subprocess.run(
+        [sys.executable, str(ROUND), *args], capture_output=True, timeout=60
+    )
+    return p.returncode, p.stdout, p.stderr.decode("utf-8", "replace")
+
+
+HEADER = [
+    "**Round 3.** The retry budget is three tries, and a failed retry pages no one.",
+    "Scope check: 9 of 27 questions registered; round 2 added 4, settled 3; round 1 added 3, settled 3",
+    "Later: alert routing, the on-call rota",
+    "Held: Q12 (queue choice) until the queue lookup returns",
+]
+Q10_KEPT = [
+    "➡️ My recommendation: **yes, one entry per failed retry**. The log already takes one write per job, so a retry entry fits it (verified, `src/retry.ts:12`).",
+    "Second view: write only the final failure, to keep the log short.",
+    "Departs from: Q4 (one write per job) because a retry adds a second write to a failed job.",
+    "Flips if: the audit log starts dropping batched writes in production.",
+    "Commits you to:",
+    "- one log entry per failed retry",
+    "- keeping the retry count in the entry",
+]
+MINIMAL = [
+    *HEADER,
+    "",
+    "❓ Q10: **Should a failed retry write to the audit log?**",
+    "",
+    *Q10_KEPT,
+    "",
+    'Alternatives: 2 (say "more Q10")',
+    "",
+    "---",
+    "",
+    "❓ Q11: **Who reads the retry entries?**",
+    "",
+    "Discovery: who reads the entries settles whether they need a dashboard.",
+    "",
+    "---",
+    "",
+    "❓ Q13: **Which store holds the entries?**",
+    "",
+    "Withheld: the queue lookup has not returned, so no store can be recommended yet.",
+    "Flips if: the lookup finds the queue already persists jobs.",
+    "",
+    "You can answer in any order. Is there something else that would change these recommendations?",
+]
+STANDARD_DROPPED = [
+    "> One write per job. Extra writes are batched and may be dropped under load.",
+    "> Batches flush every five seconds.",
+    "Origin: drafted by the recommender from the audit guide",
+    "Basis: verified, `src/retry.ts:12` and the audit guide's Writes section",
+    "Checked against: the no-new-store constraint",
+]
+STANDARD_ALT_A = "- (a) Log only the final failure. The log stays short, but the retry history is lost."
+
+
+class TestRoundShow(unittest.TestCase):
+    """show prints a saved round at a detail level, per the plan's "What each level prints" table."""
+
+    def show(self, level, path=ROUND_FULL):
+        rc, out, err = run_bytes("show", "--level", level, str(path))
+        self.assertEqual(rc, 0, err)
+        return out
+
+    def test_full_prints_the_file_byte_for_byte(self):
+        self.assertEqual(self.show("full"), ROUND_FULL.read_bytes())
+
+    def test_standard_drops_the_evidence_lines_and_the_quote_body(self):
+        lines = ROUND_FULL.read_text(encoding="utf-8").splitlines()
+        want = [line for line in lines if line not in STANDARD_DROPPED]
+        at = want.index("- (a) Log only the final failure.")
+        want[at : at + 2] = [STANDARD_ALT_A]
+        self.assertEqual(self.show("standard").decode("utf-8").splitlines(), want)
+
+    def test_standard_keeps_the_source_link(self):
+        out = self.show("standard").decode("utf-8").splitlines()
+        self.assertIn(
+            "Source: [Audit log guide, Writes](https://example.com/audit#writes)", out
+        )
+
+    def test_minimal_keeps_the_answer_lines_and_counts_the_alternatives(self):
+        self.assertEqual(self.show("minimal").decode("utf-8").splitlines(), MINIMAL)
+
+    def test_no_level_hides_a_flips_if_or_commits_you_to_line(self):
+        lines = ROUND_FULL.read_text(encoding="utf-8").splitlines()
+        at = lines.index("Commits you to:")
+        must = [x for x in lines if x.startswith("Flips if:")] + lines[at : at + 3]
+        self.assertEqual(len(must), 5)
+        for level in ("full", "standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show(level).decode("utf-8").splitlines()
+                for line in must:
+                    self.assertIn(line, out)
+
+    def test_crlf_line_endings_are_kept(self):
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(ROUND_FULL.read_bytes().replace(b"\n", b"\r\n"))
+            self.assertEqual(self.show("full", path), path.read_bytes())
+            out = self.show("minimal", path)
+            self.assertEqual(out, ("\r\n".join(MINIMAL) + "\r\n").encode("utf-8"))
+
+    def test_a_context_bullet_that_starts_with_a_label_word_is_not_a_label(self):
+        bullets = [
+            "- Basis: no reader survey exists yet.",
+            "- My recommendation: none until a reader is named.",
+        ]
+        anchor = "- No reader is named yet.\n"
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            text = ROUND_FULL.read_text(encoding="utf-8")
+            path.write_bytes(
+                text.replace(anchor, anchor + "".join(b + "\n" for b in bullets)).encode(
+                    "utf-8"
+                )
+            )
+            out = self.show("standard", path).decode("utf-8").splitlines()
+        at = out.index("- No reader is named yet.")
+        self.assertEqual(out[at + 1 : at + 3], bullets)
+
+    def show_variant(self, level, *edits):
+        """show at `level` of the fixture with each (anchor line, added lines) inserted."""
+        text = ROUND_FULL.read_text(encoding="utf-8")
+        for anchor, added in edits:
+            self.assertIn(anchor + "\n", text)
+            text = text.replace(anchor + "\n", anchor + "\n" + "".join(x + "\n" for x in added), 1)
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(text.encode("utf-8"))
+            return self.show(level, path).decode("utf-8").splitlines()
+
+    def test_a_protected_line_under_a_dropped_field_is_kept(self):
+        protected = [
+            "*Flips if:* the guide changes its batching rule.",
+            "Second view (recommender): log both failures.",
+            "- Commits you to: no second store",
+            "Departs from: Q4 (one write per job), once more.",
+            "Withheld: until the queue lookup returns.",
+            "**Discovery** first: who reads the entries.",
+        ]
+        edits = (
+            ("Basis: verified, `src/retry.ts:12` and the audit guide's Writes section", protected[:2]),
+            ("- The store depends on the queue lookup.", protected[2:]),
+        )
+        for level in ("full", "standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show_variant(level, *edits)
+                for line in protected:
+                    self.assertIn(line, out)
+
+    def test_a_source_with_no_link_prints_nothing_at_standard(self):
+        out = self.show_variant(
+            "standard", ("- No reader is named yet.", ["", "Source: the team wiki, quoted", "> No reader yet."])
+        )
+        self.assertNotIn("Source: the team wiki, quoted", out)
+        self.assertNotIn("> No reader yet.", out)
+        self.assertIn("- No reader is named yet.", out)
+
+    def test_inline_alternatives_are_kept_as_written(self):
+        inline = "Alternatives: (a) a dashboard; (b) a weekly email."
+        anchor = "Discovery: who reads the entries settles whether they need a dashboard."
+        for level in ("standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show_variant(level, (anchor, ["", inline]))
+                self.assertIn(inline, out)
+
+    def test_an_unknown_level_is_refused(self):
+        rc, out, err = run_bytes("show", "--level", "brief", str(ROUND_FULL))
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--level", err)
+
+
+SCOPE_LEDGER = (
+    "# Interview ledger\n\n## Open-question register\n\n"
+    "- Q1 | answered | round 1 | One? | yes\n"
+    "- Q2 | answered | round 1 | Two? | yes\n"
+    "- Q3 | deferred | round 1 | Three? | later\n"
+    "- Q4 | answered | round 2 | Four? | yes\n"
+    "- Q5 | deferred | round 2 | Five? | later\n"
+    "- Q6 | withdrawn | round 2 | Six? | dropped\n"
+    "- Q7 | superseded-by-plan | round 2 | Seven? | plan proposes: x; was: y\n"
+    "- Q8 | discussing | round 3 | Eight? |\n"
+    "- Q9 | blocked | round 3 | Nine? | needs the owner\n"
+)
+
+
+class TestScopeCheck(unittest.TestCase):
+    """scope-check prints the counts half of the round header's Scope check: line."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-scope-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ledger = self.tmp / "interview-checklist.md"
+        self.ledger.write_bytes(SCOPE_LEDGER.encode("utf-8"))
+
+    def scope(self, *args):
+        rc, out, err = run_bytes(
+            "scope-check", "--ledger", str(self.ledger), "--limit", "12", *args
+        )
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").replace("\r\n", "\n")
+
+    def test_the_last_two_rounds_before_the_shown_one(self):
+        self.assertEqual(
+            self.scope("--round", "3"),
+            "9 of 12 questions registered; round 2 added 4, settled 3; "
+            "round 1 added 3, settled 3\n",
+        )
+
+    def test_round_two_has_one_earlier_round_and_round_one_none(self):
+        self.assertEqual(
+            self.scope("--round", "2"),
+            "9 of 12 questions registered; round 1 added 3, settled 3\n",
+        )
+        self.assertEqual(self.scope("--round", "1"), "9 of 12 questions registered\n")
+
+    def test_the_rounds_dir_names_the_rounds_that_were_shown(self):
+        rounds = self.tmp / "rounds"
+        rounds.mkdir()
+        for n in (1, 3, 5):
+            (rounds / f"round-{n}.md").write_bytes(b"Scope check: x\n")
+        self.assertEqual(
+            self.scope("--round", "5", "--rounds-dir", str(rounds)),
+            "9 of 12 questions registered; round 3 added 2, settled 1; "
+            "round 1 added 3, settled 3\n",
+        )
+
+    def test_a_round_below_one_is_refused(self):
+        rc, out, err = run_bytes(
+            "scope-check", "--ledger", str(self.ledger), "--limit", "12", "--round", "0"
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--round", err)
+
+    def test_next_id_with_round_prints_the_ids_then_the_line_counting_them(self):
+        rc, out, err = run_bytes(
+            "next-id", "--ledger", str(self.ledger), "--count", "2",
+            "--round", "4", "--limit", "12",
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(
+            out.decode("utf-8").replace("\r\n", "\n"),
+            "Q10\nQ11\nScope check: 11 of 12 questions registered; "
+            "round 3 added 2, settled 1; round 2 added 4, settled 3\n",
+        )
+
+    def test_next_id_refuses_round_without_limit(self):
+        rc, out, err = run_bytes(
+            "next-id", "--ledger", str(self.ledger), "--count", "2", "--round", "4"
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--limit", err)
+
+
+class TestMeasures(unittest.TestCase):
+    """measures prints rounds, median lines per shown round, reopened rows and those reopened
+    after a lookup."""
+
+    FACTS = {
+        "Q1": "/discovery:research found the queue already persists jobs",
+        "Q2": "two lookups found the host has no Redis",
+        "Q3": "we looked up the vendor page: batches flush every five seconds",
+        "Q4": "the user said the budget is four tries, per docs/build:3",
+        "Q5": "the user changed their mind",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        """One ledger whose `## Reopened answers` entries `reopen` itself wrote."""
+        cls.base = Path(tempfile.mkdtemp(prefix="iv-measures-base-"))
+        cls.addClassCleanup(shutil.rmtree, cls.base, ignore_errors=True)
+        ledger = cls.base / "interview-checklist.md"
+        ledger.write_bytes(
+            (
+                "# Interview ledger\n\n## Open-question register\n\n"
+                + "".join(f"- Q{n} | answered | round 1 | Q {n}? | yes\n" for n in range(1, 6))
+            ).encode("utf-8")
+        )
+        for qid, fact in cls.FACTS.items():
+            fact_file = cls.base / f"fact-{qid}.txt"
+            fact_file.write_bytes(fact.encode("utf-8"))
+            rc, out, err = run_bytes(
+                "reopen", "--ledger", str(ledger), qid, "--round", "3",
+                "--fact-file", str(fact_file),
+            )
+            assert rc == 0, err
+        cls.ledger_bytes = ledger.read_bytes()
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-measures-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.rounds = self.tmp / "slice"
+        self.rounds.mkdir()
+        self.ledger = self.rounds / "interview-checklist.md"
+        self.ledger.write_bytes(self.ledger_bytes)
+
+    def round_of(self, n, count):
+        text = "".join(f"line {k}\n" for k in range(count))
+        (self.rounds / f"round-{n}.md").write_bytes(text.encode("utf-8"))
+
+    def test_the_reopen_writer_and_the_measures_reader_agree(self):
+        self.assertEqual(
+            self.measures("full"), "rounds=0 median_lines=0 reopened=5 after_lookup=3\n"
+        )
+
+    def test_an_even_count_median_is_the_mean_of_the_middle_two(self):
+        self.round_of(1, 4)
+        self.round_of(2, 6)
+        self.assertEqual(
+            self.measures("full"), "rounds=2 median_lines=5 reopened=5 after_lookup=3\n"
+        )
+        self.round_of(2, 7)
+        self.assertEqual(
+            self.measures("full"), "rounds=2 median_lines=5.5 reopened=5 after_lookup=3\n"
+        )
+
+    def measures(self, level):
+        rc, out, err = run_bytes(
+            "measures",
+            "--ledger",
+            str(self.ledger),
+            "--rounds-dir",
+            str(self.rounds),
+            "--level",
+            level,
+        )
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8").replace("\r\n", "\n")
+
+    def test_rounds_median_lines_and_reopened_rows(self):
+        for n, count in ((1, 4), (2, 10), (3, 7)):
+            self.round_of(n, count)
+        (self.rounds / "round-notes.md").write_bytes(b"not a round\n")
+        self.assertEqual(
+            self.measures("full"),
+            "rounds=3 median_lines=7 reopened=5 after_lookup=3\n",
+        )
+
+    def test_median_lines_count_the_round_at_the_shown_level(self):
+        (self.rounds / "round-3.md").write_bytes(ROUND_FULL.read_bytes())
+        self.assertEqual(
+            self.measures("full"), "rounds=1 median_lines=58 reopened=5 after_lookup=3\n"
+        )
+        self.assertEqual(
+            self.measures("minimal"),
+            f"rounds=1 median_lines={len(MINIMAL)} reopened=5 after_lookup=3\n",
+        )
 
 
 if __name__ == "__main__":
