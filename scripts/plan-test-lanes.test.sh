@@ -107,8 +107,6 @@ check() { # <label> <condition-rc>
 is() { [[ "$1" == "$2" ]]; }
 same() { [[ -n "$1" && "$1" == "$2" ]]; }
 
-# --- the selection, by ecosystem --------------------------------------------
-
 plan -- plugins/a/a.sh plugins/b/b.sh
 is "$(suites bash | tr '\n' ' ')" "plugins/a/a.test.sh plugins/b/b.test.sh " &&
   is "$(key python)" false && is "$(key node)" false
@@ -422,8 +420,6 @@ plan -- plugins/z/z.sh
 is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
 check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
-# --- wider than the selection ------------------------------------------------
-
 plan -- .github/workflows/pr-require-checks.yml
 is "$(key bash_legs)" "[0,1,2,3,4]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 13 &&
@@ -446,8 +442,6 @@ plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
   is "$(key bash_legs)" "[0,1,2,3,4]"
 check "the whole tree plans the runner's whole corpus on the fewest of its 12 legs that keep a's 100 s" $?
-
-# --- a diff base ---------------------------------------------------------------
 
 printf 'echo changed\n' >>"$repo/plugins/c/c.sh"
 plan --base HEAD

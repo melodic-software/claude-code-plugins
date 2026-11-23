@@ -10,6 +10,7 @@ const VECTORS = JSON.parse(readFileSync(new URL("./demotion-record.vectors.json"
 const HANDOFF = fileURLToPath(new URL("./handoff.bash", import.meta.url));
 const SOURCES = {
   "handoff.bash": readFileSync(HANDOFF, "utf8"),
+  "file-demotion-issue.sh": readFileSync(new URL("./file-demotion-issue.sh", import.meta.url), "utf8"),
   "post-merge-file-demotion-issues.yml": readFileSync(new URL("../../workflows/post-merge-file-demotion-issues.yml", import.meta.url), "utf8"),
 };
 const LINES = [...VECTORS.markers.map((v) => v.line), ...VECTORS.not_markers.map((v) => v.line)];
@@ -29,7 +30,7 @@ test("each non-record vector parses to null", () => {
   assert.equal(parseRecordMarker(undefined), null);
 });
 
-test("every whole record marker the inline workflow and handoff.bash write parses as a record", () => {
+test("every whole record marker the workflow, its filing script and handoff.bash write parses as a record", () => {
   const sha = VECTORS.markers[0].sha;
   const written = Object.entries(SOURCES).flatMap(([file, text]) =>
     [...text.matchAll(/<!-- ([a-z-]+) sha=\$\{?\w+\}? signal=(\$\{?\w+\}?|[a-z-]+) -->/g)].map((m) => ({ file, ...m })),
@@ -59,7 +60,7 @@ test("the workflow's record prefixes, kind alternations and signal alternations 
 
 test("each bash record regex matches a vector line exactly when it is a record of a signal the regex names", () => {
   const regexes = Object.entries(SOURCES).flatMap(([file, text]) => [...text.matchAll(/=~ (\^\\<!--\\ [^\n]*?signal=\([^\n]*?\$) \]\]/g)].map((m) => ({ file, re: m[1] })));
-  assert.deepEqual(new Set(regexes.map((r) => r.file)), new Set(Object.keys(SOURCES)));
+  assert.deepEqual(new Set(regexes.map((r) => r.file)), new Set(["handoff.bash", "post-merge-file-demotion-issues.yml"]));
   for (const { file, re } of regexes) {
     const named = /signal=\(([^)]*)\)/.exec(re)[1].split("|");
     for (const line of LINES) {

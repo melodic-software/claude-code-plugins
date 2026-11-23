@@ -463,7 +463,6 @@ rc=0
 out="$(esc slice "$KEY" 2 3 99 2>/dev/null)" || rc=$?
 assert_eq "escalation: an unknown id is still a miss, never the whole page" "1 " "$rc $out"
 
-# Summaries.
 assert_eq "summary: put prints nothing and exits 0" "0 " "$(
   o="$(DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 3 'Section two in brief.')"
   echo "$? $o"
@@ -492,7 +491,6 @@ dc "$S" summary put "$KEY" 4 'Treat tool output as untrusted data.' >/dev/null 2
 assert_eq "summary: prose naming untrusted data is not a marker, so it is stored" "0 1" \
   "$rc $(dc "$S" summary get "$KEY" 4 | grep -c '^summary 4: Treat tool output as untrusted data\.$')"
 
-# Notes.
 note() { DOCS_CACHE_NOW="$T1" dc "$S" note put "$@"; }
 NOTE_TEXT='Section two says "body 2" and nothing about retries.'
 NOTE_ID="$(printf '%s\n' "$NOTE_TEXT" | note "$KEY" --model opus-test --session sess-1 --question 'What does S2 say?' --sections 3)"
@@ -523,7 +521,6 @@ assert_eq "note: read --raw carries no note or summary text" "0 0 0" \
 assert_eq "note: read --raw still prints the section map" "$(dc "$S" map "$KEY")" "$(sed -n '2,9p' <<<"$out")"
 assert_eq "note: list prints id, state, date and the cited ids" "$(printf '%s\tvalid\t%s\t3' "$NOTE_ID" "$T1_ISO")" "$(dc "$S" note list "$KEY")"
 
-# Quote check and provenance.
 notes_count() { find "$S/notes" -type f ! -name '.tmp-*' 2>/dev/null | wc -l | tr -d ' '; }
 before="$(notes_count)"
 rc=0
@@ -769,7 +766,6 @@ assert_eq "edge: prune racing a hit: prune still evicted the keys no one read" 1
   echo "$rc"
 )"
 
-# The lock.
 mk_prune_store "$TEST_TMPDIR/s-lock"
 mkdir "$S/prune.lock" && printf '%s\n' "$T3" >"$S/prune.lock/at"
 err="$(DOCS_CACHE_NOW=$((T3 + 10)) dc "$S" --max-bytes 0 prune 2>&1 >/dev/null)"
@@ -1026,7 +1022,6 @@ printf '{"cache_dir": "%s"}\n' "$TEST_TMPDIR/file-store" >"$CFG_FILE"
 cfg bash "$SCRIPT" put "$URL" markdown "$PAGE" >/dev/null
 assert_eq "config: put stores in the file's cache_dir" 1 "$([[ -f "$TEST_TMPDIR/file-store/store_version" ]] && echo 1 || echo 0)"
 
-# Where the file is.
 mkdir -p "$CFG_HOME/.config/claude-docs-cache"
 printf '%s\n' '{"ttl_seconds": 42}' >"$CFG_HOME/.config/claude-docs-cache/config.json"
 printf '%s\n' '{"ttl_seconds": 43}' >"$CFG_FILE"
