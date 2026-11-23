@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 import { CheckError, checkProfiles, readMarketplace } from "./check.mjs";
 import { readProfileFiles } from "./profile-files.mjs";
+import { readSkillLinks, readTreePlugins } from "./skill-links.mjs";
 
 const M = "melodic-software";
 const CATALOG = { name: M, plugins: new Set(["guard", "flow", "plan", "design", "ui", "impl", "toy"]) };
@@ -22,6 +23,46 @@ function run(files, { installed = [] } = {}) {
 
 test("AC5: shipped profiles that name only catalogued plugins of the catalog's marketplace pass", () => {
   assert.deepEqual(run({}), { failures: [], reports: [] });
+});
+
+test("tree links use profile membership, report each kind, and leave failures unchanged", () => {
+  const root = writeTree(tempDir(), {
+    ...PASSING,
+    "shipped/build.yaml": `description: Build.\nplugins: [impl@${M}]\noptional: [ui@${M}]\nexclude: [toy@${M}]\nhide_skills: [hidden, local]\n`,
+    "shipped/native.yaml": `description: Bare.\nalways_on: false\nplugins: [impl@${M}]\nexclude: [guard@${M}]\n`,
+    "plugins/impl/.claude-plugin/plugin.json": { dependencies: ["design", "toy"] },
+    "plugins/design/.claude-plugin/plugin.json": { dependencies: [{ name: `plan@${M}` }] },
+    "plugins/impl/skills/start/SKILL.md": [
+      "## Next", "/design:go /plan:go /ui:go /guard:go /toy:go /flow:hidden /gone:go /impl:local.",
+      "````md", "## Related", "/bad:fenced", "```", "/bad:still-fenced", "````",
+      "~~~", "/bad:tilde", "~~~", "## Other", "/bad:other", "## Related", "/toy:go",
+    ].join("\n"),
+    "plugins/impl/skills/local/SKILL.md": "",
+    "plugins/design/skills/go/SKILL.md": "",
+    "plugins/plan/skills/go/SKILL.md": "",
+    "plugins/ui/skills/go/SKILL.md": "",
+    "plugins/guard/skills/go/SKILL.md": "",
+    "plugins/flow/skills/hidden/SKILL.md": "",
+    "plugins/toy/skills/go/SKILL.md": "",
+    "plugins/off/skills/start/SKILL.md": "## Next\n/gone:off\n",
+  });
+  const files = readProfileFiles([{ level: "shipped", dir: join(root, "shipped") }]);
+  const plugins = readTreePlugins(join(root, "plugins"), M);
+  const source = join(root, "plugins", "impl", "skills", "start", "SKILL.md");
+  const inputs = { files, catalog: CATALOG, installed: new Set() };
+  const skills = readSkillLinks(plugins, { tree: true, changed: new Set([join(root, "shipped", "native.yaml")]) });
+  const { links, failures, unresolved, unnamed, skillReports } = checkProfiles({ ...inputs, skills });
+  assert.deepEqual(failures, checkProfiles(inputs).failures);
+  assert.deepEqual(failures, []);
+  const next = (target, profile) => `links.next: ${source} -> /${target} is off in profile ${profile}`;
+  assert.deepEqual(links.next, [
+    next("ui:go", "native"), next("guard:go", "native"), next("flow:hidden", "native"),
+    next("toy:go", "build"), next("flow:hidden", "build"),
+  ]);
+  assert.deepEqual(links.related, [`links.related: ${source} -> /toy:go is off in profile build`]);
+  assert.deepEqual(unresolved, [`links.unresolved: ${source} (links.next) -> /gone:go has no skill`]);
+  assert.deepEqual(unnamed, [`Catalog plugin no shipped profile names: toy@${M}`]);
+  assert.deepEqual(skillReports.changed, [...links.next.slice(0, 3), ...unresolved]);
 });
 
 test("AC5: a shipped profile naming a plugin the catalog lacks fails, naming the profile and the plugin", () => {

@@ -3078,6 +3078,8 @@ jobs:
       # A plugin removed or renamed in the catalog fails here.
       - name: Check the shipped plugin profiles against the catalog
         if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: scripts/check-plugin-profiles.sh
 
       - name: Report not applicable to a docs-only diff
