@@ -470,6 +470,7 @@ plainly that nothing has been applied.
 - A finding lands on the memory layer: `/harness-memory:audit`.
 - Project instructions still live in `CLAUDE.md`: `/instruction-placement:migrate plan`.
 - Posture guidance is absent rather than wrong: `/harness-config:audit-prompting-postures`.
+- A rule a check could enforce moves to a mechanism: `/corrections:codify rules <file>`.
 
 ## Gotchas
 

@@ -91,7 +91,9 @@ enabled and the project has a control skill, run `/app-control:drive ready` (wit
 when this run has it): it reports each surface's URL, port, logs and telemetry, lists what the
 app does not expose, and gives each environment's data sources with their read levels and the
 kinds it lacks. Read a source only through the way it names and only at its read level: `never`
-is never read, and `attended` only with the user present. Otherwise, or when drive reports no control skill, read the surfaces from the
+is never read, and `attended` only with the user present. When an environment has a
+`conversations` source, read it at its read level for what users reported about the failure.
+Otherwise, or when drive reports no control skill, read the surfaces from the
 project's manifests and launch config. Stack specifics, such as where a framework writes its log or
 how it chooses a port, come from the repository's own config, rules and instructions; where those
 are silent, research them at run time with `/discovery:research` when the `discovery` plugin is
@@ -206,7 +208,10 @@ Run the loop and see it fail. Then check three things before going on:
 2. **It is the reported failure.** The loop fails the way the **user** said it does. A nearby
    failure (a 413 where the user saw a 502) sends the fix to the wrong place.
 3. **The symptom is on record.** Keep the exact error text, wrong value or timing, so Phase 5 can
-   show the fix changed that symptom and not some other one.
+   show the fix changed that symptom and not some other one. When the reproduction drives the app
+   through `/app-control:drive` (if enabled), keep that run's `report.json` path: the fix hand-off
+   and the report name it as the `--before` evidence for `/source-control:pull-request evidence`
+   (if enabled).
 
 ### Minimize
 
@@ -423,7 +428,8 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 ## Next
 
-- The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`.
+- The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`; when Phase 2 kept a drive report, name its `report.json` path as the `--before` evidence.
+- The report's lessons about driving the app: `/app-control:map refresh "<lesson>"`, one per lesson.
 - A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
