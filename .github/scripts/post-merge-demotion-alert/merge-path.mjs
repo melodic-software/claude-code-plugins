@@ -199,8 +199,6 @@ export function label({ repo, merged, reverted, config, gh = defaultGh, log = co
   return { plan, failed };
 }
 
-// --- Rollup ------------------------------------------------------------------
-
 const FIX_TITLE = /^fix(\([^)]*\))?!?:/;
 const isRevertRecord = (body) => {
   const marker = parseRecordMarker(body.split("\n", 1)[0].trimEnd());
