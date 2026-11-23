@@ -646,5 +646,19 @@ class SelectCasesTest(unittest.TestCase):
                 _git(self.repo, "reset", "-q", "--hard", "base")
 
 
+    def test_flip_word_on_a_wholly_new_line_stays_additive(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "Follow these steps carefully.",
+            "Follow these steps very carefully.\nNever write to the source file.",
+        )
+        path.write_text(text, encoding="utf-8")
+        _commit_all(self.repo, "edit a line and add a new one beside it")
+
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        blocks = _parse_blocks(res.stdout)
+        self.assertNotIn("cases", blocks["plugins/alpha"])
+
 if __name__ == "__main__":
     unittest.main()

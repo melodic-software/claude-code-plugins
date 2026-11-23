@@ -185,23 +185,26 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
         elif hunks and line.startswith("+") and not line.startswith("+++"):
-            hunks[-1][2].extend(line[1:].split())
-    def inserted(old, new):
-        """The words new adds around old, or None when old is not kept in order."""
-        added = []
-        index = 0
-        for word in new:
-            if index < len(old) and word == old[index]:
-                index += 1
-            else:
-                added.append(word)
-        return added if index == len(old) else None
+            hunks[-1][2].append(line[1:].split())
 
-    def is_cut(old, new):
-        added = inserted(old, new)
-        return added is None or any(
-            word.strip(".,;:!?()\"'`*_").lower() in MEANING_FLIP_WORDS for word in added
-        )
+    def is_cut(old, new_lines):
+        """Old words must survive in order; a flip word inserted into a line that keeps old words
+        is a cut, while a wholly new line stays additive."""
+        index = 0
+        for words in new_lines:
+            added = []
+            kept_here = False
+            for word in words:
+                if index < len(old) and word == old[index]:
+                    index += 1
+                    kept_here = True
+                else:
+                    added.append(word)
+            if kept_here and any(
+                word.strip(".,;:!?()\"'`*_").lower() in MEANING_FLIP_WORDS for word in added
+            ):
+                return True
+        return index != len(old)
 
     return any(edits and is_cut(old, new) for edits, old, new in hunks)
 
