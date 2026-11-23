@@ -264,7 +264,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    *Decisions-so-far* pointer line (closed-as-out-of-scope items have an Out-of-scope line
    instead; closed-as-moot items have only their closing comment); no item resolved-in-comment
    but still open; no Not-yet-specified bullet that an item already charts (delete it). Fix
-   violations before proceeding.
+   violations before proceeding. An open map whose newest closing comment ends `Handoff: pending`
+   and whose frontier is empty resumes that handoff (step 8's hand-off to the destination's
+   skill) and posts no second closing comment.
 2. **Load the map at low resolution.** Read the map body, its child list and the seed item's
    resolution comment when the map has one (it holds the settled answers and facts, so none is
    asked again); open an item's body
@@ -361,10 +363,13 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
    the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then hand the decisions
+   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it), and ends with the line `Handoff: pending` until the map closes. Then hand the decisions
    to the destination's skill in a source form it accepts, and close the map issue once that
-   skill reports its artifact (for a general summary, at once). A question that skill raises
-   first becomes a decision item on the map and is worked like any other:
+   skill reports its artifact (for a general summary, at once); for a set of build items that is
+   the PLAN.md `/planning:plan` reports, or `/work-items:decompose`'s publish on the slices route.
+   A question that skill raises first becomes a decision item on the map and is worked like any
+   other; once it resolves, post a new closing comment that opens `Supersedes <link to the earlier
+   closing comment>` and states every decision again, then resume the handoff:
 
    | Destination | Closes to |
    |---|---|
@@ -431,8 +436,8 @@ intent is unsettled and escalating here when it outgrows one session → referen
 ## Next
 
 - The map is charted: /planning:wayfind work.
-- The map closed on a set of build items: /planning:plan.
-- The map closed on a PRD: /planning:prd.
+- The map closed on a PRD: /planning:plan.
+- The map closed on a plan of build items: /work-items:decompose.
 - A prototype confirmed a provisional decision: /architecture:adr.
 
 ## Reference

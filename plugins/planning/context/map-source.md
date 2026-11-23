@@ -23,7 +23,9 @@ item that is not a map is an ordinary source: its body and comments are the task
 
 - **Closed map.** The decisions are in the closing comment: the comment that states every resolved
   decision, each with its title, its Q/D id when it has one, and what was decided. Find it by that
-  content, not by position: a close summary can follow it. Take each decision from it as written.
+  content, not by position: a close summary can follow it. When a later closing comment opens
+  `Supersedes`, take that one. Take each decision from it as written. An open map whose closing
+  comment ends `Handoff: pending` is read the same way.
 - **Open map.** List the map's children with `/work-items:track list --parent <map-id>` and match
   each `## Decisions-so-far` line's link to its child. For each line, read that child with
   `/work-items:track view <child-id> --comments` and take its resolution comment (the one that
