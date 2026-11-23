@@ -1105,6 +1105,8 @@ LITERAL_REFERENCE = re.compile(
     r"(?<![\w.:\x00-])(/?)([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?![\w:(\[.?*+{\x00])"
 )
 LOOKAROUNDS = ("(?=", "(?!", "(?<=", "(?<!")
+GROUP_OPENER = re.compile(r"\((?:\?:|\?P?<[A-Za-z_]\w*>)?(?!\?)")
+QUANTIFIERS = ("?", "*", "+", "{")
 REFERENCE_KINDS = {
     "skill": lambda plugin, name: (plugin, "skills", name, "SKILL.md"),
     "agent": lambda plugin, name: (plugin, "agents", name + ".md"),
@@ -1177,32 +1179,88 @@ def _group_end(pattern, start):
 
 
 def literal_text(pattern):
-    """The pattern with only the characters it matches literally: an escaped
-    symbol becomes itself, `\\b` and `\\B` a space, any other escape, a
-    character class or a lookaround group a HOLE."""
+    """The pattern with only the characters it matches literally, and for
+    each output character the source index just past it: an escaped symbol
+    becomes itself, `\\b` and `\\B` a space, a group's parentheses nothing
+    unless a quantifier follows the close, and any other escape, a character
+    class, a quantified group's close or a lookaround or flag group a HOLE."""
     out = []
+    ends = []
     index = 0
     while index < len(pattern):
         char = pattern[index]
         if char == "\\" and index + 1 < len(pattern):
             escaped = pattern[index + 1]
             if escaped in "bB":
-                out.append(" ")
+                piece = " "
             elif escaped.isalnum() or escaped == "_":
-                out.append(HOLE)
+                piece = HOLE
             else:
-                out.append(escaped)
+                piece = escaped
             index += 2
         elif char == "[":
-            out.append(HOLE)
+            piece = HOLE
             index = _class_end(pattern, index)
         elif pattern.startswith(LOOKAROUNDS, index):
-            out.append(HOLE)
+            piece = HOLE
             index = _group_end(pattern, index)
-        else:
-            out.append(char)
+        elif char == "(":
+            opener = GROUP_OPENER.match(pattern, index)
+            if opener:
+                piece = ""
+                index = opener.end()
+            else:
+                piece = HOLE
+                index = _group_end(pattern, index)
+        elif char == ")":
+            piece = HOLE if pattern[index + 1 : index + 2] in QUANTIFIERS else ""
             index += 1
-    return "".join(out)
+        else:
+            piece = char
+            index += 1
+        if piece:
+            out.append(piece)
+            ends.append(index)
+    return "".join(out), ends
+
+
+def _enclosing_close(pattern, index):
+    """The index of the `)` closing the group around `index`, else None."""
+    depth = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "[":
+            index = _class_end(pattern, index)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            if depth == 0:
+                return index
+            depth -= 1
+        index += 1
+    return None
+
+
+def open_right(pattern, index):
+    """Whether a literal ending at source `index` can be followed by any text:
+    past group closes, and from an alternative's `|` past its group's close,
+    the pattern ends or the top-level alternative ends."""
+    while index < len(pattern):
+        char = pattern[index]
+        if char == ")":
+            index += 1
+        elif char == "|":
+            close = _enclosing_close(pattern, index)
+            if close is None:
+                return True
+            index = close + 1
+        else:
+            return False
+    return True
 
 
 def check_context_paths(case_dir, context, case, findings):
@@ -1265,14 +1323,14 @@ def check_references(root, prompt, prompt_file, tag_sources, graders, case, find
         pattern = options.get("input_match")
         if not kind or not isinstance(pattern, str):
             continue
-        text = literal_text(pattern)
+        text, ends = literal_text(pattern)
         tokens = [
-            match.groups() + (text[match.end() : match.end() + 1] in ("", "|", ")"),)
+            match.groups() + (open_right(pattern, ends[match.end() - 1]),)
             for match in LITERAL_REFERENCE.finditer(text)
         ]
-        for slash, plugin, target, open_right in dict.fromkeys(tokens):
+        for slash, plugin, target, prefix in dict.fromkeys(tokens):
             missing = missing_reference(
-                root, "skill" if slash else kind, plugin, target, open_right
+                root, "skill" if slash else kind, plugin, target, prefix
             )
             if missing:
                 findings.append(

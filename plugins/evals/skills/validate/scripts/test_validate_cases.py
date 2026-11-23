@@ -1984,6 +1984,26 @@ class StaleReferences(ValidatorTestCase):
         )
         self.assertNotIn('"open-prefix" input_match names demo:helper', result.stdout)
 
+    def test_a_reference_inside_a_group_is_checked_against_what_follows_it(self):
+        write(
+            self.eval_dir.parent / "skills" / "gone-replacement" / "SKILL.md",
+            "---\nname: gone-replacement\n---\n",
+        )
+        self.ref_case(
+            graders=self.tool_grader("non-capturing", "Skill", '"skill":"(?:demo:gone)"')
+            + self.tool_grader("capturing", "Skill", '"skill":"(demo:gone)"')
+            + self.tool_grader("open-group", "Skill", '"skill":"(demo:gone)')
+            + self.tool_grader("alternative", "Skill", '"(?:demo:real|demo:gone)"')
+        )
+        result = self.validate_without_node()
+        for grader in ("non-capturing", "capturing", "alternative"):
+            self.assert_fail(
+                result,
+                'FAIL refs/case.yaml: grader "%s" input_match names demo:gone, but '
+                "plugins/demo/skills/gone/SKILL.md does not exist" % grader,
+            )
+        self.assertNotIn('"open-group" input_match', result.stdout)
+
     def test_a_plugin_skill_tag_naming_no_skill_fails(self):
         self.ref_case(tags="[smoke, demo:gone]")
         self.assert_fail(
