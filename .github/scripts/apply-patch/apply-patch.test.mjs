@@ -3938,7 +3938,7 @@ function apiOnlyApi(repo, head, overrides = {}) {
   return api;
 }
 
-const scopePush = (t, fix, api, extra = {}) => pushWith(fix, api, { cwd: scratch(t), row: row("test-scope"), lane: "pr-unblock", activity: "apply-test-scope", ...extra });
+const scopePush = (t, fix, api, extra = {}) => pushWith(fix, api, { cwd: scratch(t), row: row("test-scope"), lane: "pr-unblock", activity: "fix-test-scope", ...extra });
 
 test("test-scope: the api-only row pushes a declaration from head blobs read over the API, with no head checkout", async (t) => {
   const fix = scopeFixture(t, declare);
@@ -3949,7 +3949,7 @@ test("test-scope: the api-only row pushes a declaration from head blobs read ove
   assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:${SUITE}`]), "#!/bin/bash\n# Checks a.\n# test-scope: scripts/x.sh\nset -e\necho ok");
   assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:README.md`]), "# r", "a path the patch does not touch keeps the head's blob");
   assert.deepEqual(createCommit.parents, [fix.head]);
-  assert.match(createCommit.message, /^Declare the suites' test-scope reads on feat\/x\n\nLane-Activity: pr-unblock\/apply-test-scope\n$/);
+  assert.match(createCommit.message, /^Declare the suites' test-scope reads on feat\/x\n\nLane-Activity: pr-unblock\/fix-test-scope\n$/);
   assert.deepEqual(api.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false });
   assert.ok(api.calls.includes("getBlob"), "the head blob came from the API");
 });
@@ -4007,7 +4007,7 @@ test("test-scope: a pull request Dependabot opened, or one held by a label, gets
 
 test("test-scope: a head that is the activity's own commit, or that moved, gets no push", async (t) => {
   const fix = scopeFixture(t, declare);
-  const own = apiOnlyApi(fix.repo, fix.head, { headMessage: "Declare the suites' test-scope reads on feat/x\n\nLane-Activity: pr-unblock/apply-test-scope\n" });
+  const own = apiOnlyApi(fix.repo, fix.head, { headMessage: "Declare the suites' test-scope reads on feat/x\n\nLane-Activity: pr-unblock/fix-test-scope\n" });
   assert.deepEqual(await scopePush(t, fix, own), { outcome: "not-applicable" });
   assert.deepEqual(writes(own), []);
   const moved = apiOnlyApi(fix.repo, fix.head);

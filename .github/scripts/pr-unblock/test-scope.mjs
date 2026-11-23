@@ -1,5 +1,6 @@
 export const DECLARATION = /^(#|\/\/) test-scope: [A-Za-z0-9._@+/-]+$/;
-export const SCOPE_PATH = /^[A-Za-z0-9._@+/-]+$/;
+const SCOPE_PATH = /^[A-Za-z0-9._@+/-]+$/;
+export const exactPath = (path) => SCOPE_PATH.test(path) && path.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 
 export function suiteComment(path) {
   const name = String(path).split("/").at(-1);
@@ -76,13 +77,20 @@ export function declarationRefusal(path, before, after) {
   if (inserted.length === 0) {
     return "the change adds no line";
   }
+  if (inserted[0].index === 0 && bare(old[0] ?? "").startsWith("#!")) {
+    return "line 1 goes above the shebang";
+  }
   const added = [];
   for (const { index, line } of inserted) {
     const text = line.endsWith(eol) ? line.slice(0, -eol.length) : null;
     if (text === null || !DECLARATION.test(text) || !text.startsWith(`${comment} `)) {
       return `line ${index + 1} is not a ${comment} test-scope line ending as the file does`;
     }
-    added.push({ index, path: text.slice(`${comment} test-scope: `.length) });
+    const path = text.slice(`${comment} test-scope: `.length);
+    if (!exactPath(path)) {
+      return `line ${index + 1} names ${path}, not one exact path`;
+    }
+    added.push({ index, path });
   }
   const [was, now] = [leadingBlock(before, comment), leadingBlock(after, comment)];
   if (added.some(({ index }) => index >= now.end) || now.declarations.length !== was.declarations.length + added.length) {

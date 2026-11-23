@@ -385,6 +385,8 @@ test("live config: report-escalation follows every pr-unblock activity", () => {
     "apply-patch",
     "sync-shared-copies",
     "apply-shared-copies",
+    "fix-test-scope",
+    "apply-test-scope",
   ]);
 });
 

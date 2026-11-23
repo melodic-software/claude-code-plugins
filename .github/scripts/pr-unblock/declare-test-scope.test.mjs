@@ -5,7 +5,8 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { main, planDeclarations, readTrace, traceGaps, traceOnlyFailure, TRAILER } from "./declare-test-scope.mjs";
+import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
+import { main, planDeclarations, readTrace, traceGaps, traceOnlyFailure } from "./declare-test-scope.mjs";
 import { declarationRefusal } from "./test-scope.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -170,7 +171,8 @@ test("locate names the run whose trace failed alone, and skips or stops every he
   assert.equal(await locateWith(t, locateApi({ pull: { head: { sha: HEAD, repo: { full_name: "fork/r" } } } })), "skip-reason=not-applicable\n");
   assert.equal(await locateWith(t, locateApi({ pull: { head: { sha: "b".repeat(40), repo: { full_name: "o/r" } } } })), "skip-reason=superseded-sha\n");
   assert.equal(await locateWith(t, locateApi({ jobs: [...TRACED_JOBS, job("Lint", "failure")] })), "skip-reason=not-applicable\n");
-  const own = { commit: { message: `Declare the suites' test-scope reads on b\n\n${TRAILER}\n` } };
+  const row = rowFor(loadRules(join(import.meta.dirname, "../../..")), { prepare: "test-scope" });
+  const own = { commit: { message: commitMessage(row, { ref: "b", lane: "pr-unblock", activity: "fix-test-scope" }) } };
   assert.equal(await locateWith(t, locateApi({ commits: [{ commit: { message: "feat: x" } }, own] })), "escalation-reason=test-scope-gaps-remain\n", "the head is the lane's own commit");
   assert.equal(await locateWith(t, locateApi({ commits: [own, own, { commit: { message: "fix: y" } }] })), "escalation-reason=test-scope-gaps-remain\n", "two lane commits already");
   assert.equal(await locateWith(t, locateApi({ commits: [own, { commit: { message: "fix: y" } }] })), "run-id=9\nrun-attempt=2\n", "one lane commit leaves room for a second");

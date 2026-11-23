@@ -84,7 +84,11 @@ test("declarationRefusal refuses a change that is not exact test-scope lines add
     ["x/a.test.sh", before, /adds no line/],
     ["x/a.test.sh", "#!/bin/bash\n# One.\n// test-scope: a.sh\nset -e\n", /not a # test-scope line/],
     ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: a.sh\r\nset -e\n", /not a # test-scope line/],
-    ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: ../a.sh x\nset -e\n", /not a # test-scope line/],
+    ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: a.sh x\nset -e\n", /not a # test-scope line/],
+    ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: ../a.sh\nset -e\n", /not one exact path/],
+    ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: x/./a.sh\nset -e\n", /not one exact path/],
+    ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: x//a.sh\nset -e\n", /not one exact path/],
+    ["x/a.test.sh", "# test-scope: a.sh\n#!/bin/bash\n# One.\nset -e\n", /above the shebang/],
     ["x/a.test.sh", "#!/bin/bash\n# One.\nset -e\n# test-scope: a.sh\n", /outside the leading comment block/],
     ["x/a.test.sh", "#!/bin/bash\n# One.\n# test-scope: a.sh\n# test-scope: a.sh\nset -e\n", /repeats a declared path/],
   ];
@@ -93,4 +97,7 @@ test("declarationRefusal refuses a change that is not exact test-scope lines add
   }
   assert.match(String(declarationRefusal("x/a.test.sh", "# test-scope: a.sh\nset -e\n", "# test-scope: a.sh\n# test-scope: a.sh\nset -e\n")), /repeats a declared path/);
   assert.equal(declarationRefusal("x/a.test.sh", before, "#!/bin/bash\n# One.\n# test-scope: a.sh\nset -e\n"), null);
+  const esm = "#!/usr/bin/env node\nimport x from \"y\";\n";
+  assert.match(String(declarationRefusal("x/a.test.mjs", esm, `// test-scope: a.mjs\n${esm}`)), /above the shebang/);
+  assert.equal(declarationRefusal("x/a.test.mjs", esm, "#!/usr/bin/env node\n// test-scope: a.mjs\nimport x from \"y\";\n"), null);
 });

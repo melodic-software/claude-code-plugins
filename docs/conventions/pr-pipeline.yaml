@@ -892,7 +892,7 @@ lanes:
         needs: [fix-test-scope]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies]
+        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies, fix-test-scope, apply-test-scope]
   pr-merge:
     stage: merge
     slots:

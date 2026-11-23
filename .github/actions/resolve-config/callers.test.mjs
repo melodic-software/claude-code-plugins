@@ -25,10 +25,11 @@ import { gunzipSync } from "node:zlib";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
-import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
+import { commitMessage, loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
 import { retryFetch } from "../../scripts/lib/retry-fetch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
+import { TRAILER as TEST_SCOPE_TRAILER } from "../../scripts/pr-unblock/declare-test-scope.mjs";
 import { stopSkip } from "../../scripts/pr-unblock/escalation-routes.mjs";
 import { contractAtPin, fetchAtPin } from "../../scripts/lib/ci-workflows-at-pin.mjs";
 import { levelSettings } from "../../scripts/lib/lane-level-value.mjs";
@@ -846,9 +847,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "apply-dependency-pin",
     "review-dependency-relock-patch",
     "apply-dependency-relock",
+    "fix-test-scope-select",
+    "apply-test-scope",
   ];
-  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin", "apply-dependency-relock"];
+  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select", "fix-test-scope-select"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin", "apply-dependency-relock", "apply-test-scope"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   // The push job of each activity that pushes, before its select job's head.
   const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
@@ -867,7 +870,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "needs.report-stop-status.outputs.status-withheld": "",
   });
   for (const from of SOURCES) {
-    assert.equal(evaluate(job.if, context({ from, reason: "x" })), true, from);
+    const stopped = { ...context({ from, reason: "x" }), "needs.publish-feedback.result": "skipped" };
+    assert.equal(evaluate(job.if, stopped), true, from);
+    assert.equal(evaluate(job.steps.find((step) => step.name === "Post the stop status").env.ESCALATION_REASON, stopped), "x", `${from}'s reason posts the status`);
+    assert.equal(evaluate(escalation.if, stopped), true, `${from} reaches report-escalation`);
+    assert.equal(evaluate(escalation.with["escalation-reason"], stopped), "x", `${from}'s reason reaches report-escalation`);
   }
   for (const headFrom of HEADS) {
     assert.equal(evaluate(job.if, context({ from: "publish-feedback", reason: "x", headFrom })), true, headFrom);
@@ -1049,7 +1056,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin", "review-dependency-relock-patch", "apply-dependency-relock"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "check-conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin", "review-dependency-relock-patch", "apply-dependency-relock", "fix-test-scope-select", "apply-test-scope"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -11248,4 +11255,11 @@ test("pr-unblock.yml: fix-test-scope posts its check on every decided outcome, a
   assert.equal(head.with["persist-credentials"], false);
   assert.equal(select.permissions["pull-requests"], "read");
   assert.equal(select.permissions.contents, "read");
+});
+
+test("pr-unblock.yml: locate counts the commit apply-test-scope writes as the lane's own", () => {
+  const push = workflow("pr-unblock.yml").jobs["apply-test-scope"].with;
+  const row = rowFor(loadRules(fileURLToPath(new URL("../../../", import.meta.url))), { prepare: push["patch-prepare"] });
+  const message = commitMessage(row, { ref: "feat/x", lane: push.lane, activity: push["patch-activity"] });
+  assert.equal(message.split("\n")[2], TEST_SCOPE_TRAILER);
 });

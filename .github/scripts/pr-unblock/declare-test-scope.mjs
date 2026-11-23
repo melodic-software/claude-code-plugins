@@ -7,9 +7,9 @@ import { join } from "node:path";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { AGGREGATE_JOBS, FAILED } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { declaredPaths, insertDeclarations, SCOPE_PATH, suiteComment } from "./test-scope.mjs";
+import { declaredPaths, exactPath, insertDeclarations, suiteComment } from "./test-scope.mjs";
 
-export const TRAILER = "Lane-Activity: pr-unblock/apply-test-scope";
+export const TRAILER = "Lane-Activity: pr-unblock/fix-test-scope";
 export const MAX_BOT_COMMITS = 2;
 export const MAX_GAPS = 50;
 export const MAX_SUITES = 20;
@@ -98,8 +98,6 @@ export function traceGaps({ gaps, suites, verdicts }) {
   }
   return { gaps: gaps.map(([suite, file]) => ({ suite, file })) };
 }
-
-export const exactPath = (path) => SCOPE_PATH.test(path) && path.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 
 const REGULAR_MODES = new Set(["100644", "100755"]);
 

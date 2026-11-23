@@ -4947,11 +4947,13 @@ jobs:
       - apply-patch-rung-up
       - sync-shared-copies-select
       - apply-shared-copies
+      - fix-test-scope-select
+      - apply-test-scope
     if: >-
       ${{ !cancelled()
       && (needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
       || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha
-      || needs.sync-shared-copies-select.outputs.head-sha || '') != ''
+      || needs.sync-shared-copies-select.outputs.head-sha || needs.fix-test-scope-select.outputs.head-sha || '') != ''
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
       || needs.check-conflict-scan-refusal.outputs.escalation-reason != ''
@@ -4967,6 +4969,8 @@ jobs:
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
       || needs.apply-shared-copies.outputs.escalation-reason != ''
+      || needs.fix-test-scope-select.outputs.escalation-reason != ''
+      || needs.apply-test-scope.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -4979,6 +4983,7 @@ jobs:
       || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
       || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
       || needs.apply-shared-copies.result == 'success' && needs.apply-shared-copies.outputs.skip-reason == ''
+      || needs.apply-test-scope.result == 'success' && needs.apply-test-scope.outputs.skip-reason == ''
       || needs.address-feedback-select.result == 'success' && needs.address-feedback-select.outputs.stop-resolved == 'true'
       || needs.fix-ci-context.result == 'success' && needs.fix-ci-context.outputs.stop-resolved == 'true') }}
     runs-on: ubuntu-24.04
@@ -5032,7 +5037,8 @@ jobs:
             || needs.apply-dependency-patch.outputs.pushed-commit || needs.apply-dependency-pin.outputs.pushed-commit
             || needs.apply-dependency-relock.outputs.pushed-commit
             || needs.review-dependency-select.outputs.head-sha
-            || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha }}
+            || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha
+            || needs.fix-test-scope-select.outputs.head-sha }}
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
             || needs.apply-conflict-patch.outputs.escalation-reason
@@ -5052,7 +5058,9 @@ jobs:
             && !(needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')
             && 'ci-fix-escalated'
             || needs.sync-shared-copies-select.outputs.escalation-reason
-            || needs.apply-shared-copies.outputs.escalation-reason || '' }}
+            || needs.apply-shared-copies.outputs.escalation-reason
+            || needs.fix-test-scope-select.outputs.escalation-reason
+            || needs.apply-test-scope.outputs.escalation-reason || '' }}
           ACTIVITY: ${{ inputs.activity }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh "$([ -n "$ESCALATION_REASON" ] && echo status || echo clear)"
@@ -5085,24 +5093,9 @@ jobs:
       - apply-patch-rung-up
       - sync-shared-copies-select
       - apply-shared-copies
+      - fix-test-scope-select
+      - apply-test-scope
       - report-stop-status
-    # A reply job that failed with no reason (its lane token, a script error)
-    # stops as feedback-publish-failed, derived here from its result. When
-    # report-stop-status withheld that stop's status, because the feedback
-    # sweep sends a workflow-modified refusal again, no comment posts either;
-    # a skipped or failed report-stop-status leaves the output empty, so the
-    # comment posts.
-    # escalation-reason is set only by the write runner's own steps, the
-    # base's reply, verdict and apply-patch scripts, and the base scripts of
-    # resolve-conflicts-select, check-conflict-scan-refusal, address-feedback-select,
-    # review-dependency-select, fix-ci-context and sync-shared-copies-select.
-    # At most one escalates: one activity runs per dispatch, a reply, verdict
-    # or push job runs only after a select job proceeded, and a select job,
-    # or fix-ci-context, escalates only before any model turn. A rung-up stop
-    # escalates here too unless apply-patch-rung-up applied the retry's patch
-    # cleanly: its own reason, else ci-fix-escalated. On a cancelled run this
-    # always() branch fires, but the write workflow's run job skips, so no
-    # label is applied and ci-status stays red.
     if: >-
       ${{ (!cancelled() && needs.report-stop-status.outputs.status-withheld != 'true'
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
@@ -5119,7 +5112,9 @@ jobs:
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
-      || needs.apply-shared-copies.outputs.escalation-reason != ''))
+      || needs.apply-shared-copies.outputs.escalation-reason != ''
+      || needs.fix-test-scope-select.outputs.escalation-reason != ''
+      || needs.apply-test-scope.outputs.escalation-reason != ''))
       || (always() && needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -5157,7 +5152,9 @@ jobs:
         || needs.apply-patch-rung-up.outputs.escalation-reason
         || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated'
         || needs.sync-shared-copies-select.outputs.escalation-reason
-        || needs.apply-shared-copies.outputs.escalation-reason || '' }}
+        || needs.apply-shared-copies.outputs.escalation-reason
+        || needs.fix-test-scope-select.outputs.escalation-reason
+        || needs.apply-test-scope.outputs.escalation-reason || '' }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
