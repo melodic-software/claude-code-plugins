@@ -37,7 +37,6 @@ async page => {
   ok("receipt shows Saved and Delivered with times", /Saved \d.*Delivered \d/.test(await page.textContent("#cur")), await page.textContent("#cur"));
   await page.click('.qbtn[data-q="N3"]'); await page.waitForTimeout(200);
 
-  // Accept all on the group with N3 (opened)
   const btn = await page.$('[data-acceptall="g10"]');
   ok("Accept all offered for opened questions", !!btn, btn ? await btn.textContent() : "");
   await btn.click(); await page.waitForTimeout(200);
@@ -46,7 +45,6 @@ async page => {
   const ev2 = await events();
   ok("Accept all saved an accept for N3", ev2[ev2.length - 1].id === "N3" && ev2[ev2.length - 1].kind === "accept");
 
-  // Accept all and have agents check them: per round, one accept-audit event
   await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(300);
   const secCount = (await page.$$('.sec[data-key^="r:"]')).length;
   const auditBtns = await page.$$('[data-auditround]');
@@ -58,7 +56,6 @@ async page => {
   const auditRound = ab ? await ab.getAttribute("data-auditround") : "";
   ok("audit button appears for a round with an opened recommended question", !!ab && /agents check/.test(ab ? await ab.textContent() : ""));
   if (ab) {
-    // A question carrying a typed note is left out of the audit dialog, which sends no notes
     await page.fill("#note", "before we lock it in"); await page.waitForTimeout(200);
     await ab.click(); await page.waitForTimeout(200);
     ok("audit dialog leaves out a question with a typed note and never shows the note", await page.evaluate(() => { const b = document.getElementById("dlgBody"); const lo = b.querySelector(".left-out"); return document.getElementById("dlg").open && !!lo && /they carry a note/.test(lo.innerText) && /N3/.test(lo.innerText) && ![...b.querySelectorAll("li b")].some(x => x.textContent === "N3") && !/before we lock it in/.test(b.innerText); }));
@@ -74,7 +71,6 @@ async page => {
   }
   await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(200);
 
-  // completion screen
   await page.keyboard.press("w"); await page.waitForTimeout(300);
   ok("completion screen when all are answered", /All answered/.test(await page.textContent(".done-h")), await page.textContent(".done-h"));
   ok("answer pane hidden on the summary", await page.$eval("#answer", el => el.hidden));
@@ -83,7 +79,7 @@ async page => {
   ok("decision summary table", (await page.$$("table.sum tbody tr")).length >= 18);
   ok("what Claude does next", /What Claude does next/.test(await page.textContent("#dscroll")));
   const n3 = (await events()).length;
-  await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); await page.waitForTimeout(700); // the confirm lists what is outstanding
+  await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); await page.waitForTimeout(700);
   const ev3 = await events();
   ok("Wrap up posts one wrapup event", ev3.length === n3 + 1 && ev3[ev3.length - 1].kind === "wrapup", ev3.length + " vs " + n3 + " " + ev3[ev3.length - 1].kind + " dlg:" + await page.$eval("#dlg", d => d.open + ":" + d.textContent.slice(0, 120)));
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e));

@@ -38,7 +38,6 @@ function commitsOn(date) {
   return [{ ...c, commit: { ...c.commit, committer: { ...c.commit.committer, date }, author: { ...c.commit.author, date } } }]
 }
 
-// A fake GitHub API answering the two lookups; it records every path it was asked for.
 function github({ catalog = fixture('catalog.json'), commits = fixture('commits-html-plan.json'), fail } = {}) {
   const calls = []
   const fetchJson = async path => {
