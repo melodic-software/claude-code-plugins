@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/workspace.sh" repo
+mkdir -p docs/conventions
+cat >docs/conventions/multi-agent.yaml <<'EOF'
+schema: 1
+vendors:
+  routing: true
+  codex:
+    in_use: true
+    rank: 1
+  antigravity:
+    in_use: false
+EOF
+
+stub_dir="$(git rev-parse --path-format=absolute --git-common-dir)/eval-external-agents/bin"
+mkdir -p "$stub_dir"
+cat >"$stub_dir/external-agents" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+cmd="${1:-}"
+prod="${2:-}"
+if [[ "$cmd" == "models" && "$prod" == "codex" ]]; then
+  cat <<'JSON'
+{
+  "schema": 1,
+  "product": "codex",
+  "status": "ok",
+  "cli": { "name": "codex", "version": "0.1.0-fixture" },
+  "unset_model": "cli-default",
+  "models": [
+    {
+      "id": "sparrow-1",
+      "efforts": ["low", "medium", "high"],
+      "default_effort": "medium",
+      "context_window": 200000
+    }
+  ],
+  "models_source": "fixture",
+  "tools": ["file", "shell", "web", "mcp", "image_generation"],
+  "image": true,
+  "breaker": { "open": false, "reason": null, "reset_at": null },
+  "docs_index": "https://codex.example/docs"
+}
+JSON
+  exit 0
+fi
+echo "unexpected external-agents invocation: $*" >&2
+exit 2
+EOF
+chmod +x "$stub_dir/external-agents"
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/vendor-boards.sh" all-read

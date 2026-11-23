@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.5] - 2026-11-23
+
+### Changed
+
+- `absorb-upstream`, `docpage-digest` and `video-digest` gain a `## Related` section, and `course-digest`, `distill` and `map-corpus` gain `## Next` and `## Related`, per the accepted skill-link table.
+
+## [3.5.4] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
 ## [3.5.3] - 2026-11-23
 
 ### Changed

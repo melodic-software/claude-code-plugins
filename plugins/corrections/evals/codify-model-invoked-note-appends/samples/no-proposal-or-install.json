@@ -1,0 +1,84 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "only the note row is written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/.gitignore",
+            "content": "*\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "first-write gitignore and the note row"
+    },
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/proposals/auth-helper.md",
+            "content": "# Proposal"
+          }
+        }
+      ],
+      "why": "writes a proposal too"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/settings.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "installs a setting"
+    }
+  ]
+}

@@ -48,22 +48,28 @@ if [[ "$1 $2" == "pr view" ]]; then
   exit 1
 fi
 [[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
+# What `gh api -i` prints on a 200: the headers, a blank line, then the body.
+reply() { printf 'HTTP/2.0 200 OK\r\n\r\n%s\n' "$1"; }
 case "$*" in
 */check-runs*)
   [[ -n "${STUB_FAIL_CHECKS:-}" ]] && exit 1
   b_status=${STUB_B:-completed}
   b_conclusion=null
   [[ "$b_status" == completed ]] && b_conclusion='"success"'
-  printf '%s' '{"check_runs":[
+  reply '{"check_runs":[
     {"name":"a","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"completed","conclusion":"success"},
     {"name":"b","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"'"$b_status"'","conclusion":'"$b_conclusion"'},
     {"name":"c","check_suite":{"id":1},"started_at":"2026-01-01T00:00:00Z","status":"in_progress","conclusion":null}]}'
   ;;
-*/pulls/5\ *)
+*/pulls/5)
   n=$(cat "$GH_STUB_COUNT" 2>/dev/null || echo 0)
   echo $((n + 1)) >"$GH_STUB_COUNT"
-  [[ "$n" -eq 0 ]] && echo "OPEN h1" || echo "MERGED h1"
+  [[ "$n" -eq 0 ]] && merged=false || merged=true
+  reply '{"state":"open","merged":'"$merged"',"head":{"sha":"h1"}}'
   ;;
+*/actions/runs*) reply '{"workflow_runs":[]}' ;;
+*/status*) reply '{"statuses":[]}' ;;
+*) reply '[]' ;;
 esac
 exit 0
 STUB_EOF

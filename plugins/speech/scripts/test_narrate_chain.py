@@ -1,6 +1,3 @@
-"""narrate.py --backend-chain: whole-script fallback across voice backends, retries at 1, 2 and 4 s, the per-call
-timeout, the paid gate (exit 3), the secret floor before any online backend (exit 4), no audio at all (exit 5), and
-voice.json. Backends are fakes or the `command` backend running local commands; no test reaches a network voice."""
 import asyncio
 import io
 import json
@@ -269,8 +266,8 @@ class PaidTimeouts(unittest.TestCase):
 
 LONG = 'One two three.\n\nFour five.\n\n\nSix seven eight nine.\n\nTen.'
 LONG_PARAGRAPHS = ['One two three.', 'Four five.', 'Six seven eight nine.', 'Ten.']
-WORD_S, SPOKEN_S = 0.25, 0.2   # the fake voice: a word every 0.25 s, each spoken for 0.2 s
-FAKE_FFMPEG = ('import shutil, sys\n'   # the fake voice already sends WAV bytes; ffmpeg only has to copy them
+WORD_S, SPOKEN_S = 0.25, 0.2
+FAKE_FFMPEG = ('import shutil, sys\n'
                'shutil.copyfile(sys.argv[sys.argv.index("-i") + 1], sys.argv[-1])\n')
 
 
@@ -318,12 +315,10 @@ class EdgePerParagraph(unittest.TestCase):
                                      sleep=self.slept.append, scan=lambda text: [])
 
     def test_a_long_script_is_voiced_one_paragraph_per_request_on_one_timeline(self):
-        # each request takes 0.2 s against a 0.5 s timeout; the four together take longer than one timeout
         self.assertEqual(self.chain(self.fake_edge_tts(seconds=0.2), timeout=0.5), 0)
         self.assertEqual(self.requests, LONG_PARAGRAPHS)
         record = json.loads((self.out / 'words.json').read_text(encoding='utf-8'))
         self.assertEqual((record['backend'], record['sample_rate'], record['duration']), ('edge-tts', 24000, 2.5))
-        # paragraphs start at 0, 0.75, 1.25 and 2.25 s: the lengths of the audio before them
         starts = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25]
         self.assertEqual(record['words'], [{'word': t, 'start': s, 'end': round(s + SPOKEN_S, 3)}
                                            for t, s in zip(LONG.split(), starts)])
@@ -399,7 +394,6 @@ class Cli(unittest.TestCase):
 
 class Words(unittest.TestCase):
     def test_estimated_words_share_the_duration_by_length(self):
-        # weights len + 1: 'ab' 3, 'cdef' 5, total 8 -> 0..0.375, 0.375..1.0
         self.assertEqual(narrate.estimate_words('ab cdef', 1.0),
                          [{'word': 'ab', 'start': 0.0, 'end': 0.375}, {'word': 'cdef', 'start': 0.375, 'end': 1.0}])
 

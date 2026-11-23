@@ -387,9 +387,11 @@ jobs:
         .github/scripts/pr-unblock/resolve-threads.mjs
         .github/scripts/pr-unblock/request-budget.mjs
         .github/scripts/pr-verify/resolve-pr.mjs
+        .github/scripts/pr-verify/spec-source.mjs
         .github/scripts/pr-verify/write-verdict.mjs
         .github/scripts/intake-triage/admit.mjs
         .github/scripts/intake-triage/size-split.mjs
+        .github/scripts/intake-triage/issue-spec.mjs
         .github/actions/select-trusted-text/select-trusted-text.mjs
         lib/publish-gate.mjs
         .github/recurring-schedule.json
@@ -403,6 +405,7 @@ jobs:
         .github/scripts/apply-patch/apply-patch.mjs
         .github/scripts/apply-patch/predicates.mjs
         .github/scripts/apply-patch/protected-paths.mjs
+        .github/scripts/apply-patch/cdn-paths.mjs
         .github/scripts/lib/run-main.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
@@ -431,6 +434,8 @@ jobs:
         .github/scripts/intake-triage/triage-rubric.txt
         .github/scripts/intake-triage/refine-schema.json
         .github/scripts/plugin-eval/policy-probe-prompt.txt
+        .github/scripts/pr-unblock/test-scope.mjs
+        .github/scripts/pr-unblock/declare-test-scope.mjs
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml

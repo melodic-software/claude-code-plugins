@@ -1,11 +1,3 @@
-"""The unresolved-review-thread gate `/source-control:pull-request` readiness runs.
-
-The gate reads threads through `babysit_merge.unresolved_threads`, the same
-predicate the babysit merge gate holds on, so these tests stub only the one gh
-seam under the shared paginator (`babysit_gh.gh_json`) and exercise the real
-pagination and projection. No real gh process is spawned.
-"""
-
 from __future__ import annotations
 
 import contextlib

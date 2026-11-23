@@ -68,6 +68,12 @@ Return the findings in the conversation, in the same severity vocabulary
 GitHub: no review, no comment, no label. The inline-comment MCP server is a wrapper grant the
 CI lane alone gets, so it is not used here; on the seat the transcript is the report.
 
+## Related
+
+- Correctness and maintainability PR review lane: /review:code-review.
+- Codify uncovered rules from review summary: /corrections:codify.
+- Local single-lens security review: /review:quality-gate.
+
 ## Gotchas
 
 - This skill's frontmatter does not install the inline-comment MCP server; the action's

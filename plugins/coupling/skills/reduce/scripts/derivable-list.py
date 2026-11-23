@@ -47,10 +47,6 @@ import sys
 import unicodedata
 from pathlib import Path
 
-# Judgment values, stated in the skill: 80% leaves room for the stale entries a
-# drifting list carries while ruling out a list whose entries mostly hold data
-# the tree does not; under five entries a list matches paths by chance and costs
-# little to keep by hand.
 THRESHOLD = 0.8
 MIN_ENTRIES = 5
 WORD_SPLIT = re.compile(r"[\s()\[\]<>\"'`,;|=]+")

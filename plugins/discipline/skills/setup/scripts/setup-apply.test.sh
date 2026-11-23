@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/discipline/.claude-plugin/plugin.json
-# Black-box test for setup-apply.mjs, the writer behind /discipline:setup apply.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-# Expected values come from the key contract in reference/config.md:
-# lever_scope takes deterministic or non-trivial, and the file is
-# docs/conventions/discipline.yaml at the repository root. The schema has two
-# keys, lever_scope and $schema (type string). Apply writes only lever_scope, so
-# the $schema cases are "an invalid value on a key not being written".
 # Labels and one fixture path hold a literal $HOME or $(...) on purpose.
 # shellcheck disable=SC2016
 # test-scope: plugins/discipline/lib/resolve-convention-home.sh
@@ -17,8 +9,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -27,7 +17,6 @@ READER="$SCRIPT_DIR/parse-concern-value.sh"
 
 WORKROOT="$(mktemp -d)"
 trap 'chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"' EXIT
-# A HOME outside every test repository, so the root rule does not refuse them.
 FAKE_HOME="$WORKROOT/home"
 mkdir -p "$FAKE_HOME"
 
@@ -37,7 +26,7 @@ fail() {
   printf 'FAIL - %s\n' "$1" >&2
   fails=$((fails + 1))
 }
-check() { # check <label> <command...>: pass when the command succeeds
+check() {
   local label="$1"
   shift
   if "$@"; then pass "$label"; else fail "$label"; fi
@@ -59,7 +48,7 @@ seeded_repo() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local repo="$1"
   shift
   OUT="$(HOME="$FAKE_HOME" node "$SUT" --root "$repo" "$@" 2>&1)"
@@ -67,7 +56,6 @@ run() { # run <repo> [args...]
 }
 one_line_refusal() { [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && "$OUT" != *"    at "* ]]; }
 
-# Fresh write: the key is written and reads back.
 repo="$(new_repo)"
 f="$repo/docs/conventions/discipline.yaml"
 run "$repo" lever_scope=non-trivial
@@ -76,13 +64,11 @@ check 'fresh write creates docs/conventions/discipline.yaml' test -f "$f"
 check 'lever_scope reads back as non-trivial' test "$(bash "$READER" "$f" lever_scope)" = non-trivial
 check 'fresh write creates no other file' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 
-# Same value again: nothing changes.
 before="$(cat "$f")"
 run "$repo" lever_scope=non-trivial
 check 'an unchanged value reports already configured and leaves the file' \
   test "$CODE" -eq 0 -a "$(cat "$f")" = "$before" -a -n "$(grep -F 'already configured' <<<"$OUT")"
 
-# Existing file, different value, no --yes: diff printed, nothing written.
 seeded_repo $'# team pick\nlever_scope: deterministic\n'
 before="$(cat "$f")"
 run "$repo" lever_scope=non-trivial
@@ -90,18 +76,15 @@ check 'an existing file that would change exits 3 without --yes' test "$CODE" -e
 if [[ "$OUT" == *"-lever_scope: deterministic"* && "$OUT" == *"+lever_scope: non-trivial"* ]]; then pass 'the refusal prints the diff'; else fail 'the refusal prints the diff'; fi
 check 'the existing file is untouched without --yes' test "$(cat "$f")" = "$before"
 
-# Same change with --yes: written, comment kept.
 run "$repo" --yes lever_scope=non-trivial
 check 'with --yes the change is written' test "$CODE" -eq 0
 check 'the written file keeps the comment' test "$(settings "$f")" = $'# team pick\nlever_scope: non-trivial'
 
-# Adding the key to a file that holds only comments appends it.
 seeded_repo $'# owned by the platform team\n'
 run "$repo" --yes lever_scope=deterministic
 check 'the key is appended to a comment-only file' \
   test "$CODE" -eq 0 -a "$(settings "$f")" = $'# owned by the platform team\nlever_scope: deterministic'
 
-# Invalid value and unknown key: refused, nothing created.
 repo="$(new_repo)"
 run "$repo" lever_scope=always
 if [[ "$CODE" -eq 1 && "$OUT" == *"lever_scope=always"* ]]; then pass 'an invalid value exits 1 and names the key and value'; else fail 'an invalid value exits 1 and names the key and value'; fi
@@ -113,20 +96,13 @@ check 'a key outside the schema exits 1 and writes nothing' test "$CODE" -eq 1 -
 run "$repo" 'lever_scope='
 check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
 
-# An existing key outside the schema is named in one warning and ignored: its
-# line is kept byte for byte and the asked-for key is written. --check warns
-# on it, still prints the valid key, and exits 1.
 seeded_repo $'lever_scope: deterministic\nverbosity: high\n'
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes lever_scope=non-trivial
 if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$f")" == $'lever_scope: non-trivial\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
-# Shapes a schema validator rejects although each line looks plausible.
-# --check reports each as WARN. apply overwrites only an out-of-list, empty
-# (`key:`) or null/~ value on the key it writes, and refuses every other
-# problem with one line and the file untouched.
-shape_case() { # shape_case <label> <refuse|replace> <warning text> <file content>
+shape_case() {
   local label="$1" want="$2" warning="$3" content="$4" repo f before
   seeded_repo "$content"
   before="$(cat "$f")"
@@ -169,8 +145,6 @@ shape_case 'an empty quoted $schema' refuse '$schema is empty or null' $'"$schem
 shape_case 'a null $schema' refuse '$schema is empty or null' $'"$schema": null\nlever_scope: deterministic\n'
 shape_case 'an empty $schema' refuse '$schema is empty or null' $'"$schema":\nlever_scope: deterministic\n'
 
-# A key given twice on the command line is refused before anything is
-# written, whether or not the file exists.
 seeded_repo $'lever_scope: deterministic\n'
 run "$repo" --yes lever_scope=non-trivial lever_scope=deterministic
 if one_line_refusal && [[ "$(cat "$f")" == 'lever_scope: deterministic' ]]; then pass 'a key given twice is a one-line refusal and the file is unchanged'; else fail 'a key given twice is a one-line refusal and the file is unchanged'; fi
@@ -178,7 +152,6 @@ repo="$(new_repo)"
 run "$repo" --yes lever_scope=non-trivial lever_scope=non-trivial
 if one_line_refusal && [[ ! -e "$repo/docs" ]]; then pass 'a key given twice with no file is a one-line refusal and creates nothing'; else fail 'a key given twice with no file is a one-line refusal and creates nothing'; fi
 
-# --check: absent, valid.
 repo="$(new_repo)"
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *absent* ]]; then pass '--check on a missing file reports absent and exits 0'; else fail '--check on a missing file reports absent and exits 0'; fi
@@ -192,7 +165,6 @@ if [[ "$CODE" -eq 0 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pa
 run "$repo" --yes lever_scope=non-trivial
 if [[ "$CODE" -eq 0 && "$(settings "$repo/docs/conventions/discipline.yaml")" == $'"$schema": https://example.test/discipline.schema.json\nlever_scope: non-trivial' ]]; then pass 'apply keeps a $schema URL string and writes the key'; else fail 'apply keeps a $schema URL string and writes the key'; fi
 
-# Write-path guards, each a one-line refusal with nothing written outside.
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -231,7 +203,6 @@ run "$repo" lever_scope=deterministic
 check 'docs as a file is a one-line refusal' one_line_refusal
 check 'docs as a file is left as it was' test "$(cat "$repo/docs")" = 'not a directory'
 
-# An unwritable docs/conventions: the temp-file open fails, one line, no temp left.
 if [[ "$(id -u)" -ne 0 ]]; then
   repo="$(new_repo)"
   mkdir -p "$repo/docs/conventions"
@@ -242,7 +213,6 @@ if [[ "$(id -u)" -ne 0 ]]; then
   chmod u+w "$repo/docs/conventions"
 fi
 
-# A failed write (file size limit 0): one line, no temp file left.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 OUT="$(ulimit -f 0 && HOME="$FAKE_HOME" node "$SUT" --root "$repo" lever_scope=deterministic 2>&1)"
@@ -250,13 +220,12 @@ CODE=$?
 check 'a failed write is a one-line refusal' one_line_refusal
 check 'a failed write removes the temp file' test -z "$(ls -A "$repo/docs/conventions")"
 
-# Preloads that inject filesystem faults into the script's node:fs calls.
-preload() { # preload <name> <js line...>: writes $WORKROOT/<name>.cjs
+preload() {
   local name="$1"
   shift
   printf '%s\n' 'const fs = require("node:fs");' "$@" 'require("node:module").syncBuiltinESMExports();' >"$WORKROOT/$name.cjs"
 }
-run_preloaded() { # run_preloaded <name> <repo> [args...]
+run_preloaded() {
   local name="$1" repo="$2"
   shift 2
   OUT="$(HOME="$FAKE_HOME" node --require "$WORKROOT/$name.cjs" "$SUT" --root "$repo" "$@" 2>&1)"
@@ -265,7 +234,6 @@ run_preloaded() { # run_preloaded <name> <repo> [args...]
 TRACK_TMP_FD='const open = fs.openSync, close = fs.closeSync; let tmpFd = -1; fs.openSync = (p, ...r) => { const fd = open(p, ...r); if (String(p).endsWith(".tmp")) tmpFd = fd; return fd; };'
 CLOSE_FAILS='fs.closeSync = (fd) => { close(fd); if (fd === tmpFd) { tmpFd = -1; throw Object.assign(new Error("EIO: i/o error, close"), { code: "EIO" }); } };'
 
-# A close that fails after releasing the descriptor (close(2) may report EIO).
 preload close-fails "$TRACK_TMP_FD" "$CLOSE_FAILS"
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
@@ -273,7 +241,6 @@ run_preloaded close-fails "$repo" lever_scope=deterministic
 check 'a failed close is a one-line refusal' one_line_refusal
 check 'a failed close removes the temp file' test -z "$(ls -A "$repo/docs/conventions")"
 
-# A failed close followed by a failed cleanup: still one line, no stack trace.
 preload close-and-rm-fail "$TRACK_TMP_FD" "$CLOSE_FAILS" \
   'fs.rmSync = () => { throw Object.assign(new Error("EBUSY: resource busy, rm"), { code: "EBUSY" }); };'
 repo="$(new_repo)"
@@ -281,7 +248,6 @@ mkdir -p "$repo/docs/conventions"
 run_preloaded close-and-rm-fail "$repo" lever_scope=deterministic
 check 'a failed close and a failed cleanup are one line' one_line_refusal
 
-# A failed rename: one line, the temp file removed, no target created.
 preload rename-fails 'fs.renameSync = () => { throw Object.assign(new Error("EXDEV: cross-device link, rename"), { code: "EXDEV" }); };'
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
@@ -289,8 +255,6 @@ run_preloaded rename-fails "$repo" lever_scope=deterministic
 check 'a failed rename is a one-line refusal' one_line_refusal
 check 'a failed rename leaves no temp file and no target' test -z "$(ls -A "$repo/docs/conventions")"
 
-# A failed read of the existing file, for apply and --check: one line, the file
-# unchanged, no temp file. A preload, not chmod 000, so the case holds as root.
 preload read-fails 'const rf = fs.readFileSync;' \
   'fs.readFileSync = (p, ...r) => { if (String(p).endsWith("docs/conventions/discipline.yaml")) throw Object.assign(new Error("EACCES: permission denied, open"), { code: "EACCES" }); return rf(p, ...r); };'
 seeded_repo $'lever_scope: deterministic\n'
@@ -303,8 +267,6 @@ check '--check with a failed read is a one-line refusal' one_line_refusal
 check '--check with a failed read leaves the file unchanged' test "$(cat "$f")" = 'lever_scope: deterministic'
 check '--check with a failed read leaves no temp file' test -z "$(find "$repo/docs/conventions" -name '*.tmp')"
 
-# A failed realpath on the root: one line, no stack trace. Only the root path
-# fails, so node can still resolve the script itself.
 preload realpath-fails 'const rp = fs.realpathSync;' \
   'fs.realpathSync = (p, ...r) => { if (String(p) === process.env.FAIL_REALPATH) throw Object.assign(new Error("EACCES: permission denied, realpath"), { code: "EACCES" }); return rp(p, ...r); };'
 repo="$(new_repo)"
@@ -312,8 +274,6 @@ OUT="$(FAIL_REALPATH="$repo" HOME="$FAKE_HOME" node --require "$WORKROOT/realpat
 CODE=$?
 if [[ "$CODE" -ne 0 && "$(wc -l <<<"$OUT")" -eq 1 && "$OUT" != *"    at "* && ! -e "$repo/docs" ]]; then pass 'a failed realpath is a one-line refusal and writes nothing'; else fail 'a failed realpath is a one-line refusal and writes nothing'; fi
 
-# docs/ swapped for a symlink right after it is created: the next mkdir must
-# not create docs/conventions outside the repository.
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 preload swap-docs 'const mk = fs.mkdirSync;' \
   'fs.mkdirSync = (p, ...r) => { const out = mk(p, ...r); if (String(p).endsWith("/docs")) { fs.rmdirSync(p); fs.symlinkSync(process.env.SWAP_TO, p); } return out; };'
@@ -323,9 +283,6 @@ CODE=$?
 check 'a docs symlink swap between mkdirs is a one-line refusal' one_line_refusal
 check 'a docs symlink swap between mkdirs creates nothing outside' test -z "$(ls -A "$outside")"
 
-# docs/conventions swapped for a symlink right after it is created, with
-# cleanup disabled: the re-check before the temp file opens must refuse, so no
-# file is ever created outside the repository.
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 preload swap-conventions-before-open 'const mk = fs.mkdirSync;' \
   'fs.mkdirSync = (p, ...r) => { const out = mk(p, ...r); if (String(p).endsWith("/docs/conventions")) { fs.rmdirSync(p); fs.symlinkSync(process.env.SWAP_TO, p); } return out; };' \
@@ -336,8 +293,6 @@ CODE=$?
 check 'a docs/conventions symlink swap before the temp file opens is a one-line refusal' one_line_refusal
 check 'a docs/conventions symlink swap before the temp file opens creates nothing outside' test -z "$(ls -A "$outside")"
 
-# docs/conventions swapped for a symlink to an outside directory after the temp
-# file is written: the re-check before the rename must refuse.
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 preload swap-conventions-before-rename 'const wr = fs.writeSync;' \
   'fs.writeSync = (fd, ...r) => { const out = wr(fd, ...r); const c = process.env.SWAP_FROM; fs.renameSync(c, process.env.SWAP_TO + "/conventions"); fs.symlinkSync(process.env.SWAP_TO + "/conventions", c); return out; };'
@@ -349,8 +304,6 @@ check 'a docs/conventions symlink swap before the rename is a one-line refusal' 
 check 'a docs/conventions symlink swap before the rename writes nothing outside' test -z "$(ls -A "$outside/conventions")"
 check 'a docs/conventions symlink swap before the rename creates no target' test ! -e "$outside/conventions/discipline.yaml"
 
-# A temp file name another process already holds (fixed pid 4242): the
-# exclusive open refuses in one line and the foreign file survives unchanged.
 preload fixed-pid 'Object.defineProperty(process, "pid", { value: 4242 });'
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
@@ -361,7 +314,6 @@ check 'an existing temp file name is a one-line refusal' one_line_refusal
 check 'an existing temp file is left unchanged' test "$(cat "$foreign" 2>/dev/null)" = 'someone else'
 check 'an existing temp file name creates no target' test ! -e "$repo/docs/conventions/discipline.yaml"
 
-# A failed close of the temp file: the descriptor is closed exactly once.
 preload count-closes "$TRACK_TMP_FD" 'let closes = 0;' \
   'fs.closeSync = (fd) => { if (fd !== -1 && fd === tmpFd) { closes++; if (closes > 1) process.stderr.write("double close\n"); close(fd); throw Object.assign(new Error("EIO: i/o error, close"), { code: "EIO" }); } return close(fd); };'
 repo="$(new_repo)"
@@ -370,7 +322,6 @@ run_preloaded count-closes "$repo" lever_scope=deterministic
 check 'a failed close is one line and never closes the descriptor twice' one_line_refusal
 if [[ "$OUT" != *"double close"* ]]; then pass 'the temp descriptor is closed once'; else fail 'the temp descriptor is closed once'; fi
 
-# Root rule: a root that is $HOME, or an ancestor of it, is refused.
 repo="$(new_repo)"
 OUT="$(HOME="$repo" node "$SUT" --root "$repo" lever_scope=deterministic 2>&1)"
 CODE=$?
@@ -381,7 +332,6 @@ OUT="$(HOME="$repo/inner-home" node "$SUT" --root "$repo" lever_scope=determinis
 CODE=$?
 check 'a root above $HOME is a one-line refusal' one_line_refusal
 
-# A root path holding shell syntax is data, never evaluated.
 weird="$WORKROOT/"'repo-$(touch PWNED)'
 mkdir -p "$weird"
 git -C "$weird" init -q
@@ -389,7 +339,6 @@ git -C "$weird" init -q
 check 'a root path with $(...) is written as a plain path' test -f "$weird/docs/conventions/discipline.yaml"
 check 'the $(...) in the root path never runs' test ! -e "$WORKROOT/PWNED" -a ! -e "$weird/PWNED"
 
-# Usage errors.
 run "$repo"
 check 'no <key>=<value> exits 2' test "$CODE" -eq 2
 run "$repo" --check lever_scope=deterministic
@@ -398,7 +347,6 @@ OUT="$(cd "$WORKROOT" && HOME="$FAKE_HOME" GIT_CEILING_DIRECTORIES="$WORKROOT" n
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 repo="$(new_repo)"
 run "$repo" lever_scope=non-trivial

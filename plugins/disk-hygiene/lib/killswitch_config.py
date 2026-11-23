@@ -142,9 +142,6 @@ def _report(
     }
 
 
-# The two sentences every non-configured report ends with. Both state that the
-# reported value is the plugin default rather than a configured one; the second
-# marks the read itself as degraded.
 _NOT_CONFIGURED_THERE = (
     "the toggle is not configured there and the plugin default (enabled) "
     "applies. Managed settings or a --settings flag could still carry a value "

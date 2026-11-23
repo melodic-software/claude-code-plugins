@@ -31,14 +31,12 @@ RECORD_KEYS = frozenset(
         "question",
     }
 )
-# Optional on a record: absent means the record describes its own entry only.
 OWNER_LEVEL_KEY = "owner_level"
 DISPOSITIONS = frozenset({"keep", "remove", "review"})
 SOURCES = frozenset({"engine", "human"})
 
 
 def _prefix(path: str) -> str:
-    """The text every descendant path starts with. The scan target is ``.``."""
     return "" if path == "." else f"{path}/"
 
 
@@ -101,11 +99,6 @@ def _identity_key(identity: dict[str, Any]) -> tuple[Any, Any, Any]:
 def _human_by_identity(
     records: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[tuple[Any, Any, Any], list[dict[str, Any]]]:
-    """Operator answers indexed by the filesystem object they describe.
-
-    A missing device or inode cannot tell one object from another, so such a
-    record is never reused outside its own target and path.
-    """
     index: dict[tuple[Any, Any, Any], list[dict[str, Any]]] = {}
     for record in records.values():
         identity = record["identity"]
@@ -119,11 +112,6 @@ def _supersede(
     target: str,
     answered: dict[str, Any],
 ) -> None:
-    """Drop other targets' operator answers for the object just answered.
-
-    The newest answer is the operator's decision, so an older one for the same
-    filesystem object must not outrank it on a later scan.
-    """
     identity = answered["identity"]
     if not (identity["device"] and identity["inode"]):
         return
@@ -143,12 +131,6 @@ def _other_target_answer(
     entries: list[dict[str, Any]],
     local: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """An operator answer recorded under another scan target for this same entry.
-
-    ``local`` is this target's record for the entry when its identity holds. It
-    settles the entry unless it still has an open question, which an answer from
-    another target retires.
-    """
     if local is not None and not local["question"]:
         return None
     for record in index.get(_identity_key(identity_of(entry)), []):
@@ -163,7 +145,6 @@ def _scan_target_answer(
     target: str,
     entries: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """An operator answer from another scan target for this scan target itself."""
     identity = snapshot.get("target_identity")
     if not isinstance(identity, dict):
         return None
@@ -204,11 +185,6 @@ def _uncataloged(
     reused: dict[str, dict[str, Any]],
     target_owned: bool = False,
 ) -> list[dict[str, Any]]:
-    """In-scope entries with no record of their own and no owner-level ancestor.
-
-    ``target_owned`` is an owner-level answer for the scan target itself, which
-    covers every entry below it.
-    """
     if target_owned:
         return []
     owners = {
@@ -285,14 +261,6 @@ def _text(value: Any) -> str | None:
 
 
 def _apply(record: dict[str, Any], conclusion: dict[str, Any], source: str) -> None:
-    """Write a conclusion onto a record.
-
-    An engine conclusion without an owner is not a conclusion: the record stays
-    ``keep`` and keeps its question. An operator answer always retires the
-    question, with or without an owner, and so is not asked again while identity
-    holds. ``owner_level: true`` with an owner makes the record cover every
-    entry below its path: one record per owning tool, not one per file.
-    """
     owner = _text(conclusion.get("owner"))
     if owner and conclusion.get(OWNER_LEVEL_KEY) is True:
         record[OWNER_LEVEL_KEY] = True
@@ -331,7 +299,6 @@ def _records_by_key(catalog: dict[str, Any] | None) -> dict[tuple[str, str], dic
 
 
 def _well_formed(record: Any) -> bool:
-    """A record this module wrote. Anything else is ignored, not trusted."""
     return (
         isinstance(record, dict)
         and record.keys() >= RECORD_KEYS
@@ -468,12 +435,6 @@ def _report(
     unmatched: list[str],
     uncataloged: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """New or changed entries first, unchanged entries one line each.
-
-    An entry matched to an operator answer recorded under another scan target
-    has no record of its own here. It is unchanged, and its line names the
-    target that holds the answer.
-    """
     new_or_changed = []
     unchanged = []
     questions = []

@@ -112,6 +112,11 @@ merged PR (`merged-remote-branch`) are out of scope and are rejected if they app
 - Delete a remote branch without `--remote-branches`, without its own per-branch confirmation, or
   when its merged PR is the only evidence.
 
+## Related
+
+- Generate or refresh the fleet action plan: /repo-fleet-hygiene:audit.
+- Fast-forward canonical checkouts to default branch: /repo-fleet-hygiene:sync.
+
 ## Workflow
 
 1. Operator runs `/repo-fleet-hygiene:audit … --plan-file <path>` (or takes the path from the report).

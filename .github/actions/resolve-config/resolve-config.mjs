@@ -642,6 +642,10 @@ export function adoptionFromBase(env) {
   return configFromBase(env).adoption ?? {};
 }
 
+export function testScopeFromBase(env) {
+  return { apply: configFromBase(env)["test-scope"]?.apply === true };
+}
+
 // The base config's `merge.refire-skip-branches`, the head branches a workflow
 // owns and rebuilds, after the same file checks as resolve(), for the fix-ci
 // dispatcher and context job, which never run fix-ci on one.

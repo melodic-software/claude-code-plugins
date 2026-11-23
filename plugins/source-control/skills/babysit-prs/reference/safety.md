@@ -723,7 +723,7 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   `--match-head-commit`. `merge_method` is sent, `merge_action` is `direct_merge`, and
   `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
-- **Result.** The gate polls for up to 60 seconds, at the 60-second wait cadence; a 200 means already merged or already queued. A
+- **Result.** The gate polls for up to 90 seconds, at the 90-second wait cadence; a 200 means already merged or already queued. A
   409 means a request is already pending, possibly another actor's. When its body states that
   request's `expected_head_sha` or `merge_action`, each must equal this run's pin and action;
   otherwise the gate does not poll it, reports it as `merge.conflictingRequest` with exit `10`, and
@@ -862,7 +862,7 @@ sets none, then the reusable workflow's job.
   reusable, or a change to a lane caller's job id.
 
 To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
-([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-rate-limited-review)), never only its failed jobs. A failed-jobs rerun
+([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-lane-run)), never only its failed jobs. A failed-jobs rerun
 reruns the failed `-status` job alone, which re-reads the cached rate-limit output of the `review` job that succeeded and
 fails again.
 

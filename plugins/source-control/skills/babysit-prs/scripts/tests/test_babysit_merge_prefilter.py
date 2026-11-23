@@ -81,13 +81,10 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
             [(h["number"], h["reason"]) for h in held],
             [(2, "body-hold"), (3, "do-not-merge"), (7, "needs-human")],
         )
-        # The gate loop reads exactly the fields it read before.
         self.assertEqual(set(kept[0]), {"number", "head", "updatedAt"})
         self.assertEqual(held[0]["head"], candidates[1]["head"])
 
     def test_one_held_candidate_stays_when_every_candidate_is_held(self) -> None:
-        # Its gate process sweeps the merge queue, so a held entry the
-        # identity queued before the hold still leaves it.
         kept, held = self._run(
             [_candidate(5, body=HELD_BODIES[1]), _candidate(6, labels=["do-not-merge"])]
         )

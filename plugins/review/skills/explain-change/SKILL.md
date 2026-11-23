@@ -146,17 +146,19 @@ Both can put a page about one pull request on claude.ai, so the two get confused
 
 - **Pointer**: the `artifact-pr-review` row in [`docs/native-surfaces.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/native-surfaces.md); no upstream page documents the skill.
 
-## Related
-
-- `/review:reviewer-media` turns this digest into a narrated walkthrough for the pull request's
-  reviewers; `/explainer-video:produce` renders it and `/source-control:pull-request` places it.
-- `/education:illustrate` explains a concept rather than a pull request.
-- `/playwright:demo-video` records a live UI flow for the pull request.
-
 ## Next
 
 - The change still needs its review pass: /review:quality-gate pr.
 - Its reviewers should get a walkthrough video: /review:reviewer-media <pr>.
+
+## Related
+
+- Risk rating alone without walkthrough: /review:merge-risk.
+- Explain a concept rather than a PR: /education:illustrate.
+- Record a live UI flow for the PR: /playwright:demo-video.
+- Render a narrated video: /explainer-video:produce.
+- Manage or place PR media: /source-control:pull-request.
+- Turn this digest into a narrated walkthrough for reviewers: /review:reviewer-media.
 
 ## Gotchas
 

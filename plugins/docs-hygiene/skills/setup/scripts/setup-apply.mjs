@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// The YAML reader is the plugin's bundled copy under lib/. The usage,
-// the other options, the guarantees and the exit codes are in
-// ../../../lib/setup-apply.mjs.
-
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { run } from "../../../lib/setup-apply.mjs";

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-restatement-labels.py.
-#
-# Self-contained and cwd-independent; mutates only its own guarded mktemp dir.
-# The two fixture slices under tests/fixtures/restatement-labels/ are read in
-# place and never written.
-#
-# The cases that matter are the ones where a wrong answer is invisible: a
-# summary line, handoff bullet, catalog row or abstract that names a flagged or
-# MEDIUM claim without its label must fail, and the same slice with the labels
-# restored must pass.
 # test-scope: plugins/discovery/tests/fixtures/restatement-labels/*
 set -uo pipefail
 
@@ -26,9 +16,6 @@ trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# run <expected-exit> <label> [--err <stderr-substring>] [args...]
-# --err also requires stderr to contain the substring, so a case fails for its
-# intended reason rather than for any violation at all.
 run() {
   local expected="$1" label="$2" want_err=""
   shift 2
@@ -59,19 +46,12 @@ expect_out() {
   fi
 }
 
-# claim <id or -> <confidence> [text]; "-" omits the id: key, and the text
-# defaults to "c".
 claim() {
   printf '  - claim: "%s"\n' "${3-c}"
   if [[ "$1" != - ]]; then printf '    id: %s\n' "$1"; fi
   printf '    confidence: %s\n    applies_to: version-independent\n    sources: []\n' "$2"
 }
 
-# mkslice <name> <claims text> <index body> [sidecar body]; prints the slice dir.
-# The sidecar abstract quotes the first claim that has an id, as
-# <id> (<confidence>): "<claim>", and the index mirrors it after the body as
-# "- s: <abstract>", so a slice passes the abstract rules unless a case
-# overrides them. With no id'd claim the abstract is "a" and is not mirrored.
 mkslice() {
   local d="$WORK/$1" first abstract="a" mirror=""
   mkdir -p "$d"
@@ -148,8 +128,6 @@ run 0 "S2 is not found in S2a" "$(mkslice s2a "$(claim S2 MEDIUM)" 'S2a is anoth
 run 1 "a range names both ends" --err 'P3 (MEDIUM)' \
   "$(mkslice range "$(claim P1 HIGH)
 $(claim P3 MEDIUM)" 'Causes P1-P3 hold.')"
-# mkslice puts the index body on line 6, and a one-claim sidecar's body on
-# line 15.
 run 1 "a table row is one line" --err 'RESEARCH.md:6: CI-02 (MEDIUM)' \
   "$(mkslice row "$MEDIUM" '| CI-02 | started_at - created_at |')"
 run 1 "a sidecar body line is checked" --err 'RESEARCH-s.md:15: M1 (HIGH (single source))' \
@@ -182,10 +160,6 @@ run 1 "a fetch-log heading inside a code fence does not open a skip" --err 'RESE
 
 See M1.')"
 
-# --- sweep words ------------------------------------------------------------
-# An index line that cites a claim ID carries no sweep word: "every", "all",
-# "none" or "only" there widens the claim it points at.
-
 run 1 "a sweep word beside a cited ID fails" --err 'RESEARCH.md:6: M1 cited beside the sweep word "every"' \
   "$(mkslice sweep "$FLAGGED" 'M1 (HIGH (single source)) holds for every version.')"
 expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=3 quoted=2'
@@ -203,12 +177,6 @@ run 0 "a sweep word with no cited ID passes" \
   "$(mkslice no-cite "$PLAIN" 'None of this is settled.')"
 run 0 "a sidecar body line may carry a sweep word" \
   "$(mkslice sweep-sidecar "$PLAIN" 'Index.' 'K9: "c" holds for every hook.')"
-
-# --- verbatim quotes --------------------------------------------------------
-# A sidecar line that cites a claim ID quotes the claim as <id>[ (<label>)]: "<claim>",
-# matched byte for byte. A dropped condition, a "prefer" turned into a rule or
-# an added "only" carries no sweep word and keeps its label, so only the exact
-# match catches it.
 
 SD2="$(claim SD2 HIGH 'Prefer one phase per concern unless the phase mixes independent concerns')"
 run 0 "a sidecar line quoting its claim verbatim passes" \
@@ -247,14 +215,6 @@ printf -- "---\ntopic: t\nsection: s\nabstract: 'M1 (MEDIUM): \"it''s c\"'\nclai
 run 0 "a quoted YAML abstract is read as its unquoted value" "$quoted_abstract"
 expect_out "the abstract's quote is counted" 'status=pass ids=1 labeled=1 mentions=2 quoted=2'
 
-# --- abstracts --------------------------------------------------------------
-# A sidecar that declares an id'd claim quotes one of its claims in its
-# abstract, and the index mirrors that abstract as "- <section>: <abstract>"
-# byte for byte. An abstract that names no ID escapes every rule above, so a
-# seed abstract that drops its claim's exception would reach the index unseen.
-
-# abstracts <name> <sidecar abstract, as YAML> <index mirror line>: an SD2 slice
-# whose sidecar abstract and index mirror line are the given ones.
 abstracts() {
   local d
   d="$(mkslice "$1" "$SD2" 'Index.')"
@@ -313,19 +273,11 @@ run 2 "unknown flag" "$FIXTURES/corrected" --strict
 run 2 "two slice dirs" "$FIXTURES/corrected" "$FIXTURES/unlabeled"
 expect_out "ungradeable summary line" 'status=ungradeable'
 
-# A labeled mention in a sub-slice is never read.
 nested="$(mkslice nested "$FLAGGED" 'Index.')"
 mkdir -p "$nested/sub"
 printf -- '---\nabstract: a\n---\nM1 here.\n' >"$nested/sub/RESEARCH.md"
 run 0 "sub-slices are not recursed into" "$nested"
 
-# --- a claim-free slice root, checked against its sub-slices ----------------
-# A synthesis that adds no claims cites each sub-slice claim by ID. Without
-# --sub-slice no script sees those pointers; with it, the sub-slices' declared
-# IDs and labels grade the root's index lines.
-
-# mkroot <name> <index body> [claims-free]: a slice root with no sidecar, or
-# with one holding only claims: [] when a third argument is given.
 mkroot() {
   local d="$WORK/$1"
   mkdir -p "$d"
@@ -337,7 +289,6 @@ mkroot() {
   printf '%s' "$d"
 }
 
-# The sub-slice's own index drops M1's label; only the root's lines are read.
 sub_a="$(mkslice sub-a "$FLAGGED" 'M1 unlabeled in the sub-slice.')"
 sub_b="$(mkslice sub-b "$MEDIUM" 'Index.')"
 run 0 "a claim-free root citing sub-slice claims with their labels passes" \

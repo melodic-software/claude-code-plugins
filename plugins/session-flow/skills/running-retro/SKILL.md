@@ -278,6 +278,13 @@ counterpart. When checking when a `/loop` task stops firing, fetch
 
 It scores the session and codifies the learnings this checkpoint only captured.
 
+## Related
+
+- Codify a durable learning immediately: /corrections:codify.
+- Draft a new-skill candidate: /playbooks:skill-authoring.
+- Gate a new-skill candidate: /skill-quality:check.
+- End session with a save-point instead: /session-flow:handoff.
+
 ## Gotchas
 
 - **The subjective-state note is mandatory**. Skipping it discards the one input the subagent

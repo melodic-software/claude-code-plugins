@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-author-kind.py.
-#
-# Self-contained and cwd-independent; mutates only its own guarded mktemp dir.
-#
-# The case that matters is the one a verifier kept failing by hand: a Direct
-# claim resting only on a comment an agent wrote under a person's login.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +14,6 @@ trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# run <expected-exit> <label> [--err <stderr-substring>] [args...]
 run() {
   local expected="$1" label="$2" want_err=""
   shift 2
@@ -51,20 +44,17 @@ expect_out() {
   fi
 }
 
-# src <author_kind or ->; "-" omits the key.
 src() {
   printf '      - ref: "PR #1"\n        kind: source-control\n        reliability: "the change author, two years old"\n'
   if [[ "$1" != - ]]; then printf '        author_kind: %s\n' "$1"; fi
 }
 
-# claim <tier or -> <sources text>; "-" omits the tier.
 claim() {
   printf '  - claim: "c"\n'
   if [[ "$1" != - ]]; then printf '    tier: %s\n' "$1"; fi
   printf '    sources:\n%s\n' "$2"
 }
 
-# mkslice <name> <claims text>; prints the slice dir.
 mkslice() {
   local d="$WORK/$1"
   mkdir -p "$d"
@@ -76,8 +66,6 @@ mkslice() {
 
 QUOTE="$(src owner-quote)"
 RELAY="$(src agent-relay)"
-
-# --- a Direct claim needs a person's own words ------------------------------
 
 run 1 "Direct with only an agent relay fails" --err 'claim 1: Direct needs an owner-quote source' \
   "$(mkslice relay "$(claim Direct "$RELAY")")"
@@ -95,8 +83,6 @@ run 1 "Direct with no sources fails" --err 'Direct needs an owner-quote source' 
   "$(mkslice empty "$(claim Direct '')")"
 run 0 "a trailing comment on the tier and the tag is read past" \
   "$(mkslice comments "$(claim 'Direct   # a comment' "$(src 'owner-quote  # the quoted span')")")"
-
-# --- a source on a Direct claim needs a valid tag ---------------------------
 
 run 1 "a missing author_kind on a Direct source fails" --err 'source 1: author_kind is None' \
   "$(mkslice no-tag "$(claim Direct "$(src -)")")"
@@ -153,18 +139,12 @@ run 2 "unknown flag" "$WORK/none" --strict
 run 2 "two slice dirs" "$WORK/none" "$WORK/none"
 expect_out "ungradeable summary line" 'status=ungradeable'
 
-# --- every skill calls the script by path, so it must run that way ----------
-
 if "$SUT" "$WORK/none" >"$WORK/stdout" 2>"$WORK/stderr"; then
   pass "runs by direct path"
 else
   fail "runs by direct path: $(cat "$WORK/stderr")"
 fi
 expect_out "direct path summary line" 'status=pass claims=0 direct=0'
-
-# --- an interpreter that strips docstrings ----------------------------------
-# PYTHONOPTIMIZE=2 sets __doc__ to None here and in the parser this script
-# loads. A traceback exits 1, which reads as a violation; exit 2 is the contract.
 
 PYTHONOPTIMIZE=2 run 0 "--help with docstrings stripped" --help
 PYTHONOPTIMIZE=2 run 2 "docstrings stripped: a parser that cannot load is ungradeable" \

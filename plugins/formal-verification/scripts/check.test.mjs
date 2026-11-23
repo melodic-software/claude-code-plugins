@@ -17,7 +17,7 @@ test.after(() => {
 });
 
 const git = (dir, ...args) => {
-  const r = spawnSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "maintenance.auto=false", "-c", "gc.auto=0", ...args], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout.trim();
 };
@@ -296,9 +296,9 @@ test("outside a git work tree the check exits 2", () => {
   assert.equal(check(dir).code, 2);
 });
 
-const snapshot = (root) => {
+const workingTreeSnapshot = (root) => {
   const walk = (dir) =>
-    readdirSync(dir).flatMap((e) => {
+    readdirSync(dir).filter((e) => e !== ".git").flatMap((e) => {
       const p = join(dir, e);
       return statSync(p).isDirectory() ? walk(p) : [`${p} ${statSync(p).mtimeMs} ${createHash("sha256").update(readFileSync(p)).digest("hex")}`];
     });
@@ -307,12 +307,12 @@ const snapshot = (root) => {
 
 test("the check is deterministic and edits no file", () => {
   const { root } = staleRepo({ sync: { covers: ["src/lock.js", "src/gone.js"] } });
-  const before = snapshot(root);
+  const before = workingTreeSnapshot(root);
   const first = check(root);
   const second = check(root);
   assert.equal(first.code, 1);
   assert.equal(first.out, second.out);
-  assert.deepEqual(snapshot(root), before);
+  assert.deepEqual(workingTreeSnapshot(root), before);
 });
 
 test("** crosses folders and * stays inside one", () => {

@@ -166,8 +166,13 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then
-PR creation; after fixes, a `self` re-run of this skill (Step 4).
+- All-clear verdict: /verification:confirm, then /source-control:pull-request create.
+- Findings fixed: /review:quality-gate self, the Step 4 re-run.
+
+## Related
+
+- Multi-surface breadth review into one ranked report: /review:fanout.
+- Multi-model reviewer panel with fix rounds: /review:council.
 
 ## Gotchas
 

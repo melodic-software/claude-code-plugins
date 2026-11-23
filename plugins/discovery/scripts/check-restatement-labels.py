@@ -209,7 +209,6 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
             continue
         entry = csa.top_level(headers[sidecar], "abstract", f"{sidecar}: front matter")
         value = csa.scalar(entry[1]) if entry else None
-        # Front-matter index j is file line j + 2: line 1 is the opening ---.
         line_no = entry[0] + 2 if entry else 1
         if not value or not any(m.group(1) in own for m in opener.finditer(value)):
             violations.append(f"{sidecar}:{line_no}: abstract quotes none of its claims")
@@ -219,7 +218,6 @@ def abstract_violations(csa, index: Path, sidecars, headers, declared, opener) -
         mirrors = [(n, line) for n, line in body if line.startswith(key)]
         if not mirrors:
             violations.append(f'{index}: no "{key}" abstract line for {sidecar.name}')
-        # Another bullet may open with the same prefix, so one exact copy suffices.
         if any(line[len(key) :] == value for _, line in mirrors):
             continue
         violations.extend(

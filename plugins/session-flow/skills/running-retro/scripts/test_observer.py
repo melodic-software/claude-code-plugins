@@ -683,13 +683,11 @@ class AnalysisPrompt(unittest.TestCase):
 
     def test_compute_dont_assert_rule_present(self):
         self.assertIn("Compute, don't assert", self.prompt)
-        # Names the failure modes the validation report actually observed.
         self.assertIn("sequencing", self.prompt)
         self.assertIn("batching", self.prompt)
         self.assertIn("delegation", self.prompt)
         self.assertIn("occurrence count", self.prompt)
         self.assertIn("message id", self.prompt)
-        # Uncomputable structural claims must be dropped, not asserted anyway.
         self.assertIn("drop the claim", self.prompt)
 
     def test_absent_grouping_key_reads_as_uncomputable(self):
@@ -1014,7 +1012,6 @@ class Locking(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
-            # A lock from a dead pid must be reclaimable.
             ob.lock_path.write_text(
                 json.dumps(
                     {"pid": 2**30, "started": observer.now_iso(), "session_id": "sid"}
@@ -1033,7 +1030,7 @@ class Locking(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
-            ob.lock_path.write_text("", encoding="utf-8")  # created, not yet written
+            ob.lock_path.write_text("", encoding="utf-8")
             self.assertFalse(
                 ob.acquire_lock(),
                 "empty/mid-write lock (fresh mtime) must not be reclaimed",
@@ -1283,7 +1280,6 @@ class LedgerAndRetention(unittest.TestCase):
             with fake_analysis_run(captured):
                 self.assertTrue(ob._run_analysis())
             cmd = captured["cmd"]
-            # Genuinely tool-restricted, MCP-off, prompt via stdin, --bare default off.
             self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
             self.assertIn("--strict-mcp-config", cmd)
             self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "dontAsk")
@@ -1560,7 +1556,7 @@ class LedgerAndRetention(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, session_id="rs")
-            self.assertEqual(ob._resume_offset(), 0)  # no prior status
+            self.assertEqual(ob._resume_offset(), 0)
             ob.status_path.write_text(
                 json.dumps({"target_session": "rs", "byte_offset": 4096}),
                 encoding="utf-8",
@@ -1637,7 +1633,7 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertTrue(ob._ensure_memory_root_ignored())
             body = (root / ".gitignore").read_text(encoding="utf-8")
             self.assertIn("*", body.splitlines())
-            self.assertIn("# notes", body)  # existing content preserved
+            self.assertIn("# notes", body)
 
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1649,7 +1645,6 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertTrue(
                 ob.obs_path.exists(), "collect-only must retain observations"
             )
-            # Consumed analysis: observations deleted.
             ob._cleanup_observations()
             self.assertFalse(ob.obs_path.exists())
 
@@ -1668,14 +1663,14 @@ class ArmLauncher(unittest.TestCase):
         arm = self._arm()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))  # no lock
+            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
             (tmp / "observer-s.lock").write_text(
                 json.dumps({"pid": os.getpid()}), encoding="utf-8"
             )
             self.assertEqual(arm.live_observer_pid(str(tmp), "s"), os.getpid())
             (tmp / "observer-s.lock").write_text(
                 json.dumps({"pid": 2**30}), encoding="utf-8"
-            )  # dead pid
+            )
             self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
 
     def _run_main(self, argv: list[str], arm=None) -> tuple[int, str]:
@@ -1869,7 +1864,6 @@ class ArmLauncher(unittest.TestCase):
         self.assertIn("--idle-confirm-seconds", cmd)
         flag_index = cmd.index("--idle-confirm-seconds")
         self.assertEqual(cmd[flag_index + 1], "7")
-        # --effort is forwarded the same way.
         self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
 
     def test_non_oserror_at_spawn_degrades_gracefully(self):

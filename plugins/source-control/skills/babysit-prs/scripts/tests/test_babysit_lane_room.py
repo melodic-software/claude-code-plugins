@@ -45,7 +45,6 @@ MAIN = "c" * 40
 FLOOR = datetime(2026, 10, 1, tzinfo=UTC)
 # Five minutes after the answer was computed: inside the gate's reuse age.
 NOW = FLOOR + timedelta(minutes=5)
-# The default branch head and floor a recompute reads.
 NEW_MAIN = "e" * 40
 NEW_FLOOR = FLOOR + timedelta(minutes=1)
 # A passing answer with lane merge #5 still unverified, read three minutes on:
@@ -124,7 +123,6 @@ def run(
     created: datetime = FLOOR,
     run_id: int | None = None,
 ) -> dict[str, object]:
-    """One row of the actions runs listing."""
     row: dict[str, object] = {
         "path": f".github/workflows/{workflow}",
         "status": status,
@@ -1487,7 +1485,9 @@ class CheckCodeUnchanged(unittest.TestCase):
         self.assertFalse(self.unchanged(self.commits["parser"], "wrapper"))
 
     def commit_config(self, text: str) -> str:
-        (self.root / "docs/conventions/pr-pipeline.yaml").write_text(text)
+        (self.root / "docs/conventions/pr-pipeline.yaml").write_bytes(
+            text.encode("utf-8")
+        )
         self.git("commit", "-q", "--allow-empty", "-am", "edit")
         return self.git("rev-parse", "HEAD").strip()
 

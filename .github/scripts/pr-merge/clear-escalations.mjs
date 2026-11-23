@@ -351,7 +351,6 @@ const reportError = (number, error) =>
 // finding, a merge-risk hold, an owner reason, an unknown one) keeps it for a
 // person or a trusted push (owner direction on the security finding).
 export const LANE_ONLY = Object.freeze(["feedback-not-landed"]);
-// Any lane's escalation line.
 const ANY_ESCALATION = "<!-- work-items:escalation";
 
 // The first escalation recorded against the label since it was last removed
@@ -802,7 +801,6 @@ function pairedWithPrMerge(appComments, since) {
 // A read that fails, or a listing that may be cut short, keeps the hold.
 
 export const STALE_HOLD = "stale-review-hold";
-// Each review caller's lane id, as its notices and comments name it.
 const LANE_OF = Object.freeze(Object.fromEntries(LANE_RECORDS.map(({ file, lane }) => [file, lane])));
 const SECURITY_LANE = "claude-security-review";
 // The security lane's per-finding severity line (/review:security-review

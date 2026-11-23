@@ -3,6 +3,12 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-11-23
+
+### Changed
+
+- `setup`'s `## Next` names `/performance:target` for a hook stage over its time budget in `setup check inspect`.
+
 ## [3.2.3] - 2026-11-22
 
 ### Changed

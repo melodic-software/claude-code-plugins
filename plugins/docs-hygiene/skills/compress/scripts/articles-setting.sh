@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# Prints one line, tab-separated, and exits 0:
-#   keep | cut                 the file sets a valid value
-#   unset<TAB><reason>         the layer does not apply: no git working tree, a root
-#                              that is $HOME or an ancestor of it, no file, or no key
-#   invalid<TAB><what>         the key is present but holds no valid value: the raw
-#                              value, "(no value)", "set N times" or "does not parse"
-# Exit 2 on a usage error. The caller resolves the other layers and the default
-# (reference/config.md); this script reads only the repository file.
+# Exit: 0 after printing the setting line; 2 on a usage error.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

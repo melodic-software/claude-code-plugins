@@ -103,6 +103,11 @@ gates nothing; a gate that reads `demote` follows these rules.
 
 /review:explain-change, which shows this rating as its risk map beside the walkthrough.
 
+## Related
+
+- PR merge gate consuming demote flag: /source-control:pull-request.
+- Multi-model council using risk tier: /review:council.
+
 ## Gotchas
 
 - A rating names its head. Reusing it after a push rates code nobody read.

@@ -230,6 +230,11 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 - The view settles a decision worth keeping: `/architecture:adr`.
 
+## Related
+
+- Chart every deployable in repository: /architecture:map-containers.
+- Regenerate underlying project graph: /architecture:map-dependencies.
+
 ## Gotchas
 
 - **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4

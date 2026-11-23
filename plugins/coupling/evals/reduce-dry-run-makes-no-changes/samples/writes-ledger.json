@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".work/coupling/coupling-ledger.md", "docs/api.md"],
+      "why": "the dry run wrote its ledger"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["docs/api.md", "docs/setup.md"],
+      "why": "no ledger: the dry run did nothing durable"
+    },
+    {
+      "answer": [".work/coupling/notes.md"],
+      "why": "a file under the slice, but not the ledger"
+    }
+  ]
+}

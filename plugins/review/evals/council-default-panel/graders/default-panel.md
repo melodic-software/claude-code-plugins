@@ -1,8 +1,5 @@
 ---
-type: llm
-arm: both
+type: regex
+pattern: '^(?=[\s\S]*\bcorrectness\b)(?=[\s\S]*\bdesign\b)(?=[\s\S]*\badversarial\b)(?=[\s\S]*\bopus\b)(?=[\s\S]*\bbrief-reviewer\b)(?=[\s\S]*(?:\bthree\b|\b3\b))(?=[\s\S]*(?:\b(?:one|1|single)\s+round|\brounds?\b[^\n]{0,20}\b(?:1|one)\b))(?=[\s\S]*(?:(?:scores?|marks?)\b[^\n]{0,40}\b(?:off|no|none|not)\b|\bno\s+(?:mark|score)))'
+flags: i
 ---
-
-PASS if the answer says three members run, briefed correctness, design and adversarial; each runs on Opus as the review plugin's brief-reviewer agent; one round runs; and scores (marks) are off, so the report has no mark table.
-
-FAIL if the answer names a different member count or set of briefs, a model other than Opus for these defaults (Fable included), a different agent, more than one round, or scores on; or if it says nothing runs without configuration.

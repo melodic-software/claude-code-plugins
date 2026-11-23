@@ -244,8 +244,6 @@ const datingOf = r => {
 const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored. For a section you still need that the slices lack, use WebFetch on that page.'
 
 const pageOf = u => String(u).split('#')[0]
-// The other addresses a reader may request, to date its page: a sitemap.xml at
-// the page's origin or one of its parent paths.
 const sitemapsOf = u => {
   try {
     const { origin, pathname } = new URL(pageOf(u))
@@ -271,11 +269,6 @@ const utf8Bytes = s => {
   return n
 }
 
-// One docs-raw output, keyed to the URL this script asked for: a header naming
-// another URL, or none, makes the page unread. The fetcher model retypes the
-// body, so a body whose UTF-8 length differs from the header's bytes, or whose
-// hash differs from body_sha256 (checked when the runtime has Web Crypto), is
-// unread too.
 async function parseRaw(url, ids, out) {
   const base = { url, sections: ids }
   const text = typeof out === 'string' ? out.replace(/\r\n/g, '\n') : ''
@@ -321,8 +314,6 @@ function fetchOne(req) {
   return inflight.get(key)
 }
 
-// Every slice held for the pages of these URLs, until the prompt cap; past it a
-// slice is listed omitted, with no body.
 function slicesFor(urls) {
   const out = []
   let used = 0
@@ -341,8 +332,6 @@ function slicesFor(urls) {
   return out
 }
 
-// An agent given the slices for its URLs; when it requests pages or sections it
-// lacks that `allowed` admits, the script fetches them and asks it once more.
 async function judged(build, o, urls, allowed) {
   const first = await agentRetry(build(fence('slices', slicesFor(urls)) + SLICE_RULE), o)
   const asked = (first && Array.isArray(first.requests) ? first.requests : [])
@@ -541,15 +530,12 @@ if (!selected.length) {
   }
 }
 
-// ---- Fetch ----
-// Every selected page, read once, before any reader runs.
 phase('Fetch')
 await inWaves(selected.map(s => () => fetchOne({ url: s.url, sections: [] })), MAX_CONCURRENT)
 log('Fetch: ' + [...slices.values()].filter(s => s.state === 'read').length + '/' + selected.length + ' selected pages read raw')
 
 phase('Read')
 
-// A reader may request sections of its own page, and a sitemap that dates it.
 const readers = selected.map((s, i) => ({ label: 'read:' + (i + 1), src: s }))
 const reads = await inWaves(readers.map(r => () => judged(extra =>
   'Stage: read. Read the source URL below in full, from its slices when they cover it. Record whether ' +
@@ -572,7 +558,6 @@ const fetchLog = readers.map((r, i) => {
     ? { url: r.src.url, fetched: !!got.fetched, tool: got.tool || null, outcome: got.outcome || null }
     : { url: r.src.url, fetched: false, tool: null, outcome: 'no result from reader' }
 })
-// A read is keyed by the URL this script assigned, never one the reader reported.
 const readOk = reads
   .map((x, i) => (x ? { ...x, url: readers[i].src.url } : x))
   .filter(x => x && x.fetched && Array.isArray(x.claims) && x.claims.length)
@@ -598,7 +583,6 @@ if (readOk.length) {
   if (merged == null) nulls.push('consolidate')
   claims = merged && Array.isArray(merged.claims) ? merged.claims.filter(c => c && c.claim) : []
 }
-// A claim cites only URLs that were actually read, so no later stage fetches an address nobody vetted.
 const loadBearing = claims
   .filter(c => c.loadBearing)
   .map((c, i) => ({ ...c, urls: (Array.isArray(c.urls) ? c.urls : []).filter(u => readUrls.has(u)), id: 'c' + (i + 1) }))
@@ -679,8 +663,6 @@ const offGrammar = s => (s && Array.isArray(s.findings) ? s.findings : [])
       .filter(c => c && typeof c === 'object' && !appliesToOk(c.applies_to))
       .map(c => ({ id: f.id, url: c.url ?? null, applies_to: c.applies_to ?? null })),
   ])
-// A value still outside the grammar is recorded unstated, never guessed, and
-// the text as written goes to the finding's qualifiers.
 function settled(f) {
   const kept = []
   const fix = (v, where) => {
@@ -731,8 +713,6 @@ if (survived.length || refuted.length || unverified.length) {
   const synthOpts = { phase: 'Synthesize', schema: SYNTH_SCHEMA, ...opts(R.orchestrator.single) }
   synthesis = await agentRetry(synthPrompt, { ...synthOpts, label: 'synthesize' })
   if (synthesis == null) nulls.push('synthesize')
-  // A surviving finding or source whose applies_to is outside the grammar is
-  // asked for once more, with the grammar and the values named.
   const off = offGrammar(synthesis)
   if (off.length) {
     const label = 'synthesize:r2'
@@ -743,9 +723,6 @@ if (survived.length || refuted.length || unverified.length) {
       'scope text that does not fit it into the finding\'s qualifiers.' + fence('nonconforming', off),
       { ...synthOpts, label },
     ).catch(() => null)
-    // A finding the re-ask leaves out keeps its first-round form, and a
-    // first-round applies_to in the grammar is kept over a round-two value
-    // outside it, for the finding and for each of its sources by url.
     if (again == null) nulls.push(label)
     else {
       const first = new Map(synthesis.findings.filter(f => f && tallyById.has(f.id)).map(f => [f.id, f]))
@@ -769,9 +746,6 @@ if (survived.length || refuted.length || unverified.length) {
   log('Synthesize: no claim reached verification, so there is nothing to synthesize')
 }
 
-// Consensus counts come from the tally, never from the synthesizer, and a
-// finding whose id did not survive is dropped. Each finding carries its own
-// fetch entries, keyed to the claim, from this run's fetch log.
 const fetchByUrl = new Map(fetchLog.map(f => [f.url, f]))
 const findings = (synthesis && Array.isArray(synthesis.findings) ? synthesis.findings : [])
   .filter(f => f && tallyById.has(f.id))

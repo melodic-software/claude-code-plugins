@@ -74,7 +74,7 @@ class Fixture:
                 target.unlink()
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text)
+            target.write_bytes(text.encode("utf-8"))
         self.git("add", "-A")
         self.git("commit", "-q", "-m", message)
         return self.git("rev-parse", "HEAD")

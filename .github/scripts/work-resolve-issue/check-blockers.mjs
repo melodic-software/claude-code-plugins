@@ -80,13 +80,13 @@ import { createGitHub } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
-import { authorTrust, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorTrust, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, openSubIssues, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { loadRules } from "../intake-triage/issue-spec.mjs";
 import { trustedSplitChild } from "../intake-triage/size-split.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-// `#n` for a blocker in this repository, `owner/repo#n` for one elsewhere.
 const named = (blocker, repository) => {
   const repo = String(blocker?.repository_url ?? "").match(/\/repos\/([^/]+\/[^/]+)$/)?.[1] ?? "?";
   return `${repo.toLowerCase() === repository.toLowerCase() ? "" : repo}#${blocker?.number}`;
@@ -104,7 +104,6 @@ export async function main({ env = process.env, github, log = console.log, write
   let drift = false;
   let finished = null;
   let rechecked = false;
-  // Logs why the run does not proceed and writes its outputs; never fails the job.
   const skip = (message, outputs = { proceed: "false", untrusted: "false" }) => {
     log(message);
     write(outputs);

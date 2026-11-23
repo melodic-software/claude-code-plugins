@@ -38,6 +38,10 @@ as an argument. Do not open or edit the scene plugin's files from here.
 
 /retro-audio:music to score a loop in the same chip voice.
 
+## Related
+
+- Play the effect inside a scene: /pixel-art:scene.
+
 ## Gotchas
 
 - `attack`, `sustain`, and `decay` are seconds. Their sum is the file length.

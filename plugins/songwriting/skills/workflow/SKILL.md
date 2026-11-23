@@ -128,6 +128,18 @@ defines one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled skill default, first match, per that file's "Template override".
 
+## Related
+
+- Rhyme choice and worksheets: /songwriting:rhyme.
+- Sensory object writing, cliches, and POV: /songwriting:object-writing.
+- Metaphor generation and diagnosis: /songwriting:metaphor.
+- Scansion, prosody, and melody fit: /songwriting:meter-prosody.
+- Song structure, hooks, and bridges: /songwriting:song-form.
+- Co-write rules, titles, and line dumps: /songwriting:co-write.
+- Draft diagnosis, audit, and rewrites: /songwriting:revise.
+- Daily practice curriculum: /songwriting:practice.
+- Suno v5.5 prompt formatting: /songwriting:suno.
+
 ## What this plugin does not do
 
 Pat's books cover lyric craft and structure. This plugin does not handle melody writing, chords,

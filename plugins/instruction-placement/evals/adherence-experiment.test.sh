@@ -230,21 +230,12 @@ assert_usage_error "--filler with no value is a usage error" --filler
 assert_usage_error "a non-integer --filler is a usage error" --filler abc
 assert_usage_error "--claude with no value is a usage error" --claude
 
-# ---------------------------------------------------------------------------
-# An unmeasurable run reports UNKNOWN and never emits counts
-# ---------------------------------------------------------------------------
 out="$(bash "$SCRIPT" --claude /nonexistent-cli-xyz 2>&1)"
 rc=$?
 assert_eq "an absent CLI exits 3" "3" "$rc"
 assert_contains "the absent CLI reports UNKNOWN" "$out" "UNKNOWN"
 assert_lacks "an unmeasurable run prints no RESULT row" "$out" "RESULT"
 
-# ---------------------------------------------------------------------------
-# Arm construction: only the DELIVERY of the convention may differ
-#
-# --trials 0 builds both arms and runs no model call, so these are assertions
-# about the experiment's internal validity rather than about any model.
-# ---------------------------------------------------------------------------
 out="$(run_with_plan 0 3 --keep)"
 assert_eq "a zero-trial run still exits 0" "0" "$?"
 kept="$(printf '%s\n' "$out" | sed -n 's/^Fixture kept at: //p')"
@@ -326,11 +317,6 @@ else
 fi
 rm -rf "$kept"
 
-# ---------------------------------------------------------------------------
-# Scoring, in BOTH directions
-#
-# Plan order is control-then-treatment per round.
-# ---------------------------------------------------------------------------
 out="$(run_with_plan 1 2 compliant bare)"
 assert_contains "a compliant trial scores sealed, underscore and both" "$out" \
   "$(row control 1 1 1 1)"
@@ -425,9 +411,6 @@ assert_contains "a crashed trial is excluded from the arm's n" "$out" \
 assert_contains "the honesty bound is restated with the numbers" "$out" \
   "no p-value is computed"
 
-# ---------------------------------------------------------------------------
-# Cleanup: without --keep the fixture is removed, not merely unreported
-# ---------------------------------------------------------------------------
 PRIVATE_TMP="$SANDBOX/tmp"
 mkdir -p "$PRIVATE_TMP"
 out="$(TMPDIR="$PRIVATE_TMP" run_with_plan 1 2 compliant compliant)"

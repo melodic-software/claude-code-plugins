@@ -180,8 +180,6 @@ git -C "$root" config user.email fixture@example.invalid
 git -C "$root" config user.name "Fixture"
 git -C "$root" config commit.gpgsign false
 write_team "$root" '{"regex": "^from-cwd$"}'
-# A version-manager shim (mise) resolves jq through $HOME, so it breaks under the
-# fixture HOME; put the real jq, found while HOME is still real, first on PATH.
 jq_bin="$TEST_TMPDIR/jq-bin"
 mkdir -p "$jq_bin"
 ln -sf "$(mise which jq 2>/dev/null || command -v jq)" "$jq_bin/jq"

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/reduce/scripts/collision-hotspots.sh\" --prs 20"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --name-only --format=%H -- src"
+          }
+        }
+      ],
+      "why": "attempts the measure, then co-change"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --name-only --format=%H -- src"
+          }
+        }
+      ],
+      "why": "co-change only, the measure never attempted"
+    }
+  ]
+}

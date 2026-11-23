@@ -156,6 +156,11 @@ live ElevenLabs specifics (models, script-writing guidance, voice cloning, prici
 
 When the run stopped with exit 2, it lists the declared tools this machine lacks.
 
+## Related
+
+- Missing Kokoro model or prerequisites on exit 2: /speech:setup.
+- Render narrated explainer video using speech output: /explainer-video:produce.
+
 ## Gotchas
 
 - Never read, print or pass `ELEVENLABS_API_KEY` yourself. `elevenlabs.py` reads it from the

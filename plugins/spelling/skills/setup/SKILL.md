@@ -105,6 +105,10 @@ way too.
      `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).
    - The governing config, as INFO: named, or absent. An absent config does not make the check
      inert; the user can add one to tune the rules. Do not offer to create one.
+   - A file row with source `none` and detail `generated (marker: <regex>)`: INFO. The entry
+     skips that file because its staged copy matches a generated-file marker in its first 5
+     lines. Extra markers come from the `spelling.generatedHeader` git config key
+     (`git config --get-all spelling.generatedHeader`).
    A detail saying a spelling record exists is INFO beside the row: the hooks never run it, and
    `/toolchain:lint` or `/toolchain:check` runs it on request.
 4. **Draft, never write, the record.** When the person names a spell-checker the plugin ships no

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-coverage-complete.sh and its .py twin.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-#
-# The cases that matter are the ones where a wrong answer is invisible: a
-# malformed ledger must never read as "complete", and an unmarked box in a
-# column that is not Done must never read as "incomplete". Both
-# implementations must agree on every exit code and greppable summary.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +14,6 @@ trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# run_one <sut-spec> <expected-exit> <label> [args...]
 run_one() {
   local sut_spec="$1" expected="$2" label="$3"
   shift 3
@@ -37,7 +28,6 @@ run_one() {
   fi
 }
 
-# run <expected-exit> <label> [args...]  — every SUT
 run() {
   local expected="$1" label="$2"
   shift 2
@@ -64,9 +54,6 @@ all_marked="$(ledger all-marked.md \
   '| 2 | beta  | its changelog fetched this turn   | [X] |')"
 run 0 "all rows marked passes" "$all_marked"
 
-# An unmarked box in a NON-Done column is not an unmarked row. A blind
-# `grep -q '\[ \]'` would fail this ledger, which is why the gate is
-# column-aware rather than pattern-matched.
 other_col="$(ledger other-column.md \
   '| 1 | alpha [ ] | criterion mentioning [ ] literally | [x] |')"
 run 0 "unmarked box outside the Done column passes" "$other_col"
@@ -80,11 +67,6 @@ none_marked="$(ledger none-marked.md \
   '| 1 | alpha | criterion | [ ] |' \
   '| 2 | beta  | criterion | [ ] |')"
 run 1 "no rows marked fails" "$none_marked"
-
-# --- fail closed ------------------------------------------------------------
-# Every case below is a ledger the gate cannot honestly grade. Each must exit 2
-# — never 0. A hand-edited or half-written ledger reading as "complete" is the
-# exact failure this gate exists to prevent.
 
 run 2 "missing file fails closed" "$WORK/does-not-exist.md"
 run 2 "no arguments fails closed"
@@ -100,9 +82,6 @@ no_rows="$WORK/no-rows.md"
 } >"$no_rows"
 run 2 "header with zero data rows fails closed" "$no_rows"
 
-# A Done column alone does not make a table the ledger. An unrelated status table
-# would otherwise be graded as coverage — criterion 11 satisfied by a table about
-# something else, with no corpus item ever enumerated.
 foreign_table="$WORK/foreign-table.md"
 {
   printf '# Notes\n\n'
@@ -112,7 +91,6 @@ foreign_table="$WORK/foreign-table.md"
 } >"$foreign_table"
 run 2 "unrelated table with a Done column is not the ledger" "$foreign_table"
 
-# ...and a real ledger later in the same document is still found.
 foreign_then_real="$WORK/foreign-then-real.md"
 {
   printf '| Done | Note |\n'
@@ -124,9 +102,6 @@ foreign_then_real="$WORK/foreign-then-real.md"
 } >"$foreign_then_real"
 run 0 "a real ledger after an unrelated table is still graded" "$foreign_then_real"
 
-# A backslash-escaped pipe is content, not a delimiter. A corpus item carrying a
-# TypeScript union must not be unparsable — the alternative is rewriting the
-# ledger to say something less accurate so the gate will read it.
 escaped_pipe="$(ledger escaped-pipe.md \
   '| 1 | the read \| grep \| inferred union | every member documented | [x] |')"
 run 0 "escaped pipes inside a cell are content, not delimiters" "$escaped_pipe"
@@ -168,23 +143,16 @@ mangled="$(ledger mangled.md \
   '| 2 | beta | criterion |')"
 run 2 "row with too few columns fails closed" "$mangled"
 
-# A stray pipe inside a cell shifts every column after it, so the cell read as
-# Done is some other cell — an extra column is as ungradeable as a missing one.
 wide="$(ledger too-wide.md \
   '| 1 | alpha | criterion with a stray | pipe | [x] |')"
 run 2 "row with too many columns fails closed" "$wide"
 
-# A marked box on a row with no depth criterion certifies nothing — there is no
-# statement of what covering that item meant. Criterion 11 reads exit 0 as proof
-# of coverage, so this must never be one.
 no_criterion="$(ledger no-criterion.md '| 1 | alpha |  | [x] |')"
 run 2 "marked row with an empty depth criterion fails closed" "$no_criterion"
 
 no_item="$(ledger no-item.md '| 1 |  | criterion | [x] |')"
 run 2 "marked row with an empty corpus item fails closed" "$no_item"
 
-# The same emptiness on an UNMARKED row is still ungradeable — a ledger cannot be
-# completed later against a criterion nobody wrote.
 unmarked_no_criterion="$(ledger unmarked-no-criterion.md '| 1 | alpha |  | [ ] |')"
 run 2 "unmarked row with an empty depth criterion fails closed" "$unmarked_no_criterion"
 
@@ -195,9 +163,6 @@ empty="$WORK/empty.md"
 : >"$empty"
 run 2 "empty file fails closed" "$empty"
 
-# A ledger that exists but cannot be decoded as UTF-8 is ungradeable (exit 2), not
-# incomplete (exit 1). The Python twin must catch UnicodeDecodeError rather than
-# letting an uncaught exception become exit 1.
 bad_utf8="$WORK/bad-utf8.md"
 {
   printf '| # | Corpus item | Depth criterion | Done |\n'
@@ -206,25 +171,8 @@ bad_utf8="$WORK/bad-utf8.md"
   printf '\xff'
   printf ' alpha | criterion | [x] |\n'
 } >"$bad_utf8"
-# Bash/awk may still grade bytes; the .py twin must exit 2. Run the twin alone.
 run_one "$PY_SUT" 2 "non-UTF-8 ledger fails closed as ungradeable" "$bad_utf8"
 
-# Permission denied after is_file() is likewise ungradeable for the Python twin.
-#
-# Owner decision for #3375 (simulate, not chmod-as-contract and not
-# runuser/sudo): chmod 000 is not a reliable fault injector for a privileged
-# process. Linux CAP_DAC_OVERRIDE lets root bypass mode bits, so a mode-000
-# fixture still grades as complete in root containers (a common CI shape) and
-# the fail-closed branch is never entered. The contract case therefore imports
-# the Python twin, patches pathlib.Path.read_text with unittest.mock.patch.object
-# to raise PermissionError(errno.EACCES) for an otherwise regular fully-marked
-# fixture, calls grade(), and asserts exit 2 plus the "ledger unreadable"
-# diagnostic. That path runs as every user, including root.
-#
-# chmod 000 stays only as a supplemental integration check: it asserts exit 2
-# when the host actually denies the read, and prints a visible SKIP when the
-# file stays readable. A skip there is acceptable because the simulated case
-# has already exercised the exception-to-exit-2 contract on every host.
 unreadable="$(ledger unreadable.md '| 1 | alpha | criterion | [x] |')"
 
 sim_out="$(
@@ -309,8 +257,6 @@ for sut in "${SUTS[@]}"; do
     fail "incomplete ledger summary [$runner] — got: $out"
   fi
 
-  # The failing case must name WHICH rows are unmarked; "some row somewhere" sends
-  # the reader back to eyeball the table the gate exists to replace.
   out="$("$runner" "$path" "$none_marked" 2>&1)"
   if [[ "$out" == *"alpha"* && "$out" == *"beta"* ]]; then
     pass "incomplete ledger names the unmarked items [$runner]"

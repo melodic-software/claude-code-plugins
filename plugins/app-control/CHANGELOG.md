@@ -3,6 +3,13 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-11-23
+
+### Changed
+
+- The control-skill contract adds an optional `conversations` data source kind (meeting transcripts, call notes, support chats): `ready` lists it when an environment has one and never reports it missing.
+- `drive`'s `## Next` names `/app-control:map refresh` for the run's `lessons` lines.
+
 ## [0.31.5] - 2026-11-21
 
 ### Changed

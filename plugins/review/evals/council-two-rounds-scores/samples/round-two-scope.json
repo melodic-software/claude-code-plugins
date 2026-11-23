@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Round 2 reviews only what the fix pass changed: `git diff <before> <after>` of the snapshots taken around it, plus that pass's Not applied rows, not the whole branch again. Marks land in a table by member and round in the run file's Marks section and decide nothing. The final report says the fixes are unbuilt and untested; run /verification:confirm before committing."
+    },
+    {
+      "answer": "- Round 2 scope: the fix's own diff (before/after tree snapshots) and its Not applied rows.\n- Marks: in `<run>-council.md` under ## Marks; they never gate.\n- Report: \"Fixes from the council's rounds are unbuilt and untested; run /verification:confirm before committing.\"",
+      "why": "bulleted form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Round 2 re-reviews the whole branch diff. Marks are posted to the pull request. Commit when done.",
+      "why": "whole branch, no report text"
+    },
+    {
+      "answer": "Round 2 reviews the fix's diff and its Not applied rows; marks go in the run file. The council builds and tests between rounds, so the fixes are ready to commit.",
+      "why": "omits unbuilt and verification:confirm"
+    },
+    {
+      "answer": "Codex members are skipped on a dirty tree.",
+      "why": "different question"
+    },
+    {
+      "answer": "Round 2 reviews what the fix pass changed and its Not applied rows. Marks are posted to the pull request. The fixes are unbuilt; run /verification:confirm.",
+      "why": "review example: marks in the wrong place"
+    }
+  ]
+}

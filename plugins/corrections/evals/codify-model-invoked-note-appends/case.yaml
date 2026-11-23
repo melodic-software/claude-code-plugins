@@ -4,14 +4,21 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: 'appends-model-invoked-note'
-    type: 'llm'
-    criteria: 'Output appends the row and says a note is an observation, so a model invocation appends'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh(?:\\")?\s+append\b'
+    min: 1
+    arm: 'with-only'
   - name: 'session-source-id'
-    type: 'llm'
-    criteria: 'Output uses a session:<UTC timestamp> source_id because no PR or commit was given'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*\.work/codify/notes/)(?=[\s\S]*\\"source_id\\":\s*\\"session:)'
+    min: 1
+    arm: 'with-only'
   - name: 'no-proposal-or-install'
-    type: 'llm'
-    criteria: 'Output writes no proposal and installs nothing'
-    focus: 'trace'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/(?:notes/|\.gitignore"))'
+    min: 0
+    max: 0
+    arm: 'both'

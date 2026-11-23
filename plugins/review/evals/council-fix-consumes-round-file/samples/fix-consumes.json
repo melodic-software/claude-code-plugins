@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Yes. Fix admits `<run>-council-r1.md` unchanged: it is a `type: review-findings` file for this branch in fanout's findings location and shape. It never reads `<run>-council.md` as findings, because that file is `type: council-run`."},
+    {"answer": "Only the round file (-council-r1.md) is read; its frontmatter says review-findings. The run file is council-run, so fix skips it.", "why": "terse paraphrase"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Fix reads both -council-r1.md and -council.md as review-findings files and applies them.", "why": "reads both, no council-run"},
+    {"answer": "Fix cannot read council output; convert it to a fanout findings file first.", "why": "needs conversion"},
+    {"answer": "The council writes nothing to the pull request.", "why": "different question"},
+    {"answer": "Fix skips `<run>-council-r1.md` and reads `<run>-council.md` as findings; it is review-findings, whatever council-run says.", "why": "opposite behavior with all three tokens present"},
+    {"answer": "Fix does not read `<run>-council-r1.md`; it admits only review-findings files, and the run file is council-run.", "why": "negated consumption of the round file"}
+  ]
+}

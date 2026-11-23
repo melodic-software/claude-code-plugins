@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.10] - 2026-11-23
+
+### Changed
+
+- `advise` and `audit` gain a `## Related` section that names each other, per the accepted skill-link table.
+
 ## [0.5.9] - 2026-11-19
 
 ### Changed

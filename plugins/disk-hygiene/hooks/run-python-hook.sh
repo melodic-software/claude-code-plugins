@@ -151,10 +151,6 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _marker_dir="${_marker_path%/*}"
       _seen_path="${_marker_path%.launched}.seen"
-      # `mkdir` and the `.seen` removal are the only spawns on this path, each
-      # behind a builtin `[[ -e ]]`: `mkdir` once per root, the removal once per
-      # launch that follows a Stop the monitor recorded. Only the marker
-      # directory itself needs mode 700; its parent is `$TMPDIR` or the data root.
       # shellcheck disable=SC2174
       [[ -e "$_marker_dir" || -L "$_marker_dir" ]] ||
         mkdir -p -m 700 "$_marker_dir" 2>/dev/null || continue

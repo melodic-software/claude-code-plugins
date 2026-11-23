@@ -1,0 +1,2975 @@
+{
+  "skills": {
+    "actionlint:setup": {
+      "next": [],
+      "related": []
+    },
+    "adhd:clarify": {
+      "next": [],
+      "related": []
+    },
+    "adhd:shape": {
+      "next": [],
+      "related": []
+    },
+    "ai-briefing:generate": {
+      "next": [],
+      "related": []
+    },
+    "ai-briefing:setup": {
+      "next": [
+        "/ai-briefing:generate. It consumes the profile and `sources.md` setup created."
+      ],
+      "related": []
+    },
+    "ai-slop:audit": {
+      "next": [],
+      "related": [
+        "Work through findings in a fix pass: /review:fanout fix",
+        "Deliberate house style tripped rules: /ai-slop:setup",
+        "Code comments instead of prose: /code-tidying:audit-comment-residue",
+        "Reshape prose for conciseness: /writing:be-concise"
+      ]
+    },
+    "ai-slop:setup": {
+      "next": [],
+      "related": []
+    },
+    "animation:learn-style": {
+      "next": [
+        "/animation:produce <production dir>",
+        "It takes a style pack this skill wrote and makes the film: boards for approval, then shots, render, and review."
+      ],
+      "related": []
+    },
+    "animation:produce": {
+      "next": [
+        "/animation:learn-style <work dir> <pack dir>",
+        "When the review shows the film is a different style than the pack, that is a new style study. Do not edit the pack's bands to make this film pass."
+      ],
+      "related": []
+    },
+    "animation:rotoscope": {
+      "next": [
+        "`/animation:learn-style <work dir> <pack dir>`",
+        "It measures this work directory's traces and drawings into a style pack."
+      ],
+      "related": []
+    },
+    "animation:setup": {
+      "next": [
+        "/animation:rotoscope <clip> <work dir>"
+      ],
+      "related": []
+    },
+    "app-control:drive": {
+      "next": [
+        "Evidence in hand, needs a judgment: /verification:confirm.",
+        "A trace, cpu or heap artifact to read: /debugging:analyze-profile."
+      ],
+      "related": [
+        "Run surfaced driving lessons for control skill: /app-control:map refresh"
+      ]
+    },
+    "app-control:map": {
+      "next": [
+        "A seeded feature needs driving with evidence: /app-control:drive <app> <feature>.",
+        "Create left a send step unproven and `config/defaults.json` is now committed: /app-control:drive <app> <feature>.",
+        "The app changed after the control skill was written: /app-control:map refresh."
+      ],
+      "related": [
+        "Refresh found a product regression: /bugs:write",
+        "Non-driving repo lesson surfaced: /corrections:codify"
+      ]
+    },
+    "architecture:adr": {
+      "next": [
+        "A decision was recorded and the work still needs a plan: /planning:plan.",
+        "The audit found candidates to remove: /architecture:adr prune.",
+        "A retirement left terms to rename: /docs-hygiene:rename-references."
+      ],
+      "related": [
+        "Decision defines a domain term rather than system structure: /domain-driven-design:ubiquitous-language"
+      ]
+    },
+    "architecture:enforce-boundaries": {
+      "next": [
+        "A rule has existing crossings to fix: /implementation:implement.",
+        "The mechanism chosen for the repository is worth a record: /architecture:adr.",
+        "No boundary rule is recorded yet: /architecture:improve conventions."
+      ],
+      "related": []
+    },
+    "architecture:improve": {
+      "next": [
+        "A deepening candidate's shape is agreed, when available: /planning:plan",
+        "A finding is about coupling between modules: /coupling:reduce.",
+        "The boundaries lens wrote a findings file, when available: /corrections:codify findings",
+        "A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries",
+        "An agreed candidate's module has no tests to protect the refactor: /testing:write, characterization tests first."
+      ],
+      "related": [
+        "Co-change folder layout check: /architecture:improve-layout",
+        "Cross-dimension improvement hunt: /improvement:find",
+        "Curate domain vocabulary during interview: /domain-driven-design:ubiquitous-language",
+        "Paved-path convention proposal: /discipline:reuse-or-replace"
+      ]
+    },
+    "architecture:improve-layout": {
+      "next": [
+        "A card's target layout is agreed, when available: /planning:plan",
+        "A card proposes a rule on which folders may reference which: /architecture:improve boundaries",
+        "A card proposes a grouping or a file-name marker as a convention: /architecture:improve conventions"
+      ],
+      "related": [
+        "Record layout style or rejection rationale: /architecture:adr",
+        "Card routes to rule codification: /corrections:codify",
+        "Card routes to instruction placement: /instruction-placement:audit"
+      ]
+    },
+    "architecture:map-components": {
+      "next": [
+        "Friction in an existing module's interface: `/architecture:improve`.",
+        "The view opens a new boundary or contract to decide: `/planning:design module`.",
+        "The question is which systems the repository sits among: `/architecture:map-landscape`.",
+        "The view settles a decision worth keeping: `/architecture:adr`."
+      ],
+      "related": [
+        "Chart every deployable in repository: /architecture:map-containers",
+        "Regenerate underlying project graph: /architecture:map-dependencies"
+      ]
+    },
+    "architecture:map-containers": {
+      "next": [
+        "Inside one deployable, or one request's path through it: `/architecture:map-components` or `/architecture:map-flow`.",
+        "Neighboring repositories need a landscape: `/architecture:map-landscape`.",
+        "The view opens a topology or binding change to decide: `/planning:design system`.",
+        "The view settles a decision worth keeping: `/architecture:adr`."
+      ],
+      "related": [
+        "Environment topology and replicas: /architecture:map-deployment",
+        "External systems and actors: /architecture:map-context"
+      ]
+    },
+    "architecture:map-context": {
+      "next": [
+        "The question is which systems exist across repositories: `/architecture:map-landscape`.",
+        "The context settles a dependency decision worth keeping: `/architecture:adr`.",
+        "One repository on the context needs its own module-level pass: `/architecture:improve`.",
+        "The context opens a new external contract or integration to decide: `/planning:design integration`."
+      ],
+      "related": [
+        "Deployables inside this system: /architecture:map-containers"
+      ]
+    },
+    "architecture:map-data": {
+      "next": [
+        "The schema settles a decision worth keeping: `/architecture:adr`.",
+        "The schema needs a data-model change decided: `/planning:design data`.",
+        "The question is which systems the repository sits among: `/architecture:map-landscape`."
+      ],
+      "related": []
+    },
+    "architecture:map-dependencies": {
+      "next": [
+        "/architecture:map-components",
+        "The component view reads dependency-graph.json."
+      ],
+      "related": [
+        "Chart deployables using dependency-graph.json: /architecture:map-containers",
+        "Check manifest edges against boundary rules: /architecture:improve boundaries"
+      ]
+    },
+    "architecture:map-deployment": {
+      "next": [
+        "The topology settles a decision worth keeping: `/architecture:adr`.",
+        "The topology needs a deployment change decided: `/planning:design system`.",
+        "The question is which systems the repository sits among: `/architecture:map-landscape`."
+      ],
+      "related": [
+        "Deployables and stores before placement: /architecture:map-containers"
+      ]
+    },
+    "architecture:map-events": {
+      "next": [
+        "Trace one entry point up to the broker: `/architecture:map-flow <entry>`.",
+        "The question is which deployables bind the broker: `/architecture:map-containers`.",
+        "The view settles a decision worth keeping: `/architecture:adr`.",
+        "An orphan or a new message needs its contract decided: `/planning:design integration`."
+      ],
+      "related": []
+    },
+    "architecture:map-flow": {
+      "next": [
+        "A hop leaves the process at Publish or Send: `/architecture:map-events`.",
+        "The trace settles a decision worth keeping: `/architecture:adr`.",
+        "The trace shows a hop or contract to redesign: `/planning:design integration`."
+      ],
+      "related": []
+    },
+    "architecture:map-landscape": {
+      "next": [
+        "The question is the modules inside one deployable: `/architecture:map-components`.",
+        "The question is module-design friction: `/architecture:improve`.",
+        "The question is how the code behaves: `/discovery:explore`.",
+        "The landscape settles a decision worth keeping: `/architecture:adr`."
+      ],
+      "related": [
+        "One system's external neighbors: /architecture:map-context",
+        "Deployables inside one system: /architecture:map-containers"
+      ]
+    },
+    "architecture:principles": {
+      "next": [
+        "/architecture:improve",
+        "Scans a codebase for shallow modules and seam leaks, named in these terms."
+      ],
+      "related": []
+    },
+    "architecture:setup": {
+      "next": [
+        "A landscape of repositories: `/architecture:map-landscape`.",
+        "Which project references which: `/architecture:map-dependencies`.",
+        "The modules inside one deployable: `/architecture:map-components`.",
+        "One system's configured neighbors: `/architecture:map-context`."
+      ],
+      "related": []
+    },
+    "attribution:audit": {
+      "next": [],
+      "related": [
+        "Work through persisted findings in a review relay: /review:fanout fix",
+        "Tune carve-outs or stamp config: /attribution:setup",
+        "In-repo doc duplication: /docs-hygiene:extract-ssot",
+        "AI-writing tells on same corpus: /ai-slop:audit"
+      ]
+    },
+    "attribution:setup": {
+      "next": [
+        "`/attribution:audit`",
+        "It reads the config this skill writes."
+      ],
+      "related": []
+    },
+    "autonomy:setup": {
+      "next": [],
+      "related": []
+    },
+    "bash-format:setup": {
+      "next": [
+        "/toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "bugs:scan": {
+      "next": [
+        "Verified local finding, interactive run: `/implementation:implement`.",
+        "Verified non-local or security-relevant finding: `/work-items:track add`, then `/review:security-review` for the security-relevant ones.",
+        "A finding that needs root-causing before a fix: `/debugging:debug`."
+      ],
+      "related": []
+    },
+    "bugs:setup": {
+      "next": [
+        "Produce a bug report: `/bugs:write`.",
+        "Hunt the configured lanes: `/bugs:scan`."
+      ],
+      "related": []
+    },
+    "bugs:write": {
+      "next": [
+        "The report is ready to file: `/work-items:track add`.",
+        "The defect is ready to diagnose, its root cause unknown: `/debugging:debug`.",
+        "The report already names the root cause: `/implementation:implement`."
+      ],
+      "related": []
+    },
+    "code-metrics:audit": {
+      "next": [
+        "A long file that also changes often needs a tracker item: /work-items:track add.",
+        "The numbers feed a before-and-after comparison: `/verification:measure metrics`.",
+        "A complex function's coverage and CRAP score are the real question: `/code-metrics:audit-coverage`.",
+        "A number is about to be quoted or read as a bar: `/code-metrics:principles`."
+      ],
+      "related": []
+    },
+    "code-metrics:audit-coverage": {
+      "next": [
+        "The numbers feed a before-and-after comparison: `/verification:measure metrics`.",
+        "Coverage looks healthy but the tests may assert nothing: `/mutation-testing:audit`.",
+        "A number is about to be quoted at someone: `/code-metrics:principles`."
+      ],
+      "related": [
+        "Complexity without coverage artifacts: /code-metrics:audit complexity"
+      ]
+    },
+    "code-metrics:audit-duplication": {
+      "next": [
+        "The numbers feed a before-and-after comparison: `/verification:measure metrics`.",
+        "A surviving clone is about to be called debt: `/code-metrics:principles`."
+      ],
+      "related": [
+        "Files copied across repositories: /coupling:reduce"
+      ]
+    },
+    "code-metrics:audit-suppressions": {
+      "next": [
+        "Hold the count in CI so it only falls: /toolchain:ratchet.",
+        "Work through the rows a `--findings` run wrote: /review:fanout fix.",
+        "A count needs reading before anyone acts on it: /code-metrics:principles."
+      ],
+      "related": []
+    },
+    "code-metrics:principles": {
+      "next": [
+        "The number in question still has to be measured: `/code-metrics:audit complexity`, or the `audit` action or `audit-*` skill for that measure.",
+        "The bundled reference values are not the ones your codebase can defend: `/code-metrics:setup`."
+      ],
+      "related": []
+    },
+    "code-metrics:setup": {
+      "next": [
+        "`/code-metrics:audit complexity`. The other `audit` actions and `audit-*` skills cover the rest."
+      ],
+      "related": []
+    },
+    "code-tidying:audit-comment-residue": {
+      "next": [
+        "The findings are agreed and ready to apply: `/code-tidying:remove-comments` on the same target.",
+        "The surviving comments restate the code rather than narrate its past: `/code-tidying:tidy`.",
+        "An `unjustified-workaround` finding marks code whose cause is still unfixed: `/debugging:debug` or `/implementation:implement`."
+      ],
+      "related": []
+    },
+    "code-tidying:audit-dead-code": {
+      "next": [
+        "`/code-tidying:tidy`",
+        "Adjudicated `dead` verdicts are applied there. This skill only reports."
+      ],
+      "related": []
+    },
+    "code-tidying:batch-simplify": {
+      "next": [
+        "/verification:confirm",
+        "A simplification pass sits at review; verify proves the swept change still meets its intent."
+      ],
+      "related": []
+    },
+    "code-tidying:remove-comments": {
+      "next": [
+        "`/source-control:commit`, which takes the staged commit-message block and lands the removed narrative with the diff that removed it.",
+        "The findings file's rows (reshape flags, open root-cause work, lint-rule proposals): `/review:fanout fix`, then `/implementation:implement` or `/debugging:debug` for a root cause and `/architecture:improve` for a reshape that needs a design decision.",
+        "ADR candidates listed but not recorded: `/architecture:adr` with each one."
+      ],
+      "related": [
+        "Audit lint or type suppressions in scope: /code-metrics:audit-suppressions"
+      ]
+    },
+    "code-tidying:setup": {
+      "next": [],
+      "related": []
+    },
+    "code-tidying:tidy": {
+      "next": [
+        "/source-control:babysit-prs",
+        "It carries the opened tidy PR through CI and review findings; the merge is the repository's merge lane's or a person's."
+      ],
+      "related": []
+    },
+    "code-tidying:tidy-diff": {
+      "next": [
+        "/source-control:commit",
+        "It commits the tidied change as one commit with the change it tidies."
+      ],
+      "related": []
+    },
+    "codebase-health:audit": {
+      "next": [
+        "Findings to fix: /implementation:implement.",
+        "Fixes applied: /verification:confirm."
+      ],
+      "related": [
+        "Session assumptions drifted: /session-flow:reanchor",
+        "Upstream vendor docs drift: /discipline:recheck-against-upstream",
+        "Unattributed claims or stale stamps: /attribution:audit",
+        "Harness config or instruction drift: /harness-config:audit",
+        "Cross-repo duplicated files: /coupling:reduce"
+      ]
+    },
+    "codebase-health:setup": {
+      "next": [],
+      "related": []
+    },
+    "computer-use:diagnose": {
+      "next": [],
+      "related": []
+    },
+    "computer-use:setup": {
+      "next": [],
+      "related": []
+    },
+    "context-budget:audit": {
+      "next": [],
+      "related": [
+        "Settings correctness or permission-rule state: /harness-config:audit"
+      ]
+    },
+    "context-budget:setup": {
+      "next": [
+        "`/context-budget:audit`",
+        "It takes the stamped baseline once `check` passes."
+      ],
+      "related": []
+    },
+    "context-usage:setup": {
+      "next": [],
+      "related": []
+    },
+    "context7:lookup": {
+      "next": [],
+      "related": [
+        "Multi-source or cross-checked technical questions: /discovery:research",
+        "Verbatim read of a named upstream docs page: /discovery:read-docs"
+      ]
+    },
+    "context7:setup": {
+      "next": [],
+      "related": []
+    },
+    "corrections:codify": {
+      "next": [
+        "hook: /harness-config:audit-automation-gaps.",
+        "make-impossible: /architecture:improve.",
+        "a group at or over the threshold: /corrections:codify \"<the group's mistake>\".",
+        "existing violations to clean up, or a proven check or a ledger's checks to build: /implementation:implement.",
+        "existing violations to hold at today's count while they are cleaned up: /toolchain:ratchet.",
+        "a module-boundary rule: /architecture:enforce-boundaries."
+      ],
+      "related": [
+        "Mine past sessions for corrections: /session-flow:audit-sessions",
+        "Redesign without architecture plugin: /planning:design",
+        "Session-level retrospective: /session-flow:retro"
+      ]
+    },
+    "coupling:reduce": {
+      "next": [
+        "/verification:confirm",
+        "It checks the batch against the repo's own build, test and lint gates."
+      ],
+      "related": [
+        "Route-lane candidate needs boundary design: /architecture:improve",
+        "Pure markdown prose dedup: /docs-hygiene:extract-ssot",
+        "Identifier rename rather than value change: /docs-hygiene:rename-references",
+        "Duplicate-writer ownership rule to codify: /corrections:codify",
+        "General non-coupling tidying: /code-tidying:tidy"
+      ]
+    },
+    "debugging:analyze-profile": {
+      "next": [
+        "Mechanism found in a bug: /debugging:debug.",
+        "Mechanism found in a performance target: /performance:goal."
+      ],
+      "related": [
+        "No profile or trace captured yet: /app-control:drive"
+      ]
+    },
+    "debugging:debug": {
+      "next": [
+        "The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`.",
+        "A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.",
+        "An artifact with no reproduction: `/debugging:analyze-profile`.",
+        "The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.",
+        "No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.",
+        "Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`."
+      ],
+      "related": [
+        "Codify recurring defect check: /corrections:codify",
+        "Record app-driving lessons in control skill: /app-control:map",
+        "Already a failing test: /testing:diagnose"
+      ]
+    },
+    "desktop-notification:setup": {
+      "next": [],
+      "related": []
+    },
+    "developer-experience:audit-tools": {
+      "next": [
+        "A consolidate or migrate verdict that builds or extends a CLI: /developer-experience:build-cli.",
+        "A retire verdict to justify first: /overengineering:justify <artifact>."
+      ],
+      "related": [
+        "User or local MCP config posture: /mcp-tools:audit-posture",
+        "Machine-level plugin and skill inventory: /harness-ops:inventory",
+        "Sweep references after a rename or move: /docs-hygiene:rename-references",
+        "Evaluate whether harness automation should exist: /harness-config:audit-automation-gaps"
+      ]
+    },
+    "developer-experience:build-cli": {
+      "next": [
+        "Other tooling in the repository to take stock of: /developer-experience:audit-tools.",
+        "The change needs a general code review: /review:quality-gate."
+      ],
+      "related": [
+        "CLI help text and error layout: /user-interface:design",
+        "Research ecosystem parser or layout: /discovery:research",
+        "Build and test checks: /toolchain:check",
+        "End-to-end smoke test: /testing:run-e2e"
+      ]
+    },
+    "developer-experience:setup": {
+      "next": [
+        "Conventions written, a tool to build or change: /developer-experience:build-cli.",
+        "Conventions written, existing tooling to take stock of: /developer-experience:audit-tools."
+      ],
+      "related": []
+    },
+    "discipline:be-ambitious": {
+      "next": [
+        "`/planning:interview`, when the raised request leaves several open decisions; it locks them into a brief."
+      ],
+      "related": [
+        "Need divergent options rather than one raised request: /planning:brainstorm",
+        "Check whether finished work is sound: /discipline:scrutinize-dont-coast",
+        "Goal is session or team throughput: /performance:go-faster",
+        "Crew of specialists proposed: /planning:plan"
+      ]
+    },
+    "discipline:do-your-research": {
+      "next": [
+        "/discovery:research <question>",
+        "When a claim needs a new multi-source research pass rather than a check of what the session already said."
+      ],
+      "related": [
+        "Ground local code and consumers for pending recommendations: /discovery:explore",
+        "Run all core discipline correctors together: /discipline:sweep-all"
+      ]
+    },
+    "discipline:follow-operating-procedures": {
+      "next": [],
+      "related": []
+    },
+    "discipline:follow-our-standards": {
+      "next": [],
+      "related": [
+        "Check against external vendor docs instead of org standards: /discipline:recheck-against-upstream",
+        "Challenge whether an inherited convention still holds: /discipline:reason-dont-recite"
+      ]
+    },
+    "discipline:hold-my-hand": {
+      "next": [],
+      "related": []
+    },
+    "discipline:mind-your-maxims": {
+      "next": [],
+      "related": [
+        "Verify factual truthfulness and evidence: /discipline:do-your-research",
+        "Trim large-scale verbosity: /discipline:tighten-your-output"
+      ]
+    },
+    "discipline:pick-for-the-problem": {
+      "next": [],
+      "related": [
+        "Load-bearing field survey and vendor evaluation: /discovery:research",
+        "Challenge inherited precedent generally: /discipline:reason-dont-recite",
+        "Idiom or structure consistency without dependency choice: /discipline:reuse-or-replace"
+      ]
+    },
+    "discipline:point-dont-copy": {
+      "next": [],
+      "related": [
+        "Measure cross-repository copied files: /coupling:reduce",
+        "Extract repeated markdown into one named SSOT: /docs-hygiene:extract-ssot"
+      ]
+    },
+    "discipline:reason-dont-recite": {
+      "next": [],
+      "related": [
+        "Route disagreement with a shared standard upstream: /discipline:follow-our-standards",
+        "Recover original decision rationale from history: /discovery:trace-intent",
+        "Check conformance against external vendor docs: /discipline:recheck-against-upstream",
+        "Reuse or replace an established pattern in new work: /discipline:reuse-or-replace"
+      ]
+    },
+    "discipline:recheck-against-upstream": {
+      "next": [],
+      "related": [
+        "Interrogate internal precedent rather than vendor docs: /discipline:reason-dont-recite",
+        "Audit against org engineering standards: /discipline:follow-our-standards",
+        "Read one named upstream docs page verbatim: /discovery:read-docs"
+      ]
+    },
+    "discipline:reuse-or-replace": {
+      "next": [],
+      "related": [
+        "Challenge whether the established way is justified: /discipline:reason-dont-recite",
+        "Gather evidence for a better alternative: /discipline:do-your-research",
+        "Select a tool, library, or dependency: /discipline:pick-for-the-problem"
+      ]
+    },
+    "discipline:script-the-deterministic-work": {
+      "next": [
+        "A lever-check answer goes back to its caller: /implementation:implement",
+        "A deterministic check that recurs needs a standing hook: /harness-config:audit-automation-gaps"
+      ],
+      "related": [
+        "Fan-out worker lever-check caller: /implementation:implement-dispatch",
+        "Count and prove a recurring check: /corrections:codify"
+      ]
+    },
+    "discipline:scrutinize-dont-coast": {
+      "next": [],
+      "related": [
+        "Stress-test a plan before implementation: /planning:devils-advocate",
+        "Structured pre-merge review checkpoint: /review:quality-gate",
+        "Single-axis unverified claim audit: /discipline:do-your-research"
+      ]
+    },
+    "discipline:setup": {
+      "next": [
+        "`/discipline:sweep-all` to run the posture batch with the reported override, or `/discipline:script-the-deterministic-work` to apply the lever rule."
+      ],
+      "related": []
+    },
+    "discipline:sweep-all": {
+      "next": [],
+      "related": []
+    },
+    "discipline:tighten-your-output": {
+      "next": [],
+      "related": [
+        "Reshape human-read tickets, PRs, or docs: /writing:be-concise",
+        "Batch markdown compression with semantic-diff guard: /docs-hygiene:compress",
+        "Batch code simplification sweep: /code-tidying:batch-simplify",
+        "Remove duplicated content rather than wordiness: /discipline:point-dont-copy"
+      ]
+    },
+    "discipline:use-your-skills": {
+      "next": [],
+      "related": [
+        "Skill description quality or frontmatter QA: /skill-quality:check",
+        "Machine-level skill listing budget: /harness-config:audit",
+        "Ranked skill menu for the current task: /session-flow:recommend-skills"
+      ]
+    },
+    "discipline:wait-what": {
+      "next": [],
+      "related": []
+    },
+    "discovery:blindspot": {
+      "next": [
+        "The scan doubles as stage-1 codebase exploration: `/discovery:explore <area>`.",
+        "The prompt is sharpened and ready to scope: `/planning:interview`.",
+        "Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`."
+      ],
+      "related": [
+        "Domain too deep for a lightweight ladder: /education:teach",
+        "Needs multi-source external research: /discovery:research",
+        "Explore divergent options before interviewing: /planning:brainstorm"
+      ]
+    },
+    "discovery:explore": {
+      "next": [
+        "Findings raise a question about current external practice: `/discovery:research <topic>`.",
+        "A question turns on what a live system holds now (a database, a tracker, a service): read it through that system's CLI or MCP tool from the stage that asks.",
+        "The picture is enough, no contract is locked, and the diff will not be quick to review and cheap to retry: `/planning:interview`.",
+        "The contract is locked and the work adds types, contracts, or module boundaries: `/planning:design`.",
+        "Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`."
+      ],
+      "related": [
+        "Reconstruct historical design rationale: /discovery:trace-intent",
+        "Surface user unknown-unknowns first: /discovery:blindspot"
+      ]
+    },
+    "discovery:read-docs": {
+      "next": [
+        "The answer needs more than one source: `/discovery:research <topic>`.",
+        "The page settles the approach: `/planning:plan`."
+      ],
+      "related": [
+        "Library docs lookup via Context7: /context7:lookup",
+        "Audit repo config or code against vendor docs: /discipline:recheck-against-upstream"
+      ]
+    },
+    "discovery:report": {
+      "next": [],
+      "related": []
+    },
+    "discovery:research": {
+      "next": [
+        "Findings feed work with no locked contract whose diff will not be quick to review and cheap to retry: `/planning:interview`.",
+        "Findings settle a type, contract, or boundary choice: `/planning:design`.",
+        "Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`."
+      ],
+      "related": [
+        "Single named upstream docs page read: /discovery:read-docs",
+        "Local codebase exploration: /discovery:explore",
+        "Quick library docs lookup: /context7:lookup"
+      ]
+    },
+    "discovery:setup": {
+      "next": [
+        "`/discovery:explore`"
+      ],
+      "related": []
+    },
+    "discovery:trace-intent": {
+      "next": [
+        "The Preserve / Change / Avoid / Risk set touches types, contracts, or boundaries: `/planning:design`.",
+        "No design question is open: `/planning:plan`, reading the Preserve / Change / Avoid / Risk set."
+      ],
+      "related": [
+        "Understand what the code does now: /discovery:explore",
+        "Challenge whether a convention should still hold: /discipline:reason-dont-recite",
+        "Check current external facts: /discovery:research"
+      ]
+    },
+    "disk-hygiene:audit": {
+      "next": [
+        "/disk-hygiene:clean <target-directory>",
+        "Run when the findings warrant removal and the user wants it; it takes the same target, not this snapshot."
+      ],
+      "related": [
+        "Single repository cache or build-output cleanup: /repo-hygiene:clean"
+      ]
+    },
+    "disk-hygiene:clean": {
+      "next": [],
+      "related": [
+        "Single repository cache or build-output cleanup: /repo-hygiene:clean",
+        "Git worktree lifecycle cleanup: /source-control:worktree",
+        "Delegated read-only leftover scan: /disk-hygiene:audit"
+      ]
+    },
+    "disk-hygiene:setup": {
+      "next": [],
+      "related": []
+    },
+    "docs-hygiene:audit-derivability": {
+      "next": [],
+      "related": [
+        "Line-level noise inside a kept doc: /docs-hygiene:audit-noise",
+        "Doc duplicates another doc rather than code: /docs-hygiene:extract-ssot",
+        "Trim flavor inside a kept doc: /docs-hygiene:compress",
+        "Track actionable delete or pointer verdicts: /work-items:track"
+      ]
+    },
+    "docs-hygiene:audit-encapsulation": {
+      "next": [],
+      "related": [
+        "Verify or execute a Path A promote-out extraction: /docs-hygiene:extract-ssot",
+        "Sweep citations after a heading or path move: /docs-hygiene:rename-references"
+      ]
+    },
+    "docs-hygiene:audit-noise": {
+      "next": [
+        "Findings are persisted with `--persist-findings`: `/review:fanout fix`.",
+        "A page failed the existence pre-check and needs the four-factor ruling: `/docs-hygiene:audit-derivability`.",
+        "What is left is flavor rather than noise: `/docs-hygiene:compress`."
+      ],
+      "related": [
+        "Same residue shapes in source-code comments: /code-tidying:remove-comments",
+        "Prose duplicated across multiple files: /docs-hygiene:extract-ssot",
+        "Rewrite agent instructions positively: /docs-hygiene:write-for-agents",
+        "Residue inside SKILL.md files: /skill-quality:check"
+      ]
+    },
+    "docs-hygiene:audit-progressive-disclosure": {
+      "next": [
+        "A split is agreed and the new hub and spoke text needs writing: `/docs-hygiene:write-for-agents`.",
+        "The file is long on flavor rather than structure: `/docs-hygiene:compress`.",
+        "A pointer no longer resolves: `/docs-hygiene:rename-references`."
+      ],
+      "related": [
+        "Skill frontmatter and description QA: /skill-quality:check",
+        "In-page noise shapes: /docs-hygiene:audit-noise",
+        "Whole-document derivability check: /docs-hygiene:audit-derivability",
+        "Cross-file markdown deduplication: /docs-hygiene:extract-ssot"
+      ]
+    },
+    "docs-hygiene:compress": {
+      "next": [],
+      "related": [
+        "In-page noise shapes rather than flavor: /docs-hygiene:audit-noise",
+        "Replace recaps of another doc with citations: /docs-hygiene:extract-ssot",
+        "Reshape prose for scanning human readers: /writing:be-concise"
+      ]
+    },
+    "docs-hygiene:extract-ssot": {
+      "next": [],
+      "related": [
+        "Sweep references after renaming a heading: /docs-hygiene:rename-references",
+        "Check skill-boundary violations: /docs-hygiene:audit-encapsulation",
+        "Whole files copied across repositories: /coupling:reduce",
+        "Run repository verification after execute: /toolchain:check"
+      ]
+    },
+    "docs-hygiene:rename-references": {
+      "next": [
+        "A whole tree to measure against a casing rule, not one pair swept after a rename: `/docs-naming:audit-file-names`.",
+        "The sweep edited code or config and the build must still pass: `/toolchain:check`."
+      ],
+      "related": [
+        "Curate domain glossary terms behind a rename: /domain-driven-design:ubiquitous-language",
+        "Record ADR for persisted stored names left unchanged: /architecture:adr",
+        "Sweep a changed config value rather than an identifier: /coupling:reduce"
+      ]
+    },
+    "docs-hygiene:setup": {
+      "next": [
+        "`/docs-hygiene:compress`"
+      ],
+      "related": []
+    },
+    "docs-hygiene:write-for-agents": {
+      "next": [],
+      "related": [
+        "Repeated prose across files: /docs-hygiene:extract-ssot",
+        "Grade split or pointer quality: /docs-hygiene:audit-progressive-disclosure",
+        "Rule must hold deterministically: /corrections:codify",
+        "Authoring a skill structure rather than prose: /playbooks:skill-authoring",
+        "Writing human-facing documentation instead: /docs-hygiene:write-for-humans"
+      ]
+    },
+    "docs-hygiene:write-for-humans": {
+      "next": [],
+      "related": [
+        "Check finished prose for AI-writing tells: /ai-slop:audit",
+        "Repeated prose across files: /docs-hygiene:extract-ssot",
+        "Trim an over-long draft without rewriting: /docs-hygiene:compress",
+        "Reshape existing prose for scanning readers: /writing:be-concise",
+        "Writing agent-loaded markdown instead: /docs-hygiene:write-for-agents"
+      ]
+    },
+    "docs-naming:audit-file-names": {
+      "next": [
+        "`/docs-naming:realign-file-names`"
+      ],
+      "related": []
+    },
+    "docs-naming:generate-file-name-gate": {
+      "next": [
+        "`/architecture:adr`",
+        "For the rule itself, once the gate is wired and green."
+      ],
+      "related": [
+        "REINDEX row emitted for rules index: /instruction-placement:check",
+        "Choosing whether a rule file should accompany the gate: /corrections:codify"
+      ]
+    },
+    "docs-naming:realign-file-names": {
+      "next": [],
+      "related": [
+        "Tree drifted or finding blocked: /docs-naming:audit-file-names",
+        "Enforce the rule going forward: /docs-naming:generate-file-name-gate",
+        "Ad-hoc reference sweep outside a plan: /docs-hygiene:rename-references"
+      ]
+    },
+    "docs-naming:setup": {
+      "next": [
+        "`/docs-naming:audit-file-names`"
+      ],
+      "related": []
+    },
+    "domain-driven-design:ubiquitous-language": {
+      "next": [
+        "A term changed or a word moved to `Avoid:` and code still uses it: /docs-hygiene:rename-references <old> to <new>.",
+        "`audit` found prune candidates: /domain-driven-design:ubiquitous-language prune.",
+        "The work goes on to a plan: /planning:plan."
+      ],
+      "related": [
+        "Bounded contexts not yet established: /event-storming:simulation",
+        "Record an architectural decision instead of a term: /architecture:adr",
+        "Choose a fresh name for a domain term: /naming:name-it-better"
+      ]
+    },
+    "dometrain:grounding": {
+      "next": [],
+      "related": []
+    },
+    "dometrain:setup": {
+      "next": [],
+      "related": []
+    },
+    "dometrain:update": {
+      "next": [],
+      "related": []
+    },
+    "education:explain": {
+      "next": [
+        "The reader wants to keep learning the topic across sessions: `/education:teach`.",
+        "The reader wants a diagram instead of prose: `/education:illustrate`."
+      ],
+      "related": [
+        "Faithful restructure keeping original precision: /adhd:clarify",
+        "Re-pitch a missed message in Simplified Technical English: /discipline:wait-what"
+      ]
+    },
+    "education:illustrate": {
+      "next": [
+        "The reader wants to learn the topic over several sessions: /education:teach topic <subject>.",
+        "The topic was a completed change the reader must understand: /education:quiz-me."
+      ],
+      "related": [
+        "Explain one pull request as a digest: /review:explain-change",
+        "Render storyboard into narrated video: /explainer-video:produce",
+        "Record live UI flow for a PR: /playwright:demo-video",
+        "Place finished video in a PR: /source-control:pull-request",
+        "Build PR walkthrough video: /review:reviewer-media"
+      ]
+    },
+    "education:quiz-me": {
+      "next": [],
+      "related": []
+    },
+    "education:setup": {
+      "next": [
+        "`/education:explain`"
+      ],
+      "related": []
+    },
+    "education:teach": {
+      "next": [],
+      "related": []
+    },
+    "eol-normalizer:setup": {
+      "next": [],
+      "related": []
+    },
+    "evals:design": {
+      "next": [
+        "Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.",
+        "Routed a plugin target to `claude plugin eval init`: `/evals:plugin-eval`."
+      ],
+      "related": []
+    },
+    "evals:methodology": {
+      "next": [
+        "Criteria settled and a suite is to be written: `/evals:design <target>`.",
+        "A suite's case files are written and not yet run: `/evals:validate <eval-dir>`.",
+        "A plugin suite exists and the question is what it measures: `/evals:plugin-eval run <target>`."
+      ],
+      "related": []
+    },
+    "evals:plugin-eval": {
+      "next": [
+        "Validator FAIL, or a case file that failed to load: `/evals:validate <eval-dir>`.",
+        "Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/harness-config:unhobble`.",
+        "Suite ran and the delta is read, and a case needs sharper criteria: `/evals:design <target>`."
+      ],
+      "related": []
+    },
+    "evals:validate": {
+      "next": [
+        "`/evals:plugin-eval <target>`. A suite at exit 0 is one worth paying to run."
+      ],
+      "related": []
+    },
+    "event-storming:methodology": {
+      "next": [
+        "A format is chosen and the workshop runs: `/event-storming:simulation`, whose format this reference selects.",
+        "The aggregates and boundaries are found and the module needs designing: `/planning:design module`."
+      ],
+      "related": []
+    },
+    "event-storming:simulation": {
+      "next": [
+        "Bounded contexts are settled and their canonical terms need curating: `/domain-driven-design:ubiquitous-language curate`.",
+        "A context is ready to design against: `/planning:design`."
+      ],
+      "related": []
+    },
+    "explainer-video:produce": {
+      "next": [
+        "/harness-ops:prerequisites",
+        "When a render stops with a missing tool, it lists the declared tools this machine lacks.",
+        "/source-control:pull-request",
+        "When the video belongs in a pull request, its reviewer section and attachment step place it."
+      ],
+      "related": [
+        "Visual diagram explainer handing off a storyboard: /education:illustrate",
+        "Build a PR walkthrough storyboard: /review:reviewer-media",
+        "Write a PR digest before storyboard: /review:explain-change",
+        "Record live UI flow instead of stills: /playwright:demo-video",
+        "Place a finished video in a pull request: /source-control:pull-request"
+      ]
+    },
+    "external-agents:antigravity": {
+      "next": [
+        "`/review:council` for a ranked, multi-reviewer review of the same change, with agy as one member."
+      ],
+      "related": []
+    },
+    "external-agents:codex": {
+      "next": [
+        "`/review:council` for a ranked, multi-reviewer review of the same change, with Codex as one member."
+      ],
+      "related": []
+    },
+    "firecrawl:firecrawl": {
+      "next": [],
+      "related": [
+        "Verify CLI binary and FIRECRAWL_API_KEY auth: /firecrawl:setup"
+      ]
+    },
+    "firecrawl:setup": {
+      "next": [],
+      "related": []
+    },
+    "firecrawl:update": {
+      "next": [],
+      "related": [
+        "User-facing wrapper skill maintained by this sync: /firecrawl:firecrawl"
+      ]
+    },
+    "fleet:reach": {
+      "next": [],
+      "related": []
+    },
+    "formal-verification:chart": {
+      "next": [
+        "A bug path reproduced against the real code: /bugs:write.",
+        "The check passed and the change needs its verdict evidence: /verification:confirm."
+      ],
+      "related": []
+    },
+    "formal-verification:setup": {
+      "next": [
+        "/formal-verification:chart <SPEC.tla>"
+      ],
+      "related": []
+    },
+    "formal-verification:specify": {
+      "next": [
+        "A `formal-<area>` skill written and its seeded break caught: /verification:confirm.",
+        "A counterexample that reproduces against the real code: /bugs:write.",
+        "Covered code changed since a sync commit: /formal-verification:specify refresh.",
+        "No verifier runs on the language: /testing:write."
+      ],
+      "related": []
+    },
+    "gaming:dlss5": {
+      "next": [
+        "Missing build or runtime DLL: /gaming:setup apply.",
+        "Verdict or setup in doubt: /gaming:setup check."
+      ],
+      "related": []
+    },
+    "gaming:setup": {
+      "next": [
+        "/gaming:dlss5 assess <game-dir>"
+      ],
+      "related": []
+    },
+    "github:advise": {
+      "next": [],
+      "related": [
+        "Current-state review or drift audit instead of forward design: /github:audit"
+      ]
+    },
+    "github:audit": {
+      "next": [],
+      "related": [
+        "Forward-looking GitHub configuration design: /github:advise"
+      ]
+    },
+    "github:setup": {
+      "next": [],
+      "related": []
+    },
+    "go-format:setup": {
+      "next": [
+        "/toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "guardrails:setup": {
+      "next": [],
+      "related": []
+    },
+    "harness-config:audit": {
+      "next": [
+        "A finding is a permission grant that auto mode drops or a hardcoded path: `/harness-config:audit-permission-grants`.",
+        "The configuration is correct and the question is now what automation is missing: `/harness-config:audit-automation-gaps`.",
+        "Several audit skills need one reconciled, resumable pass: `/harness-config:audit-pass`."
+      ],
+      "related": [
+        "Audit CLAUDE.md, rules, and auto-memory: /harness-memory:audit"
+      ]
+    },
+    "harness-config:audit-automation-gaps": {
+      "next": [
+        "Candidates passed and are ready to build: `/planning:plan`.",
+        "Candidates passed and need slicing into grabbable tickets first: `/work-items:decompose`.",
+        "The run raised a question about automation already in place: `/overengineering:audit`.",
+        "A verdict is worth revisiting later rather than acting on now: `/work-items:track add`."
+      ],
+      "related": []
+    },
+    "harness-config:audit-instructions": {
+      "next": [
+        "An editorial or enforced cut is applied from the report; another consequential cut cites a closed watch: `/harness-config:unhobble watch`.",
+        "A finding lands on the memory layer: `/harness-memory:audit`.",
+        "Project instructions still live in `CLAUDE.md`: `/instruction-placement:migrate plan`.",
+        "Posture guidance is absent rather than wrong: `/harness-config:audit-prompting-postures`.",
+        "A rule a check could enforce moves to a mechanism: `/corrections:codify rules <file>`."
+      ],
+      "related": []
+    },
+    "harness-config:audit-pass": {
+      "next": [],
+      "related": [
+        "Propose missing automations outside existing surfaces: /harness-config:audit-automation-gaps",
+        "Audit settings-file grant portability directly: /harness-config:audit-permission-grants",
+        "Run one instruction surface audit directly: /harness-config:audit-instructions"
+      ]
+    },
+    "harness-config:audit-permission-grants": {
+      "next": [
+        "A finding needs its operative rule located across scopes: `/harness-config:audit-permission-state`.",
+        "The question is config-file correctness rather than grant portability: `/harness-config:audit`."
+      ],
+      "related": []
+    },
+    "harness-config:audit-permission-state": {
+      "next": [
+        "/harness-config:draft-auto-mode-rules when the audit shows dropped rules or an autoMode block needing drafting."
+      ],
+      "related": [
+        "Check grant portability and auto-mode durability: /harness-config:audit-permission-grants",
+        "Check settings correctness outside permission plane: /harness-config:audit",
+        "Audit CLAUDE.md and rules: /harness-memory:audit"
+      ]
+    },
+    "harness-config:audit-prompting-postures": {
+      "next": [],
+      "related": [
+        "Audit existing instruction text that is wrong or stale: /harness-config:audit-instructions",
+        "Run a coordinated pass combining both lanes: /harness-config:audit-pass",
+        "Pick strongest enforcement rung for a missing P7 destructive-action gate: /corrections:codify",
+        "Structural skill lint: /skill-quality:check"
+      ]
+    },
+    "harness-config:draft-auto-mode-rules": {
+      "next": [],
+      "related": [
+        "Inspect effective permissions before drafting or verify after pasting: /harness-config:audit-permission-state",
+        "Pick strongest enforcement mechanism for a must-never-happen rule: /corrections:codify",
+        "Check grant portability: /harness-config:audit-permission-grants"
+      ]
+    },
+    "harness-config:setup": {
+      "next": [],
+      "related": []
+    },
+    "harness-config:unhobble": {
+      "next": [
+        "/review:security-review when the experiment is closed and the PR with retired rules is ready to merge."
+      ],
+      "related": [
+        "Rewriting rather than verbatim-restoring a defended instruction: /harness-config:audit-instructions",
+        "Measure context cost of Claude Code's own switches: /context-budget:audit"
+      ]
+    },
+    "harness-memory:audit": {
+      "next": [
+        "A finding names a rule a check can enforce: /corrections:codify rules <file>."
+      ],
+      "related": [
+        "Check if instruction text is still needed by current models: /harness-config:audit-instructions",
+        "Check for missing posture guidance: /harness-config:audit-prompting-postures",
+        "Audit settings, hooks, MCP, or plugins: /harness-config:audit",
+        "Inspect, disable, or purge auto-memory: /harness-memory:stateless"
+      ]
+    },
+    "harness-memory:stateless": {
+      "next": [],
+      "related": [
+        "Audit CLAUDE.md, CLAUDE.local.md, or rules instead of auto-memory: /harness-memory:audit"
+      ]
+    },
+    "harness-ops:audit-install-state": {
+      "next": [
+        "/disk-hygiene:clean Consumes a genuinely unmanaged leftover this report surfaced; the audit itself never deletes."
+      ],
+      "related": [
+        "Project config correctness: /harness-config:audit",
+        "Permission grant portability: /harness-config:audit-permission-grants",
+        "Plugin fleet currency and scopes: /harness-ops:plugins-audit",
+        "Live session slowness diagnosis: /harness-ops:audit-performance"
+      ]
+    },
+    "harness-ops:audit-mod-posture": {
+      "next": [
+        "/harness-config:audit-permission-state to see which deny rules are in effect beside these mods."
+      ],
+      "related": [
+        "Built-in mod coverage via binary extraction: /harness-ops:inventory",
+        "Settings correctness: /harness-config:audit"
+      ]
+    },
+    "harness-ops:audit-native-overlap": {
+      "next": [],
+      "related": [
+        "Enumerating invocable surfaces: /harness-ops:inventory",
+        "Skill listing budget and structure: /skill-quality:check",
+        "Live skill visibility and starvation: /harness-ops:audit-skill-visibility",
+        "MCP tool overlap and quality: /mcp-tools:audit",
+        "Tracking new CLI releases: /harness-ops:changelog"
+      ]
+    },
+    "harness-ops:audit-performance": {
+      "next": [],
+      "related": [
+        "Deep install tree inventory: /harness-ops:audit-install-state",
+        "Plugin fleet enablement and bloat: /harness-ops:plugins-audit",
+        "Upstream CLI version regressions: /harness-ops:known-issues",
+        "Unmanaged leftover deletion: /disk-hygiene:clean",
+        "Paused retention sweep settings fix: /harness-config:audit",
+        "Transcript hook timing breakdown: /harness-ops:observability"
+      ]
+    },
+    "harness-ops:audit-plugin-landscape": {
+      "next": [],
+      "related": [
+        "Bring installed fleet current: /harness-ops:plugins",
+        "Check local plugin install and scope drift: /harness-ops:plugins-audit",
+        "Check overlap with native surfaces: /harness-ops:audit-native-overlap",
+        "File accepted adopt or adapt follow-ups: /work-items:track"
+      ]
+    },
+    "harness-ops:audit-skill-visibility": {
+      "next": [],
+      "related": [
+        "Authored repo listing budget and structure: /skill-quality:check",
+        "Installed and invocable capabilities: /harness-ops:inventory",
+        "Telemetry pipeline health: /harness-ops:observability",
+        "Dead skillOverrides settings entries: /harness-config:audit",
+        "Native overlap budget exposure: /harness-ops:audit-native-overlap"
+      ]
+    },
+    "harness-ops:behavior-probes": {
+      "next": [
+        "/harness-ops:changelog diff, to find the release behind a `fail`."
+      ],
+      "related": []
+    },
+    "harness-ops:changelog": {
+      "next": [
+        "Candidates and fired triggers filed by Phase 5: `/harness-ops:audit-native-overlap`.",
+        "Items filed as raw intake, and rows filed by Phase 4: `/work-items:triage`.",
+        "A revalidation item: `/harness-ops:inventory`.",
+        "Behavior probes the range touches: `/harness-ops:behavior-probes live`."
+      ],
+      "related": [
+        "Tracking Claude Code bugs and docs lag: /harness-ops:known-issues",
+        "Effort-pin drift checks: /harness-config:audit"
+      ]
+    },
+    "harness-ops:control-claude-code": {
+      "next": [
+        "/app-control:drive claude-code <feature>"
+      ],
+      "related": []
+    },
+    "harness-ops:inventory": {
+      "next": [
+        "/harness-ops:audit-native-overlap",
+        "It reads this inventory's invocability, argument-hint, and workflow fields to find where local skills duplicate a native surface."
+      ],
+      "related": [
+        "Installed and built-in mod posture: /harness-ops:audit-mod-posture",
+        "On-disk install tree health: /harness-ops:audit-install-state",
+        "Plugin fleet currency and scopes: /harness-ops:plugins-audit",
+        "Configured MCP server supply-chain posture: /mcp-tools:audit-posture",
+        "Config correctness: /harness-config:audit"
+      ]
+    },
+    "harness-ops:known-issues": {
+      "next": [],
+      "related": [
+        "Bugs in your own repo code: /bugs:write",
+        "Local telemetry and hook logs: /harness-ops:observability",
+        "Integrating new Claude Code features: /harness-ops:changelog",
+        "Filing follow-up items for resolved issues: /work-items:track"
+      ]
+    },
+    "harness-ops:lanes": {
+      "next": [],
+      "related": [
+        "Reading per-lane telemetry freshness: /work-items:morning-brief",
+        "Full plugin fleet sync and scope convergence: /harness-ops:plugins",
+        "Viewing lane hook latency and token telemetry: /harness-ops:observability"
+      ]
+    },
+    "harness-ops:machine-profile": {
+      "next": [
+        "A binary row is missing: /harness-ops:prerequisites",
+        "The fleet's plugin versions, a different question: /harness-ops:plugins-audit"
+      ],
+      "related": []
+    },
+    "harness-ops:observability": {
+      "next": [],
+      "related": [
+        "Configuring hook logging toggles and guards: /harness-ops:setup",
+        "Tracking upstream Claude product bugs: /harness-ops:known-issues",
+        "Diagnosing live session slowness: /harness-ops:audit-performance",
+        "Checking skill visibility and starvation: /harness-ops:audit-skill-visibility"
+      ]
+    },
+    "harness-ops:plugins": {
+      "next": [
+        "/harness-ops:prerequisites lists which external binaries the enabled fleet is missing."
+      ],
+      "related": [
+        "Read-only dry run before syncing: /harness-ops:plugins-audit",
+        "Checking stale upstreams and plugin alternatives: /harness-ops:audit-plugin-landscape"
+      ]
+    },
+    "harness-ops:plugins-audit": {
+      "next": [
+        "Apply what the audit predicts: `/harness-ops:plugins sync` (user-invoked).",
+        "Reconcile a reported divergence: `/harness-ops:plugins converge` (user-invoked)."
+      ],
+      "related": [
+        "Checking upstream plugin staleness and alternatives: /harness-ops:audit-plugin-landscape",
+        "Auditing project settings against upstream catalogs: /harness-config:audit"
+      ]
+    },
+    "harness-ops:prerequisites": {
+      "next": [
+        "Record the whole machine's facts and identity domains, not only binaries: /harness-ops:machine-profile",
+        "The fleet's versions, a different question: /harness-ops:plugins-audit"
+      ],
+      "related": [
+        "Updating the plugin fleet: /harness-ops:plugins"
+      ]
+    },
+    "harness-ops:setup": {
+      "next": [],
+      "related": []
+    },
+    "implementation:implement": {
+      "next": [
+        "Coverage of the change not yet planned: `/testing:plan`.",
+        "Tests written during the work, their quality unchecked: `/testing:audit`.",
+        "Survivors persisted by the advisory mutation run: `/testing:write`.",
+        "A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.",
+        "Tests planned, checked and green: `/review:quality-gate`."
+      ],
+      "related": [
+        "Orchestrated worker-subagent execution: /implementation:implement-dispatch",
+        "Major divergence requiring replan: /planning:plan",
+        "Build and test checks during blocks: /toolchain:check",
+        "TDD test design guidance: /tdd:principles",
+        "Outcome verification after review: /verification:confirm"
+      ]
+    },
+    "implementation:implement-dispatch": {
+      "next": [
+        "Coverage of the change not yet planned: `/testing:plan`.",
+        "Tests written during the work, their quality unchecked: `/testing:audit`.",
+        "A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.",
+        "Tests planned, checked and green: `/review:quality-gate`."
+      ],
+      "related": [
+        "Interactive inline implementation: /implementation:implement",
+        "Major divergence requiring replan: /planning:plan",
+        "Role model and effort routing: /multi-agent:route",
+        "Main-side build and test gate: /toolchain:check",
+        "Outcome verification after review: /verification:confirm"
+      ]
+    },
+    "implementation:report": {
+      "next": [],
+      "related": []
+    },
+    "improvement:find": {
+      "next": [
+        "Picked candidate fits one small PR: /improvement:improve TARGET.",
+        "Picked candidate needs design or several PRs: /planning:interview."
+      ],
+      "related": [
+        "Single-lens architecture deepening: /architecture:improve",
+        "Structure-only code tidying: /code-tidying:tidy",
+        "Verifying docs and config drift: /codebase-health:audit",
+        "Filing unpicked candidates: /work-items:track"
+      ]
+    },
+    "improvement:improve": {
+      "next": [
+        "Draft PR opened, interactive run: /source-control:pull-request ready.",
+        "Draft PR opened, unattended run whose caller authorizes the flip: /source-control:pull-request ready --unattended.",
+        "Improvement too big for one PR: /planning:plan."
+      ],
+      "related": [
+        "Ranking multiple improvement candidates first: /improvement:find",
+        "Structure-only code tidying sweep: /code-tidying:tidy",
+        "Diagnosing an observed failure: /debugging:debug"
+      ]
+    },
+    "improvement:setup": {
+      "next": [],
+      "related": []
+    },
+    "instruction-placement:audit": {
+      "next": [
+        "The operator accepts placement findings: `/instruction-placement:realign`.",
+        "A content-home advisory fired: `/instruction-placement:migrate plan`."
+      ],
+      "related": [
+        "Incremental re-audit of only what moved: /instruction-placement:delta",
+        "Gating existing rule globs and index sync: /instruction-placement:check",
+        "Progressive-disclosure split of long docs: /docs-hygiene:audit-progressive-disclosure"
+      ]
+    },
+    "instruction-placement:check": {
+      "next": [
+        "`/instruction-placement:realign`. It fixes a failing glob or a stale index behind the per-item gate."
+      ],
+      "related": [
+        "Full placement sweep of all instructions: /instruction-placement:audit",
+        "Incremental movement and broken-glob check: /instruction-placement:delta"
+      ]
+    },
+    "instruction-placement:delta": {
+      "next": [
+        "Findings moved: `/instruction-placement:realign`. It applies the moved findings the operator accepts.",
+        "Quiet run: none. Nothing moved, so there is nothing to apply."
+      ],
+      "related": [
+        "No baseline or artifact exists yet: /instruction-placement:audit",
+        "Fast pass/fail CI gate for globs and index: /instruction-placement:check"
+      ]
+    },
+    "instruction-placement:establish-hub": {
+      "next": [
+        "`/source-control:pull-request create`. Lands the hub's new instruction files for review."
+      ],
+      "related": [
+        "Hub already tracks CLAUDE.md or AGENTS.md: /instruction-placement:migrate",
+        "Writing new agent-loaded prose: /docs-hygiene:write-for-agents",
+        "Recording hub architecture decision: /architecture:adr",
+        "Moving a checkable rule up the enforcement ladder: /corrections:codify"
+      ]
+    },
+    "instruction-placement:migrate": {
+      "next": [
+        "`/instruction-placement:check`. The gate that keeps every new `paths:` glob resolving and the index in sync after the move."
+      ],
+      "related": [
+        "Auditing section-level instruction placement: /instruction-placement:audit",
+        "Writing new agent-loaded prose and pointers: /docs-hygiene:write-for-agents",
+        "Checking built-in agents-md plugin state: /harness-ops:inventory",
+        "Auditing harness memory files: /harness-memory:audit"
+      ]
+    },
+    "instruction-placement:realign": {
+      "next": [],
+      "related": [
+        "No audit artifact exists for this branch: /instruction-placement:audit",
+        "Migrating CLAUDE.md content home to AGENTS.md: /instruction-placement:migrate",
+        "Migrating legacy suppression config files: /instruction-placement:setup",
+        "Opening a PR for applied moves: /source-control:pull-request"
+      ]
+    },
+    "instruction-placement:setup": {
+      "next": [
+        "Prerequisites report ready: `/instruction-placement:audit`.",
+        "`UNREACHABLE`, and the repository wants `AGENTS.md` to be the content home rather than another import: `/instruction-placement:migrate`.",
+        "Rules or an index already exist and only need gating: `/instruction-placement:check`."
+      ],
+      "related": []
+    },
+    "javascript-format:setup": {
+      "next": [
+        "/toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "kindle-dedrm:manage": {
+      "next": [],
+      "related": [
+        "Pristine machine needing first-time provisioning: /kindle-dedrm:setup"
+      ]
+    },
+    "kindle-dedrm:setup": {
+      "next": [],
+      "related": []
+    },
+    "knowledge:absorb-upstream": {
+      "next": [
+        "/planning:plan the record's `take` and `adapt` rows, one change per surface that receives them."
+      ],
+      "related": [
+        "Digesting a single vendor docs page into a knowledge slice: /knowledge:docpage-digest",
+        "Distilling a book or web corpus into a skill: /knowledge:distill",
+        "Digesting an online course: /knowledge:course-digest",
+        "Digesting a public video: /knowledge:video-digest"
+      ]
+    },
+    "knowledge:course-digest": {
+      "next": [
+        "Verify course claims before adoption: /discovery:research",
+        "Scope verified action items into work: /planning:interview"
+      ],
+      "related": [
+        "Single public YouTube or X video: /knowledge:video-digest",
+        "Routing module-boundary session continuation: /session-flow:workflow"
+      ]
+    },
+    "knowledge:distill": {
+      "next": [
+        "/skill-quality:check"
+      ],
+      "related": [
+        "Finding an author's primary corpus before distilling: /discovery:research",
+        "Digesting a single vendor docs page: /knowledge:docpage-digest",
+        "Extracting a DRM-protected Kindle book first: /kindle-dedrm:manage"
+      ]
+    },
+    "knowledge:docpage-digest": {
+      "next": [
+        "`/planning:interview`. Its input is `interview-handoff.md`."
+      ],
+      "related": [
+        "Mapping and queuing multiple pages or a docs site: /knowledge:map-corpus",
+        "Absorbing an upstream repo or post into docs/upstream: /knowledge:absorb-upstream",
+        "Distilling a book or web corpus into a skill: /knowledge:distill"
+      ]
+    },
+    "knowledge:map-corpus": {
+      "next": [
+        "Digest queued in-corpus pages: /knowledge:docpage-digest",
+        "Walk mapper-handoff.md decisions after digests finish: /planning:interview"
+      ],
+      "related": [
+        "Single page or resource-seed-only list: /knowledge:docpage-digest",
+        "Single public video: /knowledge:video-digest",
+        "Auth-walled online course: /knowledge:course-digest"
+      ]
+    },
+    "knowledge:setup": {
+      "next": [],
+      "related": []
+    },
+    "knowledge:video-digest": {
+      "next": [
+        "/planning:interview, which takes the slice's `recommendations/interview.md`."
+      ],
+      "related": [
+        "Auth-walled online video course: /knowledge:course-digest",
+        "Unrolling an X thread with companion replies: /x:read",
+        "Deeper external claim verification: /discovery:research"
+      ]
+    },
+    "machine-health:audit": {
+      "next": [
+        "/machine-health:setup picks, which resolves the picks copied from this run's decision page and writes the mutes and approvals the owner confirms."
+      ],
+      "related": [
+        "Researching unfamiliar new findings: /discovery:research"
+      ]
+    },
+    "machine-health:setup": {
+      "next": [
+        "/machine-health:audit on-demand, whose next run reads the new overlay, mutes and approvals."
+      ],
+      "related": []
+    },
+    "markdown-format:setup": {
+      "next": [
+        "/toolchain:setup apply markdown, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "mcp-tools:audit": {
+      "next": [],
+      "related": [
+        "Checking supply-chain safety of configured MCP servers: /mcp-tools:audit-posture",
+        "Checking MCP config correctness and enablement: /harness-config:audit"
+      ]
+    },
+    "mcp-tools:audit-posture": {
+      "next": [
+        "/harness-config:audit to check the same MCP configuration for correctness, enablement, and allow or deny lists."
+      ],
+      "related": [
+        "Auditing author-side MCP tool definition quality: /mcp-tools:audit",
+        "Full inventory of invocable Claude Code surfaces: /harness-ops:inventory"
+      ]
+    },
+    "miro:setup": {
+      "next": [],
+      "related": []
+    },
+    "multi-agent:assess": {
+      "next": [
+        "workflow: /multi-agent:route all session=<alias>.",
+        "subagent or single: /session-flow:orchestrate."
+      ],
+      "related": []
+    },
+    "multi-agent:audit-defaults": {
+      "next": [
+        "/multi-agent:route all Shows the resolved map after an accepted change lands."
+      ],
+      "related": [
+        "Overriding role defaults per user, team, or checkout: /multi-agent:setup"
+      ]
+    },
+    "multi-agent:route": {
+      "next": [
+        "/multi-agent:audit-defaults Rechecks a default that looks wrong for the current models."
+      ],
+      "related": [
+        "Deciding workflow vs subagent vs single context: /multi-agent:assess",
+        "Writing user, team, or local role-map overrides: /multi-agent:setup",
+        "Delegating to Codex after vendors lookup: /external-agents:codex",
+        "Delegating to Antigravity after vendors lookup: /external-agents:antigravity"
+      ]
+    },
+    "multi-agent:setup": {
+      "next": [
+        "/multi-agent:route all Prints the map the next workflow reads from `args.roles`."
+      ],
+      "related": []
+    },
+    "mutation-testing:audit": {
+      "next": [
+        "Survivors remain and the killing tests are due: `/testing:write`.",
+        "A survivor is about to be called arid or equivalent: `/mutation-testing:principles`.",
+        "A clean exercised run: /testing:test-value."
+      ],
+      "related": [
+        "Testing suite against hand-seeded realistic bugs: /mutation-testing:seed-faults"
+      ]
+    },
+    "mutation-testing:principles": {
+      "next": [
+        "No mutation run on the change yet: `/mutation-testing:audit`.",
+        "The question is whether the suite catches realistic bugs: `/mutation-testing:seed-faults`.",
+        "A survivor is judged productive: `/testing:write`."
+      ],
+      "related": [
+        "General test-design questions: /tdd:principles",
+        "Coverage or complexity caveats: /code-metrics:principles"
+      ]
+    },
+    "mutation-testing:seed-faults": {
+      "next": [
+        "A seed survived and the killing test is due: `/testing:write`.",
+        "Survivors on the changed lines themselves: `/mutation-testing:audit`."
+      ],
+      "related": [
+        "Understanding fault seeding vs mutation theory: /mutation-testing:principles"
+      ]
+    },
+    "mutation-testing:setup": {
+      "next": [],
+      "related": []
+    },
+    "naming:name-it-better": {
+      "next": [],
+      "related": [
+        "Settling the underlying domain concept or glossary term: /domain-driven-design:ubiquitous-language",
+        "Propagating an already-decided rename across call sites: /docs-hygiene:rename-references"
+      ]
+    },
+    "overengineering:audit": {
+      "next": [
+        "`/overengineering:realign`. It executes accepted findings from this run's artifact."
+      ],
+      "related": [
+        "Judging one non-enforcement artifact or unbuilt proposal: /overengineering:justify",
+        "Reporting only enforcement changes since last run: /overengineering:delta",
+        "Finding missing automation to add: /harness-config:audit-automation-gaps",
+        "Auditing stale or over-prescriptive instruction text: /harness-config:audit-instructions"
+      ]
+    },
+    "overengineering:delta": {
+      "next": [
+        "`/overengineering:realign`. It acts on the queued verdict changes, one finding at a time."
+      ],
+      "related": [
+        "Running a full enforcement-surface walk: /overengineering:audit",
+        "Filing queued verdict changes as a work item: /work-items:track"
+      ]
+    },
+    "overengineering:justify": {
+      "next": [
+        "Findings filed on an artifact: /overengineering:realign.",
+        "A proposal judged: /planning:plan."
+      ],
+      "related": [
+        "Auditing the whole enforcement surface: /overengineering:audit",
+        "Hunting unreachable dead code: /code-tidying:audit-dead-code",
+        "Auditing derivable documentation: /docs-hygiene:audit-derivability"
+      ]
+    },
+    "overengineering:realign": {
+      "next": [
+        "`/verification:confirm`. The finding stays open until the landed change is verified."
+      ],
+      "related": []
+    },
+    "performance:climb": {
+      "next": [
+        "`/performance:verify` on the branch `climb/<goal-slug>`, with the log path."
+      ],
+      "related": []
+    },
+    "performance:go-faster": {
+      "next": [
+        "A measured `later` finding worth a numbered target: /performance:goal <the finding's key>.",
+        "A dropped or weakened check: /overengineering:audit.",
+        "Slow hooks or a slow Claude Code install: /harness-ops:audit-performance.",
+        "Candidates you already hold, to rank by evidence: /performance:target."
+      ],
+      "related": []
+    },
+    "performance:goal": {
+      "next": [
+        "`/performance:snapshot baseline`."
+      ],
+      "related": []
+    },
+    "performance:protect": {
+      "next": [
+        "The counter still needs its ceiling, CI step and tightening plan: `/toolchain:ratchet`",
+        "A human approved the proposed files: `/source-control:pull-request`"
+      ],
+      "related": []
+    },
+    "performance:snapshot": {
+      "next": [
+        "After a baseline capture: `/implementation:implement` for the change, then `/performance:snapshot post`.",
+        "After a baseline capture with a frozen harness, when the goal plans a loop: `/performance:climb`.",
+        "After a post capture: `/performance:verify`."
+      ],
+      "related": [
+        "Code-shape metrics or general before/after measurement: /verification:measure"
+      ]
+    },
+    "performance:target": {
+      "next": [
+        "A chosen target: `/performance:goal <chosen target>`. Carry the evidence tier forward: goal stops on an E3 or E4 candidate, or one this ranking says to instrument, until the named instrument has run.",
+        "No candidates yet and a whole-process sweep wanted: /performance:go-faster.",
+        "A check count growing with the repository: /toolchain:ratchet <the counter>."
+      ],
+      "related": [
+        "Have a captured CPU profile or heap snapshot: /debugging:analyze-profile",
+        "Diagnosing a slow Claude Code install: /harness-ops:audit-performance"
+      ]
+    },
+    "performance:verify": {
+      "next": [
+        "Target met on a drift-immune counter, to lock the win in (after the field read, when it shipped behind a flag): `/performance:protect`, which then hands off to `/source-control:pull-request`.",
+        "Target met on a duration only: `/source-control:pull-request`.",
+        "Target met with a large realistic-to-ideal gap (re-scan), not met with another candidate due, or a field read showing no gain (flag turned off): `/performance:target`.",
+        "Behavior changed: `/debugging:debug`."
+      ],
+      "related": []
+    },
+    "pixel-art:animate": {
+      "next": [
+        "/pixel-art:scene to put the animated character into a scene or cutscene."
+      ],
+      "related": []
+    },
+    "pixel-art:scene": {
+      "next": [
+        "/pixel-art:animate to add or fix a cycle a scene character needs."
+      ],
+      "related": [
+        "Authoring a static character or prop sprite: /pixel-art:sprite",
+        "Building background tiles or parallax: /pixel-art:tileset",
+        "Creating window skins, HUD, or bitmap fonts: /pixel-art:ui",
+        "Adding particle or spell effects: /pixel-art:vfx"
+      ]
+    },
+    "pixel-art:sprite": {
+      "next": [
+        "/pixel-art:animate <the same spec> to give the sprite movement cycles."
+      ],
+      "related": []
+    },
+    "pixel-art:tileset": {
+      "next": [
+        "/pixel-art:scene to place the tiles in a scene or parallax backdrop."
+      ],
+      "related": []
+    },
+    "pixel-art:ui": {
+      "next": [
+        "/pixel-art:scene to use the skin, icons, or font in a scene."
+      ],
+      "related": []
+    },
+    "pixel-art:vfx": {
+      "next": [
+        "/pixel-art:scene to composite the effect into a scene."
+      ],
+      "related": []
+    },
+    "planning:audit-answers": {
+      "next": [
+        "/planning:design takes the confirmed Brief next, as it would after a hand-answered interview; it records a one-line early exit when no design question is open."
+      ],
+      "related": []
+    },
+    "planning:brainstorm": {
+      "next": [
+        "The engineering contract is next, carrying the handoff block: /planning:interview.",
+        "Product intent is still fuzzy: /planning:prd.",
+        "The direction is a product or feature idea to stress-test before building it: /planning:interview product.",
+        "Type and module decisions, with the contract already locked: /planning:design.",
+        "Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow."
+      ],
+      "related": [
+        "Need a visual spike before scoping: /prototype:explore-directions",
+        "Need a logic or feasibility spike: /prototype:pressure-test",
+        "Want to raise ambition without comparing options: /discipline:be-ambitious"
+      ]
+    },
+    "planning:design": {
+      "next": [
+        "Design finished, to gate and write into PLAN.md's `## Design`, which /planning:plan reads: /planning:design-handoff.",
+        "The contract is a UI component's props API (parts, variants, controlled state): /user-interface:design."
+      ],
+      "related": [
+        "Scanning existing code for module friction: /architecture:improve",
+        "Recording a one-way-door decision: /architecture:adr",
+        "Exploring UI layout variants for a thread: /prototype:explore-directions",
+        "Testing competing logic variants: /prototype:pressure-test"
+      ]
+    },
+    "planning:design-handoff": {
+      "next": [
+        "The gate passed: /planning:plan, reading the plan-ready summary and PLAN.md's `## Design`.",
+        "The gate failed: /planning:design."
+      ],
+      "related": [
+        "Recording ADR candidates surfaced by handoff: /architecture:adr",
+        "Mid-session pause save-point instead of design gate: /session-flow:handoff"
+      ]
+    },
+    "planning:devils-advocate": {
+      "next": [
+        "/planning:plan takes the verified findings back into the plan before the user approves it."
+      ],
+      "related": []
+    },
+    "planning:draft-goal-condition": {
+      "next": [
+        "The person armed the condition and an approved plan runs in this session: /implementation:implement.",
+        "The person wants the run to go on while they are away: /session-flow:continue-in-background, which launches with the condition as the new session's `/goal`.",
+        "The lever routed to multi-window work with no tickets yet: /work-items:decompose.",
+        "The intent was too vague to name a structure or a content list: /planning:interview."
+      ],
+      "related": [
+        "Metric hill-climb on runtime speed or counters: /performance:goal",
+        "Hill-climb against an eval suite: /evals:methodology",
+        "Multi-window backlog already decomposed: /work-items:work"
+      ]
+    },
+    "planning:interview": {
+      "next": [
+        "The interview renamed a term and the code still uses the old name: /docs-hygiene:rename-references <old> to <new>, before the spec.",
+        "The user confirmed the shared understanding and the work needs a spec: /planning:prd when product intent (users, success measures) is still unsettled; for an engineering task, /planning:design, which records a one-line early exit when no design question is open and hands on to planning.",
+        "Quickly accepted answers want a fresh-context check: /planning:audit-answers.",
+        "The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.",
+        "Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow."
+      ],
+      "related": [
+        "Problem still too rough to frame approaches: /planning:brainstorm",
+        "Unfamiliar area needs blindspot pass first: /discovery:blindspot"
+      ]
+    },
+    "planning:plan": {
+      "next": [
+        "The approved plan is built inline by one session: /implementation:implement.",
+        "The execution shape routes phases to worker subagents: /implementation:implement-dispatch.",
+        "The plan holds more than one independently shippable ticket, or a later session, an AFK lane or another person picks it up: /work-items:decompose."
+      ],
+      "related": []
+    },
+    "planning:prd": {
+      "next": [
+        "PRD locked: /planning:interview for the engineering contract.",
+        "The product idea itself is not yet tested (who has the problem, why they would switch): /planning:interview product.",
+        "PRD locked and the Brief already exists: /planning:design.",
+        "PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.",
+        "Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow."
+      ],
+      "related": [
+        "Need codebase grounding on the product area: /discovery:explore",
+        "Need external market or API research: /discovery:research"
+      ]
+    },
+    "planning:setup": {
+      "next": [
+        "/planning:plan"
+      ],
+      "related": []
+    },
+    "planning:wayfind": {
+      "next": [
+        "The map is charted: /planning:wayfind work.",
+        "The effort keeps the map but has no interview behind it yet: /planning:interview.",
+        "The map closed on a set of build items: /planning:plan.",
+        "The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.",
+        "The map closed on a PRD: /planning:prd."
+      ],
+      "related": [
+        "Map closed on a decision record: /architecture:adr"
+      ]
+    },
+    "playbooks:boris": {
+      "next": [],
+      "related": []
+    },
+    "playbooks:fable-5": {
+      "next": [],
+      "related": []
+    },
+    "playbooks:repo-sweep": {
+      "next": [
+        "/source-control:pull-request ready",
+        "After the last step, to update the branch from its base, verify, and mark the sweep PR ready."
+      ],
+      "related": []
+    },
+    "playbooks:skill-authoring": {
+      "next": [
+        "`/skill-quality:check <skill>`. A skill just authored is checked before publication."
+      ],
+      "related": []
+    },
+    "playbooks:update": {
+      "next": [],
+      "related": []
+    },
+    "playgrounds:use": {
+      "next": [],
+      "related": []
+    },
+    "playwright:demo-video": {
+      "next": [
+        "The review asks for a change to the app or the replay: /playwright:playwright.",
+        "The video passed review and belongs in the pull request: /source-control:pull-request evidence."
+      ],
+      "related": [
+        "Narrated PR review media from diff instead of live browser: /review:reviewer-media",
+        "Narrated video from still frames and diagrams: /explainer-video:produce",
+        "Written PR diff digest: /review:explain-change",
+        "Concept explanation with diagrams: /education:illustrate",
+        "Attach the finished video to the pull request: /source-control:pull-request"
+      ]
+    },
+    "playwright:playwright": {
+      "next": [
+        "Evidence captured for a pull request: /source-control:pull-request.",
+        "A UI change driven and checked: /verification:confirm.",
+        "A flow driven here turned into a produced, quality-control-checked demo video for a pull request: /playwright:demo-video."
+      ],
+      "related": []
+    },
+    "playwright:setup": {
+      "next": [],
+      "related": []
+    },
+    "plugin-profiles:profile": {
+      "next": [
+        "A profile applied to this folder: `/harness-ops:audit-skill-visibility`, to see which skills the next session's listing shows.",
+        "A handoff that should restore the profile: `/session-flow:handoff`."
+      ],
+      "related": []
+    },
+    "plugin-quality:audit": {
+      "next": [
+        "`/work-items:work` in the audited plugin's own repository, which claims the emitted item and executes it."
+      ],
+      "related": [
+        "Static skill QA in isolation without behavioral evidence: /skill-quality:check",
+        "Auditing an MCP server: /mcp-tools:audit",
+        "General code review of a change set: /review:quality-gate"
+      ]
+    },
+    "plugin-quality:report": {
+      "next": [],
+      "related": []
+    },
+    "plugin-quality:setup": {
+      "next": [],
+      "related": []
+    },
+    "powershell-format:setup": {
+      "next": [
+        "/toolchain:setup apply powershell, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "prototype:build-generator": {
+      "next": [
+        "/verification:confirm. It checks the harvested artifact against what the user approved in the tool."
+      ],
+      "related": [
+        "Product UI with nameable layout directions instead of parameter tuning: /prototype:explore-directions",
+        "Parameter explorer returning a prompt instead of saved files: /playgrounds:use"
+      ]
+    },
+    "prototype:explore-directions": {
+      "next": [
+        "A direction wins and its components, state, or contracts need deciding: `/planning:design`.",
+        "A direction wins with no design question open: `/planning:plan`.",
+        "The open question is logic or state rather than appearance: `/prototype:pressure-test`.",
+        "A direction wins but one artifact in it (a texture, a curve, a generated shape) keeps missing after prompting: `/prototype:build-generator`, run by the person, so hand over the command."
+      ],
+      "related": [
+        "Need an interactive parameter explorer returning a prompt: /playgrounds:use",
+        "Need project design system tokens or props API: /user-interface:design"
+      ]
+    },
+    "prototype:pressure-test": {
+      "next": [
+        "The model holds and it settles a type, contract, or boundary: `/planning:design`, to record it.",
+        "The model holds and no design question is open: `/planning:plan`, which schedules the logic module's lift.",
+        "The prototype invalidates the model: `/planning:design`."
+      ],
+      "related": [
+        "Visual layout or appearance questions: /prototype:explore-directions",
+        "Fork turns on a qualified performance target: /performance:goal"
+      ]
+    },
+    "python-format:setup": {
+      "next": [
+        "/toolchain:setup apply python, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants a tool the plugin ships no adapter for; /toolchain:lint then runs it on request."
+      ],
+      "related": []
+    },
+    "rate-limits:setup": {
+      "next": [],
+      "related": []
+    },
+    "repo-fleet-hygiene:apply": {
+      "next": [],
+      "related": [
+        "Generate or refresh the fleet action plan: /repo-fleet-hygiene:audit",
+        "Fast-forward canonical checkouts to default branch: /repo-fleet-hygiene:sync"
+      ]
+    },
+    "repo-fleet-hygiene:audit": {
+      "next": [
+        "/repo-fleet-hygiene:apply"
+      ],
+      "related": [
+        "Per-repository cleanup tiers: /repo-hygiene:clean",
+        "Worktree status or cleanup per repo: /source-control:worktree",
+        "Fast-forward canonical checkouts first: /repo-fleet-hygiene:sync"
+      ]
+    },
+    "repo-fleet-hygiene:setup": {
+      "next": [],
+      "related": []
+    },
+    "repo-fleet-hygiene:sync": {
+      "next": [
+        "`/repo-fleet-hygiene:audit` after canonical checkouts are on their default branches."
+      ],
+      "related": [
+        "Execute a prior fleet cleanup plan: /repo-fleet-hygiene:apply",
+        "Park a dirty branch manually: /source-control:worktree"
+      ]
+    },
+    "repo-hygiene:clean": {
+      "next": [
+        "Linked worktrees no longer needed, which no tier removes: /source-control:worktree cleanup --dry-run.",
+        "Branches or worktrees across many repositories: /repo-fleet-hygiene:audit.",
+        "Disk still short after `scan` or a batch: /disk-hygiene:clean."
+      ],
+      "related": [
+        "Realign canonical clones to default branch: /repo-fleet-hygiene:sync"
+      ]
+    },
+    "repo-hygiene:setup": {
+      "next": [],
+      "related": []
+    },
+    "retro-audio:music": {
+      "next": [
+        "/pixel-art:scene <scene> <wav path> to play the loop in a scene."
+      ],
+      "related": [
+        "One-shot retro sound effect in same chip voice: /retro-audio:sfx"
+      ]
+    },
+    "retro-audio:sfx": {
+      "next": [
+        "/retro-audio:music to score a loop in the same chip voice."
+      ],
+      "related": [
+        "Play the effect inside a scene: /pixel-art:scene"
+      ]
+    },
+    "review:code-review": {
+      "next": [],
+      "related": [
+        "Dedicated PR security review lane: /review:security-review",
+        "Codify uncovered rules from review summary: /corrections:codify",
+        "Local single-lens review before push: /review:quality-gate"
+      ]
+    },
+    "review:council": {
+      "next": [
+        "Findings to apply after the last round: /review:fanout fix.",
+        "Fixes applied between rounds: /verification:confirm."
+      ],
+      "related": [
+        "Single-lens focused review: /review:quality-gate",
+        "Rate PR merge risk standalone: /review:merge-risk"
+      ]
+    },
+    "review:explain-change": {
+      "next": [
+        "The change still needs its review pass: /review:quality-gate pr.",
+        "Its reviewers should get a walkthrough video: /review:reviewer-media <pr>."
+      ],
+      "related": [
+        "Risk rating alone without walkthrough: /review:merge-risk",
+        "Explain a concept rather than a PR: /education:illustrate",
+        "Record a live UI flow for the PR: /playwright:demo-video",
+        "Render a narrated video: /explainer-video:produce",
+        "Manage or place PR media: /source-control:pull-request",
+        "Turn this digest into a narrated walkthrough for reviewers: /review:reviewer-media"
+      ]
+    },
+    "review:fanout": {
+      "next": [
+        "Findings to apply: /review:fanout fix.",
+        "No blocking findings: /verification:confirm.",
+        "A configured panel chosen for this change, with fix rounds: /review:council."
+      ],
+      "related": [
+        "Single-lens focused review: /review:quality-gate"
+      ]
+    },
+    "review:merge-risk": {
+      "next": [
+        "/review:explain-change, which shows this rating as its risk map beside the walkthrough."
+      ],
+      "related": [
+        "PR merge gate consuming demote flag: /source-control:pull-request",
+        "Multi-model council using risk tier: /review:council"
+      ]
+    },
+    "review:quality-gate": {
+      "next": [
+        "`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then PR creation; after fixes, a `self` re-run of this skill (Step 4)."
+      ],
+      "related": [
+        "Multi-surface breadth review into one ranked report: /review:fanout",
+        "Multi-model reviewer panel with fix rounds: /review:council"
+      ]
+    },
+    "review:reviewer-media": {
+      "next": [
+        "/source-control:pull-request monitor",
+        "The posted section is marked out of date by later pushes; monitor's next pass hands the PR back here."
+      ],
+      "related": [
+        "Write PR digest without posting: /review:explain-change",
+        "Render storyboard into narrated video: /explainer-video:produce",
+        "Record live UI flow for screenshots: /playwright:demo-video",
+        "Explain a concept rather than a PR: /education:illustrate",
+        "Claim the head, place the section, record a failure: /source-control:pull-request"
+      ]
+    },
+    "review:security-review": {
+      "next": [],
+      "related": [
+        "Correctness and maintainability PR review lane: /review:code-review",
+        "Codify uncovered rules from review summary: /corrections:codify",
+        "Local single-lens security review: /review:quality-gate"
+      ]
+    },
+    "review:setup": {
+      "next": [
+        "`/review:quality-gate`, which resolves review criteria through the index this setup bootstraps."
+      ],
+      "related": []
+    },
+    "session-flow:audit-friction": {
+      "next": [
+        "/session-flow:audit-friction remeasure"
+      ],
+      "related": [
+        "Cross-session token and time waste audit: /session-flow:audit-sessions",
+        "Map permission rules to friction causes: /harness-config:audit-permission-state",
+        "Check grants surviving auto mode: /harness-config:audit-permission-grants"
+      ]
+    },
+    "session-flow:audit-sessions": {
+      "next": [
+        "A finding the person chose to turn into a check or an instruction line: /corrections:codify.",
+        "A `permission` lens finding: /session-flow:audit-friction."
+      ],
+      "related": [
+        "Single-session retrospective: /session-flow:retro",
+        "Delivery metrics beside score trends: /work-items:measure-delivery"
+      ]
+    },
+    "session-flow:clean-stop": {
+      "next": [],
+      "related": [
+        "Local save-point when machine stays available: /session-flow:handoff",
+        "Resume after an interruption: /session-flow:keep-going",
+        "Prune stale .work memory items: /session-flow:tidy-work"
+      ]
+    },
+    "session-flow:continue-in-background": {
+      "next": [],
+      "related": [
+        "Manual /clear-and-paste save-point instead: /session-flow:handoff",
+        "Draft a checkable completion condition: /planning:draft-goal-condition",
+        "Run this session alone while AFK: /session-flow:step-away"
+      ]
+    },
+    "session-flow:find-handoff": {
+      "next": [
+        "Recovered session ended mid-work: /session-flow:keep-going",
+        "Check recovered handoff premises for drift: /session-flow:reanchor"
+      ],
+      "related": [
+        "Write a new save-point before /clear: /session-flow:handoff",
+        "Current-state briefing when handoff location is known: /session-flow:orient"
+      ]
+    },
+    "session-flow:go-with-recommendations": {
+      "next": [
+        "/session-flow:workflow",
+        "Names the next stage once the accepted work is under way."
+      ],
+      "related": [
+        "Park decisions while away before returning: /session-flow:step-away",
+        "Run the underlying evidence audit standalone: /discipline:do-your-research"
+      ]
+    },
+    "session-flow:handoff": {
+      "next": [
+        "The resume prompt was lost after `/clear`: /session-flow:find-handoff.",
+        "The resumed session must check that the handoff's premises still hold: /session-flow:reanchor."
+      ],
+      "related": [
+        "Delegate to a detached background agent instead: /session-flow:continue-in-background",
+        "Make work durable off-machine before shutdown: /session-flow:clean-stop",
+        "Read-only orientation from durable state: /session-flow:orient"
+      ]
+    },
+    "session-flow:keep-going": {
+      "next": [
+        "/session-flow:workflow continue",
+        "It routes how the recovered session carries on at the next phase boundary."
+      ],
+      "related": [
+        "Retire finished off-thread work and square task ledger: /session-flow:reconcile",
+        "Verify old premises before resuming: /session-flow:reanchor",
+        "Recover a lost handoff path first: /session-flow:find-handoff",
+        "Hand back if a usage limit still holds: /session-flow:handoff"
+      ]
+    },
+    "session-flow:orchestrate": {
+      "next": [
+        "/planning:draft-goal-condition turns the coordinated work into a completion condition."
+      ],
+      "related": [
+        "Choose between workflow and subagents: /multi-agent:assess",
+        "Pick model and effort per spawn: /multi-agent:route",
+        "Retire finished workers and reconcile tasks: /session-flow:reconcile"
+      ]
+    },
+    "session-flow:orient": {
+      "next": [
+        "Decide what workflow stage comes next: /session-flow:workflow",
+        "Durable state looks stale or conflicts: /session-flow:reanchor",
+        "Off-thread work needs recovery: /session-flow:keep-going"
+      ],
+      "related": [
+        "Past attempts on a specific topic: /session-flow:recall",
+        "Full menu of installed skills: /session-flow:recommend-skills",
+        "Turn catch-up into an explainer video: /explainer-video:produce"
+      ]
+    },
+    "session-flow:reanchor": {
+      "next": [
+        "/session-flow:keep-going"
+      ],
+      "related": [
+        "Read-only situation briefing without drift checks: /session-flow:orient",
+        "Inventory all worktrees: /source-control:worktree",
+        "Triage PR feedback loop: /source-control:babysit-prs"
+      ]
+    },
+    "session-flow:recall": {
+      "next": [
+        "/session-flow:orient"
+      ],
+      "related": []
+    },
+    "session-flow:recommend-skills": {
+      "next": [
+        "/session-flow:workflow",
+        "A menu has no single successor; the workflow router picks the one next stage."
+      ],
+      "related": [
+        "Current-state briefing without recommendations: /session-flow:orient",
+        "Model skipped a skill it should have invoked: /discipline:use-your-skills"
+      ]
+    },
+    "session-flow:reconcile": {
+      "next": [],
+      "related": [
+        "Resume interrupted or stuck off-thread work: /session-flow:keep-going",
+        "Read-only situation report without mutating ledger: /session-flow:orient",
+        "Make git and PR state durable before shutdown: /session-flow:clean-stop",
+        "Mid-session retro observations: /session-flow:running-retro"
+      ]
+    },
+    "session-flow:retro": {
+      "next": [
+        "/session-flow:audit-sessions trends: the score history session, quick and ci-runs modes write, across sessions and per lane, with delivery metrics.",
+        "/session-flow:audit-sessions sweep: checks whether what this retro found recurs across every session on the machine.",
+        "/session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item. Session mode calls it when given `--pattern` ([context/session.md](context/session.md), \"Ticket section\").",
+        "/session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill the session missed."
+      ],
+      "related": [
+        "Mid-session retro checkpoint before end of session: /session-flow:running-retro",
+        "Set a deletion watch on an added instruction: /harness-config:unhobble"
+      ]
+    },
+    "session-flow:running-retro": {
+      "next": [
+        "/session-flow:retro",
+        "It scores the session and codifies the learnings this checkpoint only captured."
+      ],
+      "related": [
+        "Codify a durable learning immediately: /corrections:codify",
+        "Draft a new-skill candidate: /playbooks:skill-authoring",
+        "Gate a new-skill candidate: /skill-quality:check",
+        "End session with a save-point instead: /session-flow:handoff"
+      ]
+    },
+    "session-flow:setup": {
+      "next": [
+        "`/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro`, whose session mode reads `retro_lenses`; `/session-flow:handoff`, which reads `wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`; `/session-flow:recall`, which also reads `recall_report_kinds` and `recall_doc_paths`; `/session-flow:step-away`, which reads the `away_*` keys."
+      ],
+      "related": []
+    },
+    "session-flow:step-away": {
+      "next": [
+        "/session-flow:go-with-recommendations on return, to accept the parked recommendations once the evidence is checked."
+      ],
+      "related": [
+        "Launch a fresh detached background session: /session-flow:continue-in-background",
+        "Make repo state durable before machine shutdown: /session-flow:clean-stop"
+      ]
+    },
+    "session-flow:tidy-work": {
+      "next": [
+        "/session-flow:clean-stop makes the remaining repo and worktree state durable before the machine goes away."
+      ],
+      "related": [
+        "Write a save-point before /clear: /session-flow:handoff",
+        "Reclaim disk space inside git repos: /repo-hygiene:clean"
+      ]
+    },
+    "session-flow:workflow": {
+      "next": [],
+      "related": [
+        "Full ranked menu of installed skills: /session-flow:recommend-skills",
+        "Read-only current-state briefing: /session-flow:orient",
+        "Save-point before /clear at phase boundary: /session-flow:handoff",
+        "Background continuation at phase boundary: /session-flow:continue-in-background",
+        "End-of-session retrospective: /session-flow:retro"
+      ]
+    },
+    "skill-quality:check": {
+      "next": [
+        "A FAIL or WARN to fix in a skill being authored: /playbooks:skill-authoring.",
+        "All checks pass and the change is ready to ship: /verification:confirm."
+      ],
+      "related": [
+        "Validate new case.yaml eval suites: /evals:validate",
+        "Run model-graded plugin evals: /evals:plugin-eval",
+        "Fix flagged agent-doc completion criteria: /docs-hygiene:write-for-agents"
+      ]
+    },
+    "skill-quality:setup": {
+      "next": [],
+      "related": []
+    },
+    "songwriting:co-write": {
+      "next": [
+        "/songwriting:revise audit"
+      ],
+      "related": [
+        "Sensory raw material before lines: /songwriting:object-writing",
+        "Metaphor for a line needing one: /songwriting:metaphor",
+        "Blank page, seed, or stuck fragment: /songwriting:workflow",
+        "Rhyme partners for swaps: /songwriting:rhyme"
+      ]
+    },
+    "songwriting:revise": {
+      "next": [],
+      "related": [
+        "Blank page, seed, or stuck fragment: /songwriting:workflow",
+        "Rhyme craft dimension: /songwriting:rhyme",
+        "Scansion and stability craft dimension: /songwriting:meter-prosody",
+        "Song structure and form craft dimension: /songwriting:song-form",
+        "Sensory imagery and cliche repair: /songwriting:object-writing",
+        "Metaphor repair: /songwriting:metaphor",
+        "Format finished lyrics for Suno: /songwriting:suno"
+      ]
+    },
+    "songwriting:metaphor": {
+      "next": [
+        "/songwriting:co-write"
+      ],
+      "related": [
+        "Sensory raw material feeding collisions or cliche repair: /songwriting:object-writing",
+        "Rhyme partner for metaphor key word: /songwriting:rhyme",
+        "Structural placement of image: /songwriting:song-form",
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
+      ]
+    },
+    "songwriting:meter-prosody": {
+      "next": [
+        "/songwriting:co-write"
+      ],
+      "related": [
+        "Section identification, form-fit, and hook placement: /songwriting:song-form",
+        "Rhyme position and stability: /songwriting:rhyme",
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
+      ]
+    },
+    "songwriting:object-writing": {
+      "next": [
+        "Turn mined imagery into metaphor: /songwriting:metaphor",
+        "Turn mined imagery into lyric lines: /songwriting:co-write"
+      ],
+      "related": [
+        "Rhyme choice and rhyme cliche: /songwriting:rhyme",
+        "Daily practice curriculum and numbered exercises: /songwriting:practice",
+        "Whole-draft diagnosis: /songwriting:revise diagnose",
+        "Section placement judgment: /songwriting:song-form",
+        "Scansion or stress-map claim: /songwriting:meter-prosody"
+      ]
+    },
+    "songwriting:practice": {
+      "next": [],
+      "related": [
+        "Single in-session object-writing prompt: /songwriting:object-writing",
+        "Rhyme worksheets specifically: /songwriting:rhyme",
+        "Start or route a song project: /songwriting:workflow"
+      ]
+    },
+    "songwriting:rhyme": {
+      "next": [
+        "/songwriting:co-write"
+      ],
+      "related": [
+        "Scansion, stress, and meter paradigms: /songwriting:meter-prosody",
+        "Cliche repair for images and metaphors: /songwriting:object-writing",
+        "Structural judgment on rhyme placement: /songwriting:song-form"
+      ]
+    },
+    "songwriting:setup": {
+      "next": [],
+      "related": []
+    },
+    "songwriting:song-form": {
+      "next": [
+        "/songwriting:co-write"
+      ],
+      "related": [
+        "Sensory raw material for thin sections: /songwriting:object-writing",
+        "Metaphor systems across a form: /songwriting:metaphor",
+        "Stability and scansion of sections: /songwriting:meter-prosody",
+        "Rhyme within sections: /songwriting:rhyme",
+        "Whole-draft diagnosis: /songwriting:revise diagnose"
+      ]
+    },
+    "songwriting:suno": {
+      "next": [],
+      "related": [
+        "Craft or revise lyrics before Suno formatting: /songwriting:workflow"
+      ]
+    },
+    "songwriting:workflow": {
+      "next": [],
+      "related": [
+        "Rhyme choice and worksheets: /songwriting:rhyme",
+        "Sensory object writing, cliches, and POV: /songwriting:object-writing",
+        "Metaphor generation and diagnosis: /songwriting:metaphor",
+        "Scansion, prosody, and melody fit: /songwriting:meter-prosody",
+        "Song structure, hooks, and bridges: /songwriting:song-form",
+        "Co-write rules, titles, and line dumps: /songwriting:co-write",
+        "Draft diagnosis, audit, and rewrites: /songwriting:revise",
+        "Daily practice curriculum: /songwriting:practice",
+        "Suno v5.5 prompt formatting: /songwriting:suno"
+      ]
+    },
+    "source-control:babysit-loop": {
+      "next": [
+        "`/work-items:attend-queue` for the escalations this lane raised and the attended queue they join."
+      ],
+      "related": [
+        "Single-pass fleet PR sweep without a loop: /source-control:babysit-prs",
+        "Single-PR lifecycle: /source-control:pull-request"
+      ]
+    },
+    "source-control:babysit-prs": {
+      "next": [],
+      "related": [
+        "Standing or drain loop over one repo: /source-control:babysit-loop",
+        "Single-PR lifecycle: /source-control:pull-request",
+        "Escalated PRs needing operator decisions: /work-items:attend-queue"
+      ]
+    },
+    "source-control:commit": {
+      "next": [
+        "`/source-control:pull-request create`. Its precondition is a branch carrying the work to ship."
+      ],
+      "related": []
+    },
+    "source-control:pull-request": {
+      "next": [
+        "PR merged, optional review of how the session went: /session-flow:retro.",
+        "`reassess` returned `rework`: /implementation:implement.",
+        "A reviewer walkthrough still to build for the `media` action: /review:reviewer-media <pr>."
+      ],
+      "related": [
+        "Fleet pass across all open PRs: /source-control:babysit-prs",
+        "Remove merged worktree after merge: /source-control:worktree",
+        "Write a PR digest without posting: /review:explain-change",
+        "Record a live UI flow for evidence action: /playwright:demo-video",
+        "Render a storyboard for media action: /explainer-video:produce",
+        "Decide which media the PR needs and build its storyboard: /review:reviewer-media",
+        "Explain a concept, with a video view through the same producer: /education:illustrate"
+      ]
+    },
+    "source-control:setup": {
+      "next": [
+        "Commit with configured convention: /source-control:commit",
+        "Open or manage a PR: /source-control:pull-request",
+        "Run fleet PR pass with babysit config: /source-control:babysit-prs"
+      ],
+      "related": []
+    },
+    "source-control:worktree": {
+      "next": [],
+      "related": [
+        "Back-half PR lifecycle once work is on the branch: /source-control:pull-request",
+        "Commit changes in the worktree: /source-control:commit"
+      ]
+    },
+    "speech:narrate": {
+      "next": [
+        "/harness-ops:prerequisites",
+        "When the run stopped with exit 2, it lists the declared tools this machine lacks."
+      ],
+      "related": [
+        "Missing Kokoro model or prerequisites on exit 2: /speech:setup",
+        "Render narrated explainer video using speech output: /explainer-video:produce"
+      ]
+    },
+    "speech:setup": {
+      "next": [
+        "/speech:narrate <script file>"
+      ],
+      "related": []
+    },
+    "spelling:setup": {
+      "next": [],
+      "related": [
+        "Run repo-configured spell-checkers on request: /toolchain:lint",
+        "Persist a custom spelling lint-cmd record: /toolchain:setup"
+      ]
+    },
+    "sql-server:setup": {
+      "next": [],
+      "related": []
+    },
+    "tdd:principles": {
+      "next": [
+        "`/testing:write`",
+        "Puts the test-design reasoning into the tests themselves."
+      ],
+      "related": [
+        "Expected-value provenance and test-value taxonomy: /testing:test-value",
+        "Mutation-testing principles and coverage limits: /mutation-testing:principles"
+      ]
+    },
+    "testing:audit": {
+      "next": [
+        "A finding names a test that needs a real assertion: `/testing:write`.",
+        "Findings cover a folder of low-value tests to rewrite or prune: `/testing:cleanup <folder>`.",
+        "Findings are persisted with `--persist-findings`: `/review:fanout fix`.",
+        "No findings and no other Test-stage check (coverage plan, end to end) still pending: `/review:quality-gate`."
+      ],
+      "related": [
+        "Dynamic mutation-testing complement: /mutation-testing:audit",
+        "Expected-value and can't-fail taxonomy: /testing:test-value"
+      ]
+    },
+    "testing:check-visual-parity": {
+      "next": [
+        "Continue the change one structural step at a time: /implementation:implement refactor",
+        "Verify the changed flows end to end beyond the pixels: /testing:run-e2e"
+      ],
+      "related": []
+    },
+    "testing:cleanup": {
+      "next": [
+        "Open the batch's pull request with `pr-body.md` as its body: /source-control:pull-request create",
+        "A deletion left an export, global or wrapper with no production caller: /code-tidying:audit-dead-code"
+      ],
+      "related": []
+    },
+    "testing:diagnose": {
+      "next": [
+        "All green after the regression pass: /verification:confirm fix.",
+        "The diagnosis showed feature tests are missing: /testing:write."
+      ],
+      "related": [
+        "Observed failure with no failing test yet: /debugging:debug",
+        "Captured CPU profile or heap snapshot: /debugging:analyze-profile"
+      ]
+    },
+    "testing:plan": {
+      "next": [
+        "/testing:write",
+        "Writes the tests the plan names."
+      ],
+      "related": []
+    },
+    "testing:run-e2e": {
+      "next": [
+        "All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.",
+        "All scenarios pass after review: `/verification:confirm outcome`.",
+        "A scenario fails: `/testing:diagnose`.",
+        "Touched features not matched (app-control not installed): enable app-control, installing it first if it is not installed, then run this skill again."
+      ],
+      "related": []
+    },
+    "testing:setup": {
+      "next": [
+        "/testing:audit Runs the scan with the config this skill wrote."
+      ],
+      "related": []
+    },
+    "testing:test-value": {
+      "next": [
+        "The suite needs checking for the shapes in the taxonomy below: /testing:audit.",
+        "A folder of low-value tests needs rewriting or pruning: /testing:cleanup <folder>."
+      ],
+      "related": [
+        "Broader Beck and Khorikov TDD doctrine: /tdd:principles",
+        "Dynamic surviving-mutant checks: /mutation-testing:audit"
+      ]
+    },
+    "testing:write": {
+      "next": [
+        "/testing:audit",
+        "Checks the new tests for assertions that cannot fail."
+      ],
+      "related": [
+        "Run the new tests across ecosystems: /toolchain:check",
+        "Test-design WHY guidance: /tdd:principles",
+        "Seed realistic faults to test suite strength: /mutation-testing:seed-faults"
+      ]
+    },
+    "toolchain:check": {
+      "next": [
+        "Overall `PASS`: /verification:confirm before committing.",
+        "Overall `FAIL`: /testing:diagnose."
+      ],
+      "related": [
+        "Lint and format checks only without build or tests: /toolchain:lint",
+        "Persist ecosystem commands: /toolchain:setup"
+      ]
+    },
+    "toolchain:lint": {
+      "next": [],
+      "related": [
+        "Full build, test, and lint pass: /toolchain:check",
+        "Full outcome verification before commit: /verification:confirm",
+        "Persist ecosystem lint commands: /toolchain:setup"
+      ]
+    },
+    "toolchain:ratchet": {
+      "next": [
+        "`/source-control:pull-request` with the approved files."
+      ],
+      "related": []
+    },
+    "toolchain:setup": {
+      "next": [
+        "Run build, test, and lint with configured commands: /toolchain:check",
+        "Run lint and format checks only: /toolchain:lint"
+      ],
+      "related": []
+    },
+    "user-experience:evaluate": {
+      "next": [],
+      "related": [
+        "Write a usability test script for an evaluation plan: /user-experience:plan-user-research",
+        "Redesign flows after findings: /user-experience:structure",
+        "Code-level UI craft audit: /user-interface:audit"
+      ]
+    },
+    "user-experience:plan-user-research": {
+      "next": [
+        "`/user-experience:synthesize`, once the sessions have run and their notes exist."
+      ],
+      "related": []
+    },
+    "user-experience:setup": {
+      "next": [
+        "`/user-experience:shape`, which reads the team file at its next run."
+      ],
+      "related": []
+    },
+    "user-experience:shape": {
+      "next": [
+        "A flow or journey ready for screens: /user-interface:design.",
+        "The team file skipped or never set up: /user-experience:setup check."
+      ],
+      "related": []
+    },
+    "user-experience:structure": {
+      "next": [
+        "`/user-interface:design`, which takes the flow as the wireflow hand-off and designs its screens."
+      ],
+      "related": []
+    },
+    "user-experience:synthesize": {
+      "next": [
+        "`/user-experience:structure`, which turns the user needs into flows and information architecture."
+      ],
+      "related": []
+    },
+    "user-interface:audit": {
+      "next": [
+        "/user-interface:write-animation, to build an opportunity or rework an animation the audit rejected."
+      ],
+      "related": [
+        "Fix CSS styling findings: /user-interface:write-css",
+        "Evaluate UX usability and flows: /user-experience:evaluate"
+      ]
+    },
+    "user-interface:design": {
+      "next": [
+        "Direction set, throwaway layout variants wanted: /prototype:explore-directions, handed the tokens, components and screens Step 2 named so it does not detect them again.",
+        "Direction set, CSS to write: /user-interface:write-css.",
+        "Direction set, an interface animation to build: /user-interface:write-animation.",
+        "A pass is built and needs judging before it ships: /user-interface:audit."
+      ],
+      "related": []
+    },
+    "user-interface:glossary": {
+      "next": [
+        "A named motion to build: /user-interface:write-animation.",
+        "A named visual change to style: /user-interface:write-css."
+      ],
+      "related": []
+    },
+    "user-interface:setup": {
+      "next": [
+        "`/user-interface:design`, which reads the resolved config at its next run."
+      ],
+      "related": []
+    },
+    "user-interface:write-animation": {
+      "next": [
+        "/user-interface:audit, to review the animation in the diff before it ships."
+      ],
+      "related": []
+    },
+    "user-interface:write-css": {
+      "next": [
+        "CSS written and needs checking in a real browser: /playwright:playwright.",
+        "A setting needs changing: /user-interface:setup apply."
+      ],
+      "related": []
+    },
+    "verification:confirm": {
+      "next": [
+        "Verdict CONFIRMED, or NEEDS WORK with `Evidence loop: 3/3 cap reached, last NEEDS WORK`: /source-control:pull-request.",
+        "Improvement claimed without data: /verification:measure.",
+        "Gaps found, evidence loop count below 3 before this verdict: fix them, then /verification:confirm.",
+        "Lessons listed, or a touched feature's control skill not refreshed: /app-control:map refresh <feature> [\"<lesson>\"] (or <control skill path> for every feature), or /corrections:codify \"<lesson>\" for one not about driving the app."
+      ],
+      "related": [
+        "Mechanical build, test, and lint only: /toolchain:check"
+      ]
+    },
+    "verification:measure": {
+      "next": [
+        "Confirm the outcome: /verification:confirm. The outcome report takes the comparison table as its evidence.",
+        "Host whose wall-clock spread makes a duration comparison meaningless: /performance:snapshot."
+      ],
+      "related": []
+    },
+    "verification:setup": {
+      "next": [
+        "`/verification:confirm`, which resolves `proof_level` from this file on the default branch."
+      ],
+      "related": []
+    },
+    "visualization:present": {
+      "next": [
+        "/visualization:visualize",
+        "It renders a single chart or diagram a slide needs."
+      ],
+      "related": [
+        "Write a pull-request explainer: /review:explain-change"
+      ]
+    },
+    "visualization:visualize": {
+      "next": [
+        "/visualization:present",
+        "It turns the material into a slide deck when the request is for slides rather than one visual."
+      ],
+      "related": [
+        "Interactive parameter explorer with prompt output: /playgrounds:use",
+        "Explain a concept from scratch with diagrams: /education:illustrate"
+      ]
+    },
+    "wizard:generate": {
+      "next": [
+        "`/wizard:unattended` when the remaining work is fully scriptable and a human is only the privilege or policy boundary."
+      ],
+      "related": []
+    },
+    "wizard:unattended": {
+      "next": [
+        "`/wizard:generate` when a step is a dashboard click, a one-time code, or another action no script can perform."
+      ],
+      "related": []
+    },
+    "work-items:attend-queue": {
+      "next": [
+        "`/work-items:work-loop` is the autonomous drain that picks up what this flipped."
+      ],
+      "related": [
+        "Work a single ready item directly: /work-items:work",
+        "Run human-gated sweep first: /work-items:triage"
+      ]
+    },
+    "work-items:decompose": {
+      "next": [
+        "A vertical slice ready to build: /work-items:work.",
+        "At the keyboard, with a spec container published, to run its items: /work-items:ship run #<container-id>."
+      ],
+      "related": []
+    },
+    "work-items:measure-delivery": {
+      "next": [
+        "`/work-items:track stats` for the open backlog behind the trend."
+      ],
+      "related": []
+    },
+    "work-items:morning-brief": {
+      "next": [
+        "Escalations, held PRs, or parked decisions surfaced: /work-items:attend-queue",
+        "Merge-ready PRs needing authoritative gate check: /source-control:babysit-prs"
+      ],
+      "related": [
+        "Inspect local OTEL and hook telemetry stores: /harness-ops:observability",
+        "Team DORA delivery trends: /work-items:measure-delivery"
+      ]
+    },
+    "work-items:onboard-adapter": {
+      "next": [
+        "`/work-items:setup` to bind the generated adapter."
+      ],
+      "related": []
+    },
+    "work-items:scan-todos": {
+      "next": [
+        "`/work-items:triage` for the raw items it filed."
+      ],
+      "related": []
+    },
+    "work-items:setup": {
+      "next": [
+        "Inspect backlog or add items: /work-items:track",
+        "Evaluate untriaged intake: /work-items:triage",
+        "Pick and execute the next ready item: /work-items:work"
+      ],
+      "related": []
+    },
+    "work-items:ship": {
+      "next": [
+        "One item to work next: `/work-items:work`.",
+        "Several ready items in one container, or under one non-container parent: `/work-items:ship run #<id>`."
+      ],
+      "related": [
+        "Re-slice items when scope drifts: /work-items:decompose",
+        "Audit stale leases on blocked frontier: /work-items:track"
+      ]
+    },
+    "work-items:track": {
+      "next": [
+        "A picked item: `/work-items:work`.",
+        "Raw intake: `/work-items:triage`."
+      ],
+      "related": [
+        "File a new bug report with severity rubric: /bugs:write",
+        "Decompose a plan into slices: /work-items:decompose",
+        "Sweep code TODO markers: /work-items:scan-todos"
+      ]
+    },
+    "work-items:triage": {
+      "next": [
+        "An autonomous-eligible item: `/work-items:work`.",
+        "An idea issue parked at `needs-spec`: `/planning:interview`.",
+        "A verified bug whose root cause is unknown: `/debugging:debug`.",
+        "A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`."
+      ],
+      "related": [
+        "Escalations and held PRs needing operator decisions: /work-items:attend-queue",
+        "Shape an unstructured bug report first: /bugs:write"
+      ]
+    },
+    "work-items:work": {
+      "next": [
+        "The PR it opened: `/source-control:babysit-prs`.",
+        "The next pick: `/work-items:work`."
+      ],
+      "related": [
+        "Drain the backlog continuously in a loop: /work-items:work-loop",
+        "Close or recheck completed items: /work-items:track",
+        "Handle escalated items: /work-items:attend-queue"
+      ]
+    },
+    "work-items:work-loop": {
+      "next": [
+        "`/work-items:attend-queue` for the escalations that wait."
+      ],
+      "related": [
+        "Execute a single frontier item interactively: /work-items:work",
+        "Merge lane advancing authored PRs: /source-control:babysit-loop"
+      ]
+    },
+    "writing:be-concise": {
+      "next": [],
+      "related": []
+    },
+    "x:read": {
+      "next": [],
+      "related": []
+    }
+  }
+}

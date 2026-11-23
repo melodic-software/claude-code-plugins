@@ -35,7 +35,6 @@ from typing import Any
 
 from babysit_util import is_json_object
 
-# --- Finding + approval heuristics -------------------------------------------
 
 BLOCKING_TEXT_RE = re.compile(
     r"\b(p0|p1|p2|high[- ]severity|not approving|changes requested|"
@@ -145,9 +144,6 @@ class FeedbackConfig:
 
 
 DEFAULT_FEEDBACK_CONFIG = FeedbackConfig()
-
-
-# --- Authorship: self / bot / human ------------------------------------------
 
 
 def normalize_login_set(logins: Any) -> frozenset[str]:
@@ -275,9 +271,6 @@ def body_text(item: dict[str, Any]) -> str:
     return "\n".join(value for value in values if isinstance(value, str))
 
 
-# --- Finding heuristics -------------------------------------------------------
-
-
 def _redact_negated_severity(text: str) -> str:
     """Redact negated findings ahead of a STRUCTURED-severity scan.
 
@@ -309,9 +302,6 @@ def has_blocking_severity(text: str) -> bool:
     `BLOCKING_TEXT_RE`'s imperative terms.
     """
     return bool(BLOCKING_SEVERITY_RE.search(_redact_negated_severity(text)))
-
-
-# --- Approval verdict --------------------------------------------------------
 
 
 def approval_downgrade(text: str) -> bool:

@@ -1,11 +1,3 @@
-"""Status-check rollup classification: identity dedupe, categories, rollup.
-
-Covers the `babysit_checks` module surface: the durable
-`(type, name, workflow_name)` identity, latest-wins dedupe that never merges a
-StatusContext with a same-named CheckRun, category mapping, and the
-persisted-identity validator.
-"""
-
 from __future__ import annotations
 
 import pathlib

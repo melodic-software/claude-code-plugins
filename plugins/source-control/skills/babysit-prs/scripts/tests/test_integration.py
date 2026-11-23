@@ -1,11 +1,3 @@
-"""Cross-module integration: classify_pr -> save_state -> load_state end to end.
-
-These exercise the decomposed modules working together (checks + feedback +
-delta feeding the state store), rather than any single module in isolation.
-Network-free: classify_pr consumes a fully hydrated PR view, exactly what the
-discovery/hydration layer would produce.
-"""
-
 import argparse
 import pathlib
 import sys

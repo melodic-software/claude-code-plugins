@@ -238,6 +238,11 @@ hand-written; the shared medium resolver decides the destination, with this plug
 - The view opens a topology or binding change to decide: `/planning:design system`.
 - The view settles a decision worth keeping: `/architecture:adr`.
 
+## Related
+
+- Environment topology and replicas: /architecture:map-deployment.
+- External systems and actors: /architecture:map-context.
+
 ## Gotchas
 
 - **A container diagram is one software system.** It draws the containers inside that one system,

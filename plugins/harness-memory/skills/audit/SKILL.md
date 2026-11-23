@@ -222,6 +222,17 @@ run a large rules layer) declares them in its own `CLAUDE.md` / `.claude/rules/`
 during the audit and apply any additional criteria or documented exemptions they define, reporting
 such findings under a `REPO` check-ID so they stay distinct from the doc-derived checks.
 
+## Next
+
+- A finding names a rule a check can enforce: /corrections:codify rules <file>.
+
+## Related
+
+- Check if instruction text is still needed by current models: /harness-config:audit-instructions.
+- Check for missing posture guidance: /harness-config:audit-prompting-postures.
+- Audit settings, hooks, MCP, or plugins: /harness-config:audit.
+- Inspect, disable, or purge auto-memory: /harness-memory:stateless.
+
 ## Complementary workflows
 
 The `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace

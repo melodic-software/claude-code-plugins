@@ -362,7 +362,7 @@ the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check d
 this: it runs only for dispatched items, never an escalated one.
 
 **Labeler precondition (after the in-flight check).** A label is admission
-evidence only when someone allowed to grant admission applied it. On GitHub a labeler need not
+evidence only when someone allowed to approve work applied it. On GitHub a labeler need not
 hold `write` (role mapping: pointer below), so the label alone does not show that. For each remaining
 candidate, run the bound adapter's `label-provenance` operation over the autonomous-eligible role
 label only:
@@ -391,7 +391,7 @@ Hard gates:
   `provenance: untrusted` is human-gated.
   Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
-  absence counts only when someone allowed to grant admission removed it. For each candidate, and
+  absence counts only when someone allowed to approve work removed it. For each candidate, and
   for each of `provenance: untrusted` and
   `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
   adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
@@ -485,15 +485,14 @@ blocking drain exit. [reference/mode-drain.md](reference/mode-drain.md) "Cordone
 
 `/work-items:attend-queue` for the escalations that wait.
 
+## Related
+
+- Execute a single frontier item interactively: /work-items:work.
+- Merge lane advancing authored PRs: /source-control:babysit-loop.
+
 ## Gotchas
 
-- **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary;
-  merge authority lives with the merge lane per the convention's autonomy ladder.
-- **Claim before dispatch.** `/work-items:work` holds the seam claim before any subagent is
-  dispatched; nothing in this loop's phrasing replaces that.
-- **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
-  snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep,
-  or, when the drain exits, named in the final report and left for the next launch.
-- **Telemetry is the report surface, never the escalation channel.** When human action is
-  required, the escalation contract (role label + machine-marked comment + the step-5 record
-  write) is the path; a note in the telemetry comment alone is invisible to the attended queue.
+- **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary; merge authority lives with the merge lane per the convention's autonomy ladder.
+- **Claim before dispatch.** `/work-items:work` holds the seam claim before any subagent is dispatched; nothing in this loop's phrasing replaces that.
+- **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep, or, when the drain exits, named in the final report and left for the next launch.
+- **Telemetry is the report surface, never the escalation channel.** When human action is required, the escalation contract (role label + machine-marked comment + the step-5 record write) is the path; a note in the telemetry comment alone is invisible to the attended queue.

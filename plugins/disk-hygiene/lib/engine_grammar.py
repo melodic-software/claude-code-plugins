@@ -64,37 +64,20 @@ from contextlib import contextmanager, suppress
 
 TIERS = frozenset({"high", "medium", "low"})
 
-# A literal that only the guard can validate, because the answer depends on the
-# authorized data root it resolved for this session.
 AUTHORIZED_DATA_ROOT = "authorized-data-root"
 
-# The flag carrying that value. The guard requires it on every engine call.
 DATA_ROOT_FLAG = "--data-root"
 
-# An engine file argument (snapshot, plan, approved paths, VCS evidence, scan
-# output, apply report): an absolute path whose real location is inside that
-# authorized data root and not engine-owned state. A snapshot carries the
-# protection globs preview and apply enforce, so an input read from anywhere
-# else could drop one; an output onto the guard decision log would erase it.
 AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 
-# State under the data root that the engine and its hooks write themselves:
-# the guard decision log and its rotation, the launch-monitor markers, the
-# clean belt's per-session run markers, the inventory reports, and the
-# investigated catalog.
 RUN_MARKER_DIRNAME = "clean-runs"
 ENGINE_OWNED_DIRS = frozenset(
     {"guard-decisions", "guard-launch-monitor", RUN_MARKER_DIRNAME, "inventory"}
 )
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
-# A run marker this old reads as no open run: the belt stands down, and the
-# engine deletes the marker on that session's next call.
 RUN_IDLE_TIMEOUT_SECONDS = 3600.0
 
-# Held while the guard reads and rewrites a run marker and while the engine
-# reads and deletes one, so two hooks in one parallel batch cannot interleave
-# a check with another's write. Not ``*.json``, so it is never read as a marker.
 RUN_LOCK_FILENAME = ".lock"
 
 
@@ -263,7 +246,6 @@ def _file_flag(name: str, **options) -> Flag:
     return Flag(name, external_check=AUTHORIZED_DATA_ROOT_FILE, **options)
 
 
-# A directory basename with no separator and no self/parent reference.
 _IMMEDIATE_BASENAME = r"(?!\.\.?$)[^/\\]+"
 
 SUBCOMMANDS: tuple[Subcommand, ...] = (
@@ -296,9 +278,6 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="3",
             ),
             Flag("--confirmed-large-scan", takes_value=False),
-            # --quiet only shapes the engine's stdout, so admitting it widens no
-            # capability: it cannot reach a path the same invocation without it
-            # could not already reach.
             Flag(
                 "--quiet",
                 takes_value=False,
@@ -463,8 +442,6 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 ),
             ),
             _file_flag("--report", required=True),
-            # Every approved path of the tier: the engine verifies each against
-            # live state immediately before removing it, in the same process.
             Flag(
                 "--path",
                 required=True,
@@ -483,8 +460,6 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
     ),
 )
 
-# Ordered so a disclosure can name the read-only subcommands first and the
-# mutating ones last.
 SUBCOMMAND_NAMES: tuple[str, ...] = tuple(spec.name for spec in SUBCOMMANDS)
 _SUBCOMMANDS_BY_NAME = {spec.name: spec for spec in SUBCOMMANDS}
 

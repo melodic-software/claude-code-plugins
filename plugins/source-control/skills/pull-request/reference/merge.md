@@ -50,11 +50,12 @@ Re-check all check runs for any state changes, then re-check for new comments si
    check reads
    ([GitHub](../../../reference/providers/github/pull-request/merge.md#read-the-pr-verify-verdict)),
    and merge or enqueue on a pass. While the read answers `missing` (pr-verify has not judged that
-   head yet), read it again every 60 seconds, for up to 30 minutes. A FAIL at the head, a moved
+   head yet), read it again every 90 seconds, for up to 30 minutes. A FAIL at the head, a moved
    head or a failed read is a hold to report. Still `missing` after 30 minutes (pr-verify down, or
-   a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. The
-   merge queue's own check requires a pass only for some authors, so a pr-verify outage must not
-   stop every other merge. The wait exists because the merge queue removes a PR whose head
+   a head it skips) is not a hold: merge or enqueue, and report that no verdict was read. Where
+   the guardrails plugin's `block-unresolved-pr-merge` hook is enabled, it refuses that merge until
+   a pass exists at the head, so report the PR as held for its verdict instead; only the owner
+   releases it, by turning the hook's `block_unresolved_pr_merge_enabled` switch off. The wait exists because the merge queue removes a PR whose head
    pr-verify fails, so a PR queued before the verdict spends a queue entry and a removal. This step applies whether the user approves the merge (step 5) or §4.2.1
    clears it.
 4. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, not file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
@@ -76,7 +77,7 @@ covers, and what it does not after arming:
 gate: a merge the forge or the permission layer refuses is reported with its error text and the
 session moves on to other work, never handed to the user as a command to run and never retried in
 another shape. Before any merge call, poll the PR's merge state at
-the pinned head over REST every 60 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
+the pinned head over REST every 90 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
 

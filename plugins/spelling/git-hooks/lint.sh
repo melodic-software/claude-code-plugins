@@ -77,7 +77,7 @@ if [[ -s "$contract" ]]; then
   sed 's/^\(.*:[0-9][0-9]*: \)error: /\1/' "$contract" | checks_filter_findings >"$CHECKS_TMP/blocking"
   if [[ -s "$CHECKS_TMP/blocking" ]]; then
     cat "$CHECKS_TMP/blocking" >&2
-    printf 'spelling: fix the words above, or allow-list intended ones in the repository typos config (extend-words).\n' >&2
+    printf "spelling: fix the words above, allow-list intended ones in the repository typos config (extend-words), or mark generator output with git config --add spelling.generatedHeader '<regex>'.\n" >&2
     failed=1
   fi
 fi

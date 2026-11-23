@@ -1,5 +1,27 @@
 # Changelog: discovery plugin
 
+## [2.2.16] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to five skills, matching the committed skill-link table
+
+  blindspot, explore, read-docs, research and trace-intent now list their
+  context-dependent links after `## Next`, one condition per line.
+
+## [2.2.15] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [2.2.14] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
 ## [2.2.13] - 2026-11-23
 
 ### Changed

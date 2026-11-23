@@ -1352,7 +1352,14 @@ warns of a [classifier gap](README.md#classifier-gaps).
    with no model turn and no escalation, so no human-gated label goes on (that label would keep
    CI Status red after the approval); its step summary says the lane did not judge the update's
    content. The dispatcher does not record that skip as handled: once CI Status passes on the
-   head it sends review-dependency again, and while CI Status stays red it sends nothing.
+   head it sends review-dependency again, and while CI Status stays red it sends nothing. The hold
+   CI Status words as `#<n> by Dependabot swaps only action refs, each to a tagged commit, on
+   trust-gate paths` (an owner `merge.dependabot.trusted-action-owners` leaves out) is not
+   skipped: the model reviews it, `dependency.json` carries `merge_clears_gate_hold: true`, and a
+   `merge` round marker at the head clears that hold. The dispatcher re-runs the head's CI
+   Status job once the lanes App's newest round marker names the head with `verdict=merge` and
+   was posted after that CI Status started, while that hold is its only failure; it reads
+   nothing for this unless the listing's rollup shows CI Status failed on the head.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or
@@ -1445,10 +1452,11 @@ warns of a [classifier gap](README.md#classifier-gaps).
      merge marker and escalates `dependency-files-truncated`; when the pull request's files
      (re-read here; a listing at its 3,000-file limit escalates `dependency-files-truncated`)
      change a workflow or action file (`.github/workflows/**` or an `action.yml`, either side of
-     a rename) by anything but a full-SHA pin swap, it posts no merge marker and escalates
+     a rename) by anything but a pin swap, it posts no merge marker and escalates
      `dependency-workflow-unpinned`. A pin swap is a modification whose every change block
      replaces `uses:` lines one for one, each keeping its indent and action path with both refs
-     full 40-hex SHAs, so only the SHA and the trailing comment differ; unless the pull request's commits are listed whole
+     full 40-hex SHAs or, for an official vendor's action (`VENDOR_ACTION_OWNERS`), both version
+     tags (`vN`, `vN.N`, `vN.N.N`), so only the ref and the trailing comment differ; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email) or a single-parent commit that passes the fix rule against

@@ -3,6 +3,22 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.5] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to build-generator, explore-directions and pressure-test
+
+  Each lists its context-dependent links after `## Next`, one condition per
+  line, as the committed skill-link table says.
+
+## [0.47.4] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
 ## [0.47.3] - 2026-11-23
 
 ### Changed

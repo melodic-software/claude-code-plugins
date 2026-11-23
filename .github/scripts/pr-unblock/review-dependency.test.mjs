@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+import { ciStatusOf, countRounds, main, newestRound, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
@@ -219,7 +219,44 @@ test("select hands the model a trust-gate hold for another pull request, or one 
     const result = await majorBump(annotations);
     assert.equal(result.decision, "proceed", JSON.stringify(annotations));
     assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+    assert.equal(result.file.merge_clears_gate_hold, false, JSON.stringify(annotations));
   }
+});
+
+const verdictHold = (pr) => ({
+  annotation_level: "failure",
+  message: `#${pr} by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: .github/workflows/ci.yml, and merge.dependabot.trusted-action-owners does not list the owner of: evilcorp/setup-tool. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head.`,
+});
+
+test("select hands the model a trust-gate hold a merge verdict clears, and tells it so", async () => {
+  const result = await majorBump({ 9: [NOTICE, EXIT, verdictHold(7)] });
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.skipReason, undefined);
+  assert.equal(result.file.merge_clears_gate_hold, true);
+  assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+});
+
+test("a merge-verdict hold for another pull request, or beside another failure, is not one the verdict clears", async () => {
+  const contract = { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" };
+  for (const annotations of [{ 9: [EXIT, verdictHold(8)] }, { 9: [EXIT, verdictHold(7), contract] }]) {
+    const result = await majorBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.equal(result.file.merge_clears_gate_hold, false, JSON.stringify(annotations));
+  }
+  const both = await majorBump({ 9: [EXIT, verdictHold(7), gateHold(7)] });
+  assert.deepEqual([both.decision, both.skipReason], ["skip", "gate-hold"], "a hold only a person clears beside it wins");
+});
+
+test("newestRound is the lanes App's newest marker by comment time, or null", () => {
+  const at = (comment, created_at, id) => ({ ...comment, created_at, id });
+  const comments = [
+    at(marker(HEAD, "merge"), "2026-11-23T10:05:00Z", 3),
+    at(marker(OTHER, "fix"), "2026-11-23T10:01:00Z", 9),
+    at(marker(OTHER, "escalate", 1), "2026-11-23T10:09:00Z", 10),
+  ];
+  assert.deepEqual(newestRound(comments, APP), { head: HEAD, verdict: "merge", run: "1-1", createdAt: "2026-11-23T10:05:00Z" });
+  assert.equal(newestRound([...comments, at({ user: { id: APP }, body: "<!-- pr-unblock:review-dependency-round head=x -->" }, "2026-11-23T10:07:00Z", 11)], APP), null);
+  assert.equal(newestRound([at(marker(HEAD, "merge", 1), "2026-11-23T10:05:00Z", 3)], APP), null);
 });
 
 const POLICY = {
@@ -747,4 +784,68 @@ test("main warns and hands the model a pin it cannot move", async () => {
   await main(["select"], env, { api: fakeApi({ files: PIN_FILES, texts }), log: (line) => lines.push(line) });
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\n/);
   assert.ok(lines.some((line) => line.startsWith("::warning::the @anthropic-ai/claude-code install-script pin was not moved (the moved pin is refused: allow-scripts-version)")));
+});
+
+test("select only writes a hashed CDN request for a Dependabot manifest bump with matching base targets", async () => {
+  const manifestPath = "lib/cdn-pins/package.json";
+  const pinsPath = "lib/cdn-pins/pins.json";
+  const scriptPath = "lib/cdn-pins/sync.mjs";
+  const target = "docs/view.md";
+  const record = JSON.stringify({ packages: { x: { version: "1.0.0" } }, targets: [{ path: target, packages: ["x"], integrity: true }] });
+  const baseScript = "export function sync() {}\n";
+  const manifest = '{"dependencies":{"x":"2.0.0"}}\n';
+  const texts = { [manifestPath]: manifest, [pinsPath]: record, [target]: "view\n", [scriptPath]: "throw new Error('head code')\n" };
+  const changed = (filename) => ({ filename, status: "modified" });
+  const lock = changed("lib/cdn-pins/package-lock.json");
+  for (const { why, files = [changed(manifestPath)], pull, headTexts = texts, omit, written = false } of [
+    { why: "manifest only", written: true },
+    { why: "lock only, versions already synced", files: [lock], headTexts: { ...texts, [manifestPath]: '{"dependencies":{"x":"1.0.0"}}\n' } },
+    { why: "lock with a manifest bump", files: [lock], written: true },
+    { why: "both", files: [changed(manifestPath), lock], written: true },
+    { why: "a bump of a package pins.json does not list", headTexts: { ...texts, [manifestPath]: '{"dependencies":{"x":"1.0.0","z":"3.0.0"}}\n' } },
+    { why: "a manifest that does not parse", headTexts: { ...texts, [manifestPath]: "{" } },
+    { why: "non-Dependabot", pull: { user: { id: 1, login: "someone" } } },
+    { why: "extra path", files: [changed(manifestPath), changed(target)] },
+    { why: "incomplete changed-file listing", pull: { changed_files: 2 } },
+    { why: "renamed into the manifest", files: [{ filename: manifestPath, previous_filename: target, status: "renamed" }] },
+    { why: "missing base pins", omit: pinsPath },
+    { why: "missing base script", omit: scriptPath },
+    { why: "different target metadata", headTexts: { ...texts, [pinsPath]: record.replace("true", "false") } },
+    { why: "missing head target", headTexts: { ...texts, [target]: null } },
+  ]) {
+    const dir = tempDir("cdn-select-");
+    mkdirSync(join(dir, "lib/cdn-pins"), { recursive: true });
+    const requestDir = join(dir, "cdn-request");
+    mkdirSync(requestDir);
+    if (omit !== pinsPath) writeFileSync(join(dir, pinsPath), record);
+    if (omit !== scriptPath) writeFileSync(join(dir, scriptPath), baseScript);
+    const env = {
+      BASE_DIR: dir,
+      CDN_SYNC_DIR: requestDir,
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: "o/r",
+      GITHUB_OUTPUT: join(dir, "output"),
+      PR_NUMBER: "7",
+      HEAD_SHA: HEAD,
+      APP_SENDER_ID: String(APP),
+      TRUSTED_ACTORS: join(dir, "actors.json"),
+      DEPENDENCY_FILE: join(dir, "dependency.json"),
+      CONTEXT_RUN_FILE: join(dir, "context.json"),
+      DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+      DEPENDABOT_POLICY: join(dir, "policy.json"),
+    };
+    writeFileSync(env.TRUSTED_ACTORS, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
+    const api = fakeApi({ files, pull, texts: headTexts });
+    await main(["select"], env, { api, log: () => {} });
+    const path = join(requestDir, "request.json");
+    assert.equal(existsSync(path), written, why);
+    if (written) {
+      const request = readFileSync(path, "utf8");
+      assert.deepEqual(JSON.parse(request), { script: baseScript, manifest, files: { [pinsPath]: record, [target]: "view\n" } });
+      const sum = createHash("sha256").update(request).digest("hex");
+      assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `cdn-sync-state=written\ncdn-sync-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
+    } else if (why.startsWith("lock only") || why.startsWith("a bump of") || why.startsWith("a manifest")) {
+      assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true$/m, `${why}: the model reviews it`);
+    }
+  }
 });

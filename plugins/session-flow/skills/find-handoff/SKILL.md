@@ -266,6 +266,16 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Next
+
+- Recovered session ended mid-work: /session-flow:keep-going.
+- Check recovered handoff premises for drift: /session-flow:reanchor.
+
+## Related
+
+- Write a new save-point before /clear: /session-flow:handoff.
+- Current-state briefing when handoff location is known: /session-flow:orient.
+
 ## Gotchas
 
 - **`/clear` writes a new transcript file** in the **same** project directory. The pre-clear

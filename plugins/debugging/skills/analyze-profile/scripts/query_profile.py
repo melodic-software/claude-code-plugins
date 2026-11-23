@@ -63,7 +63,6 @@ def connect_read_only(path):
 
 
 def number_or_text(value):
-    """An integer, else a finite decimal, else the text as given."""
     try:
         number = int(value)
     except ValueError:
@@ -161,7 +160,6 @@ def retainers(argv):
             "SELECT from_idx, type, name FROM edges "
             "WHERE to_idx = ? AND type != 'weak' ORDER BY seq"
         )
-        # reached[n] is (the node it was reached from, the edge n uses to point at it)
         reached = {args.idx: (None, "")}
         queue = collections.deque([args.idx])
         while queue and 0 not in reached:

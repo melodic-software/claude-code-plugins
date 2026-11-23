@@ -222,12 +222,18 @@ const ACTION = /^(.+\/)?action\.ya?ml$/;
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
 // A pinned `uses:` line: its indent and key, the action path, the full SHA.
 const PINNED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@([0-9a-f]{40})(?:\s+#.*)?\s*$/;
+const TAGGED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@(v\d+(?:\.\d+){0,2})(?:\s+#.*)?\s*$/;
+// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351
+export const VENDOR_ACTION_OWNERS = Object.freeze(["actions", "github", "dependabot", "microsoft", "azure", "anthropics", "openai"]);
+const isVendorAction = (path) => VENDOR_ACTION_OWNERS.includes(path.split("/")[0].toLowerCase());
 
 // Why a Dependabot change to a workflow or action file (either side of a
 // rename) is not a pin swap, or null. Each change block in its patch must
 // remove and add the same number of lines, and each removed line pairs in
 // order with an added `uses:` line that keeps its indent and action path,
 // both pinned to a full SHA: only the SHA and the trailing comment differ.
+// A VENDOR_ACTION_OWNERS action may instead move between version tags:
+// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351
 // `files` is the REST pull-request files listing with patches.
 export function pinSwapRefusal(files) {
   const isWorkflow = (path) => /^\.github\/workflows\//i.test(path) || ACTION.test(path);
@@ -255,9 +261,11 @@ export function pinSwapRefusal(files) {
       for (const [i, before] of removed.entries()) {
         const after = added[i];
         if (!USES_LINE.test(before) || !USES_LINE.test(after)) return `${where}:not-a-uses-line`;
-        const [, oldKey, oldPath, oldSha] = PINNED_USES.exec(before) ?? [];
-        const [, newKey, newPath, newSha] = PINNED_USES.exec(after) ?? [];
-        if (!oldSha || !newSha) return `${where}:not-a-full-sha`;
+        const pinned = [PINNED_USES.exec(before), PINNED_USES.exec(after)];
+        const tagged = [TAGGED_USES.exec(before), TAGGED_USES.exec(after)];
+        const pair = pinned.every(Boolean) ? pinned : tagged.every((m) => m && isVendorAction(m[2])) ? tagged : null;
+        if (!pair) return `${where}:not-a-full-sha-or-vendor-tag`;
+        const [[, oldKey, oldPath], [, newKey, newPath]] = pair;
         if (oldKey !== newKey || oldPath !== newPath) return `${where}:action-changed`;
       }
     }
@@ -429,6 +437,33 @@ export function pushRefusal(activities, head, commits, appId) {
 // tree entry at the fix's tip.
 export const FIX_MODE = 0o100644;
 export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX_MODE;
+
+export const SKIP_MARKER = "[dependabot skip]";
+
+export async function cdnSyncRefusal(detail, appId, paths, entry) {
+  const verification = detail?.commit?.verification;
+  if (
+    !Number.isInteger(appId) ||
+    detail?.author?.id !== appId ||
+    detail?.committer?.id !== WEB_FLOW_ID ||
+    verification?.verified !== true ||
+    verification.reason !== "valid"
+  ) {
+    return "cdn-sync-author";
+  }
+  if (!Array.isArray(detail.parents) || detail.parents.length !== 1) return "cdn-sync-parents";
+  if (!String(detail.commit?.message ?? "").includes(SKIP_MARKER)) return "cdn-sync-message";
+  if (!Array.isArray(detail.files) || detail.files.length === 0) return "cdn-sync-files";
+  const scope = await paths();
+  if (!(scope instanceof Set) || scope.size === 0) return "cdn-sync-base-unreadable";
+  for (const file of detail.files) {
+    const path = String(file?.filename ?? "");
+    if (file?.status !== "modified" || file.previous_filename) return `cdn-sync-status:${path}`;
+    if (!scope.has(path)) return `cdn-sync-scope:${path}`;
+    if (!isFixFile(await entry("before", path)) || !isFixFile(await entry("after", path))) return `cdn-sync-mode:${path}`;
+  }
+  return null;
+}
 
 const DEPENDENCY_SECTIONS = Object.freeze(["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]);
 const RANGE_VERSION = /^v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
