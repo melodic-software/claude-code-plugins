@@ -1,10 +1,3 @@
-// Runs with no node_modules: driver.mjs loads the terminal engine only inside
-// the session holder, and every engine below is a stub. Expected values come
-// from the plan's launch contract (three flags, the auth variables unset, no
-// --bare, persistence forced), the Claude Code Environment variables and LLM
-// gateway pages, Node's setTimeout ceiling (2^31-1 ms), and the shared
-// prerequisites checker's probe rule (the pattern is a regular expression run
-// over the probe's output).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -32,14 +25,11 @@ const CLEARED = [
 const posixOnly = { skip: process.platform === 'win32' && 'the stubs are POSIX scripts and modes' };
 const NATIVE_FAILURE = 'failed to load the @microsoft/tui-test native addon: Cannot find native binding';
 
-// Every session socket in this file lives under a private runtime directory of its own.
 const RUNTIME = mkdtempSync(join(tmpdir(), 'ccd-rt-'));
 process.env.XDG_RUNTIME_DIR = RUNTIME;
-// A runner that exports either would move the sockets or send launch, ready and log to a broker.
 delete process.env.CCD_RUNTIME_DIR;
 delete process.env.CCD_BROKER_SOCK;
 after(() => rmSync(RUNTIME, { recursive: true, force: true }));
-/** The driver's runtime directory: win32 keeps it under LOCALAPPDATA, every other platform under RUNTIME. */
 const CCD_DIR =
   process.platform === 'win32' ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ccd') : join(RUNTIME, 'ccd');
 let sessions = 0;
@@ -96,7 +86,6 @@ test('an unknown flag is a usage error that points to --help', async () => {
   await assert.rejects(main(['stop', '--force']), { code: 2, message: /; node driver\.mjs --help lists the verbs and their flags$/ });
 });
 
-/** Runs main with console.log captured, resolving with its status and the lines it printed. */
 async function printed(args) {
   const lines = [];
   const log = console.log;
@@ -245,7 +234,6 @@ test('credentials.ci naming a variable the driver has no key source for is refus
 const CI = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
 
 test('attended clears the API key, passes the person\'s own OAuth token through, and requires "none"', () => {
-  // The config an attended verb builds: no --unattended, no CI names.
   const { env, keySource } = buildLaunch({ pluginDir: '/p' }, { ANTHROPIC_API_KEY: 'fake', CLAUDE_CODE_OAUTH_TOKEN: 'fake' });
   assert.equal('ANTHROPIC_API_KEY' in env, false);
   assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'fake');
@@ -272,8 +260,6 @@ test('unattended with no CI credential set runs as attended does', () => {
   assert.equal(keySource, 'none');
 });
 
-// The launch the #13711 probe ran in the sibling sandbox (probe-13711-bash.yml at 6764ca031f8):
-// LAUNCH_FLAGS ['--strict-mcp-config'] and no scrub line, so Bash is in the default tools.
 test('in-sandbox drops --restricted and the scrub, and still keeps the one CI credential', () => {
   const { argv, env, keySource } = buildLaunch(
     { pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true },
@@ -404,7 +390,6 @@ test('the Windows repair line enters the install dir instead of passing it to np
   assert.ok(!line.includes('--prefix'), line);
 });
 
-// ---- stubs: npm, fc-list and the engine on a private PATH ----
 
 function sandbox({ npm = 'exit 1', engine } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'ccd-test-'));
@@ -443,7 +428,6 @@ export const TuiTest = { ephemeral: () => ({
   closeQuiet: async () => { throw new Error('closeQuiet hides a binding that never loaded'); },
 }) };
 `;
-// An engine that answers every call; for cases about the install, not the probe.
 const ANSWERS = `export const TuiTest = { ephemeral: () => ({
   run: async () => {},
   close: async () => {},
@@ -539,7 +523,6 @@ test('a ttl above the setTimeout ceiling is refused before any install; the ceil
         code: 2,
         message: '--ttl takes a whole number of seconds up to 2147483',
       });
-      // The failing npm stub stops the install: past the usage check, the install is the step that fails.
       await assert.rejects(main([...args, '--session', session(), '--ttl', '2147483']), { code: 4 });
     });
   } finally {
@@ -648,7 +631,6 @@ test('the Windows pipe name carries the random suffix the launch recorded', asyn
   }
 });
 
-// ---- the holder, run against stub engines ----
 
 test('a verified install whose native binding has since gone fails launch with the repair line', posixOnly, async () => {
   const box = sandbox();
@@ -668,7 +650,6 @@ test('a verified install whose native binding has since gone fails launch with t
 });
 
 test('the holder exits and frees the session when claude exits', posixOnly, async () => {
-  // claude "exits" once the test writes the sentinel; until then the session answers.
   const box = sandbox();
   const sentinel = join(box.root, 'claude-exited');
   const exits = `import { existsSync } from 'node:fs';
@@ -703,7 +684,6 @@ export const TuiTest = { ephemeral: () => ({
 });
 
 test('an unattended run drives the session it launched: no terminal, no key, cwd hidden, then stopped', posixOnly, async () => {
-  // The engine records what the holder hands claude; the launch runs with no terminal on stdin.
   const box = sandbox();
   const seen = join(box.root, 'seen.json');
   const records = `import { writeFileSync } from 'node:fs';
@@ -891,7 +871,6 @@ const isAlive = (pid) => {
 };
 
 test('two concurrent launches of one session start one holder; the other is refused', posixOnly, async () => {
-  // Each holder records its pid when it starts claude, so the test can see every holder that ran.
   const box = sandbox();
   const pids = join(box.root, 'holders');
   mkdirSync(pids);
@@ -927,12 +906,10 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
-// ---- print mode, run against a stub claude ----
 
 const initLine = (source) =>
   JSON.stringify({ type: 'system', subtype: 'init', apiKeySource: source, claude_code_version: '9.9.9', plugins: [{ name: 'demo', path: '/p' }] });
 
-// A claude that records its argv and the key it was given, prints the init event, then runs `rest`.
 function stubClaude(box, source, rest) {
   const script = [
     '#!/bin/sh',
@@ -944,7 +921,6 @@ function stubClaude(box, source, rest) {
   writeFileSync(join(box.bin, 'claude'), `${script}\n`, { mode: 0o755 });
 }
 
-// The plugin under test: a directory whose manifest carries `name`.
 function pluginDir(box, name = 'demo') {
   const dir = join(box.root, 'plugin');
   mkdirSync(join(dir, '.claude-plugin'), { recursive: true });
@@ -965,7 +941,6 @@ async function quietly(fn) {
 
 test('ready stops claude at the init event and passes on apiKeySource "none"', posixOnly, async () => {
   const box = sandbox();
-  // exec, so stopping the stub stops the process holding its stdout
   stubClaude(box, 'none', 'exec sleep 30');
   const out = join(box.root, 'init.jsonl');
   const saved = process.env.ANTHROPIC_API_KEY;
@@ -1037,7 +1012,6 @@ test('ready exits 1 when the init event names an API key', posixOnly, async () =
 });
 
 test('ready still requires apiKeySource "none": every key source is refused', posixOnly, async () => {
-  // The non-none values of the ApiKeySource table the driver's pointer names.
   for (const source of ['user', 'project', 'org', 'temporary', 'apiKeyHelper', 'ANTHROPIC_API_KEY', '/login managed key']) {
     const box = sandbox();
     stubClaude(box, source, 'exec sleep 30');
@@ -1131,7 +1105,6 @@ test('log exits 1 and names the exit when claude fails', posixOnly, async () => 
 
 test('log stops claude and every process it started when the init event names an API key', posixOnly, async () => {
   const box = sandbox();
-  // No exec: the sleep is a child of the stub and holds its stdout, as a wrapper's child would.
   stubClaude(box, 'ANTHROPIC_API_KEY', 'sleep 30');
   const out = join(box.root, 'run.jsonl');
   try {
@@ -1233,15 +1206,11 @@ test('a reservation left by a process that is gone is reclaimed, and a launch ri
   }
 });
 
-// ---- masks ----
-// The fixtures are rewrites of real /status and /usage screens with every value invented; the
-// values each test expects hidden are the invented ones, read off the fixture by hand.
 
 const fixture = (name) => readFileSync(join(HERE, 'fixtures', name), 'utf8').replace(/\n$/, '');
 const MASKS = driver.readMasks(readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8'));
 const VALUES = ['user@example.com', 'Example Org'];
 
-/** Terminal cells for screen text, one per code point, default colors; `cols` pads each row with blanks. */
 function toCells(text, cols = 0) {
   return text.split('\n').flatMap((line, y) =>
     Array.from(line.padEnd(cols)).map((char, x) => ({ x, y, char, fg: 'default', bg: 'default', bold: false, link: '', link_id: '' })),
@@ -1374,8 +1343,6 @@ test('a masked frame redraws with its colors and attributes and without its link
   assert.ok(!draw.includes('example.com'));
 });
 
-// An engine whose live terminal shows `screen`, and whose second terminal (the mirror) keeps what it
-// is sent in `<box>/drawn`, shows the rows of the last frame as its text, and "renders" that text.
 const MIRROR_ENGINE = (screen, box, { stuck = false } = {}) => `import { appendFileSync, writeFileSync } from 'node:fs';
 const cells = ${JSON.stringify(toCells(screen))};
 const rows = (frame) => frame.replace(/\\x1b\\[[0-9;?]*[mJl]/g, '').split(/\\x1b\\[\\d+;1H/).slice(1).join('\\n');
@@ -1397,7 +1364,6 @@ export const TuiTest = { ephemeral: (prefix) => {
 } };
 `;
 
-/** A sandbox with a stub claude whose `auth status --json` names the invented account. */
 function maskBox(screen, opts) {
   const box = sandbox();
   placeEngine(box.target, MIRROR_ENGINE(screen, box, opts), { marked: true });
@@ -1495,7 +1461,6 @@ test('outside the plugin cache the data directory is a --plugin-dir session\'s, 
   }
 });
 
-// ---- changed plugins ----
 
 test('plugins names each changed plugin once, in order, and nothing for a file outside a plugin', () => {
   const root = mkdtempSync(join(tmpdir(), 'ccd-repo-'));
@@ -1544,9 +1509,7 @@ test('plugins with no changed file names the configured plugin dir', async () =>
   assert.equal(text, defaults.pluginDir);
 });
 
-// ---- the runtime directory variable and broker mode ----
 
-/** Sets each variable (undefined unsets it) for the run of `fn`, then puts back what was there. */
 async function withEnv(vars, fn) {
   const saved = Object.fromEntries(Object.keys(vars).map((name) => [name, process.env[name]]));
   const put = (values) => {
@@ -1600,7 +1563,6 @@ test('a brokered request carries the options as typed, paths made absolute again
   });
 });
 
-/** A one-connection server at a fresh socket that records the request line and answers with `lines`. */
 async function fakeBroker(lines, { end = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ccd-fb-'));
   const sock = join(dir, 'b.sock');
@@ -1688,7 +1650,6 @@ test('with CCD_BROKER_SOCK set, --real-setup is refused before anything reaches 
 });
 
 test('without CCD_BROKER_SOCK, log runs claude here and prints exactly its one line', posixOnly, async () => {
-  // A broker listening at a known path is never contacted when the variable is unset.
   const fb = await fakeBroker([JSON.stringify({ exit: 9 })]);
   const box = sandbox();
   stubClaude(box, 'none', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
@@ -1707,7 +1668,6 @@ test('without CCD_BROKER_SOCK, log runs claude here and prints exactly its one l
   }
 });
 
-// ---- hardening: relayed text, the broker socket, deadlines, capture paths, --out ----
 
 import netForHolders from 'node:net';
 import { symlinkSync } from 'node:fs';
@@ -1763,7 +1723,6 @@ test('a brokered verb waits its own timeout plus a 120 s grace: ready 120 s, log
   assert.equal(driver.brokerDeadline('launch', {}), 750_000);
 });
 
-/** A holder stand-in at session `name`'s socket: `reply(line, conn)` answers each request. */
 async function fakeHolder(name, reply) {
   mkdirSync(join(RUNTIME, 'ccd'), { recursive: true, mode: 0o700 });
   const sock = join(RUNTIME, 'ccd', `${name}.sock`);
@@ -1872,14 +1831,12 @@ const STAYS_UP = `export const TuiTest = { ephemeral: () => ({
 }) };
 `;
 
-/** A sandbox whose `claude auth status --json` prints `status`. */
 function authBox(status) {
   const box = sandbox();
   writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${status}'\n`, { mode: 0o755 });
   return box;
 }
 
-/** Runs account.mjs under `runtime` with `bin` first on PATH; async, so an in-process holder can answer. */
 const runAccount = (runtime, bin, args = []) =>
   new Promise((done) => {
     const env = { ...process.env, XDG_RUNTIME_DIR: runtime, PATH: `${bin}${delimiter}${process.env.PATH}` };
@@ -1891,7 +1848,6 @@ const runAccount = (runtime, bin, args = []) =>
     child.on('close', (status) => done({ status, stdout, stderr }));
   });
 
-/** Launches a session in a runtime directory of its own whose holder's claude prints `status`, then runs `fn`. */
 async function withAccountSession(status, { key } = {}, fn) {
   const runtime = mkdtempSync(join(tmpdir(), 'ccd-acct-'));
   const box = authBox(status);
@@ -1933,7 +1889,6 @@ test('account prints the organization of a session on key auth that names one', 
   }));
 
 test('account exits 1 with nothing on stdout for key auth the launch did not keep', posixOnly, () =>
-  // An attended launch clears ANTHROPIC_API_KEY, so a key reported anyway came from somewhere the driver cannot see.
   withAccountSession(KEY_AUTH, {}, async ({ runtime, callerBin }) => {
     const run = await runAccount(runtime, callerBin);
     assert.equal(run.status, 1);
@@ -1973,7 +1928,6 @@ test('account exits 1 with nothing on stdout when no session runs or the named o
   }
 });
 
-/** A holder stand-in under `runtime` that answers ping with pong and account with `lines`. */
 async function accountHolder(runtime, name, lines) {
   mkdirSync(join(runtime, 'ccd'), { recursive: true, mode: 0o700 });
   const sock = join(runtime, 'ccd', `${name}.sock`);

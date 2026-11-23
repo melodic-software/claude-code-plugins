@@ -47,8 +47,6 @@ err() { printf 'ERROR: %s\n' "$*" >&2; }
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-# The script takes no options, so every branch below ends the run: there is
-# nothing to shift and nothing a second token could change.
 if (($#)); then
   case "$1" in
   -h | --help)

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for mod-posture.sh. A stub claude serves `plugin list`, `plugin
-# validate`, `auth status` and `--version` from fixture files; HOME and the managed settings
-# path point into the fixture, so no run reads this machine's install, settings or policy.
-# One case runs the real `claude plugin validate` when a claude resolves on PATH.
 set -uo pipefail
 
 unset CLAUDE_CONFIG_DIR CLAUDE_CODE_ENTRYPOINT WSL_DISTRO_NAME
@@ -33,7 +29,6 @@ assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$
 assert_contains() { case "$2" in *"$3"*) pass "$1" ;; *) fail "$1" "expected to contain: $3" ;; esac; }
 assert_not_contains() { case "$2" in *"$3"*) fail "$1" "must not contain: $3" ;; *) pass "$1" ;; esac; }
 
-# Fixture root holds a space so every path is exercised with one.
 FIX="$TEST_TMPDIR/fix dir"
 mkdir -p "$FIX/home/.claude" "$FIX/bin" "$FIX/proj" "$FIX/other proj" "$FIX/validate" "$FIX/managed"
 export HOME="$FIX/home"
@@ -41,7 +36,6 @@ cat >"$HOME/.claude/settings.json" <<'EOF'
 {"env": {"API_TOKEN": "SECRETSETTINGS1"}, "enabledPlugins": {"mod-a@mk": true}}
 EOF
 
-# plugin <dir> <name> <hooks.json body or ""> [plugin.json hooks object]
 plugin() {
   mkdir -p "$1/.claude-plugin" "$1/hooks"
   local inline="${4:-}"
@@ -83,8 +77,7 @@ jq -n --arg p "$P" --arg proj "$proj_real" --arg other "$other_real" '[
   {id:"nouns@mk", scope:"user", enabled:true, installPath:"\($p)/nouns"}
 ]' >"$FIX/list.json"
 
-# validate fixtures, keyed by plugin directory name.
-validate_json() { # <name> <success> <notes...>
+validate_json() {
   local name="$1" ok="$2"
   shift 2
   jq -n --arg f "$P/$name/hooks/hooks.json" --argjson ok "$ok" '$ARGS.positional as $n |
@@ -133,7 +126,6 @@ EOF
 chmod +x "$FIX/bin/claude"
 export MOD_POSTURE_CLAUDE="$FIX/bin/claude" STUB_LIST="$FIX/list.json" STUB_VALIDATE="$FIX/validate" \
   STUB_AUTH="$FIX/auth.json"
-# auth <subscriptionType JSON value>: every auth fixture also carries fields that must never print.
 auth() { printf '{"subscriptionType":%s,"email":"SECRETEMAIL1@example.com","orgName":"SECRETORG1","orgId":"SECRETORGID1"}\n' "$1" >"$FIX/auth.json"; }
 auth '"max"'
 
@@ -188,11 +180,9 @@ run_mp() {
   ERR="$(<"$FIX/stderr.txt")"
   ALL+="$OUT$ERR"
 }
-# field <id> <n>: the nth tab-separated field (1-based) of the row whose id is <id>.
 field() { printf '%s\n' "$OUT" | awk -F'\t' -v id="$1" -v n="$2" '$1 == id { print $n; exit }'; }
 count_rows() { printf '%s\n' "$OUT" | awk -F'\t' -v id="$1" '$1 == id' | wc -l | tr -d ' '; }
 
-# --- Installed tier ------------------------------------------------------------------------
 run_mp --overview "$FIX/overview.md" --builtin-json "$FIX/inventory.json"
 assert_eq "exits 0" 0 "$RC"
 assert_eq "dated header" "# mod-posture inventory 2026-10-17" "$(printf '%s\n' "$OUT" | head -1)"
@@ -219,7 +209,6 @@ assert_contains "skipped path is counted in a footer" "$OUT" "# not read: instal
 assert_eq "validate failure reads unknown" "unknown unknown validate-failed unknown" \
   "$(field broken@mk 5) $(field broken@mk 6) $(field broken@mk 7) $(field broken@mk 8)"
 
-# --- Grammar filter ------------------------------------------------------------------------
 assert_eq "id outside the grammar prints redacted-id" 1 \
   "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "redacted-id" && $2 == "managed"' | wc -l | tr -d ' ')"
 assert_eq "installed entry with a null id keeps its columns" "user on yes tool.call" \
@@ -238,7 +227,6 @@ assert_eq "module path with a space keeps its calls" '$.process.run' "$(field sp
 assert_eq "validate errors with no notes read unknown, not none" "unknown unknown validate-errors unknown" \
   "$(field silent@mk 5) $(field silent@mk 6) $(field silent@mk 7) $(field silent@mk 8)"
 
-# --- Built-in tier -------------------------------------------------------------------------
 assert_eq "built-in row: tier, setting overrides default, can_disable from the table" \
   "builtin off yes ui.render,tool.call unknown builtin-lane unknown" \
   "$(for n in 2 3 4 5 6 7 8; do printf '%s ' "$(field cc-plugin-diff@builtin $n)"; done | sed 's/ $//')"
@@ -250,12 +238,8 @@ assert_eq "unresolved default and hooks read unknown; absent from the table read
   "unknown unknown unknown" \
   "$(field cc-plugin-mystery@builtin 3) $(field cc-plugin-mystery@builtin 4) $(field cc-plugin-mystery@builtin 5)"
 assert_contains "built-in enabled is marked partial" "$OUT" "# not read: built-in enabled: managed settings and --settings are not read"
-# Gate flags: the inventory skill says a built-in gated off by its flag can still read
-# default_enabled true, so a false flag, or a gate whose value is unknown, never reads on.
 assert_eq "cached gate flag false reads off, even with the setting on" off "$(field cc-plugin-flag-off@builtin 3)"
 assert_eq "absent cache key falls back to the flag default: false reads off" off "$(field cc-plugin-flag-default-off@builtin 3)"
-# gate_flags lists only the tengu_ flag terms of the gate (inventory extraction.md), so flags
-# that all read true never prove the gate open.
 assert_eq "gated built-in with every listed flag true reads unknown, never on" unknown "$(field cc-plugin-flag-on@builtin 3)"
 assert_eq "gated built-in with no listed flag reads unknown, never on" unknown "$(field cc-plugin-gate-no-flags@builtin 3)"
 assert_eq "flag cache not read reads unknown, never on" unknown "$(field cc-plugin-flag-uncached@builtin 3)"
@@ -270,7 +254,6 @@ assert_contains "no --builtin-json is named in a footer" "$OUT" "# not read: bui
 assert_contains "--no-fetch is named in a footer" "$OUT" "# not read: can_disable: --no-fetch"
 assert_eq "no built-in rows without the report" 0 "$(printf '%s\n' "$OUT" | grep -c '@builtin')"
 
-# --- Guard ---------------------------------------------------------------------------------
 assert_contains "no managed settings and a Max plan: not seated" "$OUT" "# guard: not-seated (no managed settings; plan max)"
 auth '"team"'
 run_mp --no-fetch
@@ -320,8 +303,6 @@ run_mp --no-fetch
 assert_contains "unreadable auth status leaves the guard unknown" "$OUT" "# guard: unknown (managed settings absent; plan unread)"
 mv "$FIX/auth.off" "$FIX/auth.json"
 
-# managed-mcp.json sits beside the managed settings path; remove it before any later case, since
-# every run_mp shares $FIX/managed/.
 MCP="$FIX/managed/managed-mcp.json"
 printf '{"mcpServers":{}}\n' >"$MCP"
 run_mp --no-fetch
@@ -385,7 +366,6 @@ run_mp --no-fetch
 assert_contains "unparsable user settings leave it unknown" "$OUT" "# claude-written mods: unknown (user settings unreadable)"
 cp -- "$FIX/user-settings.orig" "$U"
 
-# --- Guard only ----------------------------------------------------------------------------
 : >"$FIX/argv.log"
 STUB_ARGV_LOG="$FIX/argv.log" run_mp --guard-only
 assert_eq "--guard-only exits 0" 0 "$RC"
@@ -408,12 +388,10 @@ assert_not_contains "--guard-only prints no surface line" "$OUT" "# surface:"
 rm -f -- "$HOME/.claude/remote-settings.json" "$MCP"
 run_mp --no-fetch
 
-# --- Surface -------------------------------------------------------------------------------
 assert_contains "terminal footer names the Desktop copy" "$OUT" "# surface: terminal (2.1.302); the Desktop app bundles its own copy"
 run_mp --no-fetch --surface desktop
 assert_contains "--surface desktop" "$OUT" "# surface: desktop (2.1.302"
 
-# --- Failure and usage ---------------------------------------------------------------------
 STUB_LIST="$FIX/missing.json" run_mp --no-fetch
 assert_eq "plugin list failure still exits 0" 0 "$RC"
 assert_contains "plugin list failure is named" "$OUT" "# not read: installed tier: claude plugin list --json did not return a list"
@@ -429,7 +407,6 @@ run_mp --help
 assert_contains "--help prints usage" "$OUT" "Usage:"
 assert_contains "--help prints through the Exit line" "$OUT" "Exit: 0"
 
-# --- Real validate leaves the install directory unchanged ------------------------------------
 tree_hash() { (cd "$1" && find . -print0 | LC_ALL=C sort -z | xargs -0 ls -ld --time-style=+%s 2>/dev/null | awk '{ $2 = ""; print }' && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 cksum) | cksum; }
 if [[ -n "$REAL_CLAUDE" ]] && "$REAL_CLAUDE" --version >/dev/null 2>&1; then
   R="$FIX/real"
@@ -456,7 +433,6 @@ else
   printf 'SKIP: real claude plugin validate (no claude on PATH)\n'
 fi
 
-# --- Planted secrets never reach stdout or stderr of any run ---------------------------------
 planted="$(grep -rhoE 'SECRET[A-Z0-9_]*' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "all 22 planted secret tokens were collected" 22 "$(printf '%s\n' "$planted" | grep -c .)"
 while IFS= read -r secret; do
