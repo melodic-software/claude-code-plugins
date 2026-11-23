@@ -866,7 +866,6 @@ printf '%s' 'https://elsewhere.test/guide/page' >"$src/page.effective"
 gen_run "$src" go-r2 "$PYOK" $G1 "$PAGE_URL"
 assert_eq "generic: a redirect off origin is unread" "unread redirected-off-origin" "$(gpage go-r2 '"\(.state) \(.reason)"')"
 
-# Python resolution.
 src="$TEST_TMPDIR/gs-py"
 mkdir -p "$src"
 html_page "$src/page" Page body
