@@ -364,6 +364,7 @@ jobs:
         .github/scripts/pr-merge-risk/input.mjs
         .github/scripts/pr-merge-risk/write-rating.mjs
         .github/actions/report-check-run/posting-run.mjs
+        .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
         scripts/sync-hold-floor.py
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs

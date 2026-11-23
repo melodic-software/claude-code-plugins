@@ -100,6 +100,7 @@ const GH_ACTION = /\/actions\/(?:resolve-config|check-trusted-trigger)$/;
 const SCRIPT =
   /(?:^|[\s"'])(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
 const WRAP = /\bapi_budget_wrap_gh\b/;
+const BASH_RUN = /\bbash +(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
 // A Node script a step runs, and a gh call in it through child_process: "gh"
 // as the file to run, passed to an exec or spawn function or a local helper.
 const NODE_SCRIPT =
@@ -167,7 +168,7 @@ const detector = ({ read, exists }) => {
     return calls;
   };
   const nodeScriptsOf = (step) =>
-    [...(step.run ?? "").matchAll(NODE_SCRIPT)]
+    [...[step.run ?? "", ...[...(step.run ?? "").matchAll(BASH_RUN)].map(([, path]) => read(path))].join("\n").matchAll(NODE_SCRIPT)]
       .map(([, path]) => path)
       .filter((path) => {
         const { counted, uncounted } = nodeGh(path);

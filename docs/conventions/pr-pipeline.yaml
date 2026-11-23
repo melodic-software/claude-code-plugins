@@ -1735,6 +1735,8 @@ merge:
         class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
         class: gate
+      - glob: ".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh"
+        class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust
       - glob: ".github/scripts/pr-unblock/address-feedback.mjs"
