@@ -888,24 +888,6 @@ jobs:
         env:
           KEY: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
         run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
-      # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
-      # merge queue the holds that cost no lane work, its hold labels
-      # and the lanes kill switch, are judged by
-      # the base commit's merge-holds.mjs queueHolds: a held group fails this
-      # job in seconds, and every lane, which needs it, skips. ci-status still
-      # judges each hold itself, from its own reads, so the aggregate fails on
-      # the hold and on this job, and a skipped lane stays skipped there (this
-      # job did not succeed). Nothing here feeds a ci-status hold: this job runs
-      # pull request code. Only a hold read fails it: a read that fails, a ref
-      # it cannot parse, or a base module without queueHolds leaves the hold to
-      # ci-status, which retries and fails closed. One read, the pull request,
-      # through the api-budget gh wrapper, whose api-calls notice the step ends with. The base's
-      # module, tracker config and wrapper come from one shallow fetch of the
-      # group's base commit, which leaves `ok=true` once module and wrapper read;
-      # it never fails the job, so a failed fetch only leaves the holds to
-      # ci-status. The runner's Node runs the module: queueHolds needs no
-      # API newer than the image's. Pinned by
-      # scripts/ci-early-queue-holds.test.sh, which runs this body.
       - name: Read the base commit's queue-hold rules
         id: queue_rules
         if: github.event_name == 'merge_group'
