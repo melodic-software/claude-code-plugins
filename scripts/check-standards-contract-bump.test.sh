@@ -92,7 +92,6 @@ regen() { (cd "$1" && bash scripts/sync-shared-copies.sh >/dev/null); }
 bump() { printf '{"name":"%s","version":"%s"}\n' "$2" "$3" >"$1/plugins/$2/.claude-plugin/plugin.json"; }
 
 run_cases() {
-# --- canonical unchanged vs base → pass ---------------------------------------
 base_fixture f
 base="$(git_fixture "$f")"
 if out="$(run_gate "$f" "$base" 2>&1)"; then
@@ -102,7 +101,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a base ref that does not resolve is a usage error ------------------------
 base_fixture f
 git_fixture "$f" >/dev/null
 out="$(run_gate "$f" no-such-ref 2>&1)"
@@ -114,7 +112,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a missing base ref is a usage error ---------------------------------------
 base_fixture f
 git_fixture "$f" >/dev/null
 out="$(run_gate "$f" 2>&1)"
@@ -126,7 +123,6 @@ else
 fi
 rm -rf "$f"
 
-# --- change + frontmatter bump + changelog heading + manifest bumps → pass ----
 base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
@@ -175,7 +171,6 @@ else
 fi
 rm -rf "$f"
 
-# --- carrying plugin manifest not bumped → fail -------------------------------
 base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
@@ -196,7 +191,6 @@ else
 fi
 rm -rf "$f"
 
-# --- content changed but frontmatter semver did not → fail --------------------
 base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"
@@ -213,7 +207,6 @@ else
 fi
 rm -rf "$f"
 
-# --- content changed but the changelog gained no entry → fail -----------------
 base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
@@ -229,7 +222,6 @@ else
 fi
 rm -rf "$f"
 
-# --- compound failure: all three stale conditions report ----------------------
 base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"       # content moved, frontmatter did not
@@ -244,7 +236,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a schema-only change still requires the bumps ----------------------------
 base_fixture f
 printf '{"title":"standards concern file v1"}\n' >"$f/$SCHEMA"
 base="$(git_fixture "$f")"
@@ -258,7 +249,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a plugin absent at the base is new: skipped, not stale -------------------
 new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 changelog_v1 >"$f/$CHANGELOG"
