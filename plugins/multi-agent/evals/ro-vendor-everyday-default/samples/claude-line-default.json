@@ -7,6 +7,10 @@
     {
       "answer": "- `claude: model sonnet @ effort medium` (basis: default; everyday task)",
       "why": "bulleted and code-spanned line"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default; one-file refactor)",
+      "why": "contract line with a note after the model id"
     }
   ],
   "fail": [

@@ -28,6 +28,6 @@ graders:
     target: 'last_message'
   - name: 'claude-line-present'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+\s*@\s*effort\s+\S+[^\n]*basis:'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+[^@\n]*@\s*effort\s+\S+[^\n]*basis:'
     flags: 'mi'
     target: 'last_message'

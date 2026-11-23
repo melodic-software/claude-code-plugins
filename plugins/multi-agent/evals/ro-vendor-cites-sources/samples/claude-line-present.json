@@ -7,12 +7,20 @@
     {
       "answer": "- `claude: model opus @ effort medium` (basis: consensus; both boards read)",
       "why": "bulleted contract line"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default; one-file refactor)",
+      "why": "contract line with a note after the model id"
     }
   ],
   "fail": [
     {
       "answer": "Run it on Claude.",
       "why": "no contract line"
+    },
+    {
+      "answer": "claude: model inherit (basis: default)",
+      "why": "no effort on the line"
     }
   ]
 }

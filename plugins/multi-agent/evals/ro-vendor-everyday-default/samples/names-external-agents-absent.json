@@ -7,6 +7,10 @@
     {
       "answer": "Codex and Gemini: not installed (external-agents plugin missing).",
       "why": "reverse order"
+    },
+    {
+      "answer": "Codex and Gemini: `external-agents` isn't installed here, so only Claude is covered.",
+      "why": "contraction form"
     }
   ],
   "fail": [

@@ -3,6 +3,10 @@
     {
       "answer": "claude: model inherit @ effort medium (basis: default; fewer than two independent leading sources because cursorbench was unread)",
       "why": "stays on claude default"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default; no consensus)",
+      "why": "contract line with a note after the model id"
     }
   ],
   "fail": [

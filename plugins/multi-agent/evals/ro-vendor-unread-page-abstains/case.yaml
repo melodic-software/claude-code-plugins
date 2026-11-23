@@ -22,6 +22,6 @@ graders:
     target: 'last_message'
   - name: 'stays-on-claude-default'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+\s*@\s*effort\s+\S+[^\n]*basis:\s*default'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+[^@\n]*@\s*effort\s+\S+[^\n]*basis:\s*default'
     flags: 'mi'
     target: 'last_message'
