@@ -1,0 +1,55 @@
+{
+  "cdn": "https://cdn.jsdelivr.net/npm/",
+  "packages": {
+    "@tailwindcss/browser": {
+      "version": "4.3.5",
+      "file": "dist/index.global.js",
+      "integrity": "sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E="
+    },
+    "mermaid": {
+      "version": "12.3.0",
+      "file": "dist/mermaid.min.js",
+      "integrity": "sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM="
+    }
+  },
+  "targets": [
+    {
+      "path": "plugins/architecture/scripts/deepening-report.mjs",
+      "packages": [
+        "@tailwindcss/browser",
+        "mermaid"
+      ],
+      "integrity": true
+    },
+    {
+      "path": "plugins/architecture/scripts/deepening-report.test.mjs",
+      "packages": [
+        "@tailwindcss/browser",
+        "mermaid"
+      ],
+      "integrity": true
+    },
+    {
+      "path": "plugins/architecture/skills/improve/research/deepening/html-report.md",
+      "packages": [
+        "@tailwindcss/browser",
+        "mermaid"
+      ],
+      "integrity": true
+    },
+    {
+      "path": "plugins/architecture/evals/deepening-report-on-chrome-with-counts/samples/csp-pins-mermaid.json",
+      "packages": [
+        "mermaid"
+      ],
+      "integrity": false
+    },
+    {
+      "path": "plugins/architecture/evals/deepening-report-on-chrome-with-counts/samples/csp-pins-tailwind.json",
+      "packages": [
+        "@tailwindcss/browser"
+      ],
+      "integrity": false
+    }
+  ]
+}
