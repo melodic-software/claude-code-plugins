@@ -458,7 +458,7 @@
   },
   "install_command": {
     "summary": "A package or tool install at the command position before it: a package manager with an install verb (brew, apt, pip, npm, bun, gem, go, cargo, uv, mise and more), npx-style fetch-and-run, nix, docker pull/run, Install-Module, dpkg -i, rpm -i/-U, n lts, the shared pydeps.py installer, and curl, wget or aria2c only when the download lands on disk or feeds something other than a text reader. Follow command_position_multishell with it; Bash tool input_match only.",
-    "text": "(?:(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\\.exe)?(?:\\\\\"|')?(?:(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\\b)(?:(?!\\\\t|\\\\\\\\\\\\n)[^\\s\"&;|])+)*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+)?(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\\.\\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv|bun|gem|opam|sdk)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\\b|pacman(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+-S\\w*|(?:mise|asdf|rtx|aqua)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+up\\b|go(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+get\\b|(?:npm|pnpm|yarn|bun)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:-{1,2}[\\w-]+(?:[= ][^\\s-]\\S*)?|global)(?:\\s|\\\\t|\\\\\\\\\\\\n)+)*(?:ci|update|up|dlx|exec|x)\\b|dpkg(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-[a-zA-Z]*i[a-zA-Z]*|--install)\\b|rpm(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-(?![a-zA-Z]*q)[a-zA-Z]*[iUF][a-zA-Z]*|--(?:install|upgrade|freshen))\\b|n(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:lts|latest)\\b|aria2c(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|python[\\d.]*(?:\\.exe)?(?:\\\\\\\"|')?\\s+(?:\\\\\\\"|')?[^\\s\\\"]*pydeps\\.py(?:\\\\\\\"|')?\\s+install\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:npx|uvx|bunx|pnpx)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\\b)|Install-(?:Module|PSResource)\\b|(?:pwsh|powershell)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:[^\"\\\\]|\\\\.)*?(?:[{(;|=&]|\\\\n|(?<![\\w-])-[Cc]\\w*(?:\\s|\\\\t|\\\\\\\\\\\\n)))?(?:\\s|(?:\\\\\"|'))*(?:[\\w.]+\\\\\\\\)?Install-(?:Module|PSResource)\\b|curl(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;|\\']|\\\\(?![\"n])[\\s\\S]))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\\b|--remote-name(?:-all)?\\b)(?!=?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|[02-9]>>?(?:\\s|\\\\t|\\\\\\\\\\\\n)*[^\\s\"\\\\;&|>]+|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|\\|(?!\\|)|\\\\(?![\"n])[\\s\\S]|[^\"\\\\&;|'>])*?(?<![02-9&])&?>{1,2}(?!>|&[\\d-])(?!&?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;\\']|\\\\(?![\"n])[\\s\\S]))*?(?<!\\|)\\|(?!\\|)(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\\b)[^\\s|]|wget(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:--spider\\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\\s|\\\\t|\\\\\\\\\\\\n)*)(?:\\\\\"|')?(?:-|/dev/null|NUL)(?=\\\\\"|'|[\\s\"|;&>]|\\\\[nt])))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|(?:bash|dash|zsh|sh|source|\\.)(?:\\s+-\\S+)*\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)",
+    "text": "(?:(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\\.exe)?(?:\\\\\"|')?(?:(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\\b)(?:(?!\\\\t|\\\\\\\\\\\\n)[^\\s\"&;|])+)*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+)?(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\\.\\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv|bun|gem|opam|sdk)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:help|view|info|show|search|list|ls|outdated|doctor|config|why|explain|docs|home|man)\\b)(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\\b|pacman(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+-S\\w*|(?:mise|asdf|rtx|aqua)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+up\\b|go(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+get\\b|(?:npm|pnpm|yarn|bun)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:-{1,2}[\\w-]+(?:[= ][^\\s-]\\S*)?|global)(?:\\s|\\\\t|\\\\\\\\\\\\n)+)*(?:ci|update|up|dlx|exec|x)\\b|dpkg(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-[a-zA-Z]*i[a-zA-Z]*|--install)\\b|rpm(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:-(?![a-zA-Z]*q)[a-zA-Z]*[iUF][a-zA-Z]*|--(?:install|upgrade|freshen))\\b|n(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:lts|latest)\\b|aria2c(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|python[\\d.]*(?:\\.exe)?(?:\\\\\\\"|')?\\s+(?:\\\\\\\"|')?[^\\s\\\"]*pydeps\\.py(?:\\\\\\\"|')?\\s+install\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:npx|uvx|bunx|pnpx)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\\b)|Install-(?:Module|PSResource)\\b|(?:pwsh|powershell)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:[^\"\\\\]|\\\\.)*?(?:[{(;|=&]|\\\\n|(?<![\\w-])-[Cc]\\w*(?:\\s|\\\\t|\\\\\\\\\\\\n)))?(?:\\s|(?:\\\\\"|'))*(?:[\\w.]+\\\\\\\\)?Install-(?:Module|PSResource)\\b|curl(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;|\\']|\\\\(?![\"n])[\\s\\S]))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\\b|--remote-name(?:-all)?\\b)(?!=?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|[02-9]>>?(?:\\s|\\\\t|\\\\\\\\\\\\n)*[^\\s\"\\\\;&|>]+|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|\\|(?!\\|)|\\\\(?![\"n])[\\s\\S]|[^\"\\\\&;|'>])*?(?<![02-9&])&?>{1,2}(?!>|&[\\d-])(?!&?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;\\']|\\\\(?![\"n])[\\s\\S]))*?(?<!\\|)\\|(?!\\|)(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\\b)[^\\s|]|wget(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:--spider\\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\\s|\\\\t|\\\\\\\\\\\\n)*)(?:\\\\\"|')?(?:-|/dev/null|NUL)(?=\\\\\"|'|[\\s\"|;&>]|\\\\[nt])))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|(?:bash|dash|zsh|sh|source|\\.)(?:\\s+-\\S+)*\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)",
     "probe": {
       "type": "tool_used",
       "tool": "Bash",
@@ -991,6 +991,61 @@
             }
           ],
           "why": "a checker run"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm help install"
+              }
+            }
+          ],
+          "why": "npm help on a term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm help add"
+              }
+            }
+          ],
+          "why": "npm help on a term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "go help install"
+              }
+            }
+          ],
+          "why": "go help on a subcommand"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pip3 help install"
+              }
+            }
+          ],
+          "why": "pip help on a subcommand"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "brew info --installed"
+              }
+            }
+          ],
+          "why": "brew info with an install-like flag"
         },
         {
           "answer": [
