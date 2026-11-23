@@ -31,8 +31,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   default branch as below; a reworded one is a cut and runs before merge (Q11).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
-  for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
-  re-points a renamed reference that `/evals:validate` proves resolves (C2, Q6).
+  for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), a repair that
+  re-points a renamed reference that `/evals:validate` proves resolves (C2, Q6), or a scaffold,
+  fixture or grader script edit that the remove-comments `change-shape.sh` proves COMMENT-ONLY
+  (the script runs the same, so a compare run cannot differ).
 - A model release triggers nothing. When a decision rests on a new model, the cases that decision
   cites run under the budget below (Q15).
 - No smoke set on every change and no scheduled suite (Q12).
