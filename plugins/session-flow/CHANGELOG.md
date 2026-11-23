@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.22.2] - 2026-11-23
+
+### Changed
+
+- `/session-flow:workflow` no longer gather repository context that no step read.
+
 ## [9.22.1] - 2026-11-23
 
 ### Changed

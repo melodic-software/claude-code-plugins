@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the spawn-noise lib test suite.
-#
-# The lib is imported by the audit-performance engine and by the
-# performance plugin, so its tests live beside the canonical copy rather than
-# inside either consumer.
 # test-scope: plugins/harness-ops/lib/test_spawn_noise.py
 set -euo pipefail
 
@@ -11,7 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./python-probe.sh
 source "$SCRIPT_DIR/python-probe.sh"
 
-# The floor's one origin is MIN_PYTHON in the engine that consumes this lib.
 ENGINE="$SCRIPT_DIR/../skills/audit-performance/scripts/audit_performance.py"
 FLOOR=""
 python_probe::floor_to FLOOR "$ENGINE"

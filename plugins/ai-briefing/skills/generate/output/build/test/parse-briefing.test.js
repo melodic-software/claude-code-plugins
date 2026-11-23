@@ -6,9 +6,6 @@ import test from "node:test";
 
 import { parseBriefing } from "../lib/parse-briefing.js";
 
-/** Write `markdown` to a throwaway temp briefing, run `run(briefingPath)`, then
- *  delete the temp dir. Awaiting `run` inside the try is load-bearing: it keeps
- *  the dir alive until parsing finishes and lets assertion failures propagate. */
 async function withBriefing(markdown, run) {
   const dir = await mkdtemp(path.join(tmpdir(), "ai-briefing-"));
   const briefingPath = path.join(dir, "meeting.md");

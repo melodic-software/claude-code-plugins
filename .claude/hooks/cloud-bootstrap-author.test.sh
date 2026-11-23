@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the git-author block in .claude/cloud-bootstrap.sh: it sets
-# author.name/author.email from the GitHub account `gh api user` reports, never
-# user.* or committer.*, and sets nothing when the lookup fails. Lives beside
-# cloud-bootstrap-plugins.test.sh for the same reason: .claude/hooks is a CI
-# discovery root. The block is extracted by its `# --- Git author` and
-# `# --- Report` anchors and run against a stub `gh`, each case writing to an
-# isolated GIT_CONFIG_GLOBAL; the non-remote case runs the whole script, which
-# exits at its guard before any install step.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,7 +38,6 @@ chmod +x "$TMP/bin/gh"
 pass=0
 fail=0
 check() {
-  # check <label> <expected> <actual>
   if [[ "$2" == "$3" ]]; then
     echo "ok   - $1"
     pass=$((pass + 1))
@@ -56,8 +47,6 @@ check() {
   fi
 }
 
-# global_config <label> <script> <remote> <gh user json, empty = gh fails> [stale]
-# A fifth argument seeds a stale author from an earlier run first.
 global_config() {
   local cfg="$TMP/$1.gitconfig"
   if [[ -n "${5:-}" ]]; then

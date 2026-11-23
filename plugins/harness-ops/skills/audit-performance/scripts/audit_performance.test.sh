@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the audit-performance engine test suite.
 # test-scope: plugins/harness-ops/skills/audit-performance/scripts/test_audit_performance.py
 set -euo pipefail
 
@@ -31,9 +30,6 @@ fi
 
 (cd "$SCRIPT_DIR" && "$PYTHON" -m unittest -v test_audit_performance)
 
-# End-to-end contract checks against a synthetic install root. These assert the
-# shipped report SHAPE, which the unit suite cannot: a probe can be correct in
-# isolation and still be missing from the JSON an operator actually reads.
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/root/plugins"
@@ -135,8 +131,6 @@ assert "kernel_objects" in report["timings_seconds"], report["timings_seconds"]
 print("OK: kernel-object census is present in the shipped report")
 PY
 
-# Repeated --note lands in the shipped report with its declared source, so the
-# context only a human at the machine holds survives into the artifact.
 "$PYTHON" "$ENGINE" --root "$WORK/root" --skip-processes --skip-fan-out \
   --note "typing lagged" --note "four terminals open" --note-source operator \
   >"$WORK/noted.json"
@@ -151,8 +145,6 @@ assert context["source"] == "operator", context
 print("OK: repeated --note reaches the shipped report with its declared source")
 PY
 
-# --skip-fan-out must actually skip it, so an operator on a wedged machine can
-# still capture the other three suspects.
 "$PYTHON" "$ENGINE" --root "$WORK/root" --skip-processes --skip-fan-out >"$WORK/lean.json"
 "$PYTHON" - "$WORK/lean.json" <<'PY'
 import json

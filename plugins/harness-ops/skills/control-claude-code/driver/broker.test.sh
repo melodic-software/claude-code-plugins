@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Discovery wrapper for broker.test.mjs.
-#
-# run-plugin-tests.sh discovers only *.test.sh, so without this wrapper the
-# launch broker's suite would never run in CI. The cases live in the .mjs file;
-# this only locates node, runs it, and forwards the exit status.
 # test-scope: plugins/harness-ops/skills/control-claude-code/config/* plugins/harness-ops/skills/control-claude-code/SKILL.md
 set -uo pipefail
 
