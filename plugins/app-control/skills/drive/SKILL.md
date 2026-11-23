@@ -180,7 +180,8 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
 - **Ready lists the data sources.** For every environment in committed config, resolve `extends`
   first, then report each source it ends with, inherited ones included, with its kind, where and
   read level, its `credential` variable name and its `data` category, readers and review, then
-  check all five kinds against it and list as missing each kind none of its sources has (contract
+  check the five required kinds against it and list as missing each kind none of its sources has;
+  a `conversations` source is listed when present and never reported missing (contract
   "Data sources"). For a source with a `credential` or a `grants` entry, run its `grants` command where its `read`
   level allows a read in this run and report the exit, or `not run` with the level; report the
   source `capped at attended` with its reason: `no grants record`, `full user access` (its
@@ -320,6 +321,7 @@ write a `values:` value to any file.
 
 - Evidence in hand, needs a judgment: /verification:confirm.
 - A trace, cpu or heap artifact to read: /debugging:analyze-profile.
+- The run's `lessons` lines: /app-control:map refresh "<lesson>".
 
 ## Gotchas
 

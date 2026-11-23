@@ -298,6 +298,7 @@ When all planned work is done:
 
 - Coverage of the change not yet planned: `/testing:plan`.
 - Tests written during the work, their quality unchecked: `/testing:audit`.
+- Survivors persisted by the advisory mutation run: `/testing:write`.
 - A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.
 - Tests planned, checked and green: `/review:quality-gate`.
 
