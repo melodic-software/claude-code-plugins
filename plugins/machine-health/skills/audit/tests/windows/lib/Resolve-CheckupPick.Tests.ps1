@@ -62,7 +62,6 @@ Describe 'Resolve-CheckupPick' -Tag 'lib' {
         }
 
         It 'mutes an exclusion key under every check that builds exclusion items' {
-            # The owners are the shipped checks whose script dot-sources New-DefenderExclusionItem.ps1.
             $catalog = Get-Content -LiteralPath (Join-Path $script:SkillRoot 'catalog\checks.jsonc') -Raw | ConvertFrom-Jsonc
             $owners = @($catalog.checks | Where-Object {
                     Select-String -LiteralPath (Join-Path $script:SkillRoot $_.script) -SimpleMatch 'New-DefenderExclusionItem.ps1' -Quiet
@@ -179,7 +178,6 @@ Describe 'Resolve-CheckupPick' -Tag 'lib' {
         }
 
         It 'refuses a run stamp with a non-ASCII digit as not a run stamp' {
-            # U+0662 ARABIC-INDIC DIGIT TWO matches \d but is not a run stamp digit.
             $text = "checkup-picks`npicked: none`nrun: $([char]0x0662)026-10-21t120000000z"
             { Resolve-CheckupPick -ViewsDir $script:Views -Payload $text } | Should -Throw '*not a run stamp*'
         }
