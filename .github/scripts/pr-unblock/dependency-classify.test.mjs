@@ -1025,7 +1025,8 @@ function gitPatch(before, after) {
   const dir = tempDir("pin-swap-");
   writeFileSync(join(dir, "before.yml"), before);
   writeFileSync(join(dir, "after.yml"), after);
-  const diff = spawnSync("git", ["diff", "--no-index", "--no-color", "before.yml", "after.yml"], { cwd: dir, encoding: "utf8" });
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+  const diff = spawnSync("git", ["diff", "--no-index", "--no-color", "before.yml", "after.yml"], { cwd: dir, env, encoding: "utf8" });
   assert.equal(diff.status, 1, diff.stderr);
   const patch = diff.stdout.slice(diff.stdout.indexOf("@@")).replace(/\n$/, "");
   return [{ filename: ".github/workflows/ci.yml", status: "modified", patch }];
