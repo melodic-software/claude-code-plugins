@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Claude can't generate images, so this task routes to Codex.",
+      "why": "uses contracted form can't"
+    },
+    {
+      "answer": "codex: model sparrow-1 @ effort medium (basis: claude-cannot; image generation)",
+      "why": "names claude-cannot basis"
+    },
+    {
+      "answer": "Claude doesn't support image generation.",
+      "why": "uses contracted form doesn't"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Codex won the leaderboard for this task.",
+      "why": "does not explain that Claude cannot generate images"
+    }
+  ]
+}

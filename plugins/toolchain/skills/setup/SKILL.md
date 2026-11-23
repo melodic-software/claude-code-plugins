@@ -161,6 +161,11 @@ Tracked `docs/conventions/ecosystems/*.yaml` files in the consuming repo, and a 
 summary of what was written and how to re-run this setup to reconfigure. `check` alone reports the effective
 configuration and changes nothing.
 
+## Next
+
+- Build and test with the recorded commands: /toolchain:check.
+- Lint and format checks only: /toolchain:lint.
+
 ## What this skill does not do
 
 - Run build/test/lint. That is `/toolchain:check` and `/toolchain:lint`.

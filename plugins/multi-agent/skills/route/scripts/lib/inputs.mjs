@@ -385,16 +385,23 @@ export function normalizeModels(doc) {
       const ids = entry.filter((x) => typeof x === 'string' && x.length > 0)
       byVendor.set(vendor, {
         status: ids.length > 0 ? 'ok' : 'unavailable',
+        reason: null,
         ids,
         idSet: new Set(ids.map((s) => s.toLowerCase())),
         idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
         effortsByModel: new Map(),
         defaultEffortByModel: new Map(),
         versionByModel: new Map(),
+        contextWindowByModel: new Map(),
+        topContextWindow: null,
         topEfforts: null,
         defaultModel: null,
         defaultEffort: null,
+        tools: null,
+        toolSet: null,
         image: null,
+        breaker: { open: false, reason: null, reset_at: null },
+        skippedModels: new Set(),
       })
       continue
     }
@@ -405,6 +412,7 @@ export function normalizeModels(doc) {
     const effortsByModel = new Map()
     const defaultEffortByModel = new Map()
     const versionByModel = new Map()
+    const contextWindowByModel = new Map()
     for (const m of modelsArr) {
       const id = typeof m === 'string' ? m : m && typeof m.id === 'string' ? m.id : null
       if (!id) continue
@@ -418,6 +426,40 @@ export function normalizeModels(doc) {
       if (m && typeof m === 'object' && typeof m.version === 'string' && m.version.trim()) {
         versionByModel.set(id.toLowerCase(), m.version.trim())
       }
+      if (
+        m &&
+        typeof m === 'object' &&
+        typeof m.context_window === 'number' &&
+        Number.isFinite(m.context_window) &&
+        m.context_window > 0
+      ) {
+        contextWindowByModel.set(id.toLowerCase(), m.context_window)
+      }
+    }
+    const topContextWindow =
+      typeof entry.context_window === 'number' &&
+      Number.isFinite(entry.context_window) &&
+      entry.context_window > 0
+        ? entry.context_window
+        : null
+    const tools = Array.isArray(entry.tools)
+      ? entry.tools
+          .filter((x) => typeof x === 'string' && x.trim().length > 0)
+          .map((x) => x.trim().toLowerCase())
+      : null
+    const rawBreaker = entry.breaker && typeof entry.breaker === 'object' && !Array.isArray(entry.breaker)
+      ? entry.breaker
+      : null
+    const breaker = {
+      open: Boolean(rawBreaker && rawBreaker.open === true),
+      reason:
+        rawBreaker && typeof rawBreaker.reason === 'string' && rawBreaker.reason.trim()
+          ? rawBreaker.reason.trim()
+          : null,
+      reset_at:
+        rawBreaker && typeof rawBreaker.reset_at === 'string' && rawBreaker.reset_at.trim()
+          ? rawBreaker.reset_at.trim()
+          : null,
     }
     byVendor.set(vendor, {
       status,
@@ -428,11 +470,57 @@ export function normalizeModels(doc) {
       effortsByModel,
       defaultEffortByModel,
       versionByModel,
+      contextWindowByModel,
+      topContextWindow,
       topEfforts: Array.isArray(entry.efforts) ? entry.efforts : null,
       defaultModel: typeof entry.default_model === 'string' ? entry.default_model : null,
       defaultEffort: typeof entry.default_effort === 'string' ? entry.default_effort : null,
+      tools,
+      toolSet: tools ? new Set(tools) : null,
       image: typeof entry.image === 'boolean' ? entry.image : null,
+      breaker,
+      skippedModels: new Set(),
     })
+  }
+  return byVendor
+}
+
+export function loadUsage(filePath) {
+  const byVendor = new Map()
+  if (!filePath) return byVendor
+  const doc = readJson(filePath, 'usage')
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    die('--usage must be a JSON object')
+  }
+  for (const [rawKey, entry] of Object.entries(doc)) {
+    const vendor = rawKey.toLowerCase() === 'antigravity' ? 'gemini' : rawKey.toLowerCase()
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      byVendor.set(vendor, { status: 'unavailable', remaining: null, reason: 'invalid usage reading' })
+      continue
+    }
+    if (
+      entry.status === 'ok' &&
+      typeof entry.remaining === 'number' &&
+      Number.isFinite(entry.remaining) &&
+      entry.remaining >= 0 &&
+      entry.remaining <= 1
+    ) {
+      byVendor.set(vendor, {
+        status: 'ok',
+        remaining: entry.remaining,
+        window: typeof entry.window === 'string' ? entry.window : null,
+        resets_at: typeof entry.resets_at === 'string' ? entry.resets_at : null,
+        source: typeof entry.source === 'string' ? entry.source : null,
+      })
+    } else {
+      const reason =
+        typeof entry.reason === 'string' && entry.reason.trim()
+          ? entry.reason.trim()
+          : entry.status === 'ok'
+            ? 'missing valid remaining fraction'
+            : `status ${String(entry.status ?? 'unavailable')}`
+      byVendor.set(vendor, { status: 'unavailable', remaining: null, reason })
+    }
   }
   return byVendor
 }

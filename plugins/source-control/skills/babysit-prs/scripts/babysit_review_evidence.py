@@ -1525,6 +1525,22 @@ def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
     )
 
 
+def _kill_switch_failed(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether the kill-switch job failed before any lane job existed."""
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") == "failure"
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+        and [
+            job.get("conclusion")
+            for job in jobs
+            if isinstance(job, Mapping) and job.get("name") in KILL_SWITCH_JOBS
+        ]
+        == ["failure"]
+    )
+
+
 def _caller_skipped(lane: str, attempt: Mapping[str, Any]) -> bool:
     """Whether this attempt succeeded with the lane's caller job skipped and
     no lane job: the caller job never ran, so the attempt has no record. Wait
@@ -1915,6 +1931,7 @@ def _open_findings(
                 )
                 or _lost_before_lane_job(lane, attempt)
                 or _caller_skipped(lane, attempt)
+                or (item["head_sha"] != reviewed and _kill_switch_failed(lane, attempt))
             ):
                 continue
             job = _lane_job(lane, item["id"], attempt)

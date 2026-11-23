@@ -183,7 +183,7 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
                 return _pr()
             if args[0] == "api" and "/rules/branches/" in args[1]:
                 return list(rules)
-            if args[0] == "api":  # repository metadata (default-branch read)
+            if args[0] == "api":
                 return {"name": "main"}
             raise AssertionError(f"unexpected gh_json call: {args}")
 

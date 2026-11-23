@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "codex: unavailable (codex binary not found)",
+      "why": "exact unavailable line"
+    },
+    {
+      "answer": "- `codex`: isn't available (codex binary not found)",
+      "why": "contracted form isn't"
+    },
+    {
+      "answer": "codex isn't installed on this host (codex binary not found).",
+      "why": "contracted form isn't installed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday task)",
+      "why": "omits codex unavailable line"
+    },
+    {
+      "answer": "codex: model sparrow-1 @ effort medium (basis: default)",
+      "why": "treats codex as available"
+    }
+  ]
+}

@@ -70,10 +70,11 @@ import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trust
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+import { specSource } from "./spec-source.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, briefedIssue, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
-import { SPLIT_CHILD_MARKER, splitChildBody, splitScope } from "../intake-triage/size-split.mjs";
+import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
+import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -1121,21 +1122,24 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       const person = [...new Set([...checks, ...marked])].sort((a, b) => a - b);
       const childBody = childBodies.get(issue.number);
       const sources = sourceLabels(issue.labels?.nodes);
-      const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
-      const briefed = !written(issue) && childBody === undefined && ownBody === null && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && briefedIssue({ ...issue, comments: issue.comments.nodes }, laneAppId) ? String(issue.body ?? "") : null;
-      const recurring = written(issue) || childBody !== undefined || ownBody !== null || briefed !== null ? null : recurringSpec(issue, schedule);
-      const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
-      const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
+      const spec = specSource({
+        written: written(issue),
+        body: issue.body,
+        splitChild: childBody,
+        splitMarked: String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER),
+        ownFiling: sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds),
+        briefed: briefedIssue({ ...issue, comments: issue.comments.nodes }, laneAppId),
+        recurring: recurringSpec(issue, schedule),
+        drift: driftBodies.get(issue.number) ?? null,
+        incident: mainRedIncident(issue) ? MAIN_RED_SPEC : null,
+      });
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
       // its done-when lines apply only to these targets.
       const scope = !written(issue) && childBody !== undefined ? splitScope(childBody) : null;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
-        ...(recurring !== null && { source: "recurring-schedule" }),
-        ...(upstreamDrift !== null && { source: "upstream-drift" }),
-        ...(incident !== null && { source: "main-red-incident" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? briefed ?? recurring ?? upstreamDrift ?? incident),
+        ...spec,
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         ...(person.length > 0 && { person_checks: person.map((n) => items[n - 1].text) }),

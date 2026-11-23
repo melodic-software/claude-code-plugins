@@ -146,7 +146,7 @@ It writes a fragment, with the bump and section the title's Conventional Commits
 
 ### 2.3.4 Quick changed-files check, once per head
 
-After the last commit (2.3.3's fragments included), the 2.2 update and any update 2.4.1 makes before its push, run the check of [prep.md](prep.md) §1.5 on the head that push sends. When `push-branch.sh` reports it merged the base, run it again on the merged head before opening the PR. Skip it when the prep report names the same head (`git rev-parse HEAD`) as the one its check passed on. It runs no test suite. A failure stops create: fix it, commit through `/source-control:commit`, and run the check again on the new head.
+After the last commit (2.3.3's fragments included), the 2.2 update and any update 2.4.1 makes before its push, run the pre-PR check of [prep.md](prep.md) §1.5 on the head that push sends. When `push-branch.sh` reports it merged the base, run it again on the merged head before opening the PR. Skip it when the prep report names the same head (`git rev-parse HEAD`) as the one its check passed on. It runs no test suite. A failure stops create: fix it, commit through `/source-control:commit`, and run the check again on the new head.
 
 ## 2.4 Push, create PR, and persist PR number
 

@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [12.5.1] - 2026-11-23
+
+### Changed
+
+- `merge.dependabot.trusted-action-owners` also lists the major vendors' GitHub-verified organizations (`actions`, `github`, `google`, `google-github-actions`, `microsoft`, `azure`, `aws-actions`, `docker`, `openai`, `hashicorp`), so a Dependabot pull request that only moves one of their action pins to a tagged commit skips `CI Status`'s trust-gate hold (owner decision 2026-11-23).
+
+### Fixed
+
+- An address-feedback round that finds every note of an earlier pr-verify FAIL already addressed stops `feedback-already-addressed` without the `needs-session` label. No session builder is queued: the lane's next sweep run on that head clears the failing status, and the `verify:earlier-fail` refusal keeps holding the merge until pr-verify, which judges the head on its own, passes it ([#18133](https://github.com/melodic-software/claude-code-plugins/pull/18133)).
+
+- `review-dependency-select` skips a Dependabot pull request whose only CI Status failure is the trust-gate hold with the new `gate-hold` skip reason, with no model turn and no escalation, so it adds no human-gated label that would keep CI Status red after a trusted approval; its step summary says the lane did not judge the update's content. The dependency dispatcher does not record a `gate-hold` skip as handled, and sends review-dependency again once CI Status passes on that head. `dependency-escalate-security` now says the review chose owner reason `security` instead of asserting a HIGH or CRITICAL finding.
+
 ## [12.5.0] - 2026-11-23
 
 ### Changed
