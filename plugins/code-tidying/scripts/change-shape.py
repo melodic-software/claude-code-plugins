@@ -7,6 +7,13 @@ comment-dissolving edit has to make and a test suite can only sample:
 
   COMMENT-ONLY   no code token changed. A deletion with this verdict is safe
                  to apply in a repository with no tests at all.
+  DOCSTRING-ONLY Python only: the one difference is removed module, class or
+                 function docstrings, every kept one unchanged and in place.
+                 Refused (CODE-CHANGED) when the file could read a docstring
+                 at run time (`__doc__`, `getdoc`, `pydoc`, `doctest`), when
+                 the docstring holds `>>>` examples, when its owner is
+                 decorated or a class with bases, or when its removal leaves
+                 a body empty. Readers in other files are out of its sight.
   RENAME-ONLY    every differing leaf is an identifier and the old->new mapping
                  is consistent. A SHAPE claim, not a safety claim: it knows
                  nothing about shadowing, outer-scope collisions, reflection or
@@ -18,8 +25,9 @@ comment-dissolving edit has to make and a test suite can only sample:
                  gate.
 
 Exit codes carry the verdict so a shell gate can branch on them without
-parsing text: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE,
-3 tree-sitter or the grammar for this language is unavailable, 2 usage, an
+parsing text: 0 COMMENT-ONLY, 11 DOCSTRING-ONLY, 10 RENAME-ONLY,
+20 CODE-CHANGED, 21 UNPROVABLE, 3 tree-sitter or the grammar for this
+language is unavailable, 2 usage, an
 unmapped extension, or no PowerShell host for a `.ps1`/`.psm1` file.
 
 `.ps1` and `.psm1` are read by PowerShell's own tokenizer through
@@ -47,9 +55,11 @@ import subprocess
 import sys
 from importlib import import_module
 from pathlib import Path
+from typing import NamedTuple
 
 EXIT_COMMENT_ONLY = 0
 EXIT_RENAME_ONLY = 10
+EXIT_DOCSTRING_ONLY = 11
 EXIT_CODE_CHANGED = 20
 EXIT_UNPROVABLE = 21
 EXIT_NO_TOOLING = 3
@@ -223,38 +233,169 @@ def language_for(name: str, module: str, attr: str):
         return None, f"no grammar for {name} (pip install {module})"
 
 
-def leaves(src: bytes, lang) -> tuple[list[tuple[str, str]], bool]:
-    """Terminal tokens minus comments, plus whether the parse had errors."""
+class Docstring(NamedTuple):
+    """A docstring statement's leaves sit at `start:end` of the leaf stream."""
+
+    start: int
+    end: int
+    text: str
+    line: int
+    refusal: str | None
+
+
+DOC_READERS = frozenset({"getdoc", "pydoc", "doctest"})
+
+
+def is_docstring(stmt, src: bytes) -> bool:
+    """A lone str literal: no f-, t- or b-prefix, which would not become `__doc__`."""
+    if stmt.type != "expression_statement" or stmt.named_child_count != 1:
+        return False
+    value = stmt.named_children[0]
+    parts = [value] if value.type == "string" else []
+    if value.type == "concatenated_string":
+        parts = [c for c in value.named_children if c.type == "string"]
+    if not parts:
+        return False
+    for part in parts:
+        opener = src[part.children[0].start_byte : part.children[0].end_byte]
+        if not set(opener.decode().rstrip("'\"").lower()) <= {"r", "u"}:
+            return False
+    return True
+
+
+def python_docstrings(root, src: bytes) -> dict[int, tuple[str, int, str | None]]:
+    """Docstring statement node id -> (text, line, why its removal is refused)."""
+    found: dict[int, tuple[str, int, str | None]] = {}
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.named_children)
+        if node.type == "module":
+            body = node
+        elif node.type in ("function_definition", "class_definition"):
+            body = node.child_by_field_name("body")
+        else:
+            continue
+        statements = (
+            [c for c in body.named_children if c.type != "comment"] if body else []
+        )
+        if not statements or not is_docstring(statements[0], src):
+            continue
+        stmt = statements[0]
+        text = src[stmt.start_byte : stmt.end_byte].decode(errors="replace")
+        refusal = None
+        if node.type != "module" and len(statements) == 1:
+            refusal = "removal leaves an empty body"
+        elif ">>>" in text:
+            refusal = "the docstring holds doctest examples"
+        elif node.parent is not None and node.parent.type == "decorated_definition":
+            refusal = "a decorator can read the docstring"
+        elif node.type == "class_definition" and node.child_by_field_name(
+            "superclasses"
+        ):
+            refusal = "a base class or metaclass can read the docstring"
+        found[stmt.id] = (text, stmt.start_point[0] + 1, refusal)
+    return found
+
+
+def leaves(
+    src: bytes, lang, docstrings: bool = False
+) -> tuple[list[tuple[str, str]], bool, list[Docstring]]:
+    """Terminal tokens minus comments, whether the parse had errors, and the
+    docstrings among them when `docstrings` is set."""
     from tree_sitter import Parser
 
     tree = Parser(lang).parse(src)
+    owners = python_docstrings(tree.root_node, src) if docstrings else {}
     out: list[tuple[str, str]] = []
+    docs: list[Docstring] = []
     broken = False
-    stack = [tree.root_node]
-    while stack:
-        node = stack.pop()
-        if node.type in ("ERROR", "MISSING") or node.is_missing:
-            broken = True
-        if node.child_count and "comment" not in node.type:
-            stack.extend(reversed(node.children))
-            continue
-        text = src[node.start_byte : node.end_byte].decode(errors="replace")
-        if "comment" in node.type:
-            if node.start_point[0] == 0 and text.startswith("#!"):
-                out.append(("shebang", text))
-        elif text.strip():
-            out.append((node.type, text))
-    return out, broken
+
+    def walk(top) -> None:
+        nonlocal broken
+        stack = [top]
+        while stack:
+            node = stack.pop()
+            found = owners.pop(node.id, None)
+            if found is not None:
+                begin = len(out)
+                walk(node)
+                docs.append(Docstring(begin, len(out), *found))
+                continue
+            if node.type in ("ERROR", "MISSING") or node.is_missing:
+                broken = True
+            if node.child_count and "comment" not in node.type:
+                stack.extend(reversed(node.children))
+                continue
+            text = src[node.start_byte : node.end_byte].decode(errors="replace")
+            if "comment" in node.type:
+                if node.start_point[0] == 0 and text.startswith("#!"):
+                    out.append(("shebang", text))
+            elif text.strip():
+                out.append((node.type, text))
+
+    walk(tree.root_node)
+    return out, broken, docs
 
 
 def code_changed(**detail) -> tuple[str, int, dict]:
     return "CODE-CHANGED", EXIT_CODE_CHANGED, detail
 
 
-def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
-    a, a_broken = leaves(before, lang)
-    b, b_broken = leaves(after, lang)
-    return classify_leaves(a, b, a_broken, b_broken)
+def without_docstrings(stream, docs: list[Docstring]):
+    """The stream with every docstring cut out, and each docstring keyed by
+    where it sat in that cut stream, so the two sides' docstrings compare by
+    position as well as text."""
+    kept, anchors, cursor, removed = [], {}, 0, 0
+    for doc in sorted(docs):
+        kept.extend(stream[cursor : doc.start])
+        anchors[(doc.start - removed, doc.text)] = doc
+        removed += doc.end - doc.start
+        cursor = doc.end
+    kept.extend(stream[cursor:])
+    return kept, anchors
+
+
+def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
+    """DOCSTRING-ONLY, a refusal, or None when docstrings do not explain the diff."""
+    a_kept, a_anchors = without_docstrings(a, a_docs)
+    b_kept, b_anchors = without_docstrings(b, b_docs)
+    if a_kept != b_kept or not b_anchors.keys() <= a_anchors.keys():
+        return None
+    removed = [doc for key, doc in a_anchors.items() if key not in b_anchors]
+    if not removed:
+        return None
+    reader = next(
+        (
+            text
+            for kind, text in a + b
+            if "__doc__" in text or (kind == "identifier" and text in DOC_READERS)
+        ),
+        None,
+    )
+    if reader is not None:
+        return code_changed(
+            reason="the file can read docstrings at run time", at=reader
+        )
+    for doc in removed:
+        if doc.refusal:
+            return code_changed(reason=doc.refusal, line=doc.line)
+    return (
+        "DOCSTRING-ONLY",
+        EXIT_DOCSTRING_ONLY,
+        {"removed_lines": [doc.line for doc in removed]},
+    )
+
+
+def classify(
+    before: bytes, after: bytes, lang, docstrings: bool = False
+) -> tuple[str, int, dict]:
+    a, a_broken, a_docs = leaves(before, lang, docstrings)
+    b, b_broken, b_docs = leaves(after, lang, docstrings)
+    verdict = classify_leaves(a, b, a_broken, b_broken)
+    if verdict[0] == "CODE-CHANGED" and a_docs:
+        return classify_docstrings(a, b, a_docs, b_docs) or verdict
+    return verdict
 
 
 def classify_leaves(
@@ -385,7 +526,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"change-shape: {exc}", file=sys.stderr)
             return EXIT_USAGE
 
-        verdict, code, detail = classify(before, after, lang)
+        verdict, code, detail = classify(
+            before, after, lang, docstrings=entry[0] == "python"
+        )
     if args.json:
         print(
             json.dumps(

@@ -146,7 +146,8 @@ class-B moves, and reports.
    `/multi-agent:route worker code` resolves in this session and a config layer (basis `config`)
    sets the `worker` role, in which case pass that role's `single` variant model and effort.
 2. **Check its report and its diff.** Re-run `change-shape.sh` on every file it touched, before
-   against after: anything but COMMENT-ONLY is reverted. Check each deletion against the floor and
+   against after: anything but COMMENT-ONLY, or DOCSTRING-ONLY on a Python file whose only
+   difference is docstring deletions, is reverted. Check each deletion against the floor and
    the posture's keeps ([Postures](#postures)), the resolved keep list under `necessary` only, and
    each keep against the rule it names. Reject a report that edits code,
    reaches outside the scope, deletes a kept comment or misstates a reason.
@@ -208,7 +209,8 @@ text; that skill owns and applies the admission test. Otherwise
 comments, unit and sentinel annotations on the adjacent declaration, and every class-C comment that
 is inexpressible, load-bearing where it is read, and within the line budget.
 
-**No posture loosens a gate.** Every applied deletion carries COMMENT-ONLY, every applied
+**No posture loosens a gate.** Every applied deletion carries COMMENT-ONLY (DOCSTRING-ONLY for a
+Python docstring), every applied
 function-local rename carries RENAME-ONLY, tier-2 and tier-3 moves need a discovered test net, and
 an UNPROVABLE file yields proposals only.
 
@@ -232,8 +234,14 @@ an UNPROVABLE file yields proposals only.
   renames are certified by `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh` (COMMENT-ONLY,
   RENAME-ONLY); additive and interface-creating moves need a discovered test net. Any other verdict
   reverts the edit and demotes it to a proposal, and so does UNAVAILABLE or no verdict. This holds
-  however the file is written: a shell edit needs the same verdict as an Edit call. A Python
-  docstring is a string token, so removing one reads CODE-CHANGED and is always a proposal.
+  however the file is written: a shell edit needs the same verdict as an Edit call.
+- **A non-public Python docstring deletion applies under DOCSTRING-ONLY**, the verdict
+  `change-shape.sh` gives when removed docstrings are the edit's only difference and the file gives
+  no sign of reading one at run time ([reference/safety.md](reference/safety.md), tier 0). It gates
+  docstring deletions the way COMMENT-ONLY gates comment deletions, under `necessary` and `none`;
+  under `explanatory`, or with any other verdict, a docstring deletion is a proposal. The proof cannot see a reader in
+  another file, so a repository search for `__doc__` or `getdoc` naming the docstring's owner
+  comes first, and a hit makes the deletion a proposal.
 - **RENAME-ONLY is a shape claim, not a safety claim.** It cannot see other files, reflection or
   string-keyed access. Report every rename applied on its strength with its mapping.
 - **An identifier named in a repo-local marker row is never renamed.** Dissolve the comment if it
