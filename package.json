@@ -8,13 +8,13 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.329",
+    "@anthropic-ai/claude-code": "2.1.330",
     "@biomejs/biome": "2.6.8",
-    "@playwright/cli": "0.1.24",
-    "@playwright/mcp": "0.0.85",
+    "@playwright/cli": "0.1.25",
+    "@playwright/mcp": "0.0.86",
     "graphql": "17.1.0",
     "htmlhint": "1.9.2",
-    "markdownlint-cli2": "0.24.1"
+    "markdownlint-cli2": "0.24.2"
   },
   "overrides": {
     "katex": ">=0.18.2",
