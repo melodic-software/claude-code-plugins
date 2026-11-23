@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the eval workspace with app.sh and one commit.
 set -euo pipefail
 
 cp "$(dirname "${BASH_SOURCE[0]}")/fixture/app.sh.txt" app.sh

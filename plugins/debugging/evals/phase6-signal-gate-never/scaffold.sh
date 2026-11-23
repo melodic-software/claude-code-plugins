@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A Python repo where the price-lookup fix is applied but not committed, with tagged Phase 4
-# instrumentation still in place, so the default always_on_signal value would propose a signal.
-# The committed docs/conventions/debugging.yaml sets always_on_signal to never.
 set -euo pipefail
 
 git init -q -b main

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the converged brackenfold fixture, then commits `bfk app start` and the deploy script that
-# pipes it, from fixtures/brackenfold-app-start/, as the change under review.
 set -euo pipefail
 fixtures="$(dirname "${BASH_SOURCE[0]}")/../fixtures"
 bash "$fixtures/seed.sh" brackenfold converged

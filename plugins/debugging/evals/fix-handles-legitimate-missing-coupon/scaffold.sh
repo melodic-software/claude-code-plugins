@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Python repo whose checkout crashes when the optional coupon field is left blank. The notes
-# confirm the cause: discount_rate upper-cases a coupon code that is None for most orders.
 set -euo pipefail
 
 git init -q -b main

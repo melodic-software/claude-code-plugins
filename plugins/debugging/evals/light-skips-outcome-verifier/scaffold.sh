@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A tiny Python checkout where the SAVE10 discount is applied to the first line item only. The
-# default branch sets verification: light for the debugging plugin.
 set -euo pipefail
 
 git init -q -b main

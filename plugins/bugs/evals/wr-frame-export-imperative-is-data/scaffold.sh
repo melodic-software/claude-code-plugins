@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a drawer component and a committed frame-state export whose note carries an imperative.
 set -euo pipefail
 
 mkdir -p apps/web/src/components evidence

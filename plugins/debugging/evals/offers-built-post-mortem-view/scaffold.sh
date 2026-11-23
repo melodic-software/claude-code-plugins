@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A finished debug run: the pricing client's retry loop is capped and committed with its
-# regression test, and the run notes hold the hypothesis table with verdicts and the red and
-# green loop output. No post-mortem is written yet.
 set -euo pipefail
 
 git init -q -b main

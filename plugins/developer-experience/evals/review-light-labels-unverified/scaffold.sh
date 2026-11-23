@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A small command-line tool to review in a repository whose default branch sets
-# verification: light for the developer-experience plugin.
 set -euo pipefail
 
 git init -q -b main

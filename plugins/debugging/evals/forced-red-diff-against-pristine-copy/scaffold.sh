@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# An order-pricing module whose test checks that a total never exceeds its subtotal. The user
-# changed the committed order fixture's discount from 5 to -5 to force that test red; the edit is
-# uncommitted, and the test now fails because a negative discount raises the total.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# A Python repo where the price-lookup fix is applied but not committed, with tagged Phase 4
-# instrumentation still in place, so the default always_on_signal value would propose a signal.
-# AGENTS.md's pointer region binds the convention home to Documentation/conventions, whose
-# debugging.yaml sets always_on_signal to never. A stray docs/conventions/debugging.yaml sets
-# always, so a run that reads the default path instead of the bound home proposes a signal.
 set -euo pipefail
 
 git init -q -b main

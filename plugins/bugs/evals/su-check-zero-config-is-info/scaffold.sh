@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with no bugs config at any layer.
 set -euo pipefail
 git init -q
 git config user.email eval@example.invalid

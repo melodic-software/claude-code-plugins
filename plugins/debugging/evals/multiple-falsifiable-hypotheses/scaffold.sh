@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A Node report exporter whose latest commit labels columns through config/columns.json, an
-# uncommitted test that crashes on an unmapped column, an ADR making the footer optional, and a
-# known-issues note on null dates: three suspects the repository itself can rank.
 set -euo pipefail
 
 git init -q -b main

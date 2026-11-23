@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A weekly hours report that divides by the entry count, so a team with no entries crashes it.
 set -euo pipefail
 
 git init -q -b main

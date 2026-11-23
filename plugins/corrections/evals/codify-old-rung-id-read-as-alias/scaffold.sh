@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A two-service repository whose CLAUDE.md still names the old `semgrep-rule` rung id and orders
-# it first for dangerous calls. Its history holds a shell-string command in both services, each
-# fixed in a later commit, so the mistake has occurrences to count.
 set -euo pipefail
 
 git init -q -b main .

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Commits src/cart.py on main, then leaves an uncommitted count_items change with an obvious cleanup and no lines file.
 set -euo pipefail
 
 git init -q

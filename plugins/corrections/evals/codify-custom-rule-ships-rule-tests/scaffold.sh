@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A TypeScript repository that already writes its own ESLint rules, each with a RuleTester test,
-# and a findings file whose one row needs a new rule that resolves a value's type.
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

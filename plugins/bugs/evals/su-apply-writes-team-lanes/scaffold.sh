@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A committed git repository with an API entrypoint directory and a billing directory, and no bugs
-# config at any layer.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

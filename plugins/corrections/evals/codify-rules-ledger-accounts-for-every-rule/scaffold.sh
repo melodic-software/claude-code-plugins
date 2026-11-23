@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A repository whose instruction files hold five rules, one for each outcome: a mechanical rule a
-# past commit broke and fixed (a check with a proof), a mechanical rule nothing ever broke (no old
-# ref, so held), a rule that needs judgment (prose), a rule package.json already states (delete),
-# and a rule in a file AGENTS.md points to (read by following the pointer).
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

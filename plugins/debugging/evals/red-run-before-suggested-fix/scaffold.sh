@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A CSV export whose loop stops one row early.
 set -euo pipefail
 
 git init -q -b main

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Commits src/order-schema.ts on main, adds an uncommitted src/orders.ts with a needless alias, a debug log and a swallowing catch, and writes the lines file naming all 13 of its lines.
 set -euo pipefail
 
 git init -q

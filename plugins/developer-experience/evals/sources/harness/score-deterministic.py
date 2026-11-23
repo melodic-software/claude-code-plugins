@@ -73,7 +73,6 @@ def run(cmd, cwd, env, stdin=subprocess.DEVNULL, timeout=TIMEOUT):
         return None, "", "timeout"
 
 
-# ------------------------------------------------------------------------- sentinel
 
 
 def score_sentinel(out, meta):
@@ -92,7 +91,6 @@ def score_sentinel(out, meta):
     ]
 
 
-# ------------------------------------------------------------------------------- S1
 
 
 def changed_files(ws, scaffold_tree):
@@ -299,7 +297,6 @@ def score_s1(out, meta):
     return results
 
 
-# ------------------------------------------------------------- shared for S3-S7, T1, T3
 
 
 def workspace(meta):
@@ -386,7 +383,6 @@ def backticked_paths_missing(ws, text):
     return sorted(p for p in paths if not (ws / p).exists() and not list(ws.rglob(Path(p).name)))
 
 
-# ------------------------------------------------------------------------- S3, S5, S6
 
 
 def score_s3(out, meta):
@@ -425,7 +421,6 @@ def score_s6(_out, meta):
     ]
 
 
-# ------------------------------------------------------------------------------- S7
 
 
 def score_s7(out, meta):
@@ -464,7 +459,6 @@ def score_s7(out, meta):
     ]
 
 
-# ------------------------------------------------------------------------------- S4
 
 
 STDLIB = set(getattr(sys, "stdlib_module_names", ()))
@@ -593,7 +587,6 @@ def score_s4(out, meta):
     return results
 
 
-# --------------------------------------------------------------------------- T1, T3
 
 
 def score_setup_baseline(_out, meta):
@@ -624,7 +617,6 @@ def score_setup_baseline(_out, meta):
     return results
 
 
-# ------------------------------------------------- Phase 6: plugin-arm pass/fail cases
 
 
 DX_LINE = ("- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read "
@@ -800,7 +792,6 @@ def score_nm_script(out, meta):
             item(3, "Conventions file unchanged", "P", "D", same_as_scaffold(ws, meta["scaffold_tree"], CONV), CONV)]
 
 
-# ----------------------------------------------------------------------- held-out
 
 
 def h_conventions_entry(ws, arm):

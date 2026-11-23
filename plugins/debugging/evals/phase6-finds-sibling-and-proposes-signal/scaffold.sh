@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A Python repo where the price-lookup fix is applied but not committed, with tagged Phase 4
-# instrumentation still in place. shipping.py carries the same lower-cased key lookup that the
-# fix removed from pricing.py, and no test or loop reaches it yet.
 set -euo pipefail
 
 git init -q -b main

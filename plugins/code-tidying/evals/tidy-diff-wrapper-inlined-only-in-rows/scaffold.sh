@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Commits src/report.py with an existing private one-call wrapper, appends an uncommitted second one with its only caller, and writes the lines file naming lines 10-18, the appended block only.
 set -euo pipefail
 
 git init -q

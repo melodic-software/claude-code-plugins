@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Commits an http helper and an email normalizer on main, adds an uncommitted src/reminders.ts carrying seven low-salience residue kinds, and writes the lines file naming all 18 of its lines.
 set -euo pipefail
 
 git init -q

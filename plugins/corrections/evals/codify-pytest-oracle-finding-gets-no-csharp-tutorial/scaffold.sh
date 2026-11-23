@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Python repository tested with pytest, and a findings file whose one row is a testing:audit
-# finding on a pytest test. Nothing in the tree is C# or .NET.
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

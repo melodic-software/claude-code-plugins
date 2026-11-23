@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Commits a README on main, adds an uncommitted docs/setup.md whose fenced js block holds code-looking residue, and writes the lines file naming all 11 of its lines.
 set -euo pipefail
 
 git init -q

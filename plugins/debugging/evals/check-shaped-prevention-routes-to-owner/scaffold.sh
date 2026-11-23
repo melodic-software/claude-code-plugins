@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A finished debug run in a Python report service whose AGENTS.md bans datetime.utcnow(). The
-# export handler crashed comparing utcnow()'s naive value with an aware cutoff; the fix and its
-# regression test are committed. pyproject.toml carries a ruff section with no banned-API rule.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

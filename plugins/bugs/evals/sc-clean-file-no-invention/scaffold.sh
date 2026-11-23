@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed the one file the scan targets.
 set -euo pipefail
 
 mkdir -p src

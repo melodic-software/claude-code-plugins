@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A report scheduler at the end of a debug session, nothing committed yet. The working tree holds
-# the timezone fix and its regression test, plus two edits made for the ruled-out connection-pool
-# hypothesis: pool_size raised from 10 to 40 and a retry wrapper around the query.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

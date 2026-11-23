@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Python repo where a price-lookup fix is applied but not committed, with tagged debug
-# instrumentation still in two source files and a Phase 1 loop script beside them.
 set -euo pipefail
 
 git init -q -b main

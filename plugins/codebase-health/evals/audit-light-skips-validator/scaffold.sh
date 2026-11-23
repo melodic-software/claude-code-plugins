@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A one-file repository with a planted doc claim in a repository whose default branch sets
-# verification: light for the codebase-health plugin.
 set -euo pipefail
 
 git init -q -b main

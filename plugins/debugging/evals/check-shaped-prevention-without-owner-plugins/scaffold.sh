@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A finished debug run in a Python billing service whose AGENTS.md bans float math for money. The
-# invoice module rounded line totals with float arithmetic and was off by a cent; the Decimal fix
-# and a regression test at the module's public function are committed. pyproject.toml carries a
-# ruff section with no rule for it.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

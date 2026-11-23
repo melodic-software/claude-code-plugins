@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A TypeScript repository and a findings file whose one row is an invariant that turns on a value's
-# type, not on how the call is spelled: no syntactic match can tell a Secret from a string.
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

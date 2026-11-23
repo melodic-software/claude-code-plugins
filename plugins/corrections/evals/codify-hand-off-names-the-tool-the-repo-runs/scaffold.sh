@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Python repository that already runs import-linter for its layer contracts, and a findings file
-# whose one row breaks a layer boundary that no contract covers yet.
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a tracked team layer (one entrypoints lane), a tracked work-items file that
-# sets filing_posture: allowed, and a gitignored personal override that opts out with lanes: [].
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

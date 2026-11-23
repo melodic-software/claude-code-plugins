@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose AGENTS.md names docs/agent-reports/ as the home for agent-written reports,
-# with one report already there. No bugs config at any layer.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

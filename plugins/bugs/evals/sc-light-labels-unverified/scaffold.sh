@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# One file with a planted boundary defect, in a repository whose default branch sets
-# verification: light for the bugs plugin.
 set -euo pipefail
 
 git init -q -b main

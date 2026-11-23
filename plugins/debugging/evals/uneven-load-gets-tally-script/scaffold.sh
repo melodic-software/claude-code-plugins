@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A thumbnail service whose six workers share one queue. replay.py replays last night's queue
-# (queue/last-night.jsonl) against a local simulation of the cluster, in a fresh arrival order each
-# pass, and exits 1 when a worker passes its memory limit. pick_worker routes by album, and the
-# four albums of large RAW photos all land on workers 2 and 5.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

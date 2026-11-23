@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A Python repository tested with pytest and linted with ruff, whose ruff selection leaves the
-# assert-on-tuple diagnostic off, and a findings file whose one row is a testing:audit
-# rule-inert-assertion finding on that test.
 set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A desktop sync client whose code has not changed in a week. Its state directory (ignored by git)
-# holds what the last run left before the reboot: a saved session, a cache index, settings, and a
-# profile.lock from a process that no longer exists. Any of them failing to open gives the same
-# "unable to open profile"; the stale lock is the one that does.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

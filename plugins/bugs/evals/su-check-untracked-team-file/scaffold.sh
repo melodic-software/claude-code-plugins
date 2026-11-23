@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose team layer docs/conventions/bugs.yaml exists but was never committed.
 set -euo pipefail
 git init -q
 git config user.email eval@example.invalid

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A CSV stock importer that opens files as plain utf-8, so a file starting with a byte-order mark
-# reads its first header as "﻿sku" and is rejected. samples/ holds the same rows with and
-# without the BOM, and the README gives the command that imports one file: a ready loop.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
