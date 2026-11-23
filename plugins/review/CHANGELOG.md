@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.10.0] - 2026-11-23
+
+### Added
+
+- route two pilot steps through the route caller contract
+
+  /review:fanout's leaf reviewer dispatch and /codebase-health:audit's
+  per-file discovery fan-out now point at the caller contract of
+  /multi-agent:route (if enabled); otherwise they run here as before.
+
 ## [10.9.1] - 2026-11-23
 
 ### Fixed

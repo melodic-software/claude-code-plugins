@@ -3,6 +3,20 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.1] - 2026-11-23
+
+### Added
+
+- Eval case `evals/ro-vendor-caller-auto-delegation-off/`: a Caller contract request with `vendors.auto_delegation` off makes `/multi-agent:route vendors` stop after `route.sh` and return only `run here`, with no board fetch, no `vendor-decide`, no `delegate` run and no vendor recommendation.
+
+### Fixed
+
+- carry a named agent's definition into a delegated brief
+
+  The route caller contract now has a step that dispatches a named agent
+  open its delegated brief with that agent's definition body, so another
+  vendor gets the agent's instructions and report shape.
+
 ## [3.6.0] - 2026-11-23
 
 ### Added
