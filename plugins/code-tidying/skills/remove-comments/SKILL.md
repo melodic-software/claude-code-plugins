@@ -235,9 +235,11 @@ an UNPROVABLE file yields proposals only.
   RENAME-ONLY); additive and interface-creating moves need a discovered test net. Any other verdict
   reverts the edit and demotes it to a proposal, and so does UNAVAILABLE or no verdict. This holds
   however the file is written: a shell edit needs the same verdict as an Edit call.
-- **A non-public Python docstring deletion applies under DOCSTRING-ONLY**, the verdict
-  `change-shape.sh` gives when removed docstrings are the edit's only difference and none of the
-  file checks in [reference/safety.md](reference/safety.md) (tier 0) refuses it. It gates
+- **A non-public Python module docstring, or the docstring of a function defined outside any
+  class, applies under DOCSTRING-ONLY**, the verdict `change-shape.sh` gives when such removed
+  docstrings are the edit's only difference and none of the file checks in
+  [reference/safety.md](reference/safety.md) (tier 0) refuses it. A class or method docstring
+  deletion always reads CODE-CHANGED and is a proposal. It gates
   docstring deletions the way COMMENT-ONLY gates comment deletions, under `necessary` and `none`;
   under `explanatory`, or with any other verdict, a docstring deletion is a proposal. The proof
   reads one file, so a repository search for the owner's name in every other file comes first:

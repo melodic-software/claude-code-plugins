@@ -178,7 +178,8 @@ before the deletion is final. See [safety.md](safety.md).
   doctrine choice (the Martin pole for internal interfaces): a private method whose doc comment
   restates its name and parameters is class A/B; one carrying a real contract (constraints, units,
   side effects, surprising behavior) is class C. A Python docstring is a string, not a comment, so
-  its deletion carries DOCSTRING-ONLY in place of COMMENT-ONLY ([safety.md](safety.md), tier 0).
+  deleting a module or class-free function docstring carries DOCSTRING-ONLY in place of
+  COMMENT-ONLY, and deleting a class or method docstring is a proposal ([safety.md](safety.md), tier 0).
 
 ## Worked examples
 

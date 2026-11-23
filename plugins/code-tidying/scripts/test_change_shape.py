@@ -148,12 +148,14 @@ def run():
 PY_DOCS = '''"""Module summary."""
 
 
-class _Box:
-    """Hold a value."""
+def _outer(value):
+    """Wrap a value."""
 
-    def get(self):
+    def _inner():
         """Return the value."""
-        return self.value
+        return value
+
+    return _inner()
 '''
 
 CS_BASE = """/// <summary>Public doc.</summary>
@@ -195,13 +197,19 @@ class PythonVerdicts(unittest.TestCase):
     def test_plain_docstring_removal_is_docstring_only(self):
         after = (
             PY_DOCS.replace('"""Module summary."""\n', "")
-            .replace('    """Hold a value."""\n', "")
+            .replace('    """Wrap a value."""\n', "")
             .replace('        """Return the value."""\n', "")
         )
         code, out, _ = run(PY_DOCS, after, ".py", "--json")
         self.assertEqual(code, 11, out)
         self.assertIn('"verdict": "DOCSTRING-ONLY"', out)
         self.assertIn('"removed_lines": [1, 5, 8]', out)
+
+    def test_nested_function_docstring_removal_is_docstring_only(self):
+        after = PY_DOCS.replace('        """Return the value."""\n', "")
+        code, out, _ = run(PY_DOCS, after, ".py", "--json")
+        self.assertEqual(code, 11, out)
+        self.assertIn('"removed_lines": [8]', out)
 
     def test_docstring_removal_is_never_comment_only(self):
         after = PY_DOCS.replace('"""Module summary."""\n', "")
@@ -218,7 +226,7 @@ class PythonVerdicts(unittest.TestCase):
 
     def test_docstring_removal_plus_code_change_is_code_changed(self):
         after = PY_DOCS.replace('"""Module summary."""\n', "").replace(
-            "return self.value", "return self.value + 1"
+            "return value", "return value + 1"
         )
         code, out, _ = run(PY_DOCS, after, ".py")
         self.assertEqual(code, 20, out)
@@ -232,10 +240,10 @@ class PythonVerdicts(unittest.TestCase):
 
     def test_docstring_moved_to_another_owner_is_code_changed(self):
         after = (
-            PY_DOCS.replace('    """Hold a value."""\n', "")
+            PY_DOCS.replace('    """Wrap a value."""\n', "")
             .replace(
-                "        return self.value",
-                '        """Hold a value."""\n        return self.value',
+                "        return value",
+                '        """Wrap a value."""\n        return value',
             )
             .replace('        """Return the value."""\n', "")
         )
@@ -271,36 +279,37 @@ class PythonVerdicts(unittest.TestCase):
         after = "class Item(BaseModel):\n    name: str\n"
         code, out, _ = run(before, after, ".py", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("base class", out)
+        self.assertIn("class docstring", out)
 
-    def test_method_docstring_in_a_subclass_is_code_changed(self):
-        before = 'class Tool(Base):\n    def run(self):\n        """Run it."""\n        return 1\n'
-        after = "class Tool(Base):\n    def run(self):\n        return 1\n"
+    def test_plain_class_docstring_removal_is_code_changed(self):
+        before = 'class _Tool:\n    """Hold a value."""\n    value = 1\n'
+        after = "class _Tool:\n    value = 1\n"
         code, out, _ = run(before, after, ".py", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("base class", out)
+        self.assertIn("class docstring", out)
 
-    def test_method_docstring_under_a_metaclass_is_code_changed(self):
-        before = 'class Tool(metaclass=Meta):\n    def run(self):\n        """Run it."""\n        return 1\n'
-        after = "class Tool(metaclass=Meta):\n    def run(self):\n        return 1\n"
+    def test_class_docstring_of_an_instance_given_to_fire_is_code_changed(self):
+        before = 'class _Tool:\n    """Shown as help."""\n    value = 1\n\n\nfire.Fire(_Tool())\n'
+        after = before.replace('    """Shown as help."""\n', "")
         code, out, _ = run(before, after, ".py", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("metaclass", out)
+        self.assertIn("class docstring", out)
 
-    def test_method_docstring_in_a_decorated_class_is_code_changed(self):
-        before = '@register\nclass Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
-        after = "@register\nclass Tool:\n    def run(self):\n        return 1\n"
+    def test_method_docstring_of_a_class_given_to_fire_is_code_changed(self):
+        before = 'class _Tool:\n    def run(self):\n        """Shown as help."""\n        return 1\n\n\nfire.Fire(_Tool)\n'
+        after = before.replace('        """Shown as help."""\n', "")
         code, out, _ = run(before, after, ".py", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("decorator", out)
+        self.assertIn("method docstring", out)
 
-    def test_method_docstring_in_a_plain_class_is_docstring_only(self):
+    def test_method_docstring_in_a_plain_class_is_code_changed(self):
         before = (
             'class Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
         )
         after = "class Tool:\n    def run(self):\n        return 1\n"
-        code, out, _ = run(before, after, ".py")
-        self.assertEqual(code, 11, out)
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("method docstring", out)
 
     def test_file_walking_vars_is_code_changed(self):
         before = (

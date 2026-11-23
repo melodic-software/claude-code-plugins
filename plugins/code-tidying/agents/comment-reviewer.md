@@ -25,7 +25,7 @@ Run the workflow's steps 3 to 7 over that scope, with these limits:
 
 - **Comments only.** Edit comment text and nothing else: a deletion or a rewrite, each followed by
   `change-shape.sh` on the file before and after, and restored when the verdict is not
-  COMMENT-ONLY. A non-public Python docstring is the one string you may delete, under `necessary`
+  COMMENT-ONLY. A non-public Python module docstring, or the docstring of a function defined outside any class, is the one string you may delete (never a class or method docstring), under `necessary`
   and `none` only, and it stays deleted only when the verdict is DOCSTRING-ONLY and a repository
   search finds no other file naming its owner except as a direct call (the name immediately
   followed by `(`), per the skill's hard rule on DOCSTRING-ONLY; otherwise

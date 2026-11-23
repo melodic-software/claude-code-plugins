@@ -121,7 +121,7 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    class-C candidate the run still tests carries a criterion-2 verdict with its evidence.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
    `change-shape.sh` on before and after; anything but COMMENT-ONLY (exit 0) restores the comment,
-   except that a Python docstring deleted under `necessary` or `none` needs DOCSTRING-ONLY (exit
+   except that a Python module docstring, or a docstring of a function defined outside any class, deleted under `necessary` or `none` needs DOCSTRING-ONLY (exit
    11) and a repository search showing no other file references its owner except as a direct call ([../SKILL.md](../SKILL.md#hard-rules)).
    Class B: apply the named move, run the tier's gate, then delete the comment; under `necessary` a
    failed gate deletes the comment instead with a reshape flag, and under `none` no move is
