@@ -125,6 +125,7 @@ Graceful degradation: where a named step below is not available in the consuming
 - A finding is about coupling between modules: /coupling:reduce.
 - The boundaries lens wrote a findings file, when available: /corrections:codify findings
 - A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries
+- An agreed candidate's module has no tests to protect the refactor: /testing:write, characterization tests first.
 
 ## Gotchas
 

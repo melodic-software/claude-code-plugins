@@ -85,7 +85,7 @@ Domain nouns come from the project's glossary; architecture nouns come from [../
 - recommendation: Strong | Worth exploring | Speculative
 - size: S | M | L: <basis, at most twelve words; the bands are in the report format's "Size">
 - problem: <one sentence>
-- solution: <one sentence: what the deepened module would own and hide; names no entry point, since Phase 2 proposes no interfaces>
+- solution: <one sentence: what the deepened module would own and hide, or, for a module that only forwards calls, which of the vocabulary's three fixes applies (delete it, move work between it and what it wraps, merge the two); names no entry point, since Phase 2 proposes no interfaces>
 - wins: <one or more `; `-separated gains, each `<vocabulary term>: <at most six words>`, at least one `leverage:` or `locality:`>
 - verified: reproduced | corrected: <one clause, with no semicolon> | unverified
 - deepening: <one sentence of narrative naming the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
