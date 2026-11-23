@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for emit-findings.sh (assertions from test-helpers.sh beside
-# this file; both ship with the plugin).
-#
-# The body-scope cases are the load-bearing ones: check-skill.sh check 3 hard-FAILs
-# a dropped `'trigger phrase'` versus the base ref, so a finding whose remediation
-# edits a description, when_to_use, or a quoted trigger phrase is an
-# auto-invocation regression. Those cases assert the WRITER's own fence, fed
-# deliberately-unfenced input, because a fence that lives only in the caller is
-# one caller away from being bypassed.
 set -uo pipefail
 
 # Fixture git isolation: this suite builds a throwaway repository (case 9c), and
@@ -37,7 +28,7 @@ if ! command -v grep >/dev/null 2>&1 || ! command -v awk >/dev/null 2>&1; then
   exit 0
 fi
 
-emit() { # emit <scan-file> <out> -> stdout of the written file
+emit() {
   bash "$EMIT" --from "$1" --out "$2" --branch testbranch >/dev/null 2>&1
   cat "$2" 2>/dev/null
 }
@@ -215,8 +206,6 @@ assert_contains "prose and blank lines share the unparsable-row bucket" \
 assert_contains "I100-a still declines as no-severity-crosswalk-row" \
   "$UNP_OUT" "Declined candidates: I100-a count=1 reason=no-severity-crosswalk-row"
 
-# A CRLF-terminated matching row is parsed, not dropped. The intake pattern
-# must strip CR before anchoring on $, or a CR-terminated I28-a vanishes.
 CRLF_ROW="$TEST_TMPDIR/crlf-row.txt"
 printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-a" >"$CRLF_ROW"
 CRLF_ROW_OUT=$(emit "$CRLF_ROW" "$TEST_TMPDIR/crlf-row.md")
@@ -227,7 +216,6 @@ assert_contains "and the CRLF row is counted as read and emitted" \
 assert_not_contains "a matching CRLF row is not declined as unparsable" \
   "$CRLF_ROW_OUT" "reason=unparsable-row"
 
-# Mixed LF + CRLF: the CR row must not vanish from the count.
 MIXCRLF="$TEST_TMPDIR/mix-crlf.txt"
 {
   printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
@@ -274,21 +262,17 @@ description: "Fixture. Use when: 'downgrade demo'."
 CRITICAL: You MUST resolve the item id before calling the seam.
 EOF
 ORIG_FM=$(sed -n '1,3p' "$DG")
-# The remediation the Action cell specifies, applied by hand at Location.
 REMEDIATED="Resolve the item id before calling the seam."
 NEW_FM=$(sed -n '1,3p' "$DG")
 assert_eq "frontmatter is untouched by a body remediation" "$ORIG_FM" "$NEW_FM"
 ORIG_DIRECTIVE="resolve the item id before calling the seam."
 assert_not_contains "the coercive wrapper is gone" "$REMEDIATED" "CRITICAL: You MUST"
-# Case-insensitive comparison is the contract: only the forced capitalization differs.
 if [[ "$(printf '%s' "$REMEDIATED" | tr '[:upper:]' '[:lower:]')" == "$ORIG_DIRECTIVE" ]]; then
   pass "the directive survives verbatim apart from forced capitalization"
 else
   fail "the directive survives verbatim apart from forced capitalization" \
     "expected '$ORIG_DIRECTIVE', got '$(printf '%s' "$REMEDIATED" | tr '[:upper:]' '[:lower:]')'"
 fi
-# And the remediated line must no longer be a candidate: no stale finding survives
-# its own remediation.
 printf '%s\n' "$REMEDIATED" >"$TEST_TMPDIR/remediated.md"
 POST=$(bash "$SCAN" --body-only "$TEST_TMPDIR/remediated.md")
 assert_contains "the remediated line is no longer a candidate" "$POST" "No instruction candidates found."
@@ -308,7 +292,6 @@ SCAN_OUT=$(bash "$SCAN" --body-only "$CRLFREPO/crlf.md")
 assert_not_contains "scanner fence holds on CRLF: no description row" "$SCAN_OUT" "crlf.md:2"
 assert_not_contains "scanner fence holds on CRLF: no when_to_use row" "$SCAN_OUT" "crlf.md:3"
 assert_contains "scanner still finds the CRLF body row" "$SCAN_OUT" "crlf.md:6:I28-a"
-# Feed the writer DELIBERATELY UNFENCED CRLF input; its own fence must hold too.
 bash "$SCAN" "$CRLFREPO/crlf.md" >"$TEST_TMPDIR/crlf-unfenced.txt"
 (cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/crlf-unfenced.txt" \
   --out "$TEST_TMPDIR/crlf-find.md" --branch testbranch >/dev/null 2>&1)
@@ -318,10 +301,6 @@ assert_not_contains "writer fence holds on CRLF: no when_to_use row" "$CRLF_OUT"
 assert_contains "writer still emits the CRLF body row" "$CRLF_OUT" "crlf.md:6"
 assert_not_contains "no stray CR survives into a table cell" "$CRLF_OUT" "$(printf '\r')"
 
-# Trailing whitespace on the delimiter: real frontmatter to
-# skill_frontmatter::extract (^---[[:space:]]*$), so the writer fence must agree.
-# Exact "---" equality is stricter than the gate this fence exists to satisfy,
-# and the mismatch runs the dangerous way — the block reads as body.
 printf -- '---   \ndescription: "CRITICAL: you MUST not edit this."\nwhen_to_use: "if in doubt, use this"\n---\t\n\nCRITICAL: run the linter.\n' >"$CRLFREPO/ws.md"
 bash "$SCAN" "$CRLFREPO/ws.md" >"$TEST_TMPDIR/ws-unfenced.txt"
 (cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/ws-unfenced.txt" \
@@ -455,7 +434,6 @@ assert_eq "an excerpt containing pipes still parses as one 7-column row" "9" "$C
 PIPEF2="$CRLFREPO/already-pipe.md"
 # shellcheck disable=SC2016  # backticks and \| are fixture content, not a subshell
 printf 'CRITICAL: run `a \| b` before pushing.\n' >"$PIPEF2"
-# Feed a synthetic scan row whose excerpt (the source line) already contains \|.
 printf '%s\n' "$PIPEF2:1:I28-a" >"$TEST_TMPDIR/already-pipe.txt"
 (cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/already-pipe.txt" \
   --out "$TEST_TMPDIR/already-pipe-out.md" --branch testbranch >/dev/null 2>&1)
@@ -508,10 +486,6 @@ assert_not_contains "and is not counted as out-of-repo" "$REL_OUT" "reason=outsi
 assert_contains "every scan row read survives to the report" \
   "$REL_OUT" "Scan rows read: 1. Emitted: 1."
 
-# Resolved against the CALLER's directory — the same directory the emitter read
-# the file from. A Location anchored anywhere else would name a different file
-# than the one whose excerpt the row quotes, trading a silent drop for a silent
-# corruption.
 (cd "$RELREPO/sub" && bash "$SCAN" --body-only nested.md) >"$TEST_TMPDIR/relsub.txt"
 (cd "$RELREPO/sub" && bash "$EMIT" --from "$TEST_TMPDIR/relsub.txt" \
   --out "$TEST_TMPDIR/relsub-find.md" --branch testbranch >/dev/null 2>&1)
@@ -520,15 +494,12 @@ assert_contains "a subdirectory-relative row carries its path from the repo root
   "$RELSUB_OUT" "| sub/nested.md:3 |"
 assert_not_contains "and is not declined" "$RELSUB_OUT" "reason=outside-repo-root"
 
-# A `./` prefix is the same file, and must not reach the Location cell.
 (cd "$RELREPO" && bash "$SCAN" --body-only ./doc.md) >"$TEST_TMPDIR/reldot.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reldot.txt" \
   --out "$TEST_TMPDIR/reldot-find.md" --branch testbranch >/dev/null 2>&1)
 assert_contains "a ./-prefixed row normalizes to a bare repo-relative Location" \
   "$(cat "$TEST_TMPDIR/reldot-find.md")" "| doc.md:3 |"
 
-# Admitting relative paths is what makes traversal expressible, so it is refused
-# in the same fence. A relative `..` escapes the working tree outright.
 (cd "$RELREPO" && bash "$SCAN" --body-only ../outside-doc.md) >"$TEST_TMPDIR/reltrav.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reltrav.txt" \
   --out "$TEST_TMPDIR/reltrav-find.md" --branch testbranch >/dev/null 2>&1)
@@ -537,9 +508,6 @@ TRAV_ROWS=$(printf '%s\n' "$TRAV_OUT" | grep -c '^| [0-9]')
 assert_eq "a traversing relative row emits nothing" "0" "$TRAV_ROWS"
 assert_contains "and the refusal is counted, never silent" "$TRAV_OUT" "reason=outside-repo-root"
 
-# The anchor test is LEXICAL, so `<root>/../outside.md` prefix-matches the root
-# while resolving outside it — it would relativize to `../outside.md` and send
-# the fix pass out of the working tree.
 printf '%s\n' "$RELREPO/../outside-doc.md:3:I28-a" >"$TEST_TMPDIR/abstrav.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/abstrav.txt" \
   --out "$TEST_TMPDIR/abstrav-find.md" --branch testbranch >/dev/null 2>&1)
@@ -550,9 +518,6 @@ assert_not_contains "and no traversing Location reaches the report" \
   "$ABSTRAV_OUT" "../outside-doc.md"
 assert_contains "the traversal refusal is counted" "$ABSTRAV_OUT" "reason=outside-repo-root"
 
-# Regression guard for the absoluteness test itself: git's own toplevel spelling
-# is the drive-letter form under Git Bash, and misreading it as relative would
-# decline a row that relativizes correctly today.
 RELTOP="$(git -C "$RELREPO" rev-parse --show-toplevel)"
 printf '%s\n' "$RELTOP/doc.md:3:I28-a" >"$TEST_TMPDIR/reltop.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reltop.txt" \
@@ -579,7 +544,6 @@ assert_not_contains "and no backslash-traversing Location reaches the report" \
 assert_contains "the backslash traversal refusal is counted" \
   "$TRAVBS_OUT" "reason=outside-repo-root"
 
-# Mixed separators: `<root>/..\outside.md` is the same lexical-prefix hole.
 printf '%s\n' "$RELREPO/..\\outside-doc.md:3:I28-a" >"$TEST_TMPDIR/mixtrav.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/mixtrav.txt" \
   --out "$TEST_TMPDIR/mixtrav-find.md" --branch testbranch >/dev/null 2>&1)
@@ -589,9 +553,6 @@ assert_eq "a mixed-separator anchored traversal emits nothing" "0" "$MIXTRAV_ROW
 assert_contains "and the mixed-separator refusal is counted" \
   "$MIXTRAV_OUT" "reason=outside-repo-root"
 
-# A relative Location that contains `|` must not split the findings table.
-# Finding/Action already went through esc(); Location did not, and admitting
-# relative paths is what makes a `|` in the filename expressible as written.
 printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$RELREPO/p|q.md"
 printf '%s\n' 'p|q.md:3:I28-a' >"$TEST_TMPDIR/rellocpipe.txt"
 (cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/rellocpipe.txt" \
@@ -605,7 +566,6 @@ assert_eq "and the row still parses as one 7-column row" "9" "$LOCPIPE_COLS"
 RESTATE="$TEST_TMPDIR/restate-repo"
 mkdir -p "$RESTATE"
 git -C "$RESTATE" init -q
-# Copy fixtures into the repo so Location is repo-relative.
 cp "$FIXTURES/description-restatement.md" "$RESTATE/desc.md"
 cp "$FIXTURES/sibling-restatement.md" "$RESTATE/sib.md"
 cp "$FIXTURES/quoted-trigger-restatement.md" "$RESTATE/trig.md"
@@ -671,7 +631,7 @@ printf '%s\n' \
   "$LANESKILL/reference/spoke.md:5:I31" \
   "$LANESKILL/reference/spoke.md:5:I28-a" \
   "$LANESKILL/reference/spoke.md:5:I6" >"$LANE"
-lane_emit() { # lane_emit <out> [extra args...] -> stdout of the written file
+lane_emit() {
   local out="$1"
   shift
   (cd "$LANEREPO" && bash "$EMIT" --from-lane "$LANE" --out "$out" --branch testbranch "$@") >/dev/null 2>&1
@@ -712,7 +672,6 @@ assert_eq "I33 is SUGGESTION and ranks last" "SUGGESTION" \
 assert_eq "I30 and I31 are IMPORTANT" "IMPORTANT" \
   "$(printf '%s\n' "$LROWS" | grep -E 'rule-(trigger-less-stamp|migration-relative-phrasing)' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)"
 
-# Remedies, pinned positive and negative in the scope each fires in.
 I30_ROW="$(printf '%s\n' "$LROWS" | grep 'rule-trigger-less-stamp')"
 assert_contains "I30 Action adds the recheck trigger" "$I30_ROW" "Add the recheck trigger as an observable event"
 assert_contains "I30 Action keeps the stamp" "$I30_ROW" "the stamp stays"
@@ -732,8 +691,6 @@ assert_contains "I33 Action keeps the spoke content" "$I33_ROW" "the content bel
 assert_contains "I33 Action names the hub as the off-site remediation target" "$I33_ROW" \
   "$LANESKILL/SKILL.md, where that condition is added"
 
-# Identity: every emitted row carries finding_id, stable across runs, and an
-# edit to the I33 opener changes that finding's id alone.
 assert_eq "every emitted lane row carries a finding_id" "5" \
   "$(printf '%s\n' "$LROWS" | grep -c 'finding_id=[0-9a-f]\{16\} -- ')"
 LOUT2="$(lane_emit "$TEST_TMPDIR/lane2.md")"
@@ -753,8 +710,6 @@ else
 fi
 assert_eq "and leaves the sibling finding's id alone" "$I31_ID_BEFORE" "$I31_ID_AFTER"
 
-# Both paths together: scanner rows rank above lane rows, and a lane rule on
-# the scanner path is declined with the path it belongs to.
 SCANMIX="$TEST_TMPDIR/scanmix.txt"
 cp "$FIXTURES/quoted-trigger.md" "$LANEREPO/qt.md"
 printf '%s\n' "qt.md:8:I28-a" "$LANESKILL/reference/spoke.md:5:I31" >"$SCANMIX"
@@ -910,7 +865,6 @@ assert_eq "an I32 on a project surface is IMPORTANT" "IMPORTANT" \
 assert_contains "the CRITICAL I32 ranks above the IMPORTANT one" \
   "$(printf '%s\n' "$SURFROWS" | head -n 1)" "| CRITICAL |"
 
-# --- Summary -----------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d of %d checks FAILED.\n' "$FAILED" "$CASE_NUM" >&2

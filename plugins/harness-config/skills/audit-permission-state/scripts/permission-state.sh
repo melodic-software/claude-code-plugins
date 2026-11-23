@@ -1,64 +1,4 @@
 #!/usr/bin/env bash
-# permission-state.sh — scope discovery and raw rule inventory for the
-# audit-permission-state skill.
-#
-# Claude Code exposes no way to see the permission rules actually in effect:
-# there is no `claude permissions` subcommand and no machine-readable export.
-# This script is step one of computing that state locally — it finds every
-# settings scope, says what it could and could not read, and emits each scope's
-# raw allow/ask/deny rules. It decides NOTHING about precedence; that is the
-# merge step's job, and a reader that cannot say which scopes it saw cannot be
-# trusted to merge them.
-#
-# Output (one record per line, stable field order):
-#   <scope> <surface> <status> <path>            one per settings surface
-#   rule <scope> <surface> <kind> <rule text>    one per allow/ask/deny entry
-#   conf <scope> <surface> <key> <json value>    one per permission-plane config
-#                                                key found (today: autoMode.classifyAllShell,
-#                                                which the entry diff needs because it
-#                                                suspends every shell allow rule)
-#   NOTE: <text>                                 anything the operator must know
-#
-#   scope    managed | user | project | local | startdir-local
-#   surface  file | dropin-dir | dropin-file:<name> | registry | plist (managed);
-#            toplevel (project: the repository root's shared file, read when the
-#            working directory is below the root; see Root resolution);
-#            settings (everything else)
-#   status   present | absent | unreadable | invalid-json | skipped | not-applicable
-#   kind     allow | ask | deny
-#
-# The conf value is emitted as JSON (`tojson`), so a boolean true and the string
-# "true" stay distinguishable downstream — the documented shape is the boolean.
-#
-# EVERY scope and managed surface emits exactly one record on every OS, even
-# when it does not apply here. A surface that is silently absent from the output
-# is indistinguishable from one that was never attempted, and this script's whole
-# value is being able to say which is which.
-#
-# Managed policy is READ-ONLY and always will be: those are admin-write OS
-# locations or a claude.ai Owner role. This script writes nothing, anywhere.
-#
-# Prerequisites:
-#   jq   required for correctness: exits 2 at the entry point when absent,
-#        naming the install command for this platform when it finds one.
-#   reg  optional platform integration (Windows managed policy). Absent or
-#        failing: warn visibly, mark that surface `skipped`, keep every other
-#        result.
-#   defaults  the same, for the macOS managed-preferences domain.
-#
-# Test seams (the real locations are absolute system paths and a real user home,
-# which no test may touch):
-#   PERMISSION_STATE_FIXTURE_DIR       primary working directory, also its repository root
-#   PERMISSION_STATE_STARTDIR          session start directory
-#   PERMISSION_STATE_MANAGED_PATH      managed-settings.json (drop-in dir follows it)
-#   PERMISSION_STATE_REGISTRY_KEYS     newline-separated registry keys to query
-#   PERMISSION_STATE_PLIST_DOMAIN      managed-preferences domain to read
-#   CLAUDE_CONFIG_DIR / HOME           user scope, the same resolver Claude Code documents
-#
-# Usage:
-#   permission-state.sh            full inventory
-#   permission-state.sh --scopes   surface records only, no rule records
-#   permission-state.sh --help
 
 set -uo pipefail
 
@@ -93,11 +33,6 @@ case "${1:-}" in
 *) ;;
 esac
 
-# `${BASH_SOURCE[0]%/*}` rather than `dirname`: `cd` and `pwd` are builtins, so
-# plugin-root resolution needs nothing on PATH. A missing external tool here
-# would leave PLUGIN_ROOT empty, the source would fail, and every managed surface
-# would report `absent` — a reader claiming no policy is deployed because it
-# could not load its own library is the worst failure this script can have.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -118,9 +53,6 @@ fi
 # shellcheck source=../../../lib/managed-scope.sh
 source "$MANAGED_SCOPE_LIB"
 
-# Marks a rule that carried a literal newline, so the reader can report it
-# instead of letting a line-oriented read split one rule into two. Chosen to be
-# something no real rule text contains.
 NL_SENTINEL=$'\x01MULTILINE\x01'
 
 # The rule-extraction filter, shared by the settings-file reader and the Windows
@@ -130,39 +62,18 @@ NL_SENTINEL=$'\x01MULTILINE\x01'
 # shellcheck disable=SC2016 # a jq program: $k and $nl are jq variables bound with --arg, and must not expand in the shell
 RULES_JQ='.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end'
 
-# Strips a CRLF line ending WITHOUT touching a CR inside a string value.
-#
-# Deleting every CR was a defect on two counts: it silently rewrote rule text
-# (turning a CR-carrying rule into one present in no settings file), and it
-# REPAIRED a payload that jq rejects, so an invalid file was classified
-# `present`. A status must never be kinder than the file it describes.
-#
-# A trailing CR is a line ending; a CR anywhere else is data. Narrowing to the
-# trailing one keeps CRLF-on-Windows working and lets the in-string case reach
-# jq, which rejects it, or the sentinel, which announces it.
 crlf_strip() { sed 's/\r$//'; }
 
 emit() { printf '%s %s %s %s\n' "$1" "$2" "$3" "${4:--}"; }
 note() { printf 'NOTE: %s\n' "$1"; }
 
-# MSYS/Cygwin rewrite any argument containing backslashes as though it were a
-# POSIX path, so a registry key reaches reg.exe mangled and the call dies with
-# "ERROR: Invalid syntax" — which a naive caller reads as "no policy deployed"
-# on a machine that has one. Measured on Git Bash 2026-08-11: the same query
-# succeeds with the rewrite disabled and fails with it on. Scope the opt-out to
-# these calls rather than exporting it, so nothing else in the process changes.
 reg_cmd() { MSYS2_ARG_CONV_EXCL='*' reg "$@"; }
 
-# --- Root resolution ----------------------------------------------------------
 
 # The session's start directory. Claude Code wrote settings.local.json here
 # before v2.1.211 and still reads what an earlier version left behind.
 START_DIR="${PERMISSION_STATE_STARTDIR:-$PWD}"
 
-# The session's primary working directory, the one input to both project-file
-# lookups: the shared file is read from it, and the repository root that anchors
-# the local file is resolved from it. This script cannot see the session itself,
-# so it takes its own working directory as that directory and says so in a note.
 if [[ -n "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
   PRIMARY_DIR="$PERMISSION_STATE_FIXTURE_DIR"
   REPO_ROOT="$PERMISSION_STATE_FIXTURE_DIR"
@@ -176,36 +87,9 @@ else
   } < <(git rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
 fi
 
-# A Bash `cd` inside the project changes this script's working directory and not
-# the session's primary one, and nothing here can tell that from a session started
-# in this directory. So below the repository root both shared files are candidates.
-# Taking either one alone could drop the deny rules of the file in force: this
-# directory's when the session started here, the root's after a `cd` from the root.
-# Both are read, which can over-report one of them. A session that started in
-# another subdirectory and then ran `cd` has its own file read by neither, which is
-# why the skill says to run this from the start directory. The root's is
-# `toplevel`, a surface of the project scope, so the merge and lint stages treat it
-# as project settings.
 TOPLEVEL_SHARED=""
 [[ -z "${REPO_PREFIX:-}" || -z "${REPO_ROOT:-}" ]] || TOPLEVEL_SHARED="$REPO_ROOT/.claude/settings.json"
 
-# settings.local.json lives "at the root of the git repository, resolved through
-# worktrees to the main checkout, so one file covers sessions started in any
-# subdirectory or worktree" — anchoring on --show-toplevel would look for it in
-# the WORKTREE, where it is not. --git-common-dir points at the main checkout's
-# .git for every linked worktree and at our own inside the main checkout, so its
-# parent is the main checkout root either way.
-#
-# FOUR documented conditions keep the file beside .claude/settings.json instead:
-# "outside a git repository, when the repository root is your home directory, on
-# Windows, or when the repository root or its .git or .claude entry isn't owned by
-# your user". All four are detectable here and all four are resolved below.
-#
-# A fifth start-directory case is NOT a session class and is not resolved: the
-# Agent SDK's resolveSettings() helper always reads the file from the starting
-# directory. That is a helper's behavior, not a property of the running session,
-# so nothing here can observe it. No documented environment variable identifies an
-# Agent SDK or headless run either, so it is stated rather than guessed at.
 LOCAL_ROOT="$REPO_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
@@ -225,26 +109,15 @@ if [[ -n "${HOME:-}" && "$LOCAL_ROOT" == "$HOME" ]]; then
   LOCAL_ROOT="$START_DIR"
   local_basis="start directory (repository root is the home directory)"
 fi
-# Windows: the documented condition is the platform, not the shell, so it covers a
-# native Windows session however it reached this script. The OSTYPE test is the
-# idiom lib/managed-scope.sh already uses for the same question.
 if [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
   case "${PERMISSION_STATE_OSTYPE-${OSTYPE:-}}" in
   msys* | cygwin* | win32*)
     LOCAL_ROOT="$START_DIR"
     local_basis="start directory (on Windows)"
     ;;
-  *) ;; # every other platform keeps the repository-root anchor
+  *) ;;
   esac
 fi
-# Ownership: the repository root or its .git or .claude entry not being owned by
-# the current user. Unowned by ANY of the three is enough.
-#
-# The test is bash's own `-O`, which is true when the file is owned by the
-# EFFECTIVE uid — exactly the documented condition, decided in the shell. `stat`
-# is deliberately not used: `stat -c` is GNU-only and `stat -f` is BSD-only, so
-# reading a uid portably means a fallback chain and an extra process per path,
-# to answer a question the builtin already answers everywhere.
 if [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
   owner_foreign=0
   if [[ -n "${PERMISSION_STATE_OWNER_OVERRIDE:-}" ]]; then
@@ -265,7 +138,6 @@ USER_CONFIG_ROOT="${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}"
 MANAGED_FILE="$(mscope::base_file "${PERMISSION_STATE_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${PERMISSION_STATE_MANAGED_PATH:-}")"
 
-# --- Reading ------------------------------------------------------------------
 
 # classify_json_file <path> — status for a settings file, without ever holding
 # its contents in a variable (a settings file may carry credentials, and a shell
@@ -280,18 +152,6 @@ classify_json_file() {
     printf 'unreadable\n'
     return 0
   }
-  # One jq call settles both failures: a parse error exits nonzero, and so does
-  # a parsed file without the SHAPE a settings file has. `["Bash(x)"]` and
-  # `{"permissions":{"allow":"Bash(*)"}}` are both valid JSON and neither is a
-  # settings file, and reporting them `present` says a malformed scope is a
-  # healthy empty one -- the exact thing SKILL.md's status vocabulary exists to
-  # prevent.
-  #
-  # Only the three rule lists are checked. A scalar key of the wrong type must
-  # not make the file invalid: `present` is what runs `emit_file_conf`, which
-  # feeds the C5-disableType lint a mistyped `disableAutoMode`. `jq -e` takes
-  # its exit status from the LAST output, so this filter emits exactly one
-  # verdict; a per-key verdict would make the answer depend on key order.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true
@@ -306,15 +166,6 @@ classify_json_file() {
   printf 'present\n'
 }
 
-# emit_rules_of_kind <scope> <surface> <source-noun> <kind>, settings JSON on
-# stdin. The settings file and the Windows registry payload both come through
-# here, so the two readers cannot drift apart in how they render a rule.
-#
-# These records are line-oriented, so a rule carrying a literal newline cannot
-# be represented in one -- and reading it line by line silently turned ONE rule
-# into two bogus records, each a rule string that is not in any settings file.
-# A rule the reader cannot represent is reported as unrepresentable; inventing
-# two is strictly worse than admitting one.
 emit_rules_of_kind() {
   local scope="$1" surface="$2" noun="$3" kind="$4" rule
   while IFS= read -r rule; do
@@ -332,7 +183,6 @@ emit_rules_of_kind() {
 }
 
 emit_file_rules() {
-  # emit_file_rules <scope> <surface> <path>
   [[ "$mode" == "full" ]] || return 0
   local scope="$1" surface="$2" path="$3" kind
   for kind in allow ask deny; do
@@ -340,33 +190,8 @@ emit_file_rules() {
   done
 }
 
-# The permission-plane config keys inventoried alongside the rules. Each is here
-# because some downstream consumer is wrong without it:
-#   classifyAllShell   suspends every Bash/PowerShell allow rule while auto mode
-#                      is active, so an entry diff blind to it can be exactly wrong
-#   autoModePresent    whether an autoMode section exists at all — the classifier
-#                      does not read it from project or local settings, so its
-#                      mere presence there is a dead-config finding
-#   defaultMode        `auto` and `bypassPermissions` are ignored in project and local settings
-#   useAutoModeDuringPlan   not read from shared project settings
-#   disableAutoMode / permissions.disableAutoMode
-#                      accepted at BOTH key paths, and must be the STRING
-#                      "disable" — a boolean is a silent no-op
-#   prependPluginsNamesGuard / modsOverrideDenyRules
-#                      a managed prependPlugins list without the built-in guard,
-#                      or the guard's allowModsToOverrideDenyRules option, leaves
-#                      deny rules not final against a user's mod
-#
-# Values are emitted as JSON (tojson) so a boolean true and the string "true"
-# stay distinguishable downstream; for the type-confusion check that distinction
-# IS the finding.
 emit_file_conf() {
-  # emit_file_conf <scope> <surface> <json-on-stdin>
   [[ "$mode" == "full" ]] || return 0
-  # ONE jq invocation for all six keys, not one per key. Process spawning
-  # dominates this script's runtime on Windows -- measured at roughly a second
-  # per spawn -- and a per-key loop over five settings surfaces put the reader
-  # over a minute, which is slow enough that callers time out and see a hang.
   local scope="$1" surface="$2"
   jq -r '
     def emit($k; $v): "\($k) \($v)";
@@ -403,7 +228,6 @@ emit_file_conf() {
 }
 
 emit_json_scope() {
-  # emit_json_scope <scope> <surface> <path>
   local scope="$1" surface="$2" path="$3" status
   status="$(classify_json_file "$path")"
   emit "$scope" "$surface" "$status" "$path"
@@ -426,17 +250,11 @@ emit_json_scope() {
   return 0
 }
 
-# --- Managed scope: portable core --------------------------------------------
 
 emit_json_scope managed file "$MANAGED_FILE"
 
 if [[ -d "$MANAGED_DROPIN" ]]; then
   emit managed dropin-dir present "$MANAGED_DROPIN"
-  # "managed-settings.json is merged first as the base, then all *.json files in
-  # the drop-in directory are sorted alphabetically and merged on top… Hidden
-  # files starting with . are ignored." Read them in that documented order so a
-  # downstream merge does not have to guess it; `sort` is the same collation the
-  # doc's "alphabetically" names, and the caller sees the order it read them in.
   while IFS= read -r dropin; do
     [[ -f "$dropin" ]] || continue
     case "${dropin##*/}" in .*) continue ;; *) ;; esac
@@ -446,11 +264,6 @@ else
   emit managed dropin-dir absent "$MANAGED_DROPIN"
 fi
 
-# --- Managed scope: declared optional platform integrations -------------------
-#
-# Present where native and readable; a visibly announced `skipped` otherwise. The
-# portable core above is never affected — that is the contract an optional
-# platform integration owes.
 
 # `-`, not `:-`: an explicitly EMPTY value must mean "no registry surface", and
 # `:-` treats set-but-empty as unset, so every test passing "" was silently
@@ -462,20 +275,6 @@ elif ! command -v reg >/dev/null 2>&1; then
   emit managed registry skipped "-"
   note "Windows managed policy not read: 'reg' is not on PATH. Every other scope below is unaffected; the managed result is incomplete, not empty."
 else
-  # The policy JSON lives in a single `Settings` value on the key. HKCU is
-  # documented as "lowest policy priority, only used when no admin-level source
-  # exists", so the search stops at the first key that EXISTS and the rest are
-  # not consulted — merging them would report policy that is not in force.
-  #
-  # Existence is probed with a bare `reg query <key>`, not `/v Settings`: with
-  # `/v` the two failures that must not be conflated — key absent, and key
-  # present but carrying no Settings value — return the same exit code and the
-  # same message ("The system was unable to find the specified registry key or
-  # value"), measured on Windows 11 2026-08-11. Keying the search on the /v form
-  # would let an admin-level key with an unreadable value fall through to HKCU
-  # and report user-level policy as the managed policy while the admin-level key
-  # is what is in force. A key that exists but yields nothing readable is
-  # reported as `unreadable`, never as a license to consult the next key.
   registry_status="absent"
   registry_path="-"
   while IFS= read -r key; do
@@ -500,9 +299,6 @@ else
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
       note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON. An HKLM value that is not a JSON object refuses startup (exit 1) and names the source (v2.1.259+). A malformed HKCU value does not refuse startup; it is a notice in /status and claude doctor. Reporting it as unread rather than as empty."
     else
-      # Same multi-line handling as the file path: managed policy is the scope
-      # where a phantom rule would do the most damage, so it gets the same
-      # treatment rather than the older splitting read.
       for kind in allow ask deny; do
         emit_rules_of_kind managed registry policy "$kind" < <(printf '%s' "$reg_json")
       done
@@ -527,11 +323,6 @@ else
   fi
 fi
 
-# Server-managed settings are fetched at sign-in and cached under the config
-# root. The cache is not the live policy. Saying where it is, and that this
-# reader does not fold it in, is the difference between an honest managed report
-# and one that implies completeness it cannot have. A policy that did not load
-# is still diagnosed from /status and claude doctor.
 remote_cache=""
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   remote_cache="$(mscope::remote_cache_file "$USER_CONFIG_ROOT")"
@@ -541,7 +332,6 @@ else
 fi
 note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. The cache is not the live policy. 'managed' above means the local managed surfaces only. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line."
 
-# --- The four file scopes -----------------------------------------------------
 
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   emit_json_scope user settings "$USER_CONFIG_ROOT/settings.json"
@@ -550,16 +340,9 @@ else
   note "User scope not read: neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved."
 fi
 
-# A session started in the home directory, outside any repository, has the home
-# directory as its project root, so the project path IS the user file. Reading
-# it again would report one file under two scopes and run project-only checks
-# (C2) on keys that are legal in user settings. `-ef` sees through symlinks and
-# differently spelled paths but is false for a file that does not exist, so the
-# string test covers a missing one.
 same_file() { [[ "$1" -ef "$2" || "$1" == "$2" ]]; }
 
 emit_file_scope() {
-  # emit_file_scope <scope> <path> [surface]
   local scope="$1" path="$2" surface="${3:-settings}"
   if [[ -n "$USER_CONFIG_ROOT" ]] && same_file "$path" "$USER_CONFIG_ROOT/settings.json"; then
     emit "$scope" "$surface" not-applicable "$path"
@@ -580,12 +363,6 @@ fi
 emit_file_scope local "$LOCAL_ROOT/.claude/settings.local.json"
 note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings() helper always reads the file from the starting directory; that is the helper's behavior, not a session property, and no documented environment variable identifies an Agent SDK or headless run, so this reader does not detect either."
 
-# Cloud sessions read a different scope set, and the user scope this reader just
-# reported is the CONTAINER's file rather than the operator's own. Reporting it as
-# "present" without that framing invites exactly the wrong conclusion.
-# CLAUDE_CODE_REMOTE is documented for this detection: "Set automatically to true
-# when Claude Code is running as a cloud session. Read this from a hook or setup
-# script to detect whether you are in a cloud session."
 if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
   note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which reads a DIFFERENT scope set than a local one. Your own machine's user settings and .claude/settings.local.json are not read at all, and a managed-settings.json file or MDM profile on your device does not reach it. A self-hosted environment's runner image can carry its own managed file, and a cloud thread in a project takes no permission rules from a repository's .claude/settings.json; this reader detects neither case, so read https://code.claude.com/docs/en/settings#settings-in-cloud-sessions before trusting the managed or project records above, and run /permissions in the session, which from Claude Code 2.1.319 says where the session's rules live. Any user scope reported above is this container's file, not yours."
 fi

@@ -35,16 +35,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form; the BASH_SOURCE fallback
-# keeps a direct invocation working.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
 
-# Managed (machine-scope) policy settings are the highest-precedence layer. The
-# per-OS locations are shared vocabulary (lib/managed-scope.sh), not this
-# script's to restate. Fail loudly rather than fall through: an unsourced
-# library leaves the managed path empty and every managed row would read
-# `Present: no`, reporting an administrator's policy as absent because this
-# script could not find its own location list.
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
   echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing" >&2
@@ -53,10 +45,6 @@ fi
 # shellcheck source=../../../lib/managed-scope.sh
 source "$MANAGED_SCOPE_LIB"
 
-# The project-root ladder is shared vocabulary (lib/resolve-scopes.sh), not this
-# script's to restate. Fail loudly rather than fall through: an unsourced library
-# leaves the root empty and every row below would read `Present: no`, reporting
-# a configured project as bare because this script could not find its own root.
 RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
 if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
   echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
@@ -73,12 +61,6 @@ SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
 MCP="$PROJECT_ROOT/.mcp.json"
 
-# A pre-v2.1.211 Claude Code wrote settings.local.json into the directory the
-# session started in, and the current one "still reads a .claude/settings.local
-# .json that an earlier version left there… permission rules from both files stay
-# in effect". So a leftover copy is live configuration that a repository-root-only
-# scan cannot see. Default the start directory to the project root (and to the
-# fixture root under test) so the row appears only where the two genuinely differ.
 if [[ -n "${SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR:-}" ]]; then
   START_DIR="$SETTINGS_AUDIT_STARTDIR_FIXTURE_DIR"
 elif [[ -n "${SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR:-}" ]]; then
@@ -88,8 +70,6 @@ else
 fi
 STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
 
-# SETTINGS_AUDIT_MANAGED_PATH stays this script's own test seam: the real
-# managed locations are absolute system paths a fixture dir cannot reach.
 MANAGED="$(mscope::base_file "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 
@@ -114,15 +94,6 @@ emit_file_facts() {
     return 0
   fi
   printf 'Present: yes\n'
-  # A read that fails is NOT invalid JSON. Sandbox denyRead — including a Read
-  # deny merged into the sandbox boundary — or plain filesystem permissions all
-  # make open() fail here, and reporting that as malformed config would be a
-  # false finding. Distinguish it and report the file as not inspectable instead.
-  #
-  # `: <"$path"` opens the file and discards it — an open() probe that never
-  # reads a byte. Deliberately not `content=$(…)`: holding the file in a shell
-  # variable would put every credential in it into `set -x` trace output. File
-  # contents stay inside pipelines, where tracing prints the command only.
   if ! : 2>/dev/null <"$path"; then
     printf '%s\n' 'Readable: no' 'Valid JSON: n/a' 'Top-level keys: n/a'
     printf 'Note: present but unreadable — not inspectable (sandbox denyRead — including a Read deny merged into the sandbox boundary — or filesystem permissions). Not a malformed-config finding.\n'
@@ -144,13 +115,6 @@ emit_file_facts() {
       '
     ;;
   local)
-    # Model and effort values are emitted in full, unlike env and permission
-    # entries which stay counts. They are configuration identifiers — level
-    # names, model names, a boolean — not credentials, and the audit's category
-    # H cannot decide its findings from counts: the allowlist wildcard rule
-    # turns on which family each entry names, and the fallback cap turns on
-    # entry order. Counting them here would leave a local-only misconfiguration
-    # invisible. The env-value and secret-field guard above is unchanged.
     tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'
         "Env keys: \(key_count(.env))",
         permission_counts,
@@ -166,8 +130,6 @@ emit_file_facts() {
     tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'"MCP servers: \(key_count(.mcpServers))"'
     ;;
   managed)
-    # Structure only, same posture as `local`: managed policy can carry org
-    # values an operator would not expect echoed into a report.
     tr -d '\r' <"$path" | jq -r "$JQ_DEFS"'
         permission_counts,
         "Hooks events: \(key_count(.hooks))",
@@ -184,10 +146,6 @@ emit_file_facts ".claude/settings.json" "$SETTINGS" settings || invalid=1
 printf '\n'
 emit_file_facts ".claude/settings.local.json" "$LOCAL" local || invalid=1
 printf '\n'
-# Only when the start directory is genuinely a different directory AND holds a
-# leftover copy: reporting an absent row for every session started at the repo
-# root would be noise, and reporting the same file twice would be a lie about
-# how many permission-rule sources are live.
 if [[ "$STARTDIR_LOCAL" != "$LOCAL" && -f "$STARTDIR_LOCAL" ]]; then
   emit_file_facts "$STARTDIR_LOCAL (start-directory copy, pre-v2.1.211)" "$STARTDIR_LOCAL" local || invalid=1
   printf 'Note: a start-directory settings.local.json left by a pre-v2.1.211 Claude Code. The repository-root copy wins on a shared key, but permission rules from BOTH files stay in effect.\n'
@@ -205,9 +163,6 @@ if [[ -d "$MANAGED_DROPIN" ]]; then
 else
   printf 'Managed drop-in dir: absent\n'
 fi
-# Managed policy also lives outside the filesystem on some platforms. This check
-# reads files only, so it names what it did not read rather than letting an
-# absent JSON file read as "no managed policy deployed".
 while IFS= read -r key; do
   [[ -n "$key" ]] && printf 'Managed registry key (not read by this check): %s\n' "$key"
 done < <(mscope::registry_keys)

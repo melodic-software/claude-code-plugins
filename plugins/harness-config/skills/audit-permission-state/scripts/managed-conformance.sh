@@ -1,34 +1,4 @@
 #!/usr/bin/env bash
-# managed-conformance.sh — which managed intents are actually enforced, and
-# which a developer can loosen.
-#
-# An administrator deploys managed policy believing it is policy. Some of it is:
-# "no other level, including command line arguments, can override a managed
-# permission rule", and "if a tool is denied at any level, no other level can
-# allow it". Some of it is not: a managed `autoMode` section is additive, so a
-# developer can extend it with a personal `allow` entry that overrides an
-# organization `soft_deny` -- "the combination is additive, not a hard policy
-# boundary". Nothing surfaces which is which.
-#
-# This reports that split. It reports ONLY what the consumer's own policy does
-# and does not achieve; it never prescribes what a policy should contain. That
-# keeps it neutral by construction rather than by restraint -- every rule string
-# it prints comes from a file it read.
-#
-# Input: permission-state.sh records on stdin (surface + rule + conf records).
-# With no piped input the reader is run directly and its status propagated.
-#
-# Output:
-#   MANAGED-NOTE: <text>
-#   managed enforced <kind> <rule>            cannot be overridden from below
-#   managed loosenable <what> <detail>        a lower scope can weaken this
-#   managed conformance summary enforced=<n> loosenable=<n> status=<s>
-#
-# Prerequisites: POSIX text tools only.
-#
-# Usage:
-#   permission-state.sh | managed-conformance.sh
-#   managed-conformance.sh [--help]
 
 set -uo pipefail
 

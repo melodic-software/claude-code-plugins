@@ -1,48 +1,4 @@
 #!/usr/bin/env bash
-# permission-merge.sh — effective permission set with per-rule provenance, from
-# permission-state.sh's scope records.
-#
-# Permission rules "merge across scopes rather than override", so every scope's
-# rules, except `!` carve-outs, are live at once and there is no same-kind
-# winner to elect. What a rule
-# text CAN lose is its kind: "deny rules from any scope are evaluated before
-# allow rules", in both directions — a user deny blocks a project allow and a
-# project deny blocks a user allow. That is the only election this script makes,
-# and every merged rule says which mechanic put it where it is.
-#
-# A deny or ask Read/Edit rule whose pattern starts with "!" is not merged: we
-# treat it as a carve-out scoped to its own source, one settings file, with
-# --disallowedTools a source of its own. Pointer: when the carve-out scope
-# matters, fetch https://code.claude.com/docs/en/permissions#read-and-edit live.
-# As of: 2026-10-10. Recheck trigger: that section changes what a carve-out
-# reaches. A bare "!" pattern is a known gap: the changelog (v2.1.269) changed
-# how it is handled and that section does not cover it, so the merge reports
-# it, tagged bare, and models no effect.
-#
-# Input: permission-state.sh records, on stdin. With no piped input the sibling
-# reader is run directly, and its exit status is propagated (a reader that could
-# not run must not become an empty merge).
-#
-# Output (merge section; the input records pass through above it unless
-# --merge-only):
-#   CAVEAT: <text>                                                what bounds the claim
-#   effective <kind> scopes=<a,b> precedence_basis=<token> <rule> one per live rule
-#   inert <kind> scopes=<a,b> outranked_by=<kind> <rule>          one per beaten entry
-#   carveout <kind> source=<scope>:<surface> [bare] <rule>        one per ! Read/Edit rule
-#
-#   token  uncontested | merged-across-scopes | evaluation-order
-#          | evaluation-order+merged-across-scopes
-#
-# `scopes=` lists contributors in the reader's emission order. That is NOT a
-# precedence claim: the rules merge, so no contributor outranks another.
-# reference/criteria.md maps every token to the sentence it follows from.
-#
-# Prerequisites: none beyond POSIX text tools. Invoked with no piped input it
-# inherits the reader's jq requirement, and its exit 2.
-#
-# Usage:
-#   permission-state.sh | permission-merge.sh
-#   permission-merge.sh [--merge-only|--help]
 
 set -uo pipefail
 
@@ -95,10 +51,6 @@ else
   records="$(cat)"
 fi
 
-# A reader that failed and a machine with no settings look identical downstream,
-# and the second is a lie the first can tell. No scope records at all is an
-# error, never an empty merge — and the output is held until that is known, so a
-# failed run never emits a half-written merge section ahead of its own error.
 merged="$(printf '%s\n' "$records" | awk -v passthrough="$passthrough" '
 function text_of(start,   i, s) {
   s = $start
