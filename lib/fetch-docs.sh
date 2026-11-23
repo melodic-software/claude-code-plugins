@@ -42,6 +42,13 @@
 # links to redirect_after_login and holds fewer than 200 words outside its
 # links is unread login-wall and is never stored, whether it was fetched or
 # served from the cache or the fixture directory; /x:read reads X posts.
+# With --expect <marker>, a generic page whose body lacks the literal marker is
+# unread no-content. With --render-fallback and docs-cache.sh's renderer set to
+# firecrawl, a generic page left unread for fetch-failed, http-403, http-429,
+# unexpected-content-type or no-content is rendered through the Firecrawl CLI
+# (never 404, 410 or an off-site landing), checked against --public-only and
+# landed, and stored under format rendered with content type text/markdown; if
+# rendering also fails on 403 or 429, a cached copy is served stale.
 #
 # curl runs with -q, so no ~/.curlrc option reaches a request. With
 # --public-only, for a caller whose URLs come from untrusted text, every
@@ -58,7 +65,7 @@
 # characters from a working copy does not change it.
 #
 # With --cache the index and every page go through docs-cache.sh beside this
-# script, keyed by URL and format (markdown or html-converted), so one URL that
+# script, keyed by URL and format (markdown, html-converted or rendered), so one URL that
 # negotiates to either is two keys. An entry validated within --max-age seconds
 # is copied to the page file with no request. Any other read is fetched; when
 # the cached entry was stored with an ETag or Last-Modified, the request carries
@@ -84,7 +91,7 @@
 # last confirmed current), age_seconds (since validated), cache_key (the
 # docs-cache.sh key, null when nothing was stored), sha256 (raw bytes), status
 # (HTTP code; 304 when the server confirmed a cached entry), content_type,
-# bytes, lines, file (path on disk), format (markdown|html-converted), title
+# bytes, lines, file (path on disk), format (markdown|html-converted|rendered), title
 # (from the cache), quarantined (the cache key's quarantine flag), stale (true
 # when cached bytes stood in for a failed fetch), server_date (the Date header of
 # the response that last validated the bytes), cache_error (why --cache stored
@@ -126,6 +133,7 @@ fetch-docs.sh: fetch a publisher's docs pages verbatim and write a manifest.
 Usage:
   fetch-docs.sh --out <dir> [--manifest <file>] [--profile <name>] [--index-url <url>] [--follow <depth>]
                 [--max-page-bytes <n>] [--cache [--max-age <seconds>] [--cache-dir <dir>]] [--public-only]
+                [--expect <marker>] [--render-fallback]
                 (--discover | [--mode full|search] <slug|url>...)
 
   --out <dir>        directory for the page files (<slug>.md) and the index (llms.txt)
@@ -144,6 +152,10 @@ Usage:
                      These defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
                      file; docs-cache.sh config prints them with their layer.
   --public-only      connect only to a global address the host was checked to resolve to
+  --expect <marker>  generic profile only: a read page lacking <marker> is unread no-content
+  --render-fallback  generic profile only: when docs-cache renderer is firecrawl, render
+                     fetch-failed, http-403, http-429, unexpected-content-type or no-content
+                     pages via firecrawl scrape and cache as format rendered
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists
                      (its raw suffix optional, a #fragment ignored);
                      for --profile generic, any https URL (its slug is host/path); X's
@@ -170,6 +182,9 @@ MAX_AGE=""
 MAX_PAGE=""
 CACHE_DIR=""
 PUBLIC_ONLY=0
+EXPECT=""
+RENDER_FALLBACK=0
+RENDER_SEQ=0
 TARGETS=()
 TARGET_MODES=()
 while [[ $# -gt 0 ]]; do
@@ -178,7 +193,7 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --out | --manifest | --profile | --index-url | --follow | --mode | --max-age | --max-page-bytes | --cache-dir)
+  --out | --manifest | --profile | --index-url | --follow | --mode | --max-age | --max-page-bytes | --cache-dir | --expect)
     [[ $# -ge 2 ]] || die "$1 needs a value"
     case "$1" in
     --out) OUT="$2" ;;
@@ -202,6 +217,10 @@ while [[ $# -gt 0 ]]; do
       [[ -n "$2" ]] || die "--cache-dir needs a value"
       CACHE_DIR="$2"
       ;;
+    --expect)
+      [[ -n "$2" ]] || die "--expect needs a value"
+      EXPECT="$2"
+      ;;
     *) die "unreachable" ;;
     esac
     shift 2
@@ -216,6 +235,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --public-only)
     PUBLIC_ONLY=1
+    shift
+    ;;
+  --render-fallback)
+    RENDER_FALLBACK=1
     shift
     ;;
   -*) die "unknown argument: $1" ;;
@@ -256,6 +279,8 @@ if [[ "$P_KIND" == index ]]; then
   INDEX_URL="${INDEX_URL:-${FETCH_DOCS_INDEX_URL:-$P_INDEX_URL}}"
   [[ "$INDEX_URL" =~ ^(https://[^/]+) ]] && ORIGIN="${BASH_REMATCH[1]}"
   [[ -n "$ORIGIN" ]] || die "--index-url must be an https URL"
+  [[ -z "$EXPECT" ]] || die "--expect needs the generic profile"
+  [[ $RENDER_FALLBACK -eq 0 ]] || die "--render-fallback needs the generic profile"
 else
   [[ $DISCOVER -eq 0 ]] || die "--discover needs an indexed profile"
   [[ -z "$INDEX_URL" ]] || die "--index-url needs an indexed profile"
@@ -472,16 +497,15 @@ serve_cached() {
   G_FORMAT="$DC_FORMAT" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED" G_DATE="$C_DATE"
 }
 
-# settle_unread <url> <dest> <format>...: an unread page whose fetch failed (a
-# transport error or a 5xx) is served stale from the candidate when --max-age
-# allows staleness and its key has no removal quarantine; one the server
-# reports removed or redirected quarantines the URL's cache keys.
 settle_unread() {
   local url="$1" dest="$2" reason="$G_REASON" status="$G_STATUS" f
   shift 2
   [[ $CACHE -eq 1 && "$G_STATE" != read ]] || return 0
   case "$reason" in
-  fetch-failed | http-5[0-9][0-9])
+  fetch-failed | http-5[0-9][0-9] | http-403 | http-429)
+    if [[ "$reason" == http-403 || "$reason" == http-429 ]]; then
+      [[ $RENDER_FALLBACK -eq 1 && "$DC_CFG_renderer" == firecrawl ]] || return 0
+    fi
     [[ $MAX_AGE -gt 0 && -n "$C_REF" ]] || return 0
     ! removal_quarantined "${C_REF%-*}" || return 0
     serve_cached "$dest" "$status" || return 0
@@ -745,18 +769,142 @@ convert() {
   return 1
 }
 
+check_expect() {
+  [[ -z "$EXPECT" || "$G_STATE" != read ]] && return 0
+  if ! grep -qF -- "$EXPECT" "$1"; then
+    rm -f "$1"
+    G_STATE=unread G_REASON=no-content G_FORMAT="" G_VALIDATORS="" G_TITLE_HINT=""
+    G_STALE="" G_KEY="" G_VALIDATED="" G_AGE="" G_TITLE="" G_QUAR=""
+    return 1
+  fi
+  return 0
+}
+
+render_fallback() {
+  local url="$1" dest="$2" rdir meta r_url r_status r_title has_md rc=0
+  [[ $RENDER_FALLBACK -eq 1 && "$DC_CFG_renderer" == firecrawl && $FIXTURE_SET -eq 0 ]] || return 1
+  case "$G_REASON" in
+  fetch-failed | http-403 | http-429 | unexpected-content-type | no-content) ;;
+  *) return 1 ;;
+  esac
+  if [[ $PUBLIC_ONLY -eq 1 ]]; then
+    url_parts "$url" || return 1
+    [[ "${U_ORIGIN#https://}" =~ ^([^:]+)(:[0-9]+)?$ ]]
+    pin "${BASH_REMATCH[1]:-}" || {
+      H_RC=$?
+      G_REASON="$(failure_reason)"
+      return 1
+    }
+  fi
+  command -v firecrawl >/dev/null 2>&1 || return 1
+  RENDER_SEQ=$((RENDER_SEQ + 1))
+  rdir="$WORK/render-$RENDER_SEQ"
+  mkdir "$rdir" || return 1
+  (
+    cd "$rdir" || exit 1
+    with_timeout 120 firecrawl scrape "$url" --format markdown --json -o out.json </dev/null >/dev/null 2>&1
+  ) || rc=$?
+  if [[ $rc -ne 0 || ! -s "$rdir/out.json" ]]; then
+    rm -rf "$rdir"
+    return 1
+  fi
+  # shellcheck disable=SC2016 # jq expression, not shell
+  meta="$(jq -r '
+    if type != "object" or (has("success") and .success == false) then empty
+    else (if (.data | type) == "object" then .data else . end)
+    | (.metadata | if type == "object" then . else {} end) as $m
+    | [
+        (([$m.url, $m.sourceURL] | map(select(type == "string" and length > 0)) | .[0]) // "" | if (test("[[:cntrl:]]") | not) then . else "" end),
+        ($m.statusCode // "" | tostring | if test("^[0-9]+$") then . else "" end),
+        ($m.title // "" | if type == "string" then gsub("[\u001f\r\n]"; " ") else "" end),
+        (if (.markdown | type) == "string" and (.markdown | length) > 0 then "1" else "0" end)
+      ] | join("\u001f")
+    end' "$rdir/out.json" 2>/dev/null)"
+  meta="${meta%$'\r'}"
+  if [[ -z "$meta" ]]; then
+    rm -rf "$rdir"
+    return 1
+  fi
+  IFS=$'\x1f' read -r r_url r_status r_title has_md <<<"$meta"
+  if [[ -z "$r_url" ]]; then
+    rm -rf "$rdir"
+    return 1
+  fi
+  case "$(landed "$url" "$r_url")" in
+  off-origin)
+    rm -rf "$rdir"
+    G_STATUS="$r_status" G_REASON="redirected-off-origin"
+    return 1
+    ;;
+  off-path)
+    rm -rf "$rdir"
+    G_STATUS="$r_status" G_REASON="redirected-off-path"
+    return 1
+    ;;
+  same) ;;
+  *)
+    rm -rf "$rdir"
+    return 1
+    ;;
+  esac
+  if [[ "$r_status" == 404 || "$r_status" == 410 ]]; then
+    rm -rf "$rdir"
+    G_STATUS="$r_status" G_REASON="http-$r_status"
+    return 1
+  fi
+  if [[ -n "$r_status" && ! "$r_status" =~ ^2[0-9][0-9]$ ]]; then
+    rm -rf "$rdir"
+    return 1
+  fi
+  if [[ "$has_md" != 1 ]] || ! jq -j '
+    (if (.data | type) == "object" then .data else . end) | .markdown
+    ' "$rdir/out.json" 2>/dev/null | tr -d '\r' >"$dest.part"; then
+    rm -rf "$rdir" "$dest.part"
+    return 1
+  fi
+  rm -rf "$rdir"
+  if [[ ! -s "$dest.part" ]]; then
+    rm -f "$dest.part"
+    return 1
+  fi
+  if [[ $(wc -c <"$dest.part") -gt $MAX_PAGE ]]; then
+    rm -f "$dest.part"
+    G_REASON="too-large"
+    return 1
+  fi
+  if [[ -n "$EXPECT" ]] && ! grep -qF -- "$EXPECT" "$dest.part"; then
+    rm -f "$dest.part"
+    return 1
+  fi
+  if ! mv "$dest.part" "$dest"; then
+    rm -f "$dest.part"
+    return 1
+  fi
+  G_STATE=read G_SOURCE=fetch G_REASON="" G_FORMAT=rendered G_CTYPE="text/markdown"
+  G_STATUS="$r_status" G_VALIDATORS="" G_DATE="" G_TITLE_HINT="$r_title"
+  G_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  return 0
+}
+
 # generic_read <url> <dest> <fixture file>: a generic read, markdown preferred,
 # converted HTML otherwise. Sets the G_ fields like get_doc and stores nothing:
 # get_generic checks the page, then stores what was fetched.
 generic_read() {
   local url="$1" dest="$2" html="$WORK/page.html" html_status="" html_ctype="" html_val="" html_date="" sfx=""
+  local fmts=(markdown html-converted)
+  [[ $RENDER_FALLBACK -eq 0 ]] || fmts+=(rendered)
   reset_g
   rm -f "$dest" "$dest.part" "$html"
   mkdir -p "$(dirname "$dest")"
-  cache_candidate "$url" markdown html-converted
-  serve_fresh "$dest" && return 0
+  cache_candidate "$url" "${fmts[@]}"
+  if serve_fresh "$dest"; then
+    if check_expect "$dest"; then return 0; fi
+    C_REF=""
+    reset_g
+  fi
   if [[ $FIXTURE_SET -eq 1 ]]; then
     fixture_read "$dest" "$3" markdown
+    check_expect "$dest" || true
     return 0
   fi
   G_SOURCE=fetch
@@ -769,7 +917,12 @@ generic_read() {
   local origin="$U_ORIGIN" path="$U_PATH"
 
   # The page's own request decides identity: a failure or a landing elsewhere ends the read.
-  request text/markdown "$url" "$dest.part" "$dest" && return 0
+  if request text/markdown "$url" "$dest.part" "$dest"; then
+    check_expect "$dest" && return 0
+    render_fallback "$url" "$dest"
+    [[ "$G_STATE" == read ]] || settle_unread "$url" "$dest" markdown html-converted rendered
+    return 0
+  fi
   G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
   if [[ $H_RC -ne 0 ]]; then
     G_REASON="$(failure_reason)"
@@ -782,7 +935,12 @@ generic_read() {
   fi
   if [[ -n "$G_REASON" ]]; then
     rm -f "$dest.part"
-    settle_unread "$url" "$dest" markdown html-converted
+    [[ "$G_REASON" != fetch-failed ]] || render_fallback "$url" "$dest"
+    if [[ "$G_STATE" != read ]]; then
+      settle_unread "$url" "$dest" markdown html-converted rendered
+      return 0
+    fi
+    G_REASON=""
     return 0
   fi
   local own_md_re="$MD_CTYPE"
@@ -801,16 +959,22 @@ generic_read() {
   if [[ "$G_STATE" != read && "$path" != *.md ]]; then
     sfx="$origin$path.md"
     [[ "$path" != / ]] || sfx="$origin/index.md"
-    markdown_channel "" "$sfx" "$dest" "$MD_OR_TEXT_CTYPE" && [[ "$G_SOURCE" == cache ]] && return 0
+    if markdown_channel "" "$sfx" "$dest" "$MD_OR_TEXT_CTYPE" && [[ "$G_SOURCE" == cache ]]; then
+      check_expect "$dest" && return 0
+    fi
   fi
   if [[ "$G_STATE" != read ]]; then
     bundle_link "$origin" "$path" "${sfx:-}"
     if [[ -n "$B_LINK" ]]; then
-      markdown_channel "" "$B_LINK" "$dest" "$MD_OR_TEXT_CTYPE" && [[ "$G_SOURCE" == cache ]] && return 0
+      if markdown_channel "" "$B_LINK" "$dest" "$MD_OR_TEXT_CTYPE" && [[ "$G_SOURCE" == cache ]]; then
+        check_expect "$dest" && return 0
+      fi
     fi
   fi
   if [[ "$G_STATE" != read && -z "$html_status" ]]; then
-    request "" "$url" "$html" "$dest" && return 0
+    if request "" "$url" "$html" "$dest"; then
+      check_expect "$dest" && return 0
+    fi
     [[ $H_RC -ne 63 ]] || G_REASON="too-large"
     if [[ $H_RC -eq 0 && "$(landed "$url" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
     "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$html" ]]; then
@@ -825,8 +989,12 @@ generic_read() {
     fi
   fi
   rm -f "$html"
+  check_expect "$dest" || true
   if [[ "$G_STATE" != read ]]; then
-    settle_unread "$url" "$dest" markdown html-converted
+    render_fallback "$url" "$dest"
+  fi
+  if [[ "$G_STATE" != read ]]; then
+    settle_unread "$url" "$dest" markdown html-converted rendered
     return 0
   fi
   G_REASON=""

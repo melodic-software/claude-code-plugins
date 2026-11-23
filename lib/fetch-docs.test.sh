@@ -1151,6 +1151,316 @@ assert_eq "case 28: the procedure makes --out with mktemp" 1 "$(grep -c '^out="$
 # shellcheck disable=SC2016 # the pattern is literal procedure text
 assert_eq "case 28: the procedure removes --out by its literal path" 1 "$(grep -c '`rm -rf <out>`' "$procedure")"
 
+FC_SHIM="$TEST_TMPDIR/fc-shim"
+mkdir -p "$FC_SHIM"
+cat >"$FC_SHIM/firecrawl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\t%s\n' "$PWD" "$*" >>"$FC_SHIM_LOG"
+mkdir -p .firecrawl
+printf 'cached\n' >.firecrawl/cache
+[[ "${1:-}" == scrape ]] || exit 2
+shift
+url="" fmt="" out="" json=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -f | --format | --formats) fmt="$2"; shift 2 ;;
+  -o | --output) out="$2"; shift 2 ;;
+  -u | --url) url="$2"; shift 2 ;;
+  --json) json=1; shift ;;
+  -*) shift ;;
+  *) url="$1"; shift ;;
+  esac
+done
+[[ -n "$url" && "$fmt" == markdown && $json -eq 1 && -n "$out" ]] || exit 2
+name="${url##*/}"
+src="$FC_SHIM_SRC/$name"
+[[ ! -f "$src.fail" ]] || exit 1
+[[ -f "$src.md" ]] || exit 1
+r_url="$url"
+[[ ! -f "$src.url" ]] || r_url="$(cat "$src.url")"
+status=200
+[[ ! -f "$src.status" ]] || status="$(cat "$src.status")"
+title=""
+[[ ! -f "$src.title" ]] || title="$(cat "$src.title")"
+use_source_only=0
+[[ ! -f "$src.sourceurl" ]] || use_source_only=1
+no_url=0
+[[ ! -f "$src.nourl" ]] || no_url=1
+wrapped=0
+[[ ! -f "$src.wrapped" ]] || wrapped=1
+jq -n --rawfile md "$src.md" --arg url "$r_url" --argjson st "$status" --arg title "$title" \
+  --argjson so "$use_source_only" --argjson nu "$no_url" --argjson wr "$wrapped" '
+  ({statusCode: $st}
+   + (if $title != "" then {title: $title} else {} end)
+   + (if $nu == 1 then {}
+      elif $so == 1 then {sourceURL: $url}
+      else {url: $url, sourceURL: $url} end)) as $meta
+  | {markdown: $md, metadata: $meta}
+  | if $wr == 1 then {success: true, data: .} else . end
+' >"$out"
+exit 0
+EOF
+chmod +x "$FC_SHIM/firecrawl"
+
+render_run() {
+  local src="$1" fcsrc="$2" out="$3" now="$4"
+  shift 4
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$FC_SHIM:$PYOK:$SHIM:$PATH" \
+    CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
+    FC_SHIM_LOG="$fcsrc.log" FC_SHIM_SRC="$fcsrc" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" FETCH_DOCS_HTML2MD="$CONV" DOCS_CACHE_NOW="$now" \
+    bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/$out" "$@"
+}
+
+src="$TEST_TMPDIR/rs-403"
+fcsrc="$TEST_TMPDIR/rf-403"
+mkdir -p "$src" "$fcsrc"
+printf 'blocked\n' >"$src/page"
+printf '403' >"$src/page.status"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Rendered Page' 'rendered content marker' >"$fcsrc/page.md"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-noflag $G1 "$PAGE_URL"
+assert_eq "render: without --render-fallback a 403 stays unread and never calls firecrawl" "unread http-403 0" \
+  "$(gpage ro-noflag '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+assert_no_file "render: without --render-fallback no page file" "$TEST_TMPDIR/ro-noflag/docs-test/guide/page.md"
+
+: >"$fcsrc.log"
+render_run "$src" "$fcsrc" ro-rnone $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: with default renderer none, --render-fallback leaves a 403 unread" "unread http-403 0" \
+  "$(gpage ro-rnone '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+C="$TEST_TMPDIR/rc-403"
+caller_cwd="$TEST_TMPDIR/rc-caller-cwd"
+mkdir -p "$caller_cwd"
+: >"$src.log"
+: >"$fcsrc.log"
+(cd "$caller_cwd" && DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-403a $G1 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL")
+assert_eq "render: --render-fallback with firecrawl renders a 403" \
+  "read fetch rendered text/markdown 200 $(key_of "$PAGE_URL" rendered)" \
+  "$(gpage ro-403a '"\(.state) \(.source) \(.format) \(.content_type) \(.status) \(.cache_key)"')"
+assert_eq "render: page file holds the rendered markdown" "" \
+  "$(cmp "$fcsrc/page.md" "$TEST_TMPDIR/ro-403a/docs-test/guide/page.md" 2>&1)"
+assert_eq "render: firecrawl ran once" 1 "$(wc -l <"$fcsrc.log" | tr -d ' ')"
+used_cwd="$(cut -f1 "$fcsrc.log")"
+assert_eq "render: firecrawl ran in a temp working directory, not caller cwd" 1 \
+  "$([[ -n "$used_cwd" && "$used_cwd" != "$caller_cwd" ]] && echo 1 || echo 0)"
+assert_no_file "render: the temp working directory is removed afterwards" "$used_cwd"
+assert_no_file "render: caller cwd has no .firecrawl directory" "$caller_cwd/.firecrawl"
+
+curl_before="$(wc -l <"$src.log" | tr -d ' ')"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-403b $G2 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL"
+assert_eq "render: second run within window is served from cache with no new render or fetch" \
+  "read cache rendered text/markdown 100 1 $curl_before" \
+  "$(gpage ro-403b '"\(.state) \(.source) \(.format) \(.content_type) \(.age_seconds)"') $(wc -l <"$fcsrc.log" | tr -d ' ') $(wc -l <"$src.log" | tr -d ' ')"
+assert_eq "render: cached rendered bytes match" "" \
+  "$(cmp "$fcsrc/page.md" "$TEST_TMPDIR/ro-403b/docs-test/guide/page.md" 2>&1)"
+
+rcfg="$TEST_TMPDIR/rcfg/claude-docs-cache"
+mkdir -p "$rcfg"
+printf '%s\n' '{"renderer": "firecrawl"}' >"$rcfg/config.json"
+: >"$fcsrc.log"
+XDG_CONFIG_HOME="$TEST_TMPDIR/rcfg" render_run "$src" "$fcsrc" ro-cfg $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: machine config renderer=firecrawl enables --render-fallback" "read rendered 1" \
+  "$(gpage ro-cfg '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+src="$TEST_TMPDIR/rs-kinds"
+fcsrc="$TEST_TMPDIR/rf-kinds"
+mkdir -p "$src" "$fcsrc"
+printf 'rate limited\n' >"$src/page"
+printf '429' >"$src/page.status"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Page' 'from 429' >"$fcsrc/page.md"
+touch "$fcsrc/page.wrapped" "$fcsrc/page.sourceurl"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-429 $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: 429 is rendered (wrapped JSON and sourceURL)" "read rendered 1" \
+  "$(gpage ro-429 '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+rm -f "$src/page" "$src/page.status" "$src/page.ctype"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-fail $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: fetch-failed is rendered" "read rendered 1" \
+  "$(gpage ro-fail '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+printf '{"ok": true}\n' >"$src/page"
+printf '%s' 'application/json' >"$src/page.ctype"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-ctype $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: unexpected-content-type is rendered" "read rendered 1" \
+  "$(gpage ro-ctype '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+src="$TEST_TMPDIR/rs-shell"
+fcsrc="$TEST_TMPDIR/rf-shell"
+mkdir -p "$src" "$fcsrc"
+html_page "$src/page" 'App Shell' 'Loading...'
+printf '%s' 'text/html; charset=utf-8' >"$src/page.ctype"
+printf '%s\n' '# Leaderboard' 'Score: 99' >"$fcsrc/page.md"
+C="$TEST_TMPDIR/rc-shell"
+: >"$fcsrc.log"
+render_run "$src" "$fcsrc" ro-shell1 $G1 --cache --cache-dir "$C" --expect 'Score:' "$PAGE_URL"
+assert_eq "expect: JS shell without marker is unread no-content" "unread no-content 200 null 0" \
+  "$(gpage ro-shell1 '"\(.state) \(.reason) \(.status) \(.cache_key)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+assert_no_file "expect: no-content leaves no page file" "$TEST_TMPDIR/ro-shell1/docs-test/guide/page.md"
+assert_eq "expect: no-content caches nothing" 0 "$(entry_dirs "$C" 2>/dev/null)"
+
+render_run "$src" "$fcsrc" ro-shell-ok $G1 --expect 'Loading...' "$PAGE_URL"
+assert_eq "expect: plain page containing marker is read without rendering" "read html-converted 0" \
+  "$(gpage ro-shell-ok '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-shell2 $G1 --cache --cache-dir "$C" --max-age 86400 --expect 'Score:' --render-fallback "$PAGE_URL"
+assert_eq "expect: no-content with --render-fallback renders and caches" "read fetch rendered 1" \
+  "$(gpage ro-shell2 '"\(.state) \(.source) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-shell3 $G2 --cache --cache-dir "$C" --max-age 86400 --expect 'Score:' --render-fallback "$PAGE_URL"
+assert_eq "expect: second run serves rendered entry from cache with no new render" "read cache rendered 1" \
+  "$(gpage ro-shell3 '"\(.state) \(.source) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+printf '%s\n' '# Still Empty' 'Loading...' >"$fcsrc/page.md"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-shell4 $G1 --expect 'Score:' --render-fallback "$PAGE_URL"
+assert_eq "expect: rendered body still missing marker stays unread no-content" "unread no-content 1" \
+  "$(gpage ro-shell4 '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+assert_no_file "expect: failed rendered marker check leaves no page file" "$TEST_TMPDIR/ro-shell4/docs-test/guide/page.md"
+
+src="$TEST_TMPDIR/rs-never"
+fcsrc="$TEST_TMPDIR/rf-never"
+mkdir -p "$src" "$fcsrc"
+printf 'not found\n' >"$src/page"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Should Not Render' >"$fcsrc/page.md"
+for code in 404 410; do
+  printf '%s' "$code" >"$src/page.status"
+  : >"$fcsrc.log"
+  DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" "ro-$code" $G1 --render-fallback "$PAGE_URL"
+  assert_eq "render: HTTP $code is never rendered" "unread http-$code 0" \
+    "$(gpage "ro-$code" '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+done
+rm -f "$src/page.status"
+printf '%s' 'https://elsewhere.example/guide/page' >"$src/page.effective"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-offorig $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: off-origin plain redirect is never rendered" "unread redirected-off-origin 0" \
+  "$(gpage ro-offorig '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+printf '%s' 'https://docs.test/other/page' >"$src/page.effective"
+: >"$fcsrc.log"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-offpath $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: off-path plain redirect is never rendered" "unread redirected-off-path 0" \
+  "$(gpage ro-offpath '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+src="$TEST_TMPDIR/rs-rredir"
+fcsrc="$TEST_TMPDIR/rf-rredir"
+mkdir -p "$src" "$fcsrc"
+printf 'blocked\n' >"$src/page"
+printf '403' >"$src/page.status"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Off Site' 'body' >"$fcsrc/page.md"
+printf '%s' 'https://elsewhere.example/guide/page' >"$fcsrc/page.url"
+C="$TEST_TMPDIR/rc-rredir"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-ro1 $G1 --cache --cache-dir "$C" --render-fallback "$PAGE_URL"
+assert_eq "render: off-site final URL from renderer stays unread" "unread redirected-off-origin null" \
+  "$(gpage ro-ro1 '"\(.state) \(.reason) \(.cache_key)"')"
+assert_no_file "render: off-site final URL leaves no page file" "$TEST_TMPDIR/ro-ro1/docs-test/guide/page.md"
+
+printf '%s' 'https://docs.test/elsewhere/page' >"$fcsrc/page.url"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-ro2 $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: off-path final URL from renderer stays unread" "unread redirected-off-path" \
+  "$(gpage ro-ro2 '"\(.state) \(.reason)"')"
+
+rm -f "$fcsrc/page.url"
+touch "$fcsrc/page.nourl"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-ro3 $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: missing final URL from renderer stays unread" "unread http-403" \
+  "$(gpage ro-ro3 '"\(.state) \(.reason)"')"
+rm -f "$fcsrc/page.nourl"
+
+printf '404' >"$fcsrc/page.status"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-ro4 $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: 404 reported by renderer stays unread http-404" "unread http-404 404" \
+  "$(gpage ro-ro4 '"\(.state) \(.reason) \(.status)"')"
+rm -f "$fcsrc/page.status"
+
+src="$TEST_TMPDIR/rs-rpub"
+fcsrc="$TEST_TMPDIR/rf-rpub"
+mkdir -p "$src" "$fcsrc"
+printf 'blocked\n' >"$src/page"
+printf '403' >"$src/page.status"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Public Page' 'body' >"$fcsrc/page.md"
+rpub_run() {
+  : >"$src.log"
+  : >"$fcsrc.log"
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$FC_SHIM:$SHIM:$PATH" \
+    CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
+    FC_SHIM_LOG="$fcsrc.log" FC_SHIM_SRC="$fcsrc" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" FETCH_DOCS_ADDRESSES="$2" DOCS_CACHE_RENDERER=firecrawl \
+    bash "$SCRIPT" --profile generic --public-only --render-fallback --out "$TEST_TMPDIR/$1" "$PAGE_URL"
+}
+rpub_run ro-rpub-priv 'docs.test=127.0.0.1'
+assert_eq "render: --public-only refuses private host before rendering" "unread private-address 0 0" \
+  "$(gpage ro-rpub-priv '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+rpub_run ro-rpub-unres 'other.test=93.184.216.34'
+assert_eq "render: --public-only refuses unresolvable host before rendering" "unread fetch-failed 0 0" \
+  "$(gpage ro-rpub-unres '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+rpub_run ro-rpub-ok 'docs.test=93.184.216.34'
+assert_eq "render: --public-only renders global host after 403" "read rendered 1" \
+  "$(gpage ro-rpub-ok '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
+src="$TEST_TMPDIR/rs-stale"
+fcsrc="$TEST_TMPDIR/rf-stale"
+mkdir -p "$src" "$fcsrc"
+printf 'blocked\n' >"$src/page"
+printf '403' >"$src/page.status"
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Cached Rendered' 'original body' >"$fcsrc/page.md"
+C="$TEST_TMPDIR/rc-stale"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st1 $G1 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL"
+assert_eq "render stale: initial render cached" "read fetch rendered" "$(gpage ro-st1 '"\(.state) \(.source) \(.format)"')"
+touch "$fcsrc/page.fail"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st2 $T3 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL"
+assert_eq "render stale: 403 serves cached copy stale with age when rendering fails" \
+  "read cache true 86500 http-403 403" \
+  "$(gpage ro-st2 '"\(.state) \(.source) \(.stale) \(.age_seconds) \(.reason) \(.status)"')"
+assert_eq "render stale: stale page file is the cached bytes" "" \
+  "$(cmp "$fcsrc/page.md" "$TEST_TMPDIR/ro-st2/docs-test/guide/page.md" 2>&1)"
+
+printf '429' >"$src/page.status"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st3 $T3 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL"
+assert_eq "render stale: 429 serves cached copy stale with age when rendering fails" \
+  "read cache true 86500 http-429 429" \
+  "$(gpage ro-st3 '"\(.state) \(.source) \(.stale) \(.age_seconds) \(.reason) \(.status)"')"
+
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st4 $T3 --cache --cache-dir "$C" --max-age 0 --render-fallback "$PAGE_URL"
+assert_eq "render stale: --max-age 0 never serves stale on 429" "unread http-429 false" \
+  "$(gpage ro-st4 '"\(.state) \(.reason) \(.stale)"')"
+
+DOCS_CACHE_RENDERER=none render_run "$src" "$fcsrc" ro-st5 $T3 --cache --cache-dir "$C" --max-age 86400 --render-fallback "$PAGE_URL"
+assert_eq "render stale: renderer=none leaves 429 unread without stale" "unread http-429 false" \
+  "$(gpage ro-st5 '"\(.state) \(.reason) \(.stale)"')"
+
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st6 $T3 --cache --cache-dir "$C" --max-age 86400 "$PAGE_URL"
+assert_eq "render stale: without --render-fallback, 429 stays unread without stale" "unread http-429 false" \
+  "$(gpage ro-st6 '"\(.state) \(.reason) \(.stale)"')"
+
+rc=0
+bash "$SCRIPT" --out "$TEST_TMPDIR/ro-bad1" --render-fallback skills >/dev/null 2>&1 || rc=$?
+assert_eq "render: --render-fallback on indexed profile is fatal" 2 "$rc"
+rc=0
+bash "$SCRIPT" --out "$TEST_TMPDIR/ro-bad2" --expect 'Marker' skills >/dev/null 2>&1 || rc=$?
+assert_eq "expect: --expect on indexed profile is fatal" 2 "$rc"
+rc=0
+bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/ro-bad3" --expect '' "$PAGE_URL" >/dev/null 2>&1 || rc=$?
+assert_eq "expect: empty --expect is fatal" 2 "$rc"
+: >"$fcsrc.log"
+fx="$TEST_TMPDIR/fx-render"
+mkdir -p "$fx/docs-test/guide"
+printf '%s\n' '# Shell' 'Loading...' >"$fx/docs-test/guide/page.md"
+PATH="$FC_SHIM:$PATH" FC_SHIM_LOG="$fcsrc.log" FC_SHIM_SRC="$fcsrc" DOCS_CACHE_RENDERER=firecrawl \
+  FETCH_DOCS_FIXTURE_DIR="$fx" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+  bash "$SCRIPT" --profile generic --expect 'Score:' --render-fallback --out "$TEST_TMPDIR/ro-fx" "$PAGE_URL"
+assert_eq "render: fixture mode checks --expect and never invokes firecrawl" "unread no-content 0" \
+  "$(gpage ro-fx '"\(.state) \(.reason)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"
