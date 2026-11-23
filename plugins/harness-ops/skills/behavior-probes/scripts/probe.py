@@ -163,9 +163,6 @@ class CaseError(Exception):
     """A case directory that cannot run as written."""
 
 
-# ---------------------------------------------------------------- cases
-
-
 def load_case(cases_dir: Path, case_dir: Path) -> dict:
     case_id = case_dir.relative_to(cases_dir).as_posix()
     try:
@@ -418,9 +415,6 @@ def skip_reason(case: dict) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------- stream
-
-
 def _text(content) -> str:
     if isinstance(content, list):
         return " ".join(
@@ -666,9 +660,6 @@ def apply_controls(rows: list[dict], cases: dict[str, dict]) -> None:
                 changed = True
 
 
-# ---------------------------------------------------------------- runners
-
-
 def bash_argv0() -> str:
     """Git for Windows bash by full path; a bare `bash` there may be WSL or a Store alias."""
     if os.name != "nt":
@@ -873,9 +864,6 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
         }
     )
     return [json.dumps(event) for event in events]
-
-
-# ---------------------------------------------------------------- run
 
 
 def base_row(case: dict) -> dict:
@@ -1112,9 +1100,6 @@ def exit_code(rows: list[dict]) -> int:
     return 0
 
 
-# ---------------------------------------------------------------- table, recheck
-
-
 def write_rows(results: Path, rows: list[dict]) -> None:
     with results.open("w", encoding="utf-8", newline="\n") as fh:
         for row in rows:
@@ -1196,9 +1181,6 @@ def recheck(cases: list[dict], items: list[tuple[str, str]], args) -> list[str]:
             if tag:
                 lines.append(f"{case['id']}\t{item_id}\t{tag}")
     return lines
-
-
-# ---------------------------------------------------------------- main
 
 
 def main(argv: list[str] | None = None) -> int:

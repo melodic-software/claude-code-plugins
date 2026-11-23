@@ -21,6 +21,7 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 |---|---|
 | `preflight <target>` | Print the report below and stop. No CLI invocation, no spend |
 | `validate [<eval-dir>]` | Run the static case validator only. No model call |
+| `select <diff-base>` | Name the cases a change affects and their agent runs, with no model call ([select.md](reference/select.md)) |
 | `run <target>` (default) | Preflight, validate, print the estimate, then invoke the CLI |
 | `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest, then remove the sandboxes its run kept ([sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes)) |
 | `ci` | Answer from the CI section below |
@@ -394,12 +395,11 @@ every other cut keeps the detection control.
 ## Calibrating a judge
 
 Trust an `llm` grader's scores only after its judge, the model the suite uses, agrees with labeled
-answers on at least 90% of runs; a pass says nothing about another model. Before the first full
-run, calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging
-text); the default judge is uncalibrated until it passes. Report any other judge grader as
-uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in the case's
-`samples/<grader>.json`, set by three agents independently with the user settling every
-disagreement:
+answers on at least 90% of runs; a pass says nothing about another model. Before the first full run,
+calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging text);
+the default judge is uncalibrated until it passes. Report any other judge grader as uncalibrated,
+never trusted silently. Labels are the must-pass and must-fail answers in the case's
+`samples/<grader>.json`, set by three agents independently with the user settling every disagreement:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>

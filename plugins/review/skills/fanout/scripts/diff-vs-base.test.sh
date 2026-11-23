@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for diff-vs-base.sh (self-contained, offline — ships with the plugin).
-#
-# Every fixture is a local repo whose "remote" is a bare repo on disk, so no
-# network is touched. Branch names are explicit (never init.defaultBranch) and the
-# non-`main` fixtures make the assertions unambiguous about WHICH fallback ran.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -45,9 +40,6 @@ assert_contains() {
 # Fixture repos must never inherit an outer hook chain's exported git env.
 git_env_reset() { unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG; }
 
-# init_work_repo <path>
-# An isolated work repo with the fixture's committer identity pinned locally. Every
-# case needs this much; only some need a remote on top of it.
 init_work_repo() {
   git_env_reset
   mkdir -p "$1"
@@ -59,8 +51,6 @@ init_work_repo() {
   git -C "$1" config core.autocrlf false
 }
 
-# make_fixture <name> <branch> — bare origin whose HEAD is <branch>, plus a clone-ish
-# work repo one commit ahead of the pushed tip. Echoes the work-repo path.
 make_fixture() {
   local name="$1" branch="$2"
   local bare="$TEST_TMPDIR/$name.git" work="$TEST_TMPDIR/$name"

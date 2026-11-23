@@ -106,8 +106,6 @@ if command -v cygpath >/dev/null 2>&1; then
   [[ -n "$converted" ]] && PROJECT_KEY="$converted"
 fi
 
-# Path normalization shared by the local-scope key match: backslash to slash, trailing
-# slashes dropped, lowercased when the path starts with a drive letter.
 JQ_NORM='def norm: gsub("\\\\"; "/") | sub("/+$"; "") | if test("^[A-Za-z]:") then ascii_downcase else . end;'
 
 SOURCES=""
@@ -162,9 +160,6 @@ dropin_shown() {
   fi
 }
 
-# add_rows <file> <scope> <filter> <shown>: append {scope,name,cfg} JSON lines for the server
-# map the filter selects and set STATUS: found, found-empty (no map), or the skipped text
-# (a string or array map). A number or boolean map exits 2.
 add_rows() {
   local out
   out="$(jq -rc --arg s "$2" --arg p "$PROJECT_KEY" "$JQ_NORM"'
@@ -185,8 +180,6 @@ add_rows() {
 # shellcheck disable=SC2016
 LOCAL_FILTER='[(.projects // {}) | to_entries[] | select((.key | norm) == ($p | norm))] | first | .value'
 
-# add_file_source <scope> <file> <filter> [shown]: read one file-backed source or report it
-# absent. A path holding a control character exits 2 without echoing it.
 add_file_source() {
   local shown="${4:-$2}"
   if [[ "$2" == *[[:cntrl:]]* ]]; then
@@ -203,7 +196,6 @@ add_file_source() {
   return 1
 }
 
-# User and local scope: ~/.claude.json.
 if add_file_source user "$CLAUDE_JSON" '.mcpServers'; then
   META_LOCAL="$(jq -c --arg p "$PROJECT_KEY" "$JQ_NORM"'
     ('"$LOCAL_FILTER"') as $v

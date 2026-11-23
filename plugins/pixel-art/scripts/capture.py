@@ -273,7 +273,6 @@ def _http_json(url, method="GET"):
 
 def _devtools_port(profile, proc):
     port_file = profile / "DevToolsActivePort"
-    # A browser that exits fails at once below; this bound is only for one that is still starting.
     deadline = time.time() + BROWSER_WAIT_SECONDS
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -436,7 +435,6 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             (out_dir / name).write_bytes(_decode_data_url(shot["png"]))
             shots.append({"t": shot["t"], "file": name})
         if payload.get("error"):
-            # Shots taken before a recording failure are kept on disk; the run still fails.
             raise RuntimeError(f"{payload['error']} ({len(shots)} shots written)")
         video = None
         audio = False

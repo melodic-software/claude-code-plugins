@@ -48,7 +48,6 @@ else
   fail "begin: expected 1 snapshot in TMPDIR, found $(scratch_count)"
 fi
 
-# --- unchanged file: empty message, snapshot released ------------------------
 hook::rewrite_take_disclosure "$target" "msg-unchanged"
 if [[ -z "$HOOK_REWRITE_MESSAGE" ]]; then
   ok "take on unchanged file yields empty message"
@@ -66,7 +65,6 @@ else
   fail "take on unchanged file set HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- changed file: message set, snapshot released ----------------------------
 hook::rewrite_guard_begin "$target"
 if [[ -z "$HOOK_REWRITE_CHANGED" ]]; then
   ok "begin resets the changed verdict to unknown"
@@ -207,7 +205,6 @@ else
   fail "take after failed snapshot set HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- disclose emits one systemMessage-only document on change ----------------
 hook::rewrite_guard_begin "$target"
 printf 'five\n' >"$target"
 out=$(hook::rewrite_disclose PostToolUse "$target" "disclose-msg")
@@ -227,7 +224,6 @@ else
   fi
 fi
 
-# --- disclose emits nothing when unchanged -----------------------------------
 hook::rewrite_guard_begin "$target"
 out=$(hook::rewrite_disclose PostToolUse "$target" "should-not-appear")
 if [[ -z "$out" ]]; then

@@ -5,7 +5,6 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/release.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-# id present, --lease-comment-id missing → usage error before any network call.
 assert_usage_error "$S" "github:o/r#1"
 assert_usage_error "$S" "github:o/r#1" --lease-comment-id abc
 assert_usage_error "$S" "github:o/r#1" --lease-comment-id 1 --holder

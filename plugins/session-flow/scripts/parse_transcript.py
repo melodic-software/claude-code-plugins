@@ -864,7 +864,6 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     New:     parse_transcript.py --sessions SID1 SID2 ... --base <base_path>
     New:     parse_transcript.py --chain-from <handoff-file> --base <base_path>
     """
-    # Detect legacy form: exactly 2 positional args, neither starts with --
     if len(argv) == 2 and not argv[0].startswith("--") and not argv[1].startswith("--"):
         return argparse.Namespace(
             session_id=argv[0],
@@ -945,7 +944,6 @@ def main() -> None:
             2,
         )
 
-    # Multi-session: --chain-from
     if ns.chain_from is not None:
         if not ns.chain_from.is_file():
             _emit_and_exit(
@@ -967,11 +965,9 @@ def main() -> None:
             handoff_journey(ns.chain_from),
         )
 
-    # Multi-session: --sessions
     if ns.sessions:
         _emit_multi_and_exit(ns.sessions, ns.base)
 
-    # Single-session: legacy positional path
     session_id = ns.session_id
     if not session_id:
         _emit_and_exit(

@@ -67,7 +67,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-not_checked() { # <reason_code> <reason>
+not_checked() {
   printf 'result=not-checked\nreason_code=%s\nreason=%s\n' "$1" "$2"
   exit 2
 }
@@ -81,7 +81,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-volume_of() { # <path>
+volume_of() {
   df -P "$1" 2>/dev/null | awk 'NR == 2 { print $1 }'
 }
 

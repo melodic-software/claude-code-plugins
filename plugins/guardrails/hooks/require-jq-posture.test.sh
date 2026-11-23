@@ -42,9 +42,6 @@
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 
 set -uo pipefail
-# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
-# guard's refusal into an ask (hooks/refuse.sh). Pin it to 0 so a run here
-# gets the result CI gets.
 export CLAUDE_CODE_SESSION_ATTENDED=0
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,9 +51,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# ============================================================================
-# Part 1 — membership, derived not hand-listed
-# ============================================================================
 
 FAIL_CLOSED=()
 FAIL_OPEN=()
@@ -107,15 +101,11 @@ for base in "${FAIL_OPEN[@]}"; do
 done
 ok "no advisory hook adopted the fail-closed gate (${#FAIL_OPEN[@]} checked)"
 
-# The reasoning must live AT THE HELPER, not only at the call sites (#2146).
 UTILS_SRC="$(cat "$HOOK_DIR/hook-utils.sh")"
 for needle in "TWO POSTURES" "hook::require_jq_blocking" "MAX_COMMAND_LEN"; do
   assert_contains "hook-utils.sh's posture block mentions '$needle'" "$UTILS_SRC" "$needle"
 done
 
-# ============================================================================
-# Part 2 — the jq-hidden environment, and its preconditions
-# ============================================================================
 
 HIDE_JQ="$TEST_TMPDIR/hide-jq.sh"
 cat >"$HIDE_JQ" <<'HIDEEOF'
@@ -164,9 +154,6 @@ else
   ok "precondition: jq=hidden git=visible bash=visible path-to-jq=intact (PATH untouched; the LOOKUP is what was hidden)"
 fi
 
-# A second, independent proof that the hiding reaches the code under test: run
-# the gate's OWN predicate, sourced from the real hook-utils.sh, inside the
-# hidden environment. If jq leaked through, this is where it shows.
 if ((JQ_HIDING_WORKS)); then
   PREDICATE="$TEST_TMPDIR/predicate.sh"
   {
@@ -176,28 +163,16 @@ if ((JQ_HIDING_WORKS)); then
   gate_view="$(BASH_ENV="$HIDE_JQ" bash "$PREDICATE" 2>/dev/null)"
   assert_eq "the jq gate's own predicate reports jq absent inside the hidden environment" \
     "GATE-SEES-NO-JQ" "$gate_view"
-  # ...and reports it PRESENT without the override, so the predicate itself is
-  # not simply always-false.
   gate_view_plain="$(bash "$PREDICATE" 2>/dev/null)"
   assert_eq "control — the same predicate reports jq PRESENT without the override" \
     "GATE-SEES-JQ" "$gate_view_plain"
 fi
 
-# ============================================================================
-# Part 3 — the four cells (plus controls)
-# ============================================================================
-#
-# The hook is a pure decision function: a payload on stdin, a verdict as an exit
-# code. Nothing is executed, so every cell is read-only by construction.
-# EXIT CODES: 2 = DENY (PreToolUse blocks the tool call), 0 = ALLOW.
 
 WORKDIR="$TEST_TMPDIR/work"
 mkdir -p "$WORKDIR"
 git init -q "$WORKDIR" 2>/dev/null || bad "fixture: could not create the working repository"
 
-# payload <command> — a PreToolUse Bash payload, hand-built rather than composed
-# with the helpers' jq builders, because jq is exactly what half these cells
-# do not have.
 payload() {
   local cmd="${1//\\/\\\\}"
   cmd="${cmd//\"/\\\"}"
@@ -205,7 +180,6 @@ payload() {
     "$cmd" "$WORKDIR"
 }
 
-# verdict <hook> <command> <show|hide> [stderr-file] -> prints DENY or ALLOW
 verdict() {
   local hook="$1" cmd="$2" hide="$3" errfile="${4:-/dev/null}" rc
   if [[ "$hide" == "hide" ]]; then
@@ -235,8 +209,6 @@ if ((JQ_HIDING_WORKS)); then
   printf '    safe command       %-12s %s\n' "$c_safe_present" "$c_safe_hidden"
   echo
 
-  # The discrimination control FIRST: without it a uniformly-DENY harness would
-  # read as a working guard.
   assert_eq "control — jq PRESENT, safe command: ALLOW (the harness discriminates)" \
     "ALLOW" "$c_safe_present"
   assert_eq "jq PRESENT, dangerous push: DENY" \
@@ -246,7 +218,6 @@ if ((JQ_HIDING_WORKS)); then
   assert_eq "jq HIDDEN, safe command: DENY (the disclosed cost — a guard that cannot read the command cannot exempt it)" \
     "DENY" "$c_safe_hidden"
 
-  # PROOF THE DENY CAME FROM THE NEW PATH, not from some unrelated failure.
   hidden_err="$(cat "$ERR_HIDDEN" 2>/dev/null)"
   assert_contains "the jq-hidden denial names jq as the missing prerequisite" \
     "$hidden_err" "jq"
@@ -279,9 +250,6 @@ if ((JQ_HIDING_WORKS)); then
   assert_absent "block-no-verify's jq-hidden denial does not name its kill switch" \
     "$(cat "$ERR_NV" 2>/dev/null)" "block_no_verify_enabled"
 
-  # --- POSTURE CONTROL: an advisory guard must be UNCHANGED ------------------
-  # The cell that proves the change is SCOPED, and the harness's second control:
-  # if hiding jq had broken the environment generally, these would deny too.
   echo "--- posture control: the advisory hooks still fail OPEN ---"
   checked_advisory=0
   for advisory in "${FAIL_OPEN[@]}"; do
@@ -304,11 +272,6 @@ if ((JQ_HIDING_WORKS)); then
     bad "no advisory hook was exercised as a posture control — the scoping claim is unmeasured"
   fi
 
-  # --- The shipped Bash row says it once per call -----------------------------
-  # Every fail-closed guard of the row denies without jq, and they run in one
-  # process under run-guards.sh; their joined stderr is ONE deny reason. It
-  # carries the jq line once, and no dropped notice document, on the first call
-  # and on a later one.
   ROW_ARGS=()
   while IFS= read -r arg; do ROW_ARGS+=("$arg"); done < <(jq -r '
     .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args
@@ -326,9 +289,6 @@ if ((JQ_HIDING_WORKS)); then
     assert_absent "jq HIDDEN, Bash row ($call call): the row's --lib resolves" "$row_err" "No such file"
   done
 
-  # --- The kill switch still wins on a jq-less machine ------------------------
-  # Fail-closed must not mean unbypassable: hook::check_enabled runs before the
-  # gate, so a consumer who deliberately turns the guard off is not trapped.
   ks_rc=0
   (cd "$WORKDIR" && BASH_ENV="$HIDE_JQ" CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false \
     CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-ks" \
@@ -337,45 +297,8 @@ if ((JQ_HIDING_WORKS)); then
     0 "$ks_rc"
 fi
 
-# ============================================================================
-# Part 4: guardrails-test-helpers.sh's own exit contract
-# ============================================================================
-#
-# Every suite in this directory ends on `report`, and run-plugin-tests.sh grades a
-# suite by its EXIT CODE alone, so `report`'s return is the whole pass/fail signal
-# for all 17 of them. Nothing self-tested it. The repo-wide harness pins its
-# equivalent at scripts/lib/test-harness.test.sh, but guardrails-test-helpers.sh is
-# a separate, deliberately duplicated file (docs/contracts/shell-test-helpers/)
-# that no suite and no CI script covers. Measured, with `report` forced to
-# `return 0` and one failure seeded into every suite: 0 of the 17 went red, each
-# printing its own `FAIL:` line and then exiting 0. This case takes that to 1.
-#
-# BOTH DIRECTIONS, because either alone leaves the helper permanently green under
-# exactly the sabotage that matters: a non-zero-only case passes a `report` that
-# always fails, and a zero-only case passes one that always succeeds.
-#
-# THE PRINTED TALLY is asserted beside each exit code. A `report` returning the
-# right status without counting satisfies the codes alone, and the tally is also
-# the only thing here proving ok/bad increment at all.
-#
-# THE VERDICT CANNOT GO THROUGH `report`. It is both the function under test and
-# the function that sets this suite's exit status, so a `bad` recorded below would
-# print and then be discarded by the very thing it reports on: under either
-# sabotage the suite exits 0 with FAIL lines on screen. HELPER_SELF_FAIL is a tally
-# the helper cannot reach and the trailing exit honors it, which is the discipline
-# scripts/lib/test-harness.test.sh applies to its own library and the only thing
-# that makes these three assertions capable of failing.
 HELPER_SELF_FAIL=0
 
-# helper_report_child <passes> <failures>: seed a FRESH child with that many
-# ok/bad calls and run `report` in it. Prints the child's stdout+stderr and RETURNS
-# its exit status, so the call shape is `out=$(helper_report_child ...)` then
-# `rc=$?`; never `local out=$(...)`, where `local`'s own status wins.
-#
-# `env -u` makes the isolation structural rather than merely true today: PASS and
-# FAIL are plain shell variables, so a child already starts from the helper's
-# `:=0` defaults, but an exported pair would seed the child and turn the FAIL==0
-# direction into a false red.
 helper_report_child() {
   # shellcheck disable=SC2016  # the child resolves its own $1/$2/$3, so the body stays literal
   env -u PASS -u FAIL bash -c 'set -uo pipefail
@@ -387,8 +310,6 @@ while ((i++ < $3)); do bad "seeded failure"; done
 report' _ "$HOOK_DIR" "$1" "$2" 2>&1
 }
 
-# assert_helper_report <label> <expected-exit> <actual-exit> <expected-tally> <output>
-# ok/bad exactly as this file's other assertions, plus the independent bump.
 assert_helper_report() {
   if [[ "$3" == "$2" && "$5" == *"$4"* ]]; then
     ok "$1 (exit $3, $4)"
@@ -418,6 +339,5 @@ assert_helper_report "report exits non-zero for one failure among passes" \
 
 report
 report_rc=$?
-# Part 4's subject is `report` itself, so its return alone cannot be the verdict.
 ((HELPER_SELF_FAIL == 0)) || exit 1
 exit "$report_rc"

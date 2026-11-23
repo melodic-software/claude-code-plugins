@@ -38,7 +38,6 @@ $FailureNeedsAdmin = [bool]$envelopeVars.GetValue('FailureNeedsAdmin')
 $PassThru = [bool]$envelopeVars.GetValue('PassThru')
 $Human = [bool]$envelopeVars.GetValue('Human')
 
-# $sw is the name check bodies already use for the running clock.
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 try {
     . $CheckBody

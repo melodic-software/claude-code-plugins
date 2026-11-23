@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# The load-bearing tests here re-derive the digest INDEPENDENTLY, by printing the
-# pinned body with printf and hashing it, rather than comparing the script
-# against itself. A test that only asserted "the same input gives the same
-# output" would pass under any ordering, any separator, and any hash, which is
-# exactly the underspecification this script exists to close.
-#
-# Two are NEGATIVE tests in the sense this repo means it: they mutate a copy of
-# the script to delete exactly one check and assert the mutated copy reaches the
-# outcome the real one refuses.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -36,8 +27,6 @@ assert_not_contains() {
 
 run() { bash "$SCRIPT" "$@"; }
 
-# An independent sha256 of stdin, so the expected values below are not produced
-# by the code under test.
 ref_sha() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | cut -d' ' -f1
@@ -57,25 +46,18 @@ HB=$(ref_sha <"$FIX/b.md")
 LIST="$TEST_TMPDIR/list.tsv"
 printf 'b.md\t%s\na.md\t%s\n' "$FIX/b.md" "$FIX/a.md" >"$LIST"
 
-# --- Case 1: the digest matches an independent re-derivation ----------------
-#
-# Sorted ascending by byte order, `surface 0x1F hash`, entries joined by 0x1E,
-# no trailing separator, sha256 of the whole body. The list above is in the
-# OTHER order deliberately, so a script that hashed input order would fail here.
 
 EXPECTED=$(printf 'a.md\x1f%s\x1eb.md\x1f%s' "$HA" "$HB" | ref_sha)
 ACTUAL=$(run digest --list "$LIST")
 assert_eq "the digest equals the independently derived pinned body" "$EXPECTED" "$ACTUAL"
 assert_eq "the digest is 64 lowercase hex characters" 64 "${#ACTUAL}"
 
-# --- Case 2: deduplication on the surface token -----------------------------
 
 DUPES="$TEST_TMPDIR/dupes.tsv"
 printf 'a.md\t%s\nb.md\t%s\na.md\t%s\n' "$FIX/a.md" "$FIX/b.md" "$FIX/a.md" >"$DUPES"
 assert_eq "a surface listed twice contributes exactly one entry" \
   "$EXPECTED" "$(run digest --list "$DUPES")"
 
-# --- Case 3: the two sentinels ----------------------------------------------
 
 MISSING="$TEST_TMPDIR/missing.tsv"
 printf 'gone.md\t%s\n' "$FIX/does-not-exist" >"$MISSING"
@@ -89,8 +71,6 @@ mkdir -p "$FIX/adir"
 assert_eq "a path that cannot be read as bytes pairs with the unreadable sentinel" \
   "unreadable" "$(run hash-file --path "$FIX/adir")"
 
-# Neither sentinel can be mistaken for a content hash, which is the property that
-# lets one field carry both.
 for sentinel in deleted unreadable; do
   if [[ "$sentinel" =~ ^[0-9a-f]{64}$ ]]; then
     fail "the $sentinel sentinel is distinguishable from a content hash" "it is 64 hex chars"
@@ -99,22 +79,16 @@ for sentinel in deleted unreadable; do
   fi
 done
 
-# --- Case 4: the empty entry set --------------------------------------------
 
 EMPTY_EXPECTED=$(printf '' | ref_sha)
 assert_eq "a digest over no entries is sha256 of the empty byte string" \
   "$EMPTY_EXPECTED" "$(printf '' | run digest --list -)"
 
-# --- Case 5: --exclude removes an entry before hashing ----------------------
 
 EXPECTED_A_ONLY=$(printf 'a.md\x1f%s' "$HA" | ref_sha)
 assert_eq "--exclude drops that surface from the body" \
   "$EXPECTED_A_ONLY" "$(run digest --list "$LIST" --exclude b.md)"
 
-# --- Case 6: input-digest sorts cfg entries IN, not after -------------------
-#
-# `cfg:harness-version` sorts after `a.md` and `b.md` by byte order; a token that
-# sorts BEFORE them proves the cfg entries are not simply appended.
 
 HV=$(printf '2.1.268' | ref_sha)
 EXPECTED_CFG=$(printf 'a.md\x1f%s\x1eb.md\x1f%s\x1ecfg:harness-version\x1f%s' "$HA" "$HB" "$HV" | ref_sha)
@@ -131,14 +105,12 @@ rc=0
 run input-digest --list "$LIST" --config 'harness=2.1.268' >/dev/null 2>&1 || rc=$?
 assert_exit "a --config token not prefixed cfg: is refused" 2 "$rc"
 
-# --- Case 7: content changes move the digest --------------------------------
 
 printf 'beta changed\n' >"$FIX/b.md"
 assert_ne "editing a file's contents changes the digest" \
   "$EXPECTED" "$(run digest --list "$LIST")"
 printf 'beta\n' >"$FIX/b.md"
 
-# --- Case 8: dirty, and the --untracked-files=all requirement ---------------
 
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO/nested"
@@ -150,20 +122,12 @@ assert_contains "dirty lists a file inside an untracked directory" "$DIRTY" "nes
 assert_contains "dirty emits <surface>TAB<path> entries the digest can consume" \
   "$DIRTY" "nested/untracked.md	$REPO/nested/untracked.md"
 
-# NEGATIVE: drop --untracked-files=all and the untracked directory collapses to
-# one `?? nested/` entry, which is a directory and hashes to a sentinel rather
-# than to the file's content. A bound whose removal changes nothing is not a bound.
 COPY="$TEST_TMPDIR/no-untracked-all.sh"
 sed 's/--untracked-files=all //' "$SCRIPT" >"$COPY"
 MUTATED=$(bash "$COPY" dirty --target "$REPO")
 assert_not_contains "without --untracked-files=all the file inside it is not listed" \
   "$MUTATED" "nested/untracked.md"
 
-# A failing `git status` must never read as a clean tree. Consumed through a
-# process substitution the exit status is hidden, the loop reads nothing, and the
-# caller digests a dirty set that is EMPTY rather than unknown — so the
-# comparability gate evaluates against incomplete input and still returns a
-# verdict. Both shapes below reach `git status` and fail there.
 
 BARE="$TEST_TMPDIR/bare.git"
 git init --bare --quiet "$BARE" >/dev/null 2>&1
@@ -181,9 +145,6 @@ OUT=$(GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" run dirty --target "$NOTREPO" 2>/de
 assert_ne "a directory that is not a work tree does not report a clean dirty set" 0 "$rc"
 assert_eq "and prints nothing there either" "" "$OUT"
 
-# NEGATIVE: delete the status check and the same bare repo reports success with
-# an empty set, which is the defect. A guard whose removal changes nothing is
-# not a guard.
 COPY_ST="$TEST_TMPDIR/no-status-check.sh"
 # shellcheck disable=SC2016  # the $rc is literal script text being matched, not an expansion
 sed '/if \[\[ "\$rc" -ne 0 \]\]; then/,+5d' "$SCRIPT" >"$COPY_ST"
@@ -192,10 +153,6 @@ MUTATED=$(bash "$COPY_ST" dirty --target "$BARE" 2>/dev/null) || rc=$?
 assert_exit "without the status check a bare repo exits 0" 0 "$rc"
 assert_eq "with an empty dirty set indistinguishable from a clean tree" "" "$MUTATED"
 
-# NEGATIVE: remove the LC_ALL=C pin and the sort inherits the caller's collation.
-# Under a locale that ignores punctuation, `a-b.md` and `ab.md` swap places
-# against byte order, so the digest moves. Where no such locale is installed the
-# two agree and the case reports as not discriminating rather than as a pass.
 printf 'one\n' >"$FIX/a-b.md"
 printf 'two\n' >"$FIX/ab.md"
 COLLATE="$TEST_TMPDIR/collate.tsv"
@@ -229,7 +186,6 @@ else
   fi
 fi
 
-# --- Case 9: usage ----------------------------------------------------------
 
 rc=0
 run >/dev/null 2>&1 || rc=$?
@@ -248,20 +204,6 @@ BAD="$TEST_TMPDIR/bad.tsv"
 printf 'no-tab-here\n' >"$BAD"
 run digest --list "$BAD" >/dev/null 2>&1 || rc=$?
 assert_exit "a list entry with no tab exits 2" 2 "$rc"
-# --- Temp files survive no failure -----------------------------------------
-#
-# Every `die` in this script can fire while a temp file is live, and the script
-# is long-lived enough per run that litter accumulates in the operator's TMPDIR
-# rather than in a sandbox. Each case below is a DIFFERENT failing path holding a
-# different temp file, run against a TMPDIR of its own so the count is exact:
-# asserting on the whole directory rather than on a known name is what catches a
-# leak from a path this test did not anticipate.
-# The first case is deliberately NOT a leak case today: `cmd_digest` validates
-# readability before it calls `read_list_to_temp`, so no temp exists to leak. It
-# is here to pin that pre-check, because removing it would move the refusal into
-# a command substitution where the temp IS live and the exit reaches only the
-# subshell. The remaining three hold a live temp file at the refusal and fail
-# without the cleanup trap.
 LEAK_CASES=(
   "an unreadable --list:digest|--list|$TEST_TMPDIR/nope.tsv"
   "a --config with no equals:digest|--list|-|--config|badformat"

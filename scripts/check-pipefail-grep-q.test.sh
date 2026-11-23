@@ -60,7 +60,6 @@ expect_clean() {
   fi
 }
 
-# --- early-exit options, each in its own spelling ----------------------------
 expect_flag "-q" 1 <<'EOF'
 printf '%s\n' "$x" | grep -q foo
 EOF
@@ -98,7 +97,6 @@ expect_flag "an option after the pattern" 1 <<'EOF'
 echo "$x" | grep foo -q
 EOF
 
-# --- the grep word and the pipe in their other spellings ---------------------
 expect_flag "egrep" 1 <<'EOF'
 echo "$x" | egrep -q 'a|b'
 EOF
@@ -337,7 +335,6 @@ expect_clean "an option after --" <<'EOF'
 echo "$x" | grep -- -q
 EOF
 
-# --- the interface ------------------------------------------------------------
 run_gate "$WORK/does-not-exist.sh"
 if ((RC == 2)) && [[ -n "$ERR" && -z "$OUT" ]]; then
   ok "a missing file argument exits 2 with a diagnostic on stderr"
@@ -422,7 +419,6 @@ else
   fail "expected two findings with source text and a count (rc=$RC, stderr='$ERR')"
 fi
 
-# --- the gate and this suite are themselves clean ----------------------------
 run_gate "$SCRIPT" "$SELF_DIR/check-pipefail-grep-q.test.sh"
 if ((RC == 0)) && [[ -n "$OUT" ]]; then
   ok "the gate and its suite scan clean"

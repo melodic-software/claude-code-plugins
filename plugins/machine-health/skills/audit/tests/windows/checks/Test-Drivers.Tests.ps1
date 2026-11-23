@@ -39,8 +39,6 @@ mocks applying in the test scope.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Drivers' -MockHelpers
 
-    # Dot-source the check script so Invoke-DriversCheck and its lib functions are defined
-    # here; the script's InvocationName guard skips its main body.
     . $script:ScriptPath
 
     function Invoke-DriversAsObject {
@@ -90,8 +88,6 @@ Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
         # being skipped and populating $adminFields.
         Mock Test-IsElevated { $true }
         Mock Get-PnpProblemDevice { @() }
-        # Short-circuit side-effecting calls (Win32_VideoController CIM, PATH probe,
-        # PSWindowsUpdate enumeration) so tests do not pay for them on CI.
         Mock Get-Module { $null }
         Mock Get-GpuDriverInfo { @() }
         Mock Get-VendorUpdateCli { @() }

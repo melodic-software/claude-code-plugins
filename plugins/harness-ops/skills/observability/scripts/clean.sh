@@ -57,27 +57,22 @@ set -uo pipefail
 KEEP_DAYS=30
 DRY_RUN=0
 QUIET=0
-# The hook log root: sessions/<id>.jsonl, the sink's shared hook-events.jsonl
-# and prune-pending/ live here. Same default as the hooks' session-log-lib.sh.
 HOOK_ROOT_REL=".observability/claude"
 # Skill-usage pruning is INERT unless --skill-usage-scope is passed. That is the
 # rollback story: with the flag absent this script's behavior is byte-for-byte
 # what it was, so reverting the feature is dropping one branch.
 SKILL_USAGE_SCOPE=""
 SKILL_USAGE_DIR=".claude/observability"
-# Only used by the data-dir scope, and only ever supplied explicitly.
 SKILL_USAGE_DATA_ROOT=""
 # Its own window, deliberately far longer than the 30-day hook-events default:
 # the store is the input to a starvation report that WANTS long history, and its
 # rows carry names and branches only, not content.
 KEEP_SKILL_USAGE_DAYS=365
-# Files a prune could not process (jq or IO failure, not writer contention) and
-# a failed OTEL delegate; either makes the run exit 1.
 FAILURES=0
 
 # A flag at the end of the line with no value is an error, not a silent default:
 # a truncated command must not prune under a window the caller never chose.
-need_value() { # <flag> <remaining args...>
+need_value() {
   [[ $# -ge 2 ]] || {
     echo "ERROR: $1 needs a value (see --help)" >&2
     exit 2
@@ -85,7 +80,6 @@ need_value() { # <flag> <remaining args...>
 }
 
 while [[ $# -gt 0 ]]; do
-  # A value flag's --flag=value form becomes --flag value.
   case "$1" in
   --keep-days=* | --hook-root=* | --skill-usage-scope=* | --skill-usage-dir=* | --skill-usage-data-root=* | --keep-skill-usage-days=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
@@ -143,8 +137,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Both retention windows are validated the same way, each naming its own flag.
-require_nonneg_int() { # <flag> <value>
+require_nonneg_int() {
   # An empty value is rejected too: it would reach `-mmin +0` below and remove
   # every session file.
   case "$2" in
@@ -217,7 +210,6 @@ prune_file() {
   # Third arg is an optional per-target cutoff. Absent, the caller's global
   # window applies -- so the hook-events call site is byte-for-byte unchanged.
   local CUTOFF_ISO="${3:-$CUTOFF_ISO}"
-  # Fourth arg is an optional lock file. Absent, the file's own <file>.lock.
   local lock_override="${4:-}"
   local label
   label=$(basename "$file")
@@ -305,8 +297,6 @@ prune_file() {
     "$label" "$before_lines" "$after_lines" "$pruned" "$before_bytes" "$after_bytes"
 }
 
-# Resolved once, above every consumer: the skill-usage data-dir branch below and
-# the OTEL delegation further down both need it.
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 prune_file "$HOOK_LOG" "ts"
@@ -372,8 +362,6 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     echo "ERROR: --skill-usage-dir must be a contained relative path (got: $SKILL_USAGE_DIR)" >&2
     exit 2
     ;;
-  # A contained relative path is the only accepted shape; anything absolute,
-  # drive-qualified, or traversing was rejected above.
   *) ;;
   esac
 
@@ -407,7 +395,6 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     ;;
   esac
 
-  # data-dir builds its path from the supplied data root, not from a base.
   if [[ "$SKILL_USAGE_SCOPE" != "data-dir" && -z "$SKILL_USAGE_BASE" ]]; then
     echo "ERROR: could not resolve a base directory for scope $SKILL_USAGE_SCOPE" >&2
     exit 2

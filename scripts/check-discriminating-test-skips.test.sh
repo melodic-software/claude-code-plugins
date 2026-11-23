@@ -62,7 +62,6 @@ EOF
   chmod +x "$1"
 }
 
-# --- copy-pairing skip_case fails the static gate ---------------------------
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then :; else skip_case "this git did not pair the fixture as a copy"; fi'
@@ -77,7 +76,6 @@ else
 fi
 rm -rf "$f"
 
-# --- fail_discriminating_skip is not flagged --------------------------------
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then :; else fail_discriminating_skip "unpaired"; fi'
@@ -88,7 +86,6 @@ else
 fi
 rm -rf "$f"
 
-# --- annotated skip_case passes ---------------------------------------------
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   '# discriminating-skip-ok: synthetic exemption fixture
@@ -100,7 +97,6 @@ else
 fi
 rm -rf "$f"
 
-# --- runtime: fail_discriminating_skip fails the suite with marker -----------
 tmp_test="$(mktemp --suffix=.test.sh "$TMP_ROOT/f.XXXXXX")"
 write_runtime_suite "$tmp_test" \
   'fail_discriminating_skip "synthetic: git diff --cached --name-status has 0 C record(s), expected 1"'
@@ -113,7 +109,6 @@ else
 fi
 rm -f "$tmp_test"
 
-# --- discriminating-skip-required rejects any skip_case reason --------------
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   '# discriminating-skip-required: load-bearing branch
@@ -129,7 +124,6 @@ else
 fi
 rm -rf "$f"
 
-# --- single-line if/fi must not corrupt later multi-line block tracking -----
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then ok "passed"; else fail "failed"; fi
@@ -145,7 +139,6 @@ else
 fi
 rm -rf "$f"
 
-# --- runtime: optional skip_case still passes --------------------------------
 tmp_test="$(mktemp --suffix=.test.sh "$TMP_ROOT/f.XXXXXX")"
 write_runtime_suite "$tmp_test" 'skip_case "symlinks unsupported on this platform"'
 if out="$(bash "$tmp_test" 2>&1)"; then

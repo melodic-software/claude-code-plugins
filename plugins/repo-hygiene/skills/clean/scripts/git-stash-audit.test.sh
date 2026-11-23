@@ -15,7 +15,6 @@ rc=0
 bash "$AUDIT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-# A no-op gh stub keeps the audit deterministic and offline.
 STUB_BIN="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
@@ -35,9 +34,6 @@ assert_contains "emits stash store key" "$empty_out" "StashStore:"
 assert_contains "zero stash count" "$empty_out" "Stash count: 0"
 assert_contains "summary line" "$empty_out" "Summary: stashes=0"
 
-# Populated repo: a stash on the default branch is live WIP (never superseded),
-# a stash whose source branch merged into origin/<default> is flagged possibly
-# superseded — but only ever as advisory, never dropped.
 REPO="$TEST_TMPDIR/repo"
 git init -q --bare "$TEST_TMPDIR/origin.git"
 git init -q -b main "$REPO"
@@ -67,11 +63,8 @@ assert_contains "counts both stashes" "$out" "Stash count: 2"
 assert_contains "emits diffstat" "$out" "Diffstat:"
 assert_contains "attributes source branch" "$out" "Source branch: feat/done"
 assert_contains "merged source flagged superseded" "$out" "possibly superseded"
-# A stash on the default branch is live WIP, never flagged superseded.
 assert_contains "main stash stays review" "$out" "review — confirm with the user"
 assert_contains "never auto-dropped disclaimer" "$out" "never auto-dropped"
-# Each stash carries its stable commit id — the safe handle for multi-drop, since
-# the stash@{n} selector renumbers after every drop.
 sha0="$(git -C "$REPO" rev-parse "stash@{0}" 2>/dev/null)"
 assert_contains "emits stable stash commit id" "$out" "Commit: $sha0"
 
@@ -129,8 +122,6 @@ EMPTYGH
   assert_not_contains "unwritable TMPDIR reports no count here too" "$mapfail_out" "PRCount:"
 fi
 
-# --- fleet form: --repo / --repos-from / --skip / --skip-from -------------------
-# Two repositories plus a linked worktree of the first; the first holds a stash.
 FL="$TEST_TMPDIR/fleet"
 mkdir -p "$FL"
 for r in one two; do

@@ -54,7 +54,6 @@ RESOLVER_N=$(norm "$RESOLVER")
 SKILL_N=$(norm "$SKILL")
 CONTRACT_N=$(norm "$CONTRACT")
 
-# both <consumer-haystack> <consumer-label> <label> <fixed-phrase>
 both() {
   local haystack="$1" hay_label="$2" label="$3" phrase="$4" where=""
   [[ "$CONTRACT_N" == *"$phrase"* ]] || where="reader contract"

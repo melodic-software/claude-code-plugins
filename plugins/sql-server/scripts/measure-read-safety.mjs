@@ -51,7 +51,6 @@ async function failureOf(fn) {
   }
 }
 
-// Who a session is, from its program name.
 const role = (program) => (program === APP_NAME ? 'agent' : program === WRITER_APP ? 'writer' : program ? 'other' : 'system');
 // What a waiting task waits on. sys.dm_os_waiting_tasks reports a negative
 // blocking_session_id for an owner SQL Server cannot name (-2 orphaned
@@ -223,7 +222,6 @@ class Lab {
     return count;
   }
 
-  // Holds an exclusive row lock from a writer session until released.
   async holdRowLock(id = LOCKED_ID) {
     const writer = await this.connect({ appName: WRITER_APP, database: DB });
     await this.run(writer, `BEGIN TRAN; UPDATE dbo.items SET payload = REPLICATE(N'y', 100) WHERE id = ${id};`);
@@ -378,7 +376,6 @@ async function openedTransaction(lab, viaExecutor) {
   return { outcome: outcome(error), open };
 }
 
-// How long a writer waits on a reader transaction under each isolation level.
 async function writerWaitUnder(lab, level, holdMs) {
   const reader = await lab.connectReader();
   await lab.run(reader, `SET TRANSACTION ISOLATION LEVEL ${level}; BEGIN TRAN; SELECT COUNT(*) FROM dbo.items WHERE id <= 1000;`);

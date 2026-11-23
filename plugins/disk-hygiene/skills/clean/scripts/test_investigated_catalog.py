@@ -1,5 +1,3 @@
-"""Catalog record rules: identity, operator answers, and non-authorization."""
-
 from __future__ import annotations
 
 import io

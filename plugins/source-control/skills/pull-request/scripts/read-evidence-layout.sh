@@ -77,13 +77,10 @@ elif ((has_base || has_default)); then
   usage
 fi
 
-# Each key's value and level, defaults first.
 max=4 max_level=default
 rec=false rec_level=default
 hi=256 hi_level=default
 
-# pick <key> <value> <pattern> <default> <level>: print "<value>\t<level>" when value matches,
-# else the default with an invalid-value level and a notice.
 pick() {
   if [[ "$2" =~ $3 ]]; then
     printf '%s\t%s' "$2" "$5"

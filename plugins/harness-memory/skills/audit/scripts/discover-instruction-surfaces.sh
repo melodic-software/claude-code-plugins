@@ -124,7 +124,6 @@ if [[ -d ".claude/rules" ]]; then
 fi
 
 if [[ -d "$config_root" ]]; then
-  # An overlapping file or rules dir was already emitted above as `both`.
   if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then
     emit user claude-md "$config_root/CLAUDE.md"
   fi

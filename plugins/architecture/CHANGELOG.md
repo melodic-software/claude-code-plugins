@@ -3,6 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.5] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [6.0.4] - 2026-11-23
+
+### Changed
+
+- /architecture:improve-layout's co-change.mjs counts and groups through two named helpers; the report it prints is unchanged.
+
 ## [6.0.3] - 2026-11-23
 
 ### Changed

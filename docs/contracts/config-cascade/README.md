@@ -43,6 +43,19 @@ layers and [ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventio
 [Expression doctrine](#expression-doctrine-which-surfaces-are-files-and-which-are-convention-docs));
 the default is `docs/conventions`.
 
+**A linked worktree reads the main checkout's personal override.** Git does not copy an ignored
+file into a worktree made by `git worktree add`, so in a linked worktree the personal layer is
+`<main checkout>/<home>/<concern>.local.<ext>`, and its provenance names that file. The team layer
+stays the worktree's own. When the worktree has its own `<home>/<concern>.local.yaml` or
+`.local.md`, that file is the personal layer and the main checkout's is not read; the two are never
+merged. The shared resolver finds the main checkout from the worktree's `.git` file and the
+`commondir` file in its git directory, and takes the parent of that common directory only when it
+is a directory named `.git`. Any other layout (a bare repository, a `--separate-git-dir` clone, a
+submodule) leaves the worktree reading only its own file. The
+main checkout's file takes the same guards as the worktree's: a symlink is refused, and a relative
+`<home>` that resolves outside the main checkout makes the layer invalid. An absolute `<home>` is
+the same directory from every worktree.
+
 - **Precedence.** The personal layer beats the team layer, except on a policy-floor key, where it
   may only tighten. Instruction text beats config, and config beats plugin defaults. A skill that
   defers to an instruction says which file won, and instruction text never loosens a policy-floor

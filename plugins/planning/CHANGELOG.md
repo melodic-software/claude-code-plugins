@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.4] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+## [5.14.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [5.14.2] - 2026-11-23
+
+### Added
+
+- Eval cases `interview-adr-handoff-auto` and `interview-adr-handoff-off` grade the interview's
+  Decision record step by `domain_docs`: under `auto` a resolved, hard-to-reverse decision that
+  weighed an alternative goes to `/architecture:adr`; under `off` it does not, and its register
+  row records an ADR candidate. Each case loads an `architecture` stand-in so only the setting
+  decides the handoff.
+
 ## [5.14.1] - 2026-11-23
 
 ### Changed

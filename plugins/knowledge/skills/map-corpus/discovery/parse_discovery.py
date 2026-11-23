@@ -83,7 +83,7 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
             if not TRACKING_PARAMS_RE.match(k)
         ]
     )
-    return urlunsplit((scheme, netloc, path, query, ""))  # fragment dropped
+    return urlunsplit((scheme, netloc, path, query, ""))
 
 
 def extract_markdown_urls(text: str, base_url: str) -> list:
@@ -135,7 +135,7 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
         )
     urls = []
     for element in root.iter():
-        tag = element.tag.rsplit("}", 1)[-1]  # strip namespace
+        tag = element.tag.rsplit("}", 1)[-1]
         if tag == "loc" and element.text:
             normalized = normalize_url(element.text)
             if normalized:
@@ -293,7 +293,7 @@ def main(argv=None) -> int:
         urls, base_url, repository = extract_repo_tree_urls(data, args)
     elif args.rung == "sitemap-xml":
         urls = extract_sitemap_xml_urls(data)
-    else:  # llms-txt, sitemap-md: both are markdown-ish text
+    else:
         try:
             text = data.removeprefix(b"\xef\xbb\xbf").decode("utf-8")
         except UnicodeDecodeError as exc:

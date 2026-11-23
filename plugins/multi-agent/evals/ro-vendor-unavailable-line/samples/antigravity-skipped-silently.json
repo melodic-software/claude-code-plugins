@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday coding task)\ncodex: unavailable (codex binary not found)",
+      "why": "omits antigravity/gemini silently"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default)\ncodex: unavailable (codex binary not found)\ngemini: unavailable (not in use)",
+      "why": "prints a line for a vendor marked in_use: false"
+    }
+  ]
+}

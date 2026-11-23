@@ -9,13 +9,8 @@
 # test-scope: plugins/guardrails/*
 
 set -uo pipefail
-# block-credential-read ships off (plugin.json default
-# false); these cases exercise it, so turn it on.
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
 export CLAUDE_PLUGIN_OPTION_BLOCK_MAIN_CHECKOUT_EDIT_ENABLED=true
-# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
-# guard's refusal into an ask (hooks/refuse.sh). Pin it to 0 so a run here
-# gets the result CI gets.
 export CLAUDE_CODE_SESSION_ATTENDED=0
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,10 +33,6 @@ OUT=""
 ERR=""
 RC=0
 
-# Insert <line> after the first line of <file> matching <regex>. awk plus a
-# rename rather than `sed -i`, whose in-place flag differs between GNU and BSD.
-# Fails the suite when the anchor is absent: an injection that silently did
-# nothing would make every assertion below vacuous.
 inject_after() {
   local file="$1" regex="$2" line="$3" hits
   hits=$(awk -v re="$regex" '$0 ~ re { n++ } END { print n + 0 }' "$file")
@@ -53,20 +44,12 @@ inject_after() {
     "$file" >"$file.injected" && mv "$file.injected" "$file"
 }
 
-# feed_run <payload> <cmd...>: the payload on the command's stdin from a file.
-# Never a here-string (see lib/hook-utils.sh on the 64 KiB deadlock), and never a
-# pipe: a guard that exits before reading stdin (a forced abort, the kill
-# switch) leaves a printf still writing to a closed pipe, which pipefail reports.
 feed_run() {
   printf '%s' "$1" >"$TEST_TMPDIR/payload"
   shift
   "$@" <"$TEST_TMPDIR/payload"
 }
 
-# run_hook <env NAME=VAL ...> -- <cmd...>: fills OUT, ERR, RC. A fixed benign
-# environment: no project dir, telemetry sink unset, both opt-in advisory
-# hooks switched on (each exits 0 at its own top line otherwise, before the
-# boundary is installed, which is a chosen status and not what this tests).
 run_hook() {
   local -a envs=()
   while (($#)) && [[ "$1" != "--" ]]; do
@@ -75,12 +58,6 @@ run_hook() {
   done
   shift
   local rc=0
-  # A subshell with exports rather than `env`, which execs a program and so
-  # cannot run the feed_run function. It runs outside any repository, so the
-  # deny_on_crash team file of the checkout running this suite is not read;
-  # a case that wants one sets CLAUDE_PROJECT_DIR to a fixture repository.
-  # The ceiling is the parent: git still walks up from a directory that is
-  # itself a ceiling, and stops only below one.
   (
     cd "$TEST_TMPDIR" || exit 99
     export GIT_CEILING_DIRECTORIES="${TEST_TMPDIR%/*}"
@@ -96,7 +73,7 @@ run_hook() {
   RC=$rc
 }
 
-count_notices() { # <text> -> number of lines carrying the notice
+count_notices() {
   local n=0 line
   while IFS= read -r line; do
     [[ "$line" == *"$NOTICE"* ]] && n=$((n + 1))
@@ -104,7 +81,7 @@ count_notices() { # <text> -> number of lines carrying the notice
   echo "$n"
 }
 
-json_field() { # <document> <jq-path>
+json_field() {
   printf '%s' "$1" | jq -r "$2 // empty" 2>/dev/null
 }
 
@@ -112,16 +89,8 @@ BASH_BENIGN=$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",to
 BASH_NO_VERIFY=$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:"git commit --no-verify -m x"}}')
 BASH_FORCE_PUSH=$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:"git push --force origin main"}}')
 
-# --- The registered hook set, read from hooks.json --------------------------
-# Every command is tokenised; `--lib <path>` pairs are dropped (a library, not
-# a hook); every remaining *.sh token is a registered script, the dispatcher
-# included. EVENTS records the event(s) each script is registered under, so a
-# script registered under two events is listed once.
 declare -A EVENTS=()
 REGISTERED=()
-# Libraries a registered hook sources at run time, plugin-relative:
-# hook-utils.sh in every hook, the `--lib` paths in the dispatcher. A trap in
-# one of these replaces the boundary as surely as one in the hook itself.
 SOURCED_LIBS=("hooks/hook-utils.sh")
 set -f
 while IFS=$'\t' read -r ev cmd; do
@@ -142,7 +111,6 @@ while IFS=$'\t' read -r ev cmd; do
       skip=1
       continue
     fi
-    # --bps-seed names the library node reads the jq program from, not a hook.
     if [[ "$tok" == "--bps-seed" ]]; then
       skip=2
       continue
@@ -159,9 +127,6 @@ while IFS=$'\t' read -r ev cmd; do
 done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | .hooks[] | "\($ev)\t\(.command) \(((.args // []) | join(" ")))"' "$HOOK_DIR/hooks.json")
 set +f
 
-# A parse that quietly found nothing would make the whole suite pass on an
-# empty loop. The set is fifteen guards plus the dispatcher today; the floor
-# is loose on purpose so removing a guard is not a failure here.
 if ((${#REGISTERED[@]} >= 10)); then
   ok "hooks.json yields a registered set of ${#REGISTERED[@]} scripts"
 else
@@ -171,24 +136,11 @@ for name in "${REGISTERED[@]}"; do
   [[ -f "$HOOK_DIR/$name" ]] || bad "registered script missing from hooks/: $name"
 done
 
-# exit_trap_hits <file>: lines that install an EXIT trap (or signal 0). First
-# stage finds a `trap` statement; second stage requires the EXIT/0 token to be
-# bounded on the right by whitespace, end-of-line, or a statement terminator
-# (`;`, `&`, `|`, `)`). The terminator class is required: a one-liner such as
-# `if cond; then trap cleanup EXIT; fi` has EXIT immediately followed by `;`,
-# and a trailing-space-or-EOL-only boundary would drop that line from hits.
-# Comment lines are skipped; a `trap` naming only other signals is not a hit.
 exit_trap_hits() {
   grep -nE '^[^#]*(^|[;&|{(]|then|do|else)[[:space:]]*trap[[:space:]]' "$1" |
     grep -E '(^|[[:space:]])(EXIT|0)([[:space:];&|)]|$)' || true
 }
 
-# assert_no_exit_trap <label> <file>: bash holds ONE EXIT trap per shell. A
-# hook, or a library it sources, that runs its own `trap ... EXIT` (or
-# `trap - EXIT`) after the install line replaces the boundary, and that hook
-# is back to the silent abort this suite exists to rule out: rc 1, nothing
-# written, no signal at run time. abort-boundary.sh is the one file allowed to
-# touch it, and its header names the supported way to chain exit-time work.
 assert_no_exit_trap() {
   local label="$1" file="$2" hits
   hits=$(exit_trap_hits "$file")
@@ -199,9 +151,6 @@ assert_no_exit_trap() {
   fi
 }
 
-# assert_exit_trap_detected <label> <file>: the detector must flag this file.
-# Used on fixtures, not on shipped hooks: a miss here is the silent-exclusion
-# hole (a competing trap that this suite would have called a pass).
 assert_exit_trap_detected() {
   local label="$1" file="$2" hits
   hits=$(exit_trap_hits "$file")
@@ -212,7 +161,6 @@ assert_exit_trap_detected() {
   fi
 }
 
-# --- Static: every registered script installs the boundary ------------------
 for name in "${REGISTERED[@]}"; do
   stem="${name%.sh}"
   if grep -qE '^source "[$](_HOOK_SELF|_RG_DIR)/abort-boundary.sh"$' "$HOOK_DIR/$name"; then
@@ -239,10 +187,6 @@ for lib in "${SOURCED_LIBS[@]}"; do
   assert_no_exit_trap "$lib" "$PLUGIN_DIR/$lib"
 done
 
-# deny_on_crash names a guard by the name it installs the boundary under. The
-# library's list of those names must match the PreToolUse install lines and
-# the dispatcher's, so a new guard can be named and a removed one is reported
-# as unknown.
 installed=""
 for f in "$HOOK_DIR"/*.sh; do
   [[ "$f" == *.test.sh ]] && continue
@@ -288,13 +232,12 @@ assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 # accepted: it blocks on every status but 0 and 3.
 # shellcheck disable=SC2016  # the exit form is matched as literal text
 PV_EXIT='guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))'
-verdict_unconsumed() { # <file>: lines calling the helper in any other form
+verdict_unconsumed() {
   grep -nE '^[^#]*guard::payload_verdict[[:space:]]' "$1" | grep -vF "$PV_EXIT"
 }
 pv_callers=" "
 for f in "$HOOK_DIR"/*.sh; do
   [[ "$f" == *.test.sh ]] && continue
-  # A call line, not the usage line in the helper's own doc comment.
   grep -qv '^[[:space:]]*#' < <(grep -F "$PV_EXIT" "$f") && pv_callers+="${f##*/} "
   hits=$(verdict_unconsumed "$f")
   if [[ -n "$hits" ]]; then
@@ -327,12 +270,6 @@ else
   bad "run-guards.sh no longer primes .hook_event_name; the dispatcher's notice cannot name the event"
 fi
 
-# --- Forced abort in EVERY registered guard, on a copy of the plugin --------
-# The injection is an unbound-variable expansion right after the install line:
-# the real `set -u` abort path, at the point every guard reaches on every fire.
-# Expected on each: exit 0 (the declared fail-open posture), one stderr line
-# naming the guard and the status, and one hook JSON document on stdout whose
-# systemMessage carries the same text, with nothing on the model's channel.
 COPY="$TEST_TMPDIR/plugin"
 cp -R "$PLUGIN_DIR" "$COPY"
 for name in "${REGISTERED[@]}"; do
@@ -340,7 +277,6 @@ for name in "${REGISTERED[@]}"; do
   stem="${name%.sh}"
   inject_after "$COPY/hooks/$name" "^guard::abort_boundary ${stem} " \
     ": \"\${${MARKER}?forced abort}\"" || continue
-  # cloud-shfmt leaves before its boundary outside a cloud session.
   run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys CLAUDE_CODE_REMOTE=true -- feed_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
   assert_exit "$stem: forced abort exits with the declared fail-open posture" 0 "$RC"
   assert_contains "$stem: stderr names the guard and the status" "$ERR" \
@@ -356,11 +292,6 @@ for name in "${REGISTERED[@]}"; do
   assert_eq "$stem: nothing on the model's channel" "" "$(json_field "$OUT" .hookSpecificOutput)"
 done
 
-# --- Mid-hook abort through a shared helper that fails ----------------------
-# Deeper than the prologue: hook-utils.sh has loaded and stdin has been read
-# when a shared helper, redefined to trip an unbound expansion, aborts the
-# guard. One blocking hook (hook::jq_fields) on a payload it would otherwise
-# DENY, one advisory hook (hook::require jq) on its normal PostToolUse payload.
 MID="$TEST_TMPDIR/mid"
 cp -R "$PLUGIN_DIR" "$MID"
 inject_after "$MID/hooks/block-windows-drive-tmp.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
@@ -372,8 +303,6 @@ assert_contains "block-windows-drive-tmp: helper failure is named on stderr" "$E
   "guardrails block-windows-drive-tmp: ${NOTICE}1); this call was not checked"
 assert_eq "block-windows-drive-tmp: helper failure tells the user only" "" \
   "$(json_field "$OUT" .hookSpecificOutput)"
-# The same payload on the shipped guard is a deny, which is what makes the
-# fail-open above a documented, visible allow rather than a silent one.
 run_hook OSTYPE=msys -- feed_run "$(write_json 'D:/tmp/x' 'body')" bash "$HOOK_DIR/block-windows-drive-tmp.sh"
 assert_exit "block-windows-drive-tmp: shipped guard still denies D:/tmp" 2 "$RC"
 assert_absent "block-windows-drive-tmp: a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
@@ -389,9 +318,8 @@ assert_contains "cli-flag-verify: helper failure is named on stderr" "$ERR" \
 assert_eq "cli-flag-verify: helper failure tells the user only" "" \
   "$(json_field "$OUT" .hookSpecificOutput)"
 
-# --- Dispatched: an aborting guard neither masks a sibling's deny nor hides --
 DISPATCH="$HOOK_DIR/run-guards.sh"
-ABORTING="$COPY/hooks/block-no-verify.sh" # injected above
+ABORTING="$COPY/hooks/block-no-verify.sh"
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/block-dangerous-git.sh"
 assert_exit "dispatched: sibling deny still wins the exit code beside an aborting guard" 2 "$RC"
 assert_contains "dispatched: the abort notice is on stderr next to the deny" "$ERR" \
@@ -405,7 +333,6 @@ assert_contains "dispatched: benign call carries the notice as systemMessage" \
 assert_eq "dispatched: the notice stays off the model's channel" "" \
   "$(json_field "$OUT" .hookSpecificOutput)"
 
-# Two aborting guards: the dispatcher merges both notices into ONE document.
 run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$COPY/hooks/block-dangerous-git.sh"
 assert_exit "dispatched: two aborting guards exit 0" 0 "$RC"
 assert_eq "dispatched: two notices merge into one document" 1 "$(printf '%s\n' "$OUT" | jq -c . 2>/dev/null | grep -c .)"
@@ -459,7 +386,6 @@ run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"
 assert_exit "dispatcher: a guard's deliberate 3 is aggregated, not reported as an abort" 3 "$RC"
 assert_absent "dispatcher: released boundary emits no notice for the aggregated status" "$ERR$OUT" "$NOTICE"
 
-# --- Transparency: chosen statuses pass through with no notice --------------
 run_hook -- feed_run "$BASH_NO_VERIFY" bash "$HOOK_DIR/block-no-verify.sh"
 assert_exit "shipped block-no-verify still denies --no-verify" 2 "$RC"
 assert_absent "a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
@@ -475,11 +401,6 @@ run_hook CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
 assert_exit "shipped cli-flag-verify exits 0 on plain prose" 0 "$RC"
 assert_absent "an advisory hook's normal run carries no abort notice" "$ERR$OUT" "$NOTICE"
 
-# --- A field read that fails other than "unparsable" is a quiet allow --------
-# hook::jq_fields returns 2 for a payload jq rejects and 1 only when jq is
-# absent, which hook::require_jq_blocking has already refused, so no payload
-# reaches any other status. A stub on a copy of the plugin does: the six guards
-# that refuse status 2 must let every other failure through, silently.
 for jq_status in 1 3; do
   SEAM="$TEST_TMPDIR/jq-status-$jq_status"
   cp -R "$PLUGIN_DIR" "$SEAM"
@@ -493,12 +414,6 @@ for jq_status in 1 3; do
   done
 done
 
-# --- deny_on_crash: a named guard denies when it aborts ---------------------
-# block-dangerous-git with an unbound expansion on its block path: a force push
-# aborts it, a benign command never reaches the line. Named in deny_on_crash
-# (the option, or the team file at origin/HEAD), the abort denies with the
-# notice; not named, it allows with the notice, as before. Each case runs the
-# guard directly and through the dispatcher.
 DENY="$TEST_TMPDIR/deny"
 cp -R "$PLUGIN_DIR" "$DENY"
 DENY_BDG="$DENY/hooks/block-dangerous-git.sh"
@@ -506,7 +421,6 @@ inject_after "$DENY_BDG" '^block[(][)] [{]$' ": \"\${${MARKER}?forced abort on t
 DENY_OPT=CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH
 DENIED="guardrails block-dangerous-git: ${NOTICE}1); deny-on-crash: this tool call is denied"
 ALLOWED="guardrails block-dangerous-git: ${NOTICE}1); this call was not checked"
-# deny_team_repo <dir> <yaml body>: origin/HEAD carries the team file.
 deny_team_repo() {
   if ! {
     git init -q "$1" && mkdir -p "$1/docs/conventions" &&
@@ -530,7 +444,6 @@ deny_team_repo "$TEAM_WT" 'fix_request_post: allow'
 printf 'deny_on_crash: [block-dangerous-git]\n' >"$TEAM_WT/docs/conventions/guardrails.yaml"
 
 for via in direct dispatched; do
-  # deny_run <env...>: the force push through the aborting guard, by $via.
   deny_run() {
     if [[ "$via" == direct ]]; then
       run_hook "$@" -- feed_run "$BASH_FORCE_PUSH" bash "$DENY_BDG"
@@ -584,7 +497,6 @@ for via in direct dispatched; do
     "remove block-dangerous-git from deny_on_crash in /plugin configure and from deny_on_crash in docs/conventions/guardrails.yaml on the default branch"
   assert_eq "$via: both layers name the guard: exactly one notice line" 1 "$(count_notices "$ERR")"
 
-  # No abort, no change: the benign command never reaches the injected line.
   if [[ "$via" == direct ]]; then
     run_hook "$DENY_OPT=block-dangerous-git" -- feed_run "$BASH_BENIGN" bash "$DENY_BDG"
   else
@@ -594,8 +506,6 @@ for via in direct dispatched; do
   assert_silent "$via: option set, no abort: nothing is written" "$ERR$OUT"
 done
 
-# Two aborting guards in one dispatch: the named one denies, the other keeps
-# its notice, and an unknown name is reported once for the call.
 run_hook "$DENY_OPT=block-dangerous-git,nope" -- feed_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$ABORTING" "$DENY_BDG"
 assert_exit "dispatched: a named aborting guard denies beside an unnamed one" 2 "$RC"
 assert_contains "dispatched: the named guard's notice says denied" "$ERR" "$DENIED"

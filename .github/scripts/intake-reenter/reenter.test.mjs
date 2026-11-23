@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { main } from "./reenter.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
@@ -551,8 +551,6 @@ test("a hold in the Work status field the labels lack stops a decision, which ge
   assert.deepEqual(w.labels(), ["status: confirmed"]);
 });
 
-// With no status label, the field decides: a decision answers its
-// needs-owner-decision or confirmed, and its ready awaits no answer.
 test("an issue with no status label is judged by its Work status field", async () => {
   for (const state of ["needs-owner-decision", "confirmed"]) {
     const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }] });
@@ -565,8 +563,6 @@ test("an issue with no status label is judged by its Work status field", async (
   assert.deepEqual(ready.writes, [], "ready");
 });
 
-// An issue whose hold exists only on the field: a listed human's reply or
-// decision answers it; a second run reads the field at needs-triage and stops.
 test("a field-only hold is answered once, with no label written", async () => {
   for (const [hold, body] of [
     ["needs-reporter-info", "It is the Windows host."],
@@ -1139,9 +1135,6 @@ test("the job hands the script the field change's action and sender", () => {
   assert.match(workflow, /^ {10}SENDER_ID: \$\{\{ github\.event\.sender\.id \}\}$/m);
 });
 
-// The two holds under their new names, as the live rename leaves them: the
-// issue carries `needs-owner-decision` or `needs-reporter-info`, and the same
-// answers release it, by the name the issue carries.
 const deletedLabels = (w) => w.writes.filter(([method]) => method === "DELETE").map(([, path]) => decodeURIComponent(path.slice(path.lastIndexOf("/") + 1)));
 
 test("a listed human's decision removes needs-owner-decision and sends the issue back to triage", async () => {

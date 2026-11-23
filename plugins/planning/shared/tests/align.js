@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
-// spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
-// its text, attributes or fields, and the geometry: no page scroll,
-// no horizontal overflow, the focus view's blocks on the question's column (column), a phone's previous and next arrows on the question
-// position's row (qnav-row), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
-// place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
-// on the button within 0.5 px (icon-center).
-//   node plugins/planning/shared/tests/align.js                (every size)
-//   ALIGN_PART=a node plugins/planning/shared/tests/align.js   (the sizes of part a in PARTS)
-//   ALIGN_VIEWS=chat,focus-q1-short ALIGN_SIZES=390x844,1440x900 node plugins/planning/shared/tests/align.js
-// Screenshots of failing states go to a temp folder whose path is printed. Exits 1 on any failure.
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 "use strict";
 const fs = require("node:fs");
 const os = require("node:os");
@@ -18,15 +6,12 @@ const path = require("node:path");
 const zlib = require("node:zlib");
 const { loadPlaywright, suite, settled } = require("./browser_harness");
 
-// Each size sits in one part, and align-<part>.test.sh runs that part (ALIGN_PART), so every size runs in exactly one
-// wrapper; main() refuses a run while a part has no wrapper or a size sits in two parts.
 const PARTS = { a: [[390, 844], [768, 1024]], b: [[1024, 768], [1440, 900]], c: [[2560, 1440]] };
 const SIZES = Object.values(PARTS).flat();
 const THEMES = ["dark", "light"];
 const MAX_DETAIL = 6;
 const list = v => (v || "").split(",").map(x => x.trim()).filter(Boolean);
 
-/** A w x h PNG in two colors, striped, so each picture is its own asset. */
 function png(w, h, [r1, g1, b1], [r2, g2, b2]) {
   const raw = Buffer.alloc((w * 3 + 1) * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -42,11 +27,9 @@ function png(w, h, [r1, g1, b1], [r2, g2, b2]) {
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80"><rect x="4" y="4" width="90" height="72" fill="none" stroke="black"/><text x="20" y="45">Cart</text><rect x="120" y="4" width="90" height="72" fill="none" stroke="black"/><text x="130" y="45">Pay</text></svg>';
 const q = (id, text, format = { kind: "text" }, extra = {}) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format, ...extra });
 
-/** Seed the varied session over the API: questions in two rounds, people, answers, votes, a lock, chat, mentions,
- *  a proposal, a request and a published result. Attachments have no route yet (core.js uploadOffer), so none. */
 async function seed(s, A) {
   const base = A.localUrl.replace(/\/$/, ""), owner = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
-  const last = new Map(); // one write a second per person and route (session.py WRITE_INTERVAL)
+  const last = new Map();
   async function post(route, body, who) {
     const key = `${who.id}|${route}`, wait = (last.get(key) || 0) + 1100 - Date.now();
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -63,7 +46,7 @@ async function seed(s, A) {
   const shot = s.asset(A.dir, "shot.png", png(640, 400, [40, 90, 160], [220, 220, 230]));
   const pics = [[200, 60, 60], [60, 160, 90], [230, 180, 40], [120, 70, 170]].map((c, i) => s.asset(A.dir, `opt${i + 1}.png`, png(320, 200, c, [245, 245, 245])));
   const svg = s.asset(A.dir, "flow.svg", SVG);
-  const longWord = "Supercalifragilistic".repeat(15); // 300 characters, no break
+  const longWord = "Supercalifragilistic".repeat(15);
   const refs = [
     { kind: "image", asset: shot, rect: { x: 6, y: 8, w: 32, h: 30 }, caption: "The current checkout, with the order summary boxed" },
     { kind: "quote", text: "Most people abandon a checkout that asks them to create an account first.", source: "Support survey, spring", url: "https://example.com/survey" },
@@ -108,7 +91,6 @@ async function seed(s, A) {
     summary: "Four of five big shops keep the summary in a right column on desktop and collapse it on phones.", sources: [{ title: "Patterns", url: "https://example.com/p" }],
     report: "## Findings\n\nFour of five shops use a right column.\n\n" + "Detail line. ".repeat(40) }]).results[0];
   await post("/api/request/act", { id: res.id, action: "publish" }, host).catch(e => console.log(`note: result not published (${e.message})`));
-  // Round 1 goes to Claude and comes back; round 2 holds a choice with pictures and a confirm with an image and a box.
   await post("/api/round/send", {}, host);
   s.apply(A.dir, [{ op: "ack-round", round: 1 }, { op: "open-round", questions: [
     q("Q9", "Anything to add before we decide?"),
@@ -122,14 +104,12 @@ async function seed(s, A) {
   await post("/api/pick", { qid: "Q11", option: "opt-1", comment: "", ...at }, chen);
   await post("/api/pick", { qid: "Q12", option: "yes", comment: "", ...at }, dana).catch(e => console.log(`note: no confirm pick (${e.message})`));
   await ans(eli, "Q9", "Nothing from me.");
-  // proposals after round 1 went out: a proposal in a sent round's digest needs a placement when the next round opens
   await post("/api/propose", { text: "Ask about express checkout buttons (Apple Pay, Google Pay) above the fold." }, chen);
   await post("/api/propose", { text: "Should we test the new layout with five customers first? @Eli could run it." }, dana);
   await post("/api/report", { text: "The Send button does nothing on my phone after I pick a layout.", ctx: { view: "focus", tab: "answer", qid: "Q11", round: 2,
     device: "phone", browser: "safari", viewport: { w: 390, h: 844 }, visualViewport: { w: 390, h: 508, scale: 1 }, errors: ["api slow-down: HTTP 429: Wait a moment"] } }, eli);
 }
 
-/** Why the parts cannot run every size exactly once: a part with no wrapper, a size in two parts, an unknown part. */
 function partsProblem(part) {
   const missing = Object.keys(PARTS).filter(p => !fs.existsSync(path.join(__dirname, `align-${p}.test.sh`)));
   if (missing.length) return `PARTS names part(s) with no align-<part>.test.sh: ${missing.join(", ")}`;
@@ -169,13 +149,10 @@ async function main() {
         if (!loaded) { await page.emulateMedia({ colorScheme: THEMES[0], reducedMotion: "reduce" }); await page.goto(A.ownerUrl); await page.reload(); await H.joinIfAsked("Kyle"); loaded = true; }
         let ok;
         for (const [i, theme] of THEMES.entries()) {
-          // the toast fades: set it up again for each theme; other views keep their state across a live theme switch
           await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
           if (i === 0 || v.startsWith("toast")) { await H.reset(); await H.mode("focus"); ok = await VIEWS[v](); }
           if (ok === "skip") break;
           await page.evaluate(t => { window.__expectToast = t; }, v.startsWith("toast"));
-          // Measured once the page holds still: mid-way through a theme switch's color transitions, a popover's or the
-          // chat panel's background reads as a half-way color the overlap rule cannot call opaque.
           const still = await settled(page, { rects: true });
           const tag = `${v} ${w}x${h} ${theme}`;
           const f = ok === false ? [{ rule: "setup", msg: "could not open this view" }]
@@ -187,7 +164,7 @@ async function main() {
             details.push(`FAIL ${tag}  (${path.basename(file)})\n    ` + f.slice(0, MAX_DETAIL).map(x => `[${x.rule}] ${x.msg}`).join("\n    ") + (f.length > MAX_DETAIL ? `\n    …${f.length - MAX_DETAIL} more` : ""));
           }
         }
-        if (/^(empty|crowd)-/.test(v)) loaded = false; // these leave the seeded page
+        if (/^(empty|crowd)-/.test(v)) loaded = false;
       }
     }
   } catch (e) {
@@ -205,7 +182,6 @@ async function main() {
   return code || pass !== results.length || !results.length ? 1 : 0;
 }
 
-/** A session of 13 guests and the host with one question open (the Host view needs a round), so the Host view's people list is past its compact cutoff (#8698). */
 async function crowd(s, C) {
   s.apply(C.dir, [{ op: "open-round", questions: [q("Q1", "Which loot rule should the first playable use?")] }]);
   const base = C.localUrl.replace(/\/$/, "");
@@ -225,18 +201,15 @@ function helpers(page) {
   const phone = () => page.evaluate(() => matchMedia("(max-width: 720px)").matches);
   const reset = async () => {
     for (let i = 0; i < 3; i++) await page.keyboard.press("Escape");
-    // drop drafts a view typed (the mention views), so the next view starts clean
     await page.evaluate(() => {
       for (const t of document.querySelectorAll("#vf-answer, .vf-minput")) if (t.value) { t.value = ""; t.dispatchEvent(new Event("input", { bubbles: true })); }
       document.activeElement?.blur?.();
     });
-    // the speech views turn Read aloud and Dictate on: every other view starts with them off, as a new person has them
     if (await page.evaluate(() => { const p = window.Core?.state?.me?.prefs || {}; return "readAloud" in p || "dictate" in p; })) {
       await page.evaluate(() => window.Core.savePrefs({ readAloud: null, dictate: null }));
       await page.waitForFunction(() => !document.querySelector(".vf-readbtn:not([hidden])"), null, { timeout: 5000 }).catch(() => {});
     }
   };
-  // phones reach Ask Claude, Share, Settings and Host through the More sheet
   const more = async label => { if (!(await clickIn(".vf-tab", "More"))) return false; await page.waitForTimeout(120); return clickIn(".vf-msitem", label); };
   const mode = async m => {
     if (await phone()) return m === "host" ? more("Host view") : clickIn(".vf-tab", { focus: "Answer", compare: "Compare", tree: "Tree" }[m]);
@@ -246,7 +219,6 @@ function helpers(page) {
     await page.waitForTimeout(300);
     if (await page.locator("#core-n").count()) {
       await page.fill("#core-n", name); await page.click("dialog.core-name button");
-      // "Were you here before as …?": a fresh guest at each size answers No
       await page.waitForTimeout(400);
       await page.locator("dialog.core-name .core-btn-quiet").click({ timeout: 1000 }).catch(() => {});
     }
@@ -257,7 +229,6 @@ function helpers(page) {
 
 function views(page, CFG) {
   const { clickIn, phone, more, mode, joinIfAsked } = helpers(page);
-  // the Claude thread: the "Claude on this question" section below the answers, opened
   const claudeTab = async () => { if (await page.evaluate(() => document.querySelector(".vf-cltoggle")?.getAttribute("aria-expanded") !== "true")) await page.click(".vf-cltoggle"); return true; };
   const gotoQ = async id => { await mode("tree"); const ok = await clickIn(`[data-tkey="q:${id}"]`); await mode("focus"); return ok; };
   const railTab = async () => { if (await phone()) await clickIn(".vf-tab", "Questions"); };
@@ -269,7 +240,6 @@ function views(page, CFG) {
   let guests = 0;
   return {
     "focus-q1-short": () => gotoQ("Q1"),
-    // O113: the owner's "Who must answer" panel, open; the column rule holds it to the question's width
     "for-panel": async () => { await gotoQ("Q1"); if (!(await clickIn(".vf-forbtn"))) return false; await W(120); return page.evaluate(() => !document.querySelector(".vf-forbox").hidden); },
     "focus-q3-longword": () => gotoQ("Q3"),
     "focus-q4-locked": () => gotoQ("Q4"),
@@ -280,7 +250,6 @@ function views(page, CFG) {
     "compare": () => mode("compare"),
     "tree": () => mode("tree"),
     "proposed": async () => { await railTab(); return clickIn(".vf-proprow", "Proposed"); },
-    // the Inbox page on Needs you: the host's request rows behind their chips, and what else waits on the host
     "review": async () => { if (!((await phone()) ? await more("Inbox") : await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "Needs you"); },
     "inbox-history": async () => { if (!((await phone()) ? await more("Inbox") : await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "History"); },
     "propose-form": async () => { await railTab(); return clickIn(".vf-propose"); },
@@ -289,11 +258,8 @@ function views(page, CFG) {
     "share": async () => ((await phone()) ? more("Share") : clickIn(".vf-sharebtn")),
     "shortcuts": async () => { await page.keyboard.press("?"); return true; },
     "person-card": async () => { await gotoQ("Q1"); return clickIn(".vf-card [data-pid], .vf-alist [data-pid]"); },
-    // Q2 has answers but no votes, so Lock top answer only shows a toast (no state change)
     "toast": async () => { await gotoQ("Q2"); const ok = await clickIn(".vf-anshead .vf-btn-brass"); await W(300); return ok; },
     "toast-chat": async () => { await gotoQ("Q2"); await clickIn(".vf-fab"); const ok = await clickIn(".vf-anshead .vf-btn-brass"); await W(300); return ok; },
-    // #9202: the message box grows to several lines under a shown toast; in the modal chat (below 1100 px) the toast
-    // moves up with the typing line, clear of it and of the box
     "toast-chat-grow": async () => {
       await gotoQ("Q2"); await clickIn(".vf-fab"); if (!(await clickIn(".vf-anshead .vf-btn-brass"))) return false; await W(300);
       const ok = await page.evaluate(() => {
@@ -312,7 +278,6 @@ function views(page, CFG) {
       if (await phone()) return more("Report a problem");
       await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-report");
     },
-    // Your reports: the owner files one the first time (one report every 10 s), then opens the list from More or Help
     "my-reports": async () => {
       if (!(await page.evaluate(() => (window.Core.state.myReports || []).length))) {
         await page.evaluate(() => window.Core.report("The Send button did nothing on the payment question", window.Core.reportContext()));
@@ -326,17 +291,15 @@ function views(page, CFG) {
     "choice": () => gotoQ("Q11"),
     "confirm": () => gotoQ("Q12"),
     "choice-lightbox": async () => { await gotoQ("Q11"); return clickIn(".vf-optview"); },
-    // the owner's pick stays between sizes: choose only when it is not chosen yet
     "choice-picked": async () => {
       await gotoQ("Q11");
       if (!(await page.evaluate(() => !!document.querySelector(".vf-opt[data-state='mine']")))) { await clickIn(".vf-optchoose", "Choose"); await W(400); }
       return page.evaluate(() => !!document.querySelector(".vf-opt[data-state='mine']"));
     },
     "claude-hidden": () => gotoQ("Q3"),
-    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "Sign in on another device"); }, // the owner's pairing popup
+    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "Sign in on another device"); },
     "msg-menu": async () => { await clickIn(".vf-fab"); await W(150); return clickIn(".vf-msgmore"); },
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
-    // the Inbox remembers its tab on the device, and "review" leaves it on Needs you: these start on Notifications
     "bell": async () => { if (!(await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); },
     "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); await clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); await W(120);
       // from 1100 px the switches sit open beside the messages with no button (follow-up 51); below, the button opens them
@@ -357,19 +320,15 @@ function views(page, CFG) {
     "confirm-unlock": async () => { await gotoQ("Q4"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
     "confirm-remove": async () => { await mode("host"); return clickIn(".vf-hpeople .vf-btn-danger", "Remove"); },
     "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
-    // Read aloud on the question's row and Dictate in the answer box, both on: the choice question, then the answer box open
     "speech-choice": async () => { await gotoQ("Q11"); return speechOn(); },
     "speech-answer": async () => { await gotoQ("Q9"); if (!(await speechOn())) return false; await page.click("#vf-answer"); await W(150); return true; },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
-    // last: these leave the seeded page; the next view reloads it
-    // #8698: past 12 people the Host view's people rows are compact, one line each
     "crowd-host": async () => { await page.goto(CFG.crowdHost); await page.reload(); await joinIfAsked("Kyle"); return mode("host"); },
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },
     "empty-guest": async () => { await page.goto(CFG.emptyGuest); await page.evaluate(() => localStorage.clear()); await page.reload(); await joinIfAsked(`Sam${++guests}`); return true; },
   };
 }
 
-/** The geometry rules, run in the page. Returns [{rule, msg}]. */
 const check = (page, theme) => page.evaluate(theme => {
   const T = 0.5, out = [];
   const app = document.getElementById("app");
@@ -393,28 +352,24 @@ const check = (page, theme) => page.evaluate(theme => {
     return [...rg.getClientRects()].find(r => r.width > 0) || null;
   };
   if (!app) return [{ rule: "setup", msg: "no #app on the page" }];
-  // 0. No mention token (<@pid>, as the server stores a mention) anywhere: in text, an attribute, a field or the title.
   const raw = [document.title, document.documentElement.textContent, ...[...document.querySelectorAll("*")].flatMap(e => [...e.attributes].map(a => a.value)),
     ...[...document.querySelectorAll("input, textarea")].map(e => e.value)].join("\n").match(/<@[A-Za-z0-9_-]{1,32}>/);
   if (raw) fail("raw-token", `${raw[0]} shows on the page`);
-  // the theme the page shows follows the emulated color scheme (the default theme mode is System)
   const shown = app.dataset.theme || document.documentElement.dataset.theme || app.closest("[data-theme]")?.dataset.theme;
   if (shown && shown !== theme) fail("theme", `page shows theme ${shown}, expected ${theme}`);
   const all = [...app.querySelectorAll("*")].filter(vis);
   const open = all.filter(e => !e.closest("svg") || e.tagName.toLowerCase() === "svg");
 
-  // 1. No page-level scroll.
   const se = document.scrollingElement;
   if (se.scrollHeight > innerHeight + 1 || se.scrollWidth > innerWidth + 1) fail("page-scroll", `document ${se.scrollWidth}x${se.scrollHeight} > viewport ${innerWidth}x${innerHeight}`);
   if (app.scrollWidth > app.clientWidth + 1 || app.scrollHeight > app.clientHeight + 1) fail("page-scroll", `#app content ${app.scrollWidth}x${app.scrollHeight} > ${app.clientWidth}x${app.clientHeight}`);
 
-  // 2. Horizontal overflow: content wider than its own box, or sticking out of a clipping ancestor or the viewport.
   const hScroller = el => { const cs = getComputedStyle(el); return /auto|scroll/.test(cs.overflowX) && el.scrollWidth > el.clientWidth; };
   for (const el of open) {
     if (el.tagName.toLowerCase() === "svg") continue;
     const cs = getComputedStyle(el), r = el.getBoundingClientRect();
-    if (cs.position === "fixed" && (r.right <= 0 || r.left >= innerWidth)) continue; // parked offscreen on purpose
-    if (cs.clip !== "auto" || cs.clipPath !== "none") continue; // sr-only
+    if (cs.position === "fixed" && (r.right <= 0 || r.left >= innerWidth)) continue;
+    if (cs.clip !== "auto" || cs.clipPath !== "none") continue;
     if (r.right > innerWidth + T || r.left < -T) {
       let p = el.parentElement, inScroller = false;
       while (p && p !== app) { if (hScroller(p)) { inScroller = true; break; } p = p.parentElement; }
@@ -429,7 +384,6 @@ const check = (page, theme) => page.evaluate(theme => {
         if (bad) { fail("overflow", `${name(el)} text x ${bad.left.toFixed(1)}..${bad.right.toFixed(1)} runs past its box x ${left.toFixed(1)}..${right.toFixed(1)}`); break; }
       }
     }
-    // a form field scrolls its own value, so a long value in one is not clipped content
     if (clipsX && !el.matches("input, textarea, select") && cs.textOverflow !== "ellipsis" && !/auto|scroll/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1
       && !(cs.webkitLineClamp && cs.webkitLineClamp !== "none")) {
       fail("overflow", `${name(el)} clips ${el.scrollWidth - el.clientWidth}px of content (overflow-x ${cs.overflowX}, no ellipsis)`);
@@ -437,7 +391,6 @@ const check = (page, theme) => page.evaluate(theme => {
     const p = el.parentElement;
     if (p && p !== app && vis(p) && cs.position !== "absolute" && cs.position !== "fixed") {
       const pr = p.getBoundingClientRect(), pcs = getComputedStyle(p);
-      // a negative margin is a deliberate bleed (hover backgrounds that keep text on the column edge)
       const bleedL = Math.max(0, -parseFloat(cs.marginLeft)), bleedR = Math.max(0, -parseFloat(cs.marginRight));
       if (pcs.overflowX === "visible" && pcs.display !== "inline" && (r.right > pr.right + bleedR + T || r.left < pr.left - bleedL - T)) {
         fail("overflow", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} sticks out of parent ${name(p)} x ${pr.left.toFixed(1)}..${pr.right.toFixed(1)}`);
@@ -445,7 +398,6 @@ const check = (page, theme) => page.evaluate(theme => {
     }
   }
 
-  // 2b. The focus view's column (O113): each block beside the question text spans the question text's width and place.
   const qt = document.querySelector(".vf-focus .vf-qtext");
   if (qt && vis(qt)) {
     const qr = qt.getBoundingClientRect();
@@ -456,15 +408,12 @@ const check = (page, theme) => page.evaluate(theme => {
       if (Math.abs(r.left - qr.left) > 1 || Math.abs(r.right - qr.right) > 1) fail("column", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} is not on the question's column x ${qr.left.toFixed(1)}..${qr.right.toFixed(1)}`);
     }
   }
-  // 2c. A phone's question row (app.css .vf-qmeta): previous and next stay on the position's row; the host's Who must
-  // answer, the chips and the avatars of who else is on it wrap below, never the arrows.
   const qnav = document.querySelector(".vf-focus .vf-qmeta > .vf-qnav"), qpos = qnav?.parentElement.firstElementChild;
   if (qnav && vis(qnav) && qpos && vis(qpos)) {
     const n = qnav.getBoundingClientRect(), p = qpos.getBoundingClientRect();
     if (n.top >= p.bottom - T || n.bottom <= p.top + T) fail("qnav-row", `${name(qnav)} y ${n.top.toFixed(1)}..${n.bottom.toFixed(1)} wrapped off the position's row y ${p.top.toFixed(1)}..${p.bottom.toFixed(1)}`);
   }
 
-  // 3. Visible text never overlaps other visible text.
   const texts = [];
   for (const el of open) {
     for (const t of ownText(el)) {
@@ -472,7 +421,7 @@ const check = (page, theme) => page.evaluate(theme => {
       for (const r of rg.getClientRects()) {
         if (r.width < 2 || r.height < 2) continue;
         const hit = document.elementFromPoint(Math.min(innerWidth - 1, r.left + r.width / 2), Math.min(innerHeight - 1, r.top + r.height / 2));
-        if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue; // covered by a layer above
+        if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue;
         const cs = getComputedStyle(el);
         if (cs.overflow !== "visible" || cs.textOverflow === "ellipsis") {
           const b = el.getBoundingClientRect();
@@ -501,7 +450,6 @@ const check = (page, theme) => page.evaluate(theme => {
     fail("text-overlap", `${name(a.el)} overlaps ${name(b.el)} (${w.toFixed(1)}x${h.toFixed(1)})`);
   }
 
-  // 4. Sibling rows of one kind share the left x of icon, id and text; icons center on their first text line.
   const STATE = /^(vf-(?:q-cur|tcur|col-cur|round-cur|rcur|fresh|ritem-fresh|on|pinned|mine|tgrey|tlocked|topen|bump|badge-pop|dim|edited|nunread|hl))$/;
   const kindOf = el => `${el.tagName}|${[...el.classList].filter(c => !STATE.test(c)).sort().join(".")}`;
   const ICON = "svg, .core-avatar, .vf-tstat, .vf-qstat, .vf-rstat, .vf-mp-stat, .vf-mr-stat, .vf-claude-av, .vf-switch";
@@ -548,8 +496,6 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
-  // live-pill: the Live pill sits on the title's line, its center y within 1px of the title row's, its left edge at most
-  // 8px past the title or rename pencil before it, inside the row, and clear of every other top-bar control
   const pill = app.querySelector(".vf-top .vf-live"), trow = app.querySelector(".vf-top .vf-titlerow");
   if (pill && trow && vis(pill) && vis(trow)) {
     const pb = pill.getBoundingClientRect(), rb = trow.getBoundingClientRect();
@@ -565,7 +511,6 @@ const check = (page, theme) => page.evaluate(theme => {
       if (b.left < pb.right - T && b.right > pb.left + T && b.top < pb.bottom - T && b.bottom > pb.top + T) fail("live-pill", `${name(pill)} overlaps ${name(el)}`);
     }
   } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
-  // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
   // the modal chat covers the page (on a phone the whole screen): the toast sits inside it, centered on it, in a slot
   // clear of its head, messages, typing line and message box
@@ -605,7 +550,6 @@ const check = (page, theme) => page.evaluate(theme => {
     if (dock && !blocked && !(tb.bottom <= dock.top && tb.bottom >= dock.top - 24)) fail("toast", `toast bottom ${tb.bottom.toFixed(1)} is not just above the dock top ${dock.top.toFixed(1)}`);
   }
   if (window.__expectToast && !(toast && vis(toast))) fail("toast", "no toast showed");
-  // phone tab bar: equal cells, every label (badge included) inset at least 4px inside its own cell
   const tabCells = [...app.querySelectorAll(".vf-tab")].filter(vis);
   if (tabCells.length) {
     const ws = tabCells.map(t => t.getBoundingClientRect().width);
@@ -624,7 +568,6 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
-  // icon-line: an icon vs the text line beside it (the first line sharing its height band, else the row's first line)
   const seen = new Set();
   for (const { rows } of rowsets) for (const r of rows) {
     const { icon, ls } = parts(r);
@@ -634,7 +577,7 @@ const check = (page, theme) => page.evaluate(theme => {
     if (!side.length) continue;
     const pick = side.find(l => l.r.top < ib.bottom && l.r.bottom > ib.top) || side[0];
     const multi = pick.el.getBoundingClientRect().height > pick.r.height * 1.7;
-    if (ib.height > 24 && multi) continue; // large avatars may top-align with a block
+    if (ib.height > 24 && multi) continue;
     const cs = getComputedStyle(pick.el), lh = parseFloat(cs.lineHeight), eb = pick.el.getBoundingClientRect();
     const top = eb.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
     const blockLine = cs.display !== "inline" && lh > 0 && pick.r.top >= top - 0.5 && pick.r.bottom <= top + lh + 0.5;
@@ -651,9 +594,7 @@ const check = (page, theme) => page.evaluate(theme => {
     const d = (ib.top + ib.height / 2) - (fl.top + fl.height / 2);
     if (Math.abs(d) > 1) fail("icon-line", `${name(svg.parentElement)} icon off its label's first line by ${d.toFixed(1)}px`);
   }
-  // icon-center: an icon-only button (the answer and chat send buttons, the chat button, any round icon button) has
-  // its one visible icon centered on the button's border box within 0.5 px on both axes.
-  const shownText = b => { // text a person sees in the button, badges (positioned) and screen-reader-only labels left out
+  const shownText = b => {
     const tw = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
     for (let n; (n = tw.nextNode());) {
       const el = n.parentElement;
@@ -702,8 +643,6 @@ const check = (page, theme) => page.evaluate(theme => {
     const dy = base + ((y0 + y1) / 2 - 2 * size) / K - (mr.top + mr.bottom) / 2;
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) fail("marker-number", `${name(b)} number ${t.textContent} ink off the marker center by x ${dx.toFixed(2)}, y ${dy.toFixed(2)}px`);
   }
-  // fold: with nothing focused and the question at its top, a choice or confirm question's answer controls show
-  // without scrolling (confirm: every pick button; choice: the first Choose button)
   const act = document.activeElement;
   if (!act || act === document.body || act === app) {
     const fmt = document.querySelector(".vf-fmt");

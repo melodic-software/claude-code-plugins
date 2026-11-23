@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/discipline/.claude-plugin/plugin.json
 # Black-box test for setup-apply.mjs, the writer behind /discipline:setup apply.
 #
 # Self-contained and cwd-independent; mutates only its own mktemp dir.

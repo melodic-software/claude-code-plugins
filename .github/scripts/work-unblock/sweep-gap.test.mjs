@@ -92,7 +92,6 @@ test("the gap is sweep-gap-minutes: a sweep exactly 15 minutes ago skips, one 15
   assert.equal((await run({}, at("2026-11-10T20:40:00Z"))).output, "skip=true\n");
   assert.equal((await run({}, at("2026-11-10T20:39:59Z"))).output, "skip=false\n");
   assert.equal((await run({}, at("2026-11-10T20:30:00Z"))).output, "skip=false\n");
-  // A shorter configured gap lets the 10-minute-old sweep run; a longer one skips the 25-minute-old one.
   assert.equal((await run({}, at("2026-11-10T20:45:00Z"), { "sweep-gap-minutes": 5 })).output, "skip=false\n");
   assert.equal((await run({}, at("2026-11-10T20:30:00Z"), { "sweep-gap-minutes": 30 })).output, "skip=true\n");
   // With no resolved config, the default gap is 15 minutes.
@@ -129,7 +128,6 @@ test("an expired artifact, or one from an issue close, a fork, another branch, a
     const { github } = fakeGitHub([listed], { 42897000006: artifacts });
     assert.equal((await run({}, github)).output, "skip=false\n", name);
   }
-  // This run's own artifact never counts.
   const own = fakeGitHub([runAt(THIS_RUN, at)], { [THIS_RUN]: [verdicts(7)] });
   assert.equal((await run({}, own.github)).output, "skip=false\n", "this run");
 });

@@ -99,7 +99,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Args --------------------------------------------------------------------
 
 MODE="dry-run"
 INPUT_JSON=""
@@ -134,11 +133,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Config resolution -------------------------------------------------------
 
-# The project-root ladder is shared vocabulary (lib/resolve-scopes.sh), not this
-# script's to restate. Fail loudly rather than fall through: an unsourced library
-# leaves the root empty and this script writes to the settings path it resolves.
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
 if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
@@ -148,9 +143,6 @@ fi
 # shellcheck source=../../../lib/resolve-scopes.sh
 source "$RESOLVE_SCOPES_LIB"
 
-# SETTINGS_FROM_LADDER records how the path was reached: an explicit
-# CLAUDE_SETTINGS_FILE is the operator's deliberate target, an inferred path is
-# not, and only the inferred one is refused when it lands on the user file.
 if [[ -n "${CLAUDE_SETTINGS_FILE:-}" ]]; then
   SETTINGS="$CLAUDE_SETTINGS_FILE"
   SETTINGS_FROM_LADDER=0
@@ -161,7 +153,6 @@ else
   SETTINGS="$PROJECT_ROOT/.claude/settings.json"
   SETTINGS_FROM_LADDER=1
 fi
-# Display only: messages print control characters in the path as `?`.
 SETTINGS_SHOW="${SETTINGS//[[:cntrl:]]/?}"
 
 if [[ ! -f "$SETTINGS" ]]; then
@@ -179,7 +170,6 @@ fi
 USER_DIR=""
 scopes::user_dir_to USER_DIR
 
-# --- Output helpers ----------------------------------------------------------
 
 if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
   RED="" YELLOW="" GREEN="" CYAN="" RESET=""
@@ -187,13 +177,8 @@ else
   RED=$'\033[31m' YELLOW=$'\033[33m' GREEN=$'\033[32m' CYAN=$'\033[36m' RESET=$'\033[0m'
 fi
 
-# Display only: every control character prints as `?`, a carriage return
-# included, so a display line carries none of its own.
 JQ_DEFS='def san: tostring | gsub("[[:cntrl:]]"; "?");'
 
-# settings_file_is_managed - the audited path is managed settings: the file is
-# named managed-settings.json or remote-settings.json, or it sits in
-# managed-settings.d. Those get the managed-settings remediation.
 settings_file_is_managed() {
   local base parent
   base=$(basename -- "$SETTINGS")
@@ -201,8 +186,6 @@ settings_file_is_managed() {
   [[ "$base" == "managed-settings.json" || "$base" == "remote-settings.json" || "$parent" == "managed-settings.d" ]]
 }
 
-# print_remediation <unmanaged-text> - the fix line for a catalog row, which
-# managed settings replace with their own.
 print_remediation() {
   if settings_file_is_managed; then
     printf '  %s\n' "update managed enabledPlugins"
@@ -211,7 +194,6 @@ print_remediation() {
   fi
 }
 
-# --- Obtain findings ---------------------------------------------------------
 
 TMP_JSON=""
 TMP_SETTINGS=""
@@ -235,11 +217,6 @@ trap 'cleanup_temps; exit 130' INT
 trap 'cleanup_temps; exit 143' TERM HUP
 
 if [[ -z "$INPUT_JSON" ]]; then
-  # Positional absolute template with trailing Xs: the one mktemp form both
-  # GNU and BSD accept.
-  # GNU marks -t deprecated, and BSD -t treats the argument as a prefix, not a
-  # template. The .json extension was cosmetic; BSD substitutes trailing Xs
-  # only, so the template cannot carry one.
   TMP_JSON=$(mktemp "${TMPDIR:-/tmp}/plugin-drift-json-XXXXXX")
   printf '%sRunning check-plugin-drift.sh...%s\n' "$CYAN" "$RESET" >&2
   check_status=0
@@ -254,14 +231,6 @@ if [[ -z "$INPUT_JSON" ]]; then
     echo "ERROR: check-plugin-drift.sh reported drift but wrote no findings document" >&2
     exit 2
   fi
-  # mktemp already created $TMP_JSON as a zero-byte file, so emptiness alone
-  # cannot separate a truncated write from the check's legitimate status-0 exit
-  # when the settings file declares no extraKnownMarketplaces. That case is a
-  # pass, but it is not an audit, so it must not borrow the wording of one. The
-  # check's own explanation went to the /dev/null above, so say it here, and
-  # record it as an empty findings array so the zero-audited decision below,
-  # which also covers a run whose every marketplace was skipped, says it on
-  # stdout where the plan is rendered.
   if [[ ! -s "$TMP_JSON" ]]; then
     echo "NOTE: check-plugin-drift.sh produced no findings document, so no marketplace was audited" >&2
     if ! printf '[]\n' >"$TMP_JSON"; then
@@ -288,24 +257,13 @@ if ! jq -s -e 'length == 1 and (.[0] | type == "array" and (any(.[]; type != "ob
   exit 2
 fi
 
-# --- Build action plan -------------------------------------------------------
 
-# findings <jq-expression> - a compact JSON array of the unique values the
-# expression yields over every status:"ok" marketplace block. The expression is
-# always a static literal from this file, never data, so composing the filter
-# here cannot inject. The list stays JSON from here to the edit: no line-based
-# tool ever touches a key. The carriage return a native-Windows jq appends
-# after the array is JSON whitespace; it is dropped for tidiness.
-#
-# A jq failure is fatal: under pipefail the assignment carries jq's status, and
-# a list that silently came back short would render a truncated plan.
 findings() {
   local out
   out=$(jq -c "[.[] | select(.status == \"ok\") | $1] | unique" "$INPUT_JSON") || return 1
   printf '%s' "${out%$'\r'}"
 }
 
-# findings_failed <label> - the fatal exit for a list jq could not read.
 findings_failed() {
   echo "ERROR: cannot read the $1 list from the findings JSON: $INPUT_JSON" >&2
   exit 2
@@ -320,8 +278,6 @@ count() {
 remove_json=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"') ||
   findings_failed "orphan removals"
 
-# Manual-review entries carry the reason they are held. Every value but an
-# exact false is held: true, and anything else the file holds for the key.
 manual_json=$(findings '.orphans[] | select(.enabled != false)
   | {key: "\(.name)@\(.marketplace)",
      why: (if .enabled == true then "true in this file" else "neither true nor false in this file" end)}') ||
@@ -330,10 +286,6 @@ manual_json=$(findings '.orphans[] | select(.enabled != false)
 new_json=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"') ||
   findings_failed "new upstream"
 
-# Rename candidates (informational). A null `to` is not a rename: a removed row
-# lives in `.removed` and must not be printed as a rename to null. A catalog
-# row and a name-similarity guess are separate lists so the remediation for
-# one is not printed under the other.
 catalog_rename_json=$(findings '.renames[] | select((.to | type == "string") and .source == "renames") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
   findings_failed "renames"
 heuristic_rename_json=$(findings '.renames[] | select((.to | type == "string") and .source != "renames") | "\(.from) -> \(.to)  (\(.marketplace))"') ||
@@ -342,7 +294,6 @@ heuristic_rename_json=$(findings '.renames[] | select((.to | type == "string") a
 removed_json=$(findings '.removed[]? | "\(.name)@\(.marketplace)"') ||
   findings_failed "removed"
 
-# Every block that is not "ok" was not compared, whatever its status says.
 skipped_json=$(jq -c '[.[] | select(.status != "ok")
   | "\(.key // "") (\(.skip_reason // "no reason given"))"]' "$INPUT_JSON") ||
   findings_failed "marketplace status"
@@ -358,13 +309,7 @@ skipped_count=$(count "$skipped_json")
 ok_count=$(jq -j '[.[] | select(.status == "ok")] | length' "$INPUT_JSON") ||
   findings_failed "marketplace status"
 
-# --- Render plan -------------------------------------------------------------
 
-# print_list <bullet-indent> <json-array> <jq-expression> - one display line per
-# element. The expression renders an element; `san` turns every control
-# character into `?`, so the terminator carriage returns a native-Windows jq
-# appends are the only ones left and are dropped. The lists the edit uses are
-# never passed through here.
 print_list() {
   local indent="$1" entry
   while IFS= read -r entry; do
@@ -382,8 +327,6 @@ if [[ "$skipped_count" -gt 0 ]]; then
   echo
 fi
 
-# "Nothing found" and "nothing looked at" are different statements, and stderr
-# is routinely discarded, so the distinction is made here on stdout too.
 if [[ "$ok_count" -eq 0 ]]; then
   printf '%sNo marketplace was audited, so there is nothing to report.%s\n' "$YELLOW" "$RESET"
   exit 0
@@ -394,11 +337,7 @@ if [[ "$remove_count" -eq 0 && "$manual_count" -eq 0 && "$new_count" -eq 0 && "$
   exit 0
 fi
 
-# --- Filter the plan against the settings file -------------------------------
 
-# lower_scope_files - the lower-precedence scope files whose `true` a removal
-# would expose, into LOWER_FILES; LOWER_CLOSED is set with a reason when one of
-# them cannot be checked, which holds every removal.
 LOWER_FILES=()
 LOWER_CLOSED=""
 lower_scope_files() {
@@ -407,18 +346,12 @@ lower_scope_files() {
     candidates+=("$(dirname "$SETTINGS")/settings.json")
   fi
   if [[ -n "$USER_DIR" ]]; then
-    # The audited file can itself be the user file, given explicitly; nothing
-    # sits below it.
     [[ "$SETTINGS" -ef "$USER_DIR/settings.json" ]] || candidates+=("$USER_DIR/settings.json")
   else
     LOWER_CLOSED="no user config directory could be resolved (CLAUDE_CONFIG_DIR and HOME are unset)"
   fi
   local d
   for f in "${candidates[@]+"${candidates[@]}"}"; do
-    # Absent holds no `true`. A dangling symlink is present but unreadable.
-    # A name that does not resolve is absent only when its nearest existing
-    # ancestor can be searched; behind an unsearchable directory the file may
-    # exist unseen, so the guard fails closed.
     if [[ ! -e "$f" && ! -L "$f" ]]; then
       d=$(dirname "$f")
       while [[ ! -e "$d" && ! -L "$d" && "$d" != "$(dirname "$d")" ]]; do
@@ -446,13 +379,8 @@ lower_scope_files() {
   done
 }
 
-# The findings can be older than the settings file, and a --input document can
-# describe any file at all. So the plan is checked against ONE snapshot of the
-# settings file, and the apply below edits, measures and backs up that same
-# snapshot rather than rereading the live path.
 filtered_count=0
 if [[ "$remove_count" -gt 0 ]]; then
-  # Same portable mktemp form as TMP_JSON above (#1709).
   SNAPSHOT=$(mktemp "${TMPDIR:-/tmp}/settings-snapshot-XXXXXX") || SNAPSHOT=""
   if [[ -z "$SNAPSHOT" ]]; then
     echo "ERROR: cannot create a snapshot under ${TMPDIR:-/tmp}, settings unchanged" >&2
@@ -484,13 +412,6 @@ if [[ "$remove_count" -gt 0 ]]; then
   closed=0
   [[ -n "$LOWER_CLOSED" ]] && closed=1
 
-  # The removal list arrives on stdin, the snapshot and the lower scopes by
-  # file: keys never pass through argv, where MSYS rewrites an argument such as
-  # `k=/x@mk` before a native jq sees it. A removal whose key is absent is
-  # dropped and one whose key no longer holds exactly false in this file moves
-  # to manual review; both count as filtered. A removal a lower scope would turn
-  # into `true`, or one whose lower scopes cannot be checked, is held for manual
-  # review.
   if ! plan=$(jq -c --slurpfile s "$SNAPSHOT" --slurpfile lw "$LOWER_JSON" --argjson closed "$closed" '
     . as $rm
     | ($s | if length != 1 then error("the settings file is not one JSON document") else .[0] end)
@@ -586,7 +507,6 @@ if [[ "$remove_count" -eq 0 ]]; then
   exit 0
 fi
 
-# --- Apply (only with --yes) -------------------------------------------------
 
 if [[ "$MODE" != "apply" ]]; then
   printf '%sDry-run only.%s Re-run with %s--yes%s to apply the removals.\n' \
@@ -594,37 +514,12 @@ if [[ "$MODE" != "apply" ]]; then
   exit 0
 fi
 
-# The replacement below is a rename, which replaces a symlink rather than the
-# file it points at: the real settings file would go unfixed while this script
-# reported success, and the backup would deposit the link target's content in
-# this directory. Resolving the link portably needs a realpath/readlink dance
-# this script does not otherwise carry, so a symlink is refused instead of
-# silently mishandled. Placed after the exits that write nothing.
 if [[ -L "$SETTINGS" ]]; then
   echo "ERROR: the settings path is a symlink, $SETTINGS_SHOW" >&2
   echo "The replacement is a rename and would replace the link itself. Point CLAUDE_SETTINGS_FILE at the file the link resolves to." >&2
   exit 2
 fi
 
-# An inferred path that lands on the user settings file is refused. The ladder
-# falls through to $PWD outside a repository, so a session started in a home
-# directory resolves this script's project-scope target to the live user file.
-# An explicit CLAUDE_SETTINGS_FILE is the operator's deliberate target and is
-# honored, but it is still announced, because a settings.json `env` block can
-# export that variable and the file under audit is exactly the one that drifted.
-#
-# Candidates: the resolved user dir, plus $HOME/.claude, because with
-# CLAUDE_CONFIG_DIR relocated a home-directory session still resolves $SETTINGS
-# to $HOME/.claude/settings.json, which is the hazard itself. The list is built
-# rather than written inline so an unset HOME contributes no candidate at all
-# instead of the bare "/.claude" that "${HOME:-}/.claude" would expand to.
-#
-# `-ef` compares device and inode, so it is immune to the /c/... against C:/...
-# spelling split a string comparison hits on Git Bash. It is false when the
-# candidate does not exist, which is safe: $SETTINGS was proved to exist above,
-# so a user settings file that is missing cannot be the file about to be
-# written. On MSYS the inode is synthesized, so treat this as a strong check
-# rather than a proof.
 user_candidates=()
 [[ -n "$USER_DIR" ]] && user_candidates+=("$USER_DIR")
 [[ -n "${HOME:-}" ]] && user_candidates+=("$HOME/.claude")
@@ -643,12 +538,8 @@ for candidate in "${user_candidates[@]+"${user_candidates[@]}"}"; do
   break
 done
 
-# Atomic edit: read-modify-write via jq + temp + rename.
-# Same portable mktemp form as TMP_JSON above (#1709).
 TMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/settings-json-XXXXXX")
 
-# No `set -e` here, so a failed mktemp would otherwise carry an empty path into
-# the jq redirect below and report the filter as the failure.
 if [[ -z "$TMP_SETTINGS" ]]; then
   echo "ERROR: cannot create a working copy under ${TMPDIR:-/tmp}, settings unchanged" >&2
   exit 2
@@ -659,16 +550,11 @@ fi
 # unlink and an interruption leaves the settings file truncated. A
 # same-directory temp makes the last step a rename, which is atomic.
 TMP_EOL=$(mktemp "$(dirname "$SETTINGS")/.settings-json-XXXXXX")
-# No `set -e` here, so a failed mktemp (an unwritable settings directory, say)
-# would otherwise carry an empty path through cp, the redirect, and finally mv.
 if [[ -z "$TMP_EOL" ]]; then
   echo "ERROR: cannot stage a replacement beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
 fi
 
-# Plugin names come from upstream marketplace JSON. The list reaches jq as data
-# on stdin, consumed by reduce, never interpolated into the filter program, so a
-# crafted upstream name cannot inject jq code, and never on argv.
 if ! jq --slurpfile s "$SNAPSHOT" '
   . as $rm | $s[0] | reduce $rm[] as $k (.; del(.enabledPlugins[$k]))
 ' <<<"$remove_json" >"$TMP_SETTINGS"; then
@@ -692,10 +578,6 @@ if ! cp -p "$SETTINGS" "$TMP_EOL"; then
   exit 2
 fi
 
-# That copy also carries a read-only mode, and the normalization below writes to
-# this file. Make the stage writable for the duration and put the restriction
-# back before the replace, so a settings file the operator marked read-only is
-# still applied and comes back read-only. `mv` needs no write bit on the file, only on the directory.
 SETTINGS_WAS_WRITABLE=1
 [[ -w "$SETTINGS" ]] || SETTINGS_WAS_WRITABLE=0
 if ! chmod u+w "$TMP_EOL"; then
@@ -703,14 +585,6 @@ if ! chmod u+w "$TMP_EOL"; then
   exit 2
 fi
 
-# jq emits whatever its build emits: the native Windows build writes CRLF
-# through a text-mode stdout, an MSYS or Linux build writes LF. Either one
-# rewrites every line ending in a file of the other style, so the emitted
-# document is normalized back to the style the original carried. `tr`, not
-# grep, because Git Bash grep never matches a carriage return; arithmetic
-# comparison, never string equality, because BSD `wc -c` pads with spaces.
-# A carriage return inside a key is written by jq as the escape `\r`, never as
-# a raw byte, so this touches line endings and JSON whitespace only.
 cr=$(tr -dc '\r' <"$SNAPSHOT" | wc -c) || cr=""
 lf=$(tr -dc '\n' <"$SNAPSHOT" | wc -c) || lf=""
 if [[ -z "$cr" || -z "$lf" ]]; then
@@ -718,16 +592,6 @@ if [[ -z "$cr" || -z "$lf" ]]; then
   exit 2
 fi
 
-# Both terms are required. A lone carriage return used as JSON whitespace in an
-# LF file would make a bare `cr -gt 0` rewrite every line ending, and a bare
-# `cr -ge lf` holds for a newline-less minified file and would CRLF-ify it.
-# This counts bytes, it does not pair them: a mixed file goes whichever way its
-# majority points and comes back uniform. That is a style change, never a loss.
-# BOTH arms are checked. An unchecked redirect here is the whole hazard: the
-# stage already holds the `cp -p` copy of the ORIGINAL, so a write that never
-# lands leaves a document that is valid JSON and a valid object, passes every
-# check below, and gets renamed over the settings file while the run reports
-# the edit it did not make.
 if [[ "$cr" -gt 0 && "$cr" -ge "$lf" ]]; then
   # A read loop, not `sed 's/$/\r/'`: BSD sed reads \r as a literal r. The
   # `|| [[ -n "$line" ]]` arm keeps a final line that carries no terminator.
@@ -749,45 +613,26 @@ if ! jq -e 'type == "object"' "$TMP_EOL" >/dev/null 2>&1; then
   exit 2
 fi
 
-# The last guard on the class, and the one that does not depend on predicting
-# which step failed: the filter left only entries that change the snapshot, so
-# a stage identical to it means the edit never reached the stage. Defensive.
 if cmp -s "$SNAPSHOT" "$TMP_EOL"; then
   echo "ERROR: the staged replacement is identical to the settings file as read for the plan, so the edit did not reach it; settings unchanged" >&2
   exit 2
 fi
 
-# Put the original's read-only mode back before the replace, so the file the
-# operator gets is the one they had, edited.
 if [[ "$SETTINGS_WAS_WRITABLE" -eq 0 ]] && ! chmod u-w "$TMP_EOL"; then
   echo "ERROR: cannot restore the read-only mode on the staged replacement, settings unchanged: $TMP_EOL" >&2
   exit 2
 fi
 
-# The backup is taken last, so a run refused earlier leaves none behind. Once it
-# exists the original is recoverable whatever happens next.
 STAMP=$(date -u +%Y%m%dT%H%M%SZ) || STAMP=""
 if [[ -z "$STAMP" ]]; then
   echo "ERROR: cannot read the clock for the backup name, settings unchanged" >&2
   exit 2
 fi
 
-# remove_own_backup - delete the backup only while it is still a regular,
-# non-symlink file. This run created the name on an exclusive open, so that
-# file is this run's; anything else found there is left alone.
 remove_own_backup() {
   [[ -f "$BACKUP" && ! -L "$BACKUP" ]] && rm -f "$BACKUP"
 }
 
-# The name is unpredictable (mktemp -u, nothing created) and refused when
-# anything already sits there. The copy is then written on ONE open, under
-# noclobber and umask 077: bash opens a missing name with O_CREAT|O_EXCL, which
-# fails on a symlink or file planted after the check instead of following it.
-# Before any byte is written, the open descriptor must be a regular file that is
-# the one at the name, which also refuses a symlink to a non-regular target that
-# noclobber would open. Two applies in the same second each get their own name.
-# 0600 because the backup is a verbatim copy of a file that can hold tokens and
-# permission rules.
 BACKUP=$(mktemp -u "$SETTINGS.bak.$STAMP.XXXXXX") || BACKUP=""
 if [[ -z "$BACKUP" ]]; then
   echo "ERROR: cannot name a backup beside $SETTINGS_SHOW, settings unchanged" >&2
@@ -813,19 +658,11 @@ if [[ "$write_rc" -ne 0 ]]; then
   echo "ERROR: cannot write the backup on an exclusive open, settings unchanged: $BACKUP_SHOW" >&2
   exit 2
 fi
-# What is at the name now is checked rather than assumed: a regular non-symlink
-# file holding the snapshot.
 if [[ ! -f "$BACKUP" || -L "$BACKUP" ]] || ! cmp -s "$SNAPSHOT" "$BACKUP"; then
   echo "ERROR: the backup at $BACKUP_SHOW is not a regular file holding the settings as read for the plan; settings unchanged" >&2
   exit 2
 fi
 
-# The plan, the edit and the backup all describe the snapshot. A settings file
-# that no longer matches it was changed by another writer after the plan was
-# computed, and replacing it would discard that change. The compare sits
-# directly before the replace; the window between the two stays open. The
-# backup this run made holds the snapshot rather than the other writer's
-# bytes, so it is removed, but only while it is still a regular file.
 if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
   remove_own_backup
   echo "ERROR: $SETTINGS_SHOW changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup kept" >&2
@@ -840,10 +677,6 @@ fi
 # later takes that name.
 TMP_EOL=""
 
-# Read the result back rather than trusting the pipeline that produced it. The
-# backup holds the pre-apply bytes, so a settings file still equal to it is a
-# run that reported an edit it did not make. Nothing above may report success
-# on this script's own say-so.
 if ! jq -e 'type == "object"' "$SETTINGS" >/dev/null 2>&1 || cmp -s "$BACKUP" "$SETTINGS"; then
   echo "ERROR: $SETTINGS_SHOW does not hold the edited document after the replace; the pre-apply copy is at $BACKUP_SHOW" >&2
   exit 2

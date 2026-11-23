@@ -12,8 +12,6 @@ set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
-# The sibling plugins are present in the marketplace checkout and absent when
-# guardrails is installed alone, so their rows skip visibly there.
 MARKETPLACE="$PLUGIN_ROOT/../../.claude-plugin/marketplace.json"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -34,9 +32,9 @@ guardrails${TAB}PreToolUse${TAB}^mcp__.+__(merge_pull_request|enable_pr_auto_mer
 guardrails${TAB}PreToolUse${TAB}^mcp__(plugin_.+_)?github__(add_issue_comment|update_issue_comment|issue_write|create_issue|update_issue|create_pull_request|update_pull_request|add_comment_to_pending_review|add_reply_to_pull_request_comment|pull_request_review_write|create_pull_request_review|create_and_submit_pull_request_review|submit_pending_pull_request_review|discussion_comment_write)\$${TAB}${TAB}block
 guardrails${TAB}PreToolUse${TAB}Bash|PowerShell${TAB}${TAB}block
 multi-agent${TAB}PreToolUse${TAB}WebFetch${TAB}${TAB}block
+multi-agent${TAB}PreToolUse${TAB}Bash${TAB}${TAB}block
 multi-agent${TAB}PreToolUse${TAB}Bash${TAB}${TAB}block"
 
-# rows <plugin> <hooks.json>: every hook in the file that sets onFailure.
 rows() {
   jq -r --arg p "$1" '
     (.hooks // {}) | to_entries[] | .key as $e | .value[]? | (.matcher // "") as $m
@@ -68,8 +66,6 @@ actual_sorted=$(printf '%s' "$actual" | LC_ALL=C sort)
 assert_eq "the onFailure rows are exactly the contract's block rows" \
   "$expected_sorted" "$actual_sorted"
 
-# The advisory rows the contract names stay without the key. The exact-set
-# check covers them too; these name the row when one gains it.
 assert_eq "guardrails Workflow row leaves onFailure unset" "false" \
   "$(jq -r '[.hooks.PreToolUse[] | select(.matcher == "Workflow") | .hooks[] | has("onFailure")] | any' "$HOOK_DIR/hooks.json")"
 assert_eq "no guardrails SessionStart row sets onFailure" "false" \

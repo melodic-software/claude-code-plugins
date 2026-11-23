@@ -55,7 +55,6 @@ while (($# > 0)); do
 done
 [[ -n "$BASE" ]] || die 1 "--base is required"
 cd "$DIR" 2>/dev/null || die 1 "--dir is not a directory: $DIR"
-# Every path the script reads is repository-relative.
 TOP="$(git rev-parse --show-toplevel 2>/dev/null)" || die 2 "not inside a git checkout: $DIR"
 cd "$TOP" || die 2 "cannot enter the checkout's top: $TOP"
 

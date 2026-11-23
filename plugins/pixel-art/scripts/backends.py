@@ -29,7 +29,6 @@ NOTICES = {
 }
 
 
-# Credentials of the removed hosted backends; Aseprite never needs them.
 REMOVED_SERVICE_KEYS = ("PIXELLAB_API_TOKEN", "RD_API_KEY")
 
 

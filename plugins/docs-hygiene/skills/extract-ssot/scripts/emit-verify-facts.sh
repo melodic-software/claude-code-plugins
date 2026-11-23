@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Partial extract-ssot verify facts. No PROCEED/REFUSE verdict.
-#
 # Output: Phrase, Instance/Citation/Primary URL counts and samples, scoped to
 # the tracked *.md files of the repository the script runs in.
 # Exit: 0 for fact runs (fact-emitter must never fail the caller; -e and
@@ -56,8 +54,6 @@ fi
 # git pathspec '*.md' matches tracked markdown at any depth.
 SCOPE='*.md'
 
-# Count grep hits piped on stdin, echoing the first MAX_SAMPLES with a per-hit
-# label and a trailing count line. Empty lines (no matches) don't count.
 emit_facts() {
   local sample_label="$1" count_label="$2"
   local count=0 hit

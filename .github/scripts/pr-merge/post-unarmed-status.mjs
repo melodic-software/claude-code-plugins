@@ -23,7 +23,8 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
+import { ACTIONS_BOT_ID } from "../lib/lane-vocabulary.mjs";
 import { UNARMED_CONTEXT } from "./enable-auto-merge.mjs";
 
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -34,9 +35,6 @@ const DESCRIPTION_CHARS = 140;
 // Statuses read and written in one run at most (judgment: more open lane
 // pull requests than this is a run to look at).
 export const MAX_STATUSES = 100;
-// The GitHub Actions bot's user id, which every GITHUB_TOKEN posts as
-// (fix-ci-dispatch.mjs ACTIONS_BOT_ID).
-const ACTIONS_BOT_ID = 41898282;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 

@@ -35,7 +35,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { bodyHolds, fromRest, LANES_APP_LOGIN, vetoers } from "./merge-holds.mjs";
 
 export const LABEL = "do-not-merge";
@@ -463,7 +464,7 @@ export async function main({ env = process.env, github, runsGitHub, now = Date.n
     }
     const repo = env.GITHUB_REPOSITORY;
     const bot = env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
-    const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH || trustedActorsPath());
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     runsGitHub ??= env.RUNS_TOKEN ? createGitHub({ token: env.RUNS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : github;
     const holds = await holdEvalGated(github, repo, humans);

@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.30.2] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
 ## [0.30.1] - 2026-11-21
 
 ### Changed

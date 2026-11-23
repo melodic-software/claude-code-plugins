@@ -47,14 +47,13 @@ class ExampleSheetTest(unittest.TestCase):
             self.assertEqual(meta["frames"]["b00"]["frame"], {"x": 0, "y": 0, "w": 96, "h": 144})
             self.assertEqual(meta["frames"]["b08"]["frame"], {"x": 0, "y": 144, "w": 96, "h": 144})
             self.assertEqual(len(meta["frames"]), 32)
-            # quarter source, block b00: every quarter of the edge region carries its own edge
             lip = {rgb_of("#c2a15a"), rgb_of("#9a7a3a")}
-            for x, y in ((2, 100), (93, 100), (48, 50), (48, 141)):  # left, right, top, bottom edges
+            for x, y in ((2, 100), (93, 100), (48, 50), (48, 141)):
                 self.assertIn(sheet[y][x][:3], lip, (x, y))
-            self.assertNotIn(sheet[96][48][:3], lip)  # edge-region interior is grass
-            self.assertIn(sheet[24][72][:3], lip)  # inner corners meet at the tile center
-            self.assertNotIn(sheet[2][50][:3], lip)  # inner-corner tile rim stays grass
-            self.assertNotIn(sheet[24][24][:3], lip)  # preview tile is plain terrain
+            self.assertNotIn(sheet[96][48][:3], lip)
+            self.assertIn(sheet[24][72][:3], lip)
+            self.assertNotIn(sheet[2][50][:3], lip)
+            self.assertNotIn(sheet[24][24][:3], lip)
 
     def test_window_png_is_192_and_regions_differ(self):
         module = load("window_mz", "examples/ui/window_mz.py")
@@ -84,12 +83,9 @@ class ExampleSheetTest(unittest.TestCase):
             render.render(module.build(), out, scale=1)
             self.assertEqual(png_size(out / "sheet.png"), (960, 192))
             sheet = read_png(out / "sheet.png")
-            # frame 0 center is the core; 20px right of that center is outside the small radius
             self.assertEqual(sheet[96][96][3], 255)
             self.assertEqual(sheet[96][116][3], 0)
-            # frame 2 (column index 2) is the wide burst
             self.assertEqual(sheet[96][384 + 116][3], 255)
-            # it fades by palette step: frame 3's core is the darker ramp color, frame 4 is empty
             self.assertEqual(sheet[96][576 + 96][:3], rgb_of("#e05020"))
             self.assertTrue(all(sheet[y][x][3] == 0 for y in range(192) for x in range(768, 960)))
             self.assertTrue((out / "spark.gif").exists())

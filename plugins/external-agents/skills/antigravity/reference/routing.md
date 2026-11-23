@@ -12,7 +12,8 @@ and suggest setting only the slug.
 When the user asks which Gemini model or effort to use, or `update` prints `routing: due`, read the
 sources below and answer from them, citing the section:
 
-- The models and effort levels this agy version offers: `external-agents models antigravity` (JSON).
+- The models, effort levels, harness tools, image capability and breaker state this agy version offers: `external-agents models antigravity` (JSON).
+- Current plan usage remaining, outside delegated runs: `external-agents usage antigravity` (JSON).
 - Index of the Antigravity CLI docs, to find a page that moved:
   [Get started](https://antigravity.google/docs/cli).
 - Which models exist and how to pick one:

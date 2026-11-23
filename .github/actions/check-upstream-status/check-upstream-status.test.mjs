@@ -116,7 +116,6 @@ test("the script fails open with exit 0 when no page can be reached", () => {
   try {
     const outputPath = path.join(dir, "output");
     writeFileSync(outputPath, "");
-    // A preload that makes every fetch throw, so the run needs no network.
     const preload = path.join(dir, "no-fetch.mjs");
     writeFileSync(preload, 'globalThis.fetch = async () => { throw new Error("offline"); };\n');
     const script = fileURLToPath(new URL("./check-upstream-status.mjs", import.meta.url));

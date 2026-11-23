@@ -35,7 +35,6 @@ reset() {
 run
 assert_eq "no layer file prints nothing" "0:" "$rc:$out"
 
-# --- layer order, list concatenation, scalar override -------------------------
 cat >"$HOME/.claude/testing.yaml" <<'EOF'
 paths:
   exclude: ['**/*.snap.ts', 'gen/**']
@@ -72,7 +71,6 @@ rc=0
 out="$(cd "$T" && CLAUDE_PROJECT_DIR="$T/proj" bash "$RESOLVE" 2>&1)" || rc=$?
 assert_contains "outside a repository with no --root, CLAUDE_PROJECT_DIR is the root" "$(records paths.exclude)" "proj-only/**"
 
-# --- validation exits ---------------------------------------------------------
 reset
 printf 'paths:\n  exclude: [a]\n  excludes: [b]\n' >"$REPO/.claude/testing.yaml"
 run
@@ -130,7 +128,6 @@ printf 'adapter_dirs: [missing]\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "an adapter_dirs entry that is not a directory exits 2" 2 "$rc"
 
-# --- extension, consumer adapters and hook coverage ---------------------------
 mkdir -p "$REPO/tools/adapters"
 cat >"$REPO/tools/adapters/js-spec.yaml" <<'EOF'
 id: js-spec
@@ -168,7 +165,6 @@ run --quick
 assert_eq "--quick prints the same records" "*.it.ts *.test.ts" "$(records extend.js-vitest.files)"
 assert_eq "without the hook coverage the scanner's hook path does not need" "" "$(records hook.uncovered)"
 
-# --- the path-glob matcher ----------------------------------------------------
 match() {
   local want="$1" glob="$2" path="$3" got=0
   bash "$RESOLVE" match "$glob" "$path" || got=1
@@ -745,7 +741,6 @@ assert_contains "which name it" "$err" "the convention-home pointer in $REPO doe
 rm -rf "$REPO/AGENTS.md" "$REPO/config"
 reset
 
-# --- the whole suite again under mawk -----------------------------------------
 if [[ -z "${TCFG_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
   mkdir -p "$T/mawk-shim"
   ln -sf "$(command -v mawk)" "$T/mawk-shim/awk"

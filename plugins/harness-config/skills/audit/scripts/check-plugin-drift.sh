@@ -82,12 +82,7 @@
 # shellcheck disable=SC2016
 set -uo pipefail
 
-# --- Config resolution -------------------------------------------------------
 
-# The project-root ladder is shared vocabulary (lib/resolve-scopes.sh), not this
-# script's to restate. Fail loudly rather than fall through: an unsourced library
-# leaves the root empty and the settings path would name a file at the
-# filesystem root.
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
 if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
@@ -121,7 +116,6 @@ if ! jq empty "$SETTINGS" 2>/dev/null; then
   exit 2
 fi
 
-# --- Output helpers ----------------------------------------------------------
 
 if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
   RED="" YELLOW="" GREEN="" CYAN="" RESET=""
@@ -135,13 +129,6 @@ REMOVED_TOTAL=0
 RENAME_TOTAL=0
 SKIPPED_MARKETS=()
 
-# One compact JSON block per marketplace, one per line, slurped into the array
-# written at the end. Each block: { "key": "...", "status": "ok|skipped",
-# "source": "directory|repo|local-clone", "skip_reason": "...", "orphans": [...],
-# "new_upstream": [...], "renames": [...], "removed": [...] }. Held as JSON text, so a key's
-# bytes never pass through a line-oriented tool. An orphan's `enabled` is the
-# key's value exactly as the file holds it, which need not be a boolean; only
-# an exact `false` is a removal candidate.
 JSON_LINES=""
 
 # Shared jq definitions. `san` is for display only: every control character,
@@ -154,22 +141,14 @@ JQ_DEFS='def san: tostring | gsub("[[:cntrl:]]"; "?");
 def mk($i): .extraKnownMarketplaces as $m | ($m | keys[$i]) as $k | {key: $k, value: $m[$k]};
 def ep: .enabledPlugins | if type == "object" then . else {} end;'
 
-# mk_raw <index> <jq expression over mk> - one field of marketplace <index>,
-# printed with -j so no line terminator is appended. Used for paths, URLs and
-# display, never for a key that is written back.
 mk_raw() {
   jq -j --argjson i "$1" "$JQ_DEFS mk(\$i) | $2" "$SETTINGS"
 }
 
-# display_lines - the sanitized display lines a jq program prints, with the
-# terminator carriage returns a native-Windows jq appends removed. Safe because
-# `san` already replaced every carriage return that belonged to the data.
 display_lines() {
   tr -d '\r'
 }
 
-# print_items <block> <jq program over the block> - one `    - <line>` row per
-# display line the program prints.
 print_items() {
   local line
   while IFS= read -r line; do
@@ -177,24 +156,12 @@ print_items() {
   done < <(jq -r "$JQ_DEFS $2" <<<"$1" | display_lines)
 }
 
-# --- Rename heuristic ---------------------------------------------------------
 
-# Similar names are likely renames: same prefix or suffix of >= 4 chars, OR one
-# contained in the other with >= 5 chars. Cheap; false positives surface as
-# RENAME warnings (human reviews) so over-matching is safer than under-matching.
-# Computed in jq over the exact names, so the pairs it emits carry exact keys.
 JQ_SIMILAR='def similar($a; $b):
   (($a | length) >= 4 and ($b | length) >= 4 and ($a[0:4] == $b[0:4] or $a[-4:] == $b[-4:]))
   or (($a | length) >= 5 and ($b | contains($a)))
   or (($b | length) >= 5 and ($a | contains($b)));'
 
-# Follow one orphan through the catalog renames object. The walk is bounded by
-# the number of keys, and a name already seen ends it, so a cycle cannot hang
-# the check and is not given a final name. A start the map does not contain is
-# "absent" (the similarity fallback applies). A value of null is "removed".
-# A string value is the next name. Anything else is "bad" and is not a rename.
-# `$state` is bound before any pipe, because a pipe makes `.` the value on its
-# left and a later `.cur` would then index that value.
 JQ_FOLLOW='def follow($map; $start):
   (($map | keys) | length) as $limit
   | reduce range(0; $limit + 1) as $step (
@@ -217,10 +184,7 @@ JQ_FOLLOW='def follow($map; $start):
         end)
   | if .kind == "walk" then .kind = "cycle" else . end;'
 
-# --- Fetch upstream marketplace.json ----------------------------------------
 
-# Stdout: the fixture catalog; nonzero when the fixture dir has no file for
-# this key. The fixture dir, when set, is the only repo-source the check reads.
 fetch_fixture() {
   local market_key="$1"
   local fixture="${SETTINGS_AUDIT_FIXTURE_DIR:-}/$market_key.json"
@@ -231,10 +195,6 @@ fetch_fixture() {
   return 1
 }
 
-# Stdout: JSON content from raw.githubusercontent.com; nonzero on failure.
-# curl is needed only here. A machine without it still audits every
-# directory-sourced marketplace and every local clone; this marketplace is
-# recorded as a fetch failure rather than aborting the run.
 fetch_network() {
   local market_key="$1" repo="$2"
   if ! command -v curl >/dev/null 2>&1; then
@@ -246,8 +206,6 @@ fetch_network() {
   curl -fsSL --globoff --max-time 15 "$url" 2>/dev/null
 }
 
-# claude_config_root - CLAUDE_CONFIG_DIR when set, else ~/.claude. Empty when
-# neither is set. Printed with no trailing newline.
 claude_config_root() {
   if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
     printf '%s' "${CLAUDE_CONFIG_DIR%/}"
@@ -256,17 +214,11 @@ claude_config_root() {
   fi
 }
 
-# key_is_one_segment - a marketplace key that can be one directory name. A key
-# containing a slash, a backslash, a newline, or the names `.` or `..` is not
-# joined onto the clone path.
 key_is_one_segment() {
   local k="$1"
   [[ -n "$k" && "$k" != "." && "$k" != ".." && "$k" != */* && "$k" != *\\* && "$k" != *$'\n'* ]]
 }
 
-# read_catalog_file <path> - stdout the file when it is a readable regular file
-# of valid JSON. Reads only; a missing or invalid file returns 1 and prints
-# nothing.
 read_catalog_file() {
   local path="$1" json
   [[ -f "$path" && -r "$path" ]] || return 1
@@ -275,9 +227,6 @@ read_catalog_file() {
   printf '%s' "$json"
 }
 
-# read_local_catalog <market_key> - stdout a valid catalog from the local
-# Claude Code clone, or return 1. Tries the conventional clone path first, then
-# the installLocation recorded for the key. Never writes.
 read_local_catalog() {
   local market_key="$1" root known loc
   root=$(claude_config_root)
@@ -300,16 +249,10 @@ read_local_catalog() {
   read_catalog_file "$loc/.claude-plugin/marketplace.json"
 }
 
-# Remediation this check prints. A settings file can be edited here, or a
-# Claude Code session in this checkout can rewrite it and the rewrite committed.
-# A managed settings file is not rewritten that way: update managed enabledPlugins.
 REMEDIATION_RENAME_FILE="replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
 REMEDIATION_REMOVED_FILE="remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
 REMEDIATION_MANAGED="update managed enabledPlugins"
 
-# settings_file_is_managed - the audited path is managed settings: the file is
-# named managed-settings.json or remote-settings.json, or it sits in
-# managed-settings.d.
 settings_file_is_managed() {
   local base parent
   base=$(basename -- "$SETTINGS")
@@ -317,13 +260,7 @@ settings_file_is_managed() {
   [[ "$base" == "managed-settings.json" || "$base" == "remote-settings.json" || "$parent" == "managed-settings.d" ]]
 }
 
-# --- Resolve a directory-source path ----------------------------------------
 
-# Stdout: the directory a `source.path` names. A relative path (including
-# `./`) resolves against the project root, the directory that contains the
-# settings file's `.claude/`; an absolute path (POSIX or drive-lettered) is
-# used as is. Backslashes become forward slashes and a trailing slash is
-# stripped so Git Bash on Windows joins the same way as Linux.
 resolve_directory_path() {
   local raw="$1"
   raw="${raw//\\//}"
@@ -344,12 +281,7 @@ resolve_directory_path() {
   fi
 }
 
-# --- Per-marketplace audit --------------------------------------------------
 
-# Record a skipped marketplace: print the SKIP line, append to SKIPPED_MARKETS,
-# and add a skipped block whose key jq reads from the settings file. Args:
-# index, display key, suffix, message, json_reason, source ("repo" when
-# omitted). The reason and source are literals from this file.
 record_skip() {
   local index="$1" display_key="$2" suffix="$3" message="$4" json_reason="$5" source="${6:-repo}"
   local block
@@ -373,15 +305,12 @@ audit_marketplace() {
   source_type=$(mk_raw "$index" '(.value.source.source? | strings) // empty')
   source_path=$(mk_raw "$index" '(.value.source.path? | strings) // empty')
 
-  # A directory source wins over source.repo when both are present: the
-  # catalog is already on disk, so no fetch and no fixture lookup happens.
   local catalog_source="repo" catalog_dir=""
   if [[ "$source_type" == "directory" && -n "$source_path" ]]; then
     catalog_source="directory"
     catalog_dir=$(resolve_directory_path "$source_path")
   fi
 
-  # print_market_header <label> - the marketplace line above its rows.
   print_market_header() {
     printf '\n%s%s%s (%s)\n' "$CYAN" "$display_key" "$RESET" "$1"
   }
@@ -418,9 +347,6 @@ audit_marketplace() {
       return 0
     fi
 
-    # The fixture directory wins over a local clone and over the network, so a
-    # test names the catalog it means. With no fixture directory, a readable
-    # local clone wins over the network and is labeled local-clone.
     if [[ -n "${SETTINGS_AUDIT_FIXTURE_DIR:-}" ]]; then
       print_market_header "$repo"
       if ! upstream_json=$(fetch_fixture "$market_key"); then
@@ -446,11 +372,6 @@ audit_marketplace() {
     fi
   fi
 
-  # The whole comparison happens in jq: the catalog on stdin, the settings
-  # file slurped, the marketplace key read from it by index. Names are
-  # compared as JSON strings, so nothing is trimmed from a key. The renames
-  # map is read from the catalog already in hand. An orphan the map does not
-  # mention keeps the similarity fallback.
   local block
   if ! block=$(jq -c --argjson i "$index" --arg src "$catalog_source" --slurpfile s "$SETTINGS" \
     "$JQ_DEFS $JQ_SIMILAR $JQ_FOLLOW"'
@@ -488,7 +409,6 @@ audit_marketplace() {
   block="${block%$'\r'}"
   JSON_LINES+="$block"$'\n'
 
-  # --- Render -----------------------------------------------------------------
 
   local orphan_count new_count removed_count rename_count heuristic_count
   orphan_count=$(jq -j '.orphans | length' <<<"$block")
@@ -513,9 +433,6 @@ audit_marketplace() {
   if [[ "$orphan_count" -gt 0 ]]; then
     printf '  %sORPHAN%s  %d entries in the settings file no longer in upstream:\n' \
       "$RED" "$RESET" "$orphan_count"
-    # Tabs separate the value, the entry and an optional reason; `san` turned
-    # any tab in the data into `?`, so the split is unambiguous. Only an exact
-    # false is a removal candidate; true and every other value are left to a person.
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       enabled="${line%%$'\t'*}"
@@ -561,12 +478,7 @@ audit_marketplace() {
   fi
 }
 
-# --- Coverage ----------------------------------------------------------------
 
-# print_coverage - the audited file's enabledPlugins keys whose marketplace it
-# does not declare. They are never compared against any catalog, so the run
-# names them rather than letting silence read as "no drift". Printed on every
-# path, including when no marketplace is declared.
 print_coverage() {
   local line
   if ! line=$(jq -j "$JQ_DEFS"'
@@ -581,8 +493,6 @@ print_coverage() {
   printf 'Not diffed: %s\n' "$line"
 }
 
-# write_findings - the blocks as one JSON array to $SETTINGS_AUDIT_OUTPUT_JSON
-# when it is set; with no block that is `[]`, never a missing document.
 write_findings() {
   [[ -n "${SETTINGS_AUDIT_OUTPUT_JSON:-}" ]] || return 0
   if ! jq -s '.' <<<"$JSON_LINES" >"$SETTINGS_AUDIT_OUTPUT_JSON"; then
@@ -592,7 +502,6 @@ write_findings() {
   printf '  JSON written to: %s\n' "${SETTINGS_AUDIT_OUTPUT_JSON//[[:cntrl:]]/?}"
 }
 
-# --- Main --------------------------------------------------------------------
 
 main() {
   printf '%sPlugin drift audit%s\n' "$CYAN" "$RESET"
@@ -611,8 +520,6 @@ main() {
     exit 2
   fi
 
-  # The basis of the audit: only these marketplaces are compared, so a plugin
-  # from any other marketplace is outside what this run can report on.
   printf 'Marketplaces declared in the audited file: %d\n' "$market_count"
   print_coverage
 

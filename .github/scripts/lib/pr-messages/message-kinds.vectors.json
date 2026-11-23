@@ -1,29 +1,29 @@
 {
   "parse": [
-    { "name": "the marker for the key", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": true },
-    { "name": "another activity's marker", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-docs -->", "key": { "activity": "read/fix-ci" }, "match": false },
-    { "name": "an activity with no lane", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": false },
-    { "name": "an activity in capitals", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=Read/fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": false },
-    { "name": "the old per-run marker, with extra fields", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->", "key": { "activity": "read/fix-ci" }, "match": false },
-    { "name": "a trailing space", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci --> ", "key": { "activity": "read/fix-ci" }, "match": false }
+    { "name": "the marker for the key", "kind": "lane-run-report", "line": "<!-- lane-run-report run=123 -->", "key": { "run": "123" }, "match": true },
+    { "name": "another run's marker", "kind": "lane-run-report", "line": "<!-- lane-run-report run=124 -->", "key": { "run": "123" }, "match": false },
+    { "name": "run 0", "kind": "lane-run-report", "line": "<!-- lane-run-report run=0 -->", "key": { "run": "0" }, "match": false },
+    { "name": "the old per-activity marker", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci -->", "key": { "run": "123" }, "match": false },
+    { "name": "the old per-run marker, with extra fields", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->", "key": { "run": "123" }, "match": false },
+    { "name": "a trailing space", "kind": "lane-run-report", "line": "<!-- lane-run-report run=123 --> ", "key": { "run": "123" }, "match": false }
   ],
   "render": [
-    { "kind": "lane-run-report", "fields": { "activity": "pr-unblock/fix-ci" }, "line": "<!-- lane-run-report activity=pr-unblock/fix-ci -->" }
+    { "kind": "lane-run-report", "fields": { "run": "44835219344" }, "line": "<!-- lane-run-report run=44835219344 -->" }
   ],
   "badFields": [
-    { "name": "an activity with no lane", "kind": "lane-run-report", "fields": { "activity": "fix-ci" } },
-    { "name": "an activity carrying a marker end", "kind": "lane-run-report", "fields": { "activity": "read/x -->" } },
-    { "name": "an extra field", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "run": "1" } }
+    { "name": "a run that is not a number", "kind": "lane-run-report", "fields": { "run": "x1" } },
+    { "name": "a run carrying a marker end", "kind": "lane-run-report", "fields": { "run": "1 -->" } },
+    { "name": "an extra field", "kind": "lane-run-report", "fields": { "run": "1", "activity": "read/fix-ci" } }
   ],
   "section": [
-    { "name": "a base leg", "kind": "lane-run-report", "fields": { "run": "123", "attempt": "1", "rung": "0", "leg": "base" }, "line": "<!-- lane-run-report-section run=123 attempt=1 rung=0 leg=base -->" },
-    { "name": "a rung-up fallback leg on a re-run", "kind": "lane-run-report", "fields": { "run": "44835219344", "attempt": "2", "rung": "1", "leg": "fallback" }, "line": "<!-- lane-run-report-section run=44835219344 attempt=2 rung=1 leg=fallback -->" }
+    { "name": "a base leg", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "attempt": "1", "rung": "0", "leg": "base" }, "line": "<!-- lane-run-report-section activity=read/fix-ci attempt=1 rung=0 leg=base -->" },
+    { "name": "a rung-up fallback leg on a re-run", "kind": "lane-run-report", "fields": { "activity": "pr-unblock/fix-ci", "attempt": "2", "rung": "1", "leg": "fallback" }, "line": "<!-- lane-run-report-section activity=pr-unblock/fix-ci attempt=2 rung=1 leg=fallback -->" }
   ],
   "badSection": [
-    { "name": "rung 2", "kind": "lane-run-report", "fields": { "run": "1", "attempt": "1", "rung": "2", "leg": "base" } },
-    { "name": "an unknown leg", "kind": "lane-run-report", "fields": { "run": "1", "attempt": "1", "rung": "0", "leg": "other" } },
-    { "name": "run 0", "kind": "lane-run-report", "fields": { "run": "0", "attempt": "1", "rung": "0", "leg": "base" } },
-    { "name": "no attempt", "kind": "lane-run-report", "fields": { "run": "1", "rung": "0", "leg": "base" } }
+    { "name": "rung 2", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "attempt": "1", "rung": "2", "leg": "base" } },
+    { "name": "an unknown leg", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "attempt": "1", "rung": "0", "leg": "other" } },
+    { "name": "an activity with no lane", "kind": "lane-run-report", "fields": { "activity": "fix-ci", "attempt": "1", "rung": "0", "leg": "base" } },
+    { "name": "no attempt", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "rung": "0", "leg": "base" } }
   ],
   "login": [
     { "name": "the Actions bot, which GraphQL spells without its suffix", "actor": { "__typename": "Bot", "login": "github-actions" }, "login": "github-actions[bot]" },

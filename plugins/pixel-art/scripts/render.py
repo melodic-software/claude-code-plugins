@@ -197,7 +197,7 @@ def render(spec, out_dir, scale=8, spec_path=None):
 
     animations = spec.get("animations") or {"all": {"frames": list(frames), "fps": 8}}
     previous = out_dir / "sheet.json"
-    if previous.exists():  # drop GIFs the last render wrote for animations this spec no longer has
+    if previous.exists():
         for tag in json.loads(previous.read_text()).get("meta", {}).get("frameTags", []):
             name = tag.get("name", "")
             if name not in animations and re.fullmatch(r"[\w-]+", name):

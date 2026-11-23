@@ -1,8 +1,3 @@
-"""Tests for transcript_reader.first_cwd: the launch directory a transcript records.
-
-Fixtures are written to tmp_path per test, so no transcript on this machine is read.
-"""
-
 from __future__ import annotations
 
 import json

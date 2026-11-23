@@ -1,5 +1,3 @@
-"""Tests for climb_log.py: the attempt log and the keep rule."""
-
 import json
 import subprocess
 import sys

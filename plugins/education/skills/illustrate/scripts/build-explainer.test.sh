@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the illustrate explainer builder: hostile text reaches
-# the page only as JSON data, the page passes the interactive profile, and the
-# markdown record carries the same content with no raw HTML.
-#
-#   bash plugins/education/skills/illustrate/scripts/build-explainer.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 # test-scope: plugins/education/skills/illustrate/SKILL.md
 set -euo pipefail

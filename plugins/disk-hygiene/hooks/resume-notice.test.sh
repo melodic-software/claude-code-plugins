@@ -5,8 +5,6 @@
 # test-scope: plugins/disk-hygiene/skills/clean/scripts/hygiene.py plugins/disk-hygiene/lib/engine_grammar.py
 # test-scope: plugins/disk-hygiene/lib/guard_decision_log.py plugins/disk-hygiene/lib/hook_telemetry.py
 # test-scope: plugins/disk-hygiene/lib/killswitch_config.py
-# Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
-# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

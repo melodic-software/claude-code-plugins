@@ -13,7 +13,6 @@ assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 assert_eq "wit_iso_to_epoch epoch-1" "1" "$(wit_iso_to_epoch '1970-01-01T00:00:01Z')"
 assert_eq "wit_iso_to_epoch known ts" "1783828800" "$(wit_iso_to_epoch '2026-07-12T04:00:00Z')"
 
-# Lease-marker JSON extraction.
 assert_eq "lease json extracted" '{"holder":"me"}' "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"} -->')"
 assert_eq "non-marker → empty" "" "$(wit_lease_json 'just a comment')"
 # Trailing content after the marker (a bot footer, a signature) must still parse, or
@@ -83,24 +82,19 @@ wit_select_active_lease "$LEASES_ONE"
 assert_eq "select: single active lease id" "10" "$WIT_ACTIVE_LEASE_ID"
 assert_eq "select: single active lease holder" "a" "$(jq -r '.holder' <<<"$WIT_ACTIVE_LEASE_JSON")"
 
-# Higher-id (100) is a superseded back-off; the active lease is the earlier id 10.
 LEASES_BACKOFF="$(jq -cn --arg a "$BODY_A" --arg b "$BODY_B_SUP" '[{id:10, body:$a}, {id:100, body:$b}]')"
 wit_select_active_lease "$LEASES_BACKOFF"
 assert_eq "select: superseded back-off does not mask active lease" "10" "$WIT_ACTIVE_LEASE_ID"
 
-# Two live leases: the newest (highest id) wins.
 LEASES_TWO_LIVE="$(jq -cn --arg a "$BODY_A" --arg b "$BODY_B" '[{id:10, body:$a}, {id:100, body:$b}]')"
 wit_select_active_lease "$LEASES_TWO_LIVE"
 assert_eq "select: newest non-superseded lease wins" "100" "$WIT_ACTIVE_LEASE_ID"
 
-# No active lease: all superseded → both out-params empty.
 LEASES_NONE="$(jq -cn --arg b "$BODY_B_SUP" '[{id:100, body:$b}]')"
 wit_select_active_lease "$LEASES_NONE"
 assert_eq "select: no active lease → empty id" "" "$WIT_ACTIVE_LEASE_ID"
 assert_eq "select: no active lease → empty json" "" "$WIT_ACTIVE_LEASE_JSON"
 
-# Winner: the EARLIEST live lease holds; superseded and expired leases are skipped, and a
-# lease the released-fn reports released moves arbitration on, though never the self id.
 LIVE_A="$(mk "$(jq -cn --arg t "$NOW_ISO" '{holder:"a", renewed_at:$t, ttl_hours:24}')")"
 LIVE_B="$(mk "$(jq -cn --arg t "$NOW_ISO" '{holder:"b", renewed_at:$t, ttl_hours:24}')")"
 DEAD_C="$(mk "$(jq -cn '{holder:"c", renewed_at:"2000-01-01T00:00:00Z", ttl_hours:24}')")"
@@ -118,7 +112,6 @@ assert_eq "winner: the self id is never passed to the released-fn" "30" "$WIT_WI
 wit_lease_winner "$LEASES_NONE" "$NOW" 100
 assert_eq "winner: no live lease → empty id" "" "$WIT_WINNER_ID"
 
-# Newer live lease: only a live lease with a higher comment id than self counts.
 assert_succeeds "newer: a live lease after self is found" "found" "not found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 30
 assert_fails "newer: no lease after the newest" "not found" "found" wit_newer_live_lease "$LEASES_MIXED" "$NOW" 40
 LEASES_SUP_AFTER="$(jq -cn --arg a "$LIVE_A" --arg d "$SUP_D" '[{id:10, body:$a}, {id:20, body:$d}]')"

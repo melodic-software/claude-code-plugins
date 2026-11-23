@@ -54,7 +54,7 @@ function Get-GpuDriverInfo {
             $vendor = switch -Regex ($vc.Name) {
                 'Intel' { 'Intel' }
                 'Advanced Micro Devices|AMD|Radeon' { 'AMD' }
-                'NVIDIA|GeForce|Quadro|RTX|GTX' { $null }  # already covered above
+                'NVIDIA|GeForce|Quadro|RTX|GTX' { $null }
                 default { 'Other' }
             }
             if ($null -eq $vendor) { continue }

@@ -82,8 +82,6 @@ export function authorKind(type, body) {
   return D5_MARKER.test(String(body ?? "")) ? "user-marked" : "user-unmarked";
 }
 
-// ---------------------------------------------------------------- answer parsing
-
 function tables(text) {
   const out = [];
   let rows = null;
@@ -102,7 +100,6 @@ function tables(text) {
 }
 
 const verdictColumn = (header) => header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
-// A table row's text, led by its verdict cell when the table has a verdict column.
 const rowText = (cells, col) => (col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | "));
 
 // The label a piece of answer text carries, or null. A verdict column wins over the rest of the
@@ -192,7 +189,6 @@ function footerLane(body) {
   return tag && LANES.includes(tag[1]) ? tag[1] : null;
 }
 
-// A snapshot comment's lane: its footer's, unless fetch found the footer unbound.
 const laneOf = (comment) => (comment.lane_bound === false ? null : footerLane(comment.body));
 
 export function normalizeFirstLine(body) {
@@ -206,8 +202,6 @@ export function normalizeFirstLine(body) {
     .replace(/\s+/g, " ")
     .trim();
 }
-
-// ---------------------------------------------------------------- compute
 
 const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
 const byTime = (a, b) => cmp(a.at, b.at) || cmp(String(a.key), String(b.key));
@@ -432,8 +426,6 @@ export function renderMarkdown(result) {
   return `${out.join("\n")}\n`;
 }
 
-// ---------------------------------------------------------------- fetch
-
 export class RateLimited extends Error {}
 let calls = 0;
 
@@ -593,8 +585,6 @@ export async function fetchSnapshot({ repo, since, until }) {
   prs.sort((a, b) => a.number - b.number);
   return { schema: 3, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, round_author, truncated, prs };
 }
-
-// ---------------------------------------------------------------- CLI
 
 function toIso(value, flag) {
   const text = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value;

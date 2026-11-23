@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the disk-hygiene bounded guard-decision record."""
 
 from __future__ import annotations
 
@@ -92,7 +91,6 @@ class GuardDecisionLogTests(unittest.TestCase):
             stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
         )
 
-    # --- the record exists at all, with no configuration -------------------
 
     def test_record_creates_the_log_under_the_data_root(self) -> None:
         self.assertTrue(self.write_one())
@@ -145,7 +143,6 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertEqual(2, entry["failure_count"])
         self.assertEqual(1, entry["exit_code"])
 
-    # --- bounded, enforced -------------------------------------------------
 
     def test_long_command_and_reason_are_truncated(self) -> None:
         self.write_one(command="x" * 5000, reason="y" * 5000)
@@ -368,11 +365,9 @@ class GuardDecisionLogTests(unittest.TestCase):
         surviving = [
             entry["rule"] for entry in self.read_records(rotated) + self.read_records()
         ]
-        # The most recent decisions are the ones that survive the bound.
         self.assertIn("rule-199", surviving)
         self.assertNotIn("rule-0", surviving)
 
-    # --- never changes anything, never raises ------------------------------
 
     def test_absent_data_root_records_nothing_and_reports_false(self) -> None:
         self.assertFalse(decision_log.record(None, hook="h", decision="deny", rule="r"))

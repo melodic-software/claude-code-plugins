@@ -122,7 +122,6 @@ assert_contains "--help documents exit 3" "$OUT" "size cap"
 assert_contains "--help documents the cap env var" "$OUT" "INDEX_REGEN_MAX_BYTES"
 assert_contains "--help documents the precedence chain" "$OUT" "EXPLORE.md > RESEARCH.md > INTENT.md"
 
-# --- usage errors exit 2 ------------------------------------------------------
 rc=0
 run_script >/dev/null || rc=$?
 assert_exit "no args exits 2" 2 "$rc"
@@ -130,7 +129,6 @@ rc=0
 run_script "$TEST_TMPDIR/absent-dir" >/dev/null || rc=$?
 assert_exit "nonexistent slice dir exits 2" 2 "$rc"
 
-# --- happy regen --------------------------------------------------------------
 S="$TEST_TMPDIR/happy"
 write_slice_index "$S" alpha beta
 write_child_index "$S/alpha" '"Alpha child one-liner"'
@@ -152,7 +150,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "idempotent second run exits 0" 0 "$rc"
 assert_contains "idempotent second run reports unchanged" "$OUT" "unchanged: $S/INDEX.md"
 
-# --- ordering follows the declared children list, not disk order -------------
 S="$TEST_TMPDIR/order"
 write_slice_index "$S" zulu alpha
 write_child_index "$S/alpha" 'Alpha abstract'
@@ -162,7 +159,6 @@ BODY=$(generated_body "$S")
 FIRST=$(printf '%s\n' "$BODY" | head -n 1)
 assert_contains "declared order wins over disk order" "$FIRST" "[zulu]"
 
-# --- verbatim abstract copy ---------------------------------------------------
 S="$TEST_TMPDIR/verbatim"
 write_slice_index "$S" kid
 # shellcheck disable=SC2016  # the backticks are literal fixture content, not an expansion
@@ -172,7 +168,6 @@ BODY=$(generated_body "$S")
 # shellcheck disable=SC2016  # asserting the literal backticks survived
 assert_contains "abstract is mirrored verbatim" "$BODY" 'Keeps  spacing, a # mark, and `ticks` verbatim'
 
-# --- zero-children slice ------------------------------------------------------
 S="$TEST_TMPDIR/zero"
 write_slice_index "$S"
 rc=0
@@ -193,7 +188,6 @@ assert_exit "index-less leaves regenerate cleanly" 0 "$rc"
 BODY=$(generated_body "$S")
 assert_contains "EXPLORE.md leaf links its sole artifact" "$BODY" "[explored](explored/EXPLORE.md) — Explore-derived abstract"
 assert_contains "PLAN.md leaf links its sole artifact" "$BODY" "[planned](planned/PLAN.md) — Plan-derived abstract"
-# INDEX.md outranks a co-present reserved artifact.
 S="$TEST_TMPDIR/leaf-index-wins"
 write_slice_index "$S" kid
 write_child_index "$S/kid" 'Index-borne abstract'
@@ -259,7 +253,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "declared dir without index artifacts exits 1" 1 "$rc"
 assert_contains "predicate failure is named" "$OUT" "declared child 'hollow'"
 
-# --- interior noun-dirs are exempt from parity --------------------------------
 S="$TEST_TMPDIR/interior"
 write_slice_index "$S" alpha
 write_child_index "$S/alpha" 'Alpha abstract'
@@ -281,7 +274,6 @@ OUT=$(run_script "$S") || rc=$?
 assert_exit "slice without INDEX.md exits 0" 0 "$rc"
 assert_contains "parity reported not-applicable, never silently passed" "$OUT" "parity: not-applicable"
 
-# --- markers missing or duplicated exit 2 -------------------------------------
 S="$TEST_TMPDIR/no-markers"
 mkdir -p "$S"
 {

@@ -52,7 +52,6 @@ assert_absent() {
   fi
 }
 
-# assert_present <label> <file> <extended-regex>
 assert_present() {
   local label="$1" file="$2" pattern="$3"
   if [[ -f "$PLUGIN_ROOT/$file" ]] && grep -qEI -- "$pattern" "$PLUGIN_ROOT/$file"; then
@@ -607,7 +606,6 @@ assert_absent 'no evals entry counts the gate criteria' \
 # source in the sidecar header and the read-only `gh` forms.
 # ---------------------------------------------------------------------------
 
-# line_after <file> <extended-regex>: the line directly after the first match.
 line_after() {
   awk -v pat="$2" 'found { print; exit } $0 ~ pat { found = 1 }' "$PLUGIN_ROOT/$1"
 }

@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parseArgs } from './lib/args.mjs'
+import { die, parseUtcDate } from './lib/common.mjs'
+import { assembleDecision, buildRoutingOffDecision } from './lib/decision.mjs'
+import { loadSettings, readDefaults } from './lib/inputs.mjs'
+
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2), PLUGIN_ROOT)
+  const nowDate = opts.now
+    ? parseUtcDate(opts.now.slice(0, 10)) || die(`--now must be YYYY-MM-DD, got '${opts.now}'`)
+    : parseUtcDate(new Date().toISOString().slice(0, 10))
+
+  const defaults = readDefaults(opts.defaults)
+  const settings = loadSettings(opts.settings, defaults)
+  if (!settings.routing) {
+    const offDecision = buildRoutingOffDecision(opts.taskType)
+    process.stdout.write(`${JSON.stringify(offDecision, null, 2)}\n`)
+    return
+  }
+
+  if (!opts.manifest) die('--manifest is required')
+  if (!opts.models) die('--models is required')
+  if (opts.records.length === 0) die('at least one --records <file> is required')
+
+  const decision = assembleDecision({ opts, defaults, settings, nowDate, pluginRoot: PLUGIN_ROOT })
+  process.stdout.write(`${JSON.stringify(decision, null, 2)}\n`)
+}
+
+main()

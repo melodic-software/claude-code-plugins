@@ -37,7 +37,6 @@ expect() { # <name> <want-rc> <got-rc> <output>
   if [[ "$3" -eq "$2" ]]; then pass "$1"; else bad "$1" "want exit $2, got $3: $4"; fi
 }
 
-# --- regen writes the header, then the canonical, into every copy -----------
 fixture
 out="$(run)"
 expect "regen exits 0" 0 $? "$out"
@@ -50,7 +49,6 @@ for copy in plugins/alpha/lib/esc.mjs plugins/beta/lib/esc.mjs; do
   fi
 done
 
-# --- running it twice produces no diff -------------------------------------
 git_init_test_repo "$root" >/dev/null || exit 2
 git -C "$root" add -A && git -C "$root" commit -qm base
 out="$(run)"
@@ -60,11 +58,9 @@ else
   bad "a second regen changes nothing" "status: $(git -C "$root" status --porcelain) out: $out"
 fi
 
-# --- --check passes on generated copies --------------------------------------
 out="$(run --check)"
 expect "--check passes when every copy is generated" 0 $? "$out"
 
-# --- --check fails on a hand-edited copy and never writes --------------------
 printf '// hand edit\n' >>"$root/plugins/beta/lib/esc.mjs"
 before="$(cat "$root/plugins/beta/lib/esc.mjs")"
 out="$(run --check)"
@@ -78,12 +74,10 @@ else
 fi
 git -C "$root" checkout -q -- .
 
-# --- --check fails when the canonical changed without a regen ----------------
 printf 'export const esc = (s) => String(s ?? "");\n' >"$root/lib/esc.mjs"
 out="$(run --check)"
 expect "--check fails when the canonical changed without a regen" 1 $? "$out"
 
-# --- --check-bump --------------------------------------------------------------
 base="$(git -C "$root" rev-parse HEAD)"
 run >/dev/null
 out="$(run --check-bump "$base")"
@@ -222,7 +216,6 @@ expect "--check-bump fails a branch behind its base that changed a shared file i
 LAST_OUTPUT="$out"
 assert_output_contains "--check-bump names the stale carrier of the branch's own change" "STALE VERSION: lib/esc.mjs or its copy plugins/alpha/lib/esc.mjs changed vs main-ahead"
 
-# --- the executable bit follows the canonical, on regen and in --check ----------
 fixture
 printf '#!/usr/bin/env bash\necho hi\n' >"$root/lib/tool.sh"
 printf 'lib/tool.sh plugins/alpha/scripts/tool.sh\n' >"$root/scripts/shared-copies.txt"
@@ -266,7 +259,6 @@ else
   bad "a new copy takes the canonical's executable bit" "not executable"
 fi
 
-# --- a Markdown copy takes an HTML-comment header, after any frontmatter --------
 fixture
 printf '# Title\n\nbody\n' >"$root/lib/plain.md"
 printf -- '---\nkey: 1.0.0\n---\n\n# Title\n' >"$root/lib/front.md"
@@ -287,7 +279,6 @@ fi
 out="$(run --check)"
 expect "--check passes on generated Markdown copies" 0 $? "$out"
 
-# --- a JSON copy is the canonical's bytes, with no header -------------------------
 fixture
 printf '{\n  "a": 1\n}\n' >"$root/lib/data.json"
 printf 'lib/data.json plugins/alpha/ref/data.json\n' >"$root/scripts/shared-copies.txt"
@@ -303,7 +294,6 @@ printf '{\n  "a": 2\n}\n' >"$root/plugins/alpha/ref/data.json"
 out="$(run --check)"
 expect "--check fails on an edited JSON copy" 1 $? "$out"
 
-# --- an HTML copy takes an HTML-comment header, after any doctype ---------------
 fixture
 printf '<!doctype html>\n<html lang="en">\n</html>\n' >"$root/lib/page.html"
 printf '<html lang="en">\n</html>\n' >"$root/lib/bare.html"
@@ -324,7 +314,6 @@ fi
 out="$(run --check)"
 expect "--check passes on generated HTML copies" 0 $? "$out"
 
-# --- a CSS copy takes a block-comment header at the top ------------------------
 fixture
 printf 'body { color: red; }\n' >"$root/lib/style.css"
 printf 'lib/style.css plugins/alpha/ref/style.css\n' >"$root/scripts/shared-copies.txt"
@@ -350,7 +339,6 @@ else
   bad "--print-manifest emits a src line then its copies, per canonical" "got: $out"
 fi
 
-# --- malformed registries and inputs exit 2 ------------------------------------
 reject() { # <name> <needle> <registry line> [file to create]
   fixture
   if [[ -n "${4:-}" ]]; then
@@ -378,7 +366,6 @@ fixture
 out="$(run --bogus)"
 expect "an unknown flag exits 2" 2 $? "$out"
 
-# --- registry paths that leave the checkout exit 2 ------------------------------
 reject "a copy with a .. segment is rejected" "not a path inside the checkout" \
   "lib/esc.mjs plugins/alpha/../../escape.mjs"
 reject "an absolute canonical is rejected" "not a path inside the checkout" \
@@ -512,7 +499,6 @@ expect "a copy staged inside the checkout refuses --check-bump" 2 $? "$out"
 LAST_OUTPUT="$out"
 assert_output_contains "a copy staged inside the checkout refuses --check-bump, with the reason" "refused: --check-bump"
 
-# --- with no work tree to resolve, --check-bump is refused (fails closed) -------
 fixture
 out="$(run --check-bump HEAD)"
 expect "--check-bump outside any work tree exits 2" 2 $? "$out"

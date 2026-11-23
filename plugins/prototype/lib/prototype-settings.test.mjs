@@ -21,7 +21,6 @@ const env = {
 };
 
 let n = 0;
-/** A new project directory holding the given files under docs/conventions; `git` makes it a repository. */
 function project(files = {}, { git = false } = {}) {
   const root = path.join(base, `p${++n}`);
   mkdirSync(path.join(root, "docs/conventions"), { recursive: true });

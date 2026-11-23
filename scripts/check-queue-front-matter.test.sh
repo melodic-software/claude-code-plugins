@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-queue-front-matter.sh.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +21,6 @@ run_check() (
   bash "$SCRIPT" "$1"
 )
 
-# --- valid item passes -------------------------------------------------------
 new_queue q
 cat >"$q/20260812-sample.md" <<'EOF'
 ---
@@ -40,7 +38,6 @@ else
   fail "valid item should pass"
 fi
 
-# --- missing front matter fails ----------------------------------------------
 new_queue q
 printf 'No front matter here\n' >"$q/20260812-bad.md"
 if run_check "$q" >/dev/null 2>&1; then
@@ -49,7 +46,6 @@ else
   ok "missing front matter fails"
 fi
 
-# --- invalid status fails ----------------------------------------------------
 new_queue q
 cat >"$q/20260812-open.md" <<'EOF'
 ---
@@ -66,7 +62,6 @@ else
   ok "invalid status fails"
 fi
 
-# --- id stem mismatch fails --------------------------------------------------
 new_queue q
 cat >"$q/20260812-wrong.md" <<'EOF'
 ---
@@ -83,7 +78,6 @@ else
   ok "id stem mismatch fails"
 fi
 
-# --- README.md is ignored ----------------------------------------------------
 new_queue q
 printf '# readme\n' >"$q/README.md"
 cat >"$q/20260812-only.md" <<'EOF'

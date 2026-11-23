@@ -147,7 +147,6 @@ non_user_ids() {
 reinstall_ids() { user_ids | grep -v '@builtin$'; }
 marketplace_names() { jqr -r 'keys[]' "$MARKETPLACES_JSON"; }
 size_kb() { du -sk "$1" 2>/dev/null | awk '{print $1}'; }
-# Counts the direct entries of directory $1, narrowed by any further find tests.
 entry_count() { find "$1" -mindepth 1 -maxdepth 1 "${@:2}" | wc -l | tr -d ' '; }
 
 if [[ "$MODE" == "preview" ]]; then
@@ -181,7 +180,6 @@ if [[ "$MODE" == "preview" ]]; then
   exit 0
 fi
 
-# --- refresh and clean ---------------------------------------------------------
 [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] ||
   refuse "CLAUDE_CODE_REMOTE is set; run $MODE from a terminal on this machine"
 if [[ "$MODE" == "clean" ]]; then
@@ -275,7 +273,6 @@ snapshot_settings() {
     printf '%s\n' "$f" >>"$RUN_DIR/settings.list"
   done < <(settings_files)
 }
-# Prints each settings file that differs from its copy, or that appeared.
 compare_settings() {
   local i=0 f
   while IFS= read -r f; do
@@ -359,7 +356,6 @@ else
   mkdir -p "$moved/marketplaces" || exit 2
 fi
 
-# Every target reset so far, whether moved aside or absent before the run.
 TARGETS=()
 # The rebuilt copies go to the run directory first, so a backup part never
 # nests inside its rebuilt namesake, and a target absent before is absent

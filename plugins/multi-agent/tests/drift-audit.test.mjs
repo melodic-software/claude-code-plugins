@@ -1,5 +1,3 @@
-// Runs workflows/drift-audit.js against stubbed workflow hooks (agent,
-// parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -39,14 +37,10 @@ const TARGETS = [
   { area: 'plugins/x', files: ['plugins/x/SKILL.md'] },
 ]
 
-// One docs-raw output for a URL, as lib/docs-raw.sh prints it: header line, then body.
 const rawPage = (url, body = 'body of ' + url) =>
   'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + Buffer.byteLength(body) +
   ' body_sha256=' + createHash('sha256').update(body).digest('hex') + '\n' + body
 
-// Default stub: fetchers return a raw page for their URL; defaults finders call
-// worker effort drifted and the rest current; repo readers lift one claim per file, and repo finders call every
-// claim stale; skeptics uphold.
 function defaultReply(prompt, o) {
   const label = o.label || ''
   if (label.startsWith('fetch:')) return { output: rawPage(data(prompt, 'url')) }
@@ -92,7 +86,6 @@ const OPUS_ROLES = {
 }
 const effortFor = c => (/^(read|fetch):/.test(c.opts.label) ? 'medium' : 'high')
 
-// ---- missing inputs ----
 
 test('bare invocation (no args) defaults to defaults mode and dispatches nothing', async () => {
   const { result, calls } = await run(undefined)
@@ -130,7 +123,6 @@ test('pointers with no fetchable URL return no-sources and name the unread sourc
   assert.equal(result.unreadSources[0].key, 'pointer_skill')
 })
 
-// ---- model routing: frontier, non-frontier, unknown ----
 
 test('frontier session: every reader, finder and skeptic is a fan-out on opus; judges at high effort', async () => {
   const { calls } = await run({ mode: 'repo', targets: TARGETS, roles: FRONTIER_ROLES })
@@ -170,7 +162,6 @@ test('a malformed role variant falls back to opus and is logged', async () => {
   assert.ok(logs.some(l => l.includes('roles.verifier.fanout')))
 })
 
-// ---- read-only cage ----
 
 const toolsOf = name => readFileSync(join(plugin, 'agents', name + '.md'), 'utf8')
   .match(/^tools:\s*"([^"]*)"/m)[1].split(',').map(s => s.trim()).sort()
@@ -230,7 +221,6 @@ test('repository files and pages reach prompts only inside a data fence', async 
   assert.ok(find.prompt.includes('data from untrusted sources'))
 })
 
-// ---- dedup ----
 
 test('repo findings dedup by file, line and kind across areas', async () => {
   const { result, calls } = await run({ mode: 'repo', targets: [
@@ -266,7 +256,6 @@ test('repeat findings in one area dedup; defaults rows dedup by owner and key an
   assert.equal(d2.result.confirmed[0].proposed, 'high')
 })
 
-// ---- refutation and unverified handling ----
 
 function panelReply(verdictsFor, correctionFor = () => undefined) {
   return (p, o, d) => {
@@ -388,7 +377,6 @@ test('unread and missing default rows are unverified; a null finder is named', a
   assert.equal(result.diff, null)
 })
 
-// ---- proposed diffs ----
 
 test('defaults mode proposes a diff from confirmed rows only, with the passed as-of date', async () => {
   const { result } = await run({ pointers: POINTERS, asOf: '2026-11-01' })
@@ -488,7 +476,6 @@ test('repo mode returns no diffs', async () => {
   assert.equal(result.diff, null)
 })
 
-// ---- caps ----
 
 test('maxConcurrent caps each wave', async () => {
   let live = 0
@@ -516,7 +503,6 @@ test('areas past the cap are skipped by name, and large areas are split', async 
   assert.deepEqual(data(by(calls, 'find:')[0].prompt, 'area'), 'a0 (1)')
 })
 
-// ---- fetch stage and inline slices ----
 
 const HOOKS = 'https://code.claude.com/docs/en/hooks'
 const SETTINGS = 'https://code.claude.com/docs/en/settings'

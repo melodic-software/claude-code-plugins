@@ -78,7 +78,6 @@ assert_flag() {
   rm -rf "$repo"
 }
 
-# --- the honest win: a diff confined to an allowlisted prefix ---
 assert_flag "allowlisted-prefix-only" true "docs/inert/example/PLAN.md"
 assert_flag "allowlisted prefix, new nested file" true "docs/inert/new-precedent/NOTES.md"
 
@@ -131,7 +130,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- GITHUB_OUTPUT is written for the step to consume ----------------------
 mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'changed\n' >"$repo/docs/inert/example/PLAN.md"

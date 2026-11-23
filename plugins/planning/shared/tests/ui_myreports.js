@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Your reports (follow-up item 3), against `share.sh ensure-running` with the fake cloudflared: on a 390x844 phone,
-// More holds "Your reports" once the person has filed one; it lists their reports in this session with Sent, Seen by
-// the host or Fixed; while one is not fixed they add a line and a screenshot (re-encoded as Report a problem does),
-// which the owner's Problem item shows; a seen report waits again once added to; a fixed one takes no more; another
-// guest never sees it, and on a desktop Help holds the same entry.
-//   node plugins/planning/shared/tests/ui_myreports.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (follow-up item 3) and the texts and bytes this suite makes, never from
-// the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
 
@@ -36,12 +27,10 @@ async function main() {
     const status = () => pia.evaluate(() => document.querySelector(".vf-myreps:not([hidden]) .vf-myrep .vf-myrep-status")?.textContent || "");
     const ownerReport = () => owner.evaluate(() => (window.Core.snapshot()?.reports || [])[0]);
 
-    // ---------- nothing filed: no entry ----------
     await more();
     ok("before any report, More has no Your reports", !(await entry(pia)));
     await pia.keyboard.press("Escape");
 
-    // ---------- file one, then More -> Your reports lists it as Sent ----------
     await pia.evaluate(t => window.Core.report(t, window.Core.reportContext()), FIRST);
     await more();
     ok("once one is filed, More has Your reports", await until(pia, () => [...document.querySelectorAll(".vf-msitem")].some(b => /^Your reports/.test(b.textContent) && !b.hidden)));
@@ -52,13 +41,11 @@ async function main() {
     }, FIRST));
     ok("it says only Pia and the host see it", /Only you and the host see these\./.test(await pia.textContent(".vf-myreps")));
 
-    // ---------- the owner's Seen shows as Seen by the host ----------
     ok("the owner's page holds the report", await until(owner, () => !!(window.Core.snapshot()?.reports || [])[0]?.id));
     const fid = (await ownerReport())?.id;
     await owner.evaluate(id => window.Core.reportAct(id, "seen"), fid);
     ok("the owner's Seen shows as Seen by the host", await until(pia, () => document.querySelector(".vf-myreps .vf-myrep-status")?.textContent === "Seen by the host"), await status());
 
-    // ---------- add a line: the owner sees it, and the report waits again ----------
     await pia.locator(".vf-myrep textarea").fill(LINE);
     await pia.locator(".vf-myrep-add button[type=submit]").tap();
     ok("the added line shows under the report", await until(pia, t => [...document.querySelectorAll(".vf-myrep-adds li")].some(li => li.textContent === t), LINE));
@@ -67,8 +54,7 @@ async function main() {
     await owner.locator(".vf-seg-btn", { hasText: /^Host$/ }).click();
     ok("the owner's Problem item shows the line", await until(owner, t => [...document.querySelectorAll(".vf-rep-adds li")].some(li => li.textContent.includes(t)), LINE));
 
-    // ---------- add a screenshot: re-encoded, the owner reads it back ----------
-    await pia.waitForTimeout(1200); // one addition a second
+    await pia.waitForTimeout(1200);
     await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
     ok("the picked screenshot shows as an attachment chip", await until(pia, () => !!document.querySelector(".vf-myrep .vf-attdraft:not([hidden]) .vf-ref-thumb img")?.naturalWidth));
     await pia.locator(".vf-myrep-add button[type=submit]").tap();
@@ -81,25 +67,21 @@ async function main() {
     }, fid);
     ok("the owner reads the added screenshot back at 1600 px", shot.w === 1600 && shot.h === 900 && /^data:image\/(webp|jpeg)/.test(shot.kind), JSON.stringify(shot));
 
-    // ---------- a screenshot still shrinking when a newer one is picked never replaces it ----------
     await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "big.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
     await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "small.png", mimeType: "image/png", buffer: png(64, 48, [16, 16]) });
     await until(pia, () => !document.querySelector(".vf-myrep .vf-attdraft").hidden);
-    await pia.waitForTimeout(2000); // past the big one's shrink
+    await pia.waitForTimeout(2000);
     const cap = await pia.evaluate(() => document.querySelector(".vf-myrep .vf-attdraft .vf-ref-cap")?.textContent);
     ok("the newer pick stays: the older, slower one is dropped when it finishes", cap === "Screenshot, 64 × 48", cap);
     await pia.locator(".vf-myrep .vf-attdraft .vf-ref-x").click();
 
-    // ---------- only the reporter and the owner ----------
     const boSees = await bo.evaluate(() => JSON.stringify(window.Core.snapshot()));
     ok("another guest's page never holds the report", !boSees.includes(FIRST) && !boSees.includes(LINE) && !(await entry(bo)));
 
-    // ---------- Fixed: no more additions ----------
     await owner.evaluate(id => window.Core.reportAct(id, "resolved"), fid);
     ok("the owner's Resolved shows as Fixed", await until(pia, () => document.querySelector(".vf-myreps .vf-myrep-status")?.textContent === "Fixed"), await status());
     ok("a fixed report takes no more additions", await until(pia, () => document.querySelector(".vf-myrep-add").hidden));
 
-    // ---------- on a desktop, Help holds the same entry ----------
     await bo.evaluate(() => window.Core.report("The chat jumps", window.Core.reportContext()));
     await bo.click(".vf-keysbtn");
     ok("on a desktop, Help has Your reports once one is filed", await until(bo, () => { const b = document.querySelector(".vf-help-myreps"); return !!b && !b.hidden && b.getClientRects().length > 0; }));

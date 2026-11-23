@@ -22,8 +22,6 @@ Describe 'ConvertFrom-WingetTextOutput' -Tag 'lib' {
     It 'parses a short row instead of swallowing a Substring exception' {
         $header = 'Name                 Id                 Version    Available  Source'
         $idxAvail = $header.IndexOf('Available')
-        # Row reaches the Version column but stops before Available, the shape
-        # that used to throw in Substring($idxAvail) and disappear into catch.
         $row = 'ShortPkg             Short.Id           1.0'
         $row.Length | Should -BeLessThan $idxAvail
         $items = @(ConvertFrom-WingetTextOutput -Lines @($header, ('-' * $header.Length), $row))

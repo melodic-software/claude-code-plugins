@@ -113,8 +113,6 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! version_at_least "$versio
   exit 0
 fi
 
-# The mods' tests run in parallel; each one's output is buffered and printed in
-# order.
 buf="$(mktemp -d)" || exit 2
 trap 'rm -rf "$buf"' EXIT
 pids=()

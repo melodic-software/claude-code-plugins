@@ -8,7 +8,8 @@ vendors. This file lists only Codex's own facts and docs.
 When the user asks which Codex model or effort to use, or `update` prints `routing: due`, read the
 pages below live and answer from them, citing the section:
 
-- The models and effort levels this Codex version offers: `external-agents models codex` (JSON).
+- The models, effort levels, optional per-model context window, harness tools, image capability and breaker state this Codex version offers: `external-agents models codex` (JSON).
+- Current plan usage remaining, outside delegated runs: `external-agents usage codex` (JSON).
 - Index of the Codex docs, to find a page that moved:
   [llms.txt](https://learn.chatgpt.com/docs/llms.txt).
 - Which models are current and recommended:

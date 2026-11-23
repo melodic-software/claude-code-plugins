@@ -416,8 +416,6 @@ test("arguments: the default window, and windows before the format are refused",
   assert.throws(() => parseArgs(["fetch"]), /--out/);
 });
 
-// ---------------------------------------------------------------- lane binding
-
 const BOT_NODE = (body, extra = {}) => ({ databaseId: 11, createdAt: T("10"), lastEditedAt: null, author: { __typename: "Bot", login: "github-actions" }, body, ...extra });
 const FOUND = "Finding: the gate drops the hold.\n\nseverity: HIGH";
 const boundBody = bound(FOUND);

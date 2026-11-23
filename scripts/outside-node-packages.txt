@@ -18,6 +18,7 @@
 .github/actions/setup-runner-isolation
 .github/scripts/apply-patch
 .github/scripts/branch-cleanup
+.github/scripts/diff-chunking
 .github/scripts/intake-reenter
 .github/scripts/intake-triage
 .github/scripts/lane-run-report

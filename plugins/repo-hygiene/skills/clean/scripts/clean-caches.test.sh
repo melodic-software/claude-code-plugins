@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 CLEAN="$SCRIPT_DIR/clean-caches.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-export TMPDIR="$TEST_TMPDIR" # default dry-run manifests (mktemp) land inside the cleaned dir
+export TMPDIR="$TEST_TMPDIR"
 FAILED=0
 
 git init "$TEST_TMPDIR/repo" >/dev/null 2>&1
@@ -36,8 +36,6 @@ assert_file_absent "cache deleted after apply" "$TEST_TMPDIR/repo/.pytest_cache/
 out="$(run_clean --dry-run)"
 assert_not_contains "node_modules skipped" "$out" "node_modules"
 
-# --- manifest / summary / apply-from-manifest / resume ---
-# Fresh repo so progressive mutation above does not bleed into these cases.
 git init "$TEST_TMPDIR/r2" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/r2" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/r2" config user.name "Test"
@@ -54,8 +52,6 @@ assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
 assert_contains "dry-run planned summary" "$out" "Summary: planned=1 bytes="
 assert_file_exists "manifest written" "$MANI"
 mani_body="$(cat "$MANI")"
-# Structural pin: the manifest is a consumed contract downstream tooling parses,
-# so assert the exact <class>\t<bytes>\t<relpath> shape, not just substrings.
 if grep -qE "^caches"$'\t'"[0-9]+"$'\t'"\.pytest_cache$" "$MANI"; then
   pass "manifest line is class<TAB>bytes<TAB>path"
 else
@@ -70,18 +66,11 @@ assert_contains "apply summary shape" "$out" "Summary: removed=1 failed=0 bytes=
 assert_exit "apply exit 0" 0 "$rc"
 assert_file_absent "cache gone after apply" "$TEST_TMPDIR/r2/.pytest_cache/x"
 
-# Resume: re-applying the spent manifest is idempotent — nothing removed, no
-# failures, clean exit (a killed apply just re-runs the same command).
 out="$(run_r2 --apply --manifest "$MANI")"
 rc=$?
 assert_contains "resume removes nothing" "$out" "Summary: removed=0 failed=0 bytes=0"
 assert_exit "resume exit 0" 0 "$rc"
 
-# The manifest is an untrusted --apply surface (a caller supplies it, or a
-# concurrent process alters it). Three hardening guards:
-
-# 1. Containment — an entry escaping the repo (`..`) is rejected, never removed,
-#    and counts as a failure (fail closed). The external victim survives.
 mkdir -p "$TEST_TMPDIR/outside_victim"
 echo v >"$TEST_TMPDIR/outside_victim/keep"
 printf 'caches\t1\t../outside_victim\n' >"$TEST_TMPDIR/r2.escape.manifest"
@@ -109,10 +98,6 @@ assert_file_absent "arithmetic injection did not execute" "$SENTINEL"
 assert_contains "malformed-byte entry still removes" "$out" "Removed: .ruff_cache"
 assert_exit "inject apply exit 0" 0 "$rc"
 
-# 3. Target validation — an entry naming an ordinary untracked dir that is not a
-#    cache target (here `notes/`) is rejected by the tier's candidate rules, never
-#    removed, and counts as a failure. Without this, a tampered manifest could
-#    delete any unprotected untracked path.
 mkdir -p "$TEST_TMPDIR/r2/notes"
 echo n >"$TEST_TMPDIR/r2/notes/keep"
 printf 'caches\t1\tnotes\n' >"$TEST_TMPDIR/r2.bogus.manifest"
@@ -122,7 +107,6 @@ assert_contains "non-target entry rejected" "$out" "Rejected (not a caches targe
 assert_exit "non-target apply exits non-zero" 1 "$rc"
 assert_file_exists "unrelated untracked dir preserved" "$TEST_TMPDIR/r2/notes/keep"
 
-# Wrong-tier entry (a build-class line handed to the caches tier) is rejected too.
 printf 'build\t1\tbin\n' >"$TEST_TMPDIR/r2.wrongtier.manifest"
 mkdir -p "$TEST_TMPDIR/r2/bin"
 echo b >"$TEST_TMPDIR/r2/bin/x"
@@ -131,9 +115,6 @@ rc=$?
 assert_contains "wrong-tier entry rejected" "$out" "Rejected (wrong tier): bin"
 assert_file_exists "wrong-tier target preserved" "$TEST_TMPDIR/r2/bin/x"
 
-# 3b. Pruned-tree entry — enumeration never descends .git/node_modules/.venv, so
-#     a manifest entry inside one (removing it could corrupt the repo) is rejected
-#     even though its basename is a valid target name.
 mkdir -p "$TEST_TMPDIR/r2/.git/objects/__pycache__"
 echo g >"$TEST_TMPDIR/r2/.git/objects/__pycache__/g"
 printf 'caches\t1\t.git/objects/__pycache__\n' >"$TEST_TMPDIR/r2.pruned.manifest"
@@ -143,10 +124,8 @@ assert_contains "pruned-tree entry rejected" "$out" "Rejected (pruned tree): .gi
 assert_exit "pruned-tree apply exits non-zero" 1 "$rc"
 assert_file_exists "pruned-tree path preserved" "$TEST_TMPDIR/r2/.git/objects/__pycache__/g"
 
-# 4. Type validation — a regular file whose basename matches a dir-name target
-#    (enumeration only emits those under -type d) is rejected, never removed.
 mkdir -p "$TEST_TMPDIR/r2/src"
-echo f >"$TEST_TMPDIR/r2/src/__pycache__" # a FILE named like a cache dir
+echo f >"$TEST_TMPDIR/r2/src/__pycache__"
 printf 'caches\t1\tsrc/__pycache__\n' >"$TEST_TMPDIR/r2.type.manifest"
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.type.manifest" 2>&1)"
 rc=$?
@@ -154,33 +133,25 @@ assert_contains "file-as-dir target rejected" "$out" "Rejected (not a caches tar
 assert_exit "type-mismatch apply exits non-zero" 1 "$rc"
 assert_file_exists "misnamed file preserved" "$TEST_TMPDIR/r2/src/__pycache__"
 
-# 5. A valid final record without a trailing newline (common in caller-written
-#    files) must still be processed, not silently dropped.
 mkdir -p "$TEST_TMPDIR/r2/.pytest_cache"
 echo x >"$TEST_TMPDIR/r2/.pytest_cache/x"
-printf 'caches\t1\t.pytest_cache' >"$TEST_TMPDIR/r2.nonl.manifest" # no trailing newline
+printf 'caches\t1\t.pytest_cache' >"$TEST_TMPDIR/r2.nonl.manifest"
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.nonl.manifest")"
 rc=$?
 assert_contains "newline-less final record processed" "$out" "Removed: .pytest_cache"
 assert_exit "newline-less apply exit 0" 0 "$rc"
 
-# 6. A nonblank but truncated record (missing the path field) is malformed and
-#    fails closed; a genuinely blank line is still ignored.
 printf 'caches\t1\n\n' >"$TEST_TMPDIR/r2.malformed.manifest"
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.malformed.manifest" 2>&1)"
 rc=$?
 assert_contains "malformed record rejected" "$out" "Rejected (malformed record)"
 assert_exit "malformed record exits non-zero" 1 "$rc"
 
-# 7. Fail closed on an unreadable/missing manifest — silently doing nothing and
-#    exiting 0 would let automation treat a mistyped path as a successful sweep.
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/does-not-exist.manifest" 2>&1)"
 rc=$?
 assert_contains "missing manifest reported" "$out" "manifest not readable"
 assert_exit "missing manifest exits non-zero" 1 "$rc"
 
-# 8. Dry-run must not truncate an arbitrary --manifest destination: an existing
-#    non-manifest file (a mistyped path) is refused, not erased.
 printf 'important user config\n' >"$TEST_TMPDIR/precious.conf"
 out="$(run_r2 --dry-run --manifest "$TEST_TMPDIR/precious.conf" 2>&1)"
 rc=$?
@@ -188,7 +159,6 @@ assert_contains "non-manifest overwrite refused" "$out" "refusing to overwrite n
 assert_exit "refuse-overwrite exits non-zero" 1 "$rc"
 preserved="$(cat "$TEST_TMPDIR/precious.conf")"
 assert_contains "precious file left intact" "$preserved" "important user config"
-# Re-writing an existing MANIFEST-format file is still allowed (dry-run reuse).
 out="$(run_r2 --dry-run --manifest "$MANI" 2>&1)"
 rc=$?
 assert_exit "rewriting a real manifest still works" 0 "$rc"
@@ -201,9 +171,6 @@ rc=$?
 assert_exit "trailing --manifest is a usage error" 2 "$rc"
 assert_contains "trailing --manifest reported" "$out" "--manifest requires a value"
 
-# 10. A --manifest path that cannot be created (nonexistent parent) must fail
-#     before planning, not print a Manifest:/Summary: line for a file never
-#     written (which would hand apply a bogus path).
 out="$(run_r2 --dry-run --manifest "$TEST_TMPDIR/nonexistent-dir/sub/m" 2>&1)"
 rc=$?
 assert_contains "uncreatable manifest reported" "$out" "cannot create manifest"
@@ -238,8 +205,6 @@ if rm -rf "$TEST_TMPDIR/r2/.mypy_cache/inner" 2>/dev/null; then
   rm -rf "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
   skip_case "rm-failure accounting — FS does not enforce write-denied parent here"
 else
-  # `.mypy_cache` is a valid explicit cache target; rm cannot empty it while the
-  # dir stays write-denied, so this exercises the genuine Unremovable branch.
   printf 'caches\t4096\t.mypy_cache\n' >"$TEST_TMPDIR/r2.fail.manifest"
   out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.fail.manifest" 2>&1)"
   rc=$?
@@ -248,9 +213,6 @@ else
   chmod u+w "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
 fi
 
-# A symlinked ANCESTOR must not let rm follow a manifest path out of the repo:
-# `link/__pycache__` where `link` points outside is rejected, the outside dir
-# preserved. Enumeration never descends a symlinked dir, so this is never planned.
 mkdir -p "$TEST_TMPDIR/escape_victim/__pycache__"
 echo s >"$TEST_TMPDIR/escape_victim/__pycache__/s"
 ln -s "$TEST_TMPDIR/escape_victim" "$TEST_TMPDIR/r2/link" 2>/dev/null || true
@@ -265,23 +227,17 @@ else
   skip_case "symlinked ancestor — symlinks not creatable here"
 fi
 
-# --- dry-run/apply consistency + honest byte accounting (fresh repo) ---
 git init "$TEST_TMPDIR/r3" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/r3" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/r3" config user.name "Test"
 run_r3() { bash -c "cd '$TEST_TMPDIR/r3' && bash '$CLEAN' $*"; }
 
-# 12. A file (or symlink) whose name matches an explicit cache dir must NOT be
-#     planned: the dry-run only emits what --apply will accept, so a file named
-#     `.pytest_cache` is filtered at planning, so the plan can still be applied.
-echo f >"$TEST_TMPDIR/r3/.pytest_cache" # a FILE named like a cache DIR
+echo f >"$TEST_TMPDIR/r3/.pytest_cache"
 out="$(run_r3 --dry-run --manifest "$TEST_TMPDIR/r3.m")"
 assert_contains "file-named explicit cache not planned" "$out" "Summary: planned=0"
 assert_file_exists "file-named explicit cache untouched by dry-run" "$TEST_TMPDIR/r3/.pytest_cache"
 rm -f "$TEST_TMPDIR/r3/.pytest_cache"
 
-# 13. Reclaimed bytes come from the filesystem at apply, not the manifest's byte
-#     field — a caller-supplied inflated value must not reach the summary.
 mkdir -p "$TEST_TMPDIR/r3/.ruff_cache"
 head -c 4000 /dev/urandom >"$TEST_TMPDIR/r3/.ruff_cache/blob" 2>/dev/null || echo x >"$TEST_TMPDIR/r3/.ruff_cache/blob"
 printf 'caches\t999999999\t.ruff_cache\n' >"$TEST_TMPDIR/r3.inflated.manifest"

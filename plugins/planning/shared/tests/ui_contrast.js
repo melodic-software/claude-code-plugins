@@ -21,8 +21,6 @@ const q = (id, text, format, purpose = "decide") => ({ id, text, alternatives: [
 const choice = labels => ({ kind: "choice", options: labels.map((label, i) => ({ id: `opt-${i + 1}`, label })) });
 const MAX_LIST = 8, SETTLE_MS = 10000, MODES = ["dark", "light"];
 
-/** In the page: per mode (set on #app for the measurement, then put back), every token pair below its WCAG AA ratio,
- *  and the page background each mode paints. */
 function tokenMatrix(modes) {
   const cx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
   const rgb = c => { cx.globalAlpha = 1; cx.fillStyle = "#fff"; cx.fillRect(0, 0, 1, 1); cx.fillStyle = "#000"; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); return [...cx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
@@ -37,7 +35,6 @@ function tokenMatrix(modes) {
     bgs[theme] = rgb(tok("--bg")).join(",");
     for (const s of ["--bg", "--sunk", "--pane", "--raise"]) need(`--accent-text on ${s}`, ratio(tok("--accent-text"), tok(s)), 4.5);
     need("--on-accent on --accent", ratio(tok("--on-accent"), tok("--accent")), 4.5);
-    // The hovered primary button (the caller holds the pointer on it): its label 4.5:1 on its hover fill, which must differ from the resting fill.
     if (hb?.isConnected && hb.matches(":hover")) {
       const cs = getComputedStyle(hb), r = ratio(cs.color, cs.backgroundColor);
       hover.hovered++;
@@ -58,11 +55,9 @@ function tokenMatrix(modes) {
   return { out, bgs, hover };
 }
 
-/** In the page: every contrast failure under #app as [{what, ratio, need, fg, bg}], plus how many runs were measured. */
 function scan() {
   const cv = document.createElement("canvas"); cv.width = cv.height = 1;
   const cx = cv.getContext("2d", { willReadFrequently: true });
-  /** Paint layers (CSS colors, each with an optional alpha multiplier) over white, bottom first; the pixel is sRGB. */
   const paint = layers => {
     cx.globalAlpha = 1; cx.fillStyle = "#fff"; cx.fillRect(0, 0, 1, 1);
     for (const [c, a = 1] of layers) { cx.globalAlpha = a; cx.fillStyle = "#000"; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); }
@@ -71,7 +66,6 @@ function scan() {
   const opaque = c => { cx.globalAlpha = 1; cx.clearRect(0, 0, 1, 1); cx.fillStyle = "rgba(0,0,0,0)"; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); return cx.getImageData(0, 0, 1, 1).data[3] === 255; };
   const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
   const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
-  /** The background layers under `el`, bottom first, or null where a background image makes it unmeasurable. */
   const under = el => {
     const layers = [];
     for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
@@ -102,26 +96,22 @@ function scan() {
   for (const el of app.querySelectorAll("*")) {
     if (el.closest("svg") || !shown(el) || inactive(el)) continue;
     const cs = getComputedStyle(el);
-    // 1.4.3: an element's own text
     if ([...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) {
       const px = parseFloat(cs.fontSize), large = px >= 24 || (px >= 18.66 && +cs.fontWeight >= 700);
       judge(el, cs.color, large ? 3 : 4.5, "text");
     }
     if (el.matches("input:not([type=checkbox]):not([type=radio]), textarea")) {
       if (el.placeholder && !el.value) judge(el, getComputedStyle(el, "::placeholder").color, 4.5, "placeholder");
-      // 1.4.11: the field's boundary against what is around it
       if (parseFloat(cs.borderTopWidth) >= 1 && el.parentElement) {
         const bgL = under(el.parentElement);
         if (bgL) { measured++; const r = ratio(paint([...bgL, [cs.borderTopColor, alphaOf(el)]]), paint(bgL)); if (r + 0.005 < 3) out.push({ what: `field boundary ${name(el)}`, ratio: +r.toFixed(2), need: 3 }); }
       }
     }
-    // 1.4.11: an icon-only button's icon (stroked in currentColor)
     if (el.matches("button") && el.querySelector("svg") && !el.textContent.trim() && el.getAttribute("aria-hidden") !== "true") judge(el, cs.color, 3, "icon");
   }
   return { out, measured };
 }
 
-/** In the page: the boundary of the Propose button against the rail, as {ratio}. */
 function proposeEdge() {
   const cv = document.createElement("canvas"); cv.width = cv.height = 1;
   const cx = cv.getContext("2d", { willReadFrequently: true });
@@ -156,7 +146,6 @@ async function main() {
     await ann.waitForTimeout(1100);
     await ann.evaluate(() => window.Core.idea("Should guests see shipping costs before the cart?"));
     await until(owner, () => (window.Core.snapshot().cards?.Q1 || []).length > 0 && (window.Core.state.chat || []).length > 0);
-    // the owner's own bubble (the accent), a reply's quote, a mention and a reaction, so the open chat shows the accent's text
     await until(owner, () => Object.values(window.Core.state.people || {}).some(p => p.name === "Ann"));
     await owner.evaluate(() => { const m = window.Core.state.chat[0]; window.Core.chatReact(m.id, "👍", true); return window.Core.chat("@Ann welcome, start with the order summary", m.id); });
     await until(owner, () => (window.Core.state.chat || []).length > 1);
@@ -164,7 +153,6 @@ async function main() {
     await ann.evaluate(n => window.Core.chat(`@${n} the summary goes on the right`), ownerName);
     await until(owner, () => !!document.querySelector(".vf-bubble .vf-mention-me") || (window.Core.state.chat || []).length > 2);
 
-    // ---------- the calculator itself ----------
     const probe = async (fg, bg) => {
       await owner.evaluate(([f, b]) => { const d = document.createElement("span"); d.className = "probe"; d.textContent = "Probe text"; Object.assign(d.style, { color: f, background: b, fontSize: "14px", position: "fixed", top: "0", left: "0" }); document.getElementById("app").append(d); }, [fg, bg]);
       const r = await owner.evaluate(scan);
@@ -175,7 +163,6 @@ async function main() {
     ok("self-check: #777 on white measures 4.48:1 (WebAIM) and fails 4.5:1", self.gray.length === 1 && Math.abs(self.gray[0].ratio - 4.48) < 0.01, JSON.stringify(self.gray));
     ok("self-check: black on white and #595959 on white pass", self.black.length === 0 && self.pass.length === 0, JSON.stringify(self));
 
-    // ---------- per mode: the accent and person colors keep their AA ratios ----------
     await owner.evaluate(() => { const b = document.createElement("button"); b.className = "vf-btn vf-btn-primary hover-probe"; b.textContent = "Send";
       Object.assign(b.style, { position: "fixed", top: "50%", left: "50%", zIndex: "2147483647", transition: "none" }); document.getElementById("app").append(b); });
     await owner.hover(".hover-probe");
@@ -188,7 +175,6 @@ async function main() {
       h.hovered === MODES.length && h.out.length === 0, `hovered in ${h.hovered} of ${MODES.length}; ` + h.out.join("; "));
     ok("dark and light each paint their own page background", new Set(Object.values(m.bgs)).size === MODES.length, JSON.stringify(m.bgs));
 
-    // ---------- the page states, dark and light ----------
     const go = async (p, text) => { await p.locator(".vf-q", { hasText: text }).first().click(); return until(p, t => document.querySelector(".vf-qtext")?.textContent === t, text); };
     const closeAll = async p => { for (let i = 0; i < 3; i++) await p.keyboard.press("Escape"); };
     const phone = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
@@ -214,7 +200,6 @@ async function main() {
           (still ? "" : `not settled in ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
       }
     }
-    // ---------- the Propose button is a bordered button whose edge reaches 3:1 ----------
     await closeAll(owner);
     for (const theme of MODES) {
       await owner.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });

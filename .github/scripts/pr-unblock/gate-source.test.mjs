@@ -132,7 +132,6 @@ test("a review lane's labeled event is a hold until a trusted person unlabels it
     const stranger = [held[0], label("unlabeled", STRANGER, "2026-10-18T09:00:00Z"), ...held.slice(1)];
     assert.equal(source(stranger), "review-hold", bot.login);
   }
-  // Another bot's labeled event is no hold.
   assert.equal(source([label("labeled", { login: "dependabot[bot]", id: 49699333, type: "Bot" }, "2026-10-18T08:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()]), "lane-escalation");
 });
 
@@ -153,13 +152,11 @@ test("a malformed hold that is open, or names the current head, is unknown", () 
 });
 
 test("the newest labeled event is read by its time, not its place in the list", () => {
-  // A person's later label, listed first, is the one that went on last.
   const timeline = [label("labeled", OWNER, "2026-10-18T11:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
   assert.deepEqual(gateSource({ timeline, label: "needs-human", head: HEAD, isLanesApp }), {
     source: "unknown",
     reason: "needs-human was last added by kyle-sexton, not the lanes App",
   });
-  // The lanes App's later label, listed first, pairs with its escalation.
   const reordered = [label("labeled", APP, "2026-10-18T10:00:00Z"), label("labeled", OWNER, "2026-10-18T09:00:00Z"), escalation()];
   assert.equal(source(reordered), "lane-escalation");
 });
