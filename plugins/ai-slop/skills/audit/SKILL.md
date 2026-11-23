@@ -368,6 +368,13 @@ legitimately needs em dashes, the remedy is `em_dash_allowed_paths` or the file 
 threshold. The em-dash rule is zero-tolerance by design; the catalog's `rule-em-dash` entry
 carries the reason.
 
+## Related
+
+- Work through findings in a fix pass: /review:fanout fix.
+- Deliberate house style tripped rules: /ai-slop:setup.
+- Code comments instead of prose: /code-tidying:audit-comment-residue.
+- Reshape prose for conciseness: /writing:be-concise.
+
 ## What this skill does not do
 
 - **Does not fix on bare invocation.** `audit` and `scan` verbs are read-only in this

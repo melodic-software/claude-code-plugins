@@ -260,6 +260,12 @@ substituted. Basis: the plugins reference,
 - The PR it opened: `/source-control:babysit-prs`.
 - The next pick: `/work-items:work`.
 
+## Related
+
+- Drain the backlog continuously in a loop: /work-items:work-loop.
+- Close or recheck completed items: /work-items:track.
+- Handle escalated items: /work-items:attend-queue.
+
 ## Bug path
 
 A bug item (native Issue Type `Bug`, else a `type: bug` label) first resolves its [mode](#investigate-mode), then runs steps 1 to 3 with the claim held, before Step 5's root-cause gate; the dispatched worker runs step 4, and step 5 runs before the orchestrator-owned PR step. CI mode keeps its own steps. The dispatch brief carries the named states and the reproduction command; the worker returns its after-evidence, and the orchestrator re-runs it before the PR. Record each run's command, revision and output for the PR body's verification section (`## Verification` under the default scaffold, linking the full run log when it outgrows that section) or the closing comment. To escalate is to route the item to the attended queue (`/work-items:attend-queue`) with every run's output.

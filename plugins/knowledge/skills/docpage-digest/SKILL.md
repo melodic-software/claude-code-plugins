@@ -354,6 +354,12 @@ and we do not rely on a token being substituted on that route.
 
 `/planning:interview`. Its input is `interview-handoff.md`.
 
+## Related
+
+- Mapping and queuing multiple pages or a docs site: /knowledge:map-corpus.
+- Absorbing an upstream repo or post into docs/upstream: /knowledge:absorb-upstream.
+- Distilling a book or web corpus into a skill: /knowledge:distill.
+
 ## Gotchas
 
 - **Verify the fetch channel per page.** A raw-markdown channel that worked for one doc can 404

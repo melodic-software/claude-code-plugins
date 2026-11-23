@@ -2412,7 +2412,7 @@ function jobGates(doc, job) {
   const needs = [job.needs ?? []].flat();
   if (typeof job.if === "string" && everyBranchSameRepo(job.if.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ").trim())) gates.add("same-repo");
   for (const term of ifTerms(job.if)) {
-    if (term === SAME_REPO) gates.add("same-repo");
+    if (term === SAME_REPO || term === DISPATCH) gates.add("same-repo");
     if (/^\(.*\)$/.test(term) && everyBranchSameRepo(term.slice(1, -1))) gates.add("same-repo");
     const [, succeeded] = term.match(/^needs\.([\w-]+)\.(?:result == 'success'|outputs\.[\w-]+ == '[^']+')$/) ?? [];
     if (needs.includes(succeeded) && doc.jobs?.[succeeded]) for (const gate of jobGates(doc, doc.jobs[succeeded])) gates.add(gate);
@@ -2655,6 +2655,9 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
     "same-repo if:": [{ workflow_run: {} }, { run: { if: `github.ref == 'refs/heads/main' && ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": ["same-repo"] }],
     "same-repo inside an ||": [{ workflow_run: {} }, { run: { if: `github.event_name == 'push' || ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": [] }],
     "same-repo beside a top-level ||": [{ workflow_run: {} }, { run: { if: `${SAME_REPO} && a || b`, steps: [launcher] } }, { "f.yml run": [] }],
+    "dispatch-only if:": [{ workflow_run: {} }, { run: { if: `vars.X == 'false' && ${DISPATCH} && inputs.y == 'z'`, steps: [launcher] } }, { "f.yml run": ["same-repo"] }],
+    "dispatch beside a top-level ||": [{ workflow_run: {} }, { run: { if: `${DISPATCH} && a || b`, steps: [launcher] } }, { "f.yml run": [] }],
+    "dispatch compared unequal": [{ workflow_run: {} }, { run: { if: "github.event_name != 'workflow_dispatch'", steps: [launcher] } }, { "f.yml run": [] }],
     "check-trusted-trigger in a needed job": [{ issues: {} }, { admit: admit(), run: { needs: ["admit"], if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
     "a gate job outside needs": [{ issues: {} }, { admit: admit(), run: { if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "another action's proceed": [{ issues: {} }, { admit: admit({ id: "gate", uses: "./.base/.github/actions/check-kill-switch" }), run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
@@ -10362,7 +10365,7 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
 const EVAL_KEY = ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"];
 const SUBSCRIPTION_EVAL_JOBS = {
   "maintenance-measure-skill-edit-pass.yml": ["run-eval-subscription"],
-  "pr-run-plugin-evals.yml": ["compare-before", "compare-after"],
+  "pr-run-plugin-evals.yml": ["run-eval-subscription", "compare-before", "compare-after"],
 };
 // The one run-claude-cli commit maintenance-measure-skill-edit.yml pins; the
 // classifier checkouts must name it.
@@ -10613,7 +10616,7 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
 test("every eval leg runs the same managed-policy step and the same probe", () => {
   const legs = [
     ["maintenance-measure-skill-edit-pass.yml", ["run-eval", "run-eval-subscription"]],
-    ["pr-run-plugin-evals.yml", ["run-eval"]],
+    ["pr-run-plugin-evals.yml", ["run-eval", "run-eval-subscription"]],
   ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
   const step = (steps, id) => steps.find((s) => s.id === id);
   const [, , first] = legs[0];
@@ -10842,8 +10845,10 @@ const evalKeyOnly = { legs: ["subscription", "fallback"], reason: EVAL_KEY_ONLY 
 const EVAL_NO_FALLBACK =
   "owner decision of 2026-11-23 amending Q14 and Q53: a compare run may use the subscription token on a trusted author's pull request, with no fallback token, so a limit stop ends the pass (docs/review/evals.md)";
 const evalNoFallback = { legs: ["fallback"], reason: EVAL_NO_FALLBACK };
+const SUITE_NO_FALLBACK =
+  "owner decision at architecture owner-decisions.md#L370, extending the compare-run decision: a scoped suite run dispatched on the default branch may use the subscription token, with no fallback token, so a limit stop ends the run (docs/review/evals.md)";
 const LEG_EXEMPTIONS = {
-  "pr-run-plugin-evals.yml maintenance run-eval": evalKeyOnly,
+  "pr-run-plugin-evals.yml maintenance run-eval": { legs: ["fallback"], reason: SUITE_NO_FALLBACK },
   "pr-run-plugin-evals.yml maintenance compare-before": evalNoFallback,
   "pr-run-plugin-evals.yml maintenance compare-after": evalNoFallback,
   "maintenance-measure-skill-edit-pass.yml maintenance run-eval": evalNoFallback,

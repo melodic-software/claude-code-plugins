@@ -165,8 +165,6 @@ def api_budget_sh(indent: str) -> list[str]:
 
 
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
-# Each block's full marker label: its lines sit between `BEGIN <label>` and
-# `END <label>`.
 BLOCKS = {
     PIPELINE: {"hold-floor GATE_WORKFLOWS": gate_workflow_rows},
     MERGE_HOLDS: {

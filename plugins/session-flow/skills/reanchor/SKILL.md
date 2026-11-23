@@ -142,6 +142,16 @@ read from there.
   reanchor never re-derives the next action or amends a recorded goal, which
   changes only on an explicit statement from whoever set it.
 
+## Next
+
+/session-flow:keep-going
+
+## Related
+
+- Read-only situation briefing without drift checks: /session-flow:orient.
+- Inventory all worktrees: /source-control:worktree.
+- Triage PR feedback loop: /source-control:babysit-prs.
+
 ## Gotchas
 
 - A premise that "looks" current is the failure mode: a PR cited as open may

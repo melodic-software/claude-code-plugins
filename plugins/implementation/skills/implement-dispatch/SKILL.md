@@ -285,6 +285,14 @@ This skill does not edit inline (the inline cadence, commit discipline and mode 
 - A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.
 - Tests planned, checked and green: `/review:quality-gate`.
 
+## Related
+
+- Interactive inline implementation: /implementation:implement.
+- Major divergence requiring replan: /planning:plan.
+- Role model and effort routing: /multi-agent:route.
+- Main-side build and test gate: /toolchain:check.
+- Outcome verification after review: /verification:confirm.
+
 ## Gotchas
 
 - **Before acting on a gate result, decide whether the worker or the check is at fault.** When correct code fails the check, or a criterion contradicts the plan, the check is the defect: fix it in a separate change reviewed by itself, and do not let the phase that tripped it relax it or let any worker diff route around it. When the check is sound but the return passed without doing the work, reject the return. Typical shapes: the exact values the check feeds in are special-cased in the code, an exact assertion was loosened, or a criterion's words are met while its intent is not. Brief the phase again with the criterion restated so that shortcut no longer passes

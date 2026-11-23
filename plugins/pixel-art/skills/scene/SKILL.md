@@ -102,6 +102,13 @@ recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the W
 
 /pixel-art:animate to add or fix a cycle a scene character needs.
 
+## Related
+
+- Authoring a static character or prop sprite: /pixel-art:sprite.
+- Building background tiles or parallax: /pixel-art:tileset.
+- Creating window skins, HUD, or bitmap fonts: /pixel-art:ui.
+- Adding particle or spell effects: /pixel-art:vfx.
+
 ## Gotchas
 
 - Browser automation tools may refuse `file:` URLs, which is why review goes through a localhost

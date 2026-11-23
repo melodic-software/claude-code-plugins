@@ -232,6 +232,17 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
   (cross-type routing and a shared ingest-slice contract are deferred:
   `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §4–§5).
 
+## Next
+
+- Digest queued in-corpus pages: /knowledge:docpage-digest.
+- Walk mapper-handoff.md decisions after digests finish: /planning:interview.
+
+## Related
+
+- Single page or resource-seed-only list: /knowledge:docpage-digest.
+- Single public video: /knowledge:video-digest.
+- Auth-walled online course: /knowledge:course-digest.
+
 ## Gotchas
 
 - **A clean gate covers only what it printed.** Every bundled gate names the files, rows, and

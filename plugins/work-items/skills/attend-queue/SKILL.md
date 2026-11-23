@@ -385,6 +385,11 @@ placeholder before running a command or writing it into a brief.
 
 `/work-items:work-loop` is the autonomous drain that picks up what this flipped.
 
+## Related
+
+- Work a single ready item directly: /work-items:work.
+- Run human-gated sweep first: /work-items:triage.
+
 ## Gotchas
 
 - **A hold alone is not an escalation.** `needs-human` (or its remap), a hold-state label and a

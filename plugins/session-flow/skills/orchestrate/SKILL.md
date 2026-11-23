@@ -331,6 +331,12 @@ Discipline: [the Discipline line above, verbatim]
 
 /planning:draft-goal-condition turns the coordinated work into a completion condition.
 
+## Related
+
+- Choose between workflow and subagents: /multi-agent:assess.
+- Pick model and effort per spawn: /multi-agent:route.
+- Retire finished workers and reconcile tasks: /session-flow:reconcile.
+
 ## What this skill does not do
 
 - **Default does not emit paste-text.** Priming the current session is a terse acknowledgment,

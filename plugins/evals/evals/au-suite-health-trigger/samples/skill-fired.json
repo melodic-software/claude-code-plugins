@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:audit",
+            "args": "my-plugin"
+          }
+        }
+      ],
+      "why": "audit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:validate",
+            "args": "my-plugin/evals"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    }
+  ]
+}

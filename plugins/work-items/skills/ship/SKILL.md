@@ -170,6 +170,11 @@ One compact macro map, then the recommendation:
 - One item to work next: `/work-items:work`.
 - Several ready items in one container, or under one non-container parent: `/work-items:ship run #<id>`.
 
+## Related
+
+- Re-slice items when scope drifts: /work-items:decompose.
+- Audit stale leases on blocked frontier: /work-items:track.
+
 ## What this skill does not do
 
 - Build items itself (`run` hands them to `/implementation:implement-dispatch` (if enabled); one item is

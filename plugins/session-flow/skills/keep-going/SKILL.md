@@ -408,6 +408,13 @@ that is still the job.
 
 It routes how the recovered session carries on at the next phase boundary.
 
+## Related
+
+- Retire finished off-thread work and square task ledger: /session-flow:reconcile.
+- Verify old premises before resuming: /session-flow:reanchor.
+- Recover a lost handoff path first: /session-flow:find-handoff.
+- Hand back if a usage limit still holds: /session-flow:handoff.
+
 ## Gotchas
 
 - "Probably done" is one failure mode; "it has been a while, kill it" is

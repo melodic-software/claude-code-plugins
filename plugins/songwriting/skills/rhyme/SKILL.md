@@ -77,9 +77,12 @@ every entry still sits on the source word's own coda, a column sweep, not a walk
 vowel's field. §1 of the response filter names all three fail signatures. Run it rather than
 recalling it.
 
-## Related skills
+## Next
 
-- Scansion, stress, meter paradigms → `/songwriting:meter-prosody meter`
-- High-volume swaps for one line (end-line × content × internal × image × whole-line) →
-  `/songwriting:co-write line-brainstorm`
-- Cliche repair for images/metaphors → `/songwriting:object-writing cliche`
+/songwriting:co-write
+
+## Related
+
+- Scansion, stress, and meter paradigms: /songwriting:meter-prosody.
+- Cliche repair for images and metaphors: /songwriting:object-writing.
+- Structural judgment on rhyme placement: /songwriting:song-form.

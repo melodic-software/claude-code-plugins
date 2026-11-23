@@ -228,6 +228,10 @@ nothing and reports "already configured".
    optional profile files were created, and whether build dependencies were installed or
    intentionally skipped. Point the consumer to `/ai-briefing:generate`.
 
+## Next
+
+/ai-briefing:generate. It consumes the profile and `sources.md` setup created.
+
 ## This skill does not
 
 - Run a briefing.

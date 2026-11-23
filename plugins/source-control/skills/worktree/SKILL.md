@@ -260,6 +260,11 @@ This skill complements other workflow components. It does not duplicate their lo
 | Project session-start hooks (if any) | May warn on main or auto-configure fresh worktrees; this skill verifies setup ran per context/create.md's post-create checks |
 | Recurring maintenance tracker items | Can invoke `/source-control:worktree audit` periodically |
 
+## Related
+
+- Back-half PR lifecycle once work is on the branch: /source-control:pull-request.
+- Commit changes in the worktree: /source-control:commit.
+
 ## Graceful Degradation
 
 - **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "Forge API unavailable. PR status unknown."

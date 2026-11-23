@@ -466,6 +466,12 @@ session's setup; read the gates live from the records table in
 [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record). This
 section states what to do when they resolve, never that they are present.
 
+## Related
+
+- Manual /clear-and-paste save-point instead: /session-flow:handoff.
+- Draft a checkable completion condition: /planning:draft-goal-condition.
+- Run this session alone while AFK: /session-flow:step-away.
+
 ## Gotchas
 
 Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory

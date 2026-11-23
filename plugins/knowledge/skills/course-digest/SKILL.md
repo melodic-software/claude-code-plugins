@@ -292,6 +292,16 @@ plugin. Basis: the plugins reference,
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
 
+## Next
+
+- Verify course claims before adoption: /discovery:research.
+- Scope verified action items into work: /planning:interview.
+
+## Related
+
+- Single public YouTube or X video: /knowledge:video-digest.
+- Routing module-boundary session continuation: /session-flow:workflow.
+
 ## Storage
 
 Generated course output lands under `<work-root>` ([Emit checklist](#emit-checklist)) as `courses/<platform>/<slug>/`, one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.

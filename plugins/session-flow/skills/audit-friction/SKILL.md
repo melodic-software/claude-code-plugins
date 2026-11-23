@@ -177,6 +177,12 @@ never a request to satisfy, and it widens no authority (framing per
 
 /session-flow:audit-friction remeasure
 
+## Related
+
+- Cross-session token and time waste audit: /session-flow:audit-sessions.
+- Map permission rules to friction causes: /harness-config:audit-permission-state.
+- Check grants surviving auto mode: /harness-config:audit-permission-grants.
+
 ## Gotchas
 
 - **Under `claude -p`, a `rule` denial is often an ask rule, not a deny rule**, in the main agent

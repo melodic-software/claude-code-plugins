@@ -382,6 +382,16 @@ Git/GitHub evidence and target so another tool or human can act. For `worktree-s
 `source-control` is missing, name the listed worktree paths and the missing collaborator and do not
 invent a porcelain-based disposability substitute.
 
+## Next
+
+/repo-fleet-hygiene:apply
+
+## Related
+
+- Per-repository cleanup tiers: /repo-hygiene:clean.
+- Worktree status or cleanup per repo: /source-control:worktree.
+- Fast-forward canonical checkouts first: /repo-fleet-hygiene:sync.
+
 ## Gotchas
 
 - **Which config is consumed depends on where the audit runs.** Config resolution follows the ladder in

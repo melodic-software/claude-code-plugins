@@ -108,12 +108,13 @@ test("a pull request run redacts its summary and uploads no results", () => {
   assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
 });
 
-test("the eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
-  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 1);
+test("each suite leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
+  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 2, "the key leg and the subscription leg");
   assert.doesNotMatch(text, /--max-cost-usd \d/);
-  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 1);
+  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 2);
   const guards = text.match(/if ! \[\[ \$MAX_COST .*?\n\s+fi\n/gs);
-  assert.equal(guards.length, 1);
+  assert.equal(guards.length, 2);
+  assert.equal(guards[1], guards[0]);
   const passes = (value) => spawnSync("bash", ["-c", guards[0]], { env: { MAX_COST: value } }).status === 0;
   for (const value of ["1", "5", "12"]) {
     assert.ok(passes(value), value);

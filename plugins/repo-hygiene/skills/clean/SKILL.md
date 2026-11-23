@@ -249,6 +249,10 @@ hook can put its own data directory there under that name.
 - Branches or worktrees across many repositories: /repo-fleet-hygiene:audit.
 - Disk still short after `scan` or a batch: /disk-hygiene:clean.
 
+## Related
+
+- Realign canonical clones to default branch: /repo-fleet-hygiene:sync.
+
 ## Integration
 
 | Surface | Relationship |

@@ -130,14 +130,17 @@ and skipping the other two is the failure this section prevents.
    [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) pass 8. A line that
    fails it goes back to step 2, never forward to a rarer word.
 
-## Related skills
+Before any generation, build the writer's own register as a
+[voiceprint](../../context/pat-pattison/research/voiceprint.md). Every emitted line clears the
+per-candidate cycle in [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md).
 
-- Sensory raw material before the lines → `/songwriting:object-writing generate`
-- Metaphor for a line that needs one → `/songwriting:metaphor`
-- Blank page, an idea/seed, or a stuck fragment → `/songwriting:workflow`
-- Rhyme partners for the swaps → `/songwriting:rhyme`
-- Pre-lock audit of the chosen line/section → `/songwriting:diagnose audit`
-- The writer's own register, before any generation → build
-  [voiceprint](../../context/pat-pattison/research/voiceprint.md)
-- The per-candidate cycle every emitted line clears →
-  [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)
+## Next
+
+/songwriting:diagnose
+
+## Related
+
+- Sensory raw material before lines: /songwriting:object-writing.
+- Metaphor for a line needing one: /songwriting:metaphor.
+- Blank page, seed, or stuck fragment: /songwriting:workflow.
+- Rhyme partners for swaps: /songwriting:rhyme.

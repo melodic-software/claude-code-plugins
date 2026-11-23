@@ -40,6 +40,10 @@ argument and inlines the file. Do not edit that plugin from here.
 
 /pixel-art:scene <scene> <wav path> to play the loop in a scene.
 
+## Related
+
+- One-shot retro sound effect in same chip voice: /retro-audio:sfx.
+
 ## Gotchas
 
 - Length numbers are denominators: `l4` is a quarter note, `l8` an eighth.
