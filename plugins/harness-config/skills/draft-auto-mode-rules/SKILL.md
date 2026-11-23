@@ -182,6 +182,12 @@ Two things to say while handing it over:
   drafted sections replace what they paste over. Point them at the audit sibling to confirm the result
   rather than assuming it merged.
 
+## Related
+
+- Inspect effective permissions before drafting or verify after pasting: /harness-config:audit-permission-state.
+- Pick strongest enforcement mechanism for a must-never-happen rule: /corrections:codify.
+- Check grant portability: /harness-config:audit-permission-grants.
+
 ## Gotchas
 
 - **Do not offer to write the file.** Not with `--fix`, not "shall I apply this", not as a follow-up.

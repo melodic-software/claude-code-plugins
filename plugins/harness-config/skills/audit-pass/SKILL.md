@@ -414,11 +414,10 @@ cannot compute a tiered match. Keys, layer merge, precedence inversion, and the 
 dispositions are in [reference/suppression.md](reference/suppression.md); the cross-consumer key
 contract is this marketplace's separately published **finding-suppression** convention.
 
-**Only the team layer enacts a suppression.** A personal entry for an id the team layer does not
-carry is reported as `personal-only, not applied` rather than applied, since absence from the team layer
-is the team's *unsuppressed* state, so honoring a personal-only entry would hide a finding the team
-never accepted. A suppression is a decision about the repository, so it belongs in the layer the
-repository tracks; a personal layer drafts one for promotion.
+**Only the team layer enacts a suppression.** A personal entry for an id the team layer does not carry is reported as
+`personal-only, not applied` rather than applied, since absence from the team layer is the team's *unsuppressed* state,
+so honoring a personal-only entry would hide a finding the team never accepted. A suppression is a decision about the
+repository, so it belongs in the layer the repository tracks; a personal layer drafts one for promotion.
 
 Two report obligations. Every entry names its reason, its date, and **which cascade layer supplied
 it**. And **only an exact match is silent**: a one-sided anchor change carries forward as
@@ -448,25 +447,28 @@ interval rather than needing to be subtracted from it, which also avoids having 
 mutation apart from a coincidental identical one.
 
 A **third** capture is taken after Phase 5 and compared against the audit endpoint, for a different
-purpose: it confirms the applied set matches the accepted set, so a `--fix` run that changed
-something nobody approved is visible. That is a mutation-integrity check, reported separately from
-the determinism one.
+purpose: it confirms the applied set matches the accepted set, so a `--fix` run that changed something
+nobody approved is visible. That is a mutation-integrity check, reported separately from the determinism one.
 
 When it held, any derived-tier inequality is a defect, and judged-tier growth beyond the tolerance in
-[reference/determinism-tiers.md](reference/determinism-tiers.md) **fails the self-check as an
-instability finding against this skill**, naming the checks that moved, never absorbed by
-recalibration.
+[reference/determinism-tiers.md](reference/determinism-tiers.md) **fails the self-check as an instability
+finding against this skill**, naming the checks that moved, never absorbed by recalibration.
 
 ## Spoke paths
 
-The `reference/` files write this skill's directory as `<skill-dir>`, which is
-`${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put those paths in place of the placeholders before running a command or
-writing one into a brief, so no command depends on a `${…}` token in a file this skill reads at run
-time.
+The `reference/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, and
+the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put those paths in place
+of the placeholders before running a command or writing one into a brief, so no command depends on a `${…}`
+token in a file this skill reads at run time.
 
 - **Pointer**: when deciding where a `${…}` token resolves, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
+
+## Related
+
+- Propose missing automations outside existing surfaces: /harness-config:audit-automation-gaps.
+- Audit settings-file grant portability directly: /harness-config:audit-permission-grants.
+- Run one instruction surface audit directly: /harness-config:audit-instructions.
 
 ## Gotchas
 
@@ -478,12 +480,10 @@ time.
 - **A judged finding does not contribute to the determinism gate, which is the norm rather than a weakness.** Most
   delegated checks pass through model refinement first; the gate belongs to the derived tier, which
   also holds the rows a delegate's script or engine emits with no model in the path.
-- **Never propose an `@path` import as a context saving.** A split remediation must name a
-  load-deferring destination and price what it costs. Pointer: when
-  judging whether a split saves context, fetch
+- **Never propose an `@path` import as a context saving.** A split remediation must name a load-deferring
+  destination and price what it costs. Pointer: when judging whether a split saves context, fetch
   [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
-  and [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
-  live.
+  and [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large) live.
 
 ## What this skill does NOT do
 

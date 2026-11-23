@@ -295,6 +295,12 @@ table and the two rules that keep routing from becoming silent dropping.
 - The operator accepts placement findings: `/instruction-placement:realign`.
 - A content-home advisory fired: `/instruction-placement:migrate plan`.
 
+## Related
+
+- Incremental re-audit of only what moved: /instruction-placement:delta.
+- Gating existing rule globs and index sync: /instruction-placement:check.
+- Progressive-disclosure split of long docs: /docs-hygiene:audit-progressive-disclosure.
+
 ## Gotchas
 
 Observed failure modes, each producing a finding that survives review by eye: the saving that is
