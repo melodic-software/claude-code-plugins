@@ -133,8 +133,6 @@ for f in "$ledger" "$round"; do
 done
 [[ "$ledger" != "$round" ]] || die "the round file and the ledger are the same file"
 
-# The ledger is read once, the round twice: the first pass collects the round's
-# own question ids, the second grades every line.
 LC_ALL=C awk '
   function fence(line,    f, bare) {
     if (!match(line, /^([ \t]*>)*[ \t]*(([-*+]|[0-9]+[.)])[ \t]+)?(```+|~~~+)/)) return 0

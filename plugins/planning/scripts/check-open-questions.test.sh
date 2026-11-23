@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-open-questions.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir. Fixtures
-# are minimal ledgers written per case, so a change to the real checklist
-# template can never quietly decide a test.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,11 +10,6 @@ source "$SCRIPT_DIR/../lib/test-pass-fail.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Write a ledger fixture whose body is the register section, and echo its path.
-# The path comes from mktemp, NOT a shell counter: every call site captures this
-# function's stdout, so it runs in a subshell and a counter increment would be
-# discarded — every fixture would land on one path and later cases would grade
-# an earlier case's content.
 mkledger() {
   local path
   path="$(mktemp "$TMP/ledger-XXXXXX.md")"
@@ -31,7 +21,6 @@ mkledger() {
   printf '%s' "$path"
 }
 
-# expect_exit <label> <want_code> <args...>
 expect_exit() {
   local label="$1" want="$2"
   shift 2
@@ -41,7 +30,6 @@ expect_exit() {
   if [[ "$got" -eq "$want" ]]; then pass "$label"; else fail "$label (want exit $want, got $got)"; fi
 }
 
-# expect_stdout <label> <substring> <args...>
 expect_stdout() {
   local label="$1" want="$2"
   shift 2
@@ -50,25 +38,19 @@ expect_stdout() {
   if [[ "$out" == *"$want"* ]]; then pass "$label"; else fail "$label (stdout: '$out')"; fi
 }
 
-# stderr_of <args...> — the script's stderr alone, for message assertions.
 stderr_of() {
   # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
   bash "$SUT" "$@" 2>&1 >/dev/null
 }
 
-# 1. --help exits 0.
 expect_exit "--help exits 0" 0 --help
 
-# 2. --help prints the usage header, not a truncated fragment.
 expect_stdout "--help prints usage" "Usage:" --help
 
-# 3. Missing --ledger -> ungradeable.
 expect_exit "no --ledger -> 2" 2
 
-# 4. Nonexistent ledger -> ungradeable.
 expect_exit "missing ledger file -> 2" 2 --ledger "$TMP/nope.md"
 
-# 5. Unknown argument -> ungradeable.
 clean="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -76,12 +58,9 @@ EOF
 )"
 expect_exit "unknown arg -> 2" 2 --ledger "$clean" --bogus
 
-# 6. All rows resolved -> clean.
 expect_exit "all answered -> 0" 0 --ledger "$clean"
 expect_stdout "clean verdict line" "status=clean" --ledger "$clean"
 
-# 7. One open row -> exit 1. This is the reported failure: a question asked,
-#    never answered, and the contract locked anyway.
 one_open="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -90,8 +69,6 @@ EOF
 )"
 expect_exit "one open row -> 1" 1 --ledger "$one_open"
 
-# A row a newer constraint marked blocks the gate on an answered row too, and a
-# ledger with no such row keeps its verdict line.
 stale_row="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | a | answer:: accepted: yes; stale:: C2, C3
@@ -195,7 +172,6 @@ else
   fail "a resolution of tags alone is empty under --procedure ($tags_only_err)"
 fi
 
-# 8. Mixed terminal statuses all count as resolved.
 mixed="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -207,14 +183,11 @@ EOF
 expect_exit "answered/deferred/withdrawn/blocked -> 0" 0 --ledger "$mixed"
 expect_stdout "verdict breaks down statuses" "deferred=1 blocked=1 withdrawn=1 answered=1" --ledger "$mixed"
 
-# 9. No register section -> ungradeable, never a pass. A ledger that simply
-#    omits the register must not read as "nothing open".
 noreg="$TMP/noregister.md"
 printf '# /interview Checklist\n\n## Steps\n\n- [x] Step 1\n' >"$noreg"
 expect_exit "no register section -> 2" 2 --ledger "$noreg"
 expect_stdout "no register reports ungradeable" "status=ungradeable" --ledger "$noreg"
 
-# 10. Empty register section -> ungradeable for the same reason.
 empty="$(
   mkledger <<'EOF'
 _No questions asked yet._
@@ -228,8 +201,6 @@ else
   pass "empty register without a fence keeps the generic zero-rows message"
 fi
 
-# 10b. Rows only inside a fence are documentation, so the register is empty
-#      and the error names that cause.
 fence_only="$(
   mkledger <<'EOF'
 ```text
@@ -245,9 +216,6 @@ else
   fail "zero-rows error names fenced-block cause (stderr: '$fence_only_err')"
 fi
 
-# 10c. Copying the checklist template's register section is gradeable: the
-#      template carries unfenced example rows, so the gate sees data (exit 0
-#      or 1), never an empty-register exit 2.
 template="$SCRIPT_DIR/../skills/interview/templates/checklist.md"
 bash "$SUT" --ledger "$template" >/dev/null 2>&1
 template_rc=$?
@@ -257,8 +225,6 @@ else
   fail "copied checklist template is gradeable (want exit 0 or 1, got $template_rc)"
 fi
 
-# 11. Unknown status -> ungradeable. A typo'd status must not be counted as
-#     resolved by falling through.
 badstatus="$(
   mkledger <<'EOF'
 - Q1 | pending | round 1 | Who writes? |
@@ -266,7 +232,6 @@ EOF
 )"
 expect_exit "unknown status -> 2" 2 --ledger "$badstatus"
 
-# 12. Malformed row (too few fields) -> ungradeable.
 malformed="$(
   mkledger <<'EOF'
 - Q1 | answered |
@@ -274,7 +239,6 @@ EOF
 )"
 expect_exit "malformed row -> 2" 2 --ledger "$malformed"
 
-# 13. Duplicate id -> ungradeable.
 dup="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -283,9 +247,6 @@ EOF
 )"
 expect_exit "duplicate id -> 2" 2 --ledger "$dup"
 
-# 14. Non-contiguous ids -> ungradeable. This is the anti-vacuity check: a row
-#     deleted after it was written leaves a gap, and a gap must never grade as
-#     a clean register.
 gap="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -355,9 +316,6 @@ EOF
 )"
 expect_exit "a prose bullet starting with gap is not a gap line -> 0" 0 --ledger "$prose_gap"
 
-# 14b. A row that lost its first pipe must exit 2, not vanish. Skipping it
-#      silently would hide Q2 from the contiguity check and grade the register
-#      clean with a question missing — the failure this gate exists to refuse.
 lostpipe="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -366,8 +324,6 @@ EOF
 )"
 expect_exit "row missing its first pipe -> 2" 2 --ledger "$lostpipe"
 
-# 14c. Prose in the register section that merely starts with `- Q<N>` is also a
-#      malformed row, not silently ignorable: fails closed.
 prose="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -388,7 +344,6 @@ EOF
 )"
 expect_exit "leading-zero question id -> 2" 2 --ledger "$leadzero"
 
-# 14e. Q0 is malformed: the counter runs from 1.
 qzero="$(
   mkledger <<'EOF'
 - Q0 | answered | round 1 | a | x
@@ -396,7 +351,6 @@ EOF
 )"
 expect_exit "Q0 -> 2" 2 --ledger "$qzero"
 
-# 15. Case-insensitive status and id.
 casey="$(
   mkledger <<'EOF'
 - q1 | Answered | round 1 | Who writes? | admin
@@ -404,8 +358,6 @@ EOF
 )"
 expect_exit "case-insensitive id and status -> 0" 0 --ledger "$casey"
 
-# 16. A fenced example inside the register is documentation, not data. Grading
-#     it would fail a ledger for quoting its own schema.
 fenced="$(
   mkledger <<'EOF'
 Row shape:
@@ -419,11 +371,6 @@ EOF
 )"
 expect_exit "fenced example ignored -> 0" 0 --ledger "$fenced"
 
-# 17. The register section stops at the next heading, so a `- Q<N> |` row in a
-#     later section is never graded: the ledger is ungradeable and the error
-#     names the row's line (14: the register's one row is line 9, and mkledger's
-#     `## Decision tree` section ends on line 13). A `- Q<N>:` line with no pipe,
-#     the exported ledger's deferred-questions list, is not a register row.
 bleed="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -441,13 +388,10 @@ EOF
 printf -- '\n### Deferred questions\n\n- Q1: Who writes?\n' >>"$deferred_list"
 expect_exit "a deferred-questions list after the section -> 0" 0 --ledger "$deferred_list"
 
-# 18. Without --brief the verdict says `unchecked`, never omits the field.
 expect_stdout "brief=unchecked when not asked for" "brief=unchecked" --ledger "$clean"
 
-# 19. --brief named but missing -> ungradeable, not a silent downgrade.
 expect_exit "named-but-missing --brief -> 2" 2 --ledger "$clean" --brief "$TMP/nobrief.md"
 
-# 20. --brief satisfied: every deferred/blocked id appears in the Brief.
 brief_ok="$TMP/plan-ok.md"
 cat >"$brief_ok" <<'EOF'
 ## Brief
@@ -462,8 +406,6 @@ EOF
 expect_exit "brief carries every deferred/blocked id -> 0" 0 --ledger "$mixed" --brief "$brief_ok"
 expect_stdout "brief=ok when cross-check passes" "brief=ok" --ledger "$mixed" --brief "$brief_ok"
 
-# 21. A deferred row the Brief never records -> ungradeable. Retiring a question
-#     in the ledger without landing it in the contract is the same silent hole.
 brief_missing="$TMP/plan-missing.md"
 cat >"$brief_missing" <<'EOF'
 ## Brief
@@ -476,17 +418,12 @@ cat >"$brief_missing" <<'EOF'
 EOF
 expect_exit "deferred id absent from Brief -> 2" 2 --ledger "$mixed" --brief "$brief_missing"
 
-# 22. A Brief with no deferred-questions section, while the register retires
-#     questions -> ungradeable.
 brief_nosection="$TMP/plan-nosection.md"
 printf '## Brief\n\n### Goal\n\nship it\n' >"$brief_nosection"
 expect_exit "no deferred section but rows retired -> 2" 2 --ledger "$mixed" --brief "$brief_nosection"
 
-# 23. A Brief with no deferred-questions section is fine when the register
-#     retires nothing.
 expect_exit "no deferred section and nothing retired -> 0" 0 --ledger "$clean" --brief "$brief_nosection"
 
-# 24. Q10 must not satisfy a Q1 lookup: the id match is bounded, not a substring.
 ten="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | a | x
@@ -511,8 +448,6 @@ cat >"$brief_q1only" <<'EOF'
 EOF
 expect_exit "Q1 in the Brief does not satisfy Q10 -> 2" 2 --ledger "$ten" --brief "$brief_q1only"
 
-# 25. An open row still fails even when the Brief cross-check would pass: the
-#     open question is the finding, and a satisfied side-check never overrides it.
 open_plus="$(
   mkledger <<'EOF'
 - Q1 | open | round 1 | Who writes? |
@@ -521,18 +456,10 @@ EOF
 )"
 expect_exit "open row wins over a passing brief check -> 1" 1 --ledger "$open_plus" --brief "$brief_ok"
 
-# heading_lines <file> <pattern> — comma-separated 1-based line numbers of the
-# headings matching <pattern>, computed from the fixture so an assertion never
-# hard-codes a line that a preamble edit would move.
 heading_lines() {
   grep -n -i -E "^#+[[:space:]].*$2" "$1" | cut -d: -f1 | paste -sd, - | sed 's/,/, /g'
 }
 
-# 26. Two headings match the register pattern. A ledger copied from the template
-#     keeps the template's instructional section, whose example rows are unfenced
-#     and parse as data, and appends a live register further down. Grading the
-#     first match reports a phantom verdict off the examples; grading the last
-#     guesses. The gate refuses: exit 2, both lines named, never a verdict.
 dup="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
@@ -557,8 +484,6 @@ else
   fail "duplicate register headings name both lines (want '$dup_want', stderr: '$dup_err')"
 fi
 
-# 27. A second match at another level and case is still a duplicate: the match
-#     is on heading text, not on `## ` exactly.
 dup_level="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | a | x
@@ -567,8 +492,6 @@ EOF
 printf '\n### Open-Question Register\n\n- Q1 | answered | round 1 | b | y\n' >>"$dup_level"
 expect_exit "duplicate heading at another level -> 2" 2 --ledger "$dup_level"
 
-# 28. The zero-rows message names the heading the gate bound to and its line, so
-#     a bind to the wrong section is visible from stderr alone.
 empty_named="$(mkledger </dev/null)"
 empty_named_line="$(heading_lines "$empty_named" 'open-question register')"
 empty_named_err="$(stderr_of --ledger "$empty_named")"
@@ -578,7 +501,6 @@ else
   fail "zero-rows error names the heading and its line (want line $empty_named_line, stderr: '$empty_named_err')"
 fi
 
-# 29. The malformed-row message carries the same naming.
 malformed_named="$(
   mkledger <<'EOF'
 - Q1 open | round 1 | lost its first pipe |
@@ -592,7 +514,6 @@ else
   fail "malformed-row error names the register line (want line $malformed_named_line, stderr: '$malformed_named_err')"
 fi
 
-# 30. The Brief gets the same duplicate refusal under --brief.
 brief_dup="$TMP/plan-dup.md"
 cat >"$brief_dup" <<'EOF'
 ## Brief
@@ -617,7 +538,6 @@ else
   fail "duplicate deferred-questions headings name both lines (want '$brief_dup_want', stderr: '$brief_dup_err')"
 fi
 
-# 31. The missing-id message names the deferred-questions heading's line.
 brief_missing_line="$(heading_lines "$brief_missing" 'deferred questions')"
 brief_missing_err="$(stderr_of --ledger "$mixed" --brief "$brief_missing")"
 if [[ "$brief_missing_err" == *"at line $brief_missing_line"* ]]; then
@@ -626,10 +546,6 @@ else
   fail "missing-id error names the deferred-questions line (want line $brief_missing_line, stderr: '$brief_missing_err')"
 fi
 
-# 32. A heading-shaped comment inside a fenced block does not end the section.
-#     The template's own register carries a fenced bash block whose `# Step 3`
-#     comment lines look like headings; a live row written after that fence must
-#     still be graded, so this ledger is `open` (exit 1), not empty (exit 2).
 fenced_comment="$(
   mkledger <<'EOF'
 ```bash
@@ -642,17 +558,11 @@ EOF
 )"
 expect_exit "row after a fenced heading-shaped comment is graded -> 1" 1 --ledger "$fenced_comment"
 
-# 33. A heading-shaped line inside a fence before the real register is not a
-#     heading either: the gate binds to the real one and grades clean.
 fenced_head="$TMP/fenced-head.md"
 # shellcheck disable=SC2016 # the backticks are literal fence markers, not expansion
 printf '# Checklist\n\n```bash\n# open-question register helper\n```\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$fenced_head"
 expect_exit "fenced heading-shaped line is not a register heading -> 0" 0 --ledger "$fenced_head"
 
-# 34. A fence opened in the register and never closed would make every later
-#     row documentation: one answered row, then an unterminated fence hiding an
-#     open one, graded clean. That is the silent drop the gate refuses, so it is
-#     ungradeable and the message names the cause.
 unterminated="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | fine | ok
@@ -670,8 +580,6 @@ else
   fail "unterminated fence error names the cause (stderr: '$unterminated_err')"
 fi
 
-# 35. A fence opened before the register heading and never closed hides the
-#     heading itself: ungradeable with the same cause, not "no register section".
 unterminated_before="$TMP/unterminated-before.md"
 # shellcheck disable=SC2016 # literal fence markers
 printf '# Checklist\n\n```bash\nnever closed\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$unterminated_before"
@@ -683,7 +591,6 @@ else
   fail "unterminated fence before the register names the cause (stderr: '$unterminated_before_err')"
 fi
 
-# 36. The Brief's deferred-questions section gets the same refusal.
 brief_unterminated="$TMP/plan-unterminated.md"
 cat >"$brief_unterminated" <<'EOF'
 ## Brief
@@ -696,10 +603,6 @@ cat >"$brief_unterminated" <<'EOF'
 EOF
 expect_exit "unterminated fence in the Brief's deferred questions -> 2" 2 --ledger "$mixed" --brief "$brief_unterminated"
 
-# 37. The Brief is read only when the register retired a row. With nothing
-#     deferred or blocked there is nothing to look up, so a stray unclosed fence
-#     in some unrelated section of a large Brief must not flip a clean register
-#     to ungradeable: the cross-check is vacuously satisfied and says so.
 brief_unrelated_fence="$TMP/plan-unrelated-fence.md"
 cat >"$brief_unrelated_fence" <<'EOF'
 ## Brief
@@ -716,11 +619,6 @@ EOF
 expect_exit "nothing retired: an unrelated unterminated fence in the Brief is not graded -> 0" 0 --ledger "$clean" --brief "$brief_unrelated_fence"
 expect_stdout "nothing retired: brief=ok is reported, not unchecked" "brief=ok" --ledger "$clean" --brief "$brief_unrelated_fence"
 
-# 38. A fence closes only on its own delimiter. A four-backtick fence can hold a
-#     three-backtick example (the documented way to show a fenced block inside
-#     one), so the inner ``` must not toggle the outer fence off. Here the outer
-#     fence wraps an example register heading; with a parity toggle it would
-#     count as a second live heading and exit 2.
 nested_fence="$TMP/nested-fence.md"
 cat >"$nested_fence" <<'EOF'
 # Checklist
@@ -741,8 +639,6 @@ An example ledger:
 EOF
 expect_exit "a shorter inner fence does not close a longer outer fence -> 0" 0 --ledger "$nested_fence"
 
-# 39. A tilde fence line inside a backtick fence is content, not a closer, and
-#     the other way round. The heading behind it stays hidden.
 mixed_delims="$TMP/mixed-delims.md"
 cat >"$mixed_delims" <<'EOF'
 # Checklist
@@ -765,7 +661,6 @@ cat >"$mixed_delims" <<'EOF'
 EOF
 expect_exit "a fence of the other character does not close the open one -> 0" 0 --ledger "$mixed_delims"
 
-# 40. A closing fence may be longer than its opener; it still closes.
 longer_closer="$TMP/longer-closer.md"
 cat >"$longer_closer" <<'EOF'
 # Checklist
@@ -780,8 +675,6 @@ cat >"$longer_closer" <<'EOF'
 EOF
 expect_exit "a longer closing fence closes the shorter opener -> 0" 0 --ledger "$longer_closer"
 
-# 41. `superseded-by-plan` is NOT terminal: a plan displaced the user's answer
-#     and the user has not reconfirmed it, so the register is unresolved.
 superseded_only="$(
   mkledger <<'EOF'
 - Q1 | superseded-by-plan | round 1 | Who writes? | plan proposes: admin only; was: any enrolled user
@@ -791,7 +684,6 @@ expect_exit "superseded-by-plan only -> 1" 1 --ledger "$superseded_only"
 expect_stdout "superseded row is counted" "superseded=1" --ledger "$superseded_only"
 expect_stdout "superseded row grades status=open" "status=open" --ledger "$superseded_only"
 
-# 42. A superseded row blocks even when every other row is terminal.
 superseded_mixed="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -801,7 +693,6 @@ EOF
 expect_exit "answered + superseded-by-plan -> 1" 1 --ledger "$superseded_mixed"
 expect_stdout "mixed verdict counts open and superseded apart" "open=0 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=1" --ledger "$superseded_mixed"
 
-# 43. The status is case-insensitive like the others.
 superseded_case="$(
   mkledger <<'EOF'
 - Q1 | Superseded-By-Plan | round 1 | Who writes? | plan proposes: x; was: y
@@ -810,8 +701,6 @@ EOF
 expect_exit "Superseded-By-Plan casing -> 1" 1 --ledger "$superseded_case"
 expect_stdout "Superseded-By-Plan casing is counted" "superseded=1" --ledger "$superseded_case"
 
-# 43b. `discussing` (the user asked to talk the question through) blocks like
-#      `open` and counts in `open=`, in any casing.
 discussing_only="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -822,13 +711,10 @@ expect_exit "answered + discussing -> 1" 1 --ledger "$discussing_only"
 expect_stdout "a discussing row counts as open" "open=1 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=0" --ledger "$discussing_only"
 expect_stdout "a discussing row grades status=open" "status=open" --ledger "$discussing_only"
 
-# 44. A clean register reports the field at zero, right after `answered=`.
 expect_stdout "clean verdict places superseded after answered" "answered=1 superseded=0 brief=" --ledger "$clean"
 
-# 45. The ungradeable line carries the field too, in the same position.
 expect_stdout "ungradeable verdict carries superseded=0" "answered=0 superseded=0 brief=unchecked status=ungradeable" --ledger "$noreg"
 
-# 46. --procedure: a clean, contiguous, fully-resolved ledger passes and says so.
 proc_clean="$(
   mkledger <<'EOT'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -838,10 +724,8 @@ EOT
 expect_exit "--procedure clean ledger -> 0" 0 --ledger "$proc_clean" --procedure
 expect_stdout "--procedure clean ledger reports procedure=ok" "status=clean procedure=ok" --ledger "$proc_clean" --procedure
 
-# 47. Omitting the flag is explicit, and the same ledger's exit code is unchanged.
 expect_stdout "omitted --procedure reports procedure=unchecked" "status=clean procedure=unchecked" --ledger "$proc_clean"
 
-# 48. A round gap fails: round 3 present, round 2 missing.
 proc_gap="$(
   mkledger <<'EOT'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -853,7 +737,6 @@ expect_stdout "--procedure round gap reports procedure=fail" "status=incomplete 
 if [[ "$(stderr_of --ledger "$proc_gap" --procedure)" == *"round 2 has no register row"* ]]; then pass "--procedure names the missing round"; else fail "--procedure names the missing round"; fi
 expect_exit "round gap without --procedure -> 0" 0 --ledger "$proc_gap"
 
-# 49. Rounds must start at 1.
 proc_start="$(
   mkledger <<'EOT'
 - Q1 | answered | round 2 | Who writes? | admin
@@ -861,7 +744,6 @@ EOT
 )"
 expect_exit "--procedure rounds not starting at 1 -> 1" 1 --ledger "$proc_start" --procedure
 
-# 50. A round field that is not `round <N>` fails.
 proc_badround="$(
   mkledger <<'EOT'
 - Q1 | answered | first | Who writes? | admin
@@ -907,7 +789,6 @@ EOT
 expect_exit "--procedure re-ask-only round that took a round number -> 1" 1 --ledger "$proc_reask_numbered" --procedure
 if [[ "$(stderr_of --ledger "$proc_reask_numbered" --procedure)" == *"round 2 has no register row"* ]]; then pass "--procedure names the round a re-ask-only round left empty"; else fail "--procedure names the round a re-ask-only round left empty"; fi
 
-# 51. An empty resolution fails for every retired status, missing field included.
 for retired in answered deferred withdrawn blocked; do
   proc_empty="$(
     mkledger <<EOT
@@ -942,7 +823,6 @@ EOT
 )"
 expect_exit "--procedure pipe in question with a resolution -> 0" 0 --ledger "$proc_pipe_ok" --procedure
 
-# 52. An open row has no resolution yet; --procedure does not fail it, and status stays open.
 proc_open="$(
   mkledger <<'EOT'
 - Q1 | open | round 1 | Who writes? |
@@ -950,7 +830,6 @@ EOT
 )"
 expect_stdout "--procedure leaves an open row's empty resolution alone" "status=open procedure=ok" --ledger "$proc_open" --procedure
 
-# 53. With --brief, every template section must be present.
 proc_brief_full="$TMP/proc-brief-full.md"
 cat >"$proc_brief_full" <<'EOT'
 ## Brief
@@ -1011,8 +890,6 @@ proc_brief_plan="$TMP/proc-brief-plan.md"
 } >"$proc_brief_plan"
 expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure
 
-# 53b. The Goal's Finish line: missing, empty and `not settled yet` fail; present passes;
-#      without --procedure the verdict is unchanged.
 proc_brief_nofinish="$TMP/proc-brief-nofinish.md"
 grep -v -e '^- Finish line:' "$proc_brief_full" >"$proc_brief_nofinish"
 expect_exit "--procedure --brief with no Finish line -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_nofinish" --procedure
@@ -1031,13 +908,9 @@ proc_brief_boldunsettled="$TMP/proc-brief-boldunsettled.md"
 sed 's/^- Finish line:.*/- **Finish line:** not settled yet/' "$proc_brief_full" >"$proc_brief_boldunsettled"
 expect_exit "--procedure --brief with a bold 'not settled yet' Finish line -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_boldunsettled" --procedure
 
-# 54. Ungradeable stays exit 2 and reports procedure=unchecked.
 expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure
 expect_exit "--procedure alone without a ledger -> 2" 2 --procedure
 
-# 55. Every row error in one run, each with its own ledger line, and the
-#     verdict keeps the counts of the rows that parsed. mkledger puts the
-#     register heading on line 7, so the rows start on line 9.
 many_bad="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -1053,8 +926,6 @@ done
 expect_exit "row errors still exit 2" 2 --ledger "$many_bad"
 expect_stdout "row errors keep the counts of the valid rows" "registered=2 open=1 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=0 brief=unchecked status=ungradeable" --ledger "$many_bad"
 
-# 56. A missing id is a gap and a misplaced one is out of order: distinct
-#     messages, neither reported as the other.
 gap_err="$(stderr_of --ledger "$gap")"
 if [[ "$gap_err" == *"gap in question ids: no row for Q2"* && "$gap_err" != *"out of order"* ]]; then pass "a missing id reads as a gap"; else fail "a missing id reads as a gap (stderr: '$gap_err')"; fi
 if [[ "$gap_err" == *"- gap | Q2-Q2 | <why>"* ]]; then pass "an undeclared gap names the line that declares it"; else fail "an undeclared gap names the line that declares it (stderr: '$gap_err')"; fi
@@ -1068,9 +939,6 @@ swapped_err="$(stderr_of --ledger "$swapped")"
 if [[ "$swapped_err" == *"line 10: question id out of order: Q1 follows Q2"* && "$swapped_err" != *"gap"* ]]; then pass "a misplaced id reads as out of order"; else fail "a misplaced id reads as out of order (stderr: '$swapped_err')"; fi
 expect_exit "an out-of-order register -> 2" 2 --ledger "$swapped"
 
-# 57. A Brief stamped UNCONFIRMED (export-brief's line for a restatement with no Confirm)
-#     fails the gate with exit 1, with or without retired rows to look up; a confirmed or
-#     unstamped Brief, and a stamp quoted in a fence, do not.
 stamped_brief() {
   local path
   path="$(mktemp "$TMP/brief-XXXXXX.md")"
@@ -1104,10 +972,6 @@ EOF
 )"
 expect_stdout "an open row outranks an UNCONFIRMED Brief" "status=open" --ledger "$open_ledger" --brief "$unconfirmed_brief"
 
-# 58. A page export with no restatement is stamped UNCONFIRMED (no restatement posted) and
-#     fails. A stamped export whose Goal is its page title, or whose criteria are the
-#     placeholder, fails while answered rows exist; a hand-written Brief with no stamp passes
-#     with the same content.
 no_restatement_brief="$(stamped_brief '- Restatement: UNCONFIRMED (no restatement posted)')"
 expect_exit "a page export with no restatement -> 1" 1 --ledger "$stamp_ledger" --brief "$no_restatement_brief"
 expect_stdout "a page export with no restatement reports brief=unconfirmed" "brief=unconfirmed status=incomplete" --ledger "$stamp_ledger" --brief "$no_restatement_brief"
@@ -1115,8 +979,6 @@ expect_exit "a page export with no restatement and nothing retired -> 1" 1 --led
 no_restatement_err="$(stderr_of --ledger "$stamp_ledger" --brief "$no_restatement_brief")"
 if [[ "$no_restatement_err" == *"(UNCONFIRMED (no restatement posted) in"* ]]; then pass "the unrestated export is named on stderr"; else fail "the unrestated export is named on stderr (stderr: '$no_restatement_err')"; fi
 
-# page_brief <stamp line or ''> <goal> <criteria line>: a PLAN.md in export-brief's shape,
-# titled `Cache builds`, with a `## Plan` that holds its own Goal and criteria headings.
 page_brief() {
   local path
   path="$(mktemp "$TMP/page-brief-XXXXXX.md")"
@@ -1158,10 +1020,6 @@ expect_exit "placeholder criteria with no answered row -> 0" 0 --ledger "$nothin
 fenced_stamp_brief="$(page_brief $'```\n- Restatement: confirmed at rev 2\n```' 'Cache builds' '- none recorded in the interview surface')"
 expect_exit "a stamp inside a fence leaves the Brief hand-written -> 0" 0 --ledger "$stamp_ledger" --brief "$fenced_stamp_brief"
 
-# 59. A sub-heading inside the register ends the section, so a row below it is
-#     outside the register: ungradeable, never `registered=2 ... status=clean`,
-#     with the row's line (12) named. A row above the register heading is
-#     outside it too; a fenced row outside it is documentation, as inside.
 sub_heading="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
@@ -1187,9 +1045,6 @@ EOF
 printf '\n```text\n- Q2 | open | round 1 | example only |\n```\n' >>"$fenced_outside"
 expect_exit "a fenced row outside the register is documentation -> 0" 0 --ledger "$fenced_outside"
 
-# 60. A page export carries Intent, the sections its confirmed restatement filled and the
-#     user's own words. Under --procedure a stamped Brief without `### Intent` fails, and
-#     --surface fails a Brief that lost a section or an Intent line the page's export writes.
 surface_dir="$TMP/surface"
 mkdir -p "$surface_dir"
 cat >"$surface_dir/questions.json" <<'EOF'
@@ -1246,17 +1101,13 @@ expect_exit "--surface without --procedure -> 2" 2 --ledger "$surface_ledger" --
 expect_exit "--surface without --brief -> 2" 2 --ledger "$surface_ledger" --procedure --surface "$surface_dir"
 expect_exit "a missing --surface dir -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --procedure --surface "$TMP/no-surface"
 
-# 60b. Each copy of the page export broken one property at a time fails the Step 4
-#      page-surface command (--procedure --brief --surface).
 for want in "- Remote cache for CI builds" "- p75 build is 4 min or less" "- a cache miss runs the full build" "- Q1 only the admin writes" "Cut CI time so merges stop queuing."; do
   if grep -qxF -e "$want" "$page_export"; then pass "the page export carries '$want'"; else fail "the page export carries '$want'"; fi
 done
-# page_variant <name> <awk program>: the page export rewritten by the program; echoes its path.
 page_variant() {
   awk "$2" "$page_export" >"$TMP/page-export-$1.md"
   printf '%s' "$TMP/page-export-$1.md"
 }
-# expect_surface_defect <label> <Brief> <stderr substring>
 expect_surface_defect() {
   local err
   expect_exit "--surface on $1 -> 1" 1 --ledger "$surface_ledger" --brief "$2" --procedure --surface "$surface_dir"
@@ -1298,10 +1149,6 @@ expect_surface_defect() {
     "Constraints has a line the page export does not write (a decision in another form, or a second line for it): - Q1 only the admin writes"
 }
 
-# 61. --procedure grades the Step-exit checkboxes and the assumption sweep's
-#     dispositions. The reported failure: a sweep returned an undecided `decision`
-#     item, the session settled it with an uncited fact, and the gate passed.
-# sweep_ledger <Step 2 exit line> <sweep section body, or '' for no section>
 sweep_ledger() {
   local path
   path="$(mktemp "$TMP/sweep-XXXXXX.md")"
@@ -1335,7 +1182,6 @@ no_section="$(sweep_ledger "$ticked" '')"
 expect_exit "a ticked Step 2 exit with no sweep section -> 1" 1 --ledger "$no_section" --procedure
 if [[ "$(stderr_of --ledger "$no_section" --procedure)" == *"no '## Assumption sweep' section"* ]]; then pass "the missing sweep section is named"; else fail "the missing sweep section is named"; fi
 
-# expect_sweep_defect <label> <sweep body> <stderr substring>
 expect_sweep_defect() {
   local path err
   path="$(sweep_ledger "$ticked" "$2")"

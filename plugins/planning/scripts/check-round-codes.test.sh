@@ -42,14 +42,12 @@ cat >"$TMP/ledger.md" <<'MD'
 - F1 | answered-from-codebase | Which queue? | BullMQ 5 | package.json:14
 MD
 
-# round <file> <line>...: a round whose body is the given lines.
 round() {
   local file="$TMP/$1"
   shift
   printf '%s\n' "$@" >"$file"
 }
 
-# run <label> <want_exit> <round file> <pattern>
 run() {
   local label="$1" want="$2" file="$TMP/$3" pattern="$4" out got
   out="$(bash "$SUT" --ledger "$TMP/ledger.md" "$file" 2>&1)"
@@ -149,8 +147,6 @@ round paren-heading.md '**Q15)** Should a failed retry page the on-call?' 'Q16) 
 run "a question opened with Q<N>) names its own id" 1 paren-heading.md '^bare=2:Q15$'
 run "only the later bare use of a Q<N>) id fails" 1 paren-heading.md 'bare=1 status=fail'
 
-# A scenario walk numbers its scenarios S1, S2 inside one question. Once an assumption sweep has
-# logged `- S<N> |` rows, a bare S<N> is a sweep item, so scenarios are qualified (`Q17.S1:`).
 cat >"$TMP/sweep-ledger.md" <<'MD'
 ## Assumption sweep
 

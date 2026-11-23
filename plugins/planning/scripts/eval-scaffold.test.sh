@@ -13,8 +13,6 @@ rc=0
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
-# check_scaffold <case> <file>... : run the case's scaffold in a fresh
-# directory and require each file, minus its .txt suffix, non-empty there.
 check_scaffold() {
   local case="$1" dir="$scratch/$1" f
   shift
