@@ -98,6 +98,26 @@ reason, and covers the rest.
   `vendor-state record`. When every image-capable vendor has failed its trial, routing says so,
   recommends nothing, and lets the user choose.
 
+## Caller contract
+
+A skill step that hands a self-contained brief to a fresh agent can ask
+`/multi-agent:route vendors` which vendor runs it. Such a step follows these rules:
+
+1. **Off changes nothing.** With `vendors.auto_delegation` off (the shipped default), the step
+   runs exactly as before and prints nothing about routing.
+2. **On delegates, then Claude reviews.** With it on and route choosing a vendor other than
+   Claude, the step sends its brief through route's `delegate` script: `--use investigate`
+   (read-only) for a review or research brief, `--use task` for a brief that changes files. Claude
+   reviews the returned report before using it, and the reviewed report takes the place of the
+   subagent's. When route chooses Claude or recommends nothing, the step runs here as before.
+3. **Once per run per work type.** A skill asks route once per run for each work type it
+   delegates and reuses that answer for every fan-out step of the run.
+4. **One sentence per call site**, seam-phrased with its fallback:
+   "When `/multi-agent:route` is among the available skills, ask it (`vendors`) which vendor runs
+   this brief and follow its Caller contract; otherwise run it here as before."
+
+Without the external-agents plugin, route covers only Claude, so the step runs here.
+
 ## Benchmarks and trust model
 
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:

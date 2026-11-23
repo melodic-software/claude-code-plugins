@@ -131,32 +131,48 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    `vendor-decide`'s fixed note; never copy text from `board-reader`'s `findings` array).
 9. **MCP vs CLI choice**: when the task involves choosing between a tool's MCP server and its CLI,
    name that tool's own skill to make the choice rather than ranking tools here.
-10. **Image work and auto-delegation**: Claude cannot generate images (`basis: claude-cannot`, or
-    `proven` once proven; product argument for `external-agents` is `codex` for Codex and
-    `antigravity` for Gemini):
+10. **Delegation** (product argument for `external-agents` is `codex` for Codex and
+    `antigravity` for Gemini; `<use>` is `investigate` for a review or research brief, which runs
+    read-only, and `task` for a brief that changes files or makes an image; image work is always
+    `task`). Claude cannot generate images (`basis: claude-cannot`, or `proven` once proven).
+    Callers follow the Caller contract in `${CLAUDE_PLUGIN_ROOT}/reference/vendors.md`.
     - When `Decision.basis` is `user-choice` (every capable vendor failed its trial), say so and
-      let the user choose; recommend nothing and run nothing.
+      let the user choose; recommend nothing and run nothing. When the decision is Claude, or
+      recommends nothing, print no delegation line.
     - When `vendors.auto_delegation` is `false` (off), recommend the chosen vendor and show how to
-      run it: `external-agents run <product> --use task --mode write --prompt-file <file>` (with
-      `--model` and `--effort` only when non-default).
-    - When `vendors.auto_delegation` is `true` (on) and a vendor was chosen, build the delegated
-      prompt strictly from the user's task only (never include fetched benchmark page text or
-      `board-reader` output). Name the target file path and the vendor's built-in image tool (for
-      Codex, say explicitly: "use your built-in image generation tool, not code"; for Antigravity,
-      name its built-in image generation tool). Pass the prompt on stdin to the bundled
-      `delegate` script. It re-checks that `vendors.auto_delegation` is on in the user layer
-      (outside any repository), runs only `external-agents run <product> --use task --mode write`
-      on the prompt, and refuses any other flag:
+      run it: `external-agents run <product> --use <use> --prompt-file <file>`, adding
+      `--mode write` for `task` (with `--model` and `--effort` only when non-default). Print
+      nothing else about delegation.
+    - When `vendors.auto_delegation` is `true` (on) and a vendor other than Claude was chosen,
+      print one line naming the exact invocation, so a caller can reuse it for every brief of
+      this work type in its run:
+
+      ```text
+      delegate: <product> --use <use> [--model <id>] [--effort <level>]
+      ```
+
+      Then, when the request carries a brief to run, build the delegated prompt strictly from
+      the user's task or the caller's brief only (never include fetched benchmark page text or
+      `board-reader` output). For image work, name the target file path and the vendor's
+      built-in image tool (for Codex, say explicitly: "use your built-in image generation tool,
+      not code"; for Antigravity, name its built-in image generation tool). Pass the prompt on
+      stdin to the bundled `delegate` script. It re-checks that `vendors.auto_delegation` is on
+      in the user layer (outside any repository), runs only
+      `external-agents run <product> --use task --mode write` or, with `--use investigate`,
+      `external-agents run <product> --use investigate --mode read-only`, and refuses any other
+      flag:
 
       ```bash
-      ${CLAUDE_SKILL_DIR}/scripts/delegate --user-file '${user_config.role_map_file}' <product> <<'PROMPT'
+      ${CLAUDE_SKILL_DIR}/scripts/delegate --user-file '${user_config.role_map_file}' <product> --use <use> <<'PROMPT'
       <the prompt>
       PROMPT
       ```
 
-      (adding `--model <id>` and `--effort <level>` only when non-default). After the run finishes, `Read` the
-      generated image file to review it against the user's prompt, then report the CLI that ran
-      (`codex` or `agy`), the file path the run reported, and your review verdict.
+      (adding `--model <id>` and `--effort <level>` only when non-default). After the run
+      finishes, review its result: for image work, `Read` the generated image file and judge it
+      against the user's prompt; otherwise read the returned report against the brief. Report
+      the CLI that ran (`codex` or `agy`), the file path or report the run returned, and your
+      review verdict.
 11. **After reviewing a routed result**: Claude reviews every delegated result (for `image`, call
     `Read` on the image file and judge it against the prompt). For a `trial` decision, or an
     unproven `claude-cannot` image run while trials are active (`vendors.trials: true` with both
