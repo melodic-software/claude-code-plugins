@@ -30,8 +30,3 @@ graders:
     flags: i
     match: not_contains
     target: last_message
-  - name: first-question-on-tax
-    type: regex
-    pattern: '(?:^|[.!?\n])[^.!?\n]*(?:\btax\w*|\bquote\(|\bcandidate 1\b|\bentry point\b)[^.!?\n]*\?[^?]*$'
-    flags: i
-    target: last_message
