@@ -784,7 +784,11 @@ attribute_file() {
         s = substr(s, RSTART + RLENGTH)
       }
       out = out s
-      if (had_sha && substr(out, after_last_sha + 1) ~ /^[ \t]+#/)
+      # A re-pin also rewrites the version comment after the SHA
+      # (`@<sha> # v0.82.1`), so fold that tail too, and ONLY a bare version
+      # tag: free comment text (`# keep: needed for X`) must come back
+      # verbatim to cancel a removal. No ERE interval, so it stays mawk-safe.
+      if (had_sha && substr(out, after_last_sha + 1) ~ /^[ \t]+#[ \t]*v?[0-9]+(\.[0-9]+)*[ \t]*$/)
         out = substr(out, 1, after_last_sha) " #<ref>"
       return out
     }

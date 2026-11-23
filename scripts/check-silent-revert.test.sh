@@ -290,6 +290,28 @@ t_real_removal_beside_a_pin_bump_still_fires() {
   fi
 }
 
+t_sha_line_with_changed_free_comment_still_fires() {
+  local repo i
+  mk_repo repo
+  for i in $(seq 1 30); do
+    printf 'git checkout %s  # keep: needed for the relocation regression\n' \
+      "$PIN_OLD" >>"$repo/feature.txt"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: pin the relocation fixtures"
+  sed "s/$PIN_OLD  # keep: needed for the relocation regression/$PIN_NEW  # anything/" \
+    "$repo/feature.txt" >"$repo/f.tmp"
+  mv "$repo/f.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: bump fixture pins"
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'lines lost   30  ' <<<"$OUT"; then
+    ok "a SHA line whose free-text comment changed counts as removed (30 lines, threshold 20)"
+  else
+    fail "expected one 30-line finding; only a version-tag comment may fold, got rc=$RC: $OUT"
+  fi
+}
+
 # Renaming a file is not deleting its content. Without git's rename detection a
 # `git mv` decomposes into delete + add, and every line of a moved file would be
 # attributed as removed -- so relocating a large file a recent commit had added
@@ -2529,6 +2551,7 @@ t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_pure_pin_bump_is_not_a_removal
 t_real_removal_beside_a_pin_bump_still_fires
+t_sha_line_with_changed_free_comment_still_fires
 t_rename_is_not_a_removal
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
