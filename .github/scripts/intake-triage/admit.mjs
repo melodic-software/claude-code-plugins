@@ -936,15 +936,14 @@ const lowersOnly = (clause, charges, isPublic) => {
   const at = clause.search(TOWARD);
   return at < 0 || clauseCharges(clause.slice(at), charges, isPublic).length === 0;
 };
-const NEGATED_HEAD = /^(?:[^\p{L}]|\[x\])*(?:no|not|without)\s[^,]*?(?=,|\bbut\b|$)/iu;
+const NEGATED_HEAD =
+  /^(?:[^\p{L}]|\[x\])*(?:no|not|without)\s(?!(?:more|fewer|less|longer|only|just|merely|simply|exception)\b)[^,:–—]*?(?=[,:–—]|\s-\s|\bbut\b|\s(?:the|this|that|these|those|its|their|our|your|my|his|her|a|an)\s|$)/iu;
 const BOUND = /\b(?:limits?|expir\w*)\b/i;
 const unnegated = (clause) => {
   const head = NEGATED_HEAD.exec(clause)?.[0];
   return head === undefined || [CHARGING, SAFEGUARD, SPEND_LIMIT, BOUND].some((keeps) => keeps.test(head)) ? clause : clause.slice(head.length);
 };
-// A clause ends at a sentence end, or at a line break before a blank line or
-// a list item.
-const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
+const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s|#{1,6}(?:\s|$)))|(?<=^ {0,3}#{1,6}(?:[ \t][^\n]*)?)\n/m);
 
 // The charge words in what an issue will do, each once: its `title`, and its
 // `body`'s task items and work sections (workSections), or the whole body with
