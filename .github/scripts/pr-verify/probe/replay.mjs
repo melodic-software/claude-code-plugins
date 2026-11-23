@@ -272,6 +272,11 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
     head,
     base,
     pull,
+    files: [...testCase.diff.matchAll(/^--- (.+)\n\+\+\+ (.+)$/gm)].map(([, from, to]) => {
+      const [before, after] = [from.replace(/^a\//, ""), to.replace(/^b\//, "")];
+      const filename = to === "/dev/null" ? before : after;
+      return from === "/dev/null" || to === "/dev/null" || before === after ? { filename } : { filename, previous_filename: before };
+    }),
     run: {
       id: runId,
       path: ".github/workflows/pr-require-checks.yml",
@@ -348,6 +353,7 @@ export function stubGitHub(s) {
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
     [`${R}/pulls/${s.number}/comments?`, page([])],
+    [`${R}/pulls/${s.number}/files?`, () => s.files],
     [`${R}/pulls/${s.number}`, () => s.pull],
     [`${R}/issues/${s.number}/comments?`, page(s.prComments)],
     [`${R}/issues/${s.issueNumber}/comments?`, page(s.issueComments)],
@@ -413,7 +419,7 @@ let baseTree;
 // The six data files, written as resolve-pr.mjs, select-trusted-text.mjs,
 // upstream-jobs.mjs and the "Write the diff" step write them. Returns the
 // resolved PR facts.
-export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity }) {
+export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity, baselineFile }) {
   const s = scenario(testCase, index, actorsFrom(trustedActorsPath, laneIdentity));
   const github = stubGitHub(s);
   const trusted = loadTrustedList(trustedActorsPath);
@@ -425,6 +431,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
     verifyAuthors,
     laneIdentity,
     laneAppId: trusted.logins.get(String(laneIdentity ?? "").toLowerCase()),
+    baselineFile,
   });
   if (!resolved.proceed) {
     throw new Error(`${testCase.id}: resolvePull did not proceed (${resolved.reason})`);
@@ -756,6 +763,7 @@ export async function main(argv = process.argv.slice(2)) {
     trustedActorsPath: path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
     verifyAuthors: sh("yq", ['.merge."verify-authors" // "lane"', pipelineFile]),
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
+    baselineFile: sh("yq", ['.merge."baseline-file" // ""', pipelineFile]),
   };
   const models = resolveModels();
   // A dry run never starts the CLI, so it needs none installed.

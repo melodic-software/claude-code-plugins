@@ -6476,7 +6476,32 @@ jobs:
               issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
             fi
           fi
-          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
+          # The lanes App's pull request whose files are exactly the base's
+          # merge.baseline-file needs no issue link (merge-holds.mjs
+          # baselineOnly, owner decision Q152 (B)): its REST author and every
+          # page of its files, renamed-from paths included, judged by the base's
+          # module. No file set, a read, a short list or a module without
+          # baselineOnly keeps the link rule.
+          baseline=false
+          baseline_file=$(yq '.merge."baseline-file" // ""' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || baseline_file=
+          if [ -n "$baseline_file" ] && [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; } &&
+            pull_rest=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr") &&
+            gh_read "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate --jq '.[] | [.filename, .previous_filename] | @json' >"$RUNNER_TEMP/queued-files.jsonl" &&
+            [ "$(grep -c . "$RUNNER_TEMP/queued-files.jsonl")" = "$(jq -r '.changed_files' <<<"$pull_rest")" ]; then
+            jq -c '.user' <<<"$pull_rest" >"$RUNNER_TEMP/queued-user.json"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            baseline=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [user, files, appId, baselineFile, module] = process.argv.slice(1);
+              const { baselineOnly } = await import(pathToFileURL(module).href);
+              const paths = readFileSync(files, "utf8").split("\n").filter(Boolean).flatMap((line) => JSON.parse(line).filter((path) => typeof path === "string"));
+              console.log(typeof baselineOnly === "function" && baselineOnly(JSON.parse(readFileSync(user, "utf8")), paths, appId, baselineFile) === true);' \
+              "$RUNNER_TEMP/queued-user.json" "$RUNNER_TEMP/queued-files.jsonl" "$LANES_APP_ID" "$baseline_file" "$module") || baseline=false
+          fi
+          if [ "$baseline" = true ]; then
+            echo "#$pr is the lanes App's and changes only $baseline_file (merge.baseline-file), which needs no issue link."
+          fi
+          if [ "$lanes" = true ] && [ "$baseline" != true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
             why="its Refs: lines name no single issue"
             [ "$total" -eq 0 ] || why="it closes $total issue(s), none or more than one here"
             echo "::error::#$pr is the lanes App's and does not link exactly one issue in this repository, as pr-merge's lane takes it: $why; a person merges it."
@@ -6734,7 +6759,11 @@ jobs:
       # exact name from the reader's listing (below), with and without the
       # head-branch digest, stopping at the first name that holds such a run:
       # one run read per artifact taken. The same approval of the head lifts
-      # it. Only in the queue: pr-verify runs only after a pull_request run of
+      # it. A lanes App pull request whose files are exactly the hold config's
+      # merge.baseline-file needs no pass and no link (merge-holds.mjs
+      # baselineOnly, on the pull request saved at BABYSIT_VERIFY_PULL,
+      # LANES_APP_ID and BASELINE_FILE).
+      # Only in the queue: pr-verify runs only after a pull_request run of
       # this workflow that succeeded or failed only on holds an approving
       # review of the head lifts, so a ci-status red for anything else there
       # would never get a verdict, and a pull request event reads nothing for it.
@@ -6974,6 +7003,11 @@ jobs:
             exit 1
           }
           export PATH_HOLDS
+          # merge.baseline-file in the hold config: the one file the lanes App's
+          # pull request may change alone with no pr-verify pass (merge-holds.mjs
+          # baselineOnly). Absent or unreadable is empty, which takes none.
+          BASELINE_FILE=$(yq '.merge."baseline-file" // ""' "$RUNNER_TEMP/pr-pipeline.yaml") || BASELINE_FILE=
+          export BASELINE_FILE
           # On a pull request event the broker step above read every page of
           # this list live in this job and left it; read it again when that
           # step could not, its pages do not parse, or the live pull's head is

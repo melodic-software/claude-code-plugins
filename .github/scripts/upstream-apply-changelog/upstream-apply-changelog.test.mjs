@@ -51,6 +51,9 @@ import {
 } from "./upstream-apply-changelog.mjs";
 import { BODY_HOLD } from "../intake-triage/admit.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const plan = (over = {}) => ({
@@ -318,6 +321,27 @@ const MARKER = "key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY";
 const PROBE_JOB = "verify-env-scrub";
 const PROBE_STEP = "Probe what a Bash child can reach";
 const CHECK_STEP = "Check the probe";
+
+test("native surfaces compare read-only and the two writers mint separately", () => {
+  const check = jobOf("check-native-surfaces");
+  assert.match(check, /^    permissions:\n      contents: read\n    outputs:/m);
+  assert.match(check, /npm audit signatures/);
+  assert.match(check, /python3 "\$inventory" --binary "\$binary" --self-check/);
+  assert.match(check, /--previous docs\/upstream\/claude-code-native-surfaces\.min\.json/);
+  assert.doesNotMatch(check, /request-lane-token|secrets\.|upload-artifact/);
+  for (const [job, activity, command] of [
+    ["push-native-baseline", "push-native-baseline-branch", "push"],
+    ["publish-native-baseline", "publish-native-baseline-pr", "publish"],
+  ]) {
+    assert.match(jobOf(job), /^    permissions:\n      contents: read\n      id-token: write/m);
+    assert.ok(stepIn(job, "Request the lane token").includes(`activity: ${activity}`));
+    assert.ok(stepIn(job, "Resolve the config").includes(`activity: ${activity}`));
+    assert.match(jobOf(job), new RegExp(`native-baseline-publish\\.mjs ${command}$`, "m"));
+    assert.doesNotMatch(jobOf(job), /secrets\./);
+  }
+  assert.match(jobOf("push-native-baseline"), /if: needs\.check-native-surfaces\.outputs\.summary != ''/);
+  assert.match(jobOf("publish-native-baseline"), /if: needs\.push-native-baseline\.outputs\.head != ''/);
+});
 
 test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
   const job = jobOf(PROBE_JOB);

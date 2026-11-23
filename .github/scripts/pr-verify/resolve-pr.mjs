@@ -12,6 +12,10 @@
 // - the PR is not a draft and not a dependency manager's (a Bot account with
 //   one of DEPENDENCY_MANAGERS' logins), and the run did not start while it
 //   was a draft (draftRun), whose suites all skipped;
+// - it is not the lanes App's pull request changing only main's
+//   merge.baseline-file (merge-holds.mjs baselineOnly, reason
+//   `native-baseline`), which merges with no verdict
+//   (https://github.com/melodic-software/architecture/pull/197);
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
@@ -71,7 +75,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
-import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
 import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
@@ -1151,7 +1155,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -1211,6 +1215,13 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
+  }
+  if (baselineOnly(pull.user, [baselineFile], laneAppId, baselineFile)) {
+    const files = await github("GET", `/repos/${repository}/pulls/${pull.number}/files?per_page=100`);
+    const paths = Array.isArray(files) ? files.flatMap((file) => [file?.filename, ...(file?.previous_filename ? [file.previous_filename] : [])]) : null;
+    if (baselineOnly(pull.user, paths, laneAppId, baselineFile)) {
+      return skip("native-baseline");
+    }
   }
   // An unreadable draft state throws, as any other failed read here does: the
   // step holds before its judgment (closing), so it writes no verdict, and the
@@ -1544,6 +1555,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     // The lanes App's id: merge.agent-identity's entry on the trusted list,
     // with or without its [bot] suffix.
     laneAppId: trusted.logins.get(`${loginKey(env.LANE_IDENTITY)}[bot]`),
+    baselineFile: env.BASELINE_FILE,
     // Admission's task-list marker, from the checkout this script runs from
     // (main's, in pr-verify.yml): a split sub-issue counts only by it.
     taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],
