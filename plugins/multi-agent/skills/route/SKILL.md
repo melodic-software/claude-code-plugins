@@ -42,35 +42,44 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
 
 1. Classify the task into a `work_type` (`coding`, `web-ui`, `knowledge`, `image`) and a task
    class (`everyday` or `heavy`) from `vendors.md` and state why.
-2. For the Claude line, run `${CLAUDE_SKILL_DIR}/scripts/route.sh worker` (plus `session=<alias>`
-   when known, and `--user-file '${user_config.role_map_file}'`) as under Run; its single variant
-   is Claude's default. Run `command -v external-agents`. Absent: note that `external-agents` is
+2. Run `${CLAUDE_SKILL_DIR}/scripts/route.sh worker` (plus `session=<alias>` when known, and
+   `--user-file '${user_config.role_map_file}'`) as under Run, and save its JSON output (which
+   holds `roles.worker` and the resolved `vendors` object) to `<tmp-dir>/settings.json`. Its
+   `roles.worker.single` variant is Claude's default. When `vendors.routing` is `false`, skip
+   steps 3–5, run `${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --settings <tmp-dir>/settings.json`,
+   and report that routing is off with no recommendation (work Claude cannot do included; trials
+   pause). Otherwise run `command -v external-agents`; when absent, note that `external-agents` is
    not installed so only Claude is covered, and skip step 3.
 3. When `external-agents` is present, run `external-agents models codex` and
-   `external-agents models antigravity`, one call each. Each prints one JSON document; a `status`
-   other than `ok` makes that vendor unavailable, with its `reason`. Write a temporary
-   `models.json` mapping each available vendor (`claude`, `codex`, `gemini`) to its current model
-   ids, efforts and defaults.
-4. Fetch enabled benchmark pages for `<work_type>` in one call into a temporary directory:
+   `external-agents models antigravity`, one call each, skipping any vendor whose resolved
+   `vendors.<product>.in_use` is `false`. Each prints one JSON document; a `status` other than
+   `ok` makes that vendor unavailable, with its `reason`. Write a temporary `<tmp-dir>/models.json`
+   mapping each candidate vendor (`claude`, `codex`, `gemini`) to its current model ids, efforts,
+   defaults and `status`/`reason`.
+4. Fetch enabled benchmark pages for `<work_type>` in one call into a temporary directory
+   (appending `<repo>/docs/conventions/multi-agent/benchmarks.json` when present, and honoring
+   `vendors.sources.<id>.enabled`):
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/fetch-boards --out <tmp-dir>/pages --manifest <tmp-dir>/manifest.json --task-type <work_type>
+   ${CLAUDE_SKILL_DIR}/scripts/fetch-boards --out <tmp-dir>/pages --manifest <tmp-dir>/manifest.json --settings <tmp-dir>/settings.json --task-type <work_type>
    ```
 
-5. Read `<tmp-dir>/manifest.json` and `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`. For every
-   board entry in `manifest.json` with `state: "read"`, dispatch one `multi-agent:board-reader`
-   subagent (`Read` only) with the board's `file` path, its registry row, `<work_type>`, and the
-   candidate vendors' current model ids. Save each reader's returned JSON to
+5. Read `<tmp-dir>/manifest.json` and the registry rows (`${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`,
+   plus `<repo>/docs/conventions/multi-agent/benchmarks.json` when present). For every board entry
+   in `manifest.json` with `state: "read"`, dispatch one `multi-agent:board-reader` subagent
+   (`Read` only) with the board's `file` path, its registry row, `<work_type>`, and the candidate
+   vendors' current model ids. Save each reader's returned JSON to
    `<tmp-dir>/records-<source_id>.json`. Do not read the page files in this session.
-6. Run the trust-model decider, binding each reader output to its manifest `source_id` (when zero
-   pages were read, pass one empty JSON array file `[]`):
+6. Run the trust-model decider with the resolved `vendors` settings, binding each reader output to
+   its manifest `source_id` (when zero pages were read, pass one empty JSON array file `[]`):
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json --records <source_id>=<tmp-dir>/records-<source_id>.json
+   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json --records <source_id>=<tmp-dir>/records-<source_id>.json
    ```
 
 7. Print the recommendation and per-vendor lines grounded in `vendor-decide`'s Decision JSON,
-   Claude first:
+   Claude first (when `Decision.basis` is `routing-off`, print the routing-off note and recommend
+   nothing):
 
    ```text
    <vendor>: model <id|default> @ effort <level|default> (basis: <default | consensus | proven | trial | claude-cannot | page § section>; <one-line reason>)
@@ -80,8 +89,9 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    default runs. The Claude line names the worker's single variant as `route.sh` prints it
    (`inherit` means omit the model option), with basis `default` for everyday tasks, or effort
    raised per `vendors.md` for heavy tasks citing
-   `model-config#choose-an-effort-level` when no benchmark consensus moved the work. An
-   unavailable vendor gets `<vendor>: unavailable (<reason>)`.
+   `model-config#choose-an-effort-level` when no benchmark consensus moved the work. Skip a vendor
+   marked `in_use: false` silently; an unavailable vendor declared `in_use: true` gets one line
+   (`<vendor>: unavailable (<reason>)`).
 8. Cite every source in `Decision.sources` by `source_id` with its read state (`live`,
    `cached-stale` with age, or `unread` with reason), `page_date`, and `role`. Never drop an
    unread source silently. On a tie (`Decision.ties` non-empty), list every tied vendor with its

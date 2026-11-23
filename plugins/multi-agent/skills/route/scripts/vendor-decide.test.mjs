@@ -13,6 +13,7 @@ const PLUGIN_ROOT = join(here, '..', '..', '..')
 const BENCHMARKS = join(PLUGIN_ROOT, 'reference', 'benchmarks.json')
 const REGISTRY_SCHEMA = join(PLUGIN_ROOT, 'schemas', 'benchmark-registry.schema.json')
 const VERDICT_SCHEMA = join(PLUGIN_ROOT, 'schemas', 'verdict-record.schema.json')
+const CONFIG_SCHEMA = join(PLUGIN_ROOT, 'schemas', 'multi-agent.schema.json')
 
 const NOW = '2026-11-22'
 const RECENT = '2026-11-18'
@@ -36,7 +37,7 @@ const MODELS = {
   },
 }
 
-function makeFixture(t, { registry, manifest, records, models = MODELS, extraArgs = [] }) {
+function makeFixture(t, { registry, manifest, records, models = MODELS, settings = null, cwd = undefined, env = undefined, extraArgs = [] }) {
   const dir = mkdtempSync(join(tmpdir(), 'vendor-decide-test-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const regPath = join(dir, 'benchmarks.json')
@@ -55,6 +56,12 @@ function makeFixture(t, { registry, manifest, records, models = MODELS, extraArg
     ...extraArgs,
   ]
 
+  if (settings !== null) {
+    const setPath = join(dir, 'settings.json')
+    writeFileSync(setPath, JSON.stringify(settings, null, 2))
+    args.push('--settings', setPath)
+  }
+
   if (Array.isArray(records) || (records && !records.__perSource)) {
     const recPath = join(dir, 'records.json')
     writeFileSync(recPath, JSON.stringify(records, null, 2))
@@ -67,7 +74,7 @@ function makeFixture(t, { registry, manifest, records, models = MODELS, extraArg
     }
   }
 
-  const res = spawnSync(process.execPath, args, { encoding: 'utf8' })
+  const res = spawnSync(process.execPath, args, { encoding: 'utf8', cwd, env })
   return {
     code: res.status,
     stdout: res.stdout,
@@ -664,4 +671,304 @@ test('AC6: second fetch-boards run on a fixture row within its window has source
   assert.equal(m2.boards[0].state, 'read')
   assert.equal(m2.boards[0].source, 'cache')
   assert.equal(m2.boards[0].page_date, '2026-11-18')
+})
+
+function gitCleanEnv() {
+  return {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  }
+}
+
+test('multi-agent.schema.json defines closed vendors block with exact keys and constraints', () => {
+  const schema = JSON.parse(readFileSync(CONFIG_SCHEMA, 'utf8'))
+  const v = schema.properties.vendors
+  assert.ok(v, 'vendors property exists')
+  assert.equal(v.type, 'object')
+  assert.equal(v.additionalProperties, false)
+  assert.deepEqual(
+    Object.keys(v.properties).sort(),
+    [
+      'antigravity',
+      'auto_delegation',
+      'claude',
+      'codex',
+      'routing',
+      'sources',
+      'tiebreak',
+      'trials',
+      'trials_fail',
+      'trials_prove',
+    ],
+  )
+  assert.equal(v.properties.routing.type, 'boolean')
+  assert.equal(v.properties.trials.type, 'boolean')
+  assert.equal(v.properties.auto_delegation.type, 'boolean')
+  assert.equal(v.properties.tiebreak.type, 'array')
+  assert.deepEqual(v.properties.tiebreak.items.enum, ['vendor-order', 'fewest-tokens', 'most-usage-left'])
+  assert.equal(v.properties.trials_prove.type, 'integer')
+  assert.equal(v.properties.trials_fail.type, 'integer')
+  assert.equal(v.properties.trials_fail.minimum, 2)
+  assert.equal('default' in v.properties.trials_fail, false)
+  assert.equal('default' in v.properties.trials_prove, false)
+  assert.equal(v.properties.sources.additionalProperties.additionalProperties, false)
+  assert.equal(v.properties.sources.additionalProperties.properties.enabled.type, 'boolean')
+  for (const name of ['claude', 'codex', 'antigravity']) {
+    const def = v.properties[name].$ref ? schema.$defs[v.properties[name].$ref.split('/').pop()] : v.properties[name]
+    assert.equal(def.additionalProperties, false)
+    assert.equal(def.properties.in_use.type, 'boolean')
+    assert.equal(def.properties.rank.type, 'integer')
+  }
+})
+
+test('AC11: routing false prints routing-off Decision recommending nothing, including work Claude cannot do', (t) => {
+  const resCoding = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('board-b', 'codex', 'sparrow-1', 'lead'),
+      rec('board-b', 'claude', 'kestrel-1', 'behind'),
+    ],
+    settings: { routing: false, trials: true },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resCoding.code, 0, resCoding.stderr)
+  assert.equal(resCoding.json.vendor, null)
+  assert.equal(resCoding.json.model, null)
+  assert.equal(resCoding.json.effort, null)
+  assert.equal(resCoding.json.basis, 'routing-off')
+  assert.ok(resCoding.json.notes.some((n) => /routing is off/i.test(n)))
+
+  const imageModels = {
+    claude: { status: 'ok', models: [{ id: 'kestrel-1' }], image: false },
+    gemini: { status: 'ok', models: [{ id: 'finch-1' }], image: true },
+  }
+  const resImage = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [] },
+    records: [],
+    models: imageModels,
+    settings: { vendors: { routing: false } },
+    extraArgs: ['--task-type', 'image'],
+  })
+  assert.equal(resImage.code, 0, resImage.stderr)
+  assert.equal(resImage.json.vendor, null)
+  assert.equal(resImage.json.basis, 'routing-off')
+  assert.ok(resImage.json.notes.some((n) => /routing is off/i.test(n)))
+})
+
+test('AC4: vendor with in_use false is skipped silently even when unavailable or leading', (t) => {
+  const modelsWithoutCodex = {
+    claude: MODELS.claude,
+    codex: { status: 'unavailable', reason: 'not installed', models: [] },
+    gemini: MODELS.gemini,
+  }
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('board-b', 'codex', 'sparrow-1', 'lead'),
+      rec('board-b', 'claude', 'kestrel-1', 'behind'),
+    ],
+    models: modelsWithoutCodex,
+    settings: { routing: true, codex: { in_use: false } },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'claude')
+  assert.equal(res.json.basis, 'default')
+  assert.equal(res.json.notes.some((n) => /codex/i.test(n)), false, `unexpected codex note: ${res.json.notes.join('; ')}`)
+
+  const resLeading = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('board-b', 'codex', 'sparrow-1', 'lead'),
+      rec('board-b', 'claude', 'kestrel-1', 'behind'),
+    ],
+    models: MODELS,
+    settings: { routing: true, codex: { in_use: false } },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resLeading.code, 0, resLeading.stderr)
+  assert.equal(resLeading.json.vendor, 'claude')
+  assert.equal(resLeading.json.notes.some((n) => /codex/i.test(n)), false)
+})
+
+test('AC4: vendor declared in_use true but unavailable in --models gets exactly one note line', (t) => {
+  const modelsUnavailable = {
+    claude: MODELS.claude,
+    codex: MODELS.codex,
+    gemini: { status: 'unavailable', reason: 'cli missing', models: [] },
+  }
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: [
+      rec('board-a', 'gemini', 'finch-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('board-b', 'gemini', 'finch-1', 'lead'),
+      rec('board-b', 'claude', 'kestrel-1', 'behind'),
+    ],
+    models: modelsUnavailable,
+    settings: { routing: true, antigravity: { in_use: true } },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'claude')
+  const geminiNotes = res.json.notes.filter((n) => /gemini|antigravity/i.test(n))
+  assert.equal(geminiNotes.length, 1, `expected 1 note, got: ${JSON.stringify(geminiNotes)}`)
+  assert.match(geminiNotes[0], /unavailable/i)
+  assert.match(geminiNotes[0], /cli missing/i)
+})
+
+test('AC3: settings tiebreak steps apply in order using vendor ranks; empty tiebreak keeps caller vendor', (t) => {
+  const tieRecords = [
+    rec('board-a', 'claude', 'kestrel-1', 'tie'),
+    rec('board-a', 'codex', 'sparrow-1', 'tie'),
+    rec('board-b', 'claude', 'kestrel-1', 'tie'),
+    rec('board-b', 'codex', 'sparrow-1', 'tie'),
+  ]
+  const resEmpty = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: tieRecords,
+    settings: { routing: true, tiebreak: [], codex: { rank: 1 }, claude: { rank: 2 } },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resEmpty.code, 0, resEmpty.stderr)
+  assert.equal(resEmpty.json.vendor, 'claude')
+  assert.equal(resEmpty.json.basis, 'default')
+
+  const resOrder = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: tieRecords,
+    settings: {
+      routing: true,
+      tiebreak: ['fewest-tokens', 'most-usage-left', 'vendor-order'],
+      codex: { rank: 1 },
+      claude: { rank: 2 },
+    },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resOrder.code, 0, resOrder.stderr)
+  assert.equal(resOrder.json.vendor, 'codex')
+  assert.equal(resOrder.json.basis, 'consensus')
+  assert.ok(resOrder.json.notes.some((n) => /fewest-tokens skipped/i.test(n)))
+  assert.ok(resOrder.json.notes.some((n) => /most-usage-left unavailable/i.test(n)))
+  assert.ok(resOrder.json.notes.some((n) => /vendor-order selected codex/i.test(n)))
+})
+
+test('sources.<id>.enabled false in settings disables that registry row', (t) => {
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('board-b', 'codex', 'sparrow-1', 'lead'),
+      rec('board-b', 'claude', 'kestrel-1', 'behind'),
+    ],
+    settings: {
+      routing: true,
+      sources: { 'board-b': { enabled: false } },
+    },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'claude')
+  assert.equal(res.json.basis, 'default')
+  assert.deepEqual(res.json.sources.map((s) => s.source_id), ['board-a'])
+})
+
+test('AC10: trials on with either count unset emits one note saying trials stay inactive', (t) => {
+  for (const s of [
+    { routing: true, trials: true },
+    { routing: true, trials: true, trials_prove: 3, trials_fail: null },
+    { routing: true, trials: true, trials_prove: null, trials_fail: 2 },
+  ]) {
+    const res = makeFixture(t, {
+      registry: { version: 1, rows: [row('board-a')] },
+      manifest: { boards: [boardEntry('board-a')] },
+      records: [],
+      settings: s,
+      extraArgs: ['--task-type', 'coding'],
+    })
+    assert.equal(res.code, 0, res.stderr)
+    const trialNotes = res.json.notes.filter((n) => /trials stay inactive/i.test(n))
+    assert.equal(trialNotes.length, 1, `expected 1 inactive note for ${JSON.stringify(s)}`)
+  }
+
+  const resBoth = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [boardEntry('board-a')] },
+    records: [],
+    settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resBoth.code, 0, resBoth.stderr)
+  assert.equal(resBoth.json.notes.some((n) => /trials stay inactive/i.test(n)), false)
+})
+
+test('team rows file appends new rows and refuses duplicate shipped row ids with a note', (t) => {
+  const repoDir = mkdtempSync(join(tmpdir(), 'vendor-decide-repo-'))
+  t.after(() => rmSync(repoDir, { recursive: true, force: true }))
+  const env = gitCleanEnv()
+  const init = spawnSync('git', ['init', '-q'], { cwd: repoDir, env, encoding: 'utf8' })
+  assert.equal(init.status, 0, init.stderr)
+
+  const teamDir = join(repoDir, 'docs', 'conventions', 'multi-agent')
+  mkdirSync(teamDir, { recursive: true })
+  writeFileSync(
+    join(teamDir, 'benchmarks.json'),
+    JSON.stringify({
+      version: 1,
+      rows: [
+        row('board-a', { publisher: 'attacker-org', link: 'https://evil.example/board' }),
+        row('team-board', { publisher: 'team-org', task_set: 'team-set' }),
+      ],
+    }),
+  )
+
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('team-board')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+      rec('team-board', 'codex', 'sparrow-1', 'lead'),
+      rec('team-board', 'claude', 'kestrel-1', 'behind'),
+    ],
+    cwd: repoDir,
+    env,
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'codex')
+  assert.equal(res.json.basis, 'consensus')
+  assert.deepEqual(res.json.sources.map((s) => s.source_id), ['board-a', 'team-board'])
+  const boardASrc = res.json.sources.find((s) => s.source_id === 'board-a')
+  assert.equal(boardASrc.publisher, 'pub-board-a')
+  assert.ok(res.json.notes.some((n) => /board-a/i.test(n) && /refused|duplicate/i.test(n)))
+
+  const nonRepoDir = mkdtempSync(join(tmpdir(), 'vendor-decide-norepo-'))
+  t.after(() => rmSync(nonRepoDir, { recursive: true, force: true }))
+  const resNoRepo = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [boardEntry('board-a')] },
+    records: [],
+    cwd: nonRepoDir,
+    env,
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(resNoRepo.code, 0, resNoRepo.stderr)
+  assert.deepEqual(resNoRepo.json.sources.map((s) => s.source_id), ['board-a'])
 })

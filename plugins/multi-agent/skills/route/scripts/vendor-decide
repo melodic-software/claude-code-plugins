@@ -3,6 +3,7 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
+const { spawnSync } = require('node:child_process')
 
 const WORK_TYPES = new Set(['coding', 'web-ui', 'knowledge', 'image'])
 const VERDICTS = new Set(['lead', 'tie', 'behind', 'abstain'])
@@ -55,6 +56,21 @@ const VERDICT_REQUIRED_KEYS = [
 ]
 const TOKENS_KEYS = new Set(['value', 'unit', 'source'])
 const WRAPPER_KEYS = new Set(['records', 'findings'])
+const SETTINGS_KEYS = new Set([
+  'routing',
+  'trials',
+  'auto_delegation',
+  'tiebreak',
+  'trials_prove',
+  'trials_fail',
+  'claude',
+  'codex',
+  'antigravity',
+  'sources',
+  'source',
+])
+const VENDOR_ENTRY_KEYS = new Set(['in_use', 'rank'])
+const SOURCE_ENTRY_KEYS = new Set(['enabled'])
 
 function die(msg) {
   process.stderr.write(`vendor-decide: ${msg}\n`)
@@ -64,10 +80,11 @@ function die(msg) {
 function usage() {
   process.stdout.write(
     [
-      'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> --manifest <file>',
-      '                     --records <[source_id=]file> [--records ...] --models <file>',
-      '                     [--registry <file>] [--defaults <file>] [--task-class <everyday|heavy>]',
-      '                     [--tiebreak <steps>] [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
+      'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> [--settings <file>]',
+      '                     --manifest <file> --records <[source_id=]file> [--records ...]',
+      '                     --models <file> [--registry <file>] [--defaults <file>]',
+      '                     [--task-class <everyday|heavy>] [--tiebreak <steps>]',
+      '                     [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
     ].join('\n'),
   )
@@ -80,10 +97,13 @@ function parseArgs(argv) {
     manifest: null,
     records: [],
     models: null,
+    settings: null,
     registry: path.join(__dirname, '..', '..', '..', 'reference', 'benchmarks.json'),
     defaults: path.join(__dirname, '..', '..', '..', 'reference', 'defaults.yaml'),
     tiebreak: [],
+    tiebreakSet: false,
     vendorOrder: ['claude', 'codex', 'gemini'],
+    vendorOrderSet: false,
     now: null,
   }
 
@@ -113,6 +133,9 @@ function parseArgs(argv) {
       case '--models':
         opts.models = needVal()
         break
+      case '--settings':
+        opts.settings = needVal()
+        break
       case '--registry':
         opts.registry = needVal()
         break
@@ -121,6 +144,7 @@ function parseArgs(argv) {
         break
       case '--tiebreak': {
         const raw = needVal()
+        opts.tiebreakSet = true
         opts.tiebreak = raw
           ? raw
               .split(',')
@@ -131,6 +155,7 @@ function parseArgs(argv) {
       }
       case '--vendor-order': {
         const raw = needVal()
+        opts.vendorOrderSet = true
         opts.vendorOrder = raw
           ? raw
               .split(',')
@@ -153,9 +178,6 @@ function parseArgs(argv) {
   if (!TASK_CLASSES.has(opts.taskClass)) {
     die(`--task-class must be one of ${[...TASK_CLASSES].join(', ')}`)
   }
-  if (!opts.manifest) die('--manifest is required')
-  if (!opts.models) die('--models is required')
-  if (opts.records.length === 0) die('at least one --records <file> is required')
   for (const step of opts.tiebreak) {
     if (!TIEBREAK_STEPS.has(step)) {
       die(`unknown tiebreak step '${step}' (allowed: ${[...TIEBREAK_STEPS].join(', ')})`)
@@ -179,7 +201,11 @@ function readJson(filePath, label) {
 }
 
 function readDefaults(filePath) {
-  const out = { model: 'inherit', effort: 'medium' }
+  const out = {
+    model: 'inherit',
+    effort: 'medium',
+    vendors: { routing: true, trials: false, auto_delegation: false },
+  }
   let raw
   try {
     raw = fs.readFileSync(filePath, 'utf8')
@@ -205,8 +231,129 @@ function readDefaults(filePath) {
     const dotted = [...stack.map((s) => s.key), key].join('.')
     if (dotted === 'roles.worker.model') out.model = val
     if (dotted === 'roles.worker.effort') out.effort = val
+    if (dotted === 'vendors.routing' && (val === 'true' || val === 'false')) {
+      out.vendors.routing = val === 'true'
+    }
+    if (dotted === 'vendors.trials' && (val === 'true' || val === 'false')) {
+      out.vendors.trials = val === 'true'
+    }
+    if (dotted === 'vendors.auto_delegation' && (val === 'true' || val === 'false')) {
+      out.vendors.auto_delegation = val === 'true'
+    }
   }
   return out
+}
+
+function loadSettings(filePath, defaults) {
+  const base = {
+    routing: defaults.vendors.routing,
+    trials: defaults.vendors.trials,
+    auto_delegation: defaults.vendors.auto_delegation,
+    tiebreak: [],
+    trials_prove: null,
+    trials_fail: null,
+    vendors: {
+      claude: { in_use: null, rank: null },
+      codex: { in_use: null, rank: null },
+      gemini: { in_use: null, rank: null },
+    },
+    sources: {},
+  }
+  if (!filePath) return base
+
+  const raw = readJson(filePath, 'settings')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    die('settings must be a JSON object')
+  }
+  const doc =
+    'vendors' in raw && raw.vendors && typeof raw.vendors === 'object' && !Array.isArray(raw.vendors)
+      ? raw.vendors
+      : raw
+
+  for (const k of Object.keys(doc)) {
+    if (!SETTINGS_KEYS.has(k)) die(`settings has unknown field '${k}'`)
+  }
+  for (const b of ['routing', 'trials', 'auto_delegation']) {
+    if (b in doc && doc[b] !== null) {
+      if (typeof doc[b] !== 'boolean') die(`settings.${b} must be a boolean`)
+      base[b] = doc[b]
+    }
+  }
+  if ('tiebreak' in doc && doc.tiebreak !== null) {
+    if (!Array.isArray(doc.tiebreak)) die('settings.tiebreak must be an array')
+    const seen = new Set()
+    for (const step of doc.tiebreak) {
+      if (typeof step !== 'string' || !TIEBREAK_STEPS.has(step)) {
+        die(`settings.tiebreak has unknown step '${step}'`)
+      }
+      if (seen.has(step)) die(`settings.tiebreak has duplicate step '${step}'`)
+      seen.add(step)
+    }
+    base.tiebreak = [...doc.tiebreak]
+  }
+  if ('trials_prove' in doc && doc.trials_prove !== null) {
+    if (!Number.isInteger(doc.trials_prove) || doc.trials_prove < 1) {
+      die('settings.trials_prove must be an integer >= 1')
+    }
+    base.trials_prove = doc.trials_prove
+  }
+  if ('trials_fail' in doc && doc.trials_fail !== null) {
+    if (!Number.isInteger(doc.trials_fail) || doc.trials_fail < 2) {
+      die('settings.trials_fail must be an integer >= 2')
+    }
+    base.trials_fail = doc.trials_fail
+  }
+  const vendorKeyMap = [
+    ['claude', 'claude'],
+    ['codex', 'codex'],
+    ['antigravity', 'gemini'],
+  ]
+  for (const [cfgKey, vName] of vendorKeyMap) {
+    if (!(cfgKey in doc) || doc[cfgKey] === null) continue
+    const entry = doc[cfgKey]
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      die(`settings.${cfgKey} must be an object`)
+    }
+    for (const k of Object.keys(entry)) {
+      if (!VENDOR_ENTRY_KEYS.has(k)) die(`settings.${cfgKey} has unknown field '${k}'`)
+    }
+    if ('in_use' in entry && entry.in_use !== null) {
+      if (typeof entry.in_use !== 'boolean') die(`settings.${cfgKey}.in_use must be a boolean`)
+      base.vendors[vName].in_use = entry.in_use
+    }
+    if ('rank' in entry && entry.rank !== null) {
+      if (!Number.isInteger(entry.rank)) die(`settings.${cfgKey}.rank must be an integer`)
+      base.vendors[vName].rank = entry.rank
+    }
+  }
+  if ('sources' in doc && doc.sources !== null) {
+    if (!doc.sources || typeof doc.sources !== 'object' || Array.isArray(doc.sources)) {
+      die('settings.sources must be an object')
+    }
+    for (const [sid, entry] of Object.entries(doc.sources)) {
+      if (!ID_RE.test(sid)) die(`settings.sources has invalid id '${sid}'`)
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        die(`settings.sources.${sid} must be an object`)
+      }
+      for (const k of Object.keys(entry)) {
+        if (!SOURCE_ENTRY_KEYS.has(k)) die(`settings.sources.${sid} has unknown field '${k}'`)
+      }
+      if ('enabled' in entry && entry.enabled !== null) {
+        if (typeof entry.enabled !== 'boolean') {
+          die(`settings.sources.${sid}.enabled must be a boolean`)
+        }
+        base.sources[sid] = { enabled: entry.enabled }
+      }
+    }
+  }
+  return base
+}
+
+function resolveRepoRoot() {
+  const res = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
+  if (res.status !== 0 || !res.stdout) return null
+  const root = res.stdout.trim()
+  return root || null
 }
 
 function validateRegistry(doc) {
@@ -354,6 +501,7 @@ function normalizeModels(doc) {
     }
     byVendor.set(vendor, {
       status,
+      reason: typeof entry.reason === 'string' ? entry.reason : null,
       ids,
       idSet: new Set(ids.map((s) => s.toLowerCase())),
       idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
@@ -473,6 +621,26 @@ function main() {
     : parseUtcDate(new Date().toISOString().slice(0, 10))
 
   const defaults = readDefaults(opts.defaults)
+  const settings = loadSettings(opts.settings, defaults)
+  if (!settings.routing) {
+    const offDecision = {
+      work_type: opts.taskType,
+      vendor: null,
+      model: null,
+      effort: null,
+      basis: 'routing-off',
+      sources: [],
+      ties: [],
+      notes: ['routing is off; no recommendation made (trials paused, trial data kept)'],
+    }
+    process.stdout.write(`${JSON.stringify(offDecision, null, 2)}\n`)
+    return
+  }
+
+  if (!opts.manifest) die('--manifest is required')
+  if (!opts.models) die('--models is required')
+  if (opts.records.length === 0) die('at least one --records <file> is required')
+
   const registry = validateRegistry(readJson(opts.registry, 'registry'))
   const manifestDoc = readJson(opts.manifest, 'manifest')
   const manifestBoards = Array.isArray(manifestDoc.boards)
@@ -489,16 +657,69 @@ function main() {
     }
   }
 
+  const notes = []
+  const mergedRows = [...registry.rows]
+  const shippedIds = new Set(registry.rows.map((r) => r.id))
+  const repoRoot = resolveRepoRoot()
+  if (repoRoot) {
+    const teamPath = path.join(repoRoot, 'docs', 'conventions', 'multi-agent', 'benchmarks.json')
+    if (fs.existsSync(teamPath) && path.resolve(teamPath) !== path.resolve(opts.registry)) {
+      const teamReg = validateRegistry(readJson(teamPath, 'team registry'))
+      for (const teamRow of teamReg.rows) {
+        if (shippedIds.has(teamRow.id)) {
+          notes.push(`team registry row '${teamRow.id}' refused: duplicates shipped row id`)
+          continue
+        }
+        mergedRows.push(teamRow)
+      }
+    }
+  }
+
+  if (settings.trials && (settings.trials_prove === null || settings.trials_fail === null)) {
+    notes.push('trials switch is on, but trials_prove and trials_fail must both be set; trials stay inactive')
+  }
+
+  const skippedSilentVendors = new Set()
+  const unavailableInUseVendors = new Set()
+  for (const [vName, cfg] of Object.entries(settings.vendors)) {
+    if (cfg.in_use === false) {
+      skippedSilentVendors.add(vName)
+      continue
+    }
+    if (cfg.in_use === true) {
+      const vInfo = modelsByVendor.get(vName)
+      if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) {
+        unavailableInUseVendors.add(vName)
+        const why =
+          vInfo && vInfo.reason
+            ? vInfo.reason
+            : vInfo && vInfo.status !== 'ok'
+              ? `status ${vInfo.status}`
+              : 'not listed in --models'
+        notes.push(`${vName}: declared in use but unavailable (${why})`)
+      }
+    }
+  }
+
   const rowById = new Map()
+  const disabledRows = new Set()
   const activeRows = []
-  for (const row of registry.rows) {
+  for (const row of mergedRows) {
     rowById.set(row.id, row)
-    if (row.enabled !== false && row.workloads.includes(opts.taskType)) {
+    const sourceOverride = settings.sources[row.id]
+    const isEnabled =
+      sourceOverride && typeof sourceOverride.enabled === 'boolean'
+        ? sourceOverride.enabled
+        : row.enabled !== false
+    if (!isEnabled) {
+      disabledRows.add(row.id)
+      continue
+    }
+    if (row.workloads.includes(opts.taskType)) {
       activeRows.push(row)
     }
   }
 
-  const notes = []
   const recordsBySource = new Map()
   for (const spec of opts.records) {
     const { boundSourceId, records, findings } = loadRecordsArg(spec)
@@ -513,6 +734,7 @@ function main() {
         continue
       }
       const sid = boundSourceId || r.source_id
+      if (disabledRows.has(sid)) continue
       const mEntry = manifestById.get(sid)
       if (!mEntry) {
         notes.push(`dropped record for '${sid}': absent from fetch manifest`)
@@ -594,9 +816,12 @@ function main() {
       }
     }
 
-    // Current model check (AC14): a board not testing a vendor's current model abstains for it.
     for (const r of rawRecords) {
       if (r.verdict === 'abstain') continue
+      if (skippedSilentVendors.has(r.vendor) || unavailableInUseVendors.has(r.vendor)) {
+        r.verdict = 'abstain'
+        continue
+      }
       const vInfo = modelsByVendor.get(r.vendor)
       if (!vInfo) {
         notes.push(`${row.id}: abstains for ${r.vendor} (not a candidate vendor in --models)`)
@@ -699,10 +924,13 @@ function main() {
   let basis = 'default'
   let tiesOut = []
 
-  // Special case: work Claude cannot do (for example image generation when models reports claude.image === false).
   if (opts.taskType === 'image' && claudeModels && claudeModels.image === false) {
     const capable = [...modelsByVendor.entries()].find(
-      ([v, info]) => v !== 'claude' && info.status === 'ok' && info.image === true,
+      ([v, info]) =>
+        v !== 'claude' &&
+        !skippedSilentVendors.has(v) &&
+        info.status === 'ok' &&
+        info.image === true,
     )
     if (capable) {
       vendor = capable[0]
@@ -787,8 +1015,28 @@ function main() {
           }
         })
 
+        const effectiveTiebreak = opts.tiebreakSet ? opts.tiebreak : settings.tiebreak
+        let effectiveVendorOrder = opts.vendorOrder
+        if (!opts.vendorOrderSet) {
+          const baseOrder = ['claude', 'codex', 'gemini']
+          const ranked = baseOrder.map((v, idx) => ({
+            v,
+            rank: settings.vendors[v] ? settings.vendors[v].rank : null,
+            idx,
+          }))
+          if (ranked.some((x) => x.rank !== null)) {
+            ranked.sort((a, b) => {
+              if (a.rank !== null && b.rank !== null) return a.rank - b.rank || a.idx - b.idx
+              if (a.rank !== null) return -1
+              if (b.rank !== null) return 1
+              return a.idx - b.idx
+            })
+            effectiveVendorOrder = ranked.map((x) => x.v)
+          }
+        }
+
         let picked = null
-        for (const step of opts.tiebreak) {
+        for (const step of effectiveTiebreak) {
           if (step === 'fewest-tokens') {
             const units = new Set(tiesOut.flatMap((t) => t.tokens.map((x) => x.unit)))
             const allHaveTokens = tiesOut.every((t) => t.tokens.length > 0)
@@ -810,7 +1058,7 @@ function main() {
           } else if (step === 'most-usage-left') {
             notes.push('tiebreak most-usage-left unavailable: falling back to next tiebreak step')
           } else if (step === 'vendor-order') {
-            const ordered = opts.vendorOrder.find((v) => tiedVendors.includes(v))
+            const ordered = effectiveVendorOrder.find((v) => tiedVendors.includes(v))
             if (ordered) {
               picked = tiesOut.find((t) => t.vendor === ordered)
               notes.push(`tiebreak vendor-order selected ${picked.vendor}`)

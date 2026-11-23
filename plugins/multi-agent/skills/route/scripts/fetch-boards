@@ -15,13 +15,14 @@ fetch-boards: fetch enabled benchmark registry pages via scripts/fetch-docs.sh.
 
 Usage:
   fetch-boards --out <dir> [--manifest <file>] [--registry <file>]
-               [--task-type <coding|web-ui|knowledge|image>]
+               [--settings <file>] [--task-type <coding|web-ui|knowledge|image>]
                [--cache-dir <dir>] [--max-page-bytes <n>]
 
 Options:
   --out <dir>             directory for fetched page files
   --manifest <file>       combined manifest JSON (default: <out>/manifest.json)
   --registry <file>       benchmark registry JSON (default: reference/benchmarks.json)
+  --settings <file>       resolved vendors settings JSON (or route.sh output)
   --task-type <work_type> fetch only rows covering this work type
   --cache-dir <dir>       cache directory passed to fetch-docs.sh --cache-dir
   --max-page-bytes <n>    page byte cap passed to fetch-docs.sh
@@ -38,6 +39,7 @@ die() {
 OUT=""
 MANIFEST=""
 REGISTRY="$DEFAULT_REGISTRY"
+SETTINGS=""
 TASK_TYPE=""
 CACHE_DIR=""
 MAX_PAGE_BYTES=""
@@ -48,12 +50,13 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --out | --manifest | --registry | --task-type | --cache-dir | --max-page-bytes)
+  --out | --manifest | --registry | --settings | --task-type | --cache-dir | --max-page-bytes)
     [[ $# -ge 2 ]] || die "$1 requires a value"
     case "$1" in
     --out) OUT="$2" ;;
     --manifest) MANIFEST="$2" ;;
     --registry) REGISTRY="$2" ;;
+    --settings) SETTINGS="$2" ;;
     --task-type) TASK_TYPE="$2" ;;
     --cache-dir) CACHE_DIR="$2" ;;
     --max-page-bytes) MAX_PAGE_BYTES="$2" ;;
@@ -67,6 +70,7 @@ done
 [[ -n "$OUT" ]] || die "--out is required"
 [[ -f "$FETCH_DOCS" ]] || die "fetch-docs.sh not found at $FETCH_DOCS"
 [[ -r "$REGISTRY" ]] || die "registry unreadable: $REGISTRY"
+[[ -z "$SETTINGS" || -r "$SETTINGS" ]] || die "settings unreadable: $SETTINGS"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
 # Eval-runner env seam: cases use EVAL_* names because the eval schema permits only EVAL_*.
@@ -159,14 +163,73 @@ extract_page_date() {
   ' "$file"
 }
 
+MERGED_REGISTRY="$WORK/merged-registry.json"
+NOTES_JSONL="$WORK/notes.jsonl"
+: >"$NOTES_JSONL"
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ROOT="${REPO_ROOT%$'\r'}"
+TEAM_REGISTRY=""
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/docs/conventions/multi-agent/benchmarks.json" ]]; then
+  cand="$REPO_ROOT/docs/conventions/multi-agent/benchmarks.json"
+  if [[ "$(cd "$(dirname "$cand")" && pwd)/$(basename "$cand")" != "$(cd "$(dirname "$REGISTRY")" && pwd)/$(basename "$REGISTRY")" ]]; then
+    TEAM_REGISTRY="$cand"
+  fi
+fi
+
+if [[ -n "$TEAM_REGISTRY" ]]; then
+  jq -e '
+    type == "object"
+    and .version == 1
+    and (.rows | type == "array")
+    and ((keys - ["version", "note", "rows"]) | length == 0)
+    and all(.rows[]; type == "object"
+      and ((keys - ["id", "workloads", "link", "publisher", "provider_own", "status", "task_set", "expect", "freshness_seconds", "enabled"]) | length == 0)
+      and (.id | type == "string" and test("^[a-z0-9][a-z0-9-]*$"))
+      and (.link | type == "string" and startswith("https://"))
+      and (.workloads | type == "array" and length > 0))
+  ' "$TEAM_REGISTRY" >/dev/null 2>&1 || die "invalid team registry: $TEAM_REGISTRY"
+
+  jq -n --slurpfile shipped "$REGISTRY" --slurpfile team "$TEAM_REGISTRY" '
+    ($shipped[0].rows | map(.id)) as $sids
+    | {
+        rows: ($shipped[0].rows + [$team[0].rows[] | select(.id as $id | ($sids | index($id)) == null)]),
+        duplicates: ([$team[0].rows[].id | select(. as $id | ($sids | index($id)) != null)] | unique)
+      }
+  ' >"$MERGED_REGISTRY" || die "failed to merge team registry: $TEAM_REGISTRY"
+
+  while IFS= read -r dup_id; do
+    dup_id="${dup_id%$'\r'}"
+    [[ -n "$dup_id" ]] || continue
+    msg="team registry row '$dup_id' refused: duplicates shipped row id"
+    printf 'fetch-boards: %s\n' "$msg" >&2
+    jq -cn --arg m "$msg" '$m' >>"$NOTES_JSONL"
+  done < <(jq -r '.duplicates[]' "$MERGED_REGISTRY")
+else
+  jq '{rows: .rows}' "$REGISTRY" >"$MERGED_REGISTRY" || die "failed to read rows from $REGISTRY"
+fi
+
+SOURCES_JSON="$WORK/sources.json"
+if [[ -n "$SETTINGS" ]]; then
+  jq '(.vendors // .) | (.sources // {})' "$SETTINGS" >"$SOURCES_JSON" || die "failed to read settings: $SETTINGS"
+else
+  printf '{}\n' >"$SOURCES_JSON"
+fi
+
 ROWS_TSV="$WORK/rows.tsv"
-jq -r --arg wt "$TASK_TYPE" '
-  .rows[]
-  | select((.enabled // true) == true)
+jq -r --arg wt "$TASK_TYPE" --slurpfile src "$SOURCES_JSON" '
+  ($src[0] // {}) as $overrides
+  | .rows[]
+  | . as $row
+  | (if ($overrides[$row.id] | type) == "object" and ($overrides[$row.id] | has("enabled")) and ($overrides[$row.id].enabled | type) == "boolean"
+     then $overrides[$row.id].enabled
+     else ($row.enabled // true)
+     end) as $en
+  | select($en == true)
   | select($wt == "" or ((.workloads | index($wt)) != null))
   | [.id, .link, ((.freshness_seconds // 86400) | tostring)]
   | @tsv
-' "$REGISTRY" >"$ROWS_TSV" || die "failed to read rows from $REGISTRY"
+' "$MERGED_REGISTRY" >"$ROWS_TSV" || die "failed to read rows from $REGISTRY"
 
 BOARDS_JSONL="$WORK/boards.jsonl"
 : >"$BOARDS_JSONL"
@@ -220,7 +283,7 @@ while IFS=$'\t' read -r row_id row_link row_max_age; do
 done <"$ROWS_TSV"
 
 NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-jq -n --arg at "$NOW_ISO" --slurpfile boards "$BOARDS_JSONL" \
-  '{generated_at: $at, boards: $boards}' >"$MANIFEST.tmp" || die "cannot write $MANIFEST"
+jq -n --arg at "$NOW_ISO" --slurpfile boards "$BOARDS_JSONL" --slurpfile notes "$NOTES_JSONL" \
+  'if ($notes | length) > 0 then {generated_at: $at, boards: $boards, notes: $notes} else {generated_at: $at, boards: $boards} end' >"$MANIFEST.tmp" || die "cannot write $MANIFEST"
 mv "$MANIFEST.tmp" "$MANIFEST" || die "cannot move $MANIFEST into place"
 cat "$MANIFEST"
