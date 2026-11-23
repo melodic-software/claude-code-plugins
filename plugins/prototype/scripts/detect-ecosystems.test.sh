@@ -37,8 +37,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# mkfixture <name> [marker ...] builds a project root holding exactly these markers.
-# Echoes the absolute path so a case can name it in one line.
 mkfixture() {
   local name="$1"
   shift
