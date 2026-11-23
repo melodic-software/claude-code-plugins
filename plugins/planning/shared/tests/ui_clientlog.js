@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// Error reports in a real browser, against `share.sh ensure-running` with the fake cloudflared: a joined guest's page
-// throws a script error, which reaches server.log as a client entry under the guest's pid, read back through
-// `share.sh logs --errors`, and gets a 409 on an action (an answer on a locked question), which is logged once, by the
-// server's own request entry, never again as a client copy. The answer's text never reaches the log. The owner's 400
-// bad-field (making themselves a leader) shows the server's own sentence and is logged once the same way.
-//   node plugins/planning/shared/tests/ui_clientlog.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from README "Logs" (the client entry's fields, the `logs --errors` filter) and session.py's
-// documented refusals (409 locked on a locked question; bad-field "The owner's own role, trust and presence cannot
-// change." on the owner's own role), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -36,14 +26,13 @@ async function main() {
     const status = await guest.evaluate(t => window.Core.answerCiting("Q1", t, []).then(() => 200, e => e.status), ANSWER);
     ok("the answer on a locked question is refused 409", status === 409, status);
 
-    // A 400 bad-field shows the server's own sentence, not the generic one, and is logged like any refusal.
     const ownerText = await owner.evaluate(() => window.Core.setLeader(window.Core.snapshot().me.pid, true).then(() => "accepted", e => window.Core.errorText(e)));
     ok("a 400 bad-field shows the server's message", ownerText === "The owner's own role, trust and presence cannot change.", ownerText);
 
     const errors = () => s.share(A.dir, "logs", "--errors").lines;
     let lines = [];
     for (let i = 0; i < 40 && !lines.some(l => l.includes(THROWN)); i++) { lines = errors(); if (!lines.some(l => l.includes(THROWN))) await new Promise(r => setTimeout(r, 200)); }
-    await new Promise(r => setTimeout(r, 1000)); // time for a client copy of either refusal, were the page to send one
+    await new Promise(r => setTimeout(r, 1000));
     lines = errors();
     const thrown = lines.filter(l => l.includes(` client pid=${pid} kind=error `) && l.includes(THROWN));
     ok("the script error reaches the log as one client entry with the guest's pid, naming the browser", thrown.length === 1 && / ua="chrome computer" fp=[0-9a-f]{8}$/.test(thrown[0]), lines.join(" | "));

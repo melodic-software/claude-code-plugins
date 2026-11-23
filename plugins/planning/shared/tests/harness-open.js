@@ -36,7 +36,7 @@
     async rename() {
       if (phone()) await more("Settings"); else await click(".vf-person-me");
       if (!phone()) await wait(150);
-      if (!visible($('[data-k="rename"]'))) await click(".vf-person-me"); // a hover card pins on click
+      if (!visible($('[data-k="rename"]'))) await click(".vf-person-me");
       await click('[data-k="rename"]');
       return { field: '[data-k="rn"]', send: '[data-k="rs"]' };
     },

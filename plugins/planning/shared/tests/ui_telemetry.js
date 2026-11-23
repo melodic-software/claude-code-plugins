@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Passive telemetry in real browsers, against `share.sh ensure-running` with the fake cloudflared, every request to
-// another host refused. A desktop guest's join dialog carries no notice and no switch; Help shows the notice line and
-// its "What this page records" list, with no switch either. A script error thrown three times is sent once with a fingerprint, its repeats never sent, in the
-// summary the page sends when it hides or elsewhere; two picks (one refused on a locked question, so its optimistic patch rolls
-// back) show as tap-to-answer latency and one rollback; showing the page again gives a reconnect gap; INP and LCP come
-// from the vendored web-vitals file, loaded from this origin. The summary names no one, in its body or on the server,
-// where it has no line of its own until the batch that stopping the server writes.
-// No client-log body ever holds the guest's name, typed text, an answer comment or chat. A `telemetry=off` flag an
-// older page left in localStorage is ignored: errors and summaries still send after a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
-// only. Taps are counted by the tapped control's class: three quick ones are a rage tap, one that changes nothing a dead
-// tap even when the page's own poll renders in its second, one that opens a sheet no dead tap, and no body holds the control's text, label, title or id. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
-// back to a selector and an id gets "-" sent for both. The owner's Host Health shows the log's summary by section,
-// the thrown error among its top errors; a guest's Help and More have no Host Health.
-//   node plugins/planning/shared/tests/ui_telemetry.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved V1 (feedback triage row 49: the signals, no pid on usage entries, local
-// web-vitals), the owner's request that guests get no off switch, and the texts this suite makes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -23,7 +6,6 @@ const NAME = "Quillon Fernsby", CHAT = "chat-line-telemetry-never-holds", COMMEN
 const TYPED = "typed-words-telemetry-never-holds", THROWN = "injected-telemetry-error";
 const PHONE = { viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true };
 
-/** Every /api/client-log body a page sends, and every request to another host (refused). */
 async function watch(page, ctx, out) {
   await ctx.route("**/*", r => {
     const u = new URL(r.request().url());
@@ -56,7 +38,6 @@ async function main() {
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await owner.evaluate(() => window.Core.lock("Q1", "opt-1"));
 
-    // ---------- a desktop guest: the notice, the list, the signals ----------
     const w = { bodies: [], foreign: [] };
     const guest = await rec.open(A.localUrl);
     await watch(guest, guest.context(), w);
@@ -64,7 +45,6 @@ async function main() {
     await guest.waitForSelector("dialog.core-name[open]");
     const dlg = await guest.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
-      // the host's own sign-in link is the one link the join dialog carries (owner, 2026-10-21)
       return { notice: /records errors|What this page records|Record problems/.test(d.textContent), controls: d.querySelectorAll("a:not(.core-host-code), input[type=checkbox], [role=switch]").length };
     });
     ok("the join dialog carries no recording notice, link or switch beyond the host's sign-in link", !dlg.notice && dlg.controls === 0, JSON.stringify(dlg));
@@ -79,10 +59,8 @@ async function main() {
     await guest.locator(".vf-propose").click();
     await guest.locator("#vf-prop-ta").fill(TYPED);
     await guest.keyboard.press("Escape");
-    await guest.locator(".vf-keysbtn").click(); // an interaction for INP, and one tap on Help
+    await guest.locator(".vf-keysbtn").click();
     await guest.keyboard.press("Escape");
-    // Three quick taps on a control that answers each one, and one tap on a control that changes nothing. Each carries
-    // text, a label, a title and an id that are never sent: only the class this test gives it names it.
     await guest.evaluate(() => {
       for (const [cls, tag, live, top] of [["vf-telemetry-rage", "RAGE", true, 0], ["vf-telemetry-dead", "DEAD", false, 60], ["vf-telemetry-dead-poll", "POLL", false, 120]]) {
         const b = document.createElement("button");
@@ -92,7 +70,7 @@ async function main() {
         if (live) b.onclick = () => { b.dataset.n = String(Number(b.dataset.n || 0) + 1); };
         document.body.append(b);
       }
-      for (let i = 0; i < 3; i++) { // three controls of one kind, like the reaction buttons: one tap each is no rage tap
+      for (let i = 0; i < 3; i++) {
         const b = document.createElement("button");
         b.style.cssText = `position:fixed;inset-inline-start:${200 + 60 * i}px;inset-block-start:0;z-index:2147483647`;
         b.type = "button"; b.className = "vf-btn vf-telemetry-trio"; b.textContent = String(i);
@@ -101,8 +79,6 @@ async function main() {
       }
     });
     await guest.locator(".vf-telemetry-rage").click({ clickCount: 3 });
-    // Hold the polls and heartbeats until one poll waits (so none is rendering), let the page fall still, tap, and wait
-    // in the page past the tap's own timer, set first, so this dead tap is recorded with nothing else moving.
     const held = [], HELD = /\/api\/(?:state|heartbeat)(?:\?|$)/;
     await guest.route(HELD, r => { held.push(r); });
     for (let i = 0; i < 100 && !held.some(r => r.request().url().includes("/api/state")); i++) await guest.waitForTimeout(100);
@@ -117,13 +93,10 @@ async function main() {
     }));
     ok("the page holds still before the dead tap, its polls held", still && held.some(r => r.request().url().includes("/api/state")), held.map(r => r.request().url()).join(" "));
     await guest.locator(".vf-telemetry-dead").click();
-    await guest.evaluate(() => new Promise(res => setTimeout(res, 1100))); // after the dead tap's 1000 ms timer
-    // A tap that opens a sheet is answered by the sheet, with nothing else moving.
+    await guest.evaluate(() => new Promise(res => setTimeout(res, 1100)));
     await guest.locator(".vf-propose").click();
     await guest.evaluate(() => new Promise(res => setTimeout(res, 1100)));
     await guest.keyboard.press("Escape");
-    // A dead tap is still dead when the page's own poll renders inside its second, here with a new title to show: only a
-    // change the tap caused answers it. The suite's own observer proves the render changed the page in that second.
     s.apply(A.dir, [{ op: "set-title", title: "Telemetry title after the tap" }]);
     await guest.evaluate(() => {
       const w = window.pollWindow = { at: 0, n: 0 };
@@ -142,7 +115,6 @@ async function main() {
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
     ok("the error thrown three times is sent once, with its fingerprint", errorsSent().length === 1 && /^[0-9a-f]{8}$/.test(errorsSent()[0].fp), JSON.stringify(errorsSent()));
     ok("no refusal is sent as a client copy", !parsed(w.bodies).some(b => b.kind === "api"), w.bodies.join(" | "));
-    // A server refusal left unhandled sends its code, never its message, which can quote typed text; an Error keeps its message.
     await guest.evaluate(() => { Promise.reject({ status: 409, error: "unknown-name", message: "No one called ZZTYPEDZZ is in this session." }); Promise.reject(new Error("boom")); });
     const rejections = () => parsed(w.bodies).filter(b => b.kind === "rejection");
     for (let i = 0; i < 40 && rejections().length < 2; i++) await guest.waitForTimeout(100);
@@ -179,7 +151,6 @@ async function main() {
     ok("no client-log body holds the name, typed text, the comment or the chat", w.bodies.length >= 3 && leaked.length === 0, leaked.join(" | "));
     ok("no request left this origin", w.foreign.length === 0, w.foreign.join(" | "));
 
-    // ---------- Help: the notice and the list, no switch; nothing turns recording off ----------
     await guest.locator(".vf-keysbtn").click();
     const help = await guest.evaluate(() => {
       const h = document.querySelector(".vf-keys .vf-help-rec");
@@ -200,7 +171,7 @@ async function main() {
     await guest.locator("dialog.core-records button").click();
     ok("  which closes", await until(guest, () => !document.querySelector("dialog.core-records")));
     await guest.keyboard.press("Escape");
-    await guest.evaluate(() => localStorage.setItem("telemetry", "off")); // the flag an older page's switch left behind
+    await guest.evaluate(() => localStorage.setItem("telemetry", "off"));
     await guest.reload();
     await until(guest, () => !!window.Core.snapshot()?.me);
     const before = w.bodies.length;
@@ -214,7 +185,6 @@ async function main() {
       after.some(b => b.kind === "error" && b.message?.includes(THROWN + "-reloaded")) && after.some(b => b.kind === "summary"), w.bodies.slice(before).join(" | "));
     await setVisibility(guest, "visible");
 
-    // ---------- a 320 px phone: a too-wide pane is a layout anomaly ----------
     const pw320 = { bodies: [], foreign: [] };
     const phone = await rec.open(A.localUrl, { context: PHONE });
     await watch(phone, phone.context(), pw320);
@@ -222,9 +192,6 @@ async function main() {
     await phone.waitForTimeout(3000);
     const anomalies = () => parsed(pw320.bodies).filter(b => b.kind === "layout" && /^anomaly=/.test(b.message || ""));
     ok("the page itself fits 320 px: no layout anomaly", anomalies().length === 0, anomalies().map(b => b.message).join(" | "));
-    // The chat button's bump (a 500 ms spring that scales it to 1.2 at 90 ms) passes the screen's edge mid-way: restarted
-    // every 90 ms for 3 s it stays past it, so the page's own check, due 800 ms to 2 s after a tap, lands in it and
-    // must wait it out.
     const mid = await phone.evaluate(async () => {
       const fab = document.querySelector(".vf-fab"), app = document.getElementById("app");
       document.dispatchEvent(new Event("click", { bubbles: true }));
@@ -237,7 +204,7 @@ async function main() {
       }
       return widest;
     });
-    await phone.waitForTimeout(3000); // the check the bumps held off runs once they end
+    await phone.waitForTimeout(3000);
     ok("the chat button's bump, which reaches past 320 px mid-way, logs no layout anomaly", mid > 320 && anomalies().length === 0,
       `widest ${mid}; ${anomalies().map(b => b.message).join(" | ")}`);
     const pane = await phone.evaluate(() => {
@@ -253,7 +220,6 @@ async function main() {
     ok("a pane wider than the 320 px screen is logged once as an overflow, naming components", !!pane && found.length === 1 && t.anomaly === "overflow" && t.el === "vf-telemetry-probe"
       && t.vw === "320" && Number(t.sw) > Number(t.w) && found[0].ua === "chrome phone" && /^[0-9a-f]{8}$/.test(found[0].fp), `${pane} ${found.map(b => b.message).join(" | ")}`);
 
-    // ---------- the web-vitals file missing: the page still works ----------
     const wm = { bodies: [], foreign: [] };
     const bare = await rec.open(A.localUrl);
     await watch(bare, bare.context(), wm);
@@ -266,7 +232,6 @@ async function main() {
     for (let i = 0; i < 40 && !bs.length; i++) { bs = parsed(wm.bodies).filter(b => b.kind === "summary"); if (!bs.length) await bare.waitForTimeout(100); }
     ok("without the web-vitals file the page works and its summary says vitals=missing", picked === "ok" && !(await bare.evaluate(() => !!window.webVitals)) && tokens(bs[0]?.message).vitals === "missing", `${picked} ${bs[0]?.message}`);
 
-    // ---------- a stub web-vitals whose attribution falls back to a selector and an id: neither is sent ----------
     const ws = { bodies: [], foreign: [] };
     const stub = await rec.open(A.localUrl);
     await watch(stub, stub.context(), ws);
@@ -280,7 +245,7 @@ async function main() {
       window.stubInp[0]({ value: 120, attribution: { interactionType: "pointer", interactionTarget: "div#cy-secret-inp>button.answer", targetSelector: "div#cy-secret-inp>button.answer" } });
       window.stubLcp[0]({ value: 900, attribution: { target: "#cy-secret-lcp", lcpEntry: { id: "cy-secret-lcp", element: null } } });
     });
-    const stubSummary = async n => { // the page stays hidden, so it has no reconnect gap
+    const stubSummary = async n => {
       await setVisibility(stub, "hidden");
       let got = [];
       for (let i = 0; i < 40 && got.length < n; i++) { got = parsed(ws.bodies).filter(b => b.kind === "summary"); if (got.length < n) await stub.waitForTimeout(100); }
@@ -288,7 +253,6 @@ async function main() {
     };
     const fallback = await stubSummary(1);
     ok("a selector or an id from web-vitals is sent as \"-\"", fallback.inp === "120:pointer:-" && fallback.lcp === "900:-", JSON.stringify(fallback));
-    // An element web-vitals hands to generateTarget is named by component: the class this test gives it.
     await stub.evaluate(() => {
       const host = document.createElement("div"), inner = document.createElement("span");
       host.className = "vf-stub-probe"; host.id = "cy-secret-host"; host.append(inner); document.getElementById("app").append(host);
@@ -300,7 +264,6 @@ async function main() {
     ok("  and an element web-vitals measured is named by its component", named.inp === "160:keyboard:vf-stub-probe" && named.lcp === "950:vf-stub-probe", JSON.stringify(named));
     ok("  no body from that page holds the selector or an id", ws.bodies.length >= 2 && !ws.bodies.some(b => /cy-secret|#|>/.test(b)), ws.bodies.join(" | "));
 
-    // ---------- Host Health: the owner's view of the summary, by section; a guest has no entry ----------
     ok("a guest's Help and More have no Host Health", await guest.evaluate(() => { const b = [...document.querySelectorAll(".vf-help-health, .vf-ms-health")]; return b.length > 0 && b.every(x => x.hidden); }));
     await owner.evaluate(() => document.querySelector(".vf-help-health").click());
     const health = await until(owner, t => [...document.querySelectorAll(".vf-healthpop .vf-health-sec")].some(x => x.querySelector("h3")?.textContent === "Top errors" && x.textContent.includes(t)), THROWN)
@@ -309,11 +272,10 @@ async function main() {
       !!health && health[0] === "Top errors" && health.at(-1) === "Dead taps (a tap that changed nothing on the page) by component", JSON.stringify(health));
     await owner.keyboard.press("Escape");
 
-    const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN) && m !== "Object" && m !== "Error: boom"); // the injected rejections
+    const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN) && m !== "Object" && m !== "Error: boom");
     ok("no other page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));
     ok("no CSP violation", (await rec.cspViolations()).length === 0);
 
-    // ---------- the server's log: a summary only in its batch, which stopping the server writes ----------
     const lines = () => s.share(A.dir, "logs").lines;
     const posts = lines().filter(l => / request method=POST route=\/api\/client-log status=200 /.test(l));
     ok("each fault is logged under the guest's pid, and no summary has a line or a request entry of its own", posts.length >= 1 && posts.every(l => / pid=\S/.test(l))
@@ -321,9 +283,6 @@ async function main() {
     s.share(A.dir, "stop");
     const batches = lines().filter(l => / summary-batch /.test(l));
     ok("  stopping the server writes them in one batch with no pid", batches.length === 1 && !batches[0].includes("pid="), batches.join(" | "));
-    // The guest's two summaries, one as its reload hides it (holding the gap from its last showing) and one after the
-    // reload, the page without web-vitals' one and the stub page's two; the guest's two picks, its pick after the reload
-    // and the second page's pick make four timed picks; two reconnect gaps; INP from the guest's page and the stub page.
     const sum = s.share(A.dir, "logs", "--summary", "--json");
     const comp = (k, c) => sum.features?.[k]?.find(x => x.component === c)?.count;
     ok("logs --summary counts the taps by control: three, one rage tap, two dead taps", comp("use", "vf-telemetry-rage") === 3 && comp("rage", "vf-telemetry-rage") === 1

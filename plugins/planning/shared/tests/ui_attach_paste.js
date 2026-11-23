@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Attach and paste on every place people write, against `share.sh ensure-running` with the fake cloudflared: with
-// Uploads off a pasted picture adds nothing; on, the answer box, Ask Claude, chat, the Discussion and Propose each show
-// an Attach button, and a picture pasted into each (a ClipboardEvent carrying an image File) becomes a thumbnail chip
-// reading "Waiting for the host", never text in the field; sending waits until the host accepts it; once accepted and
-// received, the picture shows as a tile to another guest who sees what carries it and opens in the viewer, while a
-// proposal, a request and a hidden comment keep theirs from that guest. Drafts stay on their own question; a declined
-// file leaves the form at Send; taking a pasted chip off withdraws it; a picked JPEG reaches the host redrawn, with
-// no EXIF; the host's own paste, the question's ask box and Suggest take pictures too; and the host removes one.
-//   node plugins/planning/shared/tests/ui_attach_paste.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (attach and paste on every text input; accepted pictures shown to
-// everyone who sees their item) and the texts this suite writes, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -19,7 +7,6 @@ const { loadPlaywright, suite, recorder, until, snap, joinAs, openClaude } = req
 const q = (id, text, purpose = "gather") => ({ id, text, alternatives: [], dependsOn: [], purpose, format: { kind: "text" } });
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
 
-// Each place people write: how to open it, its field, its form (where the Attach button and the chips sit), how to send.
 const FORMS = {
   answer: { field: "#vf-answer", form: ".vf-composer", text: "The green one, see the picture." },
   ask: { field: "#vf-ap-ta", form: ".vf-apform", text: "What is in this picture?" },
@@ -33,7 +20,7 @@ const opens = {
   answer: async () => true,
   ask: async page => {
     if (await page.evaluate(() => document.querySelector(".vf-apform")?.offsetParent === null)) await page.click(".vf-asktop");
-    await page.selectOption(".vf-apq select", { index: 1 }); // a question: the whole session offers no own Claude
+    await page.selectOption(".vf-apq select", { index: 1 });
     return until(page, () => !!document.querySelector("#vf-ap-ta")?.offsetParent);
   },
   chat: openChat,
@@ -42,7 +29,6 @@ const opens = {
 };
 const closeAll = page => page.keyboard.press("Escape");
 
-/** Paste a 640x400 PNG made in the page into `sel`, as a ClipboardEvent whose clipboardData holds an image File. */
 const paste = (page, sel) => page.evaluate(async s => {
   const c = document.createElement("canvas"); c.width = 640; c.height = 400;
   const g = c.getContext("2d"); g.fillStyle = "#2a7"; g.fillRect(0, 0, 640, 400); g.fillStyle = "#fff"; g.fillRect(40, 300, 200, 60);
@@ -53,7 +39,6 @@ const paste = (page, sel) => page.evaluate(async s => {
   el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   return before;
 }, sel);
-/** The draft chips of one form: each one's thumbnail source kind and its text. */
 const chips = (page, sel) => page.evaluate(s => [...(document.querySelector(s)?.querySelectorAll(".vf-attdraft .vf-ref") || [])]
   .map(li => ({ img: (li.querySelector(".vf-ref-thumb img:not([hidden])")?.getAttribute("src") || "").slice(0, 11), text: li.textContent })), sel);
 
@@ -73,7 +58,6 @@ async function main() {
     const bo = await rec.open(A.localUrl, DESK);
     await joinAs(bo, "Bo");
 
-    // ---------- Uploads off: a pasted picture adds nothing ----------
     await openChat(ann);
     ok("with Uploads off, chat shows no Attach button", await ann.locator(".vf-mform .vf-attach").isHidden());
     await paste(ann, ".vf-minput");
@@ -81,7 +65,6 @@ async function main() {
     ok("and a pasted picture makes no chip and offers nothing", (await chips(ann, ".vf-chat")).length === 0 && (await snap(ann)).myUploads.length === 0);
     await closeAll(ann);
 
-    // Bo opens Propose while Uploads is off; the host turns it on meanwhile.
     ok("Bo's Propose form opens", await opens.propose(bo));
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
     await until(ann, () => window.Core.state.settings.uploads === true);
@@ -93,7 +76,6 @@ async function main() {
     ok("taking the pasted chip off withdraws its upload", await until(bo, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "withdrawn", boPasted));
     await closeAll(bo);
 
-    // ---------- Ask Claude with "Run it on my own Claude" on takes no picture ----------
     ok("Bo's Ask Claude opens", await opens.ask(bo));
     await bo.click(".vf-apself");
     await until(bo, () => document.querySelector(".vf-apself").getAttribute("aria-checked") === "true");
@@ -104,7 +86,6 @@ async function main() {
     await bo.click(".vf-apself");
     await closeAll(bo);
 
-    // ---------- on: Attach on every form, and a pasted picture becomes a thumbnail chip waiting for the host ----------
     const ids = {};
     for (const [name, f] of Object.entries(FORMS)) {
       ok(`${name}: the form opens`, await opens[name](ann));
@@ -122,7 +103,6 @@ async function main() {
       if (name !== "answer") await closeAll(ann);
     }
 
-    // ---------- before the host accepts: sending waits, the host sees the picture, Bo sees nothing ----------
     await openChat(ann);
     await ann.click(".vf-mform button[type=submit]");
     ok("sending chat before the host accepts says it waits for the host", await until(ann, () => /is waiting for the host\. Send once they accept it, or remove it\./.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")));
@@ -137,11 +117,10 @@ async function main() {
     ok("accepted, every pasted picture arrives", await until(ann, want => want.every(id => (window.Core.snapshot().myUploads || []).some(u => u.id === id && u.status.kind === "done")), Object.values(ids), 30000));
     ok("and Ann's chips show the received picture", await until(ann, () => [...document.querySelectorAll(".vf-composer .vf-attdraft .vf-uppic img")].some(i => i.getAttribute("src")?.startsWith("data:image/")), null, 10000));
 
-    // ---------- sent from each form ----------
     await ann.evaluate(() => document.querySelector("form.vf-composer").requestSubmit());
     for (const name of ["ask", "chat", "discussion", "propose"]) {
       await opens[name](ann);
-      await ann.waitForTimeout(1100); // one write a second per person and route
+      await ann.waitForTimeout(1100);
       await ann.evaluate(sel => document.querySelector(sel).requestSubmit(), FORMS[name].form);
       await ann.waitForTimeout(300);
       if (name !== "chat" && name !== "discussion") await closeAll(ann);
@@ -152,7 +131,6 @@ async function main() {
     }, ids, 15000);
     ok("each form sent its picture with what it posted", sent, JSON.stringify(ids));
 
-    // ---------- received, a guest's picture waits for the host's approval before Bo sees it ----------
     await openChat(bo);
     ok("before the host approves, Bo sees a placeholder reading \"Waiting for the host\" on the chat message, not the picture", await until(bo, t => {
       const m = [...document.querySelectorAll(".vf-chat .vf-msg")].find(li => li.textContent.includes(t));
@@ -167,7 +145,6 @@ async function main() {
     }, null, 10000));
     await approveRow.locator(".vf-upapprove").click();
 
-    // ---------- Bo sees the pictures where he sees their items, as tiles that open the viewer ----------
     const tile = (page, scope, text) => until(page, ([sc, t]) => [...document.querySelectorAll(sc)].some(li => li.textContent.includes(t)
       && li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/")), [scope, text], 10000);
     ok("Bo sees Ann's chat picture as a tile", await tile(bo, ".vf-chat .vf-msg", FORMS.chat.text));
@@ -181,16 +158,13 @@ async function main() {
     ok("Bo's page holds no picture of Ann's proposal or her request", !boFiles.includes(ids.propose) && !boFiles.includes(ids.ask), JSON.stringify(boFiles));
     ok("the server refuses Bo the request's picture", await bo.evaluate(id => window.Core.uploadImage(id).then(() => false, e => e.status === 404), ids.ask));
 
-    // ---------- a hidden comment takes its picture away from Bo ----------
     const cid = (await snap(owner)).discussions.Q1.find(c => (c.attachments || []).includes(ids.discussion)).id;
     await owner.evaluate(c => window.Core.hideComment("Q1", c, true), cid);
     ok("hidden, the comment's picture leaves Bo's page", await until(bo, id => !(id in (window.Core.snapshot().files || {})), ids.discussion));
     ok("and the server refuses it to him", await bo.evaluate(id => window.Core.uploadImage(id).then(() => false, e => e.status === 404), ids.discussion));
 
-    // ---------- drafts stay on their question ----------
     const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
     await openDisc(ann);
-    // The offer is held back 1.5 s, so the reader moves to Q2 before it lands.
     await ann.route("**/api/upload/offer", async route => { await new Promise(r => setTimeout(r, 1500)); await route.continue(); });
     const before = (await snap(ann)).myUploads.length;
     await paste(ann, FORMS.discussion.field);
@@ -210,7 +184,6 @@ async function main() {
     ok("back on Q1 the chip is still there", await until(ann, id => document.querySelectorAll(".vf-disc-form .vf-attdraft .vf-ref").length === 1
       && window.Core.state.myUploads.some(u => u.id === id && u.status === "offered"), q1Draft));
 
-    // ---------- a file the host declines leaves the form at Send ----------
     await owner.evaluate(id => window.Core.uploadAct(id, "decline"), q1Draft);
     await until(ann, id => window.Core.state.myUploads.some(u => u.id === id && u.status === "declined"), q1Draft);
     await ann.fill(".vf-disc-ta", "Posting after the decline.");
@@ -219,7 +192,6 @@ async function main() {
       && document.querySelector(".vf-disc-form .vf-attdraft").hidden));
     ok("and posts nothing", !((await snap(ann)).discussions?.Q1 || []).some(c => c.text === "Posting after the decline."));
 
-    // ---------- a picked JPEG is redrawn: no EXIF reaches the host ----------
     const exifJpeg = Buffer.from(await ann.evaluate(async () => {
       const c = document.createElement("canvas"); c.width = 2400; c.height = 1600;
       const g = c.getContext("2d"); g.fillStyle = "#c44"; g.fillRect(0, 0, 2400, 1600);
@@ -243,7 +215,6 @@ async function main() {
     ok("the host's copy holds no EXIF and no GPS note, at most 512 KB", bytes.length > 0 && bytes.length <= 512 * 1024 && !bytes.includes(Buffer.from("Exif\0\0")) && !bytes.includes(Buffer.from("GPS-SECRET")), `${saved} ${bytes.length}`);
     await closeAll(ann);
 
-    // ---------- the host's own paste, the question's ask box, and Suggest ----------
     await openChat(owner);
     await paste(owner, ".vf-minput");
     ok("the host's own pasted picture shows as a received picture in the chip", await until(owner, () => [...document.querySelectorAll(".vf-chat .vf-attdraft .vf-uppic img")].some(i => i.getAttribute("src")?.startsWith("data:image/")), null, 20000));
@@ -264,14 +235,12 @@ async function main() {
     await paste(ann, ".vf-sugform textarea");
     ok("a picture pasted into Suggest makes a chip", await until(ann, () => [...document.querySelectorAll(".vf-sugform .vf-attdraft .vf-ref")].some(li => li.textContent.includes("Waiting for the host")), null, 10000));
 
-    // ---------- the host removes a received picture ----------
     await openChat(owner);
     await owner.locator(".vf-chat .vf-msg", { hasText: FORMS.chat.text }).locator(".vf-upremove").click();
     await owner.locator("dialog[open] button", { hasText: "Remove picture" }).click();
     ok("removed, the picture leaves Bo's chat", await until(bo, t => { const m = [...document.querySelectorAll(".vf-chat .vf-msg")].find(li => li.textContent.includes(t)); return !!m && !m.querySelector(".vf-uppic"); }, FORMS.chat.text));
     ok("and Ann's own file reads Removed", await until(ann, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "removed", ids.chat));
 
-    // ---------- a message older than the chat window follows its picture's Approve and Remove ----------
     await closeAll(owner);
     await openChat(ann);
     const hadUps = (await snap(ann)).myUploads.length;
@@ -284,7 +253,6 @@ async function main() {
     await ann.waitForTimeout(1100);
     await ann.click(".vf-mform button[type=submit]");
     const oldMsg = await until(ann, id => window.Core.snapshot().chat.some(m => (m.attachments || []).includes(id)), oldPic) && (await snap(ann)).chat.find(m => (m.attachments || []).includes(oldPic)).id;
-    // 55 newer messages from the host, written while the server is stopped, push it out of the 50-message window.
     const port = new URL(A.localUrl).port, stFile = path.join(A.dir, "state.json");
     s.share(A.dir, "stop");
     const stj = JSON.parse(fs.readFileSync(stFile, "utf8")), n0 = stj.session.seq.M, t0 = stj.chat.at(-1).at;
@@ -315,7 +283,7 @@ async function main() {
     }, oldMsg, 15000), await oldTile(bo, oldMsg));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
-    const errs = rec.errors.filter(m => !/Failed to load resource|Failed to fetch|ERR_CONNECTION/.test(m)); // the server restarts once
+    const errs = rec.errors.filter(m => !/Failed to load resource|Failed to fetch|ERR_CONNECTION/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
