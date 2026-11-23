@@ -3,7 +3,7 @@
 Quality requirements, often called non-functional requirements (NFRs), say how well the system
 must do what it does. These seven are prompts, not a taxonomy, and the list is `Basis: judgment`:
 no primary defines it. Ask only the prompts the task touches, at the depth the quality bar sets
-([`loop.md`](loop.md) "Engineering defaults"). A consumer standard that names its own list or
+([`survey.md`](survey.md) "Engineering defaults"). A consumer standard that names its own list or
 targets wins over this one.
 
 | Prompt | Ask about |

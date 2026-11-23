@@ -32,6 +32,28 @@ Arguments: `$ARGUMENTS`. `time_units` user layer for [`problem-framing.md`](../.
 
 Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `tunnel_hostname`: `${user_config.tunnel_hostname}`; `tunnel_token_file`: `${user_config.tunnel_token_file}`; `tunnel_api_token_file`: `${user_config.tunnel_api_token_file}` (an empty hostname means no named tunnel: a quick tunnel).
 
+## Spoke paths
+
+Every file this skill names has a fixed path: Read it there, and never list, count or grep the
+plugin's directories to find one. A link in this file resolves from
+`${CLAUDE_PLUGIN_ROOT}/skills/interview/` (`context/loop.md` is
+`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/loop.md`), and one starting `../../` from
+`${CLAUDE_PLUGIN_ROOT}/`. A link in a `context/` spoke resolves from
+`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/`: a bare file name is a sibling spoke, and
+`../../../` is `${CLAUDE_PLUGIN_ROOT}/`. A script named without a path is
+`${CLAUDE_PLUGIN_ROOT}/surface/round.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh`,
+`${CLAUDE_PLUGIN_ROOT}/scripts/check-round-codes.sh` or `${CLAUDE_PLUGIN_ROOT}/surfaces/registry.mjs`.
+
+Read each file once per session and keep it: a later pointer to one of its sections points into
+the copy you already read, so read it again only after a compaction drops it.
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Which files get `${…}` substitution and where each variable resolves:
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+
+Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and how `acceptance_criteria_format` resolves, through the shared ladder in [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md).
+
 ## Purpose
 
 Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision or capturing it as a named, explicit assumption, before exploration, planning, or execution start.
@@ -42,7 +64,7 @@ The **pre-clarity** stage. Upstream of exploration, research, and `/planning:pla
 
 **Supportive, not adversarial.** `/planning:devils-advocate` attacks an existing artifact after the fact. `/planning:interview` walks alongside the user to extract a clear contract from the start. The `product` action is the one exception: the user asked for the idea itself to be tested ([`context/product.md`](context/product.md)).
 
-**Domain-routed.** The interview loop is universal. Any task, proposal, or choice can be its subject. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/planning:plan`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface. The problem itself decides, with repo and working directory as context that never suffices alone. Never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery, codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff, engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "interview me on this decision"). An engineering session also reads the consumer's standards before any bundled default, asks the variation-intent question, and prompts quality requirements (NFRs), each scaled by the quality bar: read [`context/loop.md`](context/loop.md) "Engineering defaults" after the Step 1 survey.
+**Domain-routed.** The interview loop is universal. Any task, proposal, or choice can be its subject. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/planning:plan`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface. The problem itself decides, with repo and working directory as context that never suffices alone. Never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery, codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff, engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "interview me on this decision"). An engineering session also reads the consumer's standards before any bundled default, asks the variation-intent question, and prompts quality requirements (NFRs), each scaled by the quality bar: read [`context/survey.md`](context/survey.md) "Engineering defaults" after the Step 1 survey.
 
 **Two invocation modes, one schema.** When intent is fuzzy, `/planning:interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/planning:interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain. A PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly. **Cost framing**: every clarification round-trip skipped is time and tokens saved. Auto-detect removes redundant Q&A; explicit `lock` asks only its one problem question when the user has already given the answer.
 
@@ -99,7 +121,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 4. **The project's terms from the start**. Once the interview starts, past the quick-change skip
    in [`context/routing.md`](context/routing.md), invoke `/domain-driven-design:ubiquitous-language lookup`
    via the Skill tool, with one line saying why ("Reading the project glossary so these questions
-   use its terms."); when that skill is not listed, read the glossary file as loop.md "Step 1.
+   use its terms."); when that skill is not listed, read the glossary file as [`context/survey.md`](context/survey.md) "Step 1.
    Survey before you ask" says, and the opening lines offer its plugin's install once ("Question lanes").
    Agree each term in the question where it first appears and write it only after the user
    confirms its restatement ("Agree a term where it first appears"). Route decisions, gotchas, and
@@ -452,15 +474,6 @@ Failure patterns from real sessions: `context/gotchas.md`.
 - Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
-
-## Spoke paths
-
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Which files get `${…}` substitution and where each variable resolves:
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
-
-Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and how `acceptance_criteria_format` resolves, through the shared ladder in [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md).
 
 ## Composition with other skills
 
