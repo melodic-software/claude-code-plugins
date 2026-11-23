@@ -149,7 +149,8 @@ for c in 'gh pr edit 42 --remove-label pr-verify-failed' 'gh pr edit 42 --remove
   'L=pr-verify-failed; gh pr edit 42 --remove-label "$L"' \
   'gh api -X DELETE repos/acme/widgets/issues/42/labels/pr%2Dverify%2Dfailed' \
   'gh label delete pr-verify-failed --yes' \
-  'gh label edit -R acme/widgets pr-verify-failed --name gone'; do
+  'gh label edit -R acme/widgets pr-verify-failed --name gone' \
+  'gh label edit --name gone -c ff0000 pr-verify-failed'; do
   scenario none none green green
   run "label removal: $c" "$c" 2
   assert_contains "label removal, $c -> says why" "$ERR" "removes the pr-verify-failed label"

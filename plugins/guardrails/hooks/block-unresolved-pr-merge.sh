@@ -590,7 +590,7 @@ _bupm_command() {
         w="$1"
         shift
         case "$w" in
-        -R | --repo) (($#)) && shift ;;
+        -R | --repo | -n | --name | -d | --description | -c | --color) (($#)) && shift ;;
         -*) ;;
         *)
           _bupm_unlabel_value "$w"
