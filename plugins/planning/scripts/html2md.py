@@ -45,14 +45,13 @@ class Conv(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.out, self.skip, self.pre = [], 0, 0
-        self.head = None  # (level, parts) while inside a heading
-        self.perma = None  # text parts of a heading's in-page anchor, while inside one
-        self.hide = None  # [tag, open count] of a heading's hidden element, inside one
-        self.link = None  # (href, parts) while inside a link
-        # index in out of the open fence line, until its language is known
+        self.head = None
+        self.perma = None
+        self.hide = None
+        self.link = None
         self.fence = None
         self.rows = self.cells = self.intable = 0
-        self.h1 = []  # text of each H1 emitted
+        self.h1 = []
 
     def emit(self, s):
         if self.skip:
@@ -72,9 +71,6 @@ class Conv(HTMLParser):
         if re.fullmatch(r"h[1-6]", tag):
             self.head = (int(tag[1]), [])
         elif self.head is not None:
-            # a heading is one line of text: wrappers are dropped; text hidden from sight or
-            # from screen readers is dropped to its element's end tag; an in-page anchor's
-            # text is held to its end tag and dropped only when it is a permalink glyph
             if self.hide is not None:
                 self.hide[1] += tag == self.hide[0]
             elif tag not in VOID and (a.get("aria-hidden") == "true" or HIDDEN.search(a.get("class") or "")):
