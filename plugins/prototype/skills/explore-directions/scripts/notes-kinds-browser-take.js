@@ -1,7 +1,4 @@
 async page => {
-  // Takes four notes through the notes host: a text note on the opening set; a text note after Seed
-  // 10, Clear, Reset, Seed 10; a region note made with the keyboard alone (one arrow pressed inside
-  // the frame); an element note on record 57 after Seed 100.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -25,7 +22,6 @@ async page => {
       getSelection().addRange(r);
     }, i);
 
-    // 0. Text on the opening set: record 2's id, before any data control; Clear and Reset follow below.
     await select(2);
     await page.click("#quote");
     await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
@@ -35,7 +31,6 @@ async page => {
     await page.click("#send");
     await sent(1);
 
-    // 1. Text: select record 12's id after Seed 10, Clear, Reset, Seed 10, then Note on selected text.
     for (const c of ["seed:10", "clear", "reset", "seed:10"]) await press(c);
     const rows = await frame.evaluate(() => document.querySelectorAll('[data-variant="A"] [data-testid="shipments-row"]').length);
     ok("Seed 10, Clear, Reset, Seed 10 leaves 15 records", rows === 15, rows);
@@ -48,8 +43,6 @@ async page => {
     await page.click("#send");
     await sent(2);
 
-    // 2. Region with the keyboard alone: R, arrows to move (from the host page and from inside the frame),
-    //    Shift+arrows to resize, Enter, Tab to Send, Enter.
     const before = await view();
     const box = () => frame.evaluate(() => {
       const o = [...document.documentElement.lastElementChild.children].find(e => e.style.outline.includes("dashed"));
@@ -93,7 +86,6 @@ async page => {
     await sent(3);
     ok("the arrow keys left the variant and screen state alone", (await view()) === before, await view());
 
-    // 3. Element: record 57 after Seed 100.
     await press("seed:100");
     await page.click("#pick");
     await inFrame.locator('[data-variant="A"] [data-testid="shipments-row"] >> nth=57').locator("td").first().click();
