@@ -71,7 +71,7 @@ export const excludedAlwaysOn = (catalog, profile) =>
 
 export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 
-export function plan({ catalog, profile: name, inventory, layers, current = layers, target }) {
+export function plan({ catalog, profile: name, inventory, layers, current = layers, target, add = [] }) {
   if (!(target in TARGET_LEVEL)) throw new PlanError(`unknown target ${JSON.stringify(target)}: use session, folder or initial`);
   const chosen = profileNamed(catalog, name);
   if (!chosen) throw new PlanError(`no profile named ${JSON.stringify(name)}`);
@@ -89,15 +89,17 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   const repoEnabled = Object.keys(repository).filter((id) => repository[id] === true);
   const pins = pinsFor(target, layers);
 
+  const added = profileMembers(add, inventory, []);
   const wanted = [...members, ...[...optional].filter((id) => inventory.has(id)), ...repoEnabled];
   const desired = profileMembers(wanted, inventory, exclude);
+  for (const id of added) desired.add(id);
   const governed = new Set([...members, ...optional, ...exclude, ...leftOut].map(marketplaceOf));
 
   const writes = {};
   const pinned = [];
   const untouched = [];
   for (const id of inventory.keys()) {
-    if (!governed.has(marketplaceOf(id))) untouched.push(id);
+    if (!governed.has(marketplaceOf(id)) && !added.has(id)) untouched.push(id);
     else if (pins.has(id)) pinned.push(pins.get(id));
     else if (!(repository[id] === true && !exclude.has(id))) writes[id] = desired.has(id);
   }
