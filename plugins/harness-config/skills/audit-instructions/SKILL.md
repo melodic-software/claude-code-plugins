@@ -475,8 +475,7 @@ plainly that nothing has been applied.
 ## Gotchas
 
 - **Examples are not scaffolding.** Flag an example block only when it pins the model's *approach*
-  to a task, never when it steers output format; for how many to keep, fetch [use examples effectively](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively)
-  live.
+  to a task, never when it steers output format; for how many to keep, fetch [use examples effectively](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively) live.
 - **Bare-prohibition rewrites go positive first.** The primary remediation is "say what to do
   instead of what not to do"; adding a rationale is the fallback where a genuine hard "never"
   survives. Do not mechanically delete every prohibition the pre-scan flags.
