@@ -269,8 +269,6 @@ export function readSchedule(path = fileURLToPath(new URL("../../recurring-sched
   }
 }
 
-// The schedule row ids a body names on a `<!-- recurring-schedule id=<id> -->`
-// line, the marker that links a recurring issue to its row whatever its title.
 const scheduleIds = (body) => [...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((match) => match[1]);
 
 // Why a `recurring` item needs a person, or null: its schedule row (the one
@@ -314,7 +312,6 @@ export async function openSubIssues(github, base, issue) {
   return none ? [] : (await paginate(github, `${base}/sub_issues`)).filter((item) => item?.state !== "closed");
 }
 
-// Whether a GraphQL `nameWithOwner` is `repository`, in any case.
 const sameRepository = (nameWithOwner, repository) => String(nameWithOwner ?? "").toLowerCase() === repository.toLowerCase();
 
 const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -413,9 +410,6 @@ export function mergedRefsAfter(node, number, repository, humans, appId) {
   return [...new Set(pulls)].sort((a, b) => a - b);
 }
 
-// What DONE_QUERY reads for each issue: when it opened, its newest 100
-// comments (where the newest decision or refinement is), and the newest 100
-// pull requests and issues that mention it.
 const DONE_FIELDS = `fragment done on Issue {
   createdAt
   comments(last: 100) { nodes { createdAt body lastEditedAt author { ...actor } editor { ...actor } } }
@@ -522,12 +516,8 @@ export function chargePattern() {
   return chargeWords;
 }
 
-// `text` with `code` blanked and its line breaks kept, so a line of the result
-// is the same line of `text`. Pure.
 const withoutCode = (text, code) => String(text ?? "").replace(code, (match) => match.replace(/[^\n]/g, " "));
 
-// Every charge word in `prose`, lowercased: the `cost` words, and the
-// `costPrivate` ones unless `isPublic`. Pure.
 const chargeWordsIn = (prose, { cost, costPrivate }, isPublic) =>
   [...prose.matchAll(cost), ...(isPublic ? [] : prose.matchAll(costPrivate))].map((m) => m[0].toLowerCase());
 
@@ -536,11 +526,6 @@ export const chargeHits = (text, charges, isPublic = false) => [...new Set(charg
 
 const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 
-// {known, lines}: whether `prose` (`text` withoutCode) has a heading
-// `workHeadings` matches, and the lines of each such section, its heading
-// included, up to the next heading at its level or shallower. A heading is
-// found in `prose`, so one in code is none, and named from `text`, so code in
-// the heading still names it. Pure.
 const workSections = (prose, text, workHeadings) => {
   const names = String(text ?? "").split("\n");
   const lines = [];
@@ -588,8 +573,6 @@ const SPEND_GUARD = "a spend guard";
 const SPEND_LIMIT = /\b(?:spend(?:ing)?|billing|costs?|budget|dollar)[- ](?:limits?|caps?|budgets?|quotas?)\b|\b(?:limits?|caps?|budgets?|quotas?) (?:on|for) (?:spend\w*|billing|costs?)\b|\$\s?\d/i;
 const TOWARD = /\b(?:for|with|in favou?r of|instead of|in place of|over to)\b/i;
 const clauseCharges = (clause, charges, isPublic) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())];
-// A clause whose charge words the work only lowers: a LOWERING verb, no
-// CHARGING one, no SAFEGUARD, and no charge word after a TOWARD marker.
 const lowersOnly = (clause, charges, isPublic) => {
   if (!LOWERING.test(clause) || CHARGING.test(clause) || SAFEGUARD.test(clause)) {
     return false;
@@ -647,7 +630,6 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
 }
 
 const tally = (words) => words.reduce((counts, word) => counts.set(word, (counts.get(word) ?? 0) + 1), new Map());
-// [all, prose]: how often each charge word stands in `text`, and outside code.
 const chargeCounts = (text, charges, isPublic) => [String(text ?? ""), withoutCode(text, charges.code)].map((part) => tally(chargeWordsIn(part, charges, isPublic)));
 
 // The charge words `text` holds in code. Pure.
@@ -705,7 +687,6 @@ export function revisionWraps(text, node, charges, isPublic) {
   );
 }
 
-// A separate query, so specOf's callers do not carry every revision's text.
 const EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) { includesCreatedEdit userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt deletedAt diff } } } }
 }`;
@@ -726,7 +707,6 @@ export async function chargeEditsOf({ github, repository, number, spec, charges,
   }
 }
 
-// The refusal for one chargeEditsOf or titleWraps row.
 const chargeEditReason = ({ where, word, at, unreadable, failed }) => {
   if (word !== undefined) {
     return `an edit of ${where} at ${at} moved a charge word (${word}) from prose into code, which needs an owner decision`;
@@ -901,14 +881,11 @@ export function externalState(spec, humans, appId) {
   return match ? { state: match[1] ?? match[2], detail: match[3] ?? "", at: refinement.createdAt } : null;
 }
 
-// Whether a listed human removed `attended` after `at`. Pure.
 const liftedSince = (events, humans, at) =>
   (events ?? []).some(
     (event) => event?.event === "unlabeled" && event.label?.name === ATTENDED && humans.has(event.actor?.id) && Date.parse(event.created_at) > Date.parse(at),
   );
 
-// Whether events[a] happened before events[b]: by created_at when both have
-// one and they differ, else by their order as listed.
 const before = (events, a, b) => {
   const [at, bt] = [Date.parse(events[a]?.created_at), Date.parse(events[b]?.created_at)];
   return Number.isFinite(at) && Number.isFinite(bt) && at !== bt ? at < bt : a < b;
@@ -1006,7 +983,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // Refusals a host or builder session takes (stop-routes.json routes the
   // run's own patch-protected-path stop to host-run the same way).
   const hostWork = new Set();
-  // The owner reason each hold is for; the strongest names the stop.
   const holdCodes = new Set();
   const holdFor = (code) => holdCodes.add(code);
   // A trusted size-split sub-issue never splits again, so Size Large neither
@@ -1457,7 +1433,6 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
     const refinement = comments.findLast(
       (comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER),
     );
-    // With no refinement yet, an App verdict that flags intent is what still asks.
     const asking = refinement ?? (earlierFlags(comments, appId)?.includes("intent") ? ownVerdict(comments, appId) : undefined);
     if (asking === undefined || (refinement !== undefined && refinementExact(refinement.body))) {
       return false;
@@ -1717,8 +1692,6 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // answers for this repository's blockers only.
   const trusted = isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, isApp));
   const trustedCloses = new Set();
-  // A blocker here the lanes App closed report-delivered (decide's
-  // `reported`); a close kind that does not read leaves it waiting as before.
   const reported = new Map();
   for (const blocker of blockers) {
     if (!blocker.pull_request && blockerDone(blocker, repository, () => true)) {
@@ -1765,8 +1738,6 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     ...(statusOf && { holdLabels: await readyWhileDeferred(await writtenLabels({ statusOf, number: Number(number), names: names(issue.labels), wrote, sleep }), names(issue.labels)) }),
     // After holdLabels, so it reuses that field read.
     ...(statusOf?.state && { fieldState: await statusOf.state(Number(number)) }),
-    // Read for the admission comment's own earlier copy (sayWhy) and decide's
-    // patch-cap stop (patchCapStopped).
     comments: await paginate(github, `${base}/comments`),
     spec,
     schedule: readSchedule(),

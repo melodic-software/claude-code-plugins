@@ -109,9 +109,7 @@ export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
 const NEEDS_TRIAGE = "needs-triage";
-// The holds besides needs-decision a not-exact refinement could overwrite.
 const PERSON_HOLDABLE = [...INFO_LABELS, "needs-spec"];
-// The id of whoever last added label `name` in `events`, or undefined.
 const newestLabeler = (events, names) => events.filter((event) => event.event === "labeled" && names.includes(String(event.label?.name).toLowerCase())).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
@@ -124,13 +122,10 @@ const CANDIDATES = 10;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// The issue as the model reads it.
 const issueContext = (number, issue) => ({ number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) });
 
-// Whether the lanes App, by its account id, posted `item`.
 const byApp = (item, appId) => appId !== undefined && item?.user?.id === appId;
 
-// The one intake lane comment, if this run (from `startedAt`) wrote it; else null.
 const laneComment = (comments, startedAt) => {
   const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
   return lane.length === 1 && Date.parse(lane[0].updated_at) >= startedAt ? lane[0] : null;
@@ -195,9 +190,6 @@ export function splitOf({ body, laneBody, verdict, labels, admission, rules, web
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
 }
 
-// Why the split may not lift the issue's status, or null: admission parks a
-// split at `status: confirmed` (admit.mjs admissionParked); any other status
-// stays.
 const splitStays = (labels, comments, appId) => (admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`);
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
@@ -314,11 +306,8 @@ const DECLINES = {
 };
 const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
 
-// The issue's labels each part carries: whether a part can run unattended
-// is the issue's call, which the split does not restate.
 const ROUTING_LABELS = [HOST_RUN, ATTENDED];
 
-// A task line that brings what it names into being; any other line checks it.
 const CREATES =
   /\b(?:add|adds|added|create|creates|created|new|scaffold|scaffolds|scaffolded|introduce|introduces|introduced|exist|exists|write|writes|generate|generates|generated|move|moves|moved|rename|renames|renamed|extract|extracts|extracted|port|ports|ported)\b/i;
 const PLUGIN_NAME = "[a-z0-9][a-z0-9-]*";
@@ -328,7 +317,6 @@ const PLUGIN_PATTERNS = [
   new RegExp(`\`(${PLUGIN_NAME})\`\\s+[Pp]lugin\\b`, "g"),
   new RegExp(`\\b[Pp]lugin\\s+\`(${PLUGIN_NAME})\``, "g"),
 ];
-// A bare kebab-case word before the word plugin, read only when quoted.
 const BARE = new RegExp(`(?:^|\\s)(${KEBAB})\\s+[Pp]lugin\\b`, "g");
 const LEADING = new RegExp(`^\`?(${KEBAB})\`?(?=\\s)`);
 
@@ -422,8 +410,6 @@ export function unbuiltPart({ parts, order }, texts, absent, quoted) {
   return null;
 }
 
-// Posts decline `code` on the issue unless the lanes App already posted it
-// for this body. The text is fixed; no model or issue text is rendered.
 async function postDecline({ github, base, appId, body, code, log }) {
   const head = `${declineMarker(code)}\n${bodyVersion(body)}\n`;
   if ((await paginate(github, `${base}/comments`)).some((item) => byApp(item, appId) && String(item.body ?? "").startsWith(head))) {
@@ -449,7 +435,6 @@ export async function applySizeDecline({ github, repository, number, appId, cont
   return { outcome: "declined" };
 }
 
-// The body of the lanes App's admission comment, or undefined.
 const admissionComment = (comments, appId) => comments.find((comment) => byApp(comment, appId) && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
 
 // Whether the lanes App's admission comment waits on a SPLIT_PENDING reason.
@@ -459,7 +444,6 @@ export function sizeSplitPending(comments, appId) {
   return body.startsWith(prefix) && body.slice(prefix.length).replace(/\.$/, "").split("; ").some((reason) => SPLIT_PENDING.has(reason));
 }
 
-// The lanes App's split record on the issue: {comment, record}, or null.
 const ownSplit = (comments, appId) => {
   const comment = comments.find((item) => byApp(item, appId) && splitRecord(item.body) !== null);
   return comment ? { comment, record: splitRecord(comment.body) } : null;
@@ -505,7 +489,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     // runs on its lines at the next triage.
     return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
-  // The units the lines name that the default branch lacks, for applySizeSplit's unbuiltPart.
   const { rules, held } = splitConfig();
   const texts = lines.map((line) => taskText(line, rules["task-list"]));
   const quoted = quotedNames([issue.body, ...texts]);
@@ -593,9 +576,6 @@ const list = (value, key, check) => {
   return value;
 };
 
-// The model's `external`, checked: `none`; `iac` with an owner/name `repo`;
-// or `manual` with a `class` of `classes` (pr-pipeline.yaml attended.classes,
-// from the context) and a `what`. Throws on any other shape.
 function externalOf(value, classes) {
   const keys = ["state", "repo", "class", "what"];
   if (value === null || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== [...keys].sort().join() || !keys.every((key) => isText(value[key]))) {
@@ -644,8 +624,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   );
   let moved = list(output.split, "split", Number.isInteger);
   let exact = output.exact;
-  // A duplicate or fixing change makes it not exact, whatever else it holds:
-  // ask whether to close the issue.
   const closing = exact ? related.filter((item) => item.relation !== "related") : [];
   if (exact && closing.length === 0) {
     if ((split === null && criteria.length === 0) || questions.length > 0 || output.outcome.trim() === "") {
@@ -665,7 +643,6 @@ export function validateOutput(output, known, split = null, classes = {}, monito
     throw new Error("a refinement that is not exact asks at least one question");
   }
   if (exact && split !== null) {
-    // The held items, no more and no fewer; the rest stays for the lane.
     const sorted = (numbers) => [...numbers].sort((a, b) => a - b).join();
     if (criteria.length > 0 || sorted(moved) !== sorted(split.items.map(({ n }) => n)) || moved.length >= split.count) {
       throw new Error("a split moves exactly the held done-when items, leaves the rest, and drafts no criteria");
@@ -838,7 +815,6 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (splitStays(labels, comments, appId) !== null) {
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
-    // confirmed is a queue state the needs-triage field write replaces.
     const held = await retriage();
     if (held) {
       return held;
@@ -864,14 +840,11 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
-  // An exact refinement that leaves the labels as they are.
   const exactStays = async (why) => {
     await post();
     log(`refine: #${number} is exact; ${why}`);
     return { outcome: "exact", redispatch: false };
   };
-  // An exact refinement admission can read: needs-triage, then `lift`, then
-  // the comment, which asks for triage again.
   const exactRetriage = async (why, lift = async () => {}) => {
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
@@ -1003,8 +976,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const settings = sizeSplitSettings(rules);
-  // A skip with a decline `code` leaves the issue parked for good, so the
-  // lanes App says why on it (postDecline).
   const skip = async (why, code = null) => {
     log(`refine: #${number} ${why}; nothing filed`);
     note(`#${number} stays parked for its size split: ${why}`);
@@ -1126,8 +1097,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   for (const [a, b] of record.order) {
     await edge({ issue: children[b - 1], blocker: children[a - 1] });
   }
-  // The issue's open blockers hold the parts nothing precedes; what waits on
-  // the issue waits on the parts nothing follows instead.
   const first = children.filter((_, index) => !record.order.some(([, b]) => b === index + 1));
   const last = children.filter((_, index) => !record.order.some(([a]) => a === index + 1));
   for (const blocker of (await paginate(github, `${base}/dependencies/blocked_by`)).filter((item) => item?.state === "open" && Number.isInteger(item.id))) {
@@ -1170,7 +1139,6 @@ export async function applySizeSplit({ github, repository, number, appId, humans
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const env = process.env;
-  // A size split left parked says why in the step summary.
   const summary = (text) => (env.GITHUB_STEP_SUMMARY ? appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`) : console.log(text));
   try {
     if (env.KILL_SWITCH !== "proceed") {
