@@ -65,8 +65,9 @@ Four structure checks run beside the bare-code check:
                   answer line); a use with no Context mention prints
                   `undefined=<question line>:<term>`
   single header   with `--pacing single`, the header holds only the round
-                  title (`Round <N>`, as a heading or not), `Scope check:`,
-                  `Later:`, `Held:` and `Settled by evidence:` lines; any
+                  title (`Round <N>`, as a heading or not), one restate line
+                  as the first non-blank line after it, `Scope check:`, `Later:`,
+                  `Held:`, `Settled by evidence:` and `Term:` lines; any
                   other line prints `extra=<line>:single-header`
 
 A list item (`- Q4: ...`, `1. Q4: ...`) never opens a question.
@@ -311,9 +312,15 @@ LC_ALL=C awk '
       }
       if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Flips if(\*\*|__)?:/) printf "check=%d:flips-if-fact\n", FNR
       if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?My recommendation(\*\*|__)?:/) printf "check=%d:existing-control\n", FNR
-    } else if (pacing == "single" && $0 !~ /^[ \t]*$/ && $0 !~ /^[^ -~]*[ \t]*((#+[ \t]+)?(\*\*|__)?Round[ \t]+[0-9]|(\*\*|__)?(Scope check|Later|Held|Settled by evidence)(\*\*|__)?:|---+[ \t]*$)/) {
-      missing++
-      printf "extra=%d:single-header\n", FNR
+    } else if (pacing == "single" && $0 !~ /^[ \t]*$/) {
+      if ($0 ~ /^[^ -~]*[ \t]*(#+[ \t]+)?(\*\*|__)?Round[ \t]+[0-9]/) restate_ok = 1
+      else if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Term(\*\*|__)?:/) {}
+      else if ($0 ~ /^[^ -~]*[ \t]*((\*\*|__)?(Scope check|Later|Held|Settled by evidence)(\*\*|__)?:|---+[ \t]*$)/) restate_ok = 0
+      else if (restate_ok) restate_ok = 0
+      else {
+        missing++
+        printf "extra=%d:single-header\n", FNR
+      }
     }
     grade($0, FNR)
   }

@@ -379,6 +379,24 @@ round single-header.md \
 runx "under single pacing the prescribed header lines pass" 0 ledger.md single-header.md 'structure=0$' --pacing single
 runx "single pacing prints its self-check at line 1" 0 ledger.md single-header.md '^check=1:single-pacing$' --pacing single
 nox "round pacing prints no single-pacing self-check" ledger.md single-header.md 'single-pacing'
+Q4_BLOCK=(
+  '❓ Q4: **After the last failed attempt, should the sender keep the event?**'
+  'Context:'
+  '- Webhooks are delivered at least once (user, round 1).'
+  '➡️ My recommendation: **Yes: keep it.** Dropping breaks at-least-once delivery (verified, user, round 1).'
+)
+TERM_LINE='Term: retry budget, the tries a delivery gets before it stops (user, round 1). Confirm or correct it.'
+SCOPE_LINE='Scope check: 4 of 27 questions registered'
+round single-term.md "$TERM_LINE" '### Round 2' '' "$SCOPE_LINE" '' "${Q4_BLOCK[@]}"
+runx "under single pacing a Term: line above the title passes" 0 ledger.md single-term.md 'structure=0$' --pacing single
+round single-restate.md '### Round 2' 'The retry budget is three tries.' "$SCOPE_LINE" '' "${Q4_BLOCK[@]}"
+runx "under single pacing one restate line directly after the title passes" 0 ledger.md single-restate.md 'structure=0$' --pacing single
+round single-restate-gap.md '### Round 2' '' 'The retry budget is three tries.' '' "$TERM_LINE" "$SCOPE_LINE" '' "${Q4_BLOCK[@]}"
+runx "under single pacing a restate after a blank line, then a Term: line, passes" 0 ledger.md single-restate-gap.md 'structure=0$' --pacing single
+round single-two-lines.md '### Round 2' 'The retry budget is three tries.' 'Next comes the dead-letter queue.' "$SCOPE_LINE" '' "${Q4_BLOCK[@]}"
+runx "under single pacing a second plain line after the restate fails" 1 ledger.md single-two-lines.md '^extra=3:single-header$' --pacing single
+round single-late-line.md '### Round 2' "$SCOPE_LINE" 'The retry budget is three tries.' '' "${Q4_BLOCK[@]}"
+runx "under single pacing a plain line after the Scope check: line fails" 1 ledger.md single-late-line.md '^extra=3:single-header$' --pacing single
 out="$(bash "$SUT" --ledger "$TMP/ledger.md" --pacing sometimes "$TMP/single-header.md" 2>&1)"
 got=$?
 if [[ "$got" -eq 2 ]]; then

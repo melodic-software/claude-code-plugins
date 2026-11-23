@@ -536,7 +536,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2a7f350e82ae34ad27f0ac02e199cf516416fac631cfd19dcd741224b66b553e"
+  "3186a92e888b864d54c9226e7a4144772ce7932e69eb27f7a2cd705f5a0469ce"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
