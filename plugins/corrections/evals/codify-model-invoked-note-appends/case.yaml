@@ -6,7 +6,7 @@ graders:
   - name: 'appends-model-invoked-note'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'buffer\.sh[^"]*\bappend\b'
+    input_match: 'buffer\.sh(?:\\")?\s+append\b'
     min: 1
     arm: 'with-only'
   - name: 'session-source-id'
@@ -18,7 +18,7 @@ graders:
   - name: 'no-proposal-or-install'
     type: 'tool_used'
     tool: 'Write'
-    input_match: '"file_path":"(?![^"]*\.work/codify/notes/)'
+    input_match: '"file_path":"(?![^"]*\.work/codify/(?:notes/|\.gitignore"))'
     min: 0
     max: 0
     arm: 'both'

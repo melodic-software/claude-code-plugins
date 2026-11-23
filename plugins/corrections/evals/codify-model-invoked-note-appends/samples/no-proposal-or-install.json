@@ -12,11 +12,36 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash /p/skills/codify/scripts/buffer.sh append /w/.work/codify/notes/20261123T120000Z.jsonl"
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261123T120000Z.jsonl"
           }
         }
       ],
       "why": "only the note row is written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/.gitignore",
+            "content": "*\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261123T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"new endpoints skip the shared auth helper\", \"source_id\": \"session:20261123T120000Z\"}\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261123T120000Z.jsonl"
+          }
+        }
+      ],
+      "why": "first-write gitignore and the note row"
     },
     {
       "answer": [],

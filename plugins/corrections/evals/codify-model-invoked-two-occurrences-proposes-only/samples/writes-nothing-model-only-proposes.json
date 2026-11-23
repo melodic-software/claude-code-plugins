@@ -14,6 +14,24 @@
     {
       "answer": [],
       "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/codify-plant-1/plant.patch",
+            "content": "--- a/x\n+++ b/x\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/codify/scripts/prove-check.sh --old HEAD~2 --new HEAD -- grep -rn authHelper src"
+          }
+        }
+      ],
+      "why": "plant in a temporary directory outside the tree"
     }
   ],
   "fail": [
