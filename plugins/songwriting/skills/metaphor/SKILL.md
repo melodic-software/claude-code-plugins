@@ -99,4 +99,4 @@ override wins over the bundled skill default, first match, per that file's "Temp
 - Sensory raw material feeding the collisions → `/songwriting:object-writing`
 - Cliché taxonomy and redemption → `/songwriting:object-writing cliche`
 - Line generation once the metaphor is chosen → `/songwriting:co-write`
-- Whole-draft diagnosis, including "this song has no metaphor" → `/songwriting:diagnose`
+- Whole-draft diagnosis, including "this song has no metaphor" → `/songwriting:revise diagnose`

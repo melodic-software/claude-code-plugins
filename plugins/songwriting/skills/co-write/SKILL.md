@@ -136,7 +136,7 @@ and skipping the other two is the failure this section prevents.
 - Metaphor for a line that needs one → `/songwriting:metaphor`
 - Blank page, an idea/seed, or a stuck fragment → `/songwriting:workflow`
 - Rhyme partners for the swaps → `/songwriting:rhyme`
-- Pre-lock audit of the chosen line/section → `/songwriting:diagnose audit`
+- Pre-lock audit of the chosen line/section → `/songwriting:revise audit`
 - The writer's own register, before any generation → build
   [voiceprint](../../context/pat-pattison/research/voiceprint.md)
 - The per-candidate cycle every emitted line clears →

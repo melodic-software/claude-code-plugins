@@ -1,10 +1,10 @@
 {
-  "skill_name": "diagnose",
+  "skill_name": "revise",
   "evals": [
     {
       "id": 1,
       "name": "demo-review-at-stage",
-      "prompt": "/songwriting:diagnose demo \"<a chorus stanza only, with some cliche, some abstract lines>\"",
+      "prompt": "/songwriting:revise demo \"<a chorus stanza only, with some cliche, some abstract lines>\"",
       "expected_output": "Routes to the demo action. Loads demo-review.md and templates/demo-review-prompt.md. Detects the completion stage (chorus only) and runs a stage-appropriate review rather than the full near-complete `diagnose` pass. Identifies the dominant problem — likely abstract telling or cliche — and proposes ONE focused next move, listing secondary observations briefly without fixing them.",
       "files": [],
       "expectations": [
@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "audit-checklist-pre-lock",
-      "prompt": "/songwriting:diagnose audit \"midnight pulled the streetlight down and threw it in the river\"",
+      "prompt": "/songwriting:revise audit \"midnight pulled the streetlight down and threw it in the river\"",
       "expected_output": "Routes to the audit action. Loads audit-checklist.md and templates/audit-checklist-prompt.md. Walks the per-line audit clusters in order, presenting each as a deliberate choice point (pass/fail/skip-with-reason) rather than a pass/fail gate, and surfaces the first unchecked or dominant unresolved item.",
       "files": [],
       "expectations": [
@@ -32,7 +32,7 @@
     {
       "id": 3,
       "name": "variations-labeled",
-      "prompt": "/songwriting:diagnose variations \"I keep walking past your door at night\" — 5 versions, different POV, different image",
+      "prompt": "/songwriting:revise variations \"I keep walking past your door at night\" — 5 versions, different POV, different image",
       "expected_output": "Routes to the variations action. Loads variations.md and templates/variations-prompt.md. Generates 4-6 labeled variations, each with an explicit axis label (POV / image / vowel / stress / rhyme-type / tone) and a gains/loses trade-off, without picking a winner.",
       "files": [],
       "expectations": [

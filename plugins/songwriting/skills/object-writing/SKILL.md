@@ -158,4 +158,4 @@ wearing the vocabulary.
 - Metaphor generation and diagnosis → `/songwriting:metaphor`
 - Rhyme choice and rhyme cliche → `/songwriting:rhyme`
 - Daily practice curriculum and numbered exercises → `/songwriting:practice`
-- Whole-draft diagnosis (where images fail in context) → `/songwriting:diagnose`
+- Whole-draft diagnosis (where images fail in context) → `/songwriting:revise diagnose`

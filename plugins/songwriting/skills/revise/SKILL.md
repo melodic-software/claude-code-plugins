@@ -1,12 +1,12 @@
 ---
-description: "Review, audit and rewrite a lyric with Pat Pattison's methods: demo review at any stage, full-draft diagnosis, the pre-lock audit checklist, labeled variations across six axes and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
+description: "Review and revise a lyric with Pat Pattison's methods: report-only actions (full-draft diagnosis, demo review at any stage, the pre-lock audit checklist) and actions that change the lyric (labeled variations across six axes, critique-driven rewrite). Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
 argument-hint: "[diagnose|demo|audit|variations|rewrite] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[diagnose|demo|audit|variations|rewrite] [args]`. e.g., /songwriting:diagnose,
-/songwriting:diagnose audit "...", /songwriting:diagnose variations "...". Full actions in body.
+**Arguments.** `[diagnose|demo|audit|variations|rewrite] [args]`. e.g., /songwriting:revise,
+/songwriting:revise audit "...", /songwriting:revise variations "...". Full actions in body.
 
 ## Mandatory pre-flight. Response Filter
 
@@ -32,7 +32,8 @@ stays [audit-checklist](../../context/pat-pattison/research/audit-checklist.md) 
 emission is `/songwriting:co-write`'s, and its input gate travels with the lines: same gate,
 checked here. *(Plugin-authored, not Pat Pattison's.)*
 
-Diagnosis names problems; it does not silently rewrite the whole song.
+The `diagnose`, `demo` and `audit` actions report and change nothing: they name problems and
+stop. Only `variations` and `rewrite` produce changed lines.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -40,7 +41,7 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:diagnose <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches
+`/songwriting:revise <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches
 a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
 No action → route on completion stage (partway draft → `demo`; near-complete → `diagnose`).
 
@@ -62,7 +63,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   row of [line-emission-gate](../../context/line-emission-gate.md) (syllables from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, repeats from a
   word-frequency count), and let that gate's skeptic row test the judgment passes from a fresh
   context, at the level
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill diagnose`
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill revise`
   prints, under that row's rules for each level. Rewrites and variation sets are line emission: cycle
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in full on every
   candidate, pass 1 clean, and drop any candidate a pass flagged rather than presenting it flagged.

@@ -88,4 +88,4 @@ Two section-type rules bind before any line-level judgment here, both from
 - Metaphor systems across a form → `/songwriting:metaphor`
 - Stability and scansion of the sections → `/songwriting:meter-prosody`
 - Rhyme within sections → `/songwriting:rhyme`
-- Whole-draft diagnosis → `/songwriting:diagnose`
+- Whole-draft diagnosis → `/songwriting:revise diagnose`
