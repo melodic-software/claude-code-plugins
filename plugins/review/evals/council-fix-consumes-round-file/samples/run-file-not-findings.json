@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Fix admits `<run>-council-r1.md` (type: review-findings) and never reads `<run>-council.md`, which is type: council-run."},
+    {"answer": "No conversion step: the round file already has fanout's shape.", "why": "negated conversion"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "Fix picks up both files as findings.", "why": "both as findings"},
+    {"answer": "Fix needs a conversion step before it can read council output.", "why": "conversion"},
+    {"answer": "Both of them are read and applied by fix.", "why": "both are read"}
+  ]
+}

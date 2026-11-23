@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Candidates 1 and 2 are one tree, tax module first; the mail sender is its own fork.\n\nFirst question, on the tax module: should quote(order) return a single total or a per-line breakdown?"},
+    {"answer": "Plan: tax module, then invoice total in the same tree; mail sender separately.\n\nShould TaxExemptions stay behind the tax module's entry point, or be passed in by the caller?", "why": "question names TaxExemptions"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Plan: mail sender first, on its own.\n\nShould the recording adapter and SMTP share one port interface?", "why": "first question on the mail sender"},
+    {"answer": "Candidates 1 and 2 are one tree, tax module first. I will start when you are ready.", "why": "no question"}
+  ]
+}

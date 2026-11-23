@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Candidates 1 and 2 are one tree; the mail sender is its own fork."},
+    {"answer": "I'll interview all three, with the first two as a single tree.", "why": "all three without one tree"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "All three candidates form one tree, so I will interview them together.", "why": "all folded"},
+    {"answer": "I'll treat all three as a single design.", "why": "single design"}
+  ]
+}

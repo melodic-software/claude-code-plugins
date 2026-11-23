@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "`top` resolves claude/flagship to fable and is marked frontier. correctness and design run on opus, named explicitly at dispatch, so they do not inherit the Fable session model."},
+    {"answer": "The defaults don't inherit the session's Fable; opus is passed for each.", "why": "contracted negation"},
+    {"answer": "Opus is named at dispatch rather than inheriting the session model.", "why": "rather than inheriting"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "All three run on Fable, since the session is Fable.", "why": "all three on fable"},
+    {"answer": "correctness and design inherit the session's model, Fable; top is fable too.", "why": "defaults inherit"}
+  ]
+}

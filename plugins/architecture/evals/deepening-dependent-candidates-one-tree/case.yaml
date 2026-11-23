@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: deepening-dependent-candidates-one-tree
+description: "deepening.md Phase 3: of three selected candidates, the one that depends on another is interviewed with it as one tree, the depended-on candidate first, and the reply says so; the unrelated candidate stays its own design fork. Hard: the easy reply interviews all three one after another, or folds all three into one tree."
+tags: [architecture, improve, deepening, interview, read-only, hard]
+expected_outcome: "Says the tax module and the invoice total candidates are treated as one tree because the second needs the first's interface, starts with the tax module, keeps the mail sender as its own separate fork, and asks the first question about the tax module."
+execution:
+  prompt: "/architecture:improve deepening. Phases 1 to 2 already ran; do not scan the repository or open its files, though you may read this skill's own files. The report had three candidates and I pick all three: (1) Tax module: fold TaxRates, TaxRounding and TaxExemptions into one module with a single quote(order) entry point. (2) Invoice total: move the totaling now spread over three controllers into one module; it calls the tax code on every line, so its shape depends on the entry point candidate 1 ends up with. (3) Mail sender: put the SMTP and the recording adapter behind one port; it touches neither of the other two. Before your first interview question, say how you will work through the three and in what order, then ask that first question and stop."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: pair-is-one-tree
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:one|a single|the same|a shared|a combined|one combined)\s+(?:decision\s+)?(?:tree|thread|design|interview)\b|\btogether\b))(?=[\s\S]*\bdepend)'
+    flags: i
+    target: last_message
+  - name: tax-module-first
+    type: regex
+    pattern: '\b(?:start|begin|first)\w*\b(?:(?!invoice|candidate 2|\(2\))[^\n.]){0,60}\b(?:tax|candidate 1|\(1\)|#1)|\b(?:tax module|candidate 1)\b[^\n.]{0,80}\bfirst\b|\b(?:tax|candidate 1|\(1\))[^\n.]{0,80}\b(?:before|then)\b[^\n.]{0,80}\b(?:invoice|candidate 2|\(2\))'
+    flags: i
+    target: last_message
+  - name: mail-sender-own-fork
+    type: regex
+    pattern: '\bmail\b[^\n]{0,150}\b(?:own|separate|separately|independent|independently|apart)\b|\b(?:own|separate|independent)\b[^\n]{0,80}\b(?:fork|interview|tree)\b[^\n]{0,80}\bmail\b'
+    flags: i
+    target: last_message
+  - name: not-all-three-one-tree
+    type: regex
+    pattern: '\ball three\b(?:(?!\b(?:two|first|1 and 2|pair)\b)[^\n.]){0,60}\b(?:one|single|same)\s+(?:decision\s+)?(?:tree|design|thread)\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: first-question-on-tax
+    type: regex
+    pattern: '(?:\btax\w*|\bquote\(|\bcandidate 1\b|\bentry point\b)[^?]{0,400}\?[^?]*$'
+    flags: i
+    target: last_message

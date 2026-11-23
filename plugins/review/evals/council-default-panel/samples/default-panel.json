@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "With no configuration, three members run, briefed correctness, design and adversarial. Each is the review plugin's brief-reviewer agent on Opus. One round runs (council_max_rounds defaults to 1), and scores are off, so the report has no mark table."},
+    {"answer": "Defaults: 3 Claude members (correctness, design, adversarial), each dispatched as review:brief-reviewer on opus; max rounds 1; council_scores off.", "why": "terse key-value form"},
+    {"answer": "Three opus members run as brief-reviewer agents with the correctness, design and adversarial briefs. A single round, and no mark table since scores default to off.", "why": "single round, no mark"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Two members run, correctness and design, on Opus as brief-reviewer agents, for one round with scores off.", "why": "wrong member set"},
+    {"answer": "Three members (correctness, design, adversarial) run as brief-reviewer agents on Opus for two rounds, and the report has a mark table.", "why": "rounds and scores wrong"},
+    {"answer": "Without configuration nothing runs; set council_members first.", "why": "nothing runs"}
+  ]
+}
