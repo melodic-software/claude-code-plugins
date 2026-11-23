@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": [{"tool": "Write", "input": {"file_path": "src/utils.ts", "content": "// Returns the trimmed form.\n"}}], "why": "a Write to the source file, not PLAN.md"},
-    {"answer": [], "why": "no tool call"}
-  ],
-  "fail": [
-    {"answer": [{"tool": "Write", "input": {"file_path": ".work/utils-typo/PLAN.md", "content": "## Brief\n"}}], "why": "wrote a Brief for a typo fix"}
-  ]
-}
