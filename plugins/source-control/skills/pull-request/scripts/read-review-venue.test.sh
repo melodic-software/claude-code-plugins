@@ -44,7 +44,6 @@ assert_eq "the repository value wins over userConfig" "$(line local "$REPO_LEVEL
 out=$(read_doc $'pr_open_state: ready\n' --user both)
 assert_eq "a file without the key leaves the userConfig value" "$(line both userConfig)" "$out"
 
-# The userConfig level alone: no file read.
 user_only() { bash "$SCRIPT" "$@" 2>"$ERR"; }
 for v in local ci both; do
   assert_eq "the userConfig value $v is the venue" "$(line "$v" userConfig)" "$(user_only --user "$v")"
@@ -58,7 +57,6 @@ assert_eq "an unknown userConfig value falls back to auto" \
   "$(line auto 'invalid value at userConfig (fell back to auto)')" "$out"
 assert_contains "an unknown userConfig value prints a notice" "$(cat "$ERR")" "review_venue 'Local' at userConfig"
 
-# A repository level that cannot be read or trusted is skipped with a notice.
 out=$(printf 'review_venue: ci\n' | bash "$SCRIPT" --user local --base stack/layer-2 --default-branch main - 2>"$ERR")
 assert_eq "a base other than the default branch leaves the repository level unread" "$(line local userConfig)" "$out"
 assert_contains "the unread base is named" "$(cat "$ERR")" "base stack/layer-2 is not the default branch main"
@@ -70,7 +68,6 @@ assert_contains "the parse failure is named" "$(cat "$ERR")" "does not parse"
 out=$(printf 'review_venue: c\000i\n' | bash "$SCRIPT" --base main --default-branch main - 2>"$ERR")
 assert_eq "a NUL byte leaves the repository level unread" "$(line auto default)" "$out"
 
-# --http-response reads a `gh api -i` response: the status line decides.
 read_response() { printf '%s' "$1" | bash "$SCRIPT" "${@:2}" --base main --default-branch main --http-response 2>"$ERR"; }
 out=$(read_response $'HTTP/2.0 200 OK\r\nContent-Type: application/vnd.github.raw\r\n\r\nreview_venue: ci\n')
 assert_eq "a 200 response is read as the document" "$(line ci "$REPO_LEVEL")" "$out"

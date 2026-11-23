@@ -49,7 +49,6 @@ usage() {
 
 notice() { printf 'read-review-venue: %s\n' "${1//[[:cntrl:]]/ }" >&2; }
 
-# resolve <value> <level>: print the line for a value one level supplied.
 resolve() {
   if [[ "$VALUES" == *" $1 "* ]]; then
     printf 'review_venue\t%s\t%s\n' "$1" "$2"
@@ -86,7 +85,6 @@ elif ((has_base || has_default)); then
   usage
 fi
 
-# The repository level: resolves to the file's value when the file sets the key.
 read_repo() {
   [[ -n "$base" ]] || { notice "the pull request's base branch could not be read; the repository level is unread"; return; }
   [[ -n "$default" ]] || { notice "the base repository's default branch could not be read; the repository level is unread"; return; }

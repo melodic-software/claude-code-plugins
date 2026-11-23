@@ -29,8 +29,6 @@
 # portability-scope: reads GitHub check-run annotations through the GitHub REST API with gh; the script is the GitHub provider's annotation read.
 set -uo pipefail
 
-# --- Argument parsing --------------------------------------------------------
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER=""
 FAILED_ONLY=0
@@ -68,12 +66,8 @@ done
 [[ -n "$PR_NUMBER" ]] || die 1 "<pr-number> required"
 [[ -z "$CHECKOUT" || -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
-# --- Prerequisites -----------------------------------------------------------
-
 command -v gh >/dev/null 2>&1 || die 5 "gh CLI required"
 command -v jq >/dev/null 2>&1 || die 5 "jq required"
-
-# --- Repo resolution ---------------------------------------------------------
 
 REPO="${FETCH_ANNOT_REPO:-}"
 if [[ -z "$REPO" && -n "$CHECKOUT" ]]; then
@@ -83,12 +77,8 @@ elif [[ -z "$REPO" ]]; then
 fi
 [[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_ANNOT_REPO=owner/name)"
 
-# --- Resolve PR head SHA -----------------------------------------------------
-
 HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$REPO" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
 [[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
-
-# --- Fetch check-runs for head SHA ------------------------------------------
 
 # Returns list of check_run records: id, name, conclusion, status. Apply jq
 # client-side (avoids gh's --jq flag for stubbing simplicity). `--paginate`
@@ -98,8 +88,6 @@ HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$REPO" --json headRefOid -q .headRefOid 2
 CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null) ||
   die 2 "gh api check-runs failed (exit $?)"
 
-# One jq pass both projects the records and applies --failed. jq -c keeps each
-# record on one line, the form the walk below reads.
 FILTERED=$(printf '%s' "$CHECK_RUNS_RAW" |
   jq -c --argjson failed_only "$FAILED_ONLY" '
       .check_runs[]
@@ -113,8 +101,6 @@ if [[ -z "$FILTERED" ]]; then
   # legitimately match none.
   exit 0
 fi
-
-# --- Walk each check-run, fetch annotations, emit JSONL ---------------------
 
 # Output schema (one JSON object per line):
 #   {"check_run_id":N,"check_run_name":"x","level":"failure|warning|notice",

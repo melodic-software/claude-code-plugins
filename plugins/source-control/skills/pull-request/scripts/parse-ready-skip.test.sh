@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for parse-ready-skip.sh. Expected outputs follow the `--skip` contract in
-# reference/ready-for-review.md: the step names are pre_ready's six, a reason is
-# required, and an unattended run is refused, so nothing is skipped by mistake.
 
 set -uo pipefail
 
@@ -34,7 +31,6 @@ out=$(bash "$SCRIPT" --unattended 2>/dev/null)
 assert_exit "an unattended run with no skip is no override" 0 "$?"
 assert_silent "an unattended run with no skip prints nothing" "$out"
 
-# Every usage error exits 2 and prints nothing on stdout, so no step is skipped.
 check_usage() {
   local label="$1" out code
   shift
@@ -69,7 +65,6 @@ check_usage "--reason given twice" --skip code-review --reason x --reason y
 check_usage "an unknown flag" --skip code-review --reason x --force
 check_usage "a positional argument" 123 --skip code-review --reason x
 
-# A run with no person present never skips, even with a valid skip.
 out=$(bash "$SCRIPT" --unattended --skip code-review --reason "model is rate-limited" 2>/dev/null)
 assert_exit "--skip under --unattended is refused" 3 "$?"
 assert_silent "--skip under --unattended skips nothing" "$out"

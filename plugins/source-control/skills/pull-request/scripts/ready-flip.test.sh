@@ -19,9 +19,6 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 REPORT_REF="$SKILL_DIR/reference/ready-for-review.md"
 
-# block <heading> [<n>] [<file>]: the nth (default first) fenced block in that heading's section
-# of <file> (default: the GitHub ready reference), with <skill-dir> filled in and <checkout> read
-# from FLOW_CHECKOUT when the block runs (default: the shell's directory).
 block() {
   # shellcheck disable=SC2016 # ${FLOW_CHECKOUT:-.} expands in the generated script
   awk -v h="$1" -v n="${2:-1}" '$0 == h { on = 1; next } on && !f && /^## / { exit }
@@ -51,7 +48,6 @@ if ! grep -q 'confirm-verdict.sh" show --head' "$REPORT"; then
   exit 1
 fi
 
-# Fixture: the parent commit is the PR head before the push, the tip is the pushed commit.
 REPO="$TEST_TMPDIR/repo"
 git init -q "$REPO"
 git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m before
@@ -105,7 +101,6 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh" "$STUB_DIR/sleep"
 
-# new_state [<sha>]: a fresh stub state and verify dir, with a pass recorded for <sha>.
 RUN=0
 new_state() {
   RUN=$((RUN + 1))
@@ -232,15 +227,12 @@ assert_contains "the forge's head is a peer commit: the guard refuses" "$out" "F
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
 assert_eq "the forge's head is a peer commit: the PR is not flipped" "no" "$flipped"
 
-# The session's shell sits in another checkout of the repository, on another branch at the
-# pre-push commit: HEAD_SHA is still the PR worktree's HEAD.
 git -C "$REPO" worktree add -q -b other "$TEST_TMPDIR/other" "$BEFORE"
 new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/other" run_flow "$BEFORE" "$BEFORE")
 assert_contains "from another checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from another checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
 
-# The shell sits outside every checkout and <checkout> names the repository by absolute path.
 mkdir -p "$TEST_TMPDIR/outside"
 new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
@@ -266,8 +258,6 @@ out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_OID="$PEER" run_flow "$BEFORE" "$BEFORE
 assert_eq "the worktree on the head branch lacks the PR's head commit: the PR is not flipped" "no" "$flipped"
 assert_contains "the worktree on the head branch lacks the PR's head commit: the refusal names it" "$out" "$PEER"
 
-# The 2.5.7 report from a shell outside every checkout, with no CONFIRM_VERDICT_DIR: the verdicts
-# come from the repository's common git directory, reached through <checkout>.
 new_state ""
 bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --head "$PUSHED" --verdict CONFIRMED --dir "$REPO"
 bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure --head "$PUSHED" --verdict MIXED --dir "$REPO"
