@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Find the ci-status to re-run` and `Re-run ci-status` step bodies
-# of .github/workflows/pr-dispatch-feedback.yml's rerun-ci-status job under
-# the shell Actions gives a step with no `shell:` (bash -e), against stub `gh`
-# and `sleep`.
-#
 # When a review run completes and the other lane's newest run on the head has
 # finished before it or never ran, the job re-runs only the ci-status job of the newest
 # pr-require-checks pull_request run on the reviewed head, after that run
@@ -17,11 +12,12 @@
 # within the cap, or fails past it. Unreadable reads fail. Each
 # path's API call count is pinned, and each response's rate-limit reading is
 # kept for the job-end api-budget notice.
-# test-scope: .github/workflows/pr-dispatch-feedback.yml
+# test-scope: .github/workflows/pr-dispatch-feedback.yml .github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/pr-dispatch-feedback.yml"
+FIND_SCRIPT=.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -45,15 +41,19 @@ body_of() {
 }
 NAME='Find the ci-status to re-run'
 step="$(step_of "$NAME")"
-body_of "$step" "$TMP_ROOT/body.sh"
 record_step="$(step_of 'Record the re-run')"
 rerun_step="$(step_of 'Re-run ci-status')"
 body_of "$rerun_step" "$TMP_ROOT/rerun.sh"
 
-if [[ ! -s "$TMP_ROOT/body.sh" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
-  fail "no '$NAME' or 'Re-run ci-status' step with a run: | body in $WORKFLOW"
+if [[ ! -s "$ROOT/$FIND_SCRIPT" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
+  fail "no $FIND_SCRIPT, or no 'Re-run ci-status' step with a run: | body in $WORKFLOW"
   test_harness::report
   exit 1
+fi
+if [[ "$step" == *$'\n'"        run: bash .base/$FIND_SCRIPT"$'\n'* ]]; then
+  ok "the find step runs the default branch's find script"
+else
+  fail "the find step does not run .base/$FIND_SCRIPT"
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
@@ -122,10 +122,6 @@ for want in 'id: kill' 'continue-on-error: true' 'uses: ./.base/.github/actions/
   if [[ "$kill_step" == *"$want"* ]]; then ok "the kill-switch step carries $want"; else fail "the kill-switch step lacks $want"; fi
 done
 if [[ "$job" == *"- name: Check the kill switch"*"- name: Find the ci-status to re-run"* ]]; then ok "the switch is read before the find step"; else fail "the kill-switch step is not before the find step"; fi
-# The trusted-actors list comes from the default branch, never the PR head,
-# and a failed checkout leaves no list rather than failing the re-run. main's
-# tip arrives as the SHA the job's first step resolves, which saves checkout's
-# REST call for a branch ref; an empty SHA skips the checkout.
 list_step="$(step_of 'Check out the trusted-actors list')"
 tip_step="$(awk -v name="      - name: Resolve main's tip" '$0 == name { on = 1; print; next } on && /^      - / { exit } on { print }' <<<"$job")"
 for want in 'id: tip' 'continue-on-error: true' 'branch: main' 'actions/resolve-branch-tip@'; do
@@ -134,7 +130,7 @@ done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' "if: steps.tip.outputs.sha != ''" 'ref: ${{ steps.tip.outputs.sha }}' 'path: .base' 'persist-credentials: false' \
   '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
-  '/.github/actions/check-kill-switch/' '/lib/publish-gate.mjs' \
+  '/.github/actions/check-kill-switch/' "/${FIND_SCRIPT%/*}/" '/lib/publish-gate.mjs' \
   '/.node-version' 'sparse-checkout-cone-mode: false'; do
   if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
 done
@@ -332,7 +328,7 @@ expect() {
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
     REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
-    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=720 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 RATE_WAIT_SECONDS=720 bash "$ROOT/$FIND_SCRIPT" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -813,7 +809,6 @@ check_reran 1 "attempt 2: job id and the attempt-3 record" "rerun-ci-status-9-3-
 STUB_RUN_SEQ='' STUB_RUNS="$(runs "$(run 9)")"
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
-# Without the library (a failed checkout) the job runs as before and keeps no reading.
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
 REVIEW_ATTEMPT=1 API_BUDGET_SH="$TMP_ROOT/absent.bash" expect "a missing api-budget library still re-runs" 0 "Re-running ci-status (job 77) of run 9"
 check_reran 1 "the re-run is handed on without the library"
