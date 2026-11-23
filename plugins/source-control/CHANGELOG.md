@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.8.3] - 2026-11-23
+
+### Changed
+
+- In a sandboxed git session, `/source-control:worktree create` uses `EnterWorktree(name:)` with the create hook's `fresh` base for new branches. It stops when the session needs `worktree.baseRef: head`. Cleanup runs the stranded-work and carried-file guards before removing the session's own worktree with `ExitWorktree` and leaves lock ownership to the remove hook. The skill links to the live Claude Code docs for native placement and removal behavior.
+
+- babysit-prs: `babysit_merge_policy.py` owns the post-merge record line (`record_marker`, `parse_record_marker`, `red_main_record`, `liftable_record`), and `babysit_postmerge.py` and `babysit_lift.py` call it. Its grammar and `failing_checks` run the shared vectors in `.github/scripts/post-merge-demotion-alert/demotion-record.vectors.json`, as babysit-loop's `publish-promotion-evidence.mjs` marker does. No behavior changes.
+
 ## [13.8.2] - 2026-11-23
 
 ### Changed
