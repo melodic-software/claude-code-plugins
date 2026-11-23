@@ -1093,6 +1093,19 @@ test("save adds to the lists of an existing file and keeps its description", () 
   assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "review@${M}"\n  - "songwriting@${M}"\n`);
 });
 
+test("#18318: save --plugins drops the id from that file's remove and exclude, and says when another file still keeps it off", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/build.yaml": `remove:\n  - songwriting@${M}\nexclude:\n  - songwriting@${M}\n  - review@${M}\n` });
+  const r = w.run(["save", "build", "--level", "user", "--plugins", `songwriting@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /Stays off/);
+  assert.equal(readFileSync(userProfile(w, "build"), "utf8"), `plugins:\n  - "songwriting@${M}"\nexclude:\n  - "review@${M}"\n`);
+  assert.doesNotMatch(w.run(["apply", "build", "--for", "folder", "--dry-run"]).stdout, /Switches off \(\d+\):[^\n]*songwriting/);
+  assert.equal(w.run(["save", "build", "--level", "repository", "--exclude", `tdd@${M}`, "--yes"]).status, 0);
+  const off = w.run(["save", "build", "--level", "user", "--plugins", `tdd@${M}`, "--dry-run"]);
+  assert.match(off.stdout, /Stays off: another file of profile build removes or excludes tdd@melodic-software\./);
+});
+
 test("save writes and previews every list in alphabetical order, whatever order the ids came in", () => {
   const w = world();
   const args = ["save", "notes", "--level", "user", "--plugins", `tdd@${M},review@${M},code-tidying@${M}`, "--optional", `spelling@${M},bash-format@${M}`, "--hide-skills", "zeta-skill,alpha-skill"];

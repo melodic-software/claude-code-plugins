@@ -1843,7 +1843,11 @@ async function save(opts, where, io) {
   const files = readProfileFiles(levels);
   const current = files.find((f) => f.path === path);
   const merged = { description: opts.description ?? current?.def.description ?? null, alwaysOn: current?.def.alwaysOn ?? null };
-  for (const [flag, field] of Object.entries(SAVE_LISTS)) merged[field] = [...new Set([...(current?.def[field] ?? []), ...idsOf(opts[flag])])];
+  const adding = new Set([...idsOf(opts.plugins), ...idsOf(opts.optional)]);
+  for (const [flag, field] of Object.entries(SAVE_LISTS)) {
+    const kept = (current?.def[field] ?? []).filter((id) => !["remove", "exclude"].includes(field) || !adding.has(id));
+    merged[field] = [...new Set([...kept, ...idsOf(opts[flag])])];
+  }
   const text = profileText(merged);
   const def = parseProfile(text, path);
   const others = files.filter((f) => f.path !== path);
@@ -1855,6 +1859,9 @@ async function save(opts, where, io) {
     const blocked = excludedAlwaysOn(catalog, p);
     if (blocked.length) throw new ProfileError(`${path}: profile ${p.name} would exclude always-on members: ${blocked.join(", ")}`);
   }
+  const saved = catalog.profiles.get(opts.name);
+  const stillOff = saved ? [...adding].filter((id) => saved.exclude.has(id) || !(saved.plugins.has(id) || saved.optional.has(id))) : [];
+  if (stillOff.length) io.out(`Stays off: another file of profile ${opts.name} removes or excludes ${list(stillOff)}.`);
   const before = current ? readFileSync(path, "utf8") : null;
   if (before === text) {
     io.out(`Nothing to change: ${path} already holds this profile.`);

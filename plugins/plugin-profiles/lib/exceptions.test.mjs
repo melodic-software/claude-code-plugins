@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../tests/temp.mjs";
@@ -34,4 +34,30 @@ test("#18318 AC5: distinct sessions count once and review resets just its pair",
     [["build", "extra@m", 1], ["review", "extra@m", 1], ["build", "other@m", 1]]);
   assert.deepEqual(rows[0].sessions, ["a"]);
   assert.equal(rows[0].lastAt, new Date(NOW + 1).toISOString());
+});
+
+test("#18318: a prune never runs while another run holds the log's lock, so an append in that window is kept", () => {
+  const dir = tempDir();
+  const file = join(dir, "exceptions.jsonl");
+  appendExceptions(dir, [record("old")], NOW - (SESSION_DAYS + 1) * 86_400_000);
+  const lock = join(dir, "exceptions.lock");
+  mkdirSync(lock);
+  appendFileSync(file, JSON.stringify({ ...record("new"), at: new Date(NOW).toISOString() }) + "\n");
+  assert.deepEqual(readExceptions(dir, NOW).map(({ sessionId }) => sessionId), ["new"]);
+  assert.equal(readFileSync(file, "utf8").split("\n").filter(Boolean).length, 2, "the held lock skips the prune");
+  rmSync(lock, { recursive: true });
+  readExceptions(dir, NOW);
+  assert.deepEqual(readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line).sessionId), ["new"]);
+  assert.equal(existsSync(lock), false);
+});
+
+test("#18318: an append takes over a stale lock a crashed run left", () => {
+  const dir = tempDir();
+  const lock = join(dir, "exceptions.lock");
+  mkdirSync(lock, { recursive: true });
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(lock, old, old);
+  appendExceptions(dir, [record("a")], NOW);
+  assert.deepEqual(readExceptions(dir, NOW).map(({ sessionId }) => sessionId), ["a"]);
+  assert.equal(existsSync(lock), false);
 });

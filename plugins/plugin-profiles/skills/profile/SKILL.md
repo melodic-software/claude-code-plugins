@@ -132,8 +132,11 @@ written or declined, and the start offer in phase 8 is answered.
    each plugin with its skills, grouped by marketplace.
 2. **Review exceptions.** Run `exceptions --json`. For each pair with a positive count, show the
    profile, plugin and session count. Ask whether to keep it off or add it to the profile with
-   `save <profile> --level user --plugins <id>` under the preview rule. After either choice is
-   settled, run `exceptions --reviewed <profile> --plugin <id>` to clear that pair's count.
+   `save <profile> --level user --plugins <id>` under the preview rule; the save also drops the
+   plugin from that file's `remove` and `exclude` lists. When its preview prints `Stays off`,
+   another file of the profile still switches it off: show that line, and leave the pair unreviewed
+   until the user settles that file. Once either choice is settled, run
+   `exceptions --reviewed <profile> --plugin <id>` to clear that pair's count.
 3. **What gets used.** Run `usage --json`. When it found history, report the most used skills and
    plugins and the installed plugins with no recorded use. When it reports no usage history, say
    so, propose profiles from the interview and the shipped profiles' descriptions alone, and offer
