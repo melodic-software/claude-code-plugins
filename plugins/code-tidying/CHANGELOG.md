@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.2] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [0.57.1] - 2026-11-22
 
 ### Changed

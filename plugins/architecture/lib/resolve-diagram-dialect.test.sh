@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for resolve-diagram-dialect.sh. The system key has no default and
-# refuses mermaid; the data key defaults to mermaid.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

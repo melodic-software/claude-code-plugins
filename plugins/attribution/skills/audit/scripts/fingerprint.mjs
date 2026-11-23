@@ -1,26 +1,8 @@
 #!/usr/bin/env node
-// Reasoning-free fingerprint compare of two concrete texts.
-//
-// This module never decides whether a passage is a copy. It reports lexical
-// overlap between a local passage and an already-fetched source, and the audit
-// flow maps that evidence to a tier. Nothing here reads config files, fetches
-// anything, or judges attribution.
-//
-// Two behaviors are contract, not implementation detail (spike S2):
-//
-//   1. Quotation and fence stripping runs INSIDE this module, over the LOCAL
-//      text, before shingling, and covers inline quotation marks as well as
-//      blockquotes and code fences. A properly quoted and cited excerpt must
-//      not read as a copy, and a rubric-layer carve-out would arrive too late.
-//   2. Verdicts are matched SPANS with local line offsets. Whole-file
-//      containment dilutes a real 27-word match to noise on a real-sized file,
-//      so the separation rule fires on either measure and the spans are what
-//      the fix step edits against.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** Defaults the audit flow overrides from the consuming repo's config. */
 export const DEFAULTS = Object.freeze({
   k: 5,
   min_containment: 0.3,
@@ -34,19 +16,6 @@ const OPENING_TO_CLOSING = new Map([
   ["‘", "’"],
 ]);
 
-/**
- * Remove quoted spans from a text: fenced blocks, blockquote lines, and inline
- * quotations. An unpaired opening mark is left alone rather than swallowing the
- * remainder of its paragraph.
- *
- * Inline stripping runs over a whole paragraph, not one line at a time, because
- * hard-wrapped prose routinely opens a quotation on one line and closes it on
- * the next. The paragraph is also the bound: a blank line, a fence delimiter or
- * a blockquote line resets the open-quote state, so an unpaired mark or a stray
- * apostrophe can never reach past the block it sits in. Stripped characters are
- * replaced in place and newlines are kept, so the line count and every line
- * number survive untouched for the spans to report against.
- */
 export function stripQuoted(text) {
   const lines = String(text).split("\n");
   const out = new Array(lines.length);
@@ -89,22 +58,10 @@ export function stripQuoted(text) {
   return out.join("\n");
 }
 
-/** Blank a span in place: every character but a newline becomes a space. */
 function blankSpan(span) {
   return span.replace(/[^\n]/g, " ");
 }
 
-/**
- * Index of the closing mark, skipping apostrophes that sit inside a word, so a
- * single-quoted excerpt does not close at the apostrophe in "doesn't".
- *
- * The predicate is word chars on BOTH sides, not the opening guard's
- * preceded-by-a-word-char alone. A closing mark legitimately follows a word
- * nearly always ("...opts in explicitly'"), so the one-sided test skipped every
- * real closer and nothing stripped at all. Both-sided isolates the genuine
- * in-word case: the apostrophe in "doesn't" has `n` before and `t` after, while
- * a closer has whitespace or punctuation after it.
- */
 function findClosing(block, closing, from) {
   const apostrophe = closing === "'" || closing === "’";
   let at = block.indexOf(closing, from);
@@ -125,17 +82,11 @@ function stripInlineQuotes(block) {
     const char = block[i];
     const closing = OPENING_TO_CLOSING.get(char);
 
-    // An apostrophe-family mark OPENS a quotation only where a quotation can
-    // start: at the beginning of the paragraph, after whitespace, or after an
-    // opening bracket. Anything else before it makes it an apostrophe, including
-    // a possessive after markup (`Location`'s, (FILE.md)'s), which a previous-char
-    // word test misses and which would open a phantom quotation that hides copies.
     const prev = block[i - 1];
     const opens =
       closing !== undefined &&
       ((char !== "'" && char !== "‘") || prev === undefined || /[\s([{<]/.test(prev));
 
-    // Not an opener, or unpaired within this paragraph: keep the mark and the text after it.
     const end = opens ? findClosing(block, closing, i + 1) : -1;
     if (end === -1) {
       result += char;
@@ -143,8 +94,6 @@ function stripInlineQuotes(block) {
       continue;
     }
 
-    // Drop the quoted span in place. The blanks separate the words that framed
-    // it, and the newlines inside it keep the line numbering intact.
     result += blankSpan(block.slice(i, end + 1));
     i = end + 1;
   }
@@ -154,13 +103,6 @@ function stripInlineQuotes(block) {
 
 const URL_RUN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/g;
 
-/**
- * Split text into `{word, line}` tokens, normalized, with 1-based line numbers.
- *
- * A URL yields no tokens. Split on its punctuation it would read as several
- * words (scheme, host labels, path segments), so a cited link would count as
- * prose and a shared citation would match as a copied span.
- */
 export function tokenize(text) {
   const tokens = [];
   const lines = String(text).split("\n");
@@ -180,17 +122,6 @@ export function tokenize(text) {
   return tokens;
 }
 
-/**
- * The local text as `{word, line}` tokens, quote-stripped.
- *
- * A JSON object or array is measured by its string values, never its keys. The
- * text path would read every value as a paired `"` span and strip it, so a JSON
- * file shingled to almost nothing whatever its values copied. Each value is
- * decoded and stripped on its own, so an unclosed fence in one value cannot
- * blank the values after it, and its tokens carry the file line the value sits
- * on. Values join in document order, so a passage split across consecutive
- * values still matches. A bare scalar or malformed JSON takes the text path.
- */
 export function localTokens(text) {
   return jsonValueTokens(text) ?? tokenize(stripQuoted(text));
 }
@@ -206,8 +137,6 @@ function jsonValueTokens(text) {
   }
   if (parsed === null || typeof parsed !== "object") return null;
 
-  // Valid JSON holds no raw newline inside a string, so counting newlines
-  // outside strings gives each value's line, and a string followed by `:` is a key.
   const tokens = [];
   let line = 1;
   for (let i = 0; i < text.length; i += 1) {
@@ -228,13 +157,6 @@ function jsonValueTokens(text) {
   return tokens;
 }
 
-/**
- * The k-word shingle starting at token `i`.
- *
- * One spelling for both readers below: the set `shingles()` builds is what
- * `matchedSpans()` looks a local shingle up in, so any divergence between the
- * two constructions would silently move both containment and the spans.
- */
 function shingleAt(tokens, i, k) {
   return tokens
     .slice(i, i + k)
@@ -242,14 +164,12 @@ function shingleAt(tokens, i, k) {
     .join(" ");
 }
 
-/** Build the set of k-word shingles over a token list. */
 export function shingles(tokens, k = DEFAULTS.k) {
   const set = new Set();
   for (let i = 0; i + k <= tokens.length; i += 1) set.add(shingleAt(tokens, i, k));
   return set;
 }
 
-/** How many of A's shingles B also holds. */
 function sharedCount(a, b) {
   let shared = 0;
   for (const shingle of a) {
@@ -258,28 +178,17 @@ function sharedCount(a, b) {
   return shared;
 }
 
-/** Fraction of A's shingles present in B. Empty A is 0, never NaN. */
 export function containment(a, b) {
   if (a.size === 0) return 0;
   return round(sharedCount(a, b) / a.size);
 }
 
-/**
- * Symmetric overlap. Reported for context; the separation rule does not use it.
- *
- * The shared count never exceeds either size, so a zero union means both sets
- * are empty, and the guard against dividing by it is also the empty-input case.
- */
 export function jaccard(a, b) {
   const shared = sharedCount(a, b);
   const union = a.size + b.size - shared;
   return union === 0 ? 0 : round(shared / union);
 }
 
-/**
- * Contiguous runs of local shingles found in the source set, merged into spans
- * carrying local line offsets and a word count.
- */
 export function matchedSpans(localTokens, sourceSet, k = DEFAULTS.k) {
   const spans = [];
   let runStart = -1;
@@ -310,12 +219,6 @@ export function matchedSpans(localTokens, sourceSet, k = DEFAULTS.k) {
   return spans;
 }
 
-/**
- * Compare a local passage against a source text.
- *
- * The local text is quote-stripped first; the source is not, because the
- * question is what the LOCAL surface reproduces.
- */
 export function compare(localText, sourceText, options = {}) {
   const k = options.k ?? DEFAULTS.k;
   const minContainment = options.min_containment ?? DEFAULTS.min_containment;
@@ -349,8 +252,6 @@ function round(value) {
   return Math.round(value * 1000) / 1000;
 }
 
-// --- CLI --------------------------------------------------------------------
-
 const USAGE = `Usage: fingerprint.mjs compare --local FILE --source FILE [--json]
 
 Reports lexical overlap between a local passage and a fetched source. Local
@@ -369,7 +270,6 @@ Options:
   --min-span-words   separation threshold (default ${DEFAULTS.min_span_words})
 `;
 
-/** Options that take a value: the args key each one sets, and how it parses. */
 const VALUE_OPTIONS = new Map([
   ["--local", ["local", String]],
   ["--source", ["source", String]],

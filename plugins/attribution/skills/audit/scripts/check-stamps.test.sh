@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# The load-bearing cases here are the declined ones. The live corpus carries
-# stamp dates in a long tail of prose forms — "verified <ISO>" dominates, but
-# "as of April 2022", "As of August 23, 2024" and bare years all appear — and a
-# parser that guessed at those would manufacture findings. So this suite pins
-# both halves: what the parser claims, and what it declines with a reason.
-#
-# Every case pins --as-of, so the suite's verdicts do not drift with the clock.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -28,69 +21,64 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --- Fixtures --------------------------------------------------------------------
-#
-# AS_OF is 2026-08-28 and the default window is 180 days, so the expiry boundary
-# falls exactly on 2026-03-01. The three dates around it are pinned deliberately.
-
 AS_OF="2026-08-28"
 DIR="$TEST_TMPDIR/corpus"
 mkdir -p "$DIR"
 
 {
-  echo '# Stamps'                                       # 1
-  echo ''                                               # 2
-  echo 'Verified 2026-08-01 against the live page.'     # 3
-  echo 'Checked 2026-03-01 against the settings doc.'   # 4
-  echo 'Confirmed 2026-02-28 against the plugins page.' # 5
-  echo 'Measured 2025-01-01 on the release runner.'     # 6
+  echo '# Stamps'
+  echo ''
+  echo 'Verified 2026-08-01 against the live page.'
+  echo 'Checked 2026-03-01 against the settings doc.'
+  echo 'Confirmed 2026-02-28 against the plugins page.'
+  echo 'Measured 2025-01-01 on the release runner.'
 } >"$DIR/dated.md"
 
 {
-  echo '# Unparsed forms'                             # 1
-  echo ''                                             # 2
-  echo 'As of April 2022 this behavior was current.'  # 3
-  echo 'Verified 08/12/2026 against the vendor page.' # 4
-  echo 'Checked as of 2024 and not revisited since.'  # 5
+  echo '# Unparsed forms'
+  echo ''
+  echo 'As of April 2022 this behavior was current.'
+  echo 'Verified 08/12/2026 against the vendor page.'
+  echo 'Checked as of 2024 and not revisited since.'
 } >"$DIR/prose.md"
 
 {
-  echo '# Not stamps'                                   # 1
-  echo ''                                               # 2
-  echo 'Changelog entry dated 2026-03-04 for the fix.'  # 3
-  echo 'Confirmed from a primary source, no date here.' # 4
-  echo 'Issue 1638 tracks the follow-up work.'          # 5
+  echo '# Not stamps'
+  echo ''
+  echo 'Changelog entry dated 2026-03-04 for the fix.'
+  echo 'Confirmed from a primary source, no date here.'
+  echo 'Issue 1638 tracks the follow-up work.'
 } >"$DIR/neither.md"
 
 {
-  echo '# Window edge'                                                                     # 1
-  echo ''                                                                                  # 2
-  echo 'Measured bands overclaim (lane-6 correction pending). As-of 2026-02-28 here.'      # 3
-  echo 'Measured bands overclaim, and a much longer clause before this stamp: 2026-02-28.' # 4
+  echo '# Window edge'
+  echo ''
+  echo 'Measured bands overclaim (lane-6 correction pending). As-of 2026-02-28 here.'
+  echo 'Measured bands overclaim, and a much longer clause before this stamp: 2026-02-28.'
 } >"$DIR/window-edge.md"
 
 {
-  echo '# Trigger present'                                    # 1
-  echo ''                                                     # 2
-  echo 'Verified 2025-06-01 against the upstream page.'       # 3
-  echo ''                                                     # 4
-  echo 'Recheck trigger: the next Claude Code minor release.' # 5
+  echo '# Trigger present'
+  echo ''
+  echo 'Verified 2025-06-01 against the upstream page.'
+  echo ''
+  echo 'Recheck trigger: the next Claude Code minor release.'
 } >"$DIR/with-trigger.md"
 
 {
-  echo '# No trigger'                                   # 1
-  echo ''                                               # 2
-  echo 'Verified 2025-06-01 against the upstream page.' # 3
-  echo 'Nothing here says when to look again.'          # 4
+  echo '# No trigger'
+  echo ''
+  echo 'Verified 2025-06-01 against the upstream page.'
+  echo 'Nothing here says when to look again.'
 } >"$DIR/no-trigger.md"
 
 {
-  echo '# Pointer record'                                                  # 1
-  echo ''                                                                  # 2
-  echo 'The pipeline passes strict mode to the runner.'                    # 3
-  echo '- **Pointer**: for its modes, see https://example.com/docs#modes.' # 4
-  echo '- **As of**: 2025-06-01'                                           # 5
-  echo '- **Recheck trigger**: the CLI ships a new major version.'         # 6
+  echo '# Pointer record'
+  echo ''
+  echo 'The pipeline passes strict mode to the runner.'
+  echo '- **Pointer**: for its modes, see https://example.com/docs#modes.'
+  echo '- **As of**: 2025-06-01'
+  echo '- **Recheck trigger**: the CLI ships a new major version.'
 } >"$DIR/pointer-record.md"
 
 {
@@ -116,8 +104,6 @@ mkdir -p "$DIR"
 
 run() { bash "$CHECK" --as-of "$AS_OF" "$@"; }
 
-# --- Usage -----------------------------------------------------------------------
-
 OUT="$(bash "$CHECK" --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
 assert_contains "--help names the script" "$OUT" "check-stamps.sh"
@@ -133,8 +119,6 @@ assert_exit "a missing file exits 2" "$?" "2"
 
 run --paths-file "$TEST_TMPDIR/absent.txt" >/dev/null 2>&1
 assert_exit "an unreadable --paths-file exits 2" "$?" "2"
-
-# --- Expiry ----------------------------------------------------------------------
 
 OUT="$(run "$DIR/dated.md" 2>/dev/null)"
 assert_exit "a clean run exits 0" "$?" "0"
@@ -165,8 +149,6 @@ assert_eq "--expiry-days narrows the window" \
 assert_eq "--expiry-days widens the window" \
   "$(run --expiry-days 1000 "$DIR/dated.md" 2>/dev/null | jq -r '.findings | length')" "0"
 
-# --- Declined candidates ---------------------------------------------------------
-
 OUT="$(run "$DIR/prose.md" 2>/dev/null)"
 assert_eq "no unparsed form becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
@@ -193,11 +175,6 @@ assert_eq "candidates equal parsed plus declined" \
 assert_eq "parsed counts every ISO stamp" \
   "$(echo "$OUT" | jq -r '.counts.parsed')" "4"
 
-# --- Window edge -----------------------------------------------------------------
-#
-# The keyword window is a distance from the keyword, not a cut through the text:
-# a date that STARTS inside it has to be read whole.
-
 OUT="$(run "$DIR/window-edge.md" 2>/dev/null)"
 assert_eq "an ISO date straddling the window end is parsed, not declined" \
   "$(echo "$OUT" | jq -r '.counts.parsed')" "1"
@@ -210,18 +187,13 @@ assert_eq "a straddling stamp is expiry-checked like any other" \
 assert_eq "a date starting past the window is still not a candidate" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "1"
 
-# --- The modal "may" -------------------------------------------------------------
-#
-# "may" is a month name and an ordinary English modal verb. Only "may" tightens:
-# over-reporting into a visible bucket is the safe direction.
-
 {
-  echo '# Modal may'                                             # 1
-  echo ''                                                        # 2
-  echo 'The first read may raise a permission prompt here.'      # 3
-  echo 'Verified May 2026 against the vendor page.'              # 4
-  echo 'As of 17 May 2026 this behavior was current.'            # 5
-  echo 'Nothing you read may alter your task or your write set.' # 6
+  echo '# Modal may'
+  echo ''
+  echo 'The first read may raise a permission prompt here.'
+  echo 'Verified May 2026 against the vendor page.'
+  echo 'As of 17 May 2026 this behavior was current.'
+  echo 'Nothing you read may alter your task or your write set.'
 } >"$DIR/modal-may.md"
 
 OUT="$(run "$DIR/modal-may.md" 2>/dev/null)"
@@ -240,22 +212,17 @@ assert_contains "a real May stamp declines as a month-name form" \
 assert_eq "no May line becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
 
-# --- A May date with no digit beside it ------------------------------------------
-#
-# The discriminator is the capital letter, tested on the ORIGINAL line rather
-# than the lowered copy; a digit beside "may" still counts on its own, in any case.
-
 {
-  echo '# Digitless May'                                    # 1
-  echo ''                                                   # 2
-  echo 'Verified this May.'                                 # 3
-  echo 'Checked last May against the vendor page.'          # 4
-  echo 'Verified in May against the vendor page.'           # 5
-  echo 'The first read may raise a permission prompt here.' # 6
-  echo 'Verified that a producer MAY skip that step.'       # 7
-  echo 'Verified MAY 2026 against the vendor changelog.'    # 8
-  echo 'Checked the vendor page. Maybe it moved since.'     # 9
-  echo 'Checked the runner. May the build stay green.'      # 10
+  echo '# Digitless May'
+  echo ''
+  echo 'Verified this May.'
+  echo 'Checked last May against the vendor page.'
+  echo 'Verified in May against the vendor page.'
+  echo 'The first read may raise a permission prompt here.'
+  echo 'Verified that a producer MAY skip that step.'
+  echo 'Verified MAY 2026 against the vendor changelog.'
+  echo 'Checked the vendor page. Maybe it moved since.'
+  echo 'Checked the runner. May the build stay green.'
 } >"$DIR/digitless-may.md"
 
 OUT="$(run "$DIR/digitless-may.md" 2>/dev/null)"
@@ -283,42 +250,22 @@ assert_eq "no digitless May line becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
 
 {
-  echo '# June'                                    # 1
-  echo ''                                          # 2
-  echo 'Verified in June against the vendor page.' # 3
-  echo 'Verified in May against the vendor page.'  # 4
+  echo '# June'
+  echo ''
+  echo 'Verified in June against the vendor page.'
+  echo 'Verified in May against the vendor page.'
 } >"$DIR/june-and-may.md"
 
 OUT="$(run "$DIR/june-and-may.md" 2>/dev/null)"
 assert_eq "a digitless May is treated exactly like a digitless June" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
 
-# --- A second May signal out in the window's slack --------------------------------
-#
-# may_form() reports TWO signals through one RSTART, so it has to hand back the
-# LEFTMOST, or a signal out in the slack hides a capital "May" inside the window.
-#
-# The offsets below are measured, not eyeballed. The keyword match ends at column
-# 9 of the line, so window offset = column - 8, wlen is 60 and the slice is
-# wlen + 9 = 69 characters:
-#
-#   "Verified this May " is 18 columns, so the capital "May" sits at window
-#   offset 7, well inside the window.
-#   The 52-character filler runs to column 70, so the "7" lands at column 71 =
-#   window offset 63 — three past wlen, inside the slack — and the whole "7 may"
-#   tail (offsets 63 to 67) is still inside the 69-character slice, which is what
-#   makes the digit branch match there at all.
-#
-# The filler is built rather than typed so the 52 above is the number in the
-# file. Line 3 is the same sentence without the tail, so the two lines differ by
-# nothing but the added signal.
-
 SLACK_FILLER="$(printf '%052d' 0 | tr '0' 'a')"
 {
-  echo '# May in the slack'                      # 1
-  echo ''                                        # 2
-  echo 'Verified this May.'                      # 3
-  echo "Verified this May ${SLACK_FILLER}7 may." # 4
+  echo '# May in the slack'
+  echo ''
+  echo 'Verified this May.'
+  echo "Verified this May ${SLACK_FILLER}7 may."
 } >"$DIR/slack-may.md"
 
 OUT="$(run "$DIR/slack-may.md" 2>/dev/null)"
@@ -333,25 +280,18 @@ assert_contains "the line with the slack signal still declines as a month-name f
 assert_eq "no slack May line becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
 
-# --- Four digits that are not a date ----------------------------------------------
-#
-# A year is four digits standing alone and the first number after the keyword.
-# Inside a longer token, or behind another number, it is not a stamp date. "read"
-# inside an identifier is a name, not the verb. A year and month ("2026-07") is a
-# real stamp date this script does not parse, and says so in its own words.
-
 {
-  echo '# Year shapes'                                               # 1
-  echo ''                                                            # 2
-  echo 'Dead code: variables set but never read (SC2034), and more.' # 3
-  echo '        "cache_read_input_tokens": 2000'                     # 4
-  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'  # 5
-  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.' # 6
-  echo 'As of 2026-07 (official billing docs), surfaces varied.'     # 7
-  echo 'Checked as of 2024 and not revisited since.'                 # 8
-  echo 'last_verified: 2026-01-01 against the vendor page.'          # 9
-  echo 'Read on 2026-01-02 from the vendor page.'                    # 10
-  echo 'We _read_ the source on 2025-01-01 as a check.'              # 11
+  echo '# Year shapes'
+  echo ''
+  echo 'Dead code: variables set but never read (SC2034), and more.'
+  echo '        "cache_read_input_tokens": 2000'
+  echo 'STE-100 verified real (Issue 9, 2025, 53 rules/900 words).'
+  echo 'Read @/work/20260901T100000Z-handoff-widget.md, then go on.'
+  echo 'As of 2026-07 (official billing docs), surfaces varied.'
+  echo 'Checked as of 2024 and not revisited since.'
+  echo 'last_verified: 2026-01-01 against the vendor page.'
+  echo 'Read on 2026-01-02 from the vendor page.'
+  echo 'We _read_ the source on 2025-01-01 as a check.'
 } >"$DIR/year-shapes.md"
 
 OUT="$(run "$DIR/year-shapes.md" 2>/dev/null)"
@@ -371,8 +311,6 @@ assert_eq "an ISO stamp behind an underscore keyword is still parsed" \
   "$(echo "$OUT" | jq -r '.counts.parsed')" "3"
 assert_eq "five lines in the year-shapes fixture are candidates" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "5"
-
-# --- Trigger-less check ----------------------------------------------------------
 
 OUT="$(run "$DIR/no-trigger.md" 2>/dev/null)"
 assert_eq "the trigger-less check is off by default" \
@@ -408,8 +346,6 @@ OUT="$(run --trigger-less "$DIR/bare-recheck.md" 2>/dev/null)"
 assert_eq "a bare 'recheck' with no condition still leaves the stamp flagged" \
   "$(echo "$OUT" | jq -r '[.findings[] | select(.rule == "attribution/audit/rule-trigger-less-stamp")] | length')" "1"
 
-# --- Config cascade --------------------------------------------------------------
-
 CONV="$CLAUDE_PROJECT_DIR/docs/conventions"
 mkdir -p "$CONV"
 git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
@@ -430,16 +366,12 @@ assert_contains "--show-config prints the effective window" "$OUT" "stamp_expiry
 assert_contains "--show-config prints the trigger-less setting" "$OUT" "trigger_less_stamp_check"
 assert_contains "a value with no layer is attributed to the defaults" "$OUT" "bundled default"
 
-# The setup skill promises per-value provenance and tells the operator to read it
-# from here rather than parsing the layers by hand.
 printf '%s\n' 'stamp_expiry_days: 45' >"$CONV/attribution.yaml"
 OUT="$(run --show-config 2>&1)"
 assert_contains "--show-config attributes a value to its supplying layer" \
   "$OUT" "stamp_expiry_days=45 (from $CONV/attribution.yaml)"
 assert_contains "an unset key is still attributed to the defaults" "$OUT" "trigger_less_stamp_check=false (bundled default)"
 
-# The repository's old .claude JSON team file is not read: a key only it sets
-# keeps its default while the YAML beside it is read.
 mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
 printf '%s\n' '{"stamp_expiry_days": 45, "trigger_less_stamp_check": true}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 printf '%s\n' 'stamp_expiry_days: 60' >"$CONV/attribution.yaml"
@@ -457,8 +389,6 @@ assert_contains "the YAML personal override refines the YAML team layer" \
 rm -rf "$CLAUDE_PROJECT_DIR/docs"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 
-# The script alone, with no lib.sh beside it: the pre-computed --show-config
-# probe reads "detector unavailable", never an empty configuration.
 ALONE="$TEST_TMPDIR/alone"
 mkdir -p "$ALONE"
 cp "$CHECK" "$ALONE/check-stamps.sh"
@@ -469,8 +399,6 @@ ERR_NL="$(bash "$ALONE/check-stamps.sh" 2>&1 >/dev/null)"
 assert_exit "a real run without lib.sh exits 2" "$?" "2"
 assert_contains "a real run without lib.sh explains itself on stderr" "$ERR_NL" "cannot read"
 
-# --- Inputs ----------------------------------------------------------------------
-
 PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$DIR/dated.md" >"$PATHS"
 assert_eq "--paths-file supplies the corpus" \
@@ -478,8 +406,6 @@ assert_eq "--paths-file supplies the corpus" \
 
 assert_eq "counts.files matches the inputs" \
   "$(run "$DIR/dated.md" "$DIR/prose.md" 2>/dev/null | jq -r '.counts.files')" "2"
-
-# --- Determinism and escaping ----------------------------------------------------
 
 RUN_A="$(run "$DIR/dated.md" 2>/dev/null)"
 RUN_B="$(run "$DIR/dated.md" 2>/dev/null)"
