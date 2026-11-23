@@ -100,14 +100,12 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
-# exit_planned_none <code>: end a blocked run with no reset or clean planned.
 exit_planned_none() {
   printf 'PlannedReset: none\n'
   printf 'PlannedClean: none\n'
   exit "$1"
 }
 
-# ahead_count: commits HEAD is ahead of $UPSTREAM (0 when git cannot count them).
 ahead_count() {
   local n
   n="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
@@ -154,9 +152,7 @@ TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 IGNORED_COUNT="$(git status --ignored --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 AHEAD_COUNT="$(ahead_count)"
 
-# Build the default-preserve exclude args once (shared by dry-run preview + apply).
 mapfile -t PRESERVE_ARGS < <(clean_tree_preserve_args "$INCLUDE_DEPS" "$INCLUDE_SECRETS")
-# Exclude args arrive as `-e <pattern>` pairs, so the pattern count is half of them.
 PRESERVE_SUFFIX=""
 if [[ ${#PRESERVE_ARGS[@]} -gt 0 ]]; then
   printf -v PRESERVE_SUFFIX ' (+%d preserve excludes)' "$((${#PRESERVE_ARGS[@]} / 2))"
@@ -225,9 +221,6 @@ if ! git reset --hard "$UPSTREAM"; then
   printf 'AppliedClean: none\n'
   exit 5
 fi
-# Report the reset outcome as soon as it genuinely succeeds — before clean — so a
-# later clean failure (exit 7 below) still surfaces the truthful AppliedReset line
-# rather than swallowing it.
 printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 
 # Capture clean stderr AND its exit status. git clean returns non-zero when it
