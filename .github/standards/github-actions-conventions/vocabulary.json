@@ -144,12 +144,7 @@
         "purpose": "Detect churn per merge and open code-tidying pull requests as a daily batch."
       },
       { "name": "verify-governance", "status": "in-use" },
-      { "name": "verify-ruleset-drift", "status": "in-use" },
-      {
-        "name": "verify-whole-map",
-        "status": "reserved",
-        "purpose": "Drive every entry of an app's feature map live on a person's dispatch and keep the findings as the next pass's baseline."
-      }
+      { "name": "verify-ruleset-drift", "status": "in-use" }
     ],
     "upstream": [
       {
@@ -170,7 +165,6 @@
     "automerge",
     "build",
     "bump",
-    "capture",
     "check",
     "clean",
     "close",
