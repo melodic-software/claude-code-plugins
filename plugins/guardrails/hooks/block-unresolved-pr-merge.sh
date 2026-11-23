@@ -1302,12 +1302,15 @@ _bupm_verify() {
   fi
   # shellcheck disable=SC2016
   judged="$(jq -r --arg id "$uid" --arg login "$login" '
-    def setting($k): [.c | split("\n")[] | capture("^  " + $k + ": *(?<v>[^ #]*)").v] | first // "";
+    def setting($k): [.c | split("\n")[] | capture("^  " + $k + ": *(?<v>\"[^\"]*\"|\u0027[^\u0027]*\u0027|[^ #]*)").v
+      | ltrimstr("\"") | rtrimstr("\"") | ltrimstr("\u0027") | rtrimstr("\u0027")] | first // "";
+    def loginkey: ascii_downcase | sub("\\[bot\\]$"; "");
     if .w | not then "no" else
       (setting("verify-authors") | if . == "" then "lane" else . end) as $mode
       | [(.t | fromjson? // {}) | .actors[]? | .id | tostring] as $trusted
       | if $mode == "any" or ($mode == "lane-or-owner" and ($id | IN($trusted[])))
-          or $login == setting("agent-identity") then "yes" else "no" end
+          or ((setting("agent-identity") | loginkey) as $lane | $lane != "" and ($login | loginkey) == $lane)
+          then "yes" else "no" end
     end' <<<"$conf")" || _bupm_unchecked "the pr-verify settings could not be judged" "its pr-verify verdict"
   [[ "$judged" == yes ]] || return 0
   digest="$(printf '%s' "$head" | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -c1-16)"
