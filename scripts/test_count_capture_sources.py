@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: scripts/count-capture-sources.py plugins/app-control/scripts/affected_features.py
-"""Tests for scripts/count-capture-sources.py."""
 
 from __future__ import annotations
 
