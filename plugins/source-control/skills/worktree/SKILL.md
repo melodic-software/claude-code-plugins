@@ -159,38 +159,36 @@ Periodic health check for worktree infrastructure, suitable as a recurring track
 ## Sandboxed sessions
 
 When this session's Bash commands run in the sandbox, `create` and `cleanup` take the native-tool
-route below instead of Bash `git worktree add` and `git worktree remove`, which the sandbox
-refuses; this route needs no `excludedCommands` entry and no sandbox-off session. In a sandboxed
-session this section overrides the create invariants above and the Routing and Mutation gate rules
-of the Boundary section below wherever they forbid `EnterWorktree(name:)` or
+route below. In a sandboxed session this section overrides the create invariants above and the
+Routing and Mutation gate rules of the Boundary section below wherever they forbid `EnterWorktree(name:)` or
 `ExitWorktree(action: "remove")`. Unsandboxed sessions keep the helper and `EnterWorktree(path:)`
-route. Decide which route applies before running the helper, since a refused add can leave its new
-branch behind; to tell whether this session's commands run sandboxed, see
+route. Decide which route applies before running the helper. To tell whether this session's
+commands run sandboxed, see
 [sandboxing: confirm commands run inside the sandbox](https://code.claude.com/docs/en/sandboxing#confirm-commands-run-inside-the-sandbox).
 
-- **A git repository is required.** `EnterWorktree` and `ExitWorktree` fail outside one. Report
-  that and stop; never fall back to Bash `git worktree`.
-- **Create** with `EnterWorktree(name: "<validated name>")`, after the same name validation and
-  explain block as [context/create.md](context/create.md). The call ends that step. The tool fires
-  this plugin's `WorktreeCreate` hook, which runs outside the sandbox and creates the worktree
-  through the shared helper at the external root, claimed for this session. With that hook not
-  running (hooks disabled), Claude Code places it in `<repo>/.claude/worktrees/`. The Workspace
-  environment `setup` runs as the next step, through Bash from the worktree root; a failed `setup`
-  is reported, not retried. Pointers:
-  [hooks: WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate) for which tool
-  calls fire it, and
-  [sandboxing: what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox).
+- **Require a git repository.** Outside one, report and stop.
+- **Create.** The plugin's `WorktreeCreate` hook creates and claims the worktree at the external
+  root. For a new branch the hook uses the
+  helper's `fresh` base, with the remote default branch and fallback described in
+  [Base branch](context/create.md#base-branch). Resolve `worktree.baseRef` as described there
+  before calling the tool. If the session needs `head`, stop and report that the sandboxed route
+  cannot honor it. Follow the name validation and explain block in [context/create.md](context/create.md),
+  describing the base and the steps for this route. Call `EnterWorktree(name: "<validated name>")`,
+  then run the Workspace environment `setup` through Bash from the worktree root. Report a failed
+  `setup` without retrying. For upstream behavior, read
+  [WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate),
+  [what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox),
+  and [default placement](https://code.claude.com/docs/en/worktrees#start-claude-in-a-worktree).
 - **Commit** from inside the entered worktree, never by `git -C <worktree>` from the main checkout.
   Pointer: [sandboxing: filesystem isolation](https://code.claude.com/docs/en/sandboxing#filesystem-isolation),
   for what a linked worktree may write in the shared `.git`.
 - **Remove** only the worktree this session created with `EnterWorktree(name:)`, from inside it.
   Run `cleanup`'s stranded-work and carried-file guards (both read-only), then the Workspace
-  environment `down`, then `ExitWorktree(action: "remove")`; a worktree that holds commits needs
-  `discard_changes: true`. This plugin's `WorktreeRemove` hook then reaps its install records,
-  removes it, keeps its branch, and refuses uncommitted changes
-  ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove)); skip `cleanup`'s
-  own Bash reap. With that hook not running, `remove` also deletes the branch, so the stranded-work
-  guard is all that protects its commits. When the guard keeps the worktree and the push it offers
+  environment `down`, then `ExitWorktree(action: "remove")`. The plugin's `WorktreeRemove` hook
+  handles the reap and removal, so skip `cleanup`'s Bash reap. Read
+  [WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove) for the tool's removal
+  arguments and [Clean up worktrees](https://code.claude.com/docs/en/worktrees#clean-up-worktrees)
+  for native removal and branch handling. When the guard keeps the worktree and the push it offers
   fails under the sandbox, leave with `ExitWorktree(action: "keep")` and report it. `cleanup`
   reports every other candidate, and any `git branch -D` the sandbox refuses, for an unsandboxed
   session to finish, as it does for a hook block.
