@@ -235,6 +235,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-client.mjs";
+import { readRawTrustedActors, TRUSTED_ACTORS_PATH, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
 import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
@@ -679,7 +680,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
 // decision clears.
 function trustedHumans(env) {
   try {
-    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    const { actors } = readRawTrustedActors(env.TRUSTED_ACTORS || trustedActorsPath());
     return humansOf(actors);
   } catch {
     return new Set();
@@ -1683,7 +1684,7 @@ const SKIP_CHUNK = 20;
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   "docs/conventions/work-items.yaml",
-  ".github/standards/trusted-actors/trusted-actors.json",
+  TRUSTED_ACTORS_PATH,
   ".github/workflows/pr-merge.yml",
   ".github/actions",
   ".github/scripts",

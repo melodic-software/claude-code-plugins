@@ -199,6 +199,7 @@ import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
+import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
 import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
@@ -1919,7 +1920,7 @@ export function pruneBranches({ issueNumber, bot, branches, markers, prior, runI
 
 // The listed humans' ids in trusted-actors.json; throws when it cannot be read.
 export function readHumans(path) {
-  const list = JSON.parse(readFileSync(path, "utf8"));
+  const list = readRawTrustedActors(path);
   if (list?.version !== 1 || !Array.isArray(list.actors)) {
     throw new Error("the trusted-actor list does not match its schema");
   }

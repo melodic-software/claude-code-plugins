@@ -1,0 +1,176 @@
+import assert from "node:assert/strict";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { loadTrustedActors as statusList } from "../../actions/resolve-config/read-status.mjs";
+import { loadTrustedActors, loadTrustedList as triggerList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { TRUSTED_ACTORS_PATH as HOLDS_PATH } from "../pr-merge/merge-holds.mjs";
+import { reviewerIdFrom, trustedHumansFrom } from "../pr-unblock/address-feedback.mjs";
+import { dependabotIdFrom } from "../pr-unblock/review-dependency.mjs";
+import { readHumans } from "../work-resolve-issue/report-outcome.mjs";
+import { loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, TRUSTED_ACTORS_PATH, trustedActorsPath } from "./trusted-actors.mjs";
+
+const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const SCRIPTS = join(ROOT, ".github/scripts");
+
+test("the list path is the one under .github/standards, under .base unless a base is given", () => {
+  assert.equal(TRUSTED_ACTORS_PATH, ".github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(trustedActorsPath(), ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(trustedActorsPath(""), ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(trustedActorsPath("/b"), "/b/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(fileURLToPath(SAME_TREE_LIST), join(ROOT, TRUSTED_ACTORS_PATH));
+});
+
+test("merge-holds, read-status and resolve-config, which import nothing from scripts/lib, name the same path", () => {
+  assert.equal(HOLDS_PATH, TRUSTED_ACTORS_PATH);
+  const base = mkdtempSync(join(tmpdir(), "trusted-actors-base-"));
+  mkdirSync(dirname(join(base, TRUSTED_ACTORS_PATH)), { recursive: true });
+  writeFileSync(join(base, TRUSTED_ACTORS_PATH), '{"marker":1}');
+  assert.deepEqual(statusList({ BASE_PATH: base }), { marker: 1 });
+  rmSync(base, { recursive: true });
+  const source = readFileSync(join(ROOT, ".github/actions/resolve-config/resolve-config.mjs"), "utf8");
+  assert.match(source, new RegExp(`\\nconst TRUSTED_ACTORS_PATH = "${TRUSTED_ACTORS_PATH.replaceAll(".", "\\.")}";\\n`));
+});
+
+test("check-trusted-trigger hands out this module's validated list", () => {
+  assert.equal(triggerList, loadTrustedList);
+});
+
+const h = { id: 7, login: "Owner", kind: "human" };
+const b = { id: 8, login: "claude[bot]", kind: "bot" };
+const d = { id: 9, login: "dependabot[bot]", kind: "bot" };
+const doc = (actors, extra = {}) => JSON.stringify({ version: 1, actors, ...extra });
+const FIXTURES = {
+  missing: null,
+  "not-json": "{",
+  null: "null",
+  array: "[]",
+  "empty-object": "{}",
+  "no-actors": JSON.stringify({ version: 1 }),
+  "actors-object": JSON.stringify({ version: 1, actors: {} }),
+  "no-version": JSON.stringify({ actors: [h, b, d] }),
+  "version-2": JSON.stringify({ version: 2, actors: [h, b, d] }),
+  "extra-top-key": doc([h, b, d], { note: "x" }),
+  empty: doc([]),
+  "actor-extra-key": doc([{ ...h, note: "x" }, b, d]),
+  "actor-null": doc([null, h]),
+  "id-zero": doc([{ ...h, id: 0 }]),
+  "id-negative": doc([{ ...h, id: -3 }]),
+  "id-string": doc([{ ...h, id: "7" }, { ...b, id: "8" }, { ...d, id: "9" }]),
+  "id-float": doc([{ ...h, id: 1.5 }]),
+  "id-unsafe": doc([{ ...h, id: 2 ** 60 }]),
+  "kind-unknown": doc([{ ...h, kind: "robot" }]),
+  "login-number": doc([{ ...h, login: 5 }]),
+  "login-case": doc([h, { id: 10, login: "OWNER", kind: "human" }]),
+  "bot-as-human": doc([{ ...b, kind: "human" }, { ...d, kind: "human" }]),
+  "no-bots": doc([h]),
+};
+
+const COLUMNS = ["loadTrustedList", "loadTrustedActors", "read-status loadTrustedActors", "trustedHumansFrom", "reviewerIdFrom", "dependabotIdFrom", "report-outcome readHumans", "gate-source trustedHumans"];
+const RAW = "raw";
+const U = 2 ** 60;
+const RECORDED_ON_MAIN = {
+  missing: ["!Error", "!Error", "!Error", "!Error", "!Error", "!Error", "!Error", []],
+  "not-json": ["!SyntaxError", "!SyntaxError", "!SyntaxError", "!SyntaxError", "!SyntaxError", "!SyntaxError", "!SyntaxError", []],
+  null: ["!Error", "!Error", RAW, "!TypeError", "!TypeError", "!TypeError", "!Error", []],
+  array: ["!Error", "!Error", RAW, [], "!Error", "!Error", "!Error", []],
+  "empty-object": ["!Error", "!Error", RAW, [], "!Error", "!Error", "!Error", []],
+  "no-actors": ["!Error", "!Error", RAW, [], "!Error", "!Error", "!Error", []],
+  "actors-object": ["!Error", "!Error", RAW, "!TypeError", "!TypeError", "!TypeError", "!Error", []],
+  "no-version": ["!Error", "!Error", RAW, [7], 8, 9, "!Error", [7]],
+  "version-2": ["!Error", "!Error", RAW, [7], 8, 9, "!Error", [7]],
+  "extra-top-key": ["!Error", "!Error", RAW, [7], 8, 9, [7], [7]],
+  empty: [{ ids: [], humans: [], logins: [] }, [], RAW, [], "!Error", "!Error", [], []],
+  "actor-extra-key": ["!Error", "!Error", RAW, [7], 8, 9, [7], [7]],
+  "actor-null": ["!Error", "!Error", RAW, "!TypeError", "!TypeError", "!TypeError", [7], [7]],
+  "id-zero": ["!Error", "!Error", RAW, "!Error", "!Error", "!Error", [0], [0]],
+  "id-negative": ["!Error", "!Error", RAW, "!Error", "!Error", "!Error", [-3], [-3]],
+  "id-string": ["!Error", "!Error", RAW, [7], 8, 9, [], []],
+  "id-float": ["!Error", "!Error", RAW, "!Error", "!Error", "!Error", [], []],
+  "id-unsafe": [{ ids: [U], humans: [U], logins: [["owner", U]] }, [U], RAW, "!Error", "!Error", "!Error", [U], []],
+  "kind-unknown": ["!Error", "!Error", RAW, [], "!Error", "!Error", [], []],
+  "login-number": ["!Error", "!Error", RAW, [7], "!Error", "!Error", [7], [7]],
+  "login-case": [{ ids: [7, 10], humans: [7, 10], logins: [["owner", 10]] }, [7, 10], RAW, [7, 10], "!Error", "!Error", [7, 10], [7, 10]],
+  "bot-as-human": [{ ids: [8, 9], humans: [8, 9], logins: [["claude[bot]", 8], ["dependabot[bot]", 9]] }, [8, 9], RAW, [8, 9], "!Error", "!Error", [8, 9], [8, 9]],
+  "no-bots": [{ ids: [7], humans: [7], logins: [["owner", 7]] }, [7], RAW, [7], "!Error", "!Error", [7], [7]],
+};
+
+const cell = (fn) => {
+  try {
+    const value = fn();
+    return value instanceof Set ? [...value] : value;
+  } catch (error) {
+    return `!${error.constructor.name}`;
+  }
+};
+const view = (list) => ({ ids: [...list.ids], humans: [...list.humans], logins: [...list.logins] });
+
+function gateSourceCopyBesideFixture() {
+  const tree = mkdtempSync(join(tmpdir(), "trusted-actors-gate-"));
+  for (const rel of ["pr-unblock/gate-source.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "lib/lane-binding.mjs", "lib/trusted-actors.mjs"]) {
+    mkdirSync(dirname(join(tree, ".github/scripts", rel)), { recursive: true });
+    copyFileSync(join(SCRIPTS, rel), join(tree, ".github/scripts", rel));
+  }
+  mkdirSync(dirname(join(tree, TRUSTED_ACTORS_PATH)), { recursive: true });
+  return tree;
+}
+
+async function readers(path, text, tree, n) {
+  if (text === null) {
+    rmSync(join(tree, TRUSTED_ACTORS_PATH), { force: true });
+  } else {
+    writeFileSync(join(tree, TRUSTED_ACTORS_PATH), text);
+  }
+  const gate = await import(`${pathToFileURL(join(tree, ".github/scripts/pr-unblock/gate-source.mjs")).href}?case=${n}`);
+  return [
+    cell(() => view(loadTrustedList(path))),
+    cell(() => loadTrustedActors(path)),
+    cell(() => statusList({ TRUSTED_ACTORS_PATH: path })),
+    cell(() => trustedHumansFrom(path)),
+    cell(() => reviewerIdFrom(path)),
+    cell(() => dependabotIdFrom(path)),
+    cell(() => readHumans(path)),
+    cell(() => gate.trustedHumans()),
+  ];
+}
+
+test("every reader, permissive ones included, returns what main returned on each malformed list", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "trusted-actors-fixtures-"));
+  const tree = gateSourceCopyBesideFixture();
+  let n = 0;
+  for (const [name, text] of Object.entries(FIXTURES)) {
+    const path = join(dir, `${name}.json`);
+    if (text !== null) {
+      writeFileSync(path, text);
+    }
+    const got = await readers(path, text, tree, n++);
+    RECORDED_ON_MAIN[name].forEach((want, i) => {
+      assert.deepEqual(got[i], want === RAW ? JSON.parse(text) : want, `${COLUMNS[i]} on the ${name} list returns what main returned ("!Name" is a throw)`);
+    });
+  }
+  rmSync(dir, { recursive: true });
+  rmSync(tree, { recursive: true });
+});
+
+test("on the real list every reader agrees with the validated view", async () => {
+  const path = join(ROOT, TRUSTED_ACTORS_PATH);
+  const text = readFileSync(path, "utf8");
+  const tree = gateSourceCopyBesideFixture();
+  const list = loadTrustedList(path);
+  const humans = [...list.humans];
+  assert.ok(humans.length > 0, "the real list names a person");
+  assert.deepEqual(await readers(path, text, tree, "real"), [
+    view(list),
+    [...list.ids],
+    readRawTrustedActors(path),
+    humans,
+    list.logins.get("claude[bot]"),
+    list.logins.get("dependabot[bot]"),
+    humans,
+    humans,
+  ]);
+  rmSync(tree, { recursive: true });
+});

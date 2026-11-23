@@ -21,9 +21,8 @@
 // `label`, `created_at`, `updated_at`. Text written by anyone but those
 // authors is never read.
 
-import { readFileSync } from "node:fs";
-
 import { FOOTER as LANE_FOOTER } from "../lib/lane-binding.mjs";
+import { readRawTrustedActors, SAME_TREE_LIST } from "../lib/trusted-actors.mjs";
 import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
@@ -88,7 +87,7 @@ let trustedHumanIds;
 export function trustedHumans() {
   if (trustedHumanIds === undefined) {
     try {
-      const list = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+      const list = readRawTrustedActors(SAME_TREE_LIST);
       trustedHumanIds = new Set(list.actors.filter((actor) => actor?.kind === "human" && Number.isSafeInteger(actor.id)).map((actor) => actor.id));
     } catch {
       trustedHumanIds = new Set();
