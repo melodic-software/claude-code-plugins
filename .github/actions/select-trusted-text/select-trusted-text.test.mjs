@@ -1,3 +1,4 @@
+// test-scope: .github/actions/check-trusted-trigger/fixtures/trusted-actors.json
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import path from "node:path";

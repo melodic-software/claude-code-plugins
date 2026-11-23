@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
