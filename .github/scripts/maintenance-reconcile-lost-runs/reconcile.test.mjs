@@ -2014,7 +2014,6 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     comments: { totalCount: 0, nodes: [] },
   };
   const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
-  // The pull requests whose spec was read.
   const specReads = [];
   const prefilterReads = [];
   // The reconciler's own pass reads (passStarts), which page nothing.
