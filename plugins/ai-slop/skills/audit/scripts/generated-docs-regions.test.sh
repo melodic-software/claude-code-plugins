@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# The repository's own script-generated docs open their generated block with the
-# standalone BEGIN GENERATED marker line detect.sh skips. Each case copies the
-# committed file, plants an em dash just inside the block and another after the
-# file's end, and expects only the outside one flagged: a marker the detector
-# does not recognize lets the fix-docs lane edit text its generator overwrites.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +7,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# Shipped defaults only: this repository's ai-slop.yaml disables rule-em-dash.
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"

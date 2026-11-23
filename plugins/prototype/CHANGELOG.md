@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.3] - 2026-11-23
+
+### Changed
+
+- `/prototype:explore-directions`, `/prototype:pressure-test` no longer gather repository context that no step read.
+
 ## [0.47.2] - 2026-11-22
 
 ### Changed

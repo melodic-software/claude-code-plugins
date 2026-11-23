@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.2] - 2026-11-23
+
+### Changed
+
+- `/ai-slop:audit` no longer gather repository context that no step read.
+
 ## [0.21.1] - 2026-11-23
 
 ### Changed

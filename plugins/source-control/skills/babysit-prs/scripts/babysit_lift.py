@@ -146,7 +146,7 @@ def close_lifted(repo: str, identity: str | None) -> int:
             if (
                 not isinstance(number, int)
                 or number in seen
-                or not policy.LIFTABLE_RECORD.fullmatch(first)
+                or policy.liftable_record(first) is None
             ):
                 continue
             seen.add(number)

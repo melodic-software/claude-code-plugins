@@ -2188,9 +2188,9 @@ jobs:
   # check-intent's from a fresh checkout but for the credential, the reads
   # it takes from check-intent, its own leg checks and the
   # key-only steps (handing the reads on, the credit gate, the credit-stop
-  # and probing markers); workflow.test.mjs holds the rest equal, so the
-  # trigger gate, the kill switch and the hardening run again. Only this
-  # job references the subscription token.
+  # and probing markers); scripts/sync-credential-legs.mjs renders the rest
+  # from check-intent's, so the trigger gate, the kill switch and the
+  # hardening run again. Only this job references the subscription token.
   check-intent-subscription:
     name: Check Intent Subscription
     needs: check-intent

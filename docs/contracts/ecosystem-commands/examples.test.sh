@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# The ecosystem-commands examples validate against ecosystem.schema.json, and an
-# example missing the required `globs` key does not. Well-formed `requires`
-# declarations validate; malformed ones do not.
-#
-#   bash docs/contracts/ecosystem-commands/examples.test.sh
-#
-# Validator: check-jsonschema (CHECK_JSONSCHEMA_BIN overrides), as
-# scripts/check-convention-yaml.sh uses. Without it the cases are skipped, not
-# passed.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 ROOT="$(cd "$DIR/../../.." && pwd)" || exit 2
-# The contract moved from docs/conventions/, which keeps stubs; a file is read
-# from the old home only when the new one lacks it.
 home_of() {
   if [[ -f "$ROOT/$1" ]]; then printf '%s' "$1"; else printf '%s' "docs/conventions/${1#docs/contracts/}"; fi
 }
@@ -58,8 +47,6 @@ else
   ok "an example without globs is rejected"
 fi
 
-# requires: a well-formed declaration validates; an entry with no probe, or a
-# key that names no command, does not.
 write_requires() {
   printf 'globs: ["*.yml"]\ncheck-cmd: "node tools/policy.mjs"\nrequires:\n  %s:\n    - name: ajv\n%b' "$1" "$2" >"$tmp/$3.yaml"
 }

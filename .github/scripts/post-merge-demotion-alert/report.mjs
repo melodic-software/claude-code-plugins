@@ -31,13 +31,13 @@ import {
   resolveRedMain,
 } from "./red-main.mjs";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
+import { KINDS, parseRecordMarker, recordPrefix } from "./demotion-record.mjs";
 
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const BOT = "github-actions[bot]";
 // github-actions[bot]'s numeric user id, which the file-demotion-issue job also trusts.
 const BOT_ID = 41898282;
-const CANARY_RECORD = /^<!-- (?:babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=canary -->$/;
 
 export const client = (env, { pace = () => delay(300) } = {}) => budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 200), pace });
 
@@ -232,14 +232,10 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   // the range.
   const issues = await botIssues(call, repo);
   const log = logIssue(issues);
-  const record = issues.find((i) =>
-    [`<!-- babysit-merge-demotion sha=${env.RUN_SHA} `, `<!-- post-merge-failure sha=${env.RUN_SHA} `].some((p) =>
-      firstLine(i.body).startsWith(p),
-    ),
-  )?.number;
+  const record = issues.find((i) => KINDS.some((kind) => firstLine(i.body).startsWith(recordPrefix(kind, env.RUN_SHA))))?.number;
   const canary = issues.find((i) => {
-    const sha = CANARY_RECORD.exec(firstLine(i.body))?.[1];
-    return i.state === "open" && (range ?? []).includes(sha);
+    const marker = parseRecordMarker(firstLine(i.body));
+    return marker?.signal === "canary" && i.state === "open" && (range ?? []).includes(marker.sha);
   });
 
   const markers = await logMarkers(call, repo, log);

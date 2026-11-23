@@ -79,7 +79,7 @@ const TIMER_MAX_MS = 2 ** 31 - 1; // a longer setTimeout delay fires after 1 ms
 const timerMs = (ms) => Math.min(ms, TIMER_MAX_MS);
 const SOCK_MAX = 100; // a Unix socket path is limited to roughly a hundred bytes
 const EXIT_POLL_MS = 1000;
-const WHOLE = /^[1-9]\d*$/; // a whole number above 0, no sign or leading zero
+const WHOLE = /^[1-9]\d*$/;
 const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
 
 // Launch flags and the variables cleared before Claude Code starts.
@@ -95,9 +95,6 @@ const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|lib
 // As of: 2026-10-24. Recheck trigger: that section changes which credential a
 // base URL without a gateway credential sends.
 export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
-// --in-sandbox: the caller's own sandbox (the capture's sibling bwrap) is the file and process
-// boundary, so the launch drops --restricted, leaving Bash in the default tools, and sets no scrub,
-// whose nested PID-namespace bwrap that sandbox cannot start (ENOSPC, #13711 probe run 42247376450).
 export const IN_SANDBOX_FLAGS = ['--strict-mcp-config'];
 // The launch broker's dummy-key prefix (broker.mjs KEY_PREFIX, pinned equal by broker.test.mjs):
 // --in-sandbox runs only on the unattended ANTHROPIC_API_KEY the broker hands its driver child.
@@ -197,7 +194,6 @@ export function buildPrint(config, env, prompt) {
   return { ...launch, argv: [...launch.argv, ...strict, ...PRINT_FLAGS, prompt] };
 }
 
-/** The launch config a verb's options select: `--unattended` reads `credentials.ci` from committed config. */
 const launchConfig = (opts, pluginDir) => ({
   pluginDir,
   unattended: Boolean(opts.unattended),
@@ -226,7 +222,6 @@ class Unsafe extends Error {
   code = 5;
 }
 
-/** Creates `dir` 0700 when absent and refuses one that is not a directory owned by you and closed to others. */
 function privateDir(dir, { create = true } = {}) {
   if (create) mkdirSync(dir, { recursive: true, mode: 0o700 });
   else if (!existsSync(dir)) return dir;
@@ -238,7 +233,6 @@ function privateDir(dir, { create = true } = {}) {
   return dir;
 }
 
-// ---- install (docs/contracts/on-demand-dependencies rules 2 and 3) ----
 
 function checkoutRoot() {
   const root = resolve(HERE, '..', '..', '..', '..', '..');
@@ -319,10 +313,6 @@ function npm(args, cwd) {
   return { ok: !run.error && run.status === 0, why: run.error ? String(run.error.message) : `exit ${run.status}: ${tail}` };
 }
 
-/**
- * Runs one short process in the engine and closes it, which loads the native
- * binding; readiness is a load probe, not a version check.
- */
 function loadProbe(dir) {
   const url = pathToFileURL(join(dir, 'node_modules', ENGINE, 'dist', 'index.js')).href;
   const code = [
@@ -349,7 +339,6 @@ const alive = (pid) => {
   }
 };
 
-/** Removes the partial installs of processes that are gone. */
 function reapPartials(target) {
   const dir = dirname(target);
   const names = existsSync(dir) ? readdirSync(dir) : [];
@@ -359,7 +348,6 @@ function reapPartials(target) {
   }
 }
 
-/** Verifies the install's signatures and loads it once, then marks it verified. */
 function verifyInstall(dir, repair) {
   const audit = npm(['audit', 'signatures'], dir);
   if (!audit.ok) throw new Broken(`npm audit signatures failed (${audit.why})`, repair);
@@ -374,7 +362,7 @@ export function ensureInstalled(explicit) {
   const verified = () => hasEngine(target) && existsSync(join(target, SIGNED));
   if (verified()) return target;
   if (hasEngine(target)) {
-    verifyInstall(target, repair); // installed by the repair line
+    verifyInstall(target, repair);
     return target;
   }
   reapPartials(target);
@@ -386,24 +374,17 @@ export function ensureInstalled(explicit) {
     const ci = npm(NPM_CI_ARGS, partial);
     if (!ci.ok || !hasEngine(partial)) throw new Broken(`npm ci failed (${ci.why})`, repair);
     verifyInstall(partial, repair);
-    // A failed repair can leave the target without an engine; it holds nothing to keep.
     if (existsSync(target) && !hasEngine(target)) rmSync(target, { recursive: true, force: true });
     renameSync(partial, target);
   } catch (err) {
     rmSync(partial, { recursive: true, force: true });
-    if (verified()) return target; // a concurrent install won
+    if (verified()) return target;
     throw err instanceof Broken ? err : new Broken(`install failed (${err.message})`, repair);
   }
   return target;
 }
 
-// ---- session transport ----
 
-/**
- * The per-user directory for sockets, pipe names and holder logs; no other account can create it first.
- * CCD_RUNTIME_DIR, read ahead of XDG_RUNTIME_DIR, names the same base for a driving session whose
- * Bash does not see XDG_RUNTIME_DIR.
- */
 function runtimeDir(platform) {
   const env = process.env;
   if (platform === 'win32') return join(env.LOCALAPPDATA || join(os.homedir(), 'AppData', 'Local'), 'ccd');
@@ -456,11 +437,6 @@ const release = (lock, pid) => {
   if (lockOwner(lock) === pid) rmSync(lock, { force: true });
 };
 
-/**
- * Reserves a session for this launch by creating its lock file exclusively, so
- * two launches cannot both start a holder. A lock whose process is gone is
- * reclaimed; one whose process runs means the session is taken.
- */
 function reserve(session) {
   const lock = lockFile(session);
   const taken = new UsageError(`session '${session}' is already running; run stop first`);
@@ -474,15 +450,13 @@ function reserve(session) {
       if (err.code !== 'EEXIST') throw err;
     }
     const owner = lockOwner(lock);
-    if (owner === undefined) continue; // released since the create failed
+    if (owner === undefined) continue;
     if (!owner || alive(owner)) throw taken;
-    // Re-read before removing, so a lock another launch just reclaimed is left alone.
     if (lockOwner(lock) === owner) rmSync(lock, { force: true });
   }
   throw taken;
 }
 
-/** Whether a process accepts connections on `sock`. */
 const listening = (sock) =>
   new Promise((done) => {
     const conn = net.createConnection(sock);
@@ -493,9 +467,7 @@ const listening = (sock) =>
     conn.on('error', () => done(false));
   });
 
-// A reply line past this is refused, from the session holder and from the launch broker alike.
 const REPLY_LINE_MAX = 1 << 20;
-// Time a holder or broker gets beyond the verb's own timeout before the client gives up.
 const REPLY_GRACE_MS = 120_000;
 
 /** Sends one verb to the session holder; fails past `deadlineMs` (at most TIMER_MAX_MS) or a reply over REPLY_LINE_MAX. */
@@ -538,7 +510,6 @@ export function request(session, verb, args = {}, deadlineMs = (args.timeout ?? 
 
 const PING_MS = 5000;
 
-/** The sessions under the runtime directory whose holder answers. */
 async function liveSessions(platform = process.platform) {
   const dir = privateDir(runtimeDir(platform), { create: false });
   const suffix = platform === 'win32' ? '.pipe' : '.sock';
@@ -570,7 +541,6 @@ export async function drivenAccount(session) {
   return lines;
 }
 
-// ---- config and changed plugins ----
 
 const CONFIG_DIR = join(HERE, '..', 'config');
 
@@ -606,7 +576,6 @@ export function changedPlugins(files, root = process.cwd()) {
   return dirs;
 }
 
-/** Each changed plugin to launch, at most maxEntryPoints, since each one drives at least one entry point. */
 function plugins(files, config = readConfig()) {
   const dirs = files.length ? changedPlugins(files) : [config.pluginDir].filter(Boolean);
   if (!files.length && !dirs.length) throw new UsageError('plugins got no changed file and config sets no pluginDir');
@@ -615,10 +584,9 @@ function plugins(files, config = readConfig()) {
   return { text: dirs.slice(0, config.maxEntryPoints).join('\n'), status: 0 };
 }
 
-// ---- masks: what a capture hides ----
 
 const SKILL_FILE = join(HERE, '..', 'SKILL.md');
-const MASK_CHAR = '*'; // drive's credential pattern takes no value made of it
+const MASK_CHAR = '*';
 const BOX = /[─-╿]/;
 const MIRROR_READY = 'ccd-mirror-ready';
 const MIRROR_MS = 5000;
@@ -687,7 +655,6 @@ export function accountLines(status, keySource) {
   throw new Error('claude auth status names no email or organization');
 }
 
-/** The session holder's auth status, read once per session in its launch environment. */
 const sessionStatus = (ctx) => (ctx.status ??= authStatus(ctx.env));
 
 const unitsOf = (cell) => cell.char.length;
@@ -735,7 +702,6 @@ export function maskCells(cells, masks, values = [], cols = 0) {
       for (let k = i; k < i + needle.length; k++) hide.add(stream[k]);
     }
   }
-  // A masked cell loses its style too: a meter's colored cells show its level without any text.
   const blank = (cell) => {
     Object.assign(cell, { char: MASK_CHAR, fg: 'default', bg: 'default' });
     for (const [name] of ATTRS) cell[name] = false;
@@ -746,7 +712,7 @@ export function maskCells(cells, masks, values = [], cols = 0) {
       if (BOX.test(cell.char)) masking = false;
       else if (masking || hide.has(cell)) {
         masking = true;
-        blank(cell); // a wide glyph's '' columns become stars too, so the row keeps its width
+        blank(cell);
       }
     }
   }
@@ -801,7 +767,6 @@ const settled = (text) =>
     .trimEnd();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The second terminal draws only what the holder writes to it, cursor hidden.
 const MIRROR_JS = `process.stdin.setRawMode(true);process.stdin.on('data',(d)=>process.stdout.write(d));process.stdout.write('\\x1b[?25l${MIRROR_READY}');`;
 
 async function openMirror(ctx, size) {
@@ -816,7 +781,6 @@ async function openMirror(ctx, size) {
   return mirror;
 }
 
-/** The live screen, masked. */
 async function maskedFrame(t, ctx) {
   ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8'), ctx), values: statusValues(sessionStatus(ctx)) };
   const size = await t.getSize();
@@ -824,7 +788,6 @@ async function maskedFrame(t, ctx) {
   return { size, text, draw: renderFrame(rows) };
 }
 
-/** Draws a masked frame in the mirror and waits until the mirror shows exactly its text. */
 async function show(mirror, frame) {
   await mirror.write(frame.draw);
   const want = settled(frame.text);
@@ -838,7 +801,6 @@ const removeCapture = (path) => {
   rmSync(`${path}.txt`, { force: true });
 };
 
-/** Redraws the next masked frame while a recording runs; a failure ends in record stop's error. */
 async function syncFrame(t, ctx, rec) {
   if (rec.busy || rec.error) return;
   rec.busy = true;
@@ -856,9 +818,7 @@ async function syncFrame(t, ctx, rec) {
   }
 }
 
-// ---- holder: owns the terminal session (internal verb `serve`) ----
 
-// record-stop's one answer: the path is already known from record start, so the holder names none.
 const RECORD_STOPPED = 'recording stopped';
 
 const HANDLERS = {
@@ -894,7 +854,7 @@ const HANDLERS = {
     const mirror = await openMirror(ctx, frame.size);
     const rec = { mirror, path, frames: [frame.text], last: frame.draw };
     try {
-      await show(mirror, frame); // the first recorded frame is already masked
+      await show(mirror, frame);
       await mirror.startRecording(path);
     } catch (err) {
       await mirror.closeQuiet().catch(() => {});
@@ -926,7 +886,6 @@ const HANDLERS = {
   },
 };
 
-/** Whether Claude Code has exited; a state read that fails is not taken as an exit. */
 async function childExited(terminal) {
   try {
     const state = await terminal.state();
@@ -940,8 +899,6 @@ async function serve(opts) {
   const { sock, nameFile } = endpoint(opts.session);
   const lock = lockFile(opts.session);
   const launch = buildLaunch(launchConfig(opts, opts['plugin-dir']), process.env);
-  // The launch reserved the session, so a socket left here belongs to a holder that is gone;
-  // one that still answers is refused, before claude starts, rather than unlinked.
   const stale = process.platform !== 'win32' && existsSync(sock);
   if (stale && (await listening(sock))) throw new Error(`another process is serving ${sock}`);
   for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
@@ -949,8 +906,6 @@ async function serve(opts) {
   const terminal = TuiTest.ephemeral(COMPONENT);
   const ctx = { TuiTest, env: launch.env, keySource: launch.keySource, realSetup: Boolean(opts['real-setup']) };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
-  // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
-  // still shows the environment the holder started with, which #8651's isolation probe covers.
   for (const name of CI_NAMES) delete process.env[name];
   if (await childExited(terminal)) throw new Error(`${launch.argv[0]} exited as soon as it started`);
   if (stale) rmSync(sock, { force: true });
@@ -960,7 +915,6 @@ async function serve(opts) {
   };
   const server = net.createServer((conn) => {
     let buf = '';
-    // A client that goes away before its reply must not take the holder down with it.
     conn.on('error', () => {});
     conn.on('data', async (d) => {
       buf += d;
@@ -970,7 +924,7 @@ async function serve(opts) {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
           await closeTerminal();
-          free(); // before the reply, so a launch right after stop finds the session free
+          free();
           conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => process.exit(0));
           return;
         }
@@ -986,7 +940,7 @@ async function serve(opts) {
   const free = () => {
     server.close();
     rmSync(nameFile ?? sock, { force: true });
-    release(lock, process.pid); // last, so the next launch cannot reserve before the endpoint is gone
+    release(lock, process.pid);
   };
   const closeAndExit = async () => {
     await closeTerminal();
@@ -994,7 +948,6 @@ async function serve(opts) {
     process.exit(0);
   };
   setTimeout(closeAndExit, Number(opts.ttl) * 1000).unref();
-  // Free the session as soon as Claude Code exits, so the next launch can start one.
   let polling = false;
   setInterval(async () => {
     if (polling) return;
@@ -1029,7 +982,7 @@ export function launchCwd(opts) {
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   const config = launchConfig(opts, pluginDir);
-  const { env, argv } = buildLaunch(config, process.env); // usage and credential checks before any install
+  const { env, argv } = buildLaunch(config, process.env);
   if (!WHOLE.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
@@ -1039,7 +992,6 @@ async function launch(opts) {
     depsBase(opts['deps-dir'], false);
     return `dry run: would launch session '${opts.session}' in ${cwd.dir} running ${argv.join(' ')}; started nothing`;
   }
-  // Everything from here on, the pipe name and the log included, happens under the reservation.
   const lock = reserve(opts.session);
   let install;
   let log;
@@ -1102,7 +1054,6 @@ async function launch(opts) {
       await sleep(250);
     }
   }
-  // A holder that never answered would keep the session reserved where stop cannot reach it.
   if (!exited) holder.kill();
   release(lock, holder.pid);
   const text = existsSync(log) ? readFileSync(log, 'utf8') : '';
@@ -1113,7 +1064,6 @@ async function launch(opts) {
   throw new Error(`${why}${tail ? `: ${tail}` : ''}`);
 }
 
-/** The font probe harness-ops declares in prerequisites.json, or undefined when it cannot be read. */
 function fontProbe() {
   try {
     const declared = JSON.parse(readFileSync(join(HERE, '..', '..', '..', 'prerequisites.json'), 'utf8'));
@@ -1150,17 +1100,9 @@ function doctor(opts) {
   return { text: lines.join('\n'), status };
 }
 
-// ---- print mode: the init event and the stream-json log ----
 
-/**
- * Runs Claude Code in print mode, copies its stdout to `out`, and resolves with
- * the init event (undefined when none came), the exit, and whether the run hit
- * `timeoutMs`. Claude Code and every process it started are stopped as soon as
- * `stopAt(init)` holds or the time is up: SIGTERM, then SIGKILL after a grace.
- */
 function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
   const { argv, env } = buildPrint(config, process.env, prompt);
-  // No symlink is followed, so one swapped in after a broker's path check fails the open.
   const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
   let fd;
   try {
@@ -1174,7 +1116,6 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
     open = false;
   };
   return new Promise((done, fail) => {
-    // Its own process group on POSIX, so a stop reaches a wrapper's children too.
     const group = process.platform !== 'win32';
     const child = spawn(argv[0], argv.slice(1), { env, detached: group, stdio: ['ignore', 'pipe', 'inherit'] });
     const decoder = new StringDecoder('utf8');
@@ -1256,7 +1197,6 @@ function printTarget(opts, verb, defaultTimeout) {
 const keyLine = (init, want) =>
   init.apiKeySource === want ? [] : [`refused: apiKeySource is ${JSON.stringify(init.apiKeySource)}, not ${JSON.stringify(want)}; drive nothing`];
 
-/** The name in a plugin directory's manifest, or undefined when it has none. */
 function manifestName(pluginDir) {
   try {
     return JSON.parse(readFileSync(join(pluginDir, '.claude-plugin', 'plugin.json'), 'utf8')).name;
@@ -1273,7 +1213,6 @@ const realOrSelf = (p) => {
   }
 };
 
-/** Whether the init event lists the plugin under test, by manifest name or by path. */
 function loaded(init, pluginDir) {
   const name = manifestName(pluginDir);
   const dir = realOrSelf(pluginDir);
@@ -1290,7 +1229,6 @@ async function sessionLine(session) {
   }
 }
 
-/** What a print-mode verb would run, printed in place of running it under --dry-run. */
 const wouldRunPrint = (config, prompt, out) =>
   `dry run: would run ${buildPrint(config, process.env, prompt).argv.join(' ')} and write its stream-json to ${out}; ran nothing`;
 
@@ -1330,12 +1268,10 @@ async function log(opts, prompt) {
   return { text: lines.join('\n'), status: clean ? 0 : 1 };
 }
 
-// ---- broker mode: launch, ready and log run where the launch broker runs ----
 
 export const BROKERED = ['launch', 'ready', 'log'];
 const PATH_OPTIONS = ['plugin-dir', 'out', 'deps-dir'];
 export const RELAY_PREFIX = 'broker| ';
-// Launch's own wait plus one engine install, which a broker's pre-filled deps dir skips.
 const LAUNCH_MS = 30_000 + NPM_TIMEOUT_MS;
 
 /** How long a brokered verb waits for the broker's exit: the verb's own timeout plus the reply grace, at most TIMER_MAX_MS. */
@@ -1345,7 +1281,6 @@ export function brokerDeadline(verb, values) {
   return timerMs(base + REPLY_GRACE_MS);
 }
 
-// ESC sequences (CSI, OSC, two-byte), then every other C0 and C1 control but \n and \t.
 const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-_])/g;
 const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029]/g;
 
@@ -1363,7 +1298,6 @@ export function relayLines(stream) {
   };
 }
 
-/** Refuses a broker socket that is not a socket you own in a directory closed to others. */
 function checkBrokerSocket(sock) {
   if (!isAbsolute(sock)) throw new UsageError('CCD_BROKER_SOCK must be an absolute path');
   privateDir(dirname(sock), { create: false });
@@ -1439,7 +1373,6 @@ export function viaBroker(sock, req, { stdout = process.stdout, stderr = process
   });
 }
 
-// ---- CLI ----
 
 const OPTIONS = {
   session: { type: 'string', default: 'default' },
@@ -1523,7 +1456,6 @@ export function helpText(verb) {
   ].join('\n');
 }
 
-/** What a session request would send, printed in place of sending it under --dry-run. */
 const wouldRequest = (session, kind, payload = {}) => {
   checkSession(session);
   const json = JSON.stringify(payload);
@@ -1531,7 +1463,6 @@ const wouldRequest = (session, kind, payload = {}) => {
 };
 const sendOrShow = (o, kind, payload) => (o['dry-run'] ? wouldRequest(o.session, kind, payload) : request(o.session, kind, payload));
 
-/** A capture reply must be exactly what the holder answers for the request; any other path is never printed. */
 const expectReply = (got, want, what = 'the requested capture path') => {
   if (got !== want) throw new Error(`the session holder answered with something other than ${what}; use nothing it wrote`);
   return got;
@@ -1601,8 +1532,6 @@ async function main(argv) {
   if (broker && BROKERED.includes(verb)) {
     if (parsed.values['real-setup']) throw new Refused('refused: --real-setup runs only attended, and the launch broker runs unattended');
     checkBrokerSocket(broker);
-    // The broker refuses an option it does not know, so a dry run stops here, after the verb's own
-    // dry run has checked the arguments the way a real run would.
     const req = brokerRequest(verb, parsed.tokens.filter((t) => t.name !== 'dry-run'), rest);
     if (!dryRun) return viaBroker(broker, req, { timeoutMs: brokerDeadline(verb, parsed.values) });
     await run(parsed.values, rest);

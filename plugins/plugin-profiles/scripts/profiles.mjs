@@ -86,7 +86,8 @@
 // check    Checks the profile files at every level (lib/check.mjs says what fails and what is
 //          only reported). --catalog defaults to the marketplace.json of the marketplace this
 //          plugin was installed from (plugins/known_marketplaces.json), or of the repository a
-//          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk.
+//          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk
+//          or checks a repository tree with --skills. --changed takes one repository path per line.
 //
 // Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
 // consent, a missing required prerequisite, settings changed by another writer), nothing
@@ -95,7 +96,7 @@
 // 37 of https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
 // apply names a missing plugin with its install command and installs nothing.
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
@@ -104,6 +105,7 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { AddError, resolveAdded } from "../lib/added.mjs";
 import { CheckError, checkProfiles, readMarketplace } from "../lib/check.mjs";
+import { readSkillLinks, readTreePlugins } from "../lib/skill-links.mjs";
 import { claudeCommand } from "../lib/claude-command.mjs";
 import { InventoryError, installPlugin, inventory, knownMarketplaces, marketplaceLocation, recordsFromCli, recordsFromDisk } from "../lib/inventory.mjs";
 import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../lib/plan.mjs";
@@ -172,7 +174,7 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs usage [--json]
        profiles.mjs install <name@marketplace> [--dry-run] [--yes]
        profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>] [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
-       profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]`;
+       profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>] [--skills <plugins dir>] [--changed <file>]`;
 
 /** Exit status of a reset that wrote what it could and named each file it skipped; 1 stays "nothing written". */
 const PARTLY_DONE = 3;
@@ -358,7 +360,7 @@ function parseArgs(argv) {
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, answers: [], previewId: null };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json", "--keep-recorded"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
-  const values = { check: ["--catalog", "--shipped"], launch: ["--folder", "--with"], reset: [...ANSWER_FLAGS, "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
+  const values = { check: ["--catalog", "--shipped", "--skills", "--changed"], launch: ["--folder", "--with"], reset: [...ANSWER_FLAGS, "--preview-id"], list: [], inventory: [], usage: [], install: [], save: ["--level", "--description", "--plugins", "--optional", "--remove", "--exclude", "--hide-skills"] }[command] ?? ["--for"];
   const camel = (arg) => arg.slice(2).replace(/-(.)/g, (_, c) => c.toUpperCase());
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -1846,11 +1848,29 @@ function defaultCatalog(where) {
   return join(root, ".claude-plugin", "marketplace.json");
 }
 
-function check(opts, where, io) {
-  const catalog = readMarketplace(opts.catalog ?? defaultCatalog(where));
-  const levels = levelsOf(where);
-  if (opts.shipped) levels[0].dir = opts.shipped;
-  const installed = new Set(inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) }).keys());
+function writeSkillSummary({ changed, remaining }, path, io) {
+  const block = (lines) => lines.map((line) => `    ${line}\n`).join("");
+  const expanded = changed.length ? `#### Changed skills and profiles\n\n${block(changed)}\n` : "";
+  const collapsed = remaining.length ? `<details><summary>Tree-wide reports</summary>\n\n${block(remaining)}\n</details>\n` : "";
+  if (!expanded && !collapsed) return;
+  try {
+    appendFileSync(path, `\n### Shipped plugin profile reports\n\n${expanded}${collapsed}`);
+  } catch (error) {
+    io.err(`Report: could not write the profile check summary: ${error.message}`);
+  }
+}
+
+function check(opts, where, env, io) {
+  const tree = Boolean(opts.skills);
+  const root = tree ? dirname(resolve(opts.skills)) : where.projectDir;
+  const catalog = readMarketplace(opts.catalog ?? (tree ? join(root, ".claude-plugin", "marketplace.json") : defaultCatalog(where)));
+  const levels = tree ? levelsOf(where).slice(0, 1) : levelsOf(where);
+  if (opts.shipped || tree) levels[0].dir = resolve(opts.shipped ?? join(opts.skills, "plugin-profiles", "profiles"));
+  const plugins = tree ? readTreePlugins(resolve(opts.skills), catalog.name)
+    : inventory({ projectDir: where.projectDir, records: recordsFromDisk(where.configDir) });
+  const installed = new Set(tree ? [] : plugins.keys());
+  const changed = new Set(opts.changed ? readFileSync(opts.changed, "utf8").split(/\r?\n/).filter(Boolean).map((path) => resolve(root, path)) : []);
+  const skills = readSkillLinks(plugins, { tree, changed, root: tree ? root : undefined });
   const unreadable = [];
   const files = levels.flatMap((level) => {
     try {
@@ -1861,8 +1881,9 @@ function check(opts, where, io) {
       return [];
     }
   });
-  const { failures, reports } = checkProfiles({ files, catalog, installed });
-  for (const line of [...unreadable, ...reports]) io.out(`Report: ${line}`);
+  const { failures, reports, skillReports } = checkProfiles({ files, catalog, installed, skills });
+  for (const line of [...skillReports.changed, ...skillReports.remaining, ...unreadable, ...reports]) io.out(`Report: ${line}`);
+  if (tree && env.GITHUB_STEP_SUMMARY) writeSkillSummary(skillReports, env.GITHUB_STEP_SUMMARY, io);
   if (!failures.length) {
     io.out(`Profile check passed against the ${catalog.name} catalog.`);
     return 0;
@@ -1885,7 +1906,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     if (opts.command === "status") return status(opts, where, env, io);
     if (opts.command === "clear") return await clear(opts, where, env, io);
     if (opts.command === "reset") return await reset(opts, where, env, io);
-    if (opts.command === "check") return check(opts, where, io);
+    if (opts.command === "check") return check(opts, where, env, io);
     if (opts.command === "list") return listProfiles(opts, where, io);
     if (opts.command === "usage") return usage(opts, env, io);
     if (opts.command === "install") return await install(opts, where, io);

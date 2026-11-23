@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.2] - 2026-11-23
+
+### Changed
+
+- `/harness-ops:lanes`, `/harness-ops:observability` no longer gather repository context that no step read.
+
 ## [10.6.1] - 2026-11-23
 
 ### Changed

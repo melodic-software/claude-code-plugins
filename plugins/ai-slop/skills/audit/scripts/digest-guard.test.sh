@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for digest-guard.sh: fixtures are built inline in a
-# tmpdir, and each refusal is checked to leave nothing behind.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,8 +12,6 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
-# Runs the guard under a state root, leaving its exit status in RC and its
-# stdout in OUT.
 guard() {
   local root="$1"
   shift
@@ -30,7 +26,6 @@ RUN="$ROOT/ai-slop-fix-20261029T120000Z"
 DOC="$TEST_TMPDIR/doc.md"
 printf 'one\n' >"$DOC"
 
-# Case group 1: init, record and check.
 guard "$ROOT" init "$RUN"
 assert_eq "init: exit 0" "0" "$RC"
 assert_eq "init: prints the run directory" "$RUN" "$OUT"
@@ -57,7 +52,6 @@ RUN2="$ROOT/ai-slop-fix-20261029T120000Z-2"
 guard "$ROOT" record "$DOC" "$RUN2"
 assert_eq "record: creates an absent run directory" "0 yes" "$RC $([[ -d "$RUN2/digests" ]] && echo yes || echo no)"
 
-# Case group 2: what the guard refuses.
 (cd "$TEST_TMPDIR" && AI_SLOP_STATE_ROOT="$ROOT" bash "$GUARD" record doc.md "$RUN" >/dev/null 2>&1)
 assert_eq "a relative file path is refused" "2" "$?"
 guard "$ROOT" record "$TEST_TMPDIR" "$RUN"
@@ -87,8 +81,6 @@ assert_eq "an unknown subcommand is a usage error" "2" "$RC"
 guard "$ROOT" record "$DOC"
 assert_eq "a missing run directory argument is a usage error" "2" "$RC"
 
-# Case group 3: with no AI_SLOP_STATE_ROOT, a copy staged as a CI lane stages it
-# takes the lane's scratch directory as its root.
 LANE="$TEST_TMPDIR/ws/.lane"
 mkdir -p "$LANE/plugins/ai-slop/skills/audit/scripts" "$LANE/scratch"
 cp "$GUARD" "$LANE/plugins/ai-slop/skills/audit/scripts/digest-guard.sh"
@@ -101,7 +93,6 @@ bash "$LANE_GUARD" record "$DOC" "$LANE/scratch/../../ai-slop-fix-20261029T12000
 assert_eq "lane copy: a .. run directory that leaves the scratch directory is refused" "2" "$?"
 assert_eq "lane copy: nothing written beside the lane directory" ".lane" "$(ls -A "$TEST_TMPDIR/ws")"
 assert_eq "lane copy: nothing written outside the scratch directory" "" "$(ls -A "$OUTSIDE")"
-# The lane runs the script by its shebang, with no bash <path> rule.
 if [[ -x "$GUARD" ]]; then pass "the script is executable"; else fail "the script is executable" "-x" "not executable"; fi
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

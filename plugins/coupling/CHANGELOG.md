@@ -3,6 +3,12 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-11-23
+
+### Changed
+
+- `/coupling:reduce` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
 ## [0.5.5] - 2026-11-21
 
 ### Changed

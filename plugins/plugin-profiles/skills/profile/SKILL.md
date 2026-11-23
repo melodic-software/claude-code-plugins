@@ -112,8 +112,9 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   from a new dry run. When it refuses because the preview changed, nothing was written:
   start again from the dry run. Inside a session, tell the user that `/plugin-profile` and
   **Reset** do the same and reload the session.
-- **check**: `check` reports profile files that name plugins the catalog or machine lacks; relay
-  each FAIL and Report line.
+- **check**: `check` reports profile files that name plugins the catalog or machine lacks, and
+  skill `## Next` and `## Related` links that a profile switches off; relay each FAIL and Report
+  line.
 - **setup**: the guided walk below.
 
 ## setup
