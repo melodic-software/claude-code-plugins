@@ -57,7 +57,7 @@ test("tree links use profile membership, report each kind, and leave failures un
   const next = (target, profile) => `links.next: ${source} -> /${target} is off in profile ${profile}`;
   assert.deepEqual(links.next, [
     next("ui:go", "native"), next("guard:go", "native"), next("flow:hidden", "native"),
-    next("toy:go", "build"), next("flow:hidden", "build"),
+    next("toy:go", "build"), next("flow:hidden", "build"), next("impl:local", "build"),
   ]);
   assert.deepEqual(links.related, [`links.related: ${source} -> /toy:go is off in profile build`]);
   const offSource = join(root, "plugins", "off", "skills", "start", "SKILL.md");
@@ -77,11 +77,12 @@ test("links to another marketplace's plugin, to a changed target, and from an un
     "plugins/ui/skills/go/SKILL.md": "",
     "plugins/impl/skills/broken/SKILL.md/.keep": "",
     "other/vendor/skills/go/SKILL.md": "",
+    "user/vendorish.yaml": "plugins: [vendor@elsewhere]\n",
   });
   const plugins = new Map([...readTreePlugins(join(root, "plugins"), M), ...readTreePlugins(join(root, "other"), "elsewhere")]);
   const source = join(root, "plugins", "impl", "skills", "start", "SKILL.md");
   const moved = join(root, "plugins", "ui", "skills", "moved", "SKILL.md");
-  const files = readProfileFiles([{ level: "shipped", dir: join(root, "shipped") }]);
+  const files = readProfileFiles([{ level: "shipped", dir: join(root, "shipped") }, { level: "user", dir: join(root, "user") }]);
   const skills = readSkillLinks(plugins, { tree: true, changed: new Set([moved]) });
   const { links, unresolved, unreadable, failures, skillReports } = checkProfiles({ files, catalog: CATALOG, installed: new Set(), skills });
   assert.deepEqual(failures, []);

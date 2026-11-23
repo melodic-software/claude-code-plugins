@@ -60,14 +60,15 @@ export function skillLinkReports({ plugins, entries, tree, changed }, files, pro
   const profileRows = everyProfile(profiles).map((profile) => {
     const sources = sourcesOf(profiles, profile);
     const all = (key) => sources.flatMap((p) => [...p[key]]);
+    const leftOut = sources.includes(profiles.alwaysOn) ? [] : [...profiles.alwaysOn.plugins, ...profiles.alwaysOn.optional];
     return {
       name: profile.name,
       members: profileMembers([...all("plugins"), ...all("optional")], plugins, all("exclude")),
+      governed: new Set([...all("plugins"), ...all("optional"), ...all("exclude"), ...leftOut].map(marketplaceOf)),
       hidden: new Set(all("hideSkills")),
       changed: files.some((file) => sources.some((p) => p.name === file.name) && changed.has(file.path)),
     };
   });
-  const governed = new Set(everyProfile(profiles).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
   const changedTargets = new Set([...changed].map(skillToken).filter(Boolean).map((token) => `/${token}`));
   const targets = new Map();
   for (const { id, skill } of entries) {
@@ -87,9 +88,11 @@ export function skillLinkReports({ plugins, entries, tree, changed }, files, pro
         const touched = changed.has(path) || changedTargets.has(token);
         if (!ids) {
           add("unresolved", `links.unresolved: ${shown} (links.${kind}) -> ${token} has no skill`, touched || active.some((p) => p.changed));
-        } else if (!ids.includes(id) && ids.some((target) => governed.has(marketplaceOf(target)))) {
+        } else {
+          const own = ids.includes(id);
           for (const p of active) {
-            if (ids.some((target) => p.members.has(target)) && !p.hidden.has(skill) && !p.hidden.has(token.slice(1))) continue;
+            if (!own && !ids.some((target) => p.governed.has(marketplaceOf(target)))) continue;
+            if ((own || ids.some((target) => p.members.has(target))) && !p.hidden.has(skill) && !p.hidden.has(token.slice(1))) continue;
             add(kind, `links.${kind}: ${shown} -> ${token} is off in profile ${p.name}`, touched || p.changed);
           }
         }
