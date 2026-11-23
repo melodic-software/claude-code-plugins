@@ -72,9 +72,9 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in
   its profile. Tell them both forms.
 - **reopen with an off plugin**: in a one-session profile, the session-start notice gives the model
-  the line `claude --resume <id> --profile-add <plugin or plugin:skill>`. When the work needs a
-  plugin or skill the profile switched off (a `## Next` pointer into it, or the user asking for
-  it), offer that line with the session's id: it reopens this conversation in its profile with the
+  the reopen line: `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
+  When the work needs a plugin or skill the profile switched off (a `## Next` pointer into it, or
+  the user asking for it), offer that line with the session's id: it reopens this conversation in its profile with the
   plugin and its dependencies on, for this conversation only, and a later `claude --resume <id>`
   keeps it while new sessions and handoffs start without it. It takes a plugin id, a plugin name,
   `plugin:skill` or a skill name, never settings text. For a plugin that is not installed, the
@@ -153,8 +153,9 @@ written or declined, and the start offer in phase 7 is answered.
    leaves the new plugin off at user level unless the initial profile includes it; it never
    updates or uninstalls. How Claude Code installs a plugin, and what it asks for along the way:
    [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
-7. **Start.** Offer `claude --profile <name>` (or `profiles.mjs start <name>`) for the profile that
-   fits the next piece of work, which starts one session in it and writes no settings file.
+7. **Start.** Offer the `claude` function's `--profile <name>` (or `profiles.mjs start <name>`)
+   for the profile that fits the next piece of work, which starts one session in it and writes no
+   settings file.
 
 ## Next
 

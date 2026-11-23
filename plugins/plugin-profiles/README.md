@@ -65,8 +65,9 @@ Claude Code itself has no `--profile` flag; the function adds it:
   would. When that conversation ran in a profile, its start notice prints the
   `claude --resume <id>` that reopens it there. The tool cannot tell which conversation
   `-c` picks, so it never guesses.
-- `claude --resume <id> --profile-add <plugin>` reopens that conversation in its profile with an
-  installed plugin the profile switched off, and its dependencies, on for that conversation only.
+- `claude --resume <id>` with `--profile-add <plugin>` reopens that conversation in its profile
+  with an installed plugin the profile switched off, and its dependencies, on for that
+  conversation only.
   It takes a plugin id, a plugin name, `plugin:skill` or a skill name; an ambiguous one is refused
   with its candidates, and one that is not installed with its `claude plugin install` line. A later
   `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions and
