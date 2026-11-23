@@ -15,6 +15,10 @@
     {
       "answer": "The usual tool for \"I arrived mid-flow and don't know the stage\" is `/session-flow:workflow`, which works out the stage from what's on disk.",
       "why": "a negation inside a quoted user phrase does not negate the navigator"
+    },
+    {
+      "answer": "For “I arrived mid-flow and don't know the stage”, run /session-flow:workflow; it reads the ledger on disk.",
+      "why": "a negation inside a curly-quoted user phrase does not negate the navigator"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "Don't use “/session-flow:workflow” here; run /planning:plan.",
       "why": "negation before a curly-quoted navigator"
+    },
+    {
+      "answer": "You said \"I'm unsure\", so don't use \"/session-flow:workflow\".",
+      "why": "negation between a quoted user phrase and a quoted navigator"
     },
     {
       "answer": "You are at an unknown workflow stage, so run /planning:design.",
