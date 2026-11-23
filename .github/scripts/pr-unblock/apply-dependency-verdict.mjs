@@ -78,10 +78,12 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
+import { CDN_RECORD, cdnPaths } from "../apply-patch/cdn-paths.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { STOP_REASONS } from "../lib/stop-reason.mjs";
 import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
+  cdnSyncRefusal,
   COMMIT_FILES_LIMIT,
   fixRefusal,
   isDependabotSigned,
@@ -214,10 +216,7 @@ async function changeRefusal(api, files, pairs, before, after) {
   }
 }
 
-// Why one pull-request commit is not one the merge path may stand on, or
-// null: Dependabot's own, or a single-parent commit
-// whose files pass the fix rule against its parent.
-async function commitFixRefusal(api, item, pairs) {
+async function commitFixRefusal(api, item, pairs, appId, cdn) {
   const sha = String(item?.sha ?? "");
   if (isDependabotSigned(item)) return null;
   let detail;
@@ -231,7 +230,25 @@ async function commitFixRefusal(api, item, pairs) {
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1 || !SHA.test(String(detail.parents[0]?.sha))) {
     return `commit-parents:${sha.slice(0, 12)}`;
   }
-  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha);
+  const parent = detail.parents[0].sha;
+  const fix = await changeRefusal(api, files, pairs, parent, sha);
+  if (!fix) return null;
+  let sync;
+  try {
+    sync = await cdnSyncRefusal(detail, appId, cdn, (side, path) => entryAt(api, side === "before" ? parent : sha, path));
+  } catch (error) {
+    sync = `cdn-sync-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
+  }
+  return sync ? `${fix};${sync}` : null;
+}
+
+async function baseCdnPaths(api, baseSha) {
+  try {
+    const text = SHA.test(String(baseSha)) ? await api.getText(CDN_RECORD, baseSha) : null;
+    return text === null ? null : new Set(cdnPaths(JSON.parse(text)));
+  } catch {
+    return null;
+  }
 }
 
 // The base's dependabot.yml pairs, or null when it does not read.
@@ -424,8 +441,10 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     ) {
       refusal = "commits-not-listed-whole";
     }
+    let cdnRead;
+    const cdn = () => (cdnRead ??= baseCdnPaths(api, baseSha));
     for (const item of refusal ? [] : commits) {
-      refusal = await commitFixRefusal(api, item, pairs);
+      refusal = await commitFixRefusal(api, item, pairs, appId, cdn);
       if (refusal) break;
     }
     // A commit's author is text whoever creates it chooses; who pushed it is not.
