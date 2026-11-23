@@ -1,39 +1,4 @@
 #!/usr/bin/env bash
-# Reader for Python manifests: pyproject.toml and requirements*.txt.
-#
-# WHY. map-dependencies cites a Python project's declared requirements and the
-# local projects its path references name. setup.py is executable code, so it
-# is never run or parsed here; the collector reports it as unread.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   py_project_records <pyproject.toml>
-#     One line per fact, tab separated:
-#       name<TAB>value                              [project] or [tool.poetry] name
-#       pkg<TAB>name<TAB>declaration                a named requirement
-#       path<TAB>target<TAB>declaration<TAB>name    a requirement that names a
-#                                                   local path: "name @ file:...",
-#                                                   a poetry or uv entry with path =
-#       member<TAB>glob<TAB>declaration             a [tool.uv.workspace] members entry
-#       exclude<TAB>glob<TAB>declaration            a [tool.uv.workspace] exclude entry
-#       unread<TAB>declaration                      a shape this reader skips
-#     Read: [project] dependencies, [project.optional-dependencies] and
-#     [dependency-groups] arrays (PEP 508 strings), [tool.poetry.dependencies]
-#     and [tool.poetry.group.<g>.dependencies] entries, [tool.uv.sources]
-#     entries, [tool.uv.workspace] members and exclude arrays. Names are normalized (lower case, runs of - _ . become -).
-#     Unread: dynamic = ["dependencies"], a dependency value that is not a
-#     string, an inline table split across lines, a poetry dependency written
-#     as its own [table], a uv source with workspace = true or a list of
-#     sources, an unterminated array. Lines inside a multi-line string are
-#     skipped.
-#   py_requirements_records <requirements.txt>
-#     pkg, path and unread lines as above, plus:
-#       include<TAB>path<TAB>declaration            a -r / --requirement line
-#     A -e, ./ or ../ line is a path line with no name. -c and index options
-#     give no line; any other option is unread. A line ending in a backslash
-#     joins the next one.
-#
-# Portability: bash plus POSIX awk.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.

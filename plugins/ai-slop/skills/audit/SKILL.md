@@ -10,17 +10,6 @@ metadata:
   summary: Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>&1`

@@ -14,18 +14,7 @@ metadata:
 Exec-bit backstop: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --probe 2>/dev/null || echo "unavailable — run the check manually"`
 Old config location (user-global, still read below team): !`test -f "$HOME/.claude/source-control.md" && echo present || echo absent`
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Staged, `git diff --cached --stat | tail -1`
-- Unstaged, `git status --short | head -20`
-- Recent commits, `git log --oneline -5`
-
-Keep the `head` and `tail` pipes in the commands: they are the bound
-([reference/config-probes.md](reference/config-probes.md) says why).
+## Repository context. Probe the config layers
 
 Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and personal override as not applicable, skip the repo probes, and read only the old user-global file, when present ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 

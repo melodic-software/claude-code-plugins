@@ -1,35 +1,4 @@
 #!/usr/bin/env bash
-# Inventory the provenance signals already present in markdown: URLs, HTML
-# comment fences, stamp lines, and blockquote lines.
-#
-#   extract-breadcrumbs.sh --dir D | --files F...
-#
-# Reasoning-free (Brief constraint C1): this script EXTRACTS breadcrumbs and
-# makes no judgment about which breadcrumb explains which passage, or whether a
-# passage is a copy at all. Both of those are model work downstream.
-#
-# Output is grouped PER DIRECTORY, not per file, because spike S1 resolved a
-# real cross-file breadcrumb: a neighbor's citation named the source of an
-# unfenced copy. Handing the resolving step one file's breadcrumbs would have
-# lost that. `--dir` is deliberately non-recursive — the group is the sibling
-# set, and a subtree's files are their own siblings.
-#
-# Two shapes the design docs describe in prose and this script settles:
-#
-#   1. A fence is an HTML comment carrying a URL. `start_line`/`end_line` is the
-#      comment's own extent, unless a later comment whose body begins with `/`
-#      closes it (the `<!-- /provenance -->` idiom), in which case the span runs
-#      to the closer. No marker vocabulary is invented or required: a repo that
-#      has no fence convention still gets its URL-carrying comments inventoried.
-#   2. A stamp line is a stamp keyword followed, within a short window, by
-#      something date-shaped. A date with no keyword is not a stamp (a changelog
-#      entry is not a verification record), and a keyword with no date is not
-#      one either ("confirmed from a primary" is prose). This script only
-#      inventories them; check-stamps.sh decides what parses and what expires.
-#
-# A URL inside an HTML comment is reported as that fence's source_url and not
-# again under `urls`, so one breadcrumb is counted once.
-#
 # Exit: 0 on a clean run, 2 on usage error or an unreadable input path.
 set -uo pipefail
 
@@ -121,8 +90,6 @@ else
   done
 fi
 
-# --- Grouping --------------------------------------------------------------------
-
 GROUP_DIRS=()
 declare -A GROUP_MEMBERS=()
 
@@ -139,11 +106,6 @@ if [[ "${#GROUP_DIRS[@]}" -gt 1 ]]; then
   mapfile -t GROUP_DIRS < <(printf '%s\n' "${GROUP_DIRS[@]}" | LC_ALL=C sort)
 fi
 
-# --- Per-file extraction ---------------------------------------------------------
-
-# One awk pass per directory group. LC_ALL=C makes substr/length byte-wise,
-# which keeps multibyte text passing through unchanged while making the
-# control-character guard in jesc() well-defined.
 extract_group() {
   LC_ALL=C awk '
 function jesc(s,   out, i, c) {
@@ -420,8 +382,6 @@ END {
 }
 ' "$@"
 }
-
-# --- JSON product ----------------------------------------------------------------
 
 TOTALS_FILE="$(mktemp)"
 trap 'rm -f "$TOTALS_FILE"' EXIT

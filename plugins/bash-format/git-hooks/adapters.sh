@@ -10,7 +10,6 @@ BF_SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
 BF_SC_ARGS=(-x -f gcc -S warning)
 BF_SC_LARGE_LINES=2000
 
-# bf_sc_script [<flag>...]: sets RT_SCRIPT to the ShellCheck command, with BF_SC_ARGS and each <flag>.
 # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
 bf_sc_script() {
   local a
@@ -151,18 +150,6 @@ bf__dedupe() {
   done
   return 0
 }
-# bf_lint_once <out> <full> <file>...: bf_lint over the files, each identical
-# script linted once. Identical scripts lint identically when ShellCheck reads
-# nothing else that depends on the path: the extension (its dialect fallback),
-# the .shellcheckrc nearest the script's directory, and, for a script that
-# sources a file, the directory a SCRIPTDIR search path resolves it from. So each distinct (bytes,
-# extension, nearest rc) is linted once, from its first path, into $lint; a
-# group spread over directories stays whole only when a probe finds nothing it
-# sources, else it splits by directory. $copies maps a linted path to each copy,
-# which gets its findings under its own path, so its own added lines still decide
-# what blocks. Any failure here lints every path. The path-dependent inputs are
-# the ones https://github.com/koalaman/shellcheck/blob/master/shellcheck.1.md
-# lists under RC FILES, source-path and --shell.
 bf_lint_once() {
   local out="$1" full="$2" rc=0 copied copies="${CHECKS_TMP:?}/copies" plain=()
   shift 2
@@ -233,7 +220,6 @@ bf__dir() {
   BF_DIR="$f"
 }
 
-# bf__set <concern> <config path, repo-relative> <root>: the adapter's RT_*.
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
 bf__set() {
   RT_DIR="$3"
