@@ -310,9 +310,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -2325,9 +2322,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -4112,9 +4106,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"

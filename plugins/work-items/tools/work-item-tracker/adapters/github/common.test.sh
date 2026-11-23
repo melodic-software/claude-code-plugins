@@ -26,7 +26,6 @@ assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 # Lease-time logic (wit_iso_to_epoch, wit_lease_is_live, wit_lease_json) is
 # shared with the local-markdown adapter and tested once in lib/lease.test.sh.
 
-# Error mapping is pure — spot-check the classifier.
 assert_eq "404 → not-found (5)" "5" "$(wit_map_gh_error 'HTTP 404 Not Found')"
 assert_eq "rate limit → unavailable (8)" "8" "$(wit_map_gh_error 'API rate limit exceeded')"
 

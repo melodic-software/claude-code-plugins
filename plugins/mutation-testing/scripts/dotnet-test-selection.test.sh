@@ -43,7 +43,7 @@ run() {
   code=$?
 }
 
-expect() { # expect <label> <exit> <whole stdout>
+expect() {
   if [[ "$code" -eq "$2" && "$out" == "$3" ]]; then
     pass "$1"
   else
@@ -51,7 +51,6 @@ expect() { # expect <label> <exit> <whole stdout>
   fi
 }
 
-# One test file from each project.
 L1="'$TESTS/Shop.Tests.csproj' --filter 'FullyQualifiedName~Shop.Tests.CalculatorTests.|FullyQualifiedName~Shop.Tests.CalculatorTests+'"
 L2="'$SPECS/Shop.Specs.csproj' --filter 'FullyQualifiedName~Shop.Specs.DiscountSpecs.|FullyQualifiedName~Shop.Specs.RoundingSpecs.'"
 run "$TESTS/CalculatorTests.cs" "$SPECS/DiscountSpecs.cs"
@@ -68,12 +67,10 @@ else
   fail "want two lines of the project-and-filter shape, got $lines lines, $shape of that shape: $out"
 fi
 
-# Two files of one project share a line, in first-seen order; a repeat adds nothing.
 run "$TESTS/CalculatorTestsExtra.cs" "$TESTS/CalculatorTests.cs" "$TESTS/CalculatorTestsExtra.cs"
 expect "files of one project share one line" 0 \
   "'$TESTS/Shop.Tests.csproj' --filter 'FullyQualifiedName~Shop.Tests.CalculatorTestsExtra.|FullyQualifiedName~Shop.Tests.CalculatorTests.|FullyQualifiedName~Shop.Tests.CalculatorTests+'"
 
-# A project under the working directory prints relative to it.
 out="$(cd "$FX" && bash "$SUT" tests/Shop.Specs/OtherSpecs.cs 2>"$WORK/err")"
 code=$?
 expect "a project under the working directory prints relative" 0 \
@@ -85,7 +82,7 @@ SYN="$WORK/syn/App.Tests"
 mkdir -p "$SYN/Deep/Er" || exit 1
 : >"$SYN/App.Tests.csproj"
 P="'$SYN/App.Tests.csproj' --filter"
-src() { # src <name> <content>: write a source file and print its path
+src() {
   printf '%s' "$2" >"$SYN/$1"
   printf '%s' "$SYN/$1"
 }
@@ -144,7 +141,6 @@ code=$?
 expect "a relative file name with = is read as a file, not an awk assignment" 0 \
   "'App.Tests.csproj' --filter 'FullyQualifiedName~E.EqTests.'"
 
-# A path with a single quote survives the shell: the line evaluates to three words.
 Q="$WORK/it's here/Q.Tests"
 mkdir -p "$Q" || exit 1
 : >"$Q/Q.Tests.csproj"
@@ -157,7 +153,6 @@ else
   fail "a single quote in the project path - got exit $code: $out"
 fi
 
-# Refusals print nothing.
 run
 expect "no argument is a usage error" 2 ""
 run "$SYN/absent.cs"

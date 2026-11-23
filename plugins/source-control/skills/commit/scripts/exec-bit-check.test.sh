@@ -55,7 +55,6 @@ write_padded_script() {
   } >"$1"
 }
 
-# staged_mode <repo> <path> — the mode git recorded in the index for <path>.
 staged_mode() {
   (cd "$1" && git ls-files --stage -- "$2" 2>/dev/null | head -n 1 | cut -d' ' -f1)
 }

@@ -1,6 +1,3 @@
-// /review:explain-change: the digest policy (each trigger, each policy, the
-// cascade layers), the builder (template plus escaped JSON, never markup from
-// data), and the read-only boundary (no post, no check status).
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
@@ -55,7 +52,6 @@ function gitRepo(repo) {
   return { git, commit };
 }
 
-// `baseRefOid: "MAIN"` stands for main's commit at call time.
 const runPolicy = (home, repo) => (facts, args = []) => {
   const main = () => execFileSync("git", ["-C", repo, "rev-parse", "main"], { encoding: "utf8" }).trim();
   const out = spawnSync(process.execPath, [POLICY, ...args], {
@@ -66,7 +62,6 @@ const runPolicy = (home, repo) => (facts, args = []) => {
   assert.equal(out.status, 0, out.stderr);
   return JSON.parse(out.stdout);
 };
-/** The medium fields the skill reads: the medium, what decided it, and whether the publish gate takes it as explicit. */
 const at = ({ value, source, explicit }) => ({ value, source, explicit });
 const DEFAULT_MEDIUM = { value: "artifact", source: "plugin default", explicit: false };
 
@@ -722,7 +717,6 @@ describe("publish gate: the default artifact medium publishes only a public, cre
   });
   const factsDir = join(scratch, "gate-facts");
   mkdirSync(factsDir, { recursive: true });
-  /** A facts file as `/source-control:pull-request view` writes it; `url` is the pull request's own URL. */
   const factsFile = (name, url) => {
     const path = join(factsDir, `${name}.json`);
     writeFileSync(path, JSON.stringify(url === undefined ? { number: 7 } : { number: 7, url }));
@@ -741,7 +735,6 @@ describe("publish gate: the default artifact medium publishes only a public, cre
   const fakeGh = join(scratch, "gate-bin");
   const ghCalls = join(scratch, "gate-gh.log");
   mkdirSync(fakeGh, { recursive: true });
-  // FAKE_GH_BY_REPO, when set, answers the lookup per repository ({"acme/app": "public"}) and "private" otherwise.
   writeFileSync(
     join(fakeGh, "gh"),
     `#!/usr/bin/env node
@@ -873,8 +866,6 @@ describe("hosted publish: gate the built page, then pages-publish and the sideca
   const bin = join(scratch, "fake-bin");
   const log = join(scratch, "pages-publish.log");
   mkdirSync(bin, { recursive: true });
-  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT. A replace (--id)
-  // exits FAKE_REPLACE_EXIT when it is set, so a test can fail the replace and let the create succeed.
   writeFileSync(
     join(bin, "pages-publish"),
     `#!/usr/bin/env node
@@ -909,7 +900,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   const answer = (id, visibility) => JSON.stringify({ id, visibility, url: `https://${visibility}.pages.example/${id}/` });
   const sample = { title: "t", change: "c", why: "w", before: "b", after: "a", risks: [], focus: [], files: [] };
   let n = 0;
-  /** A fresh page and data dir; `sidecar` seeds the data dir. */
   const setup = (pageData = sample, sidecar = null) => {
     n += 1;
     const dir = mkdtempSync(join(scratch, "explain-hosted-"));
@@ -924,10 +914,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     rmSync(ghLog, { force: true });
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
-  /**
-   * `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. `repo` (`[host/]owner/repo`)
-   * becomes the facts file's pull request URL, on github.com when it names no host; `url` replaces that URL outright.
-   */
   const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", url, extra = [], out = "", exit = 0, replaceExit = "", deleteExit = 0, env = {} } = {}) => {
     const facts = join(data, "..", `facts-${n}.json`);
     const prUrl = url !== undefined ? url : `https://${repo.split("/").length === 3 ? "" : "github.com/"}${repo}/pull/7`;
@@ -1290,7 +1276,6 @@ describe("builder", () => {
 describe("connected page: the author Q&A over session-bridge", () => {
   const data = { title: "t", files: [{ path: "a.js", status: "modified", note: "n", hunks: [] }] };
   const origin = "http://127.0.0.1:8765";
-  // A data dir shaped like the one view-bridge ensure-running leaves: private, holding its session file.
   const bridgeDir = (name, port = 8765) => {
     const dir = join(scratch, name);
     mkdirSync(dir, { mode: 0o700 });
@@ -1387,7 +1372,6 @@ describe("connected page: the author Q&A over session-bridge", () => {
     assert.ok(!existsSync(join(plain, "x.html")));
   });
 
-  // CHROME, a Chrome or Chromium on PATH, or Playwright's headless shell.
   const playwright = join(homedir(), ".cache/ms-playwright");
   const shells = existsSync(playwright)
     ? readdirSync(playwright)

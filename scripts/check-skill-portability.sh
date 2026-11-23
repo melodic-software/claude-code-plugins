@@ -96,7 +96,6 @@ is_scannable() {
   esac
 }
 
-# Resolve the file set for the requested mode.
 files=()
 if ! gate_entry::classify "$@"; then
   usage

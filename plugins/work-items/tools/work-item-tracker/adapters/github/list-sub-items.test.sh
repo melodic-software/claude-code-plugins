@@ -42,10 +42,10 @@ EOF
 }
 
 assert_help "$S"
-assert_usage_error "$S"                              # no parent id
-assert_usage_error "$S" "github:o/r#1" --state bogus # bad state
-assert_usage_error "$S" "not-an-id"                  # malformed id
-assert_usage_error "$S" "local-markdown:o/r#1"       # foreign provider
+assert_usage_error "$S"
+assert_usage_error "$S" "github:o/r#1" --state bogus
+assert_usage_error "$S" "not-an-id"
+assert_usage_error "$S" "local-markdown:o/r#1"
 
 # --- subIssues nodes carry no `repository`, so the filter reads `url` (#3825) ---
 # The stub emits exactly what gh's export path emits for `--json subIssues`:

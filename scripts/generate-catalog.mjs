@@ -117,8 +117,6 @@ function buildBody() {
     const manifest = join(root, path, ".claude-plugin", "plugin.json");
     const { description } = JSON.parse(readFileSync(manifest, "utf8"));
     if (!description) throw new Error(`${plugin.name}: plugin.json has no description`);
-    // Link relative to the output file's directory, so the rendered links
-    // resolve wherever outputPath points.
     const link = toPosix(relative(dirname(outputPath), join(root, path)));
     byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${link}): ${description}`);
   }
@@ -127,7 +125,6 @@ function buildBody() {
   for (const category of CATEGORY_ORDER) {
     const items = byCategory.get(category);
     if (items.length === 0) continue; // skip empty categories (e.g. reserved deployment)
-    // H2: the categories sit directly under the output page's H1.
     sections.push(`## ${heading(category)}\n\n${items.join("\n")}`);
   }
 

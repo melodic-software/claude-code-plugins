@@ -338,7 +338,6 @@ is_tty_stdin() {
 }
 
 git_probe() {
-  # Read-only git with lazy-fetch and optional locks disabled.
   GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_LAZY_FETCH=1 \
     git -c protocol.file.allow=always "$@"
 }
@@ -476,7 +475,6 @@ oids_match() {
   return 1
 }
 
-# Decision records (parallel arrays) filled by refresh pass.
 D_PHASE=()
 D_OP=()
 D_CANONICAL=()
@@ -594,7 +592,6 @@ refresh_worktree_cleanup() {
   *) ;;
   esac
 
-  # Default / merged-worktree path.
   if [[ -z "$ref" ]]; then
     decide skip "target has no branch name"
     return 0
@@ -607,7 +604,6 @@ refresh_worktree_cleanup() {
   tip="$(branch_tip "$canonical" "$ref")"
   wt_path="$(worktree_path_for_branch "$canonical" "$ref")"
   if [[ -z "$wt_path" ]]; then
-    # Worktree already gone; still may need branch delete if tip matches.
     if [[ -n "$tip" ]] && oids_match "$expected" "$tip"; then
       decide delete-branch "worktree already gone; branch tip still matches plan OID" "$tip"
     else
@@ -946,7 +942,6 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
     ;;
   remove-worktree-then-branch)
     if [[ -z "$wt_path" || ! -d "$wt_path" ]]; then
-      # Fall back to branch-only if worktree vanished but tip still matches.
       tip="$(branch_tip "$canonical" "$ref")"
       if [[ -n "$tip" ]] && oids_match "$expected" "$tip"; then
         if git_mutate -C "$canonical" branch -D "$ref"; then

@@ -106,7 +106,7 @@ let resolved;
 
 // The issue lane's protected-path rules come from the base's apply-patch
 // and patch-rules.json, as committed; every issue-lane base needs them.
-const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.json", ".github/scripts/lib/retry-fetch.mjs", ".github/scripts/lib/run-main.mjs", ".github/actions/resolve-config/patch-rules.json"];
+const PATCH_RULE_FILES = [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/escalation-routes.mjs", ".github/scripts/pr-unblock/escalation-routes.json", ".github/scripts/lib/retry-fetch.mjs", ".github/scripts/lib/run-main.mjs", ".github/scripts/lib/lane-branch.mjs", ".github/actions/resolve-config/patch-rules.json"];
 function copyPatchRules(dir) {
   for (const file of PATCH_RULE_FILES) cpSync(path.join(REPO_ROOT, file), path.join(dir, file), { recursive: true });
 }
@@ -117,7 +117,7 @@ before(() => {
   mkdirSync(path.join(base, "plugins", "source-control"), { recursive: true });
   const docsScripts = path.join(base, "plugins", "discovery", "scripts");
   mkdirSync(docsScripts, { recursive: true });
-  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) writeFileSync(path.join(docsScripts, name), "");
+  for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) writeFileSync(path.join(docsScripts, name), "");
   mkdirSync(path.join(base, ".claude-plugin"));
   writeFileSync(path.join(base, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
   resolved = path.join(root, "resolved.json");
@@ -1165,7 +1165,7 @@ test("web-access with any domain allows the read-docs scripts and points their f
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
   assert.deepEqual(ownDenied(denied, env), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
-  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
+  for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
   // The cache directory travels in the prompt, never through $GITHUB_ENV.

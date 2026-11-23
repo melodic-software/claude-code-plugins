@@ -1,6 +1,4 @@
 async page => {
-  // The Notes panel on the host page: hide and show it with N, save a draft whose text is markup,
-  // edit it, delete a second draft, close the editor with Esc, then send the draft.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const MARKUP = '<img src=x onerror="window.__xss=1">';
   const focused = () => page.evaluate(() => document.activeElement.dataset.key || document.activeElement.id);
@@ -55,7 +53,6 @@ async page => {
     await page.keyboard.press("Escape");
     ok("Esc closes the editor, gives the focus back to Edit and keeps the draft", await page.isHidden("#composer") && (await focused()) === "edit-1" && (await page.textContent("#notes li")).includes("to the top"), await focused());
 
-    // Send pressed twice in one tick, with the editor open on that draft.
     await page.click('[data-key="edit-1"]');
     await page.evaluate(() => { const b = document.querySelector('[data-key="send-1"]'); b.click(); b.click(); });
     await page.waitForFunction(() => /Note 1 sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });

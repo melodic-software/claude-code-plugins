@@ -39,6 +39,10 @@
 //             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
+import { ATTENDED as ATTENDED_LABEL, HOST_RUN as HOST_RUN_LABEL } from "../lib/lane-vocabulary.mjs";
+
+export { ATTENDED_LABEL, HOST_RUN_LABEL };
+
 const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "park", "close", "fail"]);
 // The routes a row's `retries` may cap.
 const COUNTED_ROUTES = new Set(["retry", "wait", "intake"]);
@@ -73,11 +77,6 @@ for (const spent of ["retry-spent", "turn-cap-spent"]) {
     throw new Error(`stop-routes.json: ${spent} needs a route other than retry`);
   }
 }
-
-// The label host-run routes add: github-iac GovernedRepositories.cs defines it.
-export const HOST_RUN_LABEL = "host-run";
-// The label attended routes add, likewise declared in github-iac.
-export const ATTENDED_LABEL = "attended";
 
 // A reason's row, or undefined when the table does not list it.
 const rowOf = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason] : undefined);

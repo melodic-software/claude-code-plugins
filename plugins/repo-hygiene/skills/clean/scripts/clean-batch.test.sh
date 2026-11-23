@@ -13,7 +13,6 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
-# Named like the real per-plugin dir, so the inherited-value path is the one exercised.
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/repo-hygiene-test"
 export HOME="$TEST_TMPDIR/home"
 mkdir -p "$HOME"
@@ -22,7 +21,6 @@ FAILED=0
 cd "$TEST_TMPDIR" || exit 1
 
 mkrepo() {
-  # mkrepo <name> — a repo with a removable cache + build dir.
   local d="$TEST_TMPDIR/$1"
   git init "$d" >/dev/null 2>&1
   git -C "$d" config user.email t@example.com
@@ -33,7 +31,6 @@ mkrepo() {
   printf '%s' "$d"
 }
 
-# --- 1. usage guards ---
 rc=0
 bash "$BATCH" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -54,23 +51,18 @@ rc=0
 bash "$BATCH" --tier caches --apply --repo "$(mkrepo apponly)" >/dev/null 2>&1 || rc=$?
 assert_exit "apply without --batch-plan exits 2 (mandatory gate)" 2 "$rc"
 
-# A missing --batch-plan parent is created (mkdir -p), so that path is helpful:
 NEWPLAN="$TEST_TMPDIR/fresh/nested/plan"
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent)" --batch-plan "$NEWPLAN" 2>&1)" || rc=$?
 assert_exit "missing --batch-plan parent is created, dry-run succeeds" 0 "$rc"
 assert_file_exists "plan actually written at the requested path" "$NEWPLAN"
 
-# But an UNCREATABLE plan dir (parent is a regular file) must fail loudly with a
-# nonzero exit — never print BatchPlan/Summary and exit 0 with no plan written.
 echo blocker >"$TEST_TMPDIR/afile"
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent2)" --batch-plan "$TEST_TMPDIR/afile/sub/plan" 2>&1)" || rc=$?
 assert_exit "uncreatable --batch-plan dir exits 2" 2 "$rc"
 assert_not_contains "no BatchPlan printed on plan-write failure" "$out" "BatchPlan:"
 
-# A --batch-plan pointing at an existing NON-plan file (a typo onto user data)
-# must be refused, not truncated.
 USERFILE="$TEST_TMPDIR/precious.txt"
 printf 'important user data\nsecond line\n' >"$USERFILE"
 rc=0
@@ -82,14 +74,12 @@ if [[ "$(cat "$USERFILE")" == "important user data"$'\n'"second line" ]]; then
 else
   fail "non-plan file preserved" "important user data..." "$(cat "$USERFILE")"
 fi
-# An existing VALID batch plan is resumable (overwrite allowed).
 VALIDPLAN="$TEST_TMPDIR/valid.plan"
 printf 'REPO\t/x\tcaches\t/x/m.manifest\nGITDIR\t/y\tkey\n' >"$VALIDPLAN"
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent4)" --batch-plan "$VALIDPLAN" 2>&1)" || rc=$?
 assert_exit "existing batch plan is overwritable (resumable)" 0 "$rc"
 
-# --- 2. caches dry-run over 2 repos: one plan, aggregate summary ---
 R1="$(mkrepo r1)"
 R2="$(mkrepo r2)"
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2")"
@@ -106,7 +96,6 @@ else
 fi
 assert_file_exists "cache still present after dry-run" "$R1/.pytest_cache/x"
 
-# --- 3. caches apply consumes the gated plan ---
 out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PLAN")"
 assert_contains "apply announces fleet" "$out" "Fleet Clean (apply)"
 assert_contains "apply cleaned outcome" "$out" "Outcome: cleaned"
@@ -114,7 +103,6 @@ assert_contains "apply aggregate summary" "$out" "Summary: removed=2 failed=0"
 assert_file_absent "cache removed after apply r1" "$R1/.pytest_cache/x"
 assert_file_absent "cache removed after apply r2" "$R2/.pytest_cache/x"
 
-# --- 4. fleet-race: a repo that vanished after the dry-run is tolerated ---
 R3="$(mkrepo r3)"
 R4="$(mkrepo r4)"
 out="$(bash "$BATCH" --tier caches --repo "$R3" "$R4")"
@@ -130,13 +118,10 @@ assert_exit "apply tolerates a vanished repo (exit 0)" 0 "$rc"
 assert_contains "vanished repo reported skipped" "$out" "vanished after dry-run"
 assert_contains "surviving repo still cleaned" "$out" "removed=1"
 
-# --- 4b. fail-closed: a repo that lost its .git mid-apply (dir remains, child
-#         refuses "not a git repository" and exits before any Summary line) must
-#         count as a failure — batch exits 1, never a silent removed=0/exit-0. ---
 R6="$(mkrepo r6)"
 out="$(bash "$BATCH" --tier caches --repo "$R6")"
 PLAN_R6="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-mv "$R6/.git" "$R6/.gitgone" # repo dir stays, git metadata gone (rename, not rm)
+mv "$R6/.git" "$R6/.gitgone"
 rc=0
 out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PLAN_R6" 2>&1)" || rc=$?
 assert_exit "de-gitted repo fails the batch closed (exit 1)" 1 "$rc"
@@ -155,10 +140,6 @@ assert_exit "malformed REPO record (empty manifest) fails closed (exit 1)" 1 "$r
 assert_contains "malformed record reported" "$out" "malformed plan record"
 assert_file_exists "live repo cache NOT re-walked/removed" "$R7/.pytest_cache/x"
 
-# --- 4d. tier-authorization: a plan built for a BROADER tier must be refused when
-#         applied under a NARROWER --tier, before anything is removed. The exact
-#         repro: a `--tier build` dry-run plan (REPO/build records that fold caches)
-#         applied with `--tier caches` must NOT remove bin/ OR .pytest_cache/. ---
 R8="$(mkrepo r8)"
 out="$(bash "$BATCH" --tier build --repo "$R8")"
 PLAN_R8="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -170,8 +151,6 @@ assert_not_contains "no apply banner printed on tier mismatch" "$out" "Fleet Cle
 assert_file_exists "build dir NOT removed by mismatched apply" "$R8/bin/b"
 assert_file_exists "cache NOT removed by mismatched apply" "$R8/.pytest_cache/x"
 
-# --- 4e. tier-authorization: a GITDIR record must be refused under a non-git tier
-#         (gate the GITDIR arm on a git-bearing tier). ---
 GR2="$(mkrepo gitrepo2)"
 out="$(bash "$BATCH" --tier git --repo "$GR2")"
 GPLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -180,8 +159,6 @@ out="$(bash "$BATCH" --tier caches --apply --batch-plan "$GPLAN2" 2>&1)" || rc=$
 assert_exit "git plan under --tier caches is refused (exit 2)" 2 "$rc"
 assert_contains "GITDIR-under-non-git refusal reported" "$out" "GITDIR record requires --tier git or all"
 
-# --- 4f. tier-authorization is not over-strict: an `all` plan (REPO/build + GITDIR)
-#         applied under --tier all authorizes BOTH record kinds and runs them. ---
 AR2="$(mkrepo allrepo2)"
 out="$(bash "$BATCH" --tier all --repo "$AR2")"
 APLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -193,12 +170,6 @@ assert_contains "all apply prunes the shared object store" "$out" "Outcome: prun
 assert_file_absent "all apply removed build dir" "$AR2/bin/b"
 assert_file_absent "all apply removed cache" "$AR2/.pytest_cache/x"
 
-# --- 4g. tier-authorization runs in BOTH directions: `all` authorizes both record
-#         kinds, so a NARROWER plan passes every per-record test while applying only
-#         part of the requested tier. A `build` plan (no GITDIR) under --tier all
-#         would clean build artifacts and silently skip every prune; a `git` plan
-#         (no REPO) would prune and silently skip every build removal. Both are the
-#         same scope misrepresentation as 4d, from the other side. ---
 AR3="$(mkrepo allrepo3)"
 out="$(bash "$BATCH" --tier build --repo "$AR3")"
 BPLAN3="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -218,8 +189,6 @@ assert_exit "git plan under --tier all is refused (exit 2)" 2 "$rc"
 assert_contains "missing-REPO refusal reported" "$out" "carries no well-formed REPO record"
 assert_not_contains "no apply banner on missing-REPO refusal" "$out" "Fleet Clean (apply)"
 
-# An EMPTY plan plans nothing for either kind and removes nothing, so the presence
-# requirement must not turn it into an error under --tier all.
 EMPTYPLAN="$TEST_TMPDIR/empty-all.plan"
 : >"$EMPTYPLAN"
 rc=0
@@ -227,17 +196,10 @@ out="$(bash "$BATCH" --tier all --apply --batch-plan "$EMPTYPLAN" 2>&1)" || rc=$
 assert_exit "empty plan under --tier all applies as a no-op (exit 0)" 0 "$rc"
 assert_contains "empty all apply reports gitdirs=0" "$out" "gitdirs=0"
 
-# --- 4h. only a STRUCTURALLY WELL-FORMED record satisfies the `all` both-kinds
-#         requirement. A truncated record (`GITDIR\t\t`, `REPO\t\tbuild\t`) names no
-#         target, so counting it as presence would let a narrower plan clear 4g's
-#         check on a record that removes nothing — apply would print `Tier: all` and
-#         a gitdirs= tally while performing no cleanup for that half. The apply loop
-#         fails such a record closed (exit 1, structural corruption) — a distinct
-#         class from 4d/4g's well-formed-but-wrong-tier plan (exit 2, atomic). ---
 AR5="$(mkrepo allrepo5)"
 out="$(bash "$BATCH" --tier build --repo "$AR5")"
 BPLAN5="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-printf 'GITDIR\t\t\n' >>"$BPLAN5" # truncated: no representative worktree
+printf 'GITDIR\t\t\n' >>"$BPLAN5"
 rc=0
 out="$(bash "$BATCH" --tier all --apply --batch-plan "$BPLAN5" 2>&1)" || rc=$?
 assert_exit "truncated GITDIR does not satisfy --tier all (exit 2)" 2 "$rc"
@@ -252,7 +214,7 @@ assert_file_exists "build dir NOT removed by truncated-GITDIR all apply" "$AR5/b
 AR6="$(mkrepo allrepo6)"
 out="$(bash "$BATCH" --tier git --repo "$AR6")"
 GPLAN6="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-printf 'REPO\t%s\tbuild\t\n' "$AR6" >>"$GPLAN6" # truncated: no manifest path
+printf 'REPO\t%s\tbuild\t\n' "$AR6" >>"$GPLAN6"
 rc=0
 out="$(bash "$BATCH" --tier all --apply --batch-plan "$GPLAN6" 2>&1)" || rc=$?
 assert_exit "truncated REPO does not satisfy --tier all (exit 2)" 2 "$rc"
@@ -271,8 +233,6 @@ assert_exit "truncated GITDIR fails closed under --tier git (exit 1)" 1 "$rc"
 assert_contains "truncated GITDIR reported malformed" "$out" "malformed plan record"
 assert_contains "truncated GITDIR counted as a failure, not a gitdir" "$out" "failed=1 bytes=0 gitdirs=0"
 
-# Not over-strict: one valid GITDIR satisfies presence even alongside a malformed
-# sibling — the valid store is still pruned, the malformed record still fails closed.
 AR7="$(mkrepo allrepo7)"
 out="$(bash "$BATCH" --tier all --repo "$AR7")"
 APLAN7="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -287,13 +247,10 @@ assert_contains "only the valid GITDIR counted" "$out" "failed=1"
 assert_contains "malformed sibling adds no gitdir" "$out" "gitdirs=1"
 assert_file_absent "valid REPO record still applied" "$AR7/bin/b"
 
-# --- 5. skip list + unmatched skip ---
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2" --skip r2 --skip nosuchrepo)"
 assert_contains "skip-listed repo skipped" "$out" "skip-list (r2)"
 assert_contains "unmatched skip surfaced" "$out" "UnmatchedSkip: nosuchrepo"
 
-# --- 5b. collision-free manifests: two repos whose sanitized keys collide
-#         (differ only by punctuation) must get DISTINCT manifest paths. ---
 RA="$(mkrepo 'repo-x')"
 RB="$(mkrepo 'repo_x')"
 out="$(bash "$BATCH" --tier caches --repo "$RA" "$RB")"
@@ -305,7 +262,6 @@ else
   fail "distinct manifests for colliding keys" 2 "$n_manifests"
 fi
 
-# --- 6. build tier folds caches into the manifest ---
 R5="$(mkrepo r5)"
 out="$(bash "$BATCH" --tier build --repo "$R5")"
 PLAN3="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -352,7 +308,6 @@ assert_contains "--tier all prints caches_bytes" "$out" "caches_bytes="
 assert_contains "--tier all prints build_bytes" "$out" "build_bytes="
 assert_contains "--tier all prints git_bytes" "$out" "git_bytes="
 
-# --- 7. git tier: one prune per shared object store (worktree deduped) ---
 GR="$(mkrepo gitrepo)"
 git -C "$GR" worktree add "$TEST_TMPDIR/gitrepo-wt" -b wt >/dev/null 2>&1
 out="$(bash "$BATCH" --tier git --repo "$GR" "$TEST_TMPDIR/gitrepo-wt")"
@@ -368,7 +323,6 @@ out="$(bash "$BATCH" --tier git --apply --batch-plan "$GPLAN")" || rc=$?
 assert_exit "git apply exits 0" 0 "$rc"
 assert_contains "git apply prunes the store once" "$out" "Outcome: pruned"
 
-# --- 8. all tier: build manifest + git dedup in one plan ---
 AR="$(mkrepo allrepo)"
 out="$(bash "$BATCH" --tier all --repo "$AR")"
 APLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -378,7 +332,6 @@ else
   fail "all tier plan REPO+GITDIR" "both" "$(cat "$APLAN")"
 fi
 
-# --- 8b. scan tier: read-only inventory, no plan, no apply ---
 SC1="$(mkrepo scan1)"
 SC2="$(mkrepo scan2)"
 SC3="$(mkrepo scan3)"
@@ -474,10 +427,7 @@ else
 fi
 chmod 644 "$UNREAD_LIST" 2>/dev/null || true
 
-# --- preflight once, and a progress line on stderr ---
 PROG_REPO="$(mkrepo prog)"
-# A fresh build inside the target repo must reach RECENT_BUILD even when the
-# batch runs from outside every target (the ghq fleet case).
 mkdir -p "$PROG_REPO/obj"
 : >"$PROG_REPO/obj/project.assets.json"
 rc=0
@@ -496,7 +446,6 @@ git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
 
-# --- fleet discovery (--fleet) and clone dedupe, with ghq / chezmoi shimmed on PATH ---
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 FL_A="$(mkrepo fleet-a)"
@@ -525,14 +474,11 @@ assert_exit "duplicate reported exactly once" 1 "$dup_hits"
 
 assert_contains "the duplicate clone gets a table row" "$out" "$FL_CLONE | skipped | 0 | "
 
-# --fleet dedupes the scan tier too.
 rc=0
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet 2>/dev/null)" || rc=$?
 assert_exit "scan --fleet exits 0" 0 "$rc"
 assert_contains "scan --fleet reports the second clone as a duplicate" "$out" "skipped duplicate of $FL_A"
 
-# The same fixtures, under recorders for ssh and the credential helper. A scan
-# tier must not contact those URL strings.
 FLEET_REC="$TEST_TMPDIR/fleet-record"
 mkdir -p "$FLEET_REC"
 cat >"$FLEET_REC/ssh" <<EOF
@@ -571,8 +517,6 @@ assert_file_absent "scan --fleet records no ssh" "$FLEET_REC/ssh.log"
 assert_file_absent "scan --fleet records no askpass" "$FLEET_REC/askpass.log"
 assert_file_absent "scan --fleet records no credential helper" "$FLEET_REC/cred.log"
 
-# --repo and --repos-from are an explicit selection: two clones of one origin are
-# both planned, in the caches tier and in the scan tier, with no duplicate record.
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$FL_A" "$FL_CLONE" 2>/dev/null)" || rc=$?
 assert_exit "--repo with two clones exits 0" 0 "$rc"
@@ -592,8 +536,6 @@ out="$(bash "$BATCH" --tier git --repo "$FL_A" "$FL_CLONE" 2>/dev/null)"
 assert_contains "git --repo plans both clones' object stores" "$out" "gitdirs=2 "
 assert_not_contains "git --repo reports no duplicate" "$out" "skipped duplicate of"
 
-# A skip-listed clone never shadows its sibling under --fleet: the skipped one is
-# reported skipped, the other still runs and is not a duplicate of it.
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" 2>/dev/null)"
 assert_contains "skipped clone is reported skipped" "$out" "Repo: $FL_A"$'\n'"Outcome: skipped"$'\n'"Reason: skip-list"
 assert_contains "the sibling of a skipped clone is still planned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
@@ -602,13 +544,11 @@ assert_contains "three repos planned, one skipped" "$out" "Summary: repos=4 plan
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet --skip "$FL_A" 2>/dev/null)"
 assert_contains "scan: the sibling of a skipped clone is still scanned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
 assert_not_contains "scan: the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
-# Skipping the ghq clone by path leaves the chezmoi source of the same origin to run.
 git -C "$FL_CZ" remote set-url origin git@github.com:owner/repo.git
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" --skip "$FL_CLONE" 2>/dev/null)"
 assert_contains "--fleet: the chezmoi source runs when its ghq clones are skipped" "$out" "Repo: $FL_CZ"$'\n'"Outcome: would-clean"
 git -C "$FL_CZ" remote set-url origin https://github.com/owner/dotfiles.git
 
-# A missing ghq/chezmoi contributes nothing; an empty fleet is the no-repos error.
 NOTOOLS="$TEST_TMPDIR/notools"
 mkdir -p "$NOTOOLS"
 for t in git bash sed awk grep tr head dirname mktemp mkdir cat rm find sort date uname basename wc du cut; do
@@ -618,7 +558,6 @@ rc=0
 PATH="$NOTOOLS" bash "$BATCH" --tier caches --fleet >/dev/null 2>&1 || rc=$?
 assert_exit "--fleet with no ghq/chezmoi and no repos exits 2" 2 "$rc"
 
-# A chezmoi source that is not a git repo is ignored.
 NOGIT="$TEST_TMPDIR/cz-plain"
 mkdir -p "$NOGIT"
 printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
@@ -649,7 +588,6 @@ rc=0
 bash "$BATCH" --tier caches --owner >/dev/null 2>&1 || rc=$?
 assert_exit "--owner with no value exits 2" 2 "$rc"
 
-# --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
 mkclean() {
   git init "$1" >/dev/null 2>&1
   git -C "$1" config user.email t@example.com
@@ -682,14 +620,12 @@ assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT |
 assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
 assert_contains "git tier row counts nothing apply would not act on" "$out" "$GT | would-clean | 0 | 0 B"
 assert_contains "git tier reason says the remote prune is not measured" "$out" "0 item(s) counted, 0 B; remote prune not measured"
-# A worktree whose directory is gone is what `git worktree prune` removes: counted.
 GW="$(mkrepo gitprune)"
 git -C "$GW" worktree add "$TEST_TMPDIR/gitprune-gone" -b gone >/dev/null 2>&1
 rm -rf "$TEST_TMPDIR/gitprune-gone"
 out="$(bash "$BATCH" --tier git --repo "$GW" 2>/dev/null)"
 assert_contains "git tier counts a prunable worktree" "$out" "$GW | would-clean | 1 | "
 
-# --- 5. durable plan location and dry-run path listing ---
 PD_REPO="$(mkrepo pdrepo)"
 PD_OTHER="$(mkrepo pdother)"
 out1="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
@@ -776,8 +712,6 @@ if [[ "$foreign_entries" -eq 0 ]]; then
 else
   fail "nothing new is written under a foreign CLAUDE_PLUGIN_DATA" 1 "$foreign_entries"
 fi
-# Positive control: the same stale run dir in the plugin's own dir IS pruned, so
-# the survival above is the guard's doing, not a prune that never runs.
 mkdir -p "$OWN/$SET_REL/run.stale"
 touch "$OWN/$SET_REL/run.stale/plan"
 touch -d "15 days ago" "$OWN/$SET_REL/run.stale"

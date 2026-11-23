@@ -192,9 +192,6 @@ UNPUSHED_REFS=0
 SECRETS_COUNT=0
 SKILLDATA_COUNT=0
 
-# count_preserve_classes <path>: tally the two preserve classes whose loss the
-# removal would otherwise cause silently. Shared by the repo scan (ignored files)
-# and the plain-dir scan (target-relative descendants).
 count_preserve_classes() {
   clean_path_matches_secret_class "$1" && SECRETS_COUNT=$((SECRETS_COUNT + 1))
   clean_path_matches_skilldata "$1" && SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
@@ -302,7 +299,7 @@ if [[ "$KIND" != dir ]]; then
   if [[ "$KIND" == repo ]] &&
     [[ -z "$(git -C "$TARGET_ABS" branch --show-current 2>/dev/null | tr -d '\r')" ]] &&
     git -C "$TARGET_ABS" rev-parse -q --verify HEAD >/dev/null 2>&1; then
-    UNPUSHED_REFS=$((UNPUSHED_REFS + 1)) # detached HEAD — commits may be unreachable elsewhere
+    UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
   fi
 else
   # Plain leftover directory: none of the repo guards above run, but this

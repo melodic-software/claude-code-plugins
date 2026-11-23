@@ -37,7 +37,6 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.click("#flyClose"); await page.waitForTimeout(150);
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
-    // G7: the round's restate card sits above the round's first question and on no other
     await pick("Q1");
     const rs = await page.evaluate(() => { const c = document.getElementById("roundRestate"), h = document.querySelector("#dscroll .dhead");
       return {text: c ? c.textContent.replace(/\s+/g, " ").trim() : "", above: !!c && !!h && !!(c.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), refs: c ? c.querySelectorAll("button.ref").length : 0}; });
@@ -257,7 +256,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q1");
     ok("a further revision brings the full banner back on the next open", /Recommendation revised\./.test(await text("#dscroll .banner")) && !(await page.$("#dscroll .revchip")), await text("#dscroll .banner"));
   }
-  if (PHASE === 4) { // Q7 is answered before its prerequisites, then the page changes Q2 under Show: Open
+  if (PHASE === 4) {
     const sel = () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || null);
     const first = () => page.$eval("#choices .choice", el => el.textContent).catch(() => "");
     for (const id of ["Q7", "Q3", "Q5", "Q4", "Q6"]) await post({id, kind: "accept", alt: null, text: ""});
@@ -340,7 +339,7 @@ async page => { // the question page itself: choices, chips, banners, header and
   if (PHASE === 9) { // the page decides Q8; the shell then adds Q9 on Q8 and records Q9's decision from the terminal
     await post({id: "Q8", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
   }
-  if (PHASE === 10) { // the page replaces Q8's decision after Q9's terminal decision
+  if (PHASE === 10) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await post({id: "Q8", kind: "alt", alt: "a", text: ""}); await page.waitForTimeout(900);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
@@ -390,7 +389,6 @@ async page => { // the question page itself: choices, chips, banners, header and
     const mv = await events(), ml = mv[mv.length - 1] || {};
     ok("Ctrl+Enter in the Notes panel sends one note, and the panel names the key the composer's way", mv.length === m0 + 1 && ml.kind === "note" && ml.text === "A note from the composer check." && panelHint === QS_HINT("send"), JSON.stringify({m0, n: mv.length, ml, panelHint}));
     await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(150);
-    // a phone: the page is pinned to the visual viewport, and a keyboard taking its lower part leaves the note in view
     await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(300);
     await pick("Q1"); await page.click("#note"); await page.waitForTimeout(100);
     const pin = await page.evaluate(() => { const a = document.querySelector(".app"), cs = getComputedStyle(a); return {pos: cs.position, h: Math.round(a.getBoundingClientRect().height), vv: Math.round(visualViewport.height), page: document.scrollingElement.scrollHeight - innerHeight, scrolls: a.scrollHeight > a.clientHeight}; });
@@ -519,7 +517,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ev = await events(); last = ev[ev.length - 1] || {};
     ok("#9694: Not this posts a decline and the question is archived", ev.length === n0 + 1 && last.id === "Q16" && last.alt === "decline" && await stateOf("Q16") === "archived", JSON.stringify(last));
   }
-  if (PHASE === 18) { // gap G10: a page stamped with another build than its server started from says the server is older
+  if (PHASE === 18) {
     const banner = () => page.$eval("#oldServer", el => ({hidden: el.hidden, shown: el.getClientRects().length > 0, text: el.textContent}));
     const load = async () => { await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400); };
     await load();

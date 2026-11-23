@@ -126,7 +126,6 @@ else
 fi
 rm -rf "$f"
 
-# --- exec form with a ${CLAUDE_PLUGIN_ROOT}-rooted command passes -----------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$ROOTED_EXEC_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -136,7 +135,6 @@ else
 fi
 rm -rf "$f"
 
-# --- exec form with an absolute Windows path passes -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"C:\\Program Files\\nodejs\\node.exe","args":["x.mjs"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -146,7 +144,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the allowlist: `node` passes, the shimmed names do not -----------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/x.mjs"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -177,7 +174,6 @@ else
   fail "EXEC_NAME_ALLOWLIST changed; review the admission criterion and update this test deliberately"
 fi
 
-# --- an empty args array is still exec form ---------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":[]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
@@ -206,7 +202,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest string-path hook config is scanned ----------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha config/extra-hooks.json "$PRE_2570_HOOKS"
@@ -221,7 +216,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest array of hook paths: the offending element fails --------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./hooks/hooks.json","./config/extra-hooks.json"]}'
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
@@ -233,7 +227,6 @@ else
 fi
 rm -rf "$f"
 
-# --- inline manifest hooks object is scanned --------------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"bash","args":["x"]}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -247,7 +240,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an exec-form-looking object OUTSIDE the manifest hooks key is ignored ---
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","mcpServers":{"svc":{"command":"npx","args":["-y","pkg"]}},"hooks":{"PreToolUse":[]}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -257,7 +249,6 @@ else
 fi
 rm -rf "$f"
 
-# --- unreferenced hooks/*.json sibling is not scanned -----------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 plugin_file "$f" alpha hooks/unreferenced.json "$PRE_2570_HOOKS"
@@ -268,7 +259,6 @@ else
 fi
 rm -rf "$f"
 
-# --- out-of-tree manifest hooks path is skipped, visibly --------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$PRE_2570_HOOKS" >"$f/outside.json"
@@ -283,7 +273,6 @@ else
 fi
 rm -rf "$f"
 
-# --- unparsable manifest does not crash the gate ----------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
@@ -293,8 +282,6 @@ else
   fail "unparsable manifest should not fail this gate, got: $out"
 fi
 rm -rf "$f"
-
-# --- frontmatter surface ----------------------------------------------------
 
 # skill_md <fixture> <plugin> <relpath> <content>
 skill_md() { plugin_file "$@"; }
@@ -368,7 +355,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: clean and dirty hook objects in one matcher ---------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -397,7 +383,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: an unquoted command with a trailing comment ---------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -464,7 +449,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: CRLF line endings ----------------------------------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/skills/x"
 printf '%s\r\n' '---' 'hooks:' '  PreToolUse:' '    - hooks:' '        - type: command' '        # a comment' '          command: "bash"' '          args: ["x"]' '---' 'body' \
@@ -476,7 +460,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: flow style is the same document, and is walked ------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -550,7 +533,6 @@ body"
   rm -rf "$f"
 done
 
-# --- frontmatter: a whole declaration on the key line is walked -------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 "hooks": {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
@@ -593,7 +575,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a duplicate key inside a hook object is ambiguous ----------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -746,7 +727,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: an anchor on a value inside the block is walked -----------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -794,7 +774,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: an explicit key wins over a merged one --------------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
@@ -814,7 +793,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a block scalar command is read as its content -------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -878,7 +856,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a ${...} placeholder is not mistaken for flow style -------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
@@ -896,7 +873,6 @@ else
 fi
 rm -rf "$f"
 
-# --- markdown without frontmatter, and without hooks, is inert --------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/skills/x"
 printf '%s\n' '# Not frontmatter' '' 'hooks:' '  PreToolUse:' '    - hooks:' '        - type: command' '          command: bash' '          args: ["x"]' \
@@ -908,7 +884,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a frontmatter block with no hooks: key at all passes -------------------
 new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: "x"
@@ -923,7 +898,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an agent frontmatter hook is covered too -------------------------------
 new_fixture f
 skill_md "$f" alpha agents/reviewer.md '---
 name: reviewer
@@ -986,7 +960,6 @@ else
 fi
 rm -rf "$f"
 
-# --- args that are not an array still make exec form -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -998,7 +971,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an inline map inside a manifest hooks array is scanned ------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra-hooks.json",{"Stop":[{"hooks":[{"type":"command","command":"python3","args":["g.py"]}]}]}]}'
 plugin_file "$f" alpha config/extra-hooks.json "$SHELL_FORM_HOOKS"
@@ -1011,7 +983,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a manifest naming the default file does not double its findings ---------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./hooks/hooks.json"}'
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":[]}]}]}}'
@@ -1023,7 +994,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter: a scalar args value is still exec form ---------------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/skills/demo"
 printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
@@ -1037,7 +1007,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a fully clean tree passes with a positive statement --------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 skill_md "$f" alpha skills/x/SKILL.md "$FM_SHELL_FORM"

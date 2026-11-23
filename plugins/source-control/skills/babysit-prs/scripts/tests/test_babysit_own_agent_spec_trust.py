@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/intake-triage/admit.mjs .github/actions/resolve-config/admission-rules.json .github/actions/resolve-config/resolve-config.mjs .github/scripts/work-unblock/label-unblocked.mjs
+# test-scope: .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/size-split.mjs .github/actions/resolve-config/admission-rules.json .github/actions/resolve-config/resolve-config.mjs .github/scripts/work-unblock/label-unblocked.mjs
 """The gate's own-agent trust rule (`babysit_verify_evidence._trusted_spec`)
 takes the filings intake admission admits (ADR 0111): an issue an identity in
 `own-agents.identities` wrote, no other account edited, carrying exactly one
@@ -29,6 +29,7 @@ ADMIT = (
     pathlib.Path(__file__).resolve().parents[6]
     / ".github/scripts/intake-triage/admit.mjs"
 )
+SIZE_SPLIT = ADMIT.parent / "size-split.mjs"
 RESOLVE_CONFIG = ADMIT.parents[2] / "actions/resolve-config/resolve-config.mjs"
 REPO = "example-org/example-repo"
 ISSUE = 7
@@ -561,8 +562,9 @@ ID_CASES: list[tuple[list[Any], list[int]]] = [
     (["lanes-app", OTHER_BOT_ID], [OTHER_BOT_ID, APP_ID]),
 ]
 NODE = """
-import { LANES_APP_IDENTITY, OWN_AGENT_DEFAULTS, OWN_AGENT_SIZES, SOURCE_LABEL, SPLIT_CHILD_MARKER,
+import { LANES_APP_IDENTITY, OWN_AGENT_DEFAULTS, OWN_AGENT_SIZES, SOURCE_LABEL,
   ownAgentIds, ownAgentText, sourceLabels } from %s;
+import { SPLIT_CHILD_MARKER } from %s;
 const { labels, texts, ids, app } = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   identity: LANES_APP_IDENTITY,
@@ -597,7 +599,7 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
                 "node",
                 "--input-type=module",
                 "-e",
-                NODE % json.dumps(ADMIT.as_uri()),
+                NODE % (json.dumps(ADMIT.as_uri()), json.dumps(SIZE_SPLIT.as_uri())),
                 json.dumps(payload),
             ],
             capture_output=True,

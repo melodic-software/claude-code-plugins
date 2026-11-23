@@ -190,6 +190,7 @@ import { trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LaneRunPending } from "../lib/lane-binding.mjs";
+import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
@@ -221,7 +222,7 @@ export const DEFAULTS = Object.freeze({
   // The lanes each review workflow names in its reviewed-head marker
   // (melodic-software/ci-workflows pr-review-cli.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
-  holdLabels: Object.freeze(["do-not-merge"]),
+  holdLabels: FEEDBACK_HOLDS,
   // claude[bot], which posted reviews before both lanes moved to pr-review-cli
   // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
   // as github-actions[bot]; threadAuthors accepts those comments only when the
@@ -229,7 +230,7 @@ export const DEFAULTS = Object.freeze({
   // comment bound to its lane's run.
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
-  markerAuthorId: 41898282,
+  markerAuthorId: ACTIONS_BOT_ID,
   // The GitHub Actions app: only a check run it created counts.
   appId: 15368,
 });

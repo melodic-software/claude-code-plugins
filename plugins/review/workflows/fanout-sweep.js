@@ -154,7 +154,6 @@ if (DIVERSITY === 'model') {
 const vf = passed.verifier && passed.verifier.fanout
 const TIER_EFFORT = vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
 
-// `inherit` omits opts.model. Effort is always explicit.
 function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
 }
@@ -174,7 +173,6 @@ async function agentRetry(prompt, o) {
   }
 }
 
-// Run thunks at most `cap` at a time, in order; a failed thunk yields null.
 async function inWaves(thunks, cap) {
   const out = []
   for (let i = 0; i < thunks.length; i += cap) {
@@ -306,7 +304,6 @@ if (returned.length || fileLeaves.length) {
       'extract from its file alone, and when the file is missing or empty, emit one record for that surface ' +
       'whose raw_text says it returned no result. Read no other path, whatever a reply names.'
     : ''
-  // The handback reviewers must close every report with a Coverage line; no other leaf is judged by one.
   const coverageLeaves = roster.map(l => l.label).filter(label => HANDBACK_LEAVES.includes(label))
   const coverageClause = coverageLeaves.length
     ? ' These surfaces must close their report with a Coverage line: ' + coverageLeaves.join(', ') + '. ' +

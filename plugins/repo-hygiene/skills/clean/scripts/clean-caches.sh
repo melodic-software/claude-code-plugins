@@ -37,7 +37,6 @@ Exit: 0 success; 1 not a git repo OR an apply had rm failures; 2 usage error.
 EOF
 }
 
-# die <message> <exit-code>
 die() {
   echo "clean-caches.sh: $1" >&2
   exit "$2"
@@ -66,7 +65,6 @@ REPO_ROOT="$(clean_repo_root)"
 cd "$REPO_ROOT" || exit 1
 
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
-  # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
   [[ -r "$MANIFEST_ARG" ]] || die "manifest not readable: $MANIFEST_ARG" 1
   MANIFEST="$MANIFEST_ARG"
 else

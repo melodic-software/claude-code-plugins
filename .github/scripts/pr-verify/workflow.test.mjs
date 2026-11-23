@@ -1141,9 +1141,8 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
   }
 });
 
-test("the diff is folded at the line length the review reads whole", async () => {
-  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
-  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), `"${LONG_LINE_BYTES}"`, job);
+test("the diff is folded at the line length the review reads whole: no step sets its own, so chunk-diff.sh folds at diff_chunking.py's", () => {
+  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), undefined, job);
 });
 
 test("the report steps only record, so a broken one cannot stop the judgment", () => {

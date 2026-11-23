@@ -9,10 +9,9 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage / config errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S" # no id
+assert_usage_error "$S"
 assert_usage_error "$S" "not-an-id"
 assert_usage_error "$S" "#12"
 # Well-formed grammar, wrong provider → rejected before any I/O.
@@ -28,7 +27,6 @@ assert_eq "an undeclared repo is refused → exit 2" "2" "$rc"
 assert_contains "the refusal names config.gitea.scopes" "$(gitea_err)" "config.gitea.scopes"
 assert_eq "and no request was made" "" "$(gitea_requests)"
 
-# --- happy path ---
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'a real issue')"
@@ -49,10 +47,8 @@ assert_eq "created_at is created_at shifted to UTC" "2026-03-01T10:30:00Z" "$(jq
 # for this provider — not "unmapped".
 assert_eq "type is null (gitea has no type axis)" "null" "$(jq -r '.type' <<<"$(gitea_out)")"
 assert_eq "parent_id is null (gitea has no sub-item link)" "null" "$(jq -r '.parent_id' <<<"$(gitea_out)")"
-# The seam's normalized object has no body field, whatever the provider returns.
 assert_eq "body is not carried through the seam" "null" "$(jq -r '.body' <<<"$(gitea_out)")"
 
-# --- state normalization ---
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 closed 'done one')"

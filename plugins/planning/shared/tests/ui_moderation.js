@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Phase 4c in real browsers, against `share.sh ensure-running` with the fake cloudflared: the session intro ("Why
-// you're here") before question 1 and from the header; on a 390x844 phone the first screen still shows the goal, the
-// ask, "Start here", "Something else…" and the answer box, with the intro folded behind its toggle; the owner hides an
-// answer (gone for another guest, marked for its author, held through the author's new version) and shows it again;
-// the owner edits an answer ("Edited by the host" for everyone, earlier versions fetched for the owner only), locks it
-// (the lock says it was edited) and cannot hide the locked answer; a hidden multi pick tells its author it is not
-// counted; Approve new joins holds a new person, listed in join order with a device hint, until the owner lets them
-// in, while a guest already here keeps going; the owner's per-person view lists one person's answers, votes, chat and
-// the hidden answer they cleared; chat reactions toggle per person and tell the author. Two browsers and a phone.
-//   node plugins/planning/shared/tests/ui_moderation.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from PLAN.md Phase 4c and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
@@ -37,7 +25,6 @@ async function main() {
     const gus = await rec.open(A.localUrl);
     const gusPid = await joinAs(gus, "Gus");
 
-    // ---------- intro before question 1, and from the header ----------
     ok("a new guest sees \"Why you're here\" in the first-view card above question 1", await until(gus, intro => {
       const c = document.querySelector(".vf-orient"), t = document.querySelector(".vf-orient-intro"), qt = document.querySelector(".vf-qtext");
       return !!c && !c.hidden && t?.textContent === intro && !!t.offsetParent && c.getBoundingClientRect().bottom <= qt.getBoundingClientRect().top + 1
@@ -47,15 +34,11 @@ async function main() {
     ok("the header reopens the intro", await until(gus, intro => { const p = document.querySelector(".vf-intropop"); return !!p && !p.hidden && p.textContent.includes(intro); }, INTRO));
     await gus.keyboard.press("Escape");
 
-    // ---------- the phone's first screen ----------
     const pia = await rec.open(A.localUrl, { context: PHONE });
     const piaPid = await joinAs(pia, "Pia");
     const first = await until(pia, () => !document.querySelector(".vf-orient")?.hidden && !!document.querySelector(".vf-opt.vf-opt-other"));
-    // Measured once the owner and Gus show as on question 1: their presence lands after the first render, and the
-    // screen a phone guest keeps is the one with it.
     const onIt = await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].filter(a => a.offsetParent).length === 2);
     ok("phone: the owner and Gus show as on the question", onIt);
-    // The fold is the bottom of the scrolling question pane (the tab bar sits under it).
     const foldStill = await settled(pia, { rects: true });
     const fold = await pia.evaluate(() => {
       const end = document.querySelector(".vf-scroll").getBoundingClientRect().bottom;
@@ -73,7 +56,6 @@ async function main() {
     await pia.locator(".vf-orient-whybtn").tap();
     ok("phone: the toggle folds it again", await until(pia, () => document.querySelector(".vf-orient-why").hidden));
 
-    // ---------- hide an answer ----------
     await gus.evaluate(() => window.Core.answerCiting("Q2", "A pub crawl, rude words here", []));
     await owner.locator(".vf-q", { hasText: "What should the first evening" }).first().click();
     await gus.locator(".vf-q", { hasText: "What should the first evening" }).first().click();
@@ -93,7 +75,6 @@ async function main() {
     await owner.locator(".vf-card.vf-hiddencard .vf-mod-hide").click();
     ok("Show puts it back for everyone", await until(pia, r => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === r), ref));
 
-    // ---------- edit an answer, history for the owner only ----------
     await owner.locator(".vf-card .vf-mod-edit:not([hidden])").first().click();
     ok("Edit opens the answer's text", await until(owner, () => { const p = document.querySelector(".vf-editpop"); return !p.hidden && document.querySelector(".vf-edit-ta").value === "A pub crawl, more rude words"; }));
     await owner.fill(".vf-edit-ta", "A pub crawl");
@@ -112,23 +93,20 @@ async function main() {
     }));
     await owner.keyboard.press("Escape");
 
-    // ---------- lock the edited answer: the lock says the host edited it ----------
     await owner.evaluate(r => window.Core.lock("Q2", r), ref);
     ok("the lock banner says the host edited the locked answer", await until(gus, () => [...document.querySelectorAll(".vf-lock-from")].some(n => /edited by the host/.test(n.textContent))));
     ok("Hide is refused on the locked answer, with a reason", await owner.evaluate(r => window.Core.hideCard("Q2", r, true).then(() => "", e => e.message || ""), ref)
       .then(m => /Unlock/.test(m)));
     await owner.evaluate(() => window.Core.unlock("Q2"));
 
-    // ---------- a hidden multi pick: its author is told it is not counted ----------
     await gus.evaluate(() => window.Core.pickWith("Q3", { options: ["opt-1"] }, { comment: "Hike, please" }));
     await owner.evaluate(r => window.Core.hideCard("Q3", r, true), ref);
     await gus.locator(".vf-q", { hasText: "Which activities?" }).first().click();
     ok("its author reads that a hidden pick is not counted", await until(gus, () => [...document.querySelectorAll(".vf-modnote")]
       .some(n => !n.hidden && /not counted while it is hidden/.test(n.textContent))));
-    await gus.evaluate(() => window.Core.pickWith("Q3", { options: [] }, { comment: "" })); // he clears it: the owner keeps a tombstone
+    await gus.evaluate(() => window.Core.pickWith("Q3", { options: [] }, { comment: "" }));
     await gus.locator(".vf-q", { hasText: "What should the first evening" }).first().click();
 
-    // ---------- chat reactions ----------
     await gus.evaluate(() => window.Core.chat("Lunch at noon?"));
     await pia.evaluate(() => { document.querySelector(".vf-fab").click(); });
     await until(pia, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(m => m.textContent.includes("Lunch at noon?")));
@@ -143,7 +121,6 @@ async function main() {
     await pia.locator(".vf-msg", { hasText: "Lunch at noon?" }).locator(".vf-mreact").tap();
     ok("tapping her own chip takes Pia's reaction back", await until(gus, () => !document.querySelector(".vf-msg .vf-mreact")));
 
-    // ---------- the owner's per-person view ----------
     await owner.locator(".vf-seg-btn", { hasText: /^Host$/ }).click();
     await owner.locator(".vf-hperson", { hasText: "Gus" }).locator(".vf-hp-view").click();
     ok("View all lists Gus's answer with Hide and Edit, and his chat line", await until(owner, () => {
@@ -162,7 +139,6 @@ async function main() {
     ok("times read \"just now\" or \"5 min ago\", never \"now ago\"", heads.some(h => /^(just now|\d+ min ago)$/.test(h)) && heads.some(h => /^Q3, cleared (just now|\d+ min ago)/.test(h)) && !heads.some(h => /now ago/.test(h)), JSON.stringify(heads));
     await owner.keyboard.press("Escape");
 
-    // ---------- approve new joins ----------
     await owner.click(".vf-gear");
     await owner.locator(".vf-settings .vf-sw-row", { hasText: "Approve new joins" }).click();
     ok("the owner turns on Approve new joins", await until(owner, () => window.Core.snapshot().settings.approveJoins === true));
@@ -174,7 +150,6 @@ async function main() {
     ok("a new person waits, and is told so", await until(jib, () => !document.querySelector("dialog.core-name") && window.Core.state.youWaiting === true
       && document.querySelector(".vf-ev-note")?.textContent === "Waiting for the host to let you in. This page opens by itself; keep it open."));
     ok("a waiting person reads nothing of the session", await jib.evaluate(() => window.Core.state.questions.length === 0 && !window.Core.snapshot()));
-    // Follow-up 50: one centered card, the title, "Why you're here" and the wait; none of the session's controls.
     const waitView = page => page.evaluate(() => {
       const seen = sel => [...document.querySelectorAll(sel)].some(e => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden");
       const ev = document.querySelector(".vf-ev"), r = ev.getBoundingClientRect(), mid = (r.left + r.right) / 2;
@@ -189,7 +164,6 @@ async function main() {
     await jib.locator("body").press("?");
     await jib.waitForTimeout(400);
     ok("  and ? opens no Help while waiting", await jib.evaluate(() => document.querySelector(".vf-keys").hidden));
-    // Kai waits in Instagram's in-app browser: its banner (follow-up 45) must not show while waiting either.
     const IG_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 339.0.3.12.91";
     const kai = await rec.open(A.localUrl, { context: { ...PHONE, userAgent: IG_UA } });
     await kai.waitForSelector("dialog.core-name[open]");
@@ -198,14 +172,13 @@ async function main() {
     await until(kai, () => window.Core.state.youWaiting === true && !!document.querySelector(".vf-ev-intro:not([hidden])"));
     const kw = await waitView(kai);
     ok("on a phone in Instagram's browser the same card, with no tab bar or in-app banner", kw.title === "Offsite" && kw.intro === "Why you're here" + INTRO && kw.shown.length === 0, JSON.stringify(kw));
-    // F10: turning someone away affects them, so Decline asks first; Cancel keeps them waiting.
     const kaiRow = owner.locator(".vf-qitem", { hasText: "Wants to join: Kai" });
     await kaiRow.waitFor({ timeout: 8000 });
     await kaiRow.getByRole("button", { name: "Decline" }).click();
     ok("declining a join asks first", await until(owner, () => /Turn Kai away\?/.test(document.querySelector("dialog.vf-cdlg[open]")?.textContent || "")));
     await owner.keyboard.press("Escape");
     ok("  and Escape keeps them waiting", await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]")) && await kai.evaluate(() => window.Core.state.youWaiting === true));
-    const gus2 = await rec.openIn(gus.context(), A.localUrl); // a new tab: the stored secret, no join
+    const gus2 = await rec.openIn(gus.context(), A.localUrl);
     ok("a guest already here keeps going in a new tab", await until(gus2, pid => window.Core.snapshot()?.me?.pid === pid && window.Core.state.questions.length === 3, gusPid));
     ok("the owner's queue says \"Wants to join: Jib\", first in line, on a computer in Chrome", await until(owner, () => [...document.querySelectorAll(".vf-qitem")]
       .some(i => i.textContent.includes("Wants to join: Jib (1st waiting; computer · Chrome)"))));

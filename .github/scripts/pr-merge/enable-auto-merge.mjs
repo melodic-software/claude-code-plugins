@@ -265,7 +265,6 @@ import {
   LANE_HOLD,
   liftersOf,
   MEMBERS,
-  OUTSIDE_ACTOR_LABEL,
   pathHoldKind,
   pathLifters,
   personWrote,
@@ -275,6 +274,7 @@ import {
   unblockStops,
   vetoers,
 } from "./merge-holds.mjs";
+import { ARM_HOLDS } from "../lib/lane-vocabulary.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -282,7 +282,7 @@ const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
-export const HOLD_LABELS = Object.freeze(["do-not-merge", "pr-verify-failed", OUTSIDE_ACTOR_LABEL]);
+export const HOLD_LABELS = ARM_HOLDS;
 // 100 pull requests a page; more than this many open is a listing the run
 // holds on (ListingFull) rather than one it reads only part of.
 const MAX_PAGES = 10;

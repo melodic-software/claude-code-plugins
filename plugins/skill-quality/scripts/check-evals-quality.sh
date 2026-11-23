@@ -84,8 +84,6 @@
 # fixtures must set `narration: true` so the gap is explicit.
 set -uo pipefail
 
-# The header range is derived from the comment block itself, so adding
-# header lines can never desync the help output.
 usage() {
   awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
@@ -262,14 +260,11 @@ strip_trailing_punct() {
   printf '%s' "$s"
 }
 
-# Fixture roots for lint file $1: the skill dir (the evals dir's parent),
-# then the evals dir.
 set_fixture_roots() {
   evals_dir="$(dirname "$1")"
   skill_dir="$(dirname "$evals_dir")"
 }
 
-# True when path $1 exists under neither fixture root.
 fixture_missing() {
   [[ ! -e "$skill_dir/$1" && ! -e "$evals_dir/$1" ]]
 }

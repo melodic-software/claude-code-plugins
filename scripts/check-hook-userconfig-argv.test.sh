@@ -63,7 +63,6 @@ CLEAN_HOOK='{
   ]
 }'
 
-# --- bare token in default hooks/hooks.json fails ---------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -77,7 +76,6 @@ else
 fi
 rm -rf "$f"
 
-# --- clean hooks.json passes ------------------------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -87,7 +85,6 @@ else
 fi
 rm -rf "$f"
 
-# --- token in an MCP config is out of scope ---------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 plugin_file "$f" alpha .mcp.json '{"mcpServers":{"svc":{"env":{"TOKEN":"${user_config.api_token}"}}}}'
@@ -98,7 +95,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest string-path hook config with token fails ----------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
@@ -113,7 +109,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest array of hook paths: token in one element fails ---------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./hooks/hooks.json","./config/extra-hooks.json"]}'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
@@ -125,7 +120,6 @@ else
 fi
 rm -rf "$f"
 
-# --- inline manifest hooks object with token fails --------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"hooks":[{"matcher":"Bash","hooks":[{"type":"command","command":"x","args":["${user_config.k}"]}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -139,7 +133,6 @@ else
 fi
 rm -rf "$f"
 
-# --- token elsewhere in the manifest (not hooks) passes ---------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","mcpServers":{"svc":{"env":{"T":"${user_config.api_token}"}}},"hooks":{"hooks":[]}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -149,7 +142,6 @@ else
 fi
 rm -rf "$f"
 
-# --- unreferenced hooks/*.json sibling is not scanned -----------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 plugin_file "$f" alpha hooks/unreferenced.json "$BARE_HOOK"
@@ -178,7 +170,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest with no hooks key passes --------------------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
@@ -189,7 +180,6 @@ else
 fi
 rm -rf "$f"
 
-# --- out-of-tree manifest hooks path is skipped, visibly --------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$BARE_HOOK" >"$f/outside.json"
@@ -204,7 +194,6 @@ else
 fi
 rm -rf "$f"
 
-# --- default and manifest-pointed configs both flagged ----------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
@@ -221,7 +210,6 @@ else
 fi
 rm -rf "$f"
 
-# --- unparsable manifest does not crash the gate ----------------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
@@ -232,7 +220,6 @@ else
 fi
 rm -rf "$f"
 
-# --- --require-true gate needs a matching userConfig key --------------------
 REQUIRE_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"]}]}]}'
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
@@ -282,7 +269,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the matched userConfig key must be boolean ------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$REQUIRE_HOOK"
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","userConfig":{"FOO_ENABLED":{"type":"string"}}}'
@@ -297,7 +283,6 @@ else
 fi
 rm -rf "$f"
 
-# --- shell-form command string carries the gate too --------------------------
 SHELL_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" --require-true FOO_ENABLED ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"}]}]}'
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_HOOK"
@@ -323,7 +308,6 @@ else
 fi
 rm -rf "$f"
 
-# --- each (file, name) pair is reported once ---------------------------------
 TWICE_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","a.sh"]},{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","b.sh"]}]}]}'
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$TWICE_HOOK"

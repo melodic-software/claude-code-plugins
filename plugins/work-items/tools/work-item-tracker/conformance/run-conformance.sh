@@ -120,8 +120,6 @@ assert_truncated_flag() {
 
 RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
-# --- capabilities ---
-
 wit_case "capabilities" 0 capabilities
 assert_schema_version "capabilities"
 # Checked on JSON type, not jq -r text: `null` is a valid adapter name, and jq -r
@@ -133,8 +131,6 @@ else
   fail "capabilities names a provider" "JSON string of length > 0" "$(jq -c '.provider' <<<"$WIT_OUT")"
 fi
 CAPS="$WIT_OUT"
-
-# --- usage / binding errors ---
 
 wit_case "no verb → usage" 2
 wit_case "unknown verb → usage" 2 definitely-not-a-verb
@@ -234,8 +230,6 @@ else
     "$(wit_out '"\(.field_id)|\(.options | tojson)"')"
 fi
 
-# --- create-item ---
-
 ITEM_A_ID="" ITEM_B_ID=""
 if verb_supported create-item; then
   wit_case "create-item without --title → usage" 2 create-item "${repo_args[@]+"${repo_args[@]}"}"
@@ -261,8 +255,6 @@ if verb_supported create-item; then
     assert_eq "create-item C blocked_by_count" "1" "$(wit_out '.blocked_by_count')"
   fi
 fi
-
-# --- get-item ---
 
 if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   wit_case "get-item malformed id → usage" 2 get-item "not-an-id"
@@ -312,8 +304,6 @@ else
   wit_case "unsupported change-link → exit 6" 6 change-link "$FAKE_ID"
 fi
 
-# --- edges ---
-
 if verb_supported link-blocks && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "link-blocks B blocked-by A" 0 link-blocks "$ITEM_B_ID" --blocked-by "$ITEM_A_ID"
   wit_case "get-item B sees open blocker" 0 get-item "$ITEM_B_ID"
@@ -341,8 +331,6 @@ if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_
   assert_truncated_flag "list-frontier --parent A"
   assert_not_contains "scoped frontier drops blocked child B" "$(wit_out_ids)" "$ITEM_B_ID"
 fi
-
-# --- frontier ---
 
 if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
@@ -375,8 +363,6 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier --label nobody carries" 0 list-frontier --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
   assert_eq "list-frontier --label nobody carries holds no items" "0" "$(wit_out '.items | length')"
 fi
-
-# --- lease lifecycle + claim race ---
 
 if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
   wit_case "claim A" 0 claim "$ITEM_A_ID" --session-id "$RUN_TAG-s1"

@@ -1695,6 +1695,8 @@ merge:
         class: trust
       - glob: ".github/scripts/pr-merge/enable-auto-merge.mjs"
         class: trust
+      - glob: ".github/scripts/lib/lane-vocabulary.mjs"
+        class: trust
       - glob: ".github/scripts/pr-merge/superseded.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
@@ -1729,6 +1731,12 @@ merge:
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"
         class: gate
+      - glob: ".github/scripts/lib/lane-branch.mjs"
+        class: gate
+      - glob: ".github/scripts/lib/lane-registry.mjs"
+        class: gate
+      - glob: ".github/lane-registry.json"
+        class: gate
       # The arm path's Merge-Risk line, and the rating job's scripts that hand
       # untrusted pull request text to a credentialed model run (#13657).
       - glob: ".github/scripts/pr-merge/merge-risk-line.mjs"
@@ -1738,6 +1746,8 @@ merge:
       - glob: ".github/scripts/pr-merge-risk/write-rating.mjs"
         class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh"
         class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust
@@ -1774,6 +1784,8 @@ merge:
       - glob: ".github/scripts/pr-verify/write-verdict.mjs"
         class: enforcement
       - glob: ".github/scripts/intake-triage/admit.mjs"
+        class: enforcement
+      - glob: ".github/scripts/intake-triage/size-split.mjs"
         class: enforcement
       - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
         class: enforcement
@@ -1840,6 +1852,9 @@ merge:
       - glob: ".github/scripts/lib/done-evidence.mjs"
         class: trust
       - glob: ".github/scripts/pr-review-main/**"
+        class: gate
+        author-lift: false
+      - glob: ".github/scripts/diff-chunking/**"
         class: gate
         author-lift: false
       - glob: "docs/conventions/instruction-exception-register/**"

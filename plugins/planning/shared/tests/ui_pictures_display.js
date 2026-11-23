@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Pictures on a question and the shared display parts, against `share.sh ensure-running` with the fake cloudflared:
-// a picture pasted into the answer box shows once, as its tile in the answer, with the thumbnail her browser made; a draft's
-// picture shows under no question and reads back to nobody else, and the x on its chip removes it for good; a picture
-// from before attachments that nothing carried shows under its question to the owner (with Approve picture) and its
-// uploader (with Remove), and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
-// person of the same name reads the first one's initial; an avatar on a proposal's who line is focusable and opens the
-// person card; the unread dot, inline link button and counter each use their one class, at the sizes they had; and a
-// picture pasted into an empty answer box and sent is an answer, its card showing the picture; locked, it shows in the
-// locked view to the owner, and to a guest once approved.
-//   node plugins/planning/shared/tests/ui_pictures_display.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the follow-ups (32, B5, B7, F14, F15) and the texts this suite writes, never from the page.
 "use strict";
 const fs = require("fs"), path = require("path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
@@ -19,7 +7,6 @@ const q = (id, text, purpose = "gather") => ({ id, text, alternatives: [], depen
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
 const IDEA = "Ask which cart default people expect.";
 
-/** Paste a 640x400 PNG made in the page into `sel`, as a ClipboardEvent whose clipboardData holds an image File. */
 const paste = (page, sel) => page.evaluate(async s => {
   const c = document.createElement("canvas"); c.width = 640; c.height = 400;
   const g = c.getContext("2d"); g.fillStyle = "#27a"; g.fillRect(0, 0, 640, 400);
@@ -27,16 +14,13 @@ const paste = (page, sel) => page.evaluate(async s => {
   const el = document.querySelector(s); el.focus();
   el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
 }, sel);
-/** What the question's picture strip shows: hidden or not, and each tile's picture kind and buttons. */
 const strip = page => page.evaluate(() => {
   const box = document.querySelector(".vf-qpics");
   return { hidden: !box || box.hidden, tiles: [...(box?.querySelectorAll(".vf-ref") || [])].map(li => ({
     img: (li.querySelector(".vf-uppic img")?.getAttribute("src") || "").slice(0, 11),
     approve: !!li.querySelector(".vf-upapprove"), remove: !!li.querySelector(".vf-upremove") })) };
 });
-/** The HTTP status reading a picture back gives this page: 200, or the refusal's (404). */
 const readBack = (page, id) => page.evaluate(x => window.Core.uploadImage(x).then(() => 200, e => e.status || 0), id);
-/** The id of the newest upload this page offered, once the host has it whole. */
 const pasted = async (page, before) => (await until(page, n => (window.Core.snapshot().myUploads || []).length > n, before, 10000))
   && (await snap(page)).myUploads.at(-1).id;
 
@@ -56,7 +40,6 @@ async function main() {
     const annPid = await joinAs(ann, "Ann");
     await until(ann, () => window.Core.state.settings.uploads === true);
 
-    // ---------- a picture from before attachments: received on Q1 under main, nothing carries it ----------
     await paste(ann, "#vf-answer");
     const old = await pasted(ann, 0);
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), old);
@@ -64,7 +47,6 @@ async function main() {
     const port = new URL(A.localUrl).port;
     s.share(A.dir, "stop");
     const file = path.join(A.dir, "state.json"), st = JSON.parse(fs.readFileSync(file, "utf8"));
-    // unmarked, neither a draft nor carried, as an offer from before attachments is in the live state
     for (const u of st.uploads) if (u.id === old) { delete u.draft; delete u.carried; }
     fs.writeFileSync(file, JSON.stringify(st));
     s.share(A.dir, "ensure-running", "--guest-port", port);
@@ -76,7 +58,6 @@ async function main() {
     const bo = await rec.open(A.localUrl, DESK);
     await joinAs(bo, "Bo");
 
-    // ---------- F15: one class each, the dots at the sizes they had ----------
     ok("the rail's new dot, the counters and inline link buttons use one class each", await bo.evaluate(() => !document.querySelector(".vf-newdot, .vf-linkbtn, .vf-catchup-go, .vf-rep-count")
       && !!document.querySelector(".vf-qside .vf-ndot") && !!document.querySelector(".vf-reportpop .vf-count-txt")));
     const dot = (page, cls, dotCls = "vf-ndot") => page.evaluate(([c, dc]) => {
@@ -89,7 +70,6 @@ async function main() {
     ok("an answer card's dot is 7 px, a question row's 7 px 2 px down, a notification's and a Discussion comment's 8 px 6 px down, an Inbox row's 8 px",
       dots.card === "7px 0px" && dots.rail === "7px 2px" && dots.note === "8px 6px" && dots.comment === "8px 6px" && dots.inbox === "8px 0px", JSON.stringify(dots));
 
-    // ---------- B5: the uploader's row shows the thumbnail her browser made ----------
     await paste(ann, "#vf-answer");
     const uid = await pasted(ann, 1);
     ok("the pasted picture's tile shows the thumbnail made in her browser while it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-composer .vf-attdraft .vf-ref")]
@@ -99,22 +79,20 @@ async function main() {
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), uid);
     ok("accepted, it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
 
-    // ---------- a draft's picture is no question's: the owner's own reads back to nobody else ----------
     await paste(owner, "#vf-answer");
     const own = await pasted(owner, 0);
     await until(owner, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), own, 20000);
-    await bo.waitForTimeout(2500); // a few polls past its arrival
+    await bo.waitForTimeout(2500);
     ok("the owner's unsent picture shows under no question for another guest", !((await snap(bo)).questionPics?.Q1 || []).includes(own) && !(own in ((await snap(bo)).files || {})),
       JSON.stringify((await snap(bo)).questionPics));
     ok("  nor reads back for him", (await readBack(bo, own)) === 404);
     ok("  nor does Ann's draft show to the owner under the question", !((await snap(owner)).questionPics?.Q1 || []).includes(uid), JSON.stringify((await snap(owner)).questionPics));
-    await ann.locator(".vf-composer .vf-attdraft .vf-ref-x").last().click(); // her newest chip
+    await ann.locator(".vf-composer .vf-attdraft .vf-ref-x").last().click();
     ok("x on her draft chip removes the picture", await until(ann, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "removed", uid, 10000),
       JSON.stringify((await snap(ann)).myUploads.map(u => [u.id, u.status.kind])));
     ok("  so it reads back to nobody, the owner included", (await readBack(owner, uid)) === 404 && (await readBack(ann, uid)) === 404);
     ok("  and no strip under the question holds it for the owner", !((await snap(owner)).questionPics?.Q1 || []).includes(uid));
 
-    // ---------- 32: received, carried by nothing, it shows under Q1 by the approval rule ----------
     ok("the owner sees the old picture under the question, with Approve picture and Remove", await until(owner, () => {
       const box = document.querySelector(".vf-qpics");
       return !!box && !box.hidden && [...box.querySelectorAll(".vf-ref")].some(li => li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/")
@@ -136,7 +114,6 @@ async function main() {
     await ann.locator("dialog[open] button", { hasText: "Remove picture" }).click();
     ok("the uploader's Remove takes it away for everyone", await until(bo, () => document.querySelector(".vf-qpics").hidden, null, 10000));
 
-    // ---------- B7: "You marked this round ready" goes by person, not name ----------
     for (const p of [annPid, ann2Pid]) await owner.evaluate(x => window.Core.setLeader(x, true), p);
     await until(ann, () => window.Core.snapshot().me.role === "leader");
     await ann.evaluate(() => window.Core.markReady(true));
@@ -145,7 +122,6 @@ async function main() {
     ok("another person of the same name reads her initial", await until(ann2, () => document.querySelector(".vf-ready")?.textContent === "A marked this round ready just now."),
       await ann2.evaluate(() => document.querySelector(".vf-ready")?.textContent));
 
-    // ---------- F14: a who line's avatar is focusable and opens the person card ----------
     await bo.evaluate(t => window.Core.idea(t), IDEA);
     await owner.locator(".vf-proprow", { hasText: "Proposed" }).click();
     const item = owner.locator(".vf-panel .vf-pitem", { hasText: IDEA });
@@ -156,7 +132,6 @@ async function main() {
     await owner.keyboard.press("Enter");
     ok("  and opens Bo's person card", await until(owner, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && c.querySelector(".vf-pc-name")?.textContent === "B"; }));
 
-    // ---------- a picture alone answers a text question: Bo pastes one into his empty box and presses Send ----------
     await bo.fill("#vf-answer", "");
     await paste(bo, "#vf-answer");
     const boPic = await pasted(bo, 0);
@@ -168,14 +143,12 @@ async function main() {
       && c.text === "" && (c.attachments || []).includes(id)), boPic, 10000), JSON.stringify((await snap(bo)).cards.Q1));
     ok("  and his card shows the picture", await until(bo, () => !!document.querySelector(".vf-card.vf-mine .vf-attlist .vf-uppic img")?.getAttribute("src")?.startsWith("data:image/"), null, 10000));
 
-    // ---------- a locked picture-only answer shows its picture in the locked view, by the approval rule ----------
     await bo.evaluate(id => window.Core.answerCiting("Q3", "", [], { attachments: [id] }), boPic);
     await owner.evaluate(pid => window.Core.lock("Q3", `p:${pid}`), (await snap(bo)).me.pid);
     const lockPic = page => until(page, () => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic img")?.getAttribute("src")?.startsWith("data:image/"), null, 10000);
     for (const page of [owner, ann]) { await page.keyboard.press("Escape"); await page.locator(".vf-q", { hasText: "Which box art" }).first().click(); }
     ok("the owner sees the locked picture-only answer's picture in the locked view", await lockPic(owner),
       await owner.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
-    // Her lock view first shows the picture's place, waiting for the host; only then is "no picture" a reading of it.
     ok("  a guest sees no picture there before the owner approves it", await until(ann, () => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic-wait"), null, 10000)
       && (await ann.evaluate(() => !document.querySelector(".vf-lock .vf-attlist .vf-uppic:not(.vf-uppic-wait), .vf-lock .vf-attlist img[src]")))
       && (await readBack(ann, boPic)) === 404, await ann.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));

@@ -554,7 +554,6 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
       `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=${days}\nindex-names<<INDEX_NAMES\n\nINDEX_NAMES\n`,
       String(relink),
     );
-    // A pass has no index.
     assert.equal(existsSync(path.join(passed.VERDICT_DIR, "fail-index.txt")), false, String(relink));
   }
   const unparsable = path.join(dir, "unparsable.json");
@@ -564,7 +563,6 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ["missing execution file", { EXECUTION_FILES: path.join(dir, "missing.json") }],
     ["unparsable execution file", { EXECUTION_FILES: unparsable }],
     ["unreadable spec", { EXECUTION_FILES: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
-    // A log with a denial on any leg.
     ["a denial on an earlier leg", { EXECUTION_FILES: okFile, LOG_FILES: log("denied-log", 1, 0) }],
     ["missing log file", { EXECUTION_FILES: okFile, LOG_FILES: path.join(dir, "missing.jsonl") }],
     ["no log file", { EXECUTION_FILES: okFile, LOG_FILES: "" }],

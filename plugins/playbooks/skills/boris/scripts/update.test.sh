@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained regression tests for update.sh (no external test lib — ships
-# with the plugin; network-free: exercises help, arg handling, and the sourced
-# helper functions against local fixtures only).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

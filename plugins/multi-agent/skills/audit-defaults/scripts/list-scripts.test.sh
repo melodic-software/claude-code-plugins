@@ -13,7 +13,6 @@ trap 'rm -rf "$T"' EXIT
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# ---- list-targets.sh ----
 R="$T/repo"
 mkdir -p "$R/plugins/p/skills/s" "$R/docs/upstream" "$R/docs/x" "$R/plugins/p/skills/s/evals" "$R/plugins/q"
 git -C "$R" init -q
@@ -74,7 +73,6 @@ else
   pass 'a missing root exits non-zero'
 fi
 
-# ---- list-pointers.sh --json ----
 json="$("$SCRIPT_DIR/list-pointers.sh" --json fanout)"
 assert_contains 'json starts an array' "$json" '[{"owner":"fanout","key":"pointer","value":"https://'
 assert_contains 'json carries the value rows with full keys' "$json" '{"owner":"fanout","key":"fanout.model","value":"opus"}'

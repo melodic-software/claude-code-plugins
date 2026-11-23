@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for state.sh: a stub gh on PATH serves PR JSON, a fixture repo holds the sweep
-# branch with Playbook-Step trailers, all in a temp dir.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -41,7 +39,7 @@ sweep=chore/repo-sweep-fixture-20260926
 mkdir -p "$repo"
 gitf -C "$repo" init --quiet
 commit() { gitf -C "$repo" commit --quiet --no-verify --allow-empty -m "$1"; }
-step() { # <trailer lines>: a step commit, trailers in one final paragraph
+step() {
   commit "$(printf 'step\n\nScope decisions:\n- q: a\n\nPlaybook: fixture\n%s\nCo-Authored-By: F <f@example.invalid>\n' "$1")"
   git -C "$repo" log -1 --format=%h
 }
@@ -58,19 +56,19 @@ step $'Playbook-Step: p:f@1\nPlaybook-Step: p:g@1' >/dev/null # superset of step
 assert_eq "fixture trailers parse" "p:f@1 p:g@1" \
   "$(git -C "$repo" log -1 --format='%(trailers:key=Playbook-Step,valueonly,separator=%x20)')"
 
-body() { # <eol> <checklist lines...>
+body() {
   local eol=$1
   shift
   printf 'No related issue: hygiene sweep%s\n## Summary%s\n<!-- repo-sweep:begin playbook=fixture -->%s\n' "$eol" "$eol" "$eol"
   printf "%s$eol\n" "$@"
   printf '<!-- repo-sweep:end -->%s\n\nNot run:%s\n- tidy: not selected%s\n' "$eol" "$eol" "$eol"
 }
-pr() { # <state> <body> [<number>] [<branch>] [<mergeable>]
+pr() {
   jq -n --arg s "$1" --arg b "$2" --argjson n "${3:-7}" --arg h "${4:-$sweep}" --arg m "${5:-}" \
     '{number: $n, state: $s, headRefName: $h, baseRefName: "main", body: $b} + (if $m == "" then {} else {mergeable: $m} end)'
 }
 serve() { jq -s . >"$TMP/gh/$1.json"; }
-run() { # sets out, rc
+run() {
   out=$(cd "${RUN_DIR:-$repo}" && PATH="$TMP/bin:$PATH" GH_DIR="$TMP/gh" GH_LOG="$TMP/gh.log" \
     GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" 2>"$TMP/err")
   rc=$?
@@ -198,7 +196,6 @@ case "$(cat "$TMP/gh.log")" in
 *) fail "discovery gh args" "pr list --state open --limit 1000" "$(cat "$TMP/gh.log")" ;;
 esac
 
-# A listing at its limit may be missing the sweep PR: an error, never "no sweep PR".
 jq -n '[range(1000) | {number: (. + 1), state: "OPEN", headRefName: "feat/x-\(.)", isCrossRepository: false}]' >"$TMP/gh/open.json"
 run
 assert_eq "other branch, full open-PR page: exit 1, never 10" "1" "$rc"

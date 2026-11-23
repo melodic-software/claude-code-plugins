@@ -8,6 +8,7 @@
 // an issue.
 import { createHash } from "node:crypto";
 
+import { listedJob } from "../lib/lane-registry.mjs";
 import { labelHolds } from "../pr-merge/merge-holds.mjs";
 
 export const CEILING = 0.9;
@@ -475,12 +476,17 @@ export function laneVariableFindings({ laneVariableRuns = [] }) {
 // rename, which runs from before it still list. `holdRuns`, when set, is the lane's own cap on unread green runs per window
 // (collect.mjs LIMITS.holdRuns otherwise).
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
+const holdJobs = (workflow, entries) => {
+  const listed = entries.map((entry) => listedJob(workflow, ...[entry].flat()));
+  const earlier = listed.flatMap((job) => job.earlier);
+  return { workflow, jobs: listed.map(({ id }) => id), names: listed.map(({ name }) => name), ...(earlier.length > 0 && { earlier }) };
+};
 export const HOLD_LANES = [
-  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], names: ["Report Outcome / Run", "Pick Slot"], area: "Issue lane (work-resolve-issue)" },
+  { lane: "work-resolve-issue", ...holdJobs("work-resolve-issue.yml", [["report-outcome", "run"], "pick-slot"]), area: "Issue lane (work-resolve-issue)" },
   // The 24 hours to 2026-11-05T22:00Z had 165 green runs, a mean of 6.9 an
   // hour over the default cap of 6, and a peak of 51; 20 covers every hour
   // but that one, whose rest later runs read.
-  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], names: ["Label Unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
+  { lane: "work-unblock", ...holdJobs("work-unblock.yml", ["label-unblocked"]), area: "Unblock lane (work-unblock)", holdRuns: 20 },
   // A failed Refine pass reds its run, so this lane's red runs are read too,
   // for record-passes's refine-failed warning. The 24 hours to
   // 2026-11-23T04:40Z had about 105 green and red runs, 7 hours over the
@@ -490,9 +496,7 @@ export const HOLD_LANES = [
   // https://github.com/melodic-software/claude-code-plugins/issues/16656
   {
     lane: "pr-refine",
-    workflow: "pr-refine.yml",
-    jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"],
-    names: ["Fix Docs Head Held", "Fix Docs Handoff", "Fix Docs Subscription Handoff", "Record Passes"],
+    ...holdJobs("pr-refine.yml", ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"]),
     area: "PR refine lane (pr-refine fix-docs)",
     holdRuns: 12,
     statuses: ["success", "failure"],
@@ -500,7 +504,7 @@ export const HOLD_LANES = [
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it.
-  { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], names: ["Apply Verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
+  { lane: "intake-triage", ...holdJobs("intake-triage.yml", ["apply-verdict"]), area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
   // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
   // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
   // 80 a window and 5 list pages leave headroom over both. Both notices print
@@ -510,9 +514,7 @@ export const HOLD_LANES = [
   // `Note the hold` ran (`holdStep`).
   {
     lane: "pr-verify",
-    workflow: "pr-verify.yml",
-    jobs: ["check-intent", "check-intent-subscription", "check-intent-fallback"],
-    names: ["Check Intent", "Check Intent Subscription", "Check Intent Fallback"],
+    ...holdJobs("pr-verify.yml", ["check-intent", "check-intent-subscription", "check-intent-fallback"]),
     area: "Verify lane (pr-verify)",
     holdRuns: 80,
     listPages: 5,
@@ -528,10 +530,7 @@ export const HOLD_LANES = [
   // annotations are read as pr-verify's are.
   {
     lane: "pr-review-main",
-    workflow: "pr-review-main.yml",
-    jobs: ["check-trigger", "review", "review-subscription", "review-fallback"],
-    names: ["Check Trigger", "Review", "Review Subscription", "Review Fallback"],
-    earlier: ["Trigger", "trigger"],
+    ...holdJobs("pr-review-main.yml", ["check-trigger", "review", "review-subscription", "review-fallback"]),
     area: "Review lanes (pr-review-main)",
     holdRuns: 70,
     listPages: 4,
@@ -544,7 +543,7 @@ export const HOLD_LANES = [
   // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
   // and 5 list pages are taken as the cover. No step runs only on a hold, so
   // each green job's annotations are read.
-  { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], names: ["Merge", "Enable Auto Merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
+  { lane: "pr-merge", ...holdJobs("pr-merge.yml", ["merge", "enable-auto-merge"]), area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
 // Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,

@@ -470,7 +470,6 @@ function workflowJobs(name) {
   return jobs;
 }
 
-// The write runner runs no model.
 test("pr-run-activity-write.yml: no job runs claude-code-action or run-claude-cli", () => {
   assert.deepEqual([...workflowJobs("pr-run-activity-write.yml")].filter(([, job]) => job.model).map(([name]) => name), []);
 });

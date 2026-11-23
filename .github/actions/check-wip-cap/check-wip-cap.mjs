@@ -66,10 +66,10 @@ import { loadTrustedActors, StatusReadError, statusLabels } from "../resolve-con
 import { blockersOf, stillBlocking } from "../../scripts/intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS, resolveAdmission, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 import { laneBranchIssue } from "../../scripts/work-resolve-issue/report-outcome.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT, WIP_CAP_HOLDS } from "../../scripts/lib/lane-vocabulary.mjs";
 
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOUR_MS = 3_600_000;
-export const HOLD_LABELS = new Set(["needs-human", "do-not-merge"]);
+export const HOLD_LABELS = WIP_CAP_HOLDS;
 export const HOLD_LINE = "Hold: a human merges this";
 // Issue labels that keep an issue off the issue lane: those a person decides,
 // and host-run and attended, whose Work status stays agent-ready while a host

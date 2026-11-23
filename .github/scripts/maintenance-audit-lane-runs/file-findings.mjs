@@ -141,7 +141,6 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
         all ??= "unit-unreadable";
         continue;
       }
-      // A unit the collector read only part of its workflow's window for.
       if (unit.window_complete === false) {
         complete = false;
         if (unit.workflow) partial.add(unit.workflow);

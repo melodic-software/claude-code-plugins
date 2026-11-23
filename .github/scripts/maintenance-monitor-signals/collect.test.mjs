@@ -690,7 +690,6 @@ test("lane quota readings skip branch-code, fork and test-suite runs, failed min
   const data = await collect(input(api, { ownRate: null }));
   assert.deepEqual(data.gaps, []);
   assert.ok(!api.calls.some((p) => /runs\/8[12356]\/jobs|check-runs\/840\//.test(p)));
-  // pr-merge's merge job counts once, through its own source.
   assert.deepEqual(data.budgetReadings.map((r) => [r.name, r.runId]), [["lanes-app", 10], ["lane", 10]]);
 });
 
@@ -889,7 +888,6 @@ test("stalled stops: more open PRs than the read covers is a gap naming the true
   const api = fakeApi([[/\/pulls\?state=open/, openPulls(many)], [/\/issues\/9\d{3}\/comments/, []], ...routes()]);
   const data = await collect(input(api));
   assert.ok(data.gaps.some((g) => g === "stalled stops: 145 open pull requests, only the 40 most recently updated read"), data.gaps.join("\n"));
-  // One query lists them, newest update first, with their comments.
   const stalled = stalledQueries(api);
   assert.equal(stalled.length, 1);
   assert.match(stalled[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
@@ -1064,7 +1062,6 @@ test("post-merge reports: four unreadable sweeps in a row are read, newest first
     [10, 11, 12, 13].map((id) => [id, "3", CAP]),
   );
   assert.deepEqual(downloads, [70, 71, 72, 73]);
-  // The pr-merge run list is read once for both sources that need it.
   assert.equal(api.calls.filter((p) => p.includes("pr-merge.yml/runs")).length, 1);
   assert.equal(api.calls.filter((p) => p.includes("name=pr-merge-post-merge-report")).length, 1);
 });
