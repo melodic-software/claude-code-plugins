@@ -52,8 +52,6 @@ run_into() {
   return "$rc"
 }
 
-# --- verify_base ----------------------------------------------------------
-
 repo="$(mk_repo)"
 if (cd "$repo" && changed_files::verify_base HEAD); then
   ok "verify_base accepts a resolvable ref"
@@ -73,8 +71,6 @@ else
   ok "verify_base rejects a non-commit ref"
 fi
 rm -rf "$repo"
-
-# --- resolve_base ---------------------------------------------------------
 
 repo="$(mk_repo)"
 # The fixture's default branch resolves bare, with no origin/ remote present, so
@@ -118,8 +114,6 @@ fi
 rm -rf "$bare"
 rm -rf "$repo"
 
-# --- into: basic selection ------------------------------------------------
-
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'changed\n' >"$repo/plugins/p1/skills/alpha/SKILL.md"
@@ -143,8 +137,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- into: deletions ------------------------------------------------------
-
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
 git_test_config "$repo" rm -q keep.sh >/dev/null
@@ -166,8 +158,6 @@ else
   fail "into --include-deleted returned: ${paths[*]-<none>}"
 fi
 rm -rf "$repo"
-
-# --- into: renames --------------------------------------------------------
 
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
@@ -297,8 +287,6 @@ for victim in base filter tmp path; do
   fi
 done
 rm -rf "$repo"
-
-# --- into: failure is loud, never an empty change set ---------------------
 
 repo="$(mk_repo)"
 paths=(sentinel)
