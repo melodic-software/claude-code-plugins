@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -117,7 +117,7 @@ jobs:
           ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
         # A hit withholds only the carry: the next run reads every run's jobs.
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/monitor-jobs/jobs.json
