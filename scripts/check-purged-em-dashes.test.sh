@@ -168,8 +168,6 @@ list "edge" 'edge/.dotted.md' 'edge/*.md' 'edge/b.?/*.md' 'edge/[xy]/a.md' \
 git_test_config "$REPO" add -A
 git_test_config "$REPO" commit -qm fixture
 
-# --- Cases ------------------------------------------------------------------
-
 # Each `run` forks the detector, which is the expensive part of this suite, so
 # every allowlist is run ONCE and all of its assertions read the captured
 # result. Re-running the same fixture to ask a second question about it is what
