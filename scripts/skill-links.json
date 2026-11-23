@@ -987,7 +987,8 @@
         "Visual diagram explainer handing off a storyboard: /education:illustrate",
         "Build a PR walkthrough storyboard: /review:reviewer-media",
         "Write a PR digest before storyboard: /review:explain-change",
-        "Record live UI flow instead of stills: /playwright:demo-video"
+        "Record live UI flow instead of stills: /playwright:demo-video",
+        "Place a finished video in a pull request: /source-control:pull-request"
       ]
     },
     "external-agents:antigravity": {
@@ -1956,7 +1957,8 @@
         "Narrated PR review media from diff instead of live browser: /review:reviewer-media",
         "Narrated video from still frames and diagrams: /explainer-video:produce",
         "Written PR diff digest: /review:explain-change",
-        "Concept explanation with diagrams: /education:illustrate"
+        "Concept explanation with diagrams: /education:illustrate",
+        "Attach the finished video to the pull request: /source-control:pull-request"
       ]
     },
     "playwright:playwright": {
@@ -2132,7 +2134,8 @@
         "Explain a concept rather than a PR: /education:illustrate",
         "Record a live UI flow for the PR: /playwright:demo-video",
         "Render a narrated video: /explainer-video:produce",
-        "Manage or place PR media: /source-control:pull-request"
+        "Manage or place PR media: /source-control:pull-request",
+        "Turn this digest into a narrated walkthrough for reviewers: /review:reviewer-media"
       ]
     },
     "review:fanout": {
@@ -2172,7 +2175,8 @@
         "Write PR digest without posting: /review:explain-change",
         "Render storyboard into narrated video: /explainer-video:produce",
         "Record live UI flow for screenshots: /playwright:demo-video",
-        "Explain a concept rather than a PR: /education:illustrate"
+        "Explain a concept rather than a PR: /education:illustrate",
+        "Claim the head, place the section, record a failure: /source-control:pull-request"
       ]
     },
     "review:security-review": {
@@ -2543,7 +2547,9 @@
         "Remove merged worktree after merge: /source-control:worktree",
         "Write a PR digest without posting: /review:explain-change",
         "Record a live UI flow for evidence action: /playwright:demo-video",
-        "Render a storyboard for media action: /explainer-video:produce"
+        "Render a storyboard for media action: /explainer-video:produce",
+        "Decide which media the PR needs and build its storyboard: /review:reviewer-media",
+        "Explain a concept, with a video view through the same producer: /education:illustrate"
       ]
     },
     "source-control:setup": {
