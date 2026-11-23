@@ -3,6 +3,7 @@
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 set -uo pipefail
 
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=block-unresolved-pr-merge-fixtures.sh
