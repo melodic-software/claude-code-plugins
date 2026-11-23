@@ -142,7 +142,6 @@ assert_contains "Wilson x = 0" "$out" $'flag-precision s 0.0000 [0.0000, 0.4345]
 out="$(bash "$METRICS" "$W/all.tsv")"
 assert_contains "Wilson x = n" "$out" $'flag-recall s 1.0000 [0.5655, 1.0000] (5/5)'
 
-# --- columns by header name ----------------------------------------------------------
 awk -F'\t' -v OFS='\t' '{ print $14, $13, $12, $11, $10, $9, $8, $7, $6, $5, $4, $3, $2, $1 }' "$W/wiki.tsv" >"$W/reversed.tsv"
 out="$(bash "$METRICS" "$W/reversed.tsv")"
 assert_contains "columns in any order give the same kappa" "$out" 'kappa user-opus in s 0.4000 (n=50)'
@@ -151,8 +150,6 @@ out="$(bash "$METRICS" "$W/nostratum.tsv" 2>&1)"
 check "a missing column exits 2" "[[ $? -eq 2 ]]"
 assert_contains "a missing column is named" "$out" "no stratum column"
 
-# --- --check ----------------------------------------------------------------------
-# A repository laid out like this one: the prompt, the labels, calibration.md.
 CR="$TMP/check-repo"
 LBL="$CR/plugins/testing/skills/audit/evals/judge-calibration/labels.tsv"
 CAL="$CR/plugins/testing/skills/audit/evals/judge-calibration/calibration.md"
@@ -321,7 +318,6 @@ arm_file sonnet medium 0-0 r12=FLAG
 out="$(bash "$METRICS" --table "$TB/labels.tsv" 2>&1)"
 assert_contains "an accuracy tie at the top goes to sonnet" "$out" '| sonnet | medium | 0.9167 (11/12) |'
 assert_contains "and sonnet medium is chosen" "$out" $'\nchosen: sonnet medium'
-# A partial, duplicated or stale arm file is refused, not scored.
 awk -F'\t' '$1 != "r3"' "$TB/sweep/sonnet-high.tsv" >"$TMP/partial" && mv "$TMP/partial" "$TB/sweep/sonnet-high.tsv"
 awk -F'\t' '$1 == "r4"' "$TB/sweep/sonnet-low.tsv" >"$TMP/dup" && cat "$TMP/dup" >>"$TB/sweep/sonnet-low.tsv"
 printf 'r99\tPASS\topus\tlow\treason\n' >>"$TB/sweep/opus-low.tsv"
@@ -343,7 +339,6 @@ out="$(bash "$METRICS" --table "$TC/labels.tsv" 2>&1)"
 # shellcheck disable=SC2016 # a literal dollar amount
 assert_contains "cost per row counts every judged row" "$out" '| 1.0000 (11/11) | $0.0025 |'
 
-# --- --sweep through the judge command function, stub only -----------------------
 SW="$TMP/sweep"
 mkdir -p "$SW/cases/case-1/test" "$SW/cases/case-1/src" "$SW/cases/case-2"
 printf 'it("adds", () => {\n  expect(add(1, 2)).toBe(3);\n});\n\nit("flag restates", () => {\n  expect(add(1, 2)).toBe(1 + 2);\n});\n' \
@@ -443,7 +438,6 @@ check "the re-run rows do not match the sweep grep" \
 check "the re-runs' verdicts are kept" "[[ -f \"\$SW/sweep/sonnet-medium.rerun2.tsv\" ]]"
 check "no real claude was called" "[[ ! -e \"\$TMP/real-claude-called\" ]]"
 
-# --- raters.sh: blind model raters, stub only ---------------------------------------
 RW="$TMP/raters"
 mkdir -p "$RW"
 cp -R "$SW/cases" "$RW/cases"
@@ -538,7 +532,6 @@ check "no codex on PATH: opus rates alone" "[[ -f \"\$RW/raters/opus.tsv\" && ! 
 check "no real codex was called" "[[ ! -e \"\$TMP/real-codex-called\" ]]"
 check "no real claude was called by the raters" "[[ ! -e \"\$TMP/real-claude-called\" ]]"
 
-# --- sample.sh refuses to redraw over any label, read by header name --------------
 SP="$TMP/sample"
 mkdir -p "$SP"
 cp "$HERE/sample.sh" "$SP/"
@@ -553,8 +546,6 @@ out="$(bash "$SP/sample.sh" "$TMP/no-repos" 2>&1)"
 check "sample.sh refuses a set with a codex label" "[[ $? -eq 1 ]]"
 assert_contains "and says why" "$out" "already holds labels"
 
-# --- sample.sh marks a shebang fixture executable and leaves the rest ------------
-# One pinned repo of a shebang test file and a plain code file, a stub scanner.
 SE="$TMP/e"
 mkdir -p "$SE/a/b" "$SE/scripts" "$SE/root/r"
 sed '/^REPOS=(/,/^)/d' "$HERE/sample.sh" >"$SE/a/b/sample.sh"
@@ -571,7 +562,6 @@ bash "$SE/a/b/sample.sh" "$SE/root" >/dev/null 2>&1
 check "a shebang-first fixture is executable" "[[ -x \"\$SE/a/b/cases/u01/foo.test.sh.fixture\" ]]"
 check "a fixture without a shebang is not" "[[ -f \"\$SE/a/b/cases/u01/foo.sh.fixture\" && ! -x \"\$SE/a/b/cases/u01/foo.sh.fixture\" ]]"
 
-# --- the shipped set: labels.tsv and cases/ agree ---------------------------------
 SHIP="$HERE/labels.tsv"
 assert_contains "the shipped header names the raters' columns" "$(head -n 1 "$SHIP")" $'\treference_label\topus_label\tcodex_label\tjudge_verdict\t'
 assert_not_contains "no single model rater column" "$(head -n 1 "$SHIP")" "model_label"
