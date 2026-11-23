@@ -2,18 +2,12 @@ import { capsule, paperGrain } from './ink.js';
 
 const q = new URLSearchParams(location.search), MODE = q.get('mode') || 'b', DIR = q.get('dir') || 'd';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const ix = await (await fetch(`${DIR}/index.json`)).json();   // {w, h, duration, drawings: [[k, pts, t1], ...]}
+const ix = await (await fetch(`${DIR}/index.json`)).json();
 const PER = q.get('brushes') ? await (await fetch(q.get('brushes'))).json() : {};
 cv.width = ix.w; cv.height = ix.h;
 const cache = new Map();
 const load = k => cache.get(k) || cache.set(k, fetch(`${DIR}/d${String(k).padStart(3, '0')}.json`).then(r => r.json())).get(k);
 
-// Mode (b) defaults live in brush.json (read by measure.py and fit.py too; reference/method.md says why).
-// A drawing's `brush` (from the override file) overrides any key.
-//   bias  px of ink added along every T edge (negative thins): a ring of ink.js capsules of width 2|bias| on the contour
-//   blur  gaussian sigma in px over the finished drawing: the source's edge softness (codec + scaling)
-//   grain 0 = off; else paperGrain opacity (uncorrelated grain lowers SSIM, so it stays off for a copy)
-//   tones 0 = two-tone only (T layer in the ink color)
 export const BRUSH = { ...await (await fetch('brush.json')).json(), ...JSON.parse(q.get('brush') || '{}') };
 
 function rings(d) {

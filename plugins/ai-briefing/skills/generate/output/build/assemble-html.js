@@ -1,6 +1,3 @@
-// Assemble single-file sectioned-scroll HTML deck from build modules.
-// Print mode (?print=1) re-paginates one section per page for build-pdf.js.
-
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
