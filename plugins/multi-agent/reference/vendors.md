@@ -83,7 +83,7 @@ reason, and covers the rest.
   `--models` (filled live from the model overview pointer above); when unknown, Claude is not
   skipped.
 - **Usage tiebreak**: plan usage is queried only when the resolved `vendors.tiebreak` names
-  `most-usage-left` — via `external-agents usage <product>` per in-use vendor outside delegated
+  `most-usage-left`, via `external-agents usage <product>` per in-use vendor outside delegated
   runs, and from the `rate-limits` status tool (`mcp__rate-limits__status`) for Claude when that
   plugin is enabled (else marked unavailable). `vendor-decide --usage <file>` compares `remaining`
   only in the `most-usage-left` step; a missing or `unavailable` reading falls back to vendor

@@ -94,7 +94,7 @@ outside those hosts before a stage runs.
 Two `PreToolUse` hooks on `Bash` (`lib/docs-fetcher-gate.mjs`) hold `docs-fetcher`
 and `registry-fetcher`: inside each subagent the gate denies every tool call except
 one shape, `bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`,
-with no query string — on first-party docs hosts for `docs-fetcher`, and on the exact
+with no query string. The URL must be on first-party docs hosts for `docs-fetcher`, and on the exact
 host set of `reference/benchmarks.json` for `registry-fetcher` (enforced by
 `hooks/registry-fetcher-gate.test.sh`). For that command each gate makes no decision,
 and passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the host
