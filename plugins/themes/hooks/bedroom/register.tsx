@@ -24,7 +24,7 @@ let started = false
 /** Set while the last desktop window has detached: /bedroom says so. */
 let desktopGone = false
 
-/** Registers /bedroom and starts the room, once a session: at session.start with a desktop attached, or on the first desktop attach. */
+/** Registers /bedroom and starts the room, once a session: at session.start with a desktop attached, or on the first desktop attach or above-prompt render. */
 async function start($: EngineInterface): Promise<void> {
   if (started) return
   started = true
@@ -155,6 +155,7 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
+    if (!started && isSessionUp) void start($).catch(error => failed('bedroom', 'start on a desktop render', error))
     const now = await shownIn($, undefined, true)
     if (now === undefined) return next(e)
     return settingsCard($, $.ui.resolve(e), now)

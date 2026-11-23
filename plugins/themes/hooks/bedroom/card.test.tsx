@@ -642,6 +642,32 @@ test('a desktop window attaching after the session starts starts the room once',
   expect(themeCalls).toEqual(['set'])
 })
 
+const ABOVE_PROMPT = {
+  plugin: 'themes',
+  surface: 'desktop',
+  component: 'AbovePrompt',
+  requestId: 'above',
+  props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 20, bodyColumns: 95, scroll: { offset: 0, bodyRows: 20 }, view: {}, rows: [] },
+} as const
+
+test('a desktop drawing above the prompt with no attach seen starts the room once', async ($, on) => {
+  const placed: string[] = []
+  const themeCalls: string[] = []
+  const registered: string[] = []
+
+  const clock = engine(on, [], placed, themeCalls, registered)
+  await $.session.start({ cwd: '/', surface: null, isInteractive: true })
+  const ui = await $.ui.mount(ABOVE_PROMPT)
+  await clock.advance(10)
+  await ui.unmount()
+  const again = await $.ui.mount(ABOVE_PROMPT)
+  await clock.advance(10)
+  await again.unmount()
+
+  expect(registered).toEqual(['bedroom'])
+  expect(themeCalls).toEqual(['set'])
+})
+
 test('/bedroom answers are for the person alone: none reaches the model', async ($, on) => {
   const placed: string[] = []
 
