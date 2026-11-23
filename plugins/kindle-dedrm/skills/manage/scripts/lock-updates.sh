@@ -29,7 +29,6 @@ ensure_dir() {
   fi
 }
 
-# icacls_updates [args]: icacls on the updates dir through PowerShell; no args lists its ACL.
 icacls_updates() {
   powershell.exe -NoProfile -Command "icacls '${UPDATES_DIR_WIN}'${1:+ $1}"
 }
