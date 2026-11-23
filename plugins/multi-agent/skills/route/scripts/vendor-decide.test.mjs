@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { devNull, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   BENCHMARKS,
@@ -19,6 +19,9 @@ import {
   rec,
   row,
 } from './lib/test-fixtures.mjs'
+
+process.env.GIT_CONFIG_GLOBAL ??= devNull
+process.env.GIT_CONFIG_NOSYSTEM = '1'
 
 
 test('schemas are closed JSON Schemas and shipped benchmarks.json has pointers only', () => {
