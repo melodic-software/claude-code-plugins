@@ -26,10 +26,6 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
 - **`/evals:validate [<eval dir>]`**: static check over a plugin's eval case files. It reports the
   load failures the CLI rejects and the authoring mistakes its docs name, with no model call and no
   spend, so a broken suite is found before a run pays to discover it.
-- **`/evals:audit <plugin dir | eval dir>`**: read-only health report for a suite: skills with no
-  case or no deterministic triggering case, judged graders with no labeled samples, legacy-only
-  skills, missing should-not-fire cases, and judged findings on gate pairs, duplicates, grader fit
-  and drift. Each finding names where its fix goes; it edits nothing.
 
 ## What runs where
 
