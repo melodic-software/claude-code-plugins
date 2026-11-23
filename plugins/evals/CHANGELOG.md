@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.24.1] - 2026-11-23
+
+### Changed
+
+- `/evals:plugin-eval select` counts a meaning-flipping word (`not`, `never`, `no`, `only`, `except`, `unless` and their contractions) inserted into an existing instruction line as a cut, so it runs the affected cases; other added words still run nothing.
+
 ## [0.24.0] - 2026-11-23
 
 ### Added
