@@ -69,11 +69,7 @@ ROW_COLUMNS = (
 )
 DISPOSITIONS = ("KEEP", "CANDIDATE", "UNKNOWN")
 DAY = 86400.0
-# A directory's mtime moves only when its direct children change, so an entry
-# untouched for this long may still be in use; the running-process check and
-# the reader's judgment cover that gap.
 TMP_MIN_AGE_DAYS = 7.0
-# (name prefix, producer, reason the entry must stay or None when age decides).
 TMP_PRODUCERS = (
     ("pytest-of-", "pytest", None),
     ("claude-", "claude-code", None),
@@ -94,14 +90,12 @@ TMP_PRODUCERS = (
     ),
     ("ssh-", "ssh-agent", "socket directory of a running ssh-agent"),
 )
-# Substring of a dangling link's path -> producer.
 LINK_PRODUCERS = (
     ("/mise/", "mise"),
     ("/.claude/", "claude-code"),
     ("/.npm/", "npm"),
     ("/uv/", "uv"),
 )
-# Group 1 is the numeric part, group 2 the "-" of a prerelease or the "+" of build metadata.
 VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:([-+])[\w.+-]+)?$")
 _TOKEN = r"[\w.@/+-]+"
 _NAMED_TOOL = re.compile(
@@ -129,7 +123,6 @@ def _owner(uid: int) -> str:
 
 
 def _tree_size(path: Path, mounts: frozenset[str] = frozenset()) -> int:
-    """Bytes under ``path``, links not followed and mount points in ``mounts`` not entered."""
     total, stack = 0, [path]
     while stack:
         current = stack.pop()
@@ -246,7 +239,6 @@ def _in_use(entry: Path, running: Iterable[str]) -> str | None:
 
 
 def _link_targets(directories: Iterable[Path]) -> dict[str, str]:
-    """Resolved target -> link path for every symlink directly inside ``directories``."""
     found: dict[str, str] = {}
     for directory in directories:
         try:
@@ -514,12 +506,6 @@ def decode_project(encoded: str, fs_root: Path = Path("/")) -> str | None:
     return None if found is None else "/" + found.relative_to(fs_root).as_posix()
 
 
-# Claude Code keeps the first 200 characters of an encoded project directory name
-# and appends `-<hash>`, after which the source path cannot be recovered from the
-# name. Basis: the path-sanitizing function in the Claude Code 2.1.285 binary
-# (non-alphanumerics become `-`, names over 200 characters are cut and hashed),
-# verified 2026-09-30; recheck when a Claude Code changelog entry mentions
-# project directory naming or a release changes the encoding.
 PROJECT_NAME_CAP = 200
 
 
@@ -578,7 +564,6 @@ UNCLASSIFIED = {
 
 
 def _descends(st: os.stat_result) -> bool:
-    """A real directory: not a symlink, junction or other reparse point."""
     return stat.S_ISDIR(st.st_mode) and not (
         getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
     )
@@ -589,7 +574,6 @@ def _within(path: Path, root: Path) -> bool:
 
 
 def _dotted_versions(names: Iterable[str]) -> bool:
-    """Two or more dotted version names, so a year-named folder pair never qualifies."""
     dotted = (VERSION_RE.match(name) for name in names)
     return sum(1 for m in dotted if m and "." in m.group(1)) >= 2
 
@@ -738,7 +722,6 @@ def _category_only(reason: str) -> bool:
 
 
 def _shows_reference(reason: str, evidence: object) -> bool:
-    """True when the reason names a tool ("managed by <tool>") that evidence shows references the entry."""
     if not isinstance(evidence, dict):
         return False
     tool = str(evidence.get("tool") or "").strip().lower()
