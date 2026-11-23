@@ -4,7 +4,7 @@
 
 Full detail for `/source-control:worktree create [name]`. SKILL.md carries the headline and the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
 
-`create` does **not** call `EnterWorktree(name:)`, which lands in the in-repo `.claude/worktrees/`, the nested placement [reference/nesting-invariant.md § The nesting invariant, dated measurement](../reference/nesting-invariant.md) exists to avoid. That file owns the mechanism, its measurement, its disputed arms and its expiry; do not restate them here. It routes through the shared helper `<scripts-dir>/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
+`create` does **not** call `EnterWorktree(name:)`, which lands in the in-repo `.claude/worktrees/`, the nested placement [reference/nesting-invariant.md § The nesting invariant, dated measurement](../reference/nesting-invariant.md) exists to avoid. That file owns the mechanism, its measurement, its disputed arms and its expiry; do not restate them here. It routes through the shared helper `<scripts-dir>/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path. A sandboxed session skips the helper and creates with `EnterWorktree(name:)` instead: [SKILL.md § Sandboxed sessions](../SKILL.md#sandboxed-sessions).
 
 ## Pre-flight checks
 

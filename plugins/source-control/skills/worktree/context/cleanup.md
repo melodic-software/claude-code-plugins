@@ -102,6 +102,8 @@ each root's drive gives the same figure in bytes.
 
 ### Step 4a: Guards, then remove the worktree
 
+In a sandboxed session the Bash removal lines below are refused: remove only the worktree this session created by name, through `ExitWorktree`, and report every other candidate, as [SKILL.md § Sandboxed sessions](../SKILL.md#sandboxed-sessions) says. The guards still run first.
+
 ```bash
 # Orphaned directory (scan class `empty`, or `husk` proposed `yes`): remove it —
 # ONLY after it has passed every qualifying test for its class below. Absence
