@@ -93,7 +93,7 @@ Detect current state and guide user to the right action.
 
 Create a worktree with guided naming and setup verification. Full procedure (pre-flight guards for already-in-worktree and mid-session transition, name validation against EnterWorktree schema constraints, base-ref notes, the explain-before-create block, directory-rename caveats, post-create setup checks): [context/create.md](context/create.md).
 
-**Safety invariants create must honor** (full detail in context/create.md). A sandboxed session takes the route in [Sandboxed sessions](#sandboxed-sessions) instead:
+**Safety invariants create must honor** (full detail in context/create.md):
 
 - **Create via the shared helper, not `EnterWorktree(name:)`.** `${user_config.worktree_root}` substitutes into skill content as raw text, not shell-escaped, so it must never reach a shell parser: a value containing `'`, `$`, or a backtick breaks a quoted `--root` literal, and one containing the delimiter line ends a heredoc early. Write it to a temp file with the `Write` tool (JSON string parameter, never shell-parsed) and pass the file to the helper's `--fallback-root-file` flag (plugin-option rung, below `worktreeroot.path`); full render in [context/create.md § Create the worktree](context/create.md#create-the-worktree). The helper places the worktree at the external root (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path. `EnterWorktree(name:)` lands in the in-repo `.claude/worktrees/`, the placement [The nesting invariant, dated measurement](reference/nesting-invariant.md) exists to avoid.
 - **On a non-zero helper exit, stop, never fall back to `EnterWorktree(name:)`.** An unset `worktree_root` is not an error when another rung resolves: the helper may use `worktreeroot.path` or fall back to `<plugin-data-dir>/worktrees` from the value below, noting it on stderr and exiting 0. Exit 3 means no usable root (none configured or supplied), a resolved root the containment guard rejects as inside a repository, **or** (on Windows) a root on a different drive from the repo, including the unconfigured plugin-data-dir default. Surface the helper's guidance and stop; a silent in-repo fallback is the nesting regression this closes.
@@ -131,7 +131,7 @@ The **Work** axis answers what age and PR state cannot: whether removing a workt
 
 ## Action: `cleanup [<path>...] [--dry-run]`
 
-**Safety invariants cleanup must honor** (full detail in context/cleanup.md). In a sandboxed session, removal follows [Sandboxed sessions](#sandboxed-sessions):
+**Safety invariants cleanup must honor** (full detail in context/cleanup.md):
 
 - **Never remove a worktree, and never run or emit its `git branch -D`, while its work is stranded or unproven**: a worktree whose unpushed commits are not already on the base loses them, and `unknown` is treated exactly as `stranded`. Both sites are guarded because removal is recoverable (the branch ref survives) but the branch deletion one step later is not; a detached-HEAD worktree is the exception, where removal alone is terminal. The override is `--acknowledge-stranded`, per worktree, never a bare `--force`, which answers git's dirty-tree check, a different question. Offer `git -C <path> push -u origin HEAD` first: it makes the commits durable without anyone judging whether the work matters.
 - **Release OS file locks before `git worktree remove --force`, but only after the keep/remove guards clear** (Step 4a), so a worktree a guard keeps loses no process. On Windows `--force` unregisters the worktree but leaves a husk on disk if a process holds a file handle. Stop build servers (with the shutdown command the project's build tool documents) and worktree-rooted daemons/MCP servers first; stop only those (never another live worktree's processes).
@@ -159,32 +159,39 @@ Periodic health check for worktree infrastructure, suitable as a recurring track
 ## Sandboxed sessions
 
 When this session's Bash commands run in the sandbox, `create` and `cleanup` take the native-tool
-route below instead of Bash `git worktree add` and `git worktree remove`: neither an
-`excludedCommands` entry nor turning the sandbox off. Decide which route applies before running
-the helper, because a refused add can leave its new branch behind. A session is sandboxed when its
-settings enable `sandbox.enabled` or a Bash git write under the main checkout's `.git` fails as a
-read-only file system. Unsandboxed sessions keep the helper and `EnterWorktree(path:)` route above.
+route below instead of Bash `git worktree add` and `git worktree remove`, which the sandbox
+refuses; this route needs no `excludedCommands` entry and no sandbox-off session. In a sandboxed
+session this section overrides the create invariants above and the Routing and Mutation gate rules
+of the Boundary section below wherever they forbid `EnterWorktree(name:)` or
+`ExitWorktree(action: "remove")`. Unsandboxed sessions keep the helper and `EnterWorktree(path:)`
+route. Decide which route applies before running the helper, since a refused add can leave its new
+branch behind; to tell whether this session's commands run sandboxed, see
+[sandboxing: confirm commands run inside the sandbox](https://code.claude.com/docs/en/sandboxing#confirm-commands-run-inside-the-sandbox).
 
 - **A git repository is required.** `EnterWorktree` and `ExitWorktree` fail outside one. Report
   that and stop; never fall back to Bash `git worktree`.
-- **Create** with `EnterWorktree(name: "<validated name>")` as the final action, after the same
-  name validation and explain block as [context/create.md](context/create.md). This is a separate
-  route, not the fallback the create invariants forbid. The tool fires this plugin's
-  `WorktreeCreate` hook, which runs outside the sandbox and creates the worktree through the
-  shared helper at the external root, claimed for this session. With that hook not running
-  (hooks disabled), Claude Code places it in `<repo>/.claude/worktrees/`. Run the Workspace
-  environment `setup` after entering, from the worktree root. Pointers:
+- **Create** with `EnterWorktree(name: "<validated name>")`, after the same name validation and
+  explain block as [context/create.md](context/create.md). The call ends that step. The tool fires
+  this plugin's `WorktreeCreate` hook, which runs outside the sandbox and creates the worktree
+  through the shared helper at the external root, claimed for this session. With that hook not
+  running (hooks disabled), Claude Code places it in `<repo>/.claude/worktrees/`. The Workspace
+  environment `setup` runs as the next step, through Bash from the worktree root; a failed `setup`
+  is reported, not retried. Pointers:
   [hooks: WorktreeCreate](https://code.claude.com/docs/en/hooks#worktreecreate) for which tool
   calls fire it, and
   [sandboxing: what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox).
 - **Commit** from inside the entered worktree, never by `git -C <worktree>` from the main checkout.
   Pointer: [sandboxing: filesystem isolation](https://code.claude.com/docs/en/sandboxing#filesystem-isolation),
   for what a linked worktree may write in the shared `.git`.
-- **Remove** only the worktree this session created with `EnterWorktree(name:)`, with
-  `ExitWorktree(action: "remove")`, after `cleanup`'s stranded-work guard has cleared (push the
-  branch first). A worktree that holds commits needs `discard_changes: true`. This plugin's
-  `WorktreeRemove` hook then removes it, keeps its branch, and refuses uncommitted changes
-  ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove)). `cleanup`
+- **Remove** only the worktree this session created with `EnterWorktree(name:)`, from inside it.
+  Run `cleanup`'s stranded-work and carried-file guards (both read-only), then the Workspace
+  environment `down`, then `ExitWorktree(action: "remove")`; a worktree that holds commits needs
+  `discard_changes: true`. This plugin's `WorktreeRemove` hook then reaps its install records,
+  removes it, keeps its branch, and refuses uncommitted changes
+  ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove)); skip `cleanup`'s
+  own Bash reap. With that hook not running, `remove` also deletes the branch, so the stranded-work
+  guard is all that protects its commits. When the guard keeps the worktree and the push it offers
+  fails under the sandbox, leave with `ExitWorktree(action: "keep")` and report it. `cleanup`
   reports every other candidate, and any `git branch -D` the sandbox refuses, for an unsandboxed
   session to finish, as it does for a hook block.
 
@@ -222,9 +229,8 @@ either a tool or this skill.
   entering an existing worktree; owns `status`, `cleanup`, and `audit`.
 
 **Routing.** When `ExitWorktree` resolves in this session, use it with `action: "keep"` to leave a
-worktree. Use this skill to create a worktree, and never `EnterWorktree(name:)` outside a
-sandboxed session, since without this plugin's hook it places the worktree inside the repository
-(see the nesting invariant above). Entering a worktree that already exists
+worktree. Use this skill to create a worktree, and never `EnterWorktree(name:)`, which places it
+inside the repository (see the nesting invariant above). Entering a worktree that already exists
 also goes through this skill: run the claim gate above (`check-enter`), then, when
 `EnterWorktree` resolves in this session, call `EnterWorktree(path:)` as the final action.
 Removing a worktree is `cleanup`: this skill enters by `path`, and `ExitWorktree` will not remove
@@ -232,9 +238,8 @@ a worktree entered that way.
 
 **Mutation gate.** `EnterWorktree` and `ExitWorktree` change the session's working directory, so
 each is the final action of its step. `ExitWorktree` with `action: "remove"` deletes a worktree
-and its branch, so this skill passes it only in a sandboxed session, for the worktree that session
-created by name, as [Sandboxed sessions](#sandboxed-sessions) says. Otherwise only `cleanup`
-deletes a worktree, under its own confirmation.
+and its branch, so this skill never passes it. Only `cleanup` deletes a worktree, under its own
+confirmation.
 
 **Availability is never assumed.** This section states what to do when a tool resolves in this
 session, never that it is present. The four-part records live in
