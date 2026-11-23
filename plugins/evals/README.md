@@ -52,8 +52,8 @@ cases into its `evals/` suite and removes the converted files.
 ## Shared grader matchers
 
 A `regex` or `tool_used` grader is static text in `case.yaml`, so the binary cannot call a helper
-when it grades. Shapes that recur across cases live once in `matchers/fragments.json` instead, and a
-case builds a grader from them in `<case>/matchers.json`:
+when it grades. Shapes that recur across cases live once in the `*.json` files under `matchers/` instead
+(`install_command` in `install-command.json`, the rest in `fragments.json`), and a case builds a grader from them in `<case>/matchers.json`:
 
 ```json
 {"no-token-shell": [{"use": "command_position"}, "(?:curl|wget)\\b",
@@ -82,7 +82,8 @@ differs from its build; `--write` rewrites the drifted lines. Its suite, `check-
 runs it over every plugin's evals in CI.
 
 To add a fragment, give it a `summary`, its `text`, a `probe` grader built from it, and `samples`
-with answers that must pass and answers that must fail, near misses included. To build a grader,
+with answers that must pass and answers that must fail, near misses included, in a file under `matchers/`; a name defined in two files is
+an error. To build a grader,
 write its `matchers.json` entry, run `check-matchers.py --write`, and add `samples/<grader>.json`.
 
 ## Upstream sync
