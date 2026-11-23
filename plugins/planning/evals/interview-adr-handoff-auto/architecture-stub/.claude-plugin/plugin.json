@@ -1,0 +1,5 @@
+{
+  "name": "architecture",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the architecture plugin: the adr skill's name and description, with no scripts or hooks."
+}

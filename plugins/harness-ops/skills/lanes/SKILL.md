@@ -12,17 +12,6 @@ metadata:
 
 **Arguments.** `[start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]`. Full form: [start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]. Start (default); restart/stop accept lane names; run-once takes exactly one; print-schedule takes --write-script and lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Repo root, `git rev-parse --show-toplevel`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 claude CLI version, then jq: !`claude --version 2>/dev/null || echo "claude CLI MISSING (required)"; command -v jq >/dev/null 2>&1 && echo "jq present" || echo "jq MISSING (required)"`

@@ -1,3 +1,4 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore each job's only artifact
@@ -60,7 +61,6 @@ const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 // The key job's credit gate, read inside its credential call: a key it
 // held off runs no pre-judge setup.
 const KEY_SKIP = " && steps.credential.outputs.key-skipped != 'true'";
-const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
@@ -410,7 +410,8 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
   // The name the gate reads is the name the job uploads; the scan covers the same file.
@@ -462,7 +463,8 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
-  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  assert.match(scanStep, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
   assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
@@ -677,56 +679,10 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
   assert.equal(index("Pick the next leg", FB), -1);
 });
 
-test("the subscription job repeats the key job's steps but for the credential", () => {
-  // Each difference the two-job pattern needs, normalized away on the key
-  // job's side; everything else, the gates and hardening included, matches.
-  const lines = (block) =>
-    block
-      .split("\n")
-      .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
-      .join("\n");
-  const normalize = (blocks) =>
-    blocks
-      .filter(
-        (s) =>
-          !s.name.startsWith("Check the key leg") &&
-          !s.name.startsWith("Check the subscription leg") &&
-          s.name !== "Hand the reads on" &&
-          // The key's credit-stop marker: only a key leg's credit stop says the key is out.
-          !MARKER_STEPS.includes(s.name) &&
-          // The key's probing marker: only the key leg probes the key.
-          !PROBE_STEPS.includes(s.name) &&
-          // The credit gate: only the key leg can be out of credit.
-          !CREDIT_STEPS.includes(s.name) &&
-          !DEFER_STEPS.includes(s.name) &&
-          // Each leg's credential call, checked above.
-          s.name !== "Check the credential",
-      )
-      .map((s) =>
-        lines(s.text)
-          .replace(`\n${CARRY_ENV.join("\n")}`, "")
-          .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
-          .replace(NOT_DEFERRED, "")
-          .replace(KEY_SKIP, "")
-          .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
-          .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
-          .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(/^( {10}handoff: .*steps\.)sub(-leg)/m, "$1key$2")
-          .replace(/steps\.sub-leg/g, "steps.key-leg")
-          .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
-          .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
-          .replace(" && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true')", "")
-          .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
-      );
-  assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
-  const fallback = STEPS[FB].map((s) => ({
-    ...s,
-    text: s.text.replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
-  }));
-  assert.deepEqual(
-    normalize(fallback),
-    normalize(STEPS[KEY].filter((s) => s.name !== "Pick the next leg")).map((block) => block.replace(/\n {10}handoff: .*$/m, "")),
-  );
+test("the subscription and fallback jobs are what scripts/sync-credential-legs.mjs renders from the key job", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 // check-intent hands its reads on only from steps that finish before the

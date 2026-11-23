@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.9.2] - 2026-11-23
+
+### Changed
+
+- `lib/persist-report.sh` and the audit-instructions `emit-findings.sh` take their option-value guard from the shared `lib/opt-value.sh`. persist-report now refuses an empty or `-`-leading option value (exit 2, as before), still reads `--report -` as stdin, and says `persist-report.sh: <option> requires a value`.
+
 ## [5.9.1] - 2026-11-22
 
 ### Changed

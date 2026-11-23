@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# One suite for every target-resolution entry form.
 # shellcheck disable=SC2154,SC2034
 set -uo pipefail
 export LC_ALL=C
@@ -36,8 +35,6 @@ git -C "$REPO" add a.md "nested/notes-é.md"
 git -C "$REPO" -c user.email=t@example.com -c user.name=t commit -q -m init
 printf 'l\n' >"$REPO/loose.md"
 
-# Drive-root slash preservation is a string contract, not a host contract: the
-# suite does not need Windows.
 assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
 assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/tmp/")" "C:/tmp"
 assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
@@ -59,7 +56,6 @@ bare_text="$(join_lines bare)"
 assert_eq "explicit files match the bare list" "$(join_lines explicit)" "$bare_text"
 assert_eq "a directory matches the bare list" "$(join_lines directory)" "$bare_text"
 assert_eq "a paths file matches the bare list" "$(join_lines from_file)" "$bare_text"
-# `read` returns nonzero on an unterminated last line; the entry must still count.
 pf_nonl="$TEST_TMPDIR/paths-no-newline"
 printf '%s\n%s' "$REPO/a.md" "$REPO/nested/notes-é.md" >"$pf_nonl"
 declare -a no_newline=() one_entry=()
@@ -73,14 +69,10 @@ assert_eq "a one-entry paths file without a trailing newline lists that entry" "
 assert_eq "the non-ASCII tracked name is in the bare list" "$(printf '%s\n' "${bare[@]}" | grep -c 'notes-é.md' || true)" "1"
 assert_eq "untracked markdown is not in the bare list" "$(printf '%s\n' "${bare[@]}" | grep -c 'loose.md' || true)" "0"
 
-# The bare list is REPO_ROOT-prefixed, so it cannot depend on the CWD: a wrong
-# prefix leaves paths the existence filter drops.
 declare -a bare_away=()
 away_text="$(cd "$TEST_TMPDIR" && resolve_targets bare_away "$REPO" "" 0 0 0 && join_lines bare_away)"
 assert_eq "a bare invocation from outside the checkout lists the same paths" "$away_text" "$bare_text"
 
-# A directory inside a checkout that holds only untracked markdown expands to
-# nothing; the walk is reserved for a directory outside one.
 mkdir -p "$REPO/untrackedonly"
 printf 'u\n' >"$REPO/untrackedonly/loose.md"
 declare -a untracked_only=()
@@ -94,10 +86,6 @@ resolve_targets win_dir "$REPO" "" 1 1 0 "$REPO"
 assert_eq "offset/limit windows the bare list and a directory the same way" "$(join_lines win_dir)" "$(join_lines win_bare)"
 assert_eq "the window is the second sorted path" "$(join_lines win_bare)" "$REPO/nested/notes-é.md"
 
-# A failing ls-files must say so, and git's own stderr must survive: swallowed,
-# it is an empty list indistinguishable from a checkout with no tracked
-# markdown. The stub fails only ls-files, so the branch under test is the
-# listing and not work-tree detection.
 BADLS_BIN="$TEST_TMPDIR/bin-badls"
 mkdir -p "$BADLS_BIN"
 REAL_GIT="$(command -v git)"
@@ -138,8 +126,6 @@ assert_eq "a directory outside a checkout names the filesystem walk" "$err" \
 mapfile -t expected_walk < <(find "$OUTSIDE" -name '*.md' -type f | sort -u)
 assert_eq "a directory outside a checkout lists the walked markdown" "$(join_lines outside)" "$(join_lines expected_walk)"
 
-# Outside a checkout a bare invocation has nothing tracked to list, which is a
-# reportable state rather than a clean audit of an empty set.
 declare -a outside_bare=()
 resolve_targets outside_bare "$OUTSIDE" "" 0 0 0 2>"$TEST_TMPDIR/outside-bare.err"
 assert_eq "a bare invocation outside a checkout says so" "$(cat "$TEST_TMPDIR/outside-bare.err")" \
@@ -174,8 +160,6 @@ else
   done
 fi
 
-# A target repository's own core.fsmonitor never runs: CI audits head
-# directories, and a nested .git there is the PR author's config.
 FSM="$TEST_TMPDIR/fsmonitor-repo"
 git init -q "$FSM"
 printf '# A\n' >"$FSM/a.md"

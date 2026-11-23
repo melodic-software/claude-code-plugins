@@ -6,10 +6,10 @@ disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(test:*)"]
 ---
 
-## Repository context. Gather first
+## Repository context. Resolve in order
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Run these in order, each as its own Bash call: each later call takes the literal value an earlier
+one returned, so they cannot run in parallel.
 
 - Repository root, `git rev-parse --show-toplevel`
 - Convention home, `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "<root>"`.
@@ -31,7 +31,7 @@ the root call failed, there is no team layer to look for. `apply` creates `<home
 missing.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation").
 
 ## Why this skill is human-invoked

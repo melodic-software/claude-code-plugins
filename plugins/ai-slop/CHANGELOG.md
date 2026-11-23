@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.2] - 2026-11-23
+
+### Changed
+
+- `/ai-slop:audit` no longer gather repository context that no step read.
+
+## [0.21.1] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [0.21.0] - 2026-11-22
 
 ### Added

@@ -1,7 +1,19 @@
+// test-scope: .github/scripts/post-merge-demotion-alert/demotion-record.vectors.json
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { MIN_FAILURES, compute, readMarker, readRecord, renderMarkdown, revertsOf, squashRating } from "./merge-risk-failures.mjs";
+import { MIN_FAILURES, compute, parseRecordMarker, readMarker, readRecord, renderMarkdown, revertsOf, squashRating } from "./merge-risk-failures.mjs";
+
+const VECTORS = JSON.parse(
+  readFileSync(new URL("../../../../../.github/scripts/post-merge-demotion-alert/demotion-record.vectors.json", import.meta.url), "utf8"),
+);
+
+test("parseRecordMarker reads the shared record vectors as demotion-record.mjs does", () => {
+  assert.ok(VECTORS.markers.length > 0 && VECTORS.not_markers.length > 0);
+  for (const { name, kind, sha, signal, line } of VECTORS.markers) assert.deepEqual(parseRecordMarker(line), { kind, sha, signal }, name);
+  for (const { name, line } of VECTORS.not_markers) assert.equal(parseRecordMarker(line), null, name);
+});
 
 const sha = (c) => c.repeat(40);
 const BOT = "melodic-automation-lanes";

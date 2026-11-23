@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the skill-starvation engine test suite.
 # test-scope: plugins/harness-ops/skills/audit-skill-visibility/scripts/test_audit_skill_visibility.py plugins/harness-ops/skills/audit-skill-visibility/tests/fixtures/*
 set -euo pipefail
 
@@ -13,8 +12,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor has one origin: MIN_PYTHON in the engine. Parse it rather
-# than restating the number here.
 ENGINE="$SCRIPT_DIR/audit_skill_visibility.py"
 FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$ENGINE")"
 if [[ -z "$FLOOR" ]]; then
@@ -38,9 +35,6 @@ fi
 
 (cd "$SCRIPT_DIR" && "$PYTHON" -m unittest -v test_audit_skill_visibility)
 
-# Contract check: the shipped fixture must resolve every row to not-observable.
-# A fresh install is exactly where a naive report libels the fleet as unused, so
-# this asserts the honesty floor end-to-end, not just in the unit seam.
 FIXTURE="$SCRIPT_DIR/../tests/fixtures/fleet-basic.json"
 OUT="$("$PYTHON" "$ENGINE" --fixture "$FIXTURE" --render json)"
 TOTAL="$(printf '%s' "$OUT" | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin)["skills"]))')"
@@ -51,10 +45,6 @@ if [[ "$TOTAL" != "$UNOBS" ]]; then
 fi
 echo "ok: fresh-install fixture withheld every cold verdict ($UNOBS/$TOTAL)"
 
-# Contract check: --installed resolves ONE entry per plugin, not one per install
-# scope. A manifest listing the same plugin at two scopes must not double the
-# fleet -- the fleet is the denominator the listing budget is measured against,
-# so a doubled fleet roughly doubles the reported overflow.
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"
@@ -81,12 +71,6 @@ printf '{"mkt":{"source":{"source":"directory","path":"%s"},"installLocation":"%
 printf '{"version":2,"plugins":{"alpha@mkt":[{"scope":"project","version":"1.0.0","installPath":"/nowhere","projectPath":"%s"},{"scope":"user","version":"2.0.0","installPath":"/nowhere-else"}]}}\n' \
   "$REPO" >"$WORK/cfg/installed_plugins.json"
 
-# `projectPath` and CLAUDE_PROJECT_DIR are compared to each other, so both use
-# the one spelling; converting only one turns the project-scope record
-# not-applicable and changes what the assertion below measures.
-# CLAUDE_CONFIG_DIR points at the fixture too: --installed also counts the
-# user's own skills and settings, and those must come from the fixture, never
-# from the developer's real ~/.claude.
 INST="$(CLAUDE_CONFIG_DIR="$CFG" CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$CFG" --render json)"
 read -r ENTRIES PLUGINS SKILLS <<EOF
 $(printf '%s' "$INST" | "$PYTHON" -c 'import json,sys; m=json.load(sys.stdin); f=m["fleet"]; print(f["manifest_entries"], f["plugins_resolved"], len(m["skills"]))')
