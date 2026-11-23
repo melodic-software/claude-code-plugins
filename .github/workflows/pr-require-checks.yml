@@ -5439,6 +5439,22 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      - name: Read whether a re-run draft run's pull request is ready
+        id: draft_rerun
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.run_attempt != '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          if pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") && [ "$(jq -r '.draft' <<<"$pull")" = true ]; then
+            echo "Attempt $RUN_ATTEMPT: #$PR_NUMBER is still a draft."
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::Attempt $RUN_ATTEMPT of a draft run: #$PR_NUMBER is ready, or its draft state did not read, so the hold and review-lane steps run."
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+          fi
       - name: Resolve main's tip
         id: tip
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -5723,7 +5739,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6064,7 +6080,7 @@ jobs:
       # this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6766,7 +6782,7 @@ jobs:
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -7413,7 +7429,7 @@ jobs:
       # can forge the step list. An unreadable annotation list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
       - name: Require both review lanes on this head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft == false || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
