@@ -29,14 +29,13 @@ attrs() {
   [[ "$3" == - ]] || out+=",{\"key\":\"ccr.session.id\",\"value\":{\"stringValue\":\"$3\"}}"
   printf '%s' "$out"
 }
-# Metric data point: <session> <item|-> <ccr|-> <type|-> <value fragment, e.g. "asInt":"5">.
 point() {
   local a
   a="$(attrs "$1" "$2" "$3")"
   [[ "$4" == - ]] || a+=",{\"key\":\"type\",\"value\":{\"stringValue\":\"$4\"}}"
   printf '{"timeUnixNano":"%s000000000","attributes":[%s],%s}' "$EPOCHSECONDS" "$a" "$5"
 }
-metric() { # <name> <aggregationTemporality> <points...>: one Collector batch line
+metric() {
   local name="$1" temporality="$2" IFS=,
   shift 2
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"%s","unit":"x","sum":{"dataPoints":[%s],"aggregationTemporality":%s,"isMonotonic":true}}]}]}]}\n' \
@@ -51,7 +50,7 @@ event() {
 TOKENS=claude_code.token.usage
 COST=claude_code.cost.usage
 
-run() { # <store> <args...>
+run() {
   out="$(CC_OTEL_STORE="$1" bash "$SCRIPT" "${@:2}" 2>&1)"
   rc=$?
   flat="$(tr -s ' ' <<<"$out")"

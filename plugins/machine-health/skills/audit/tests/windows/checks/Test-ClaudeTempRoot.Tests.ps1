@@ -59,8 +59,6 @@ BeforeAll {
         return ConvertFrom-CheckOutput (& $script:ScriptPath @Parameters)
     }
 
-    # Running the script would also run the envelope, so the listing and walk
-    # functions are lifted out of the script's AST to be called with a stand-in clock.
     $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
         $script:ScriptPath, [ref]$null, [ref]$null)
     foreach ($name in 'Find-LargestTaskOutput', 'Measure-SessionTree', 'Measure-TempRootTree') {
@@ -73,8 +71,6 @@ BeforeAll {
     }
 
     function New-TickingClock {
-        # Each read of Elapsed advances one second, so a budget runs out after a
-        # known number of deadline tests rather than after wall-clock time.
         $clock = [pscustomobject]@{ Seconds = 0 }
         $clock | Add-Member -MemberType ScriptProperty -Name Elapsed -Value {
             $this.Seconds++
@@ -90,8 +86,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         $script:priorTmpdir = $env:CLAUDE_CODE_TMPDIR
         $script:priorTemp = $env:TEMP
         $script:priorLocalAppData = $env:LOCALAPPDATA
-        # Fallback candidates point somewhere guaranteed absent so only the
-        # fixture can satisfy resolution.
         $env:TEMP = Join-Path $script:tmpDir 'no-temp-here'
         $env:LOCALAPPDATA = Join-Path $script:tmpDir 'no-localappdata-here'
     }
@@ -199,8 +193,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
             $blocked = Join-Path $session 'blocked'
             New-Item -ItemType Directory -Path $blocked -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $blocked 'hidden.bin') -Value 'unmeasurable'
-            # Deny the current user list access so enumeration errors, without needing
-            # elevation: the account still owns the directory and can restore the ACL.
             $denyRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
                 [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
                 'ListDirectory', 'ContainerInherit,ObjectInherit', 'None', 'Deny')
@@ -225,7 +217,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
                 $result.detail.total_bytes | Should -BeGreaterThan 0 `
                     -Because 'the partial floor still ships so the human sees what was measured'
             } finally {
-                # The deny must come back off or AfterEach cannot delete the fixture.
                 if ($denied) {
                     $acl = Get-Acl -LiteralPath $blocked
                     $null = $acl.RemoveAccessRule($denyRule)

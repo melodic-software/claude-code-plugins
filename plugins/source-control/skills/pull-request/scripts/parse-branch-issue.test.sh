@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for parse-branch-issue.sh.
-# Each case: PASS prints, FAIL prints. Non-zero exit on any FAIL.
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -16,8 +14,6 @@ fi
 PASS=0
 FAIL=0
 
-# Isolate every case from ambient config: an empty fixture HOME and repo root,
-# and no exported userConfig value, unless a case sets its own.
 FIXTURES="$(mktemp -d)"
 trap 'rm -rf "$FIXTURES"' EXIT
 export HOME="${FIXTURES}/empty-home"
@@ -51,9 +47,6 @@ run_test "feat/just-a-feature no number" "feat/just-a-feature" "" 1
 run_test "worktree-foo-bar wrong prefix" "worktree-foo-bar" "" 1
 run_test "cursor/abc-xyz cloud-agent no number" "cursor/abc-xyz" "" 1
 
-# Configurable grammar: a consumer whose branches place the reference
-# differently passes an ERE whose LAST capture group is that reference, an
-# issue number or a tracker key.
 run_test "username-scoped scheme via custom pattern" "alice/1234-fix" "1234" 0 '^[^/]+/([0-9]+)-'
 run_test "trailing-number scheme via custom pattern" "feat/add-widget-1234" "1234" 0 '-([0-9]+)$'
 run_test "custom pattern, no match -> exit 1" "main" "" 1 '^[^/]+/([0-9]+)-'
@@ -61,7 +54,6 @@ run_test "custom pattern, no match -> exit 1" "main" "" 1 '^[^/]+/([0-9]+)-'
 run_test "unsubstituted user_config placeholder falls back to default" "feat/42-x" "42" 0 '${user_config.branch_issue_pattern}'
 run_test "tracker key via custom pattern" "feat/SW2-1234-x" "SW2-1234" 0 '^[^/]+/([A-Z][A-Z0-9]*-[0-9]+)-'
 
-# --no-default: a tracker-bound caller lets the adapter own the default grammar.
 run_no_default() {
   local desc="$1" pattern="$2" expected_out="$3" expected_exit="$4" actual_out actual_exit
   actual_out=$(bash "$PARSER" "feat/42-x" "$pattern" --no-default 2>/dev/null)
@@ -77,13 +69,6 @@ run_no_default() {
 run_no_default "--no-default with no consumer pattern exits 3, prints nothing" "" "" 3
 run_no_default "--no-default still applies a consumer pattern" '^[^/]+/([0-9]+)-' "42" 0
 
-# Markdown layer cascade. Each case gets its own fixture HOME and repo root.
-# `${CASE_HOME}/.claude/source-control.md` is the user-global layer and
-# `${CASE_REPO}/.claude/source-control.local.md` the personal override, the two
-# markdown layers; the team layer is docs/conventions/source-control.yaml.
-# `layer <file> <value>` writes one `## branch_issue_pattern` section; the value
-# is wrapped in backticks, as setup writes it. `yaml_layer <file> <value>` writes
-# the team YAML.
 layer() {
   mkdir -p "$(dirname "$1")"
   # shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
@@ -101,8 +86,6 @@ TEAM_YAML_REL="docs/conventions/source-control.yaml"
 PERSONAL_YAML_REL="docs/conventions/source-control.local.yaml"
 OLD_LOCATION_NOTE='^parse-branch-issue: old location '
 
-# `track <file>` stages a file the case wrote inside its repo, since the team
-# YAML is a config layer only when git tracks it. Outside a git repo it does nothing.
 track() {
   git -C "$CASE_REPO" add -f -- "$1" >/dev/null 2>&1 || true
 }
@@ -113,17 +96,12 @@ new_case() {
   git init -q "$CASE_REPO"
 }
 
-# `layer_raw <file> <content>` writes the file verbatim, for fence cases.
 layer_raw() {
   mkdir -p "$(dirname "$1")"
   printf '%s' "$2" >"$1"
   track "$1"
 }
 
-# run_cfg <desc> <branch> <pattern-arg> <env-value|-> <want-out> <want-exit> <stderr-check> [<stderr-absent>]
-# <stderr-check>: `empty` requires no stderr; otherwise an ERE stderr must match.
-# <stderr-absent>: an optional fixed string stderr must NOT contain.
-# stdout must equal <want-out> exactly, so a note never leaks onto it.
 run_cfg() {
   local desc="$1" branch="$2" pattern="$3" envval="$4" want_out="$5" want_exit="$6" err_check="$7" err_absent="${8:-}"
   local out err rc errfile="${FIXTURES}/stderr"
@@ -195,9 +173,6 @@ yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
 run_cfg "personal override beats team and user-global" "a/5/77-x-9" "" - "5" 0 empty
 
-# A layer whose section exists but yields no usable pattern stops resolution:
-# no stdout, exit 1, and a note naming the layer and `stopped`, even when a
-# lower layer, the userConfig, or the default would match.
 STOPPED='resolution stopped, no issue id emitted'
 
 new_case
@@ -243,7 +218,6 @@ run_cfg "no config anywhere: built-in default, no note" "feat/42-x" "" - "42" 0 
 new_case
 run_cfg "no config anywhere, no match: exit 1, no note" "main" "" - "" 1 empty
 
-# Fenced values: the first non-blank line inside a code fence is the value.
 new_case
 layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_pattern\n\n```\n-([0-9]+)$\n```\n'
 run_cfg "fenced value resolves" "feat/12-add-widget-1234" "" - "1234" 0 empty
@@ -269,7 +243,6 @@ layer_raw "${CASE_REPO}/.claude/source-control.local.md" \
   $'## notes\n\n```md\n## branch_issue_pattern\n\n`^[a-z]+/([0-9]+)-`\n```\n\n## branch_issue_pattern\n\n`-([0-9]+)$`\n'
 run_cfg "heading inside an earlier fence is ignored" "feat/12-add-widget-1234" "" - "1234" 0 empty
 
-# The output must be a numeric issue id.
 new_case
 layer "${CASE_REPO}/.claude/source-control.local.md" '[0-9]+$'
 run_cfg "pattern with no capture group: no output, note names the layer" \
@@ -284,7 +257,6 @@ new_case
 run_cfg "non-numeric userConfig capture: no output, note names userConfig" \
   "feat/12-x" '^([a-z]+)/' - "" 1 'userConfig.*non-numeric'
 
-# Backreferences are rejected.
 new_case
 layer "${CASE_REPO}/.claude/source-control.local.md" '^([a-z]+)/\1([0-9]+)'
 run_cfg "backreference layer stops resolution, never the default" \
@@ -298,7 +270,6 @@ new_case
 run_cfg "invalid-ERE userConfig env var ignored, default applies" \
   "feat/42-x" "" '([' "42" 0 'userConfig.*invalid ERE.*ignored' 'stopped'
 
-# Notes never echo the raw repo-file value.
 new_case
 layer "${CASE_REPO}/.claude/source-control.local.md" 'ZQXMARK(['
 run_cfg "invalid-ERE note omits the raw pattern" \
@@ -379,9 +350,6 @@ layer_raw "${CASE_REPO}/.claude/source-control.local.md" $'## branch_issue_patte
 run_cfg "value of only backticks stops resolution, never the default" \
   "$WN" "" - "" 1 "source-control\.local\.md.*no value.*${STOPPED}"
 
-# Pattern limits, checked before the pattern is compiled or matched. Each
-# rejected layer stops resolution; the user-global `-([0-9]+)$` (34) and the
-# default (12) must both stay unreached.
 new_case
 layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" "^feat/([0-9]+)-|$(printf 'z%.0s' {1..190})"
@@ -493,11 +461,6 @@ if mklink "${CASE_HOME}/.claude/source-control.md" "${CASE_REPO}/.claude/source-
     "${CASE_REPO}/.claude/source-control.local.md"
 fi
 
-# Team layer in docs/conventions/source-control.yaml: the retired
-# .claude/source-control.md is never read, and --explain names the layer that
-# supplied the pattern.
-
-# run_explain <desc> <branch> <want-out> <want-layer-ERE>
 run_explain() {
   local desc="$1" branch="$2" want_out="$3" want_layer="$4" out err
   out=$(HOME="$CASE_HOME" CLAUDE_PROJECT_DIR="$CASE_REPO" bash "$PARSER" "$branch" "" --explain 2>"${FIXTURES}/stderr")

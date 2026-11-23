@@ -24,8 +24,7 @@ done <"$skill/evals/fixtures/shipments-mockup.html" >"$d/explore-directions.html
 
 browser_serve
 
-# Run one page script (placeholders replaced from name=value pairs) and grade each line it returns.
-run() { # script label [NAME=value ...]
+run() {
   local src=$1 label=$2 out line path n=0
   shift 2
   python3 -c '
@@ -59,7 +58,6 @@ for line in sys.stdin:
 pw open >/dev/null 2>&1
 run "$here/notes-panel-browser-take.js" take
 
-# A watcher takes the note, which stamps it delivered.
 if WATCH_ID="edp-watch" timeout 30 bash "$bridge/watch.sh" "$d" >"$tmp/wake.json"; then
   ok "the watcher took the note"
 else

@@ -110,11 +110,6 @@ printf 'StashStore: %s\n' "${COMMON_DIR:-unknown}"
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
-# PR map (best-effort): source-branch → state, so a stash whose source branch was
-# merged can be flagged likely-superseded. Same shared lookup as the branch audit,
-# including its PRCount / PRDataTruncated / PRDataUnavailable status lines: a
-# short or missing map silently withholds the superseded advisory, so it is
-# reported rather than swallowed.
 declare -A PR_STATE=()
 declare -A PR_NUM=()
 PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
@@ -133,7 +128,6 @@ count=0 superseded=0
 ORIGIN_DEFAULT=0
 git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1 && ORIGIN_DEFAULT=1
 
-# stash_stat <git stash show args>: the summary line of the stat, unindented.
 stash_stat() {
   git -C "$REPO_ROOT" stash show "$@" 2>/dev/null | tail -1 | sed 's/^[[:space:]]*//'
 }
@@ -142,7 +136,6 @@ while IFS=$'\t' read -r sel sha ts subject; do
   [[ -z "$sel" ]] && continue
   count=$((count + 1))
   age_days=$(((NOW - ts) / 86400))
-  # Source branch from the stash subject ("WIP on X: …" / "On X: …").
   src="$(printf '%s' "$subject" | sed -n 's/^\(WIP on\|On\) \([^:]*\):.*/\2/p')"
   src="${src:-unknown}"
   # Prefer the untracked-inclusive stat (a `stash -u` pre-rebase backup is often
@@ -163,10 +156,6 @@ while IFS=$'\t' read -r sel sha ts subject; do
   elif [[ "$src" != "unknown" && "$src" != "$DEFAULT_BRANCH" && $ORIGIN_DEFAULT -eq 1 ]] &&
     git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/${src}" &&
     [[ -z "$(git -C "$REPO_ROOT" rev-list -n 1 "origin/${DEFAULT_BRANCH}..refs/heads/${src}" 2>/dev/null)" ]]; then
-    # No PR record but the source branch is fully merged into origin/<default>:
-    # its committed work is on the default branch, so the stash is more likely a
-    # superseded pre-merge backup. The stash's own diff may still be unique — hence
-    # advisory only, never auto-drop.
     advisory="possibly superseded — source branch merged into origin/${DEFAULT_BRANCH}; confirm before dropping"
     superseded=$((superseded + 1))
   fi

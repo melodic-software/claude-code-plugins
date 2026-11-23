@@ -100,7 +100,6 @@ function modeFor(record, settings, use, requested, notices) {
   return requested === "read-only" ? "read-only" : ceiling;
 }
 
-/** Refuses an --add-dir value that is not an existing directory named by an absolute path. */
 function checkAddDirs(dirs) {
   for (const dir of dirs) {
     if (!isAbsolute(dir)) throw refuse(`--add-dir ${JSON.stringify(dir)} is not an absolute path`);
@@ -108,7 +107,6 @@ function checkAddDirs(dirs) {
   }
 }
 
-/** The mode's spec for this run with any --unsandboxed variant applied, and the fence name the job records. */
 function fenceFor(record, { mode, command, use, requested, addDirs = [], unsandboxed }) {
   const spec = record.modes[mode];
   const asked = [addDirs.length ? "--add-dir" : null, unsandboxed !== undefined ? "--unsandboxed" : null].filter(Boolean);
@@ -406,7 +404,6 @@ const alive = (pid) => {
 
 const owns = (pid, startedAt) => Number.isInteger(pid) && alive(pid) && (!startedAt || pidStartTime(pid) === startedAt);
 
-/** A `running` job is over once both the CLI and the runner that writes its result are gone; the runner may still be recording a finished CLI. */
 function settle(ctx, job) {
   if (job.status !== "running") return job;
   if (owns(job.pid, job.pid_started_at) || owns(job.runner_pid, job.runner_started_at)) return job;

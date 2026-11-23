@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract for collect-standards.sh.
 set -uo pipefail
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -14,7 +13,6 @@ git init -q "$WORK" >/dev/null 2>&1
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 test_helpers::contract_lane
 
-# lacks <phrase> <label> - the last run's combined output does not carry <phrase>.
 lacks() {
   if [[ "$last_out" != *"$1"* ]]; then
     pass "$2"

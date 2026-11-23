@@ -22,9 +22,6 @@ SCRIPT="$SCRIPT_DIR/render-index.sh"
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 SKIPPED=0
 
-# A case this host cannot run is neither a pass nor a failure. It prints its own
-# visible line, carries its own counter, and never routes through pass(), so a
-# host-blocked proof can never be read off the summary as a case that ran.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -40,7 +37,6 @@ commit_all() {
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
 }
 
-# A fixture repository carrying a representative mix of instruction surfaces.
 build_fixture() {
   local dir
   dir="$(mktemp -d "$TMP/x.XXXX")"
@@ -106,9 +102,6 @@ EOF
   printf '%s' "$dir"
 }
 
-# --------------------------------------------------------------------------
-# Usage
-# --------------------------------------------------------------------------
 out="$(run --help)"
 assert_contains "--help prints usage" "$out" "render-index.sh"
 
@@ -124,9 +117,6 @@ assert_eq "check without --file is a usage error" "2" "$?"
 run write >/dev/null 2>&1
 assert_eq "write without --file is a usage error" "2" "$?"
 
-# --------------------------------------------------------------------------
-# render — what is indexed and what is deliberately not
-# --------------------------------------------------------------------------
 repo="$(build_fixture)"
 out="$(run render --root "$repo")"
 
@@ -138,8 +128,6 @@ assert_contains "the H1 supplies the topic when no description exists" "$out" "C
 assert_contains "an explicit description wins over the H1" "$out" "Test layout and the runner to use"
 assert_contains "a rule in a nested rules directory is indexed" "$out" '`.claude/rules/nested/api.md`'
 
-# The glob join pads only the commas it inserts between globs, never a comma
-# inside a brace glob (regression: a global comma pad rendered `{ts, tsx}`).
 assert_contains "brace-glob commas are not padded, list commas are" "$out" '`src/*.{ts,tsx}, lib/**`'
 assert_not_contains "no space is injected inside a brace glob" "$out" '{ts, tsx}'
 
@@ -151,11 +139,8 @@ assert_contains "a nested AGENTS.md is indexed" "$out" '`src/billing/AGENTS.md`'
 assert_contains "a nested surface is scoped to its subtree" "$out" '`src/billing/**`'
 assert_contains "a nested H1 supplies its label" "$out" "Billing service conventions"
 
-# A pure shim carries no content of its own; the file it imports is already
-# indexed, so a row for the shim would spend always-loaded budget saying nothing.
 assert_not_contains "a pure CLAUDE.md shim is NOT indexed" "$out" '`src/billing/CLAUDE.md`'
 
-# A nested CLAUDE.md that carries its own content beyond the import IS indexed.
 mkdir -p "$repo/svc"
 {
   printf '@AGENTS.md\n\n'
@@ -168,16 +153,11 @@ out="$(run render --root "$repo")"
 assert_contains "a nested CLAUDE.md with its own content IS indexed" "$out" '`svc/CLAUDE.md`'
 assert_contains "its own H1 supplies the label" "$out" "Service specifics"
 
-# An infra dir with only a bare AGENTS.md and no shim: still indexed, because the
-# generator reports what exists rather than judging whether it will load.
 assert_contains "a shim-less nested AGENTS.md is still listed" "$out" '`infra/AGENTS.md`'
 
 assert_contains "the block states how the trigger behaves in subagents" "$out" "subagents"
 assert_contains "the block explains the compaction behavior" "$out" "compaction"
 
-# An eval fixture tree is test input that imitates a consuming repository. Its
-# rules and nested instruction files are not this repository's conventions, so
-# none of them may reach the always-loaded index.
 fx="$(build_fixture)"
 fxdir="$fx/plugins/demo/skills/run/evals/fixtures/consumer-repo"
 mkdir -p "$fxdir/.claude/rules"
@@ -189,9 +169,6 @@ assert_not_contains "a rule inside an evals/fixtures tree is NOT indexed" "$out"
 assert_not_contains "a nested CLAUDE.md inside an evals/fixtures tree is NOT indexed" "$out" 'evals/fixtures/consumer-repo/CLAUDE.md'
 assert_contains "rules outside the fixture tree are still indexed" "$out" '`.claude/rules/csharp.md`'
 
-# A unit-test fixture tree (a plugin's tests/fixtures/) is the same kind of
-# imitated consuming repository, so it stays out of the index, and a root block
-# written from the same repository stays in sync with it present (#6868).
 tfx="$(build_fixture)"
 tfxdir="$tfx/plugins/demo/tests/fixtures/pointer-home"
 mkdir -p "$tfxdir/.claude/rules"
@@ -210,25 +187,16 @@ out="$(run check --file "$tfx/AGENTS.md" --root "$tfx")"
 assert_contains "a root index written beside a tests/fixtures tree is IN-SYNC" "$out" "IN-SYNC"
 assert_not_contains "and its written block never names the tests/fixtures tree" "$(cat "$tfx/AGENTS.md")" 'tests/fixtures'
 
-# --------------------------------------------------------------------------
-# Determinism
-# --------------------------------------------------------------------------
 a="$(run render --root "$repo")"
 b="$(run render --root "$repo")"
 assert_eq "render is byte-identical across runs" "$a" "$b"
 
-# --------------------------------------------------------------------------
-# Empty repository
-# --------------------------------------------------------------------------
 empty="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$empty" init -q .
 out="$(run render --root "$empty")"
 assert_contains "an empty repo still emits a well-formed block" "$out" "BEGIN GENERATED"
 assert_contains "an empty repo says so plainly" "$out" "No path-scoped rules"
 
-# `render` prints what a block WOULD say, so a human can see there is nothing to
-# index. `write` is the surface that costs context, and an always-loaded block
-# saying "there is nothing here" is the cost this index exists to avoid.
 printf '# Songs\n\nEverything about this repo.\n' >"$empty/AGENTS.md"
 before="$(cat "$empty/AGENTS.md")"
 run write --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
@@ -257,10 +225,6 @@ assert_contains "while the surrounding content survives" "$(cat "$empty/AGENTS.m
 run check --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
 assert_eq "and the repository is in sync afterwards" "0" "$?"
 
-# A relative --file belongs to --root when --root was given. An agent whose
-# working directory is not the repository writes `--file AGENTS.md --root <repo>`
-# and means the repository's own file; anchoring that to the caller's cwd finds
-# nothing and dies.
 relroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$relroot" init -q .
 mkdir -p "$relroot/.claude/rules"
@@ -284,9 +248,6 @@ assert_eq "and nothing was written into the caller's directory" "" "$(ls -A "$ne
 (cd "$neutral" && run check --file AGENTS.md --root "$relroot") >/dev/null 2>&1
 assert_eq "and check then reads it as in sync" "0" "$?"
 
-# --------------------------------------------------------------------------
-# check — in sync, drifted, and missing
-# --------------------------------------------------------------------------
 target="$repo/AGENTS.md"
 
 run check --file "$target" --root "$repo" >/dev/null 2>&1
@@ -319,7 +280,6 @@ assert_contains "and names the row to add" "$out" "ADD	| \`.claude/rules/new.md\
 assert_contains "and the command that fixes it" "$out" "FIX	bash "
 run check --file "$target" --root "$repo" >/dev/null 2>&1
 assert_eq "a drifted check exits 1" "1" "$?"
-# The FIX command run from another directory rewrites the block from --root.
 fix_cmd="$(printf '%s\n' "$out" | sed -n 's/^FIX	//p')"
 (cd "$neutral" && eval "$fix_cmd") >/dev/null 2>&1
 out="$(cd "$neutral" && run check --file "$target" --root "$repo")"
@@ -330,7 +290,6 @@ out="$(run check --file "$target" --root "$repo")"
 assert_contains "rewriting restores sync" "$out" "IN-SYNC"
 assert_contains "the new rule appears after the rewrite" "$(cat "$target")" "Documentation rules"
 
-# A hand-edited row and a row for a rule that does not exist are named too.
 cp "$target" "$TMP/agents-in-sync.md"
 awk '
   { sub(/[|] Documentation rules [|]/, "| Docs |"); print }
@@ -340,7 +299,6 @@ out="$(run check --file "$target" --root "$repo")"
 assert_contains "check names a changed row with its fresh text" "$out" "CHANGE	| \`.claude/rules/new.md\` | \`docs/**/*.md\` | Documentation rules |"
 assert_contains "and a row to remove" "$out" "REMOVE	| \`.claude/rules/gone.md\` | \`x/**\` | Gone |"
 assert_not_contains "and adds nothing it already lists" "$out" "ADD	"
-# Text outside the rows drifting is named as that, not as a row.
 awk '{ sub(/^Each surface below/, "Every surface below"); print }' "$TMP/agents-in-sync.md" >"$target"
 out="$(run check --file "$target" --root "$repo")"
 assert_contains "a drifted preamble with matching rows says so" "$out" "NOTE	every row matches"
@@ -351,9 +309,6 @@ run write --file "$target" --root "$repo" >/dev/null 2>&1
 marker_count="$(grep -cF "BEGIN GENERATED" "$target")"
 assert_eq "repeated writes never duplicate the block" "1" "$marker_count"
 
-# --------------------------------------------------------------------------
-# A truncated block is refused rather than guessed at
-# --------------------------------------------------------------------------
 broken="$repo/BROKEN.md"
 {
   printf 'Intro.\n\n'
@@ -368,9 +323,6 @@ run write --file "$broken" --root "$repo" >/dev/null 2>&1
 assert_eq "write refuses a block with no end marker" "1" "$?"
 assert_contains "the refused file is left untouched" "$(cat "$broken")" "orphaned content"
 
-# --------------------------------------------------------------------------
-# Two begin markers make the block extent ambiguous — refuse, never guess
-# --------------------------------------------------------------------------
 doubled="$repo/DOUBLED.md"
 {
   printf '%s\n' "<!-- BEGIN GENERATED: instruction-placement rules index -->"
@@ -390,9 +342,6 @@ run write --file "$doubled" --root "$repo" >/dev/null 2>&1
 assert_eq "write refuses a doubled block with exit 1" "1" "$?"
 assert_contains "the doubled file is left untouched" "$(cat "$doubled")" "second"
 
-# --------------------------------------------------------------------------
-# Content outside the block is preserved exactly
-# --------------------------------------------------------------------------
 preserve="$repo/PRESERVE.md"
 {
   printf 'Header line.\n\n'
@@ -408,9 +357,6 @@ assert_contains "content before the block survives" "$content" "Header line."
 assert_contains "content after the block survives" "$content" "Footer line."
 assert_not_contains "stale block content is replaced" "$content" "stale generated content"
 
-# --------------------------------------------------------------------------
-# reachable — an index nothing loads is the whole point silently not working
-# --------------------------------------------------------------------------
 unwired="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
@@ -426,8 +372,6 @@ assert_contains "reachable reports an unimported AGENTS.md as UNREACHABLE" "$out
 run reachable --file "$unwired/AGENTS.md" --root "$unwired" >/dev/null 2>&1
 assert_eq "an unreachable target exits 1" "1" "$?"
 
-# `run` folds stderr into stdout, so the unreachable-target warning needs a direct
-# call that keeps the two streams apart.
 warn_only() { { bash "$SCRIPT" "$@" >/dev/null; } 2>&1; }
 
 warn="$(warn_only write --file "$unwired/AGENTS.md" --root "$unwired")"
@@ -443,10 +387,6 @@ assert_eq "no warning once the target is reachable" "" "$warn"
 out="$(run reachable --file "$unwired/CLAUDE.md" --root "$unwired")"
 assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
 
-# No root CLAUDE.md anywhere: nothing blocks the session-start walk, so the
-# import is not what decides whether the file is read. The verdict is neither
-# LOADED nor UNREACHABLE, because whether Claude Code reads AGENTS.md directly
-# depends on availability this script cannot observe.
 native="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$native" init -q .
 printf '# Shared\n' >"$native/AGENTS.md"
@@ -459,16 +399,11 @@ assert_eq "a NATIVE target exits 0" "0" "$?"
 warn="$(warn_only write --file "$native/AGENTS.md" --root "$native")"
 assert_eq "write does not warn about a NATIVE target" "" "$warn"
 
-# The same repo with a root CLAUDE.md that imports nothing: the CLAUDE.md is
-# what Claude Code reads, and the AGENTS.md beside it is not read.
 printf '# Claude instructions\n\nNo import here.\n' >"$native/CLAUDE.md"
 commit_all "$native"
 out="$(run reachable --file "$native/AGENTS.md" --root "$native")"
 assert_contains "adding a non-importing root CLAUDE.md makes it UNREACHABLE" "$out" "UNREACHABLE"
 
-# --------------------------------------------------------------------------
-# wiring — an indexed nested AGENTS.md that no sibling imports never loads
-# --------------------------------------------------------------------------
 wiring="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$wiring" init -q .
 mkdir -p "$wiring/shimmed" "$wiring/bare" "$wiring/linked" "$wiring/localonly"
@@ -496,8 +431,6 @@ assert_not_contains "the root AGENTS.md is not a wiring row" "$out" "	AGENTS.md	
 run wiring --root "$wiring" >/dev/null 2>&1
 assert_eq "any UNWIRED row exits 1" "1" "$?"
 
-# The index still lists the unwired file (the shim is the fix, not the row's
-# removal), and write says so on stderr, once per unwired file.
 warn="$(warn_only write --file "$wiring/AGENTS.md" --root "$wiring")"
 assert_contains "write warns about the unwired nested AGENTS.md" "$warn" "bare/AGENTS.md is indexed but"
 assert_not_contains "write does not warn about the wired one" "$warn" "shimmed/AGENTS.md"
@@ -510,8 +443,6 @@ assert_not_contains "adding the shim clears the UNWIRED row" "$out" "UNWIRED"
 run wiring --root "$wiring" >/dev/null 2>&1
 assert_eq "all wired exits 0" "0" "$?"
 
-# No CLAUDE.md anywhere above the nested file: nothing blocks the nested walk,
-# so the missing shim is not a defect and the row is not a failure.
 nativewiring="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nativewiring" init -q .
 mkdir -p "$nativewiring/bare" "$nativewiring/ownclaude"
@@ -533,9 +464,6 @@ commit_all "$nativewiring"
 run wiring --root "$nativewiring" >/dev/null 2>&1
 assert_eq "NATIVE rows alone exit 0" "0" "$?"
 
-# Another tool's directories never reach either surface: not the wiring gate,
-# which would demand a Claude shim beside a Cursor file, and not the rendered
-# index, which would advertise one as a Claude on-demand surface.
 othertools="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$othertools" init -q .
 mkdir -p "$othertools/.cursor/rules" "$othertools/.codex" "$othertools/.github" "$othertools/src"
@@ -563,9 +491,6 @@ assert_not_contains "the index does not list a .codex file" "$out" '`.codex'
 assert_not_contains "the index does not list a .github file" "$out" '`.github'
 assert_contains "the index still lists an ordinary subtree" "$out" '`src/AGENTS.md`'
 
-# `.claude/CLAUDE.md` counts at every level, not only the repository root: the
-# memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
-# your working directory or any directory above it".
 dotclaude="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$dotclaude" init -q .
 mkdir -p "$dotclaude/svc/.claude"
@@ -593,21 +518,14 @@ assert_eq "no nested AGENTS.md says so rather than printing nothing" "NONE" "$ou
 run wiring --root "$nonested" >/dev/null 2>&1
 assert_eq "no nested AGENTS.md exits 0" "0" "$?"
 
-# The write-time warning filters on the UNWIRED state, so the NONE line must
-# not reach it as a row.
 warn="$(warn_only write --file "$nonested/CLAUDE.md" --root "$nonested")"
 assert_not_contains "the NONE line is not warned about at write time" "$warn" "NONE"
 
-# An import from the root CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor
-# directory's CLAUDE.md brings the nested file into context too, so those are
-# entry points as well; and the loader follows four hops, not five.
 entry="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$entry" init -q .
 mkdir -p "$entry/.claude" "$entry/byroot" "$entry/bydot" "$entry/anc/leaf" "$entry/five"
 printf '@AGENTS.md\n@byroot/AGENTS.md\n' >"$entry/CLAUDE.md"
 printf '# Root\n' >"$entry/AGENTS.md"
-# A relative import resolves against the importing file's own directory, so the
-# root .claude/CLAUDE.md reaches a sibling-of-root tree through `../`.
 printf '@../bydot/AGENTS.md\n' >"$entry/.claude/CLAUDE.md"
 printf '# By root\n' >"$entry/byroot/AGENTS.md"
 printf '# By dot\n' >"$entry/bydot/AGENTS.md"
@@ -631,9 +549,6 @@ assert_contains "an import from an ancestor CLAUDE.md wires a nested file" "$out
 assert_not_contains "the ancestor-imported file is not UNWIRED" "$out" "UNWIRED	anc/leaf/AGENTS.md"
 assert_contains "a fifth-hop import does not wire it" "$out" "UNWIRED	five/AGENTS.md"
 
-# --------------------------------------------------------------------------
-# Size posture — the index must not become the bloat it exists to remove
-# --------------------------------------------------------------------------
 many="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$many" init -q .
 mkdir -p "$many/.claude/rules" "$many/src"
@@ -660,11 +575,6 @@ assert_contains "the reader is told what to do with a grouped tail" "$out" "dire
 run render --root "$many" --max-rows abc >/dev/null 2>&1
 assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
 
-# --------------------------------------------------------------------------
-# Windows path forms: a drive-letter --root and --file round trip
-# --------------------------------------------------------------------------
-# `git rev-parse --show-toplevel` answers `C:/repo` under Git Bash, the spelling
-# a caller that asks git for the root hands this script; a host with one path form SKIPs visibly.
 winrepo="$(build_fixture)"
 win_root="$(git -C "$winrepo" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$win_root" || "$win_root" == "$winrepo" ]]; then
@@ -729,7 +639,6 @@ else
     "$(cat "$winrepo/AGENTS.md")" "$(cat "$bsrepo/AGENTS.md")"
 fi
 
-# --------------------------------------------------------------------------
 
 printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1

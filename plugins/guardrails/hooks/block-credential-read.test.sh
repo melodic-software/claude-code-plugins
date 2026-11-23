@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-credential-read.sh (guardrails plugin).
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash/PowerShell
-# JSON on stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained,
-# no host-repo assertion library.
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json
@@ -17,21 +12,15 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# The guard ships off (plugin.json default false), and Claude Code exports each
-# option's default as CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED; the script's own unset
-# fallback matches it. Pin that, then turn the guard on for every case below.
 rc=0
 env -u CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED bash "$HOOK_DIR/block-credential-read.sh" <<<"$(command_json 'gh auth token')" >/dev/null 2>&1 || rc=$?
 assert_exit "unset switch: the guard is off, as plugin.json's default" 0 "$rc"
 pj_default=$(jq -r '.userConfig.block_credential_read_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")
 assert_eq "plugin.json default matches the script fallback" false "$pj_default"
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
-# A home directory assembled at run time, so no machine path sits in this
-# file's bytes for the repository's path scanner to find.
 SL='/'
 UH="${SL}home${SL}u"
 
-# run <label> <command> <expected> [ENV=value ...]: the Bash tool.
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
@@ -46,7 +35,6 @@ run() {
   fi
 }
 
-# run_ps <label> <command> <expected> [ENV=value ...]: the PowerShell tool.
 run_ps() {
   local label="$1" command="$2" expected="$3"
   shift 3
@@ -56,7 +44,6 @@ run_ps() {
   assert_exit "$label" "$expected" "$rc"
 }
 
-# --- 1. git credential fill / helper get (blocked) ---------------------------
 run "git credential fill" 'git credential fill' 2
 run "git credential fill fed by printf" "printf 'host=github.com\n\n' | git credential fill" 2
 run "git credential-manager get" 'git credential-manager get' 2
@@ -67,7 +54,6 @@ run "credential fill after &&" 'cd /tmp && git credential fill' 2
 run_ps "PowerShell: git credential fill" 'git credential fill' 2
 run_ps "PowerShell: git.exe credential-manager get" 'git.exe credential-manager get' 2
 
-# --- 2. gh auth token (blocked) ----------------------------------------------
 run "gh auth token" 'gh auth token' 2
 run "gh auth token with a host flag" 'gh auth token --hostname github.com' 2
 run "gh auth token after a semicolon" 'echo hi; gh auth token' 2
@@ -78,7 +64,6 @@ run "git credential fill in a backtick substitution" 'x=`git credential fill`' 2
 run "printenv in a backtick substitution" 'x=`printenv GH_TOKEN`' 2
 run "python read of .netrc in a backtick substitution" "x=\`python3 -c 'print(open(\".netrc\").read())'\`" 2
 
-# --- 2b. leading NAME=value assignments do not hide the command (blocked) -----
 run "assignment before gh auth token" 'TERM=xterm gh auth token' 2
 run "assignment before git credential fill" 'X=1 git credential fill' 2
 run "assignment before a python read of .netrc" "FOO=1 python3 -c 'print(open(\".netrc\").read())'" 2
@@ -89,7 +74,6 @@ run "assignment before an unrelated command" 'X=1 git status' 0
 run_ps "PowerShell: gh auth token" 'gh auth token' 2
 run_ps "PowerShell: gh.exe auth token piped" 'gh.exe auth token | Set-Clipboard' 2
 
-# --- 3. printenv of a token variable (blocked) --------------------------------
 run "printenv GH_TOKEN" 'printenv GH_TOKEN' 2
 run "printenv GITHUB_TOKEN among others" 'printenv PATH GITHUB_TOKEN' 2
 run "printenv of an api key" 'printenv ANTHROPIC_API_KEY' 2
@@ -97,7 +81,6 @@ run "printenv of a password" 'printenv DB_PASSWORD' 2
 run "printenv, lower case name" 'printenv gh_token' 2
 run_ps "PowerShell: printenv GH_TOKEN" 'printenv GH_TOKEN' 2
 
-# --- 4. echo of a token variable (blocked) ------------------------------------
 run "echo \$GITHUB_TOKEN" 'echo $GITHUB_TOKEN' 2
 run "echo braced api key, quoted" 'echo "${ANTHROPIC_API_KEY}"' 2
 run "echo in a string" 'echo "token is $GH_TOKEN"' 2
@@ -114,9 +97,6 @@ run_ps 'PowerShell: gci Env:\ form' 'gci Env:\GITHUB_TOKEN' 2
 run_ps 'PowerShell: Get-Item env: with a wildcard' 'Get-Item env:*TOKEN*' 2
 run_ps 'PowerShell: lower-case variable name' 'Write-Output $env:gh_token' 2
 
-# --- 5. Reading a credential file (blocked) -----------------------------------
-# An interpreter that opens the file itself: native Read() deny rules do not
-# reach it.
 run "python -c open .env" "python3 -c \"print(open('.env').read())\"" 2
 run "python -c open .env.local" "python -c \"print(open('.env.local').read())\"" 2
 run "python -c read of an ssh private key" "python3 -c 'import os; print(open(os.path.expanduser(\"~/.ssh/id_rsa\")).read())'" 2
@@ -150,9 +130,6 @@ run_ps "PowerShell: Get-Content -Path .env.local" 'Get-Content -Path .env.local'
 run_ps "PowerShell: Get-Content ~/.aws/credentials" 'Get-Content ~/.aws/credentials' 2
 run_ps "PowerShell: Get-Content an ssh key" 'Get-Content $HOME\.ssh\id_rsa' 2
 
-# --- 5b. Left to native Read() deny rules, or no read at all (allowed) -----------
-# Claude Code applies a Read() deny rule to cat, head, tail, sed and redirects
-# of the denied file; /guardrails:setup prints the rules.
 run "cat .env" 'cat .env' 0
 run "cat .netrc" 'cat ~/.netrc' 0
 run "cat .docker/config.json" 'cat ~/.docker/config.json' 0
@@ -179,14 +156,12 @@ grep -n open .env.md" 0
 run "python read of an ssh public key" "python3 -c \"print(open('${UH}/.ssh/id_ed25519.pub').read())\"" 0
 run "python reading a template" "python3 -c \"print(open('.env.example').read())\"" 0
 
-# --- 6. A shell word makes quoted text live -----------------------------------
 run "bash -c gh auth token" "bash -c 'gh auth token'" 2
 run "sh -c printenv" 'sh -c "printenv GH_TOKEN"' 2
 run "sudo bash -c gh auth token" "sudo bash -c 'gh auth token'" 2
 run_ps "PowerShell: pwsh -Command reading .env" 'pwsh -Command "Get-Content .env"' 2
 run_ps "PowerShell: bash -c inside" "bash -c 'printenv GH_TOKEN'" 2
 
-# --- 7. Presence checks and unrelated commands (allowed) ----------------------
 run "gh auth status" 'gh auth status' 0
 run "test -n on a token variable" 'test -n "$GH_TOKEN" && echo set' 0
 run "[ -n ] on a token variable" '[ -n "$GH_TOKEN" ] && echo present' 0
@@ -227,7 +202,6 @@ run_ps 'PowerShell: Get-ChildItem env:PATH' 'Get-ChildItem env:PATH' 0
 run_ps 'PowerShell: Get-Content of a template' 'Get-Content .env.example' 0
 run_ps 'PowerShell: Get-Content of an ordinary file' 'Get-Content README.md' 0
 
-# --- 8. Quoted prose is not a command (allowed) -------------------------------
 run "commit message naming gh auth token" 'git commit -m "block gh auth token"' 0
 run "commit message naming git credential fill" 'git commit -m "guard: no git credential fill"' 0
 run "grep for git credential fill" "grep 'git credential fill' docs.md" 0
@@ -243,7 +217,6 @@ run "printf of a quoted bash -c line" "printf '%s\n' 'bash -c \"gh auth token\"'
 run_ps "PowerShell: commit message naming gh auth token" 'git commit -m "block gh auth token"' 0
 run_ps "PowerShell: Select-String for the shape" "Select-String -Pattern 'git credential fill' docs.md" 0
 
-# --- 9. Kill switch and allow list --------------------------------------------
 run "kill switch false disables the guard" 'gh auth token' 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=false
 run_ps "kill switch false disables the guard (PowerShell)" 'gh auth token' 0 \
@@ -252,8 +225,6 @@ run "kill switch true keeps the guard on" 'gh auth token' 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
 run "kill switch typo stays enabled (blocked)" 'gh auth token' 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe
-# The user is told once per session; the model, which cannot change a plugin
-# option, is not told at all.
 TYPO_DATA="$TEST_TMPDIR/typo-data"
 TYPO_PAYLOAD=$(jq -c '. + {session_id: "s-typo"}' <<<"$(command_json 'git status')")
 typo_out=$(env CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe CLAUDE_PLUGIN_DATA="$TYPO_DATA" \
@@ -278,12 +249,10 @@ run "allow list with several tokens, second" 'echo $GH_TOKEN' 0 "$allow=gh-auth-
 run "allow list keeps the other families blocked" 'jq . ~/.docker/config.json' 2 "$allow=gh-auth-token,env-echo"
 run "allow list does not match a substring of a token" 'gh auth token' 2 "$allow=gh-auth-token-x"
 run_ps "allow list applies to PowerShell" 'Get-Content .env' 0 "$allow=credential-file-read"
-# A command that trips two families needs both allowed.
 run "one allowed family does not excuse another in the same command" \
   'gh auth token; jq . ~/.docker/config.json' 2 "$allow=gh-auth-token"
 run "both families allowed" 'gh auth token; jq . ~/.docker/config.json' 0 "$allow=gh-auth-token,credential-file-read"
 
-# --- 10. Inputs -----------------------------------------------------------------
 rc=0
 bash "$HOOK" </dev/null >/dev/null 2>&1 || rc=$?
 assert_exit "empty stdin is a skip, not a block" 0 "$rc"
@@ -296,8 +265,6 @@ rc=0
 bash "$HOOK" <<<'not json' >/dev/null 2>&1 || rc=$?
 assert_exit "text that is not JSON fails closed" 2 "$rc"
 
-# JSON whose fields jq cannot read gets past the stdin read above and is
-# refused by the field read. A NUL in a harmless command is refused there too.
 guard_invoke --hook "$HOOK" --payload '{"tool_name":"Bash","tool_input":"gh auth token"}'
 assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
 assert_eq "unreadable fields: the refusal says why" \

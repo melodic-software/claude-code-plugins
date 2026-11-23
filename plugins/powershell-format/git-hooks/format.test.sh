@@ -21,7 +21,6 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 # shellcheck source=powershell-format-test-helpers.sh
 source "$HERE/powershell-format-test-helpers.sh"
 
-# Settings that enable a formatter-applied rule (PSUseCorrectCasing) and a
 SETTINGS_BODY="@{
     IncludeRules = @('PSUseCorrectCasing', 'PSAvoidGlobalVars')
     Rules = @{ PSUseCorrectCasing = @{ Enable = \$true } }
@@ -146,7 +145,6 @@ printf 'get-childitem .\n' >"$REPO/a.ps1"
 expect "--worktree: the format entry does nothing" "0||" "$(check "$REPO" --worktree)"
 expect "--worktree: the file keeps its bytes" "get-childitem ." "$(cat "$REPO/a.ps1")"
 
-# A PATH with the tools the script runs, git and no pwsh.
 NOPWSH="$WORK/nopwsh"
 mkdir -p "$NOPWSH"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr; do
@@ -265,7 +263,6 @@ expect "--resolve: no settings file, and a record the hooks never run" \
 expect "a record with no settings file runs nothing at commit" "0||" "$(check "$REPO")"
 expect "the record's command never ran" "no" "$([[ -e "$REPO/ran-record" ]] && echo yes || echo no)"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"

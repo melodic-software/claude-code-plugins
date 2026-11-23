@@ -56,6 +56,7 @@ import {
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
+import { ACTIONS_BOT_ID, DISPATCH_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { HOLD_LINE } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
@@ -81,7 +82,7 @@ export const DEFAULTS = Object.freeze({
   advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: DISPATCH_HOLDS,
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
   // Failed or nothing-to-fix fix-ci runs one head gets across base moves:
@@ -225,10 +226,6 @@ function ownerIdle(node, idleHours, now) {
   const since = now - idleHours * 3_600_000;
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
-
-// The GitHub Actions bot's user id. GraphQL reports its login as
-// `github-actions`, REST as `github-actions[bot]`; the id is the same in both.
-const ACTIONS_BOT_ID = 41898282;
 
 // The head's `ci-lanes` commit status, whoever set it.
 function lanesStatus(node) {

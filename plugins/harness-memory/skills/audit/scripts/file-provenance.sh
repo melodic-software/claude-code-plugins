@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# file-provenance.sh — is this file owned here, or written by a sync from elsewhere?
-# A synced copy's fix belongs upstream, since the next sync overwrites it. An
-# untracked file is `local`: with no history, nothing proves it is synced.
 
 set -uo pipefail
 

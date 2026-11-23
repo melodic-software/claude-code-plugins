@@ -90,8 +90,11 @@ for (const id of ["merge-bin", "hold-label", "stage"]) {
   say(i >= 0 && i < checkout, `step ${id} copies from the base before the head checkout`);
 }
 const copy = byId("merge-bin").run ?? "";
-say(/\.base\/\.github\/scripts\/merge-base\//.test(copy) && /\.base\/plugins\/source-control\/scripts\/resolve-version-bump-conflict\.sh/.test(copy)
-  && /sha256sum/.test(copy), "the merge scripts and the version-bump script are copied from .base with their SHA-256");
+const stageBin = readFileSync(".github/scripts/merge-base/stage-bin.sh", "utf8");
+say(/^bash \.base\/\.github\/scripts\/merge-base\/stage-bin\.sh /.test(copy) && /\.base\/\.github\/scripts\/merge-base\/\{prepare,run-prepare,tree-entries\}\.sh/.test(copy)
+  && /\.base\/plugins\/source-control\/scripts\/resolve-version-bump-conflict\.sh/.test(copy)
+  && /cp "\$file" "\$BIN\/\$name\.sh"/.test(stageBin) && /sha256sum <"\$BIN\/\$name\.sh"/.test(stageBin),
+  "the merge scripts and the version-bump script are copied from .base with their SHA-256");
 for (const [id, run, scripts] of [
   ["prepare", byId("prepare").run ?? "", ["run-prepare"]],
   ["run-prepare.sh", runPrepare, ["prepare", "resolve-version-bump-conflict"]],

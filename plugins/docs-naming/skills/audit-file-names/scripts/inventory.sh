@@ -103,9 +103,6 @@ REGEX="$(cfg '.file_names.regex')"
 [[ "$RULE" == "lower-kebab" ]] || die "rule '$RULE' is not implemented by this version (known: lower-kebab)"
 [[ -n "$REGEX" ]] || die "the configuration carries no regex"
 
-# Propose a legal name for one basename under the configured rule.
-# lower-kebab: lowercase, underscores and spaces become single hyphens, runs of
-# hyphens collapse, and a leading or trailing hyphen in the stem is dropped.
 propose() {
   printf '%s' "$1" |
     tr '[:upper:]' '[:lower:]' |
@@ -113,16 +110,10 @@ propose() {
     sed -e 's/--*/-/g' -e 's/^-//' -e 's/-\(\.[^.]*\)$/\1/' -e 's/-$//'
 }
 
-# --- the file set ------------------------------------------------------------
-
-# What each root claims comes from root-scopes.jq, the definition the emitted
-# gate is rendered from too.
 SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\r')" ||
   die "the configuration's roots are not strings or {path, extensions, exempt_paths} objects"
 n_scopes="$(printf '%s' "$SCOPES" | jq 'length')"
 [[ "${n_scopes:-0}" -gt 0 ]] || die "the configuration declares no roots"
-# One pathspec outside the repository makes `git ls-files` print nothing for
-# every root, and the audit would report an empty scan as a clean tree.
 unsafe="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
 [[ -z "$unsafe" ]] || die "a root's path or exempt_paths entry $unsafe"
 
@@ -137,8 +128,6 @@ while IFS= read -r p; do
   exempt_paths_pathspec+=(":(glob)$p")
 done < <(cfg '.file_names.exempt_paths[]')
 
-# Every tracked path under the roots, and separately those an exempt_paths
-# pathspec claims. Matching is git's own, so one matcher decides what `**` means.
 ALL_PATHS="$(git -C "$ROOT" ls-files -- "${roots_pathspec[@]}")" ||
   die "git ls-files refused the roots' pathspecs"
 if [[ "${#exempt_paths_pathspec[@]}" -gt 0 ]]; then
@@ -148,12 +137,6 @@ else
   EXEMPT_BY_PATH=""
 fi
 
-# A root's own exempt_paths cover a path only when no root claims it without
-# exempting it: the judged set is the union of each root's claim minus its own
-# exemptions, and the root-exempt set is what the roots claim beyond that. The
-# exemptions are their own positive listing, never an `:(exclude)` pathspec
-# beside the root's: git matches an exclude glob against the wrong base once
-# the positive pathspecs share a directory prefix.
 JUDGED=""
 s=0
 while [[ "$s" -lt "$n_scopes" ]]; do
@@ -180,7 +163,6 @@ EXEMPT_BY_ROOT="$(LC_ALL=C comm -23 <(printf '%s\n' "$ALL_PATHS" | LC_ALL=C sort
 EXEMPT_BASENAMES=" $(cfg '.file_names.exempt_basenames[]' | tr '\n' ' ')"
 EXEMPT_EXTENSIONS=" $(cfg '.file_names.exempt_extensions[]' | tr '\n' ' ')"
 
-# in_list <path> <newline-separated list>
 in_list() {
   case "
 $2
@@ -191,8 +173,6 @@ $1
   *) return 1 ;;
   esac
 }
-
-# --- the walk ----------------------------------------------------------------
 
 scanned=0
 offenders=""
@@ -238,7 +218,6 @@ while IFS= read -r path; do
     printf 'EXEMPT\t%s\tno-legal-proposal\n' "$path"
     continue
   fi
-  # A root-level file has no directory part to keep.
   proposed="$proposed_base"
   [[ "$path" == */* ]] && proposed="${path%/*}/$proposed_base"
   offenders="$offenders$path	$proposed
@@ -247,11 +226,6 @@ done <<EOF
 $ALL_PATHS
 EOF
 
-# --- the case-collision pass -------------------------------------------------
-
-# The whole tracked set, and separately every parent directory of it, so a
-# proposal that collides with a DIRECTORY by case is caught as well as one that
-# collides with a file.
 TRACKED="$(git -C "$ROOT" ls-files)"
 folded_dirs="$(printf '%s\n' "$TRACKED" |
   awk '{
@@ -264,10 +238,6 @@ while IFS="$(printf '\t')" read -r old new; do
   [[ -n "$old" ]] || continue
   folded_new="$(printf '%s' "$new" | tr '[:upper:]' '[:lower:]')"
 
-  # A tracked file OTHER THAN the one being renamed already folds to the
-  # proposed name. Excluding the old path is what lets a genuine case-only
-  # rename through: `docs/BETA.md` to `docs/beta.md` is the rename, not a clash,
-  # but a distinct `docs/beta.md` sitting there already is.
   twin="$(printf '%s\n' "$TRACKED" | awk -v f="$folded_new" -v o="$old" 'tolower($0) == f && $0 != o {print; exit}')"
   if [[ -n "$twin" ]]; then
     printf 'COLLISION\t%s\t%s\n' "$new" "$twin"
@@ -283,7 +253,6 @@ done <<EOF
 $offenders
 EOF
 
-# Two offenders proposing the same name collide with each other.
 dupes="$(printf '%s' "$offenders" | awk -F'\t' 'NF==2 {print tolower($2)}' | sort | uniq -d)"
 while IFS= read -r d; do
   [[ -n "$d" ]] || continue

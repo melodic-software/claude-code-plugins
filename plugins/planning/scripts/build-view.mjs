@@ -37,7 +37,6 @@ const insideWorkingTree = (dir) => {
   }
 };
 
-/** Why out cannot take a connected page for origin, or null: it must be page.html in a private view-bridge data dir. */
 const bridgeOutProblem = (out, origin) => {
   const dir = dirname(resolve(out));
   if (basename(out) !== "page.html") return `${out} must be named page.html`;

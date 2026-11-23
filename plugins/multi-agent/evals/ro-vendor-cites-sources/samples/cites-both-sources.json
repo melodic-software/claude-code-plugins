@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Sources read:\n- terminal-bench (live, 2026-11-18, leading)\n- cursorbench (live, 2026-11-18, leading)",
+      "why": "cites both coding sources"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sources read:\n- terminal-bench (live, 2026-11-18)",
+      "why": "missing cursorbench"
+    },
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default)",
+      "why": "no sources cited"
+    }
+  ]
+}

@@ -3,7 +3,6 @@
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/lib/verification/*.sh plugins/guardrails/lib/git-hooks-test-helpers.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +17,6 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
-# A fake CLI whose --help lists one real flag, the only binary the flag
-# verifier scans here, with a per-run cache.
 mkdir -p "$WORK/bin" "$WORK/cache"
 # shellcheck disable=SC2016 # the fake tool's script text: its $ expands when it runs, not here
 printf '#!/usr/bin/env bash\nfor a in "$@"; do last="$a"; done\n[[ "$last" == --help ]] && echo "  --real  a real flag"\nexit 0\n' \
@@ -33,8 +30,6 @@ source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
 ZERO=0000000000000000000000000000000000000000
 n=0
-# new_repo: a repository whose main is pushed to a bare origin, with
-# origin/HEAD set, and whose history deleted docs/gone.md.
 new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
@@ -55,13 +50,11 @@ new_repo() {
   BASE="$(git -C "$REPO" rev-parse HEAD)"
 }
 
-commit_all() { # <message>
+commit_all() {
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m "$1" --no-verify
 }
 
-# push_check <ref> <local-sha> <remote-sha> -> "<rc>|<first stderr line>", the
-# way git runs a pre-push hook: remote name and url as args, refs on stdin.
 push_check() {
   local err rc
   err="$(cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
@@ -70,21 +63,21 @@ push_check() {
   printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
 }
 
-push_lines() { # stdin: pre-push ref lines -> "<rc>|<first stderr line>"
+push_lines() {
   local err rc
   err="$(cd "$REPO" && bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
   rc=$?
   printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
 }
 
-push_err() { # <ref> <local-sha> <remote-sha> -> the whole stderr
+push_err() {
   local err
   err="$(cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
     bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
   printf '%s\n' "$err"
 }
 
-worktree_check() { # -> "<rc>|<first stderr line>"
+worktree_check() {
   local err rc
   err="$(cd "$REPO" && bash "$CHECK" --worktree 2>&1 >/dev/null)"
   rc=$?
@@ -99,8 +92,6 @@ commit_all bogus
 expect "an unknown flag on a line the push adds blocks, at that line" "1|run.sh:3: $FLAG_FINDING" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
-# A changed file whose name git quotes has no entry in the range table: it is
-# judged whole instead of skipped. Windows refuses the name.
 new_repo
 if printf '#!/usr/bin/env bash\nfaketool --real\n' 2>/dev/null >"$REPO/a\"b.sh"; then
   commit_all quoted-name
@@ -119,7 +110,6 @@ expect "the failure names the decline key the script reads" yes \
 expect "the failure says the skip key covers only a missing jq" yes \
   "$(grep -qF 'checks.skipmissing=jq' <<<"$err" && grep -qi 'only while jq is missing' <<<"$err" && echo yes)"
 
-# A finding names the line its text is on, not the file's first added line.
 new_repo
 printf '#!/usr/bin/env bash\nfaketool --real\necho a\necho b\n' >"$REPO/run.sh"
 commit_all four
@@ -169,7 +159,6 @@ commit_all rename
 expect "a pure rename adds no line, so an earlier unknown flag does not block" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
-# Two pushed refs change one file: each range is judged on its own tip's blob.
 new_repo
 git -C "$REPO" switch -q -c clean
 printf '#!/usr/bin/env bash\nfaketool --real\necho fine\n' >"$REPO/run.sh"
@@ -185,8 +174,6 @@ expect "with two pushed refs changing one file, each is read from its own tip" "
     "$clean_tip" "$ZERO" "$bogus_tip" "$ZERO" | push_lines)"
 expect "with the clean ref alone, nothing blocks" "0|" \
   "$(printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" | push_lines)"
-# This entry sets its own EXIT trap; a lib awk that fails while listing the
-# changed lines must still fail the push, though the push adds no finding.
 mkdir -p "$WORK/shims"
 # shellcheck disable=SC2016 # $* expands when the shim runs
 printf '#!/bin/sh\ncase " $* " in\n*"/^\\+\\+\\+ /"*) echo "awk: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
@@ -199,9 +186,6 @@ expect "a lib awk that fails while listing the changed lines fails the push" \
   "$?|$(grep -F 'reference-verify.sh: awk exited' <<<"$err")"
 expect "the failing push still leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
-# A stale path is advisory: a citation can be correct as written (a deletion
-# record), so a range whose only finding is one prints it and passes, while a
-# blocking finding beside it still fails the push.
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
 printf 'See `docs/gone.md` for the details.\n' >"$REPO/README.md"
@@ -224,8 +208,6 @@ expect "a stale path beside an unknown flag is still printed" yes \
 expect "a push with a blocking finding names the fix" yes \
   "$(grep -qxF 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.' <<<"$err" && echo yes || echo no)"
 
-# A skill-reference finding fails the push. The verifier judges only inside a
-# marketplace repository, one whose plugins/ holds a plugin manifest.
 new_repo
 mkdir -p "$REPO/plugins/alpha/.claude-plugin" "$REPO/plugins/alpha/skills/setup"
 printf '{"name":"alpha","version":"0.1.0"}\n' >"$REPO/plugins/alpha/.claude-plugin/plugin.json"
@@ -254,9 +236,6 @@ expect "a new file over 128 KiB is judged (the fixture is over the limit)" yes \
 expect "an unknown flag in a new file over 128 KiB blocks, at its line" "1|big.sh:2502: ${FLAG_FINDING/in run.sh/in big.sh}" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
-# A doc moved with a stub left at its old path is a copy, not a rename (the old
-# path is changed, the new one added): only the lines the move adds are judged,
-# so a citation the doc already held, here a deletion record, passes.
 new_repo
 mkdir -p "$REPO/docs/old"
 {
@@ -281,9 +260,6 @@ commit_all move-cites
 expect "a line the move adds to the moved doc is judged, at that line" \
   "0|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
-# A stage that crashes while it lists or merges a copy's lines fails the push.
-# The shims fail the SHIM_NTH call (default 1) whose arguments hold SHIM_FAIL;
-# the copy awk runs the lib's program text, so it is the second such call.
 mkdir -p "$WORK/fail-shims"
 for t in awk git jq; do
   # shellcheck disable=SC2016 # $* and the SHIM_ variables expand when the shim runs
@@ -291,7 +267,7 @@ for t in awk git jq; do
     "$t" "$(command -v "$t")" >"$WORK/fail-shims/$t"
   chmod +x "$WORK/fail-shims/$t"
 done
-push_failing() { # <marker> <nth> <ref> <local-sha> <remote-sha> -> "<rc>|<the tool-failed line>"
+push_failing() {
   local err rc
   rm -f "$WORK/shim-count"
   err="$(cd "$REPO" && printf '%s %s %s %s\n' "$3" "$4" "$3" "$5" |
@@ -343,8 +319,6 @@ expect "a jq that fails while building a changed file's input fails the push, na
 expect "a jq that fails while reading the verifiers' output fails the push, naming the file" \
   "1|clean.sh:3: reference-verify: jq exited 2 while reading the verifiers' output, so it was not checked; fix that failure, then push again." \
   "$(push_unchecked '-r .hookSpecificOutput.additionalContext' refs/heads/main "$tip" "$pushed")"
-# A verifier run that exits non-zero fails the push too: a plugin copy whose
-# dispatcher exits 3.
 plugin_copy() {
   mkdir -p "$1/hooks" "$1/git-hooks"
   ln -s "$PLUGIN/lib" "$1/lib"
@@ -360,9 +334,6 @@ expect "a verifier run that exits non-zero fails the push, naming the file" \
   "1|clean.sh:3: reference-verify: run-guards.sh exited 3 while running the verifiers, so it was not checked; fix that failure, then push again." \
   "$?|$(grep -m1 -F ': reference-verify: ' <<<"$err")"
 
-# A pushed tip it cannot check out is a finding that fails the push, not a
-# notice: its range went unchecked. The tip is pushed while main is checked out,
-# so the check needs a checkout of it.
 new_repo
 git -C "$REPO" checkout -q -b side
 printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/side.sh"
@@ -375,9 +346,6 @@ expect "a pushed tip that cannot be checked out fails the push, naming the tip" 
   "$(push_unchecked 'worktree add' refs/heads/side "$tip" "$ZERO")"
 expect "the failed checkout leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
-# The verifiers judge the pushed tip's tree, not the checkout. Each case below
-# pushes a branch while main, which differs from it, is checked out.
-# new_readme_repo: new_repo plus a pushed README.md, so a branch edits it.
 new_readme_repo() {
   new_repo
   printf '# R\n' >"$REPO/README.md"
@@ -385,7 +353,6 @@ new_readme_repo() {
   git -C "$REPO" push -q --no-verify origin main 2>/dev/null
 }
 
-# A branch that restores a deleted path may cite it.
 new_readme_repo
 git -C "$REPO" checkout -q -b restore
 mkdir -p "$REPO/docs"
@@ -399,7 +366,6 @@ expect "a pushed tip that holds a cited path passes though the checkout lacks it
   "$(push_check refs/heads/restore "$tip" "$ZERO")"
 expect "the check leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
-# A branch that deletes a cited path blocks though the checkout has the file.
 new_readme_repo
 mkdir -p "$REPO/docs"
 printf 'kept\n' >"$REPO/docs/kept.md"
@@ -416,7 +382,6 @@ expect "a pushed tip that deletes a cited path is reported though the checkout h
   "0|README.md:2: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/drop "$tip" "$ZERO")"
 
-# A file only the pushed branch has is still judged.
 new_repo
 git -C "$REPO" checkout -q -b fresh
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
@@ -428,7 +393,6 @@ expect "a file the checkout lacks is judged from the pushed tip" \
   "0|NEW.md:1: stale-path-verify: cited path(s) in NEW.md were deleted from this repo:" \
   "$(push_check refs/heads/fresh "$tip" "$ZERO")"
 
-# A force-added gitignored file is what the push sends, so it is verified.
 new_repo
 printf 'tool.sh\n' >"$REPO/.gitignore"
 printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/tool.sh"
@@ -445,9 +409,6 @@ commit_all notes
 expect "a file type the verifiers do not read passes" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
-# An eval suite's samples/ folder holds recorded model output, so it is not
-# verified; the suite's other files and a samples/ folder outside evals/ are.
-# eval_case <path> -> "<rc>|<path before the first colon of the first finding>"
 eval_case() {
   local c rest
   new_repo
@@ -474,8 +435,6 @@ expect "a new branch ranges from its merge-base with origin's default branch" "1
   "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 expect "a branch deletion checks nothing" "0|" "$(push_check refs/heads/topic "$ZERO" "$BASE")"
 
-# A new branch stacked on a pushed branch is judged only on what it adds to that
-# branch: the pushed branch's files are not verified again.
 new_repo
 git -C "$REPO" checkout -q -b phase1
 printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/phase1.sh"
@@ -494,8 +453,6 @@ expect "a new stacked branch is judged on the lines it adds" "1|phase2.sh:3: ${F
   "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 git -C "$REPO" checkout -q main
 
-# A pushed branch that merged main: only the lines the branch itself adds are
-# judged, never the ones the merge brought in from the default branch.
 new_repo
 git -C "$REPO" checkout -q -b topic
 printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/topic.sh"
@@ -520,11 +477,6 @@ expect "an awk that fails while narrowing to the branch's lines fails the push" 
   "$(push_failing 'NR == FNR { n++; f[n]' 1 refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 git -C "$REPO" checkout -q main
 
-# A pushed branch that merged another pushed branch, not the default one: the
-# lines that branch brought in are on the remote already under its tracking ref,
-# so they are not judged, and a file it added is not judged whole. The lines the
-# merge resolution or the branch's own commits add still are. A plugin copy
-# whose dispatcher logs each file it is handed counts the verifier runs.
 plugin_copy "$WORK/counting"
 mv "$WORK/counting/hooks/run-guards.sh" "$WORK/counting/hooks/run-guards-real.sh"
 cat >"$WORK/counting/hooks/run-guards.sh" <<'EOF'
@@ -533,7 +485,7 @@ payload="$(cat)"
 jq -r '.tool_input.file_path' <<<"$payload" | sed 's#.*/##' >>"$JUDGED_LOG"
 exec bash "${BASH_SOURCE[0]%/*}/run-guards-real.sh" "$@" <<<"$payload"
 EOF
-judged_files() { # <ref> <local-sha> <remote-sha> -> the files the verifiers ran on, sorted
+judged_files() {
   : >"$WORK/judged"
   (cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
     JUDGED_LOG="$WORK/judged" bash "$WORK/counting/git-hooks/reference-verify.sh" origin "$WORK/r$n.git" >/dev/null 2>&1)
@@ -572,7 +524,6 @@ expect "after merging a pushed branch, a file the branch adds is judged" "1|own-
   "$(push_check refs/heads/delivery "$tip" "$pushed")"
 expect "the push runs the verifiers only on the files the branch's own commits change" "delivery.sh own-new.sh" \
   "$(judged_files refs/heads/delivery "$tip" "$pushed")"
-# A branch reset to the other pushed branch's tip adds no commit the remote lacks.
 git -C "$REPO" reset -q --hard integ
 expect "a branch reset to a pushed branch's tip is not judged on its lines" "0|" \
   "$(push_check refs/heads/delivery "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
@@ -618,8 +569,6 @@ err="$(cd "$WT" && printf 'refs/heads/restore %s refs/heads/restore %s\n' "$(git
   GIT_DIR="$(git rev-parse --absolute-git-dir)" bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
 expect "a run from a linked worktree citing a restored path passes" "0|" "$?|$(head -1 <<<"$err")"
 
-# An inherited discovery ceiling between the doc and the root does not hide the
-# repository, so a citation of a deleted path is still reported.
 new_repo
 WT="$WORK/wt$n"
 git -C "$REPO" worktree add -q -b cite "$WT" main

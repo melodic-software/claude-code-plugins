@@ -1,0 +1,468 @@
+#!/usr/bin/env node
+'use strict'
+
+const crypto = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..')
+const WORK_TYPES = new Set(['coding', 'web-ui', 'knowledge', 'image'])
+const VERDICTS = new Set(['accepted', 'rejected'])
+const ID_RE = /^[a-z0-9][a-z0-9-]*$/
+
+function die(msg, code = 2) {
+  process.stderr.write(`vendor-state: ${msg}\n`)
+  process.exit(code)
+}
+
+function usage() {
+  process.stdout.write(
+    [
+      'Usage:',
+      '  vendor-state record --key <vendor:model:version:effort:work_type> --verdict <accepted|rejected>',
+      '                      [--tokens <n>] [--settings <file>] [--data-dir <dir>] [--now <ISO>]',
+      '  vendor-state outcome --key <vendor:model:version:effort:work_type> [--data-dir <dir>]',
+      '  vendor-state send-back --key <vendor:model:version:effort:work_type> [--data-dir <dir>]',
+      '  vendor-state seen --vendor <vendor> --ids <comma-list> [--data-dir <dir>]',
+      '',
+    ].join('\n'),
+  )
+}
+
+function installedDataDir(root) {
+  const resolved = path.resolve(root)
+  const parts = resolved.split(path.sep)
+  const cache = parts.lastIndexOf('cache')
+  if (cache < 1 || parts[cache - 1] !== 'plugins' || parts.length !== cache + 4) return null
+  const [marketplace, plugin] = parts.slice(cache + 1)
+  if (plugin !== 'multi-agent') return null
+  return path.join(
+    parts.slice(0, cache).join(path.sep),
+    'data',
+    `${plugin}@${marketplace}`.replace(/[^A-Za-z0-9_-]/g, '-'),
+  )
+}
+
+function resolveDataDir(explicitDir, env = process.env, root = PLUGIN_ROOT) {
+  if (explicitDir) return { dataDir: path.resolve(explicitDir), notice: null }
+  const given = env.CLAUDE_PLUGIN_DATA
+  const own = Boolean(given && /^multi-agent-/.test(path.win32.basename(given)))
+  const foreign =
+    given && !own
+      ? `CLAUDE_PLUGIN_DATA ${JSON.stringify(given)} belongs to another plugin, so it is not used`
+      : null
+  const installed = installedDataDir(root)
+  if (installed) return { dataDir: installed, notice: foreign }
+  if (own) return { dataDir: path.resolve(given), notice: null }
+  die(
+    `${foreign ?? 'CLAUDE_PLUGIN_DATA is not set'} and this copy is not an installed plugin, so there is nowhere to keep vendor state`,
+    2,
+  )
+}
+
+function parsePairKey(raw) {
+  if (typeof raw !== 'string' || raw.trim().length === 0) die('--key is required')
+  let obj
+  if (raw.trim().startsWith('{')) {
+    try {
+      obj = JSON.parse(raw)
+    } catch (err) {
+      die(`invalid JSON --key: ${err.message}`)
+    }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) die('--key JSON must be an object')
+  } else {
+    const parts = raw.split(':')
+    if (parts.length !== 5) {
+      die('--key must be vendor:model:version:effort:work_type')
+    }
+    obj = {
+      vendor: parts[0],
+      model: parts[1],
+      version: parts[2],
+      effort: parts[3],
+      work_type: parts[4],
+    }
+  }
+  const vendor = typeof obj.vendor === 'string' ? obj.vendor.trim().toLowerCase() : ''
+  const model = typeof obj.model === 'string' ? obj.model.trim() : ''
+  const version = typeof obj.version === 'string' ? obj.version.trim() : ''
+  const effort = typeof obj.effort === 'string' ? obj.effort.trim().toLowerCase() : ''
+  const work_type = typeof obj.work_type === 'string' ? obj.work_type.trim().toLowerCase() : ''
+  if (!ID_RE.test(vendor)) die(`invalid vendor in --key: '${vendor}'`)
+  if (!model) die('model in --key must be non-empty')
+  if (!version) die('version in --key must be non-empty')
+  if (!effort) die('effort in --key must be non-empty')
+  if (!WORK_TYPES.has(work_type)) {
+    die(`work_type in --key must be one of ${[...WORK_TYPES].join(', ')}`)
+  }
+  return { vendor, model, version, effort, work_type }
+}
+
+function slugPart(s) {
+  const cleaned = String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24)
+  return cleaned || 'x'
+}
+
+function encodePairKey(key) {
+  const canonical = JSON.stringify([key.vendor, key.model, key.version, key.effort, key.work_type])
+  const hash = crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 12)
+  return [
+    slugPart(key.vendor),
+    slugPart(key.model),
+    slugPart(key.version),
+    slugPart(key.effort),
+    slugPart(key.work_type),
+    hash,
+  ].join('__')
+}
+
+function loadSettings(filePath) {
+  const out = {
+    routing: true,
+    trials: false,
+    trials_prove: null,
+    trials_fail: null,
+  }
+  if (!filePath) return out
+  let raw
+  try {
+    raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch (err) {
+    die(`cannot read settings (${filePath}): ${err.message}`)
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    die('settings must be a JSON object')
+  }
+  const doc =
+    'vendors' in raw && raw.vendors && typeof raw.vendors === 'object' && !Array.isArray(raw.vendors)
+      ? raw.vendors
+      : raw
+  if ('routing' in doc && doc.routing !== null) {
+    if (typeof doc.routing !== 'boolean') die('settings.routing must be a boolean')
+    out.routing = doc.routing
+  }
+  if ('trials' in doc && doc.trials !== null) {
+    if (typeof doc.trials !== 'boolean') die('settings.trials must be a boolean')
+    out.trials = doc.trials
+  }
+  if ('trials_prove' in doc && doc.trials_prove !== null) {
+    if (!Number.isInteger(doc.trials_prove) || doc.trials_prove < 1) {
+      die('settings.trials_prove must be an integer >= 1')
+    }
+    out.trials_prove = doc.trials_prove
+  }
+  if ('trials_fail' in doc && doc.trials_fail !== null) {
+    if (!Number.isInteger(doc.trials_fail) || doc.trials_fail < 2) {
+      die('settings.trials_fail must be an integer >= 2')
+    }
+    out.trials_fail = doc.trials_fail
+  }
+  return out
+}
+
+function writeExclusiveJson(filePath, doc) {
+  const payload = `${JSON.stringify(doc, null, 2)}\n`
+  let fd
+  try {
+    fd = fs.openSync(
+      filePath,
+      fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+      0o600,
+    )
+  } catch (err) {
+    if (err && err.code === 'EEXIST') return false
+    throw err
+  }
+  try {
+    fs.writeFileSync(fd, payload, 'utf8')
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
+  }
+  return true
+}
+
+function readJsonRetry(filePath) {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8')
+      if (raw.trim()) return JSON.parse(raw)
+    } catch {
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5)
+  }
+  return null
+}
+
+function parseFlags(argv, allowed) {
+  const opts = {}
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '-h' || a === '--help') {
+      usage()
+      process.exit(0)
+    }
+    if (!allowed.has(a)) die(`unknown argument: ${a}`)
+    if (i + 1 >= argv.length) die(`${a} requires a value`)
+    opts[a.slice(2)] = argv[++i]
+  }
+  return opts
+}
+
+function statePaths(dataDir) {
+  const stateRoot = path.join(dataDir, 'vendor-state')
+  return {
+    stateRoot,
+    outcomesDir: path.join(stateRoot, 'outcomes'),
+    trialsDir: path.join(stateRoot, 'trials'),
+    seenDir: path.join(stateRoot, 'seen'),
+  }
+}
+
+function cmdRecord(argv) {
+  const opts = parseFlags(
+    argv,
+    new Set(['--key', '--verdict', '--tokens', '--settings', '--data-dir', '--now']),
+  )
+  const key = parsePairKey(opts.key)
+  if (!opts.verdict || !VERDICTS.has(opts.verdict)) {
+    die('--verdict must be accepted or rejected')
+  }
+  let tokens
+  if ('tokens' in opts) {
+    const parsed = Number(opts.tokens)
+    if (!Number.isFinite(parsed) || parsed < 0) die('--tokens must be a non-negative number')
+    tokens = parsed
+  }
+  const { dataDir, notice } = resolveDataDir(opts['data-dir'])
+  if (notice) process.stderr.write(`vendor-state: notice: ${notice}\n`)
+
+  const settings = loadSettings(opts.settings)
+  if (!settings.routing) {
+    process.stdout.write(
+      `${JSON.stringify({ recorded: false, status: 'routing-off', note: 'routing is off; trials paused and nothing written' }, null, 2)}\n`,
+    )
+    return
+  }
+  if (!settings.trials || settings.trials_prove === null || settings.trials_fail === null) {
+    const note = !settings.trials
+      ? 'trials switch is off; nothing written'
+      : 'trials_prove and trials_fail must both be set; trials inactive and nothing written'
+    process.stdout.write(
+      `${JSON.stringify({ recorded: false, status: 'inactive', note }, null, 2)}\n`,
+    )
+    return
+  }
+
+  const encoded = encodePairKey(key)
+  const paths = statePaths(dataDir)
+  const outcomePath = path.join(paths.outcomesDir, `${encoded}.json`)
+  const keyTrialDir = path.join(paths.trialsDir, encoded)
+
+  if (fs.existsSync(outcomePath)) {
+    die(`outcome already exists for ${opts.key}`, 3)
+  }
+
+  const at = opts.now || new Date().toISOString()
+  const trialDoc = { key, verdict: opts.verdict, at }
+  if (tokens !== undefined) trialDoc.tokens = tokens
+
+  fs.mkdirSync(keyTrialDir, { recursive: true })
+  const trialName = `${Date.now()}-${process.pid}-${crypto.randomBytes(6).toString('hex')}.json`
+  const trialPath = path.join(keyTrialDir, trialName)
+  try {
+    writeExclusiveJson(trialPath, trialDoc)
+  } catch (err) {
+    if (err && err.code === 'ENOENT' && fs.existsSync(outcomePath)) {
+      fs.rmSync(keyTrialDir, { recursive: true, force: true })
+      die(`outcome already exists for ${opts.key}`, 3)
+    }
+    throw err
+  }
+
+  if (fs.existsSync(outcomePath)) {
+    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    die(`outcome already exists for ${opts.key}`, 3)
+  }
+
+  let files
+  try {
+    files = fs.readdirSync(keyTrialDir).filter((f) => f.endsWith('.json'))
+  } catch (err) {
+    if (err && err.code === 'ENOENT' && fs.existsSync(outcomePath)) {
+      fs.rmSync(keyTrialDir, { recursive: true, force: true })
+      const existing = readJsonRetry(outcomePath)
+      process.stdout.write(
+        `${JSON.stringify({ recorded: true, outcome_created: false, outcome: existing }, null, 2)}\n`,
+      )
+      return
+    }
+    throw err
+  }
+
+  let accepted = 0
+  let rejected = 0
+  for (const f of files) {
+    try {
+      const rec = JSON.parse(fs.readFileSync(path.join(keyTrialDir, f), 'utf8'))
+      if (rec.verdict === 'accepted') accepted++
+      else if (rec.verdict === 'rejected') rejected++
+    } catch {
+    }
+  }
+
+  const proveHit = accepted >= settings.trials_prove
+  const failHit = rejected >= settings.trials_fail
+  if (proveHit || failHit) {
+    const result =
+      opts.verdict === 'accepted' && proveHit
+        ? 'proven'
+        : opts.verdict === 'rejected' && failHit
+          ? 'failed'
+          : proveHit
+            ? 'proven'
+            : 'failed'
+    const outcomeDoc = {
+      key,
+      result,
+      at,
+      results_counted: accepted + rejected,
+      accepted,
+      rejected,
+    }
+    fs.mkdirSync(paths.outcomesDir, { recursive: true })
+    const created = writeExclusiveJson(outcomePath, outcomeDoc)
+    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    const finalOutcome = created ? outcomeDoc : readJsonRetry(outcomePath)
+    process.stdout.write(
+      `${JSON.stringify({ recorded: true, outcome_created: created, outcome: finalOutcome }, null, 2)}\n`,
+    )
+    return
+  }
+
+  if (fs.existsSync(outcomePath)) {
+    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    const existing = readJsonRetry(outcomePath)
+    process.stdout.write(
+      `${JSON.stringify({ recorded: true, outcome_created: false, outcome: existing }, null, 2)}\n`,
+    )
+    return
+  }
+
+  process.stdout.write(
+    `${JSON.stringify({ recorded: true, accepted, rejected, outcome: null }, null, 2)}\n`,
+  )
+}
+
+function cmdOutcome(argv) {
+  const opts = parseFlags(argv, new Set(['--key', '--data-dir']))
+  const key = parsePairKey(opts.key)
+  const { dataDir, notice } = resolveDataDir(opts['data-dir'])
+  if (notice) process.stderr.write(`vendor-state: notice: ${notice}\n`)
+
+  const encoded = encodePairKey(key)
+  const outcomePath = path.join(statePaths(dataDir).outcomesDir, `${encoded}.json`)
+  if (!fs.existsSync(outcomePath)) {
+    process.stdout.write(`${JSON.stringify({ result: 'none' }, null, 2)}\n`)
+    return
+  }
+  const doc = JSON.parse(fs.readFileSync(outcomePath, 'utf8'))
+  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
+}
+
+function cmdSendBack(argv) {
+  const opts = parseFlags(argv, new Set(['--key', '--data-dir']))
+  const key = parsePairKey(opts.key)
+  const { dataDir, notice } = resolveDataDir(opts['data-dir'])
+  if (notice) process.stderr.write(`vendor-state: notice: ${notice}\n`)
+
+  const encoded = encodePairKey(key)
+  const outcomePath = path.join(statePaths(dataDir).outcomesDir, `${encoded}.json`)
+  let deleted = false
+  if (fs.existsSync(outcomePath)) {
+    fs.rmSync(outcomePath, { force: true })
+    deleted = true
+  }
+  process.stdout.write(`${JSON.stringify({ deleted, key }, null, 2)}\n`)
+}
+
+function cmdSeen(argv) {
+  const opts = parseFlags(argv, new Set(['--vendor', '--ids', '--data-dir']))
+  const vendor = typeof opts.vendor === 'string' ? opts.vendor.trim().toLowerCase() : ''
+  if (!ID_RE.test(vendor)) die('--vendor must match ^[a-z0-9][a-z0-9-]*$')
+  if (!('ids' in opts)) die('--ids is required')
+  const { dataDir, notice } = resolveDataDir(opts['data-dir'])
+  if (notice) process.stderr.write(`vendor-state: notice: ${notice}\n`)
+
+  const incoming = []
+  const incomingSeen = new Set()
+  for (const part of opts.ids.split(',')) {
+    const id = part.trim()
+    if (!id || incomingSeen.has(id)) continue
+    incomingSeen.add(id)
+    incoming.push(id)
+  }
+
+  const paths = statePaths(dataDir)
+  const seenPath = path.join(paths.seenDir, `${vendor}.json`)
+  let storedIds = []
+  if (fs.existsSync(seenPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(seenPath, 'utf8'))
+      if (existing && Array.isArray(existing.ids)) {
+        storedIds = existing.ids.filter((x) => typeof x === 'string' && x.length > 0)
+      }
+    } catch {
+      storedIds = []
+    }
+  }
+
+  const storedSet = new Set(storedIds)
+  const newIds = incoming.filter((id) => !storedSet.has(id))
+  const union = [...storedIds, ...newIds]
+
+  fs.mkdirSync(paths.seenDir, { recursive: true })
+  const tmpPath = path.join(
+    paths.seenDir,
+    `${vendor}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`,
+  )
+  fs.writeFileSync(tmpPath, `${JSON.stringify({ vendor, ids: union }, null, 2)}\n`, 'utf8')
+  fs.renameSync(tmpPath, seenPath)
+
+  const note =
+    newIds.length > 0 ? `registry recheck due (${vendor}: ${newIds.join(', ')})` : null
+  process.stdout.write(
+    `${JSON.stringify({ vendor, new: newIds, ids: union, note }, null, 2)}\n`,
+  )
+}
+
+function main() {
+  const argv = process.argv.slice(2)
+  if (argv.length === 0 || argv[0] === '-h' || argv[0] === '--help') {
+    usage()
+    process.exit(argv.length === 0 ? 2 : 0)
+  }
+  const [cmd, ...rest] = argv
+  switch (cmd) {
+    case 'record':
+      cmdRecord(rest)
+      break
+    case 'outcome':
+      cmdOutcome(rest)
+      break
+    case 'send-back':
+      cmdSendBack(rest)
+      break
+    case 'seen':
+      cmdSeen(rest)
+      break
+    default:
+      die(`unknown command: ${cmd}`)
+  }
+}
+
+main()

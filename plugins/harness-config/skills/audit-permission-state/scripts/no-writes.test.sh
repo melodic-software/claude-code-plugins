@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# no-writes.test.sh — criterion 9, asserted mechanically rather than by reading
-# the code.
-#
-# Both skills claim to write nothing, in any scope, under any flag. That claim is
-# the reason they are safe to point at a consumer's real configuration, so it is
-# checked by RUNNING every action of both and diffing the filesystem either side
-# — a fixture tree AND a fixture HOME, since the settings files these skills are
-# about live in the second one.
-#
-# The oracle path is exercised deliberately. Running only the defaults would
-# prove nothing about the one code path that spawns a process capable of writing
-# outside the tree; a stub `claude` on PATH stands in for the real CLI so the
-# spawn happens without a session, a token, or a network call.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +22,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- The tree every action runs against --------------------------------------
 FX="$TEST_TMPDIR/fx"
 mkdir -p "$FX/proj/.claude" "$FX/home/.claude" "$FX/policy/managed-settings.d" "$FX/startdir/.claude"
 jq -n '{permissions:{allow:["Bash(git status)","Bash(python*)"],deny:["WebFetch"]}}' >"$FX/proj/.claude/settings.json"
@@ -45,14 +31,9 @@ jq -n '{permissions:{deny:["Read(./.env)"]}}' >"$FX/policy/managed-settings.json
 jq -n '{permissions:{ask:["Bash(rm *)"]}}' >"$FX/policy/managed-settings.d/10-first.json"
 jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/startdir/.claude/settings.local.json"
 
-# A stub `claude` so the oracle's spawn path executes without a real session.
-# It writes into the debug file it is handed, which is the scratch path the
-# oracle chose — proving the capture lands there and nowhere else.
 STUB="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB"
 printf '#!%s\n' "$real_bash" >"$STUB/claude"
-# A quoted heredoc: the body is the STUB's source, so its parameters must reach
-# the file verbatim rather than expanding against this harness's values.
 cat >>"$STUB/claude" <<'STUB_CLAUDE'
 debug=""
 while [[ $# -gt 0 ]]; do
@@ -70,19 +51,8 @@ fi
 printf 'OK\n'
 STUB_CLAUDE
 chmod +x "$STUB/claude"
-# Only `claude` is stubbed. Wrapping every tool the scripts use deadlocks: a
-# wrapper for `env` re-enters itself through the very PATH it is setting up, and
-# the harness hangs before its first assertion. The
-# real tools are reached through the inherited PATH appended below.
 
 snapshot() {
-  # Path, size and full content of every file under the given roots. Mtime is
-  # deliberately excluded: a read can update atime on some filesystems, and this
-  # is a test about writes.
-  #
-  # `find -exec` rather than a `while read` loop: on Git Bash the loop's subshell
-  # deadlocked against the pipeline feeding it, and the harness hung before its
-  # first assertion. `-exec … +` needs no subshell at all.
   local root
   for root in "$@"; do
     find "$root" -type f -exec wc -c {} + 2>/dev/null | LC_ALL=C sort
@@ -117,12 +87,10 @@ why the runner is named in the command
 EOF
 )
 
-# --- Every action of both skills, oracle ON -----------------------------------
 before="$(snapshot "$FX")"
 
 CASE_NUM_ACTIONS=0
 run_action() {
-  # run_action <label> <command...> — output discarded; only the effect matters
   local label="$1"
   shift
   CASE_NUM_ACTIONS=$((CASE_NUM_ACTIONS + 1))
@@ -138,20 +106,11 @@ run_action() {
   fi
 }
 
-# Stages are chained through files rather than a pipeline in a `bash -c` string:
-# the shell quoting a nested pipeline needs is its own source of defects, and
-# what is under test is whether these programs write, not how they are composed.
 STAGE="$TEST_TMPDIR/stage"
 mkdir -p "$STAGE"
 
-# The produced file is returned in a NAMED VARIABLE, never on stdout. An earlier
-# revision printed the path and captured it with $(...), which swallowed every
-# PASS line printed alongside it -- the run reported "All 10 checks passed" while
-# four stages had silently never executed. A harness that can miscount its own
-# cases is worse than no harness.
 PIPE_OUT=""
 pipe_into() {
-  # pipe_into <label> <input-file> <script> [args...] — result path in $PIPE_OUT
   local label="$1" input="$2"
   shift 2
   CASE_NUM_ACTIONS=$((CASE_NUM_ACTIONS + 1))
@@ -166,8 +125,6 @@ pipe_into() {
     fail "no writes: $label" "the fixture tree or fixture HOME changed (exit was $rc)"
     before="$after"
   fi
-  # A stage that produced nothing means the pipeline broke, and every downstream
-  # assertion would then pass vacuously against an empty input.
   [[ -s "$PIPE_OUT" ]] || fail "stage produced output: $label" "empty result file (exit was $rc)"
 }
 stage_seq=0
@@ -188,23 +145,10 @@ run_action "automode-block-lint.sh --critique" fixture_env "$real_bash" "$BLOCK_
 printf '%s\n' "$ANSWERS" >"$STAGE/answers.txt"
 pipe_into "draft-automode-block.sh" "$STAGE/answers.txt" "$DRAFTER"
 
-# The oracle explicitly ON. This is the only path that spawns a process, so a
-# run without it proves nothing about criterion 9 — the flag exists precisely
-# because this code path is different in kind from the others.
 pipe_into "automode-entry-diff.sh --oracle (SPAWNS)" "$merged" "$ENTRY_DIFF" --oracle
 
-# Every action above must actually have been attempted. Without this, a harness
-# that skipped stages would still print a confident "all checks passed".
-#
-# Ten: the reader twice (default and --scopes), merge, plane lint, conformance,
-# entry diff, block lint twice (default and --critique), the drafter, and the
-# entry diff again with the oracle ON.
 assert_eq "every one of the ten actions ran" 10 "$CASE_NUM_ACTIONS"
 
-# --- The oracle's capture lands in scratch, not in the config directory -------
-# Its cost notice promises the debug capture goes to a scratch path and never to
-# ~/.claude/debug/. The stub writes wherever it is pointed, so if the oracle
-# pointed it at the config directory this would catch it.
 assert_eq "the oracle wrote no debug file under the fixture HOME" 0 \
   "$(find "$FX/home" -name '*.log' -o -name 'debug*' 2>/dev/null | wc -l | tr -d ' ')"
 

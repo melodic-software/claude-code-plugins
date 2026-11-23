@@ -24,7 +24,6 @@ RUBRIC="$SCRIPT_DIR/routing-rubric.md"
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# Prints one line per malformed row of the TSV on stdin; nothing when it is sound.
 shape_errors() {
   awk -F'\t' '
     NR == 1 {
@@ -44,9 +43,6 @@ tsv_ids() { awk -F'\t' 'NR > 1 { print $1 }' "$1" | sort -u; }
 table_ids() { grep -oE '^[|] MS-[0-9]+ [|]' "$1" | grep -oE 'MS-[0-9]+' | sort -u; }
 cited_ids() { grep -ohE 'MS-[0-9]+' "$@" | sort -u; }
 
-# --------------------------------------------------------------------------
-# shape_errors on fixtures
-# --------------------------------------------------------------------------
 HEADER=$'id\turl\tquote\tas_of'
 GOOD=$'MS-1\thttps://code.claude.com/docs/en/memory#how-it-works\tA sentence.\t2026-10-27'
 assert_eq "a sound record passes" "" "$(printf '%s\n%s\n' "$HEADER" "$GOOD" | shape_errors)"
@@ -66,9 +62,6 @@ assert_eq "a repeated id is caught" "line 3: id MS-1 repeats" \
   "$(printf '%s\n%s\n%s\n' "$HEADER" "$GOOD" "$GOOD" | shape_errors)"
 assert_eq "a header alone is caught" "no records" "$(printf '%s\n' "$HEADER" | shape_errors)"
 
-# --------------------------------------------------------------------------
-# The shipped records
-# --------------------------------------------------------------------------
 assert_eq "every shipped row is well formed" "" "$(shape_errors <"$TSV")"
 assert_eq "the Pointer records table lists exactly the TSV's ids" "" \
   "$(comm -3 <(table_ids "$MECHANICS") <(tsv_ids "$TSV") | tr -d '\t' | tr '\n' ' ')"

@@ -38,17 +38,13 @@ MODE="${1:-}"
 shift || true
 ARG="${*:-}"
 
-# Print the header block (shebang to first non-comment line). Derived from the
-# file itself, so a growing header can never outrun the banner.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}" >&2
 }
 
-# jq: emit each result as TSV (word, score, numSyllables, tags).
 emit_tsv() { jq -r '.[] | [.word, (.score // 0), (.numSyllables // 0), ((.tags // []) | join(","))] | @tsv'; }
 
-# One Datamuse request for <query>, with syllable metadata and the result cap.
 fetch() { curl -sS "https://api.datamuse.com/words?$1&md=s&max=$max"; }
 
 if [[ "$MODE" == "-h" || "$MODE" == "--help" ]]; then
@@ -77,7 +73,6 @@ syllables)
   max=5
   ;;
 family)
-  # near rhymes + consonance, combined; useful for Pat's family-rhyme search
   near=$(fetch "rel_nry=$word")
   cons=$(fetch "rel_cns=$word")
   echo "$near $cons" | jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' | emit_tsv

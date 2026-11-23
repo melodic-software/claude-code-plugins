@@ -68,7 +68,6 @@ export function resolveLevel({ projectRoot, home, userConfig = null, prompt = nu
     const first = run(schema);
     const notices = errorsOf(first, (key) => key !== "level");
     const complete = {};
-    // A dimension with a schema default (controls) takes it when no layer sets it.
     const optional = Object.entries(schema.properties.levels.additionalProperties.properties).filter(([, d]) => d.default !== undefined).map(([k, d]) => [k, d.default]);
     for (const [name, raw] of Object.entries(first.values.levels ?? {})) {
       const missing = REQUIRED.filter((d) => raw?.[d] === undefined);
@@ -105,7 +104,6 @@ export function resolveLevel({ projectRoot, home, userConfig = null, prompt = nu
 
 export const reportLine = ({ level, layer }) => `level: ${level} (${layer})`;
 
-/** {home} or {home: null, why} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome(project) {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };

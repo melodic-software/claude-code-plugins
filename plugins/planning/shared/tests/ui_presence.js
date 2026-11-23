@@ -1,19 +1,9 @@
 #!/usr/bin/env node
-// Presence in real browsers, against `share.sh ensure-running` with the fake cloudflared, watched from the owner's page:
-// a tab hidden for 3 minutes with hidden-tab timer throttling emulated shows Away and never drops out and back; a closed
-// tab goes offline after about 90 s; Away by hand shows, and the next key press ends it; one person in two tabs, one
-// hidden, shows Active throughout; and normal use (switching questions while typing, answering, a personal link on a
-// second device, a second tab) gets no 429 from the heartbeat or any other route.
-//   node plugins/planning/shared/tests/ui_presence.js   (about 4 minutes)
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Presence amendment (visible and lastInput on the heartbeat, Away when hidden or snoozed,
-// offline after 90 s without a heartbeat: session.py OFFLINE_AFTER), the one-a-second heartbeat limit per tab
-// (HEARTBEAT_INTERVAL), and per-tab presence (Away only when every live tab is), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
-const HIDDEN_FOR = 180; // seconds: the Brief's 3 minutes
-const OFFLINE_AFTER = 90; // seconds: session.py OFFLINE_AFTER
+const HIDDEN_FOR = 180;
+const OFFLINE_AFTER = 90;
 const text = (id, t) => ({ id, text: t, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 
 /** In the page before its scripts: a visibility switch, and hidden-tab timers. Chrome runs a hidden tab's timers at
@@ -62,7 +52,6 @@ async function main() {
     const snoozePid = await joinAs(snooze, "Cai");
     const busy = await rec.open(A.localUrl);
     const busyPid = await joinAs(busy, "Dee");
-    // One person in two tabs of one browser (they share the stored identity), each beating on its own.
     const tabA = await rec.open(A.localUrl, { init: { fn: hideOnly } });
     const twoPid = await joinAs(tabA, "Tess");
     const tabB = await rec.openIn(tabA.context(), A.localUrl);
@@ -81,8 +70,6 @@ async function main() {
     const t0 = Date.now(), samples = [], hiddenBeats = [];
     hid.on("request", r => { if (new URL(r.url()).pathname === "/api/heartbeat") hiddenBeats.push((Date.now() - t0) / 1000); });
     await hid.evaluate(() => { window.dispatchEvent(new Event("focus")); window.__setHidden(true); });
-    // Sampled on the clock, one a second from t0, so slow page reads do not thin the samples out; the watch starts
-    // before the close, so a slow close cannot delay the first sample.
     const watch = (async () => {
       for (let k = 1; (Date.now() - t0) / 1000 < HIDDEN_FOR; k++) {
         const v = await view();
@@ -92,7 +79,6 @@ async function main() {
     })();
     await gone.context().close();
 
-    // ---------- meanwhile: Away by hand, and normal use with no 429 ----------
     const meanwhile = (async () => {
       await snooze.locator(`.vf-people .vf-person[data-pid="${snoozePid}"]`).click();
       await snooze.locator(".vf-away-btn").click();
@@ -102,7 +88,6 @@ async function main() {
       await snooze.keyboard.press("Escape");
       ok("the next key press ends Away by hand", await until(owner, p => window.Core.state.presence.find(x => x.cid === p)?.away === false, snoozePid, 10000));
 
-      // Switch questions while typing, answer, switch again: each switch is a focus change and typing starts a beat.
       for (let i = 0; i < 6; i++) {
         for (const label of ["Where should", "Which default", "What worries"]) {
           await busy.locator(".vf-q", { hasText: label }).first().click();
@@ -113,7 +98,6 @@ async function main() {
       await busy.press("#vf-answer", "Control+Enter");
       for (const label of ["Where should", "Which default", "Where should"]) await busy.locator(".vf-q", { hasText: label }).first().click();
       ok("the busy guest's answer lands", await until(owner, p => (window.Core.snapshot().cards.Q3 || []).some(c => c.ref === "p:" + p && c.text === "Below the total."), busyPid));
-      // A personal link: the page asks the server who the secret is, then beats.
       const eve = await rec.open(A.localUrl);
       await joinAs(eve, "Eve");
       const secret = await eve.evaluate(() => localStorage.getItem("secret"));
@@ -124,7 +108,6 @@ async function main() {
       await eve2.waitForTimeout(3000);
     })();
 
-    // ---------- meanwhile: one person, two tabs, one hidden; the other in use for 30 s ----------
     const twoTabs = (async () => {
       await tabB.evaluate(() => window.__setHidden(true));
       const seen = [], start = Date.now();
@@ -134,7 +117,7 @@ async function main() {
           await tabA.locator("#vf-answer").pressSequentially("ok", { delay: 30 });
         }
         seen.push(await owner.evaluate(p => { const x = window.Core.state.presence.find(y => y.cid === p); return x ? (x.away ? "away" : "active") : "absent"; }, twoPid));
-        await owner.waitForTimeout(Math.max(0, start + (i + 1) * 500 - Date.now())); // on the clock, as the watch above
+        await owner.waitForTimeout(Math.max(0, start + (i + 1) * 500 - Date.now()));
       }
       const flips = seen.slice(1).filter((x, j) => x !== seen[j]).length;
       ok("two tabs, one hidden, the other in use for 30 s: the owner sees the person Active throughout, no flip",
@@ -144,7 +127,6 @@ async function main() {
     })();
     await Promise.all([watch, meanwhile, twoTabs]);
 
-    // The hidden tab: Away from its visibility-change beat on, present the whole time.
     const firstAway = samples.find(x => x.hid === "away")?.t ?? Infinity;
     ok("the hidden tab shows Away within seconds of hiding", firstAway <= 5, `first Away at ${firstAway}s`);
     const after = samples.filter(x => x.t > firstAway);
@@ -155,7 +137,6 @@ async function main() {
     // in that wake, not in the next one. Two-minute gaps here would leave it a hair from offline (90 s).
     const gaps = hiddenBeats.slice(1).map((t, i) => t - hiddenBeats[i]);
     ok("  while hidden the page beat at each one-minute wake", hiddenBeats.length >= 3 && gaps.every(g => g <= 75), `beats at ${hiddenBeats.map(t => t.toFixed(0)).join(", ")} s`);
-    // The closed tab: present until about 90 s after its last beat, then offline (absent), and it stays so.
     const lastSeen = Math.max(0, ...samples.filter(x => x.gone !== "absent").map(x => x.t));
     const offAt = samples.find(x => x.t > lastSeen)?.t ?? Infinity;
     ok(`the closed tab goes offline about ${OFFLINE_AFTER} s after it closed`, offAt >= OFFLINE_AFTER - 5 && offAt <= OFFLINE_AFTER + 10 && samples.filter(x => x.t > offAt).every(x => x.gone === "absent"), `offline at ${offAt}s`);

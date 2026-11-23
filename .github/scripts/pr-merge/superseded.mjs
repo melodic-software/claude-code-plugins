@@ -60,7 +60,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
+import { loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { escapeCommand, WAKE_TITLE } from "./rotation.mjs";
 import { GITHUB_ACTIONS_BOT_ID } from "./who.mjs";
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for instruction-load-stats.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +7,6 @@ SCRIPT="$SCRIPT_DIR/instruction-load-stats.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Local assert_contains: the detail line also names the haystack.
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
@@ -24,7 +22,6 @@ assert_contains() {
 mkdir -p "$TEST_TMPDIR/conf"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/conf"
 
-# --- Case 1: --help and a bad mode ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -34,7 +31,6 @@ rc=0
 bash "$SCRIPT" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "a bad mode exits 2" 2 "$rc"
 
-# --- The loophole this script closes: a 1-line CLAUDE.md importing a big AGENTS.md ---
 
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
@@ -48,7 +44,6 @@ printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 OUT=$(cd "$REPO" && bash "$SCRIPT" --lines)
 assert_eq "--lines counts the root plus its import (1 + 202 non-blank)" "203" "$OUT"
 
-# --- Case: a CLAUDE.md with no imports reports only itself ---
 
 PLAIN="$TEST_TMPDIR/plain"
 make_repo "$PLAIN"
@@ -56,7 +51,6 @@ printf '# Plain\n\nline a\nline b\n' >"$PLAIN/CLAUDE.md"
 OUT=$(cd "$PLAIN" && bash "$SCRIPT" --lines)
 assert_eq "--lines on an import-free file is its own non-blank count" "3" "$OUT"
 
-# --- Case: no CLAUDE.md at all reports 0 ---
 
 EMPTY="$TEST_TMPDIR/empty"
 make_repo "$EMPTY"
@@ -65,7 +59,6 @@ assert_eq "--lines with no root file is 0" "0" "$OUT"
 OUT=$(cd "$EMPTY" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens with nothing loaded is 0" "0" "$OUT"
 
-# --- Case: comments are stripped outside fences, kept inside them; code spans and fences are not imports ---
 
 CM="$TEST_TMPDIR/comments"
 make_repo "$CM"
@@ -88,11 +81,9 @@ OUT=$(cd "$CM" && bash "$SCRIPT" --breakdown)
 assert_contains "a bare @path outside code is imported" "$OUT" "docs/real.md"
 assert_not_contains "a code-span @path is not imported" "$OUT" "docs/span.md"
 assert_not_contains "a fenced @path is not imported" "$OUT" "docs/fenced.md"
-# Root: "# Title", "Mention ... only.", 3 fence lines, "See @docs/real.md." = 7 non-blank; comment stripped.
 OUT=$(cd "$CM" && bash "$SCRIPT" --lines)
 assert_eq "--lines strips the block comment and keeps fenced content (7 + 1)" "8" "$OUT"
 
-# --- Case: depth cap, cycle, missing, and diamond ---
 
 DEEP="$TEST_TMPDIR/deep"
 make_repo "$DEEP"
@@ -122,7 +113,6 @@ assert_contains "a diamond's second edge is reported as seen" "$OUT" "seen	0	0	s
 OUT=$(cd "$CYC" && bash "$SCRIPT" --lines)
 assert_eq "--lines: root(2) + x(3) + y(3) + shared(1), shared once" "9" "$OUT"
 
-# --- Case: an import outside the repository is listed, not expanded ---
 
 EXT="$TEST_TMPDIR/ext"
 make_repo "$EXT"
@@ -133,7 +123,6 @@ assert_contains "an external import is listed as external" "$OUT" "external	0	0	
 OUT=$(cd "$EXT" && bash "$SCRIPT" --lines)
 assert_eq "--lines does not expand an external import" "2" "$OUT"
 
-# --- Case: the whole set adds unscoped rules and their imports, skips path-scoped rules ---
 
 SET="$TEST_TMPDIR/set"
 make_repo "$SET"
@@ -151,14 +140,9 @@ assert_contains "a nested unscoped rule is a root" "$OUT" ".claude/rules/sub/nes
 assert_contains "an unscoped rule's import loads" "$OUT" "import	1	11	docs/shared.md"
 assert_not_contains "a path-scoped rule is not in the always-loaded set" "$OUT" "scoped.md"
 assert_contains "TOTAL row carries the estimate label" "$OUT" "tokens (bytes/4, estimate)"
-# Bytes: "# Root\n"=7, local=11, always.md ("# Always\n@../../docs/shared.md\n")=31,
-# nested.md whole file (frontmatter counts)=40, shared=11 => 100 bytes => 25 tokens.
 OUT=$(cd "$SET" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens is bytes/4 over the expanded set" "25" "$OUT"
 
-# --- Case: the user-scope layer is part of the always-loaded set ---
-# User-scope CLAUDE.md and unscoped rules load in every session, their imports expand
-# within the config dir, and a path-scoped user rule stays out.
 
 USR="$TEST_TMPDIR/usr"
 make_repo "$USR"
@@ -177,20 +161,15 @@ assert_contains "a user-scope import expands within the config dir" "$OUT" "user
 assert_contains "an unscoped user rule is a user-scope root" "$OUT" "user	root	1	10	$UCFG/rules/deep/always.md"
 assert_not_contains "a path-scoped user rule is not in the set" "$OUT" "scoped.md"
 assert_contains "project rows keep the project scope" "$OUT" "project	root	1	10	CLAUDE.md"
-# Bytes: project 10 + user 23 + 11 + 10 = 54 => 13 tokens.
 OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --tokens)
 assert_eq "--tokens covers both scopes" "13" "$OUT"
-# HOME/.claude is the fallback when CLAUDE_CONFIG_DIR is unset, so this case is the one
-# that clears the suite-wide pin.
 mkdir -p "$TEST_TMPDIR/home2/.claude"
 printf '# Home user\n' >"$TEST_TMPDIR/home2/.claude/CLAUDE.md"
 OUT=$(cd "$USR" && HOME="$TEST_TMPDIR/home2" CLAUDE_CONFIG_DIR='' bash "$SCRIPT" --tokens)
 assert_eq "--tokens falls back to HOME/.claude (10 + 12 bytes)" "5" "$OUT"
-# The single-file modes stay project-only: C1 is a per-file check.
 OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --lines)
 assert_eq "--lines is unaffected by the user layer" "1" "$OUT"
 
-# --- Case: CRLF content counts the same as LF ---
 
 CRLF="$TEST_TMPDIR/crlf"
 make_repo "$CRLF"
@@ -198,9 +177,6 @@ printf '# Root\r\nline\r\n' >"$CRLF/CLAUDE.md"
 OUT=$(cd "$CRLF" && bash "$SCRIPT" --bytes)
 assert_eq "--bytes measures LF-normalized content" "12" "$OUT"
 
-# --- Case: the project instructions live in AGENTS.md, with no CLAUDE.md -----
-# Claude Code reads a root AGENTS.md when no CLAUDE.md, .claude/CLAUDE.md or
-# CLAUDE.local.md displaces it, so those bytes are always-loaded bytes.
 
 AG="$TEST_TMPDIR/agents"
 make_repo "$AG"
@@ -212,14 +188,12 @@ assert_eq "--tokens counts the AGENTS.md bytes (37/4)" "9" "$OUT"
 OUT=$(cd "$AG" && bash "$SCRIPT" --lines)
 assert_eq "--lines defaults to the AGENTS.md when it is what loads" "2" "$OUT"
 
-# Its own @imports expand, the same as a CLAUDE.md's.
 printf '# project instructions\n@docs/more.md\n' >"$AG/AGENTS.md"
 mkdir -p "$AG/docs"
 printf 'more\n' >"$AG/docs/more.md"
 OUT=$(cd "$AG" && bash "$SCRIPT" --breakdown)
 assert_contains "an AGENTS.md import loads too" "$OUT" "import	1	5	docs/more.md"
 
-# --- Case: the shim — a CLAUDE.md importing AGENTS.md is counted once --------
 
 SHIM="$TEST_TMPDIR/shim"
 make_repo "$SHIM"
@@ -231,8 +205,6 @@ assert_eq "the shimmed AGENTS.md is never also a root" "0" "$(printf '%s\n' "$OU
 OUT=$(cd "$SHIM" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens counts the shimmed pair once (11 + 37 bytes)" "12" "$OUT"
 
-# A displacing file that does NOT import it leaves the AGENTS.md out: Claude Code
-# reads the CLAUDE.md files instead, so those bytes never load.
 BLOCKED="$TEST_TMPDIR/blocked"
 make_repo "$BLOCKED"
 printf 'local pref\n' >"$BLOCKED/CLAUDE.local.md"
@@ -240,9 +212,6 @@ printf '# project instructions\n\nreal content\n' >"$BLOCKED/AGENTS.md"
 OUT=$(cd "$BLOCKED" && bash "$SCRIPT" --breakdown)
 assert_not_contains "a displaced AGENTS.md is not in the always-loaded set" "$OUT" "AGENTS.md"
 
-# --- Case: .claude/AGENTS.md loads at session start too ----------------------
-# "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
-# directory and the directories above it" (memory doc), so both are counted.
 
 DOTAG="$TEST_TMPDIR/dot-agents"
 make_repo "$DOTAG"

@@ -111,6 +111,26 @@
         "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "firecrawl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "firecrawl"
+        ]
+      },
+      "degrade": "Without the firecrawl CLI, fetch-docs.sh cannot render blocked or JS-rendered pages when invoked with --render-fallback and renderer set to firecrawl; plain fetches and cached entries work normally.",
+      "install": {
+        "docs": "https://docs.firecrawl.dev/sdks/cli",
+        "npm": "npm install -g firecrawl-cli"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

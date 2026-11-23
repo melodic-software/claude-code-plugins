@@ -19,7 +19,6 @@ oversized or malformed profile file is a ReadState, not a crash.
 #>
 
 $script:ExtensionLocationKinds = @('store', 'policy', 'unpacked', 'command-line', 'external', 'component', 'unknown')
-# Judgment: well above any real Preferences or extensions.json, small enough to parse safely.
 $script:BrowserFileMaxBytes = 64MB
 
 function New-ExtensionRecord {

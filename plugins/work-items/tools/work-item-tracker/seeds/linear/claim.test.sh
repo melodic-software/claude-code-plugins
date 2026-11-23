@@ -15,7 +15,6 @@ source "$D/mock.sh"
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LONG_AGO="1999-01-01T00:00:00Z"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S"
@@ -41,7 +40,6 @@ seed_claim_ok() {
   lin_seed_issue 12 started
 }
 
-# --- happy path: no existing lease ---
 seed_claim_ok '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12" --session-id "sess-1")"
 assert_eq "claim on an unclaimed item → exit 0" "0" "$rc"
@@ -59,7 +57,6 @@ assert_eq "lease_comment_id is a numeric handle" "true" \
 assert_contains "the lease marker was posted" "$(lin_bodies)" "work-item-lease v1"
 assert_contains "the assignee was set" "$(lin_requests)" "issueUpdate"
 
-# --- a live FOREIGN lease is refused before anything is written ---
 LIVE_FOREIGN="$(jq -cn --arg b "$(lin_lease_body 1000 "someone-else" "$NOW" 24)" \
   '[{id: "uuid-comment-theirs", body: $b, createdAt: "2026-08-20T11:00:00.000Z"}]')"
 seed_claim_ok "$LIVE_FOREIGN"
@@ -74,21 +71,18 @@ else
   pass "a refused claim writes nothing"
 fi
 
-# --- an EXPIRED lease does not block a new claim ---
 EXPIRED="$(jq -cn --arg b "$(lin_lease_body 1000 "someone-else" "$LONG_AGO" 24)" \
   '[{id: "uuid-comment-old", body: $b, createdAt: "1999-01-01T00:00:00.000Z"}]')"
 seed_claim_ok "$EXPIRED"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired foreign lease does not block" "0" "$rc"
 
-# --- a SUPERSEDED lease does not block, even within its TTL ---
 SUPERSEDED="$(jq -cn --arg b "$(lin_lease_body 1000 "someone-else" "$NOW" 24 "$NOW")" \
   '[{id: "uuid-comment-sup", body: $b, createdAt: "2026-08-20T11:00:00.000Z"}]')"
 seed_claim_ok "$SUPERSEDED"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "superseded lease does not block" "0" "$rc"
 
-# --- a ttl-0 lease is born expired and never counts as live ---
 TTL_ZERO="$(jq -cn --arg b "$(lin_lease_body 1000 "someone-else" "$NOW" 0)" \
   '[{id: "uuid-comment-zero", body: $b, createdAt: "2026-08-20T11:00:00.000Z"}]')"
 seed_claim_ok "$TTL_ZERO"
@@ -135,7 +129,6 @@ assert_contains "and the rival is named" "$(lin_err)" "rival"
 # Losing means superseding our OWN marker, never touching the rival's.
 assert_contains "our own lease is superseded on back-off" "$(lin_bodies)" "superseded_at"
 
-# --- a LATER live lease does not beat ours ---
 seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
   --arg theirs "$(lin_lease_body "$((MINE_HANDLE + 5000))" "latecomer" "$NOW" 24)" \
   '[$mine, {id: "uuid-comment-late", body: $theirs, createdAt: "2026-08-20T12:00:05.500Z"}]')"
@@ -266,7 +259,6 @@ rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "…and an unreadable lease set never clears the assignee" \
   "0" "$(lin_bodies | grep -c '"assigneeId":null')"
 
-# --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"
 assert_eq "undeclared team → exit 2" "2" "$rc"

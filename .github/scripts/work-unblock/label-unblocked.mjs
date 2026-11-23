@@ -380,12 +380,15 @@ import { pathToFileURL } from "node:url";
 
 import { notBornTriaged, readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
-import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, graphqlQuery, isFault, paginate } from "../lib/github-client.mjs";
+import { isTrustedClose as closedByHumanOrMerge, loadTrustedList, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, BODY_EDITED, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, BODY_EDITED, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { splitLeftOpen, splitParentClosed } from "../intake-triage/size-split.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 import { parseReason, personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
@@ -470,12 +473,12 @@ const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit co
 // serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
 // names. A raw job log shows a titled annotation as `##[error]<message>`,
 // the title dropped, as it shows an untitled one.
-const RATE_LIMITED = stamped(
+export const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 const ERROR_LINE = stamped(String.raw`##\[error\]`);
 const STEP_EDGE = stamped(String.raw`##\[(?:group\]Run |start-action |end-action )`);
-const HELD_UNTIL = stamped(
+export const HELD_UNTIL = stamped(
   String.raw`##\[error\].* was not sent: GitHub(?:'s .+ rate limit holds until| answered HTTP (?<status>5\d\d) with a Retry-After; no call to it before) (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)(?: \(.*\))?$`,
 );
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
@@ -527,7 +530,6 @@ const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // the lane PR it names at the verify cap and restarted or parked the issue
 // itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // The lane never starts on these (report-outcome.mjs LANE_HOLDS). Only a
 // person removes the outside-actor label, so its issue is never handed to triage.
 const HOLDS = LANE_HOLDS;

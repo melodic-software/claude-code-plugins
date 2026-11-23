@@ -37,7 +37,6 @@ die() {
   exit "$1"
 }
 
-# isCrossRepository and headRepositoryOwner tell a fork's PR from the repository's own.
 LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit,isCrossRepository,headRepositoryOwner
 
 ACTION="${1:-}"
@@ -156,7 +155,6 @@ api() {
 }
 
 if [[ -z "$num" ]]; then
-  # The branch's open pull request when it has one, else its most recent.
   owner="${api_repo%%/*}"
   # A native Windows jq ends its lines in CRLF; the carriage return is dropped.
   head=$(jq -rn --arg b "$branch" '$b | @uri' | tr -d '\r')
@@ -205,7 +203,6 @@ facts=$(cat "$work"/files-*.json | jq -n --slurpfile pull "$work/pull.json" '
     labels: [($p.labels // [])[] | {id: .node_id, name, description, color}]
   }') || die 2 "pull request read returned unexpected JSON"
 
-# Visibility: the host and owner/repo come from the pull request's own URL.
 url=$(printf '%s' "$facts" | jq -r '.url // ""' | tr -d '\r')
 host="" repo_path=""
 if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then

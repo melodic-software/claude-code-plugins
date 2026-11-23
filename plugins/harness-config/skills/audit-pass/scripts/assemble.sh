@@ -80,9 +80,6 @@ require_python() {
     die "python3 is required for assembly; without it the run performs §7's selection itself"
 }
 
-# The highest epoch present, from the partial filenames. Assembly reads only
-# that one: lower epochs belong to writers a stale-lease adoption fenced, and
-# they are retained as the evidence that an adoption happened.
 highest_epoch() {
   local run_dir="$1" f base ep best=""
   for f in "$run_dir"/findings.partial.*.jsonl; do
@@ -289,9 +286,6 @@ PY
   printf '%s\n' "$out_dir/report.md"
 }
 
-# The rendering. Kept in one place and called by both `assemble` and `render`,
-# so a report.md produced by re-rendering an existing findings.json is the same
-# document as the one assembly wrote.
 render_report() {
   require_python
   AP_FINDINGS="$1" AP_REPORT="$2" python3 - <<'PY' || die "rendering failed"

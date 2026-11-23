@@ -32,7 +32,6 @@ BOM=$'\xef\xbb\xbf'
 OTHER='- Before editing hooks, read `docs/conventions/hooks.md` and use /hooks:check.'
 CITER='- Run /developer-experience:build-cli before adding a release script (release plugin).'
 
-# The DX-owned line for a conventions path, spelled out from the contract.
 dx() {
   printf '%s' '- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `'
   printf '%s' "$1"
@@ -70,7 +69,6 @@ assert_absent() {
   esac
 }
 
-# assert_file <name> <actual-file> <expected-file> : byte-for-byte equality.
 assert_file() {
   if cmp -s "$2" "$3"; then
     pass "$1"
@@ -81,7 +79,6 @@ assert_file() {
 
 fixture() { mktemp -d "$TEST_TMPDIR/repo.XXXXXX"; }
 
-# run <args...> : run the helper with no TTY on stdin; sets OUT, ERR, RC.
 run() {
   OUT="$(bash "$SUT" "$@" 2>"$TEST_TMPDIR/stderr" </dev/null)"
   RC=$?
@@ -384,7 +381,6 @@ test_draft_marker_reported_for_migration() {
   assert_file "draft marker: nothing written" "$r/AGENTS.md" "$r/want"
 }
 
-# current_agents <root> : an AGENTS.md whose block already holds the current line.
 current_agents() { printf '%s\n%s\n%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$1/AGENTS.md"; }
 
 test_load_claude_md_without_import() {
@@ -490,7 +486,6 @@ test_load_claude_md_symlink_counts_as_loading() {
   assert_absent "load symlink: no load finding" "$OUT" "load:"
 }
 
-# stub <exit> <stdout> <stderr> : a resolver stand-in; prints its path.
 stub() {
   local s
   s="$(mktemp "$TEST_TMPDIR/resolver.XXXXXX")"

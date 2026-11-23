@@ -326,7 +326,6 @@ describe("checkContainedFrame", () => {
 
 describe("mergeTriageJson", () => {
   it("merges batch files into manifest.json", () => {
-    // makeVisionSliceDir already writes key-frames/triage/batches/sheet_001.json.
     const { dir } = makeVisionSliceDir();
     const batchPath = path.join(dir, "key-frames", "triage", "batches", "sheet_001.json");
 

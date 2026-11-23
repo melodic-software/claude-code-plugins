@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for the eol-normalizer PostToolBatch row, launched
-# exactly as hooks.json registers it (node exec-bash.mjs with the row's args).
-#
-# Proves WIRING + BEHAVIOR: one PostToolBatch row and no PostToolUse row; the row
-# rewrites the files a Write, Edit or MultiEdit in the batch named, to the eol
-# their repository's own .gitattributes resolves through git check-attr (CRLF to
-# LF and LF to CRLF, both on every OS), and never anything a Read or Bash named;
-# unspecified paths, -text paths and binary content under text=auto are left
-# alone; .githooks/ and gitignored files are skipped unless opted in; the kill
-# switch holds; the row prints nothing and exits 0; a batch with no file path
-# costs only the launcher.
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures and
-# .gitattributes. The row is run from an UNRELATED cwd so any reliance on the
-# caller's working directory would surface. git and jq are required for the
-# behavior cases; without them the suite skips them.
 # test-scope: plugins/eol-normalizer/hooks/hooks.json
 
 set -uo pipefail
@@ -40,7 +24,7 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
@@ -53,11 +37,6 @@ if ! command -v jq >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- hooks.json: one PostToolBatch row, no PostToolUse -------------------------
-# The batch row takes no matcher and no `if`: the hooks reference says neither
-# applies to the event, and an `if` would narrow the .gitattributes-driven file
-# set (#3411). `async` could race the next Edit of the file.
-# harness-ops reports a missing node fleet-wide (scripts/node-notice-rows.test.sh).
 # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
 EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","EOL_NORMALIZER_ENABLED","--skip-unless-stdin-contains","file_path","${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh"]'
 expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
@@ -70,12 +49,6 @@ expect "hooks.json: the batch handler is exec form with no matcher, no if, no as
 
 ROW_JSON=$(jq -c '.hooks.PostToolBatch[0].hooks[0]' "$HOOKS_JSON")
 
-# --- The kill switch in exec form ------------------------------------------------
-# The gate is `--run-if-unset-or-true` in exec-bash.mjs, which exits 0 before
-# bash when the option is set to something other than true. A sentinel stands in
-# for eol-normalizer.sh and records whether it started. The expected verdict for
-# each value comes from the script's own kill-switch line, run under the same
-# environment, so the row and the script cannot disagree.
 # shellcheck disable=SC2016  # the literal text of the script's kill-switch line
 PRED_LINE=$(grep -m1 -F '[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0' "$HOOK")
 if [[ -n "$PRED_LINE" ]]; then
@@ -99,8 +72,6 @@ while IFS= read -r row_arg; do
 # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
 done < <(jq -r '.args[]' <<<"$ROW_JSON" | tr -d '\r')
 
-# run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
-# option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
 run_opt() {
   local out="$1" v="$2"
   shift 2
@@ -149,8 +120,6 @@ for v in "${ROW_VALUES[@]}"; do
   fi
 done
 
-# An inherited nounset (exported SHELLOPTS, or a BASH_ENV that runs `set -u`)
-# must not turn an unset option into a failed row: unset means on.
 printf 'set -u\n' >"$ROWGATE/nounset.env"
 for how in SHELLOPTS BASH_ENV; do
   case_dir="$ROWGATE/nounset-$how"
@@ -168,8 +137,6 @@ for how in SHELLOPTS BASH_ENV; do
   fi
 done
 
-# A batch whose payload never names a file path is closed by the launcher, so
-# bash never starts.
 case_dir="$ROWGATE/no-file-path"
 mkdir -p "$case_dir"
 row_out=$(run_opt "$case_dir" true node "${ROW_ARGS_RUN[@]}" <<<'{"session_id":"row-2","hook_event_name":"PostToolBatch","tool_calls":[{"tool_name":"Bash","tool_input":{"command":"ls"}}]}')
@@ -196,18 +163,14 @@ new_repo() {
   git -C "$r" config user.name t
 }
 
-# The row's args from hooks.json, with the plugin root substituted.
 mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
 
-# payload <tool> <file>...: a PostToolBatch payload with one call per file.
 payload() {
   local tool="$1"
   shift
   jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
 }
 
-# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
-# stays unset so scoping falls to git-working-tree membership.
 fire() {
   local p="$1"
   shift
@@ -221,10 +184,8 @@ run_write() { fire "$(payload Write "$1")"; }
 
 REPO="$WORK/consumer"
 new_repo "$REPO"
-# The consuming repo's authority: .sh -> LF, .txt -> CRLF, .png unspecified.
 printf '*.sh eol=lf\n*.txt eol=crlf\n' >"$REPO/.gitattributes"
 
-# --- LF arm and CRLF arm (every OS), and the row prints nothing ----------------
 printf 'echo a\r\necho b\r\n' >"$REPO/seed.sh"
 expect "pre: seed.sh seeded with 2 CR" "2" "$(cr_count "$REPO/seed.sh")"
 OUT=$(run_write "$REPO/seed.sh")
@@ -241,21 +202,16 @@ printf 'line one\r\nline two\r\n' >"$REPO/already.txt"
 run_write "$REPO/already.txt" >/dev/null
 expect "CRLF arm: an already-CRLF file does not become CRCRLF" "2" "$(cr_count "$REPO/already.txt")"
 
-# --- Unspecified -> no-op ------------------------------------------------------
 printf 'not really binary\r\n' >"$REPO/img.png"
 OUT=$(run_write "$REPO/img.png")
 expect "unspecified .png: silent exit 0" "0|" "$?|$OUT"
 expect "unspecified .png: CR preserved (no-op)" "1" "$(cr_count "$REPO/img.png")"
 
-# --- Kill switch -------------------------------------------------------------------
 printf 'echo x\r\n' >"$REPO/off.sh"
 OUT=$(fire "$(payload Write "$REPO/off.sh")" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=false)
 expect "kill switch: silent exit 0" "0|" "$?|$OUT"
 expect "kill switch: CRLF preserved" "1" "$(cr_count "$REPO/off.sh")"
 
-# --- text=auto binary guard: NUL content is never rewritten --------------------
-# Under a broad `* text=auto eol=lf` rule, check-attr resolves eol=lf for
-# binaries too; the hook must content-sniff and skip instead of corrupting.
 AUTOREPO="$WORK/autorepo"
 new_repo "$AUTOREPO"
 printf '* text=auto eol=lf\n' >"$AUTOREPO/.gitattributes"
@@ -268,16 +224,11 @@ printf 'echo t\r\n' >"$AUTOREPO/auto.sh"
 run_write "$AUTOREPO/auto.sh" >/dev/null
 expect "binary guard: a text file under text=auto is still normalized" "0" "$(cr_count "$AUTOREPO/auto.sh")"
 
-# --- -text is never rewritten even with eol set --------------------------------
 printf '*.dat -text eol=lf\n' >>"$AUTOREPO/.gitattributes"
 printf 'a\r\nb\r\n' >"$AUTOREPO/keep.dat"
 run_write "$AUTOREPO/keep.dat" >/dev/null
 expect "-text guard: CR preserved despite eol=lf" "2" "$(cr_count "$AUTOREPO/keep.dat")"
 
-# --- No-perl fallback preserves file mode (white-box) --------------------------
-# The mktemp fallback stages into a fresh temp file; without mode preservation
-# a 755 script would come back non-executable. Shadow `command` so the lib's
-# perl probe fails, forcing the fallback arm.
 printf '#!/bin/sh\r\necho hi\r\n' >"$REPO/exec.sh"
 chmod 755 "$REPO/exec.sh"
 (
@@ -297,9 +248,6 @@ chmod 755 "$REPO/exec.sh"
 expect "fallback: CRLF stripped without perl" "0" "$(cr_count "$REPO/exec.sh")"
 if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else fail "fallback: exec bit lost"; fi
 
-# --- The batch -----------------------------------------------------------------
-# One batch, several tools: Write, Edit and MultiEdit files are rewritten, once
-# each even when named twice; a Read and a Bash command are not.
 printf 'a\r\n' >"$REPO/b1.sh"
 printf 'b\r\n' >"$REPO/b2.sh"
 printf 'c\r\n' >"$REPO/b3.sh"
@@ -320,26 +268,19 @@ expect "batch: a MultiEdit'd file is rewritten" "0" "$(cr_count "$REPO/b3.sh")"
 expect "batch: a Read'd file is never rewritten" "1" "$(cr_count "$REPO/b4.sh")"
 expect "batch: a file only Bash mentioned is never rewritten" "1" "$(cr_count "$REPO/b5.sh")"
 
-# A Read-only batch reaches the script (the launcher flag matches file_path) and
-# the script returns without touching the file.
 printf 'r\r\n' >"$REPO/readonly.sh"
 OUT=$(fire "$(payload Read "$REPO/readonly.sh")")
 expect "a Read-only batch: silent and the file untouched" "0|1" "$?|$(cr_count "$REPO/readonly.sh")"
 
-# A file that is missing does not stop its neighbors.
 printf 'n\r\n' >"$REPO/neighbor.sh"
 fire "$(payload Write "$REPO/missing.sh" "$REPO/neighbor.sh")" >/dev/null
 expect "a missing file does not stop another file in the batch" "0" "$(cr_count "$REPO/neighbor.sh")"
 
-# --- Skips ---------------------------------------------------------------------
-# .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/eol-normalizer"
 printf 'g\r\n' >"$REPO/.githooks/eol-normalizer/copy.sh"
 fire "$(payload Write "$REPO/.githooks/eol-normalizer/copy.sh")" >/dev/null
 expect "a file under .githooks/ is skipped" "1" "$(cr_count "$REPO/.githooks/eol-normalizer/copy.sh")"
 
-# Gitignored path: left alone by default, unless eol_normalizer_lint_gitignored is
-# set. A TRACKED file matching an ignore pattern stays in scope.
 REPO_IGN="$WORK/gitignored"
 new_repo "$REPO_IGN"
 git -C "$REPO_IGN" config core.excludesFile /dev/null
@@ -358,7 +299,6 @@ printf 'echo a\r\necho b\r\n' >"$REPO_IGN/tracked.gen.sh"
 run_write "$REPO_IGN/tracked.gen.sh" >/dev/null
 expect "a tracked file matching an ignore pattern is still normalized" "0" "$(cr_count "$REPO_IGN/tracked.gen.sh")"
 
-# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_repo "$REPO_SL"
@@ -370,8 +310,6 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# jq absent: the script cannot read the payload and leaves every file alone,
-# silently (the check skill and the prerequisites manifest report the gap).
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink node; do # portability-ok: names in a PATH shim, not an mktemp -p call
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -382,9 +320,6 @@ printf 'j\r\n' >"$REPO/nojq.sh"
 OUT=$(fire "$(payload Write "$REPO/nojq.sh")" PATH="$FAKEBIN")
 expect "jq absent: silent exit 0 and the file untouched" "0|1" "$?|$(cr_count "$REPO/nojq.sh")"
 
-# --- Spawn budget ----------------------------------------------------------------
-# PostToolBatch has no matcher, so the row fires on every batch of every session.
-# A batch that names no file path costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
 # A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then

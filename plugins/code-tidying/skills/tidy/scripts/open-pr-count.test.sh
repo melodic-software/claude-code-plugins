@@ -51,14 +51,10 @@ EOF
 chmod +x "$TEST_TMPDIR/bin/gh"
 STUB_PATH="$TEST_TMPDIR/bin:$PATH"
 
-# --- 1. --help contract ---------------------------------------------------------
-
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
 assert_contains "--help mentions throttle" "$help_out" "Throttle"
-
-# --- 2. Below-throttle count ----------------------------------------------------
 
 out=$(PATH="$STUB_PATH" GH_STUB_MODE=count0 bash "$SCRIPT" 2>&1)
 rc=$?
@@ -66,14 +62,10 @@ assert_exit "count 0 exits 0" 0 "$rc"
 assert_contains "count 0 reported" "$out" "Open tidy PR count: 0"
 assert_contains "count 0 throttle inactive" "$out" "Throttle active: no"
 
-# --- 3. At-throttle count -------------------------------------------------------
-
 out=$(PATH="$STUB_PATH" GH_STUB_MODE=count3 bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "count 3 exits 0" 0 "$rc"
 assert_contains "count 3 throttle active" "$out" "Throttle active: yes"
-
-# --- 3b. A listing that fills its limit throttles -------------------------------
 
 out=$(PATH="$STUB_PATH" GH_STUB_MODE=full bash "$SCRIPT" 2>&1)
 rc=$?
@@ -81,14 +73,10 @@ assert_exit "full page exits 0" 0 "$rc"
 assert_contains "full page reports a floor" "$out" "Open tidy PR count: 0 or more"
 assert_contains "full page throttle active" "$out" "Throttle active: yes"
 
-# --- 4. gh failure → unknown ----------------------------------------------------
-
 out=$(PATH="$STUB_PATH" GH_STUB_MODE=fail bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "gh failure exits 1" 1 "$rc"
 assert_contains "gh failure reports unknown" "$out" "Open tidy PR count: unknown"
-
-# --- 5. The limit comes from the upkeep_max_open setting ------------------------
 
 # A repository whose home is <dir>; a consumer's own root, never the plugin's.
 new_repo() {
@@ -128,8 +116,6 @@ printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team/rul
 printf 'upkeep_max_open: 1\n' >"$repo/team/rules/code-tidying.yaml"
 out="$(run_at "$repo" count1)"
 assert_contains "the bound home is read" "$out" "Throttle active: yes"
-
-# --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

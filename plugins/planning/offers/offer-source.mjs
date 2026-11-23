@@ -79,7 +79,6 @@ async function lookup(entry, { dataDir, now, fetchJson }) {
   } catch {}
   const checkedAt = now.toISOString()
   const save = rec => writeFileSync(file, `${JSON.stringify({ checkedAt, ...rec })}\n`)
-  // Claim the slot before asking: a cache that cannot be written means no lookup at all.
   try {
     mkdirSync(dirname(file), { recursive: true })
     save({ error: 'lookup in progress' })

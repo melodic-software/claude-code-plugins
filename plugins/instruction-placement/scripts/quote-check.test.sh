@@ -17,9 +17,6 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# --------------------------------------------------------------------------
-# Fixtures: an index listing two pages, and a snapshot of only one of them
-# --------------------------------------------------------------------------
 FIXTURE="$SCRATCH/pages"
 mkdir -p "$FIXTURE"
 cat >"$FIXTURE/llms.txt" <<'EOF'
@@ -72,9 +69,6 @@ run_fixture() {
   QUOTE_CHECK_FIXTURE_DIR="$FIXTURE" QUOTE_CHECK_SOURCES="$1" bash "$SCRIPT" 2>"$SCRATCH/stderr"
 }
 
-# --------------------------------------------------------------------------
-# One run over every case
-# --------------------------------------------------------------------------
 OUT="$(run_fixture "$SOURCES")"
 RC=$?
 assert_eq "drift and unverified results still exit 0" "0" "$RC"
@@ -97,7 +91,6 @@ verified T-9
 verified T-10"
 assert_eq "one result per well-formed record, in list order" "$EXPECTED" "$OUT"
 
-# The same cases, line by line, so a failure names the one that broke.
 assert_contains "a matching snapshot is verified" "$OUT" "verified T-1"
 assert_contains "link markup and bold are dropped before matching" "$OUT" "verified T-2"
 assert_contains "a table row matches with its cells joined by ' | '" "$OUT" "verified T-3"
@@ -114,9 +107,6 @@ assert_contains "a URL with no anchor is checked against the whole page" "$OUT" 
 assert_contains "a record with an empty quote is skipped, and said so" "$(cat "$SCRATCH/stderr")" \
   "skipped a record that is not id, url, quote, as_of: T-11"
 
-# --------------------------------------------------------------------------
-# Arguments and the list
-# --------------------------------------------------------------------------
 ERR="$(bash "$SCRIPT" extra-arg 2>&1 >/dev/null)"
 RC=$?
 assert_eq "an argument exits 2" "2" "$RC"
@@ -142,9 +132,6 @@ RC=$?
 assert_eq "a list with no records exits 0" "0" "$RC"
 assert_eq "a list with no records prints nothing" "" "$OUT"
 
-# --------------------------------------------------------------------------
-# Every fetch goes through fetch-docs.sh
-# --------------------------------------------------------------------------
 assert_eq "the script calls no curl or wget of its own" "" "$(grep -nE 'curl|wget' "$SCRIPT")"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"

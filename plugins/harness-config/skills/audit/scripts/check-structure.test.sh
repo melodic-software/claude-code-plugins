@@ -14,7 +14,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Case 1: happy path on a valid fixture project ----------------------------
 fixture_dir="$TEST_TMPDIR/valid"
 mkdir -p "$fixture_dir/.claude"
 printf '{"permissions":{"deny":["Read(./.env)"],"ask":[],"allow":["Bash(git status)"]},"enabledPlugins":{"a@m":true}}\n' >"$fixture_dir/.claude/settings.json"
@@ -30,7 +29,6 @@ assert_contains "case 1: deny count" "$out" "Deny count: 1"
 assert_contains "case 1: absent local reported" "$out" "Present: no"
 assert_not_contains "case 1: no env dump" "$out" "sk-"
 
-# --- Case 2: invalid JSON exits 1 ---------------------------------------------
 fixture_dir="$TEST_TMPDIR/invalid-json"
 mkdir -p "$fixture_dir/.claude"
 printf '{invalid\n' >"$fixture_dir/.claude/settings.json"
@@ -42,12 +40,6 @@ out=$(
 assert_exit "case 2: exit 1 on invalid JSON" 1 "$rc"
 assert_contains "case 2: invalid json reported" "$out" "Valid JSON: no"
 
-# --- Case 4: present-but-unreadable is not reported as invalid JSON -------------
-# A Read deny rule, a sandbox denyRead path, or filesystem permissions all make the
-# script's open() fail. That must read as "not inspectable", never as malformed
-# config, and must not fail the run. chmod is the only portable way to simulate it;
-# where the platform or user does not enforce it (Windows, root), the case is
-# announced as skipped rather than silently dropped.
 fixture_dir="$TEST_TMPDIR/unreadable"
 mkdir -p "$fixture_dir/.claude"
 printf '{"env":{"TOKEN":"sk-not-a-real-secret"}}\n' >"$fixture_dir/.claude/settings.local.json"
@@ -69,10 +61,6 @@ else
 fi
 chmod 600 "$fixture_dir/.claude/settings.local.json" 2>/dev/null
 
-# --- Case 5: category-H facts from settings.local.json -------------------------
-# The audit's category H checks keys that can live only in settings.local.json,
-# which the safe-read rule bars from a direct dump. The helper must surface those
-# values — and must still refuse to surface env values sitting beside them.
 fixture_dir="$TEST_TMPDIR/category-h"
 mkdir -p "$fixture_dir/.claude"
 printf '{"permissions":{"deny":[]}}\n' >"$fixture_dir/.claude/settings.json"
@@ -92,9 +80,6 @@ assert_contains "case 5: env still counted not dumped" "$out" "Env keys: 1"
 assert_not_contains "case 5: no secret leaked" "$out" "sk-"
 assert_not_contains "case 5: no env key name leaked" "$out" "TOKEN"
 
-# --- Case 6: category-H keys absent report unset, empty list is distinct --------
-# "unset" and "(empty list)" are different findings: an empty availableModels
-# never engages Default enforcement, while an absent one was never configured.
 fixture_dir="$TEST_TMPDIR/category-h-absent"
 mkdir -p "$fixture_dir/.claude"
 printf '%s\n' '{"availableModels":[],"permissions":{"allow":[]}}' >"$fixture_dir/.claude/settings.local.json"
@@ -109,7 +94,6 @@ assert_contains "case 6: absent fallbackModel is unset" "$out" "Fallback chain: 
 assert_contains "case 6: empty allowlist is distinct from unset" "$out" "Available models: (empty list)"
 assert_contains "case 6: absent enforce flag is unset" "$out" "Enforce available models: unset"
 
-# --- Case 7: managed settings present — structure only, drop-in counted ---------
 fixture_dir="$TEST_TMPDIR/managed-present"
 mkdir -p "$fixture_dir/.claude" "$fixture_dir/policy/managed-settings.d"
 printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
@@ -132,7 +116,6 @@ assert_not_contains "case 7: no managed env value leaked" "$out" "hunter2"
 assert_not_contains "case 7: no managed env key leaked" "$out" "ORG_SECRET"
 assert_contains "case 7: drop-in dir counted" "$out" "Managed drop-in dir: present (2 "
 
-# --- Case 8: managed settings absent — reported, never fails the run ------------
 fixture_dir="$TEST_TMPDIR/managed-absent"
 mkdir -p "$fixture_dir/.claude"
 printf '%s\n' '{}' >"$fixture_dir/.claude/settings.json"
@@ -146,9 +129,6 @@ assert_exit "case 8: exit 0" 0 "$rc"
 assert_contains "case 8: managed absence reported" "$out" "managed-settings.json (machine scope)"
 assert_contains "case 8: drop-in absence reported" "$out" "Managed drop-in dir: absent"
 
-# --- Case 9: start-directory settings.local.json left by a pre-v2.1.211 CC ------
-# Its permission rules stay in effect alongside the repository-root copy, so a
-# repository-root-only scan misses live configuration.
 fixture_dir="$TEST_TMPDIR/startdir-present"
 startdir="$TEST_TMPDIR/startdir-present-cwd"
 mkdir -p "$fixture_dir/.claude" "$startdir/.claude"
@@ -166,8 +146,6 @@ assert_contains "case 9: names the leftover file" "$out" "$startdir/.claude/sett
 assert_contains "case 9: its allow rules counted" "$out" "Allow count: 2"
 assert_contains "case 9: both-files note emitted" "$out" "permission rules from BOTH files stay in effect"
 
-# --- Case 10: no start-directory copy — no row, so the check cannot pass by
-# always emitting one -----------------------------------------------------------
 fixture_dir="$TEST_TMPDIR/startdir-absent"
 startdir="$TEST_TMPDIR/startdir-absent-cwd"
 mkdir -p "$fixture_dir/.claude" "$startdir"
@@ -181,7 +159,6 @@ out=$(
 assert_exit "case 10: exit 0" 0 "$rc"
 assert_not_contains "case 10: no start-directory row" "$out" "start-directory copy"
 
-# --- Case 11: start directory IS the project root — never reported twice --------
 rc=0
 out=$(
   SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
@@ -190,11 +167,6 @@ out=$(
 assert_exit "case 11: exit 0" 0 "$rc"
 assert_not_contains "case 11: same directory is not a second source" "$out" "start-directory copy"
 
-# --- Case 3: missing jq exits 2 -------------------------------------------------
-# Run the script under an EMPTY PATH so its `command -v jq` resolves nothing. The
-# script exits at the jq gate before invoking any external tool, so an empty PATH
-# suffices — and invoking via bash's absolute path keeps the empty PATH from hiding
-# bash itself.
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"

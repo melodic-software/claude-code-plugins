@@ -41,7 +41,6 @@ BeforeAll {
             [System.Management.Automation.ErrorCategory]::PermissionDenied, $null)
     }
 
-    # Mock bodies reach the fake tables by closure, not through $script:.
     $script:Fake = @{}
     $fake = $script:Fake
     Set-Item -Path function:Get-Fake -Value ({ param([string] $Name) $fake[$Name] }.GetNewClosure())

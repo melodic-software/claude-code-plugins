@@ -808,7 +808,8 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.ok(diff.includes('git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"\n'), job);
     assert.ok(index("Write the diff", job) < index("List the upstream run's jobs", job), job);
     assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
-    assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
+    assert.ok(step("Write the prompt and schema", job).includes("          node .base/.github/scripts/pr-verify/render-prompt.mjs\n"), job);
+    assert.equal(input(step("Write the prompt and schema", job), "DATA"), "${{ github.workspace }}/pr-verify-data", job);
     assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
   }
   assert.ok(readFileSync(new URL("./prompt.md", import.meta.url), "utf8").includes("- `JOBS_FILE`: "));
@@ -1032,7 +1033,7 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
     const cwd = tempDir("pr-verify-prompt-");
     const scripts = path.join(cwd, ".base/.github/scripts/pr-verify");
     mkdirSync(scripts, { recursive: true });
-    for (const name of ["prompt.md", "chunk-note.md"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
+    for (const name of ["prompt.md", "chunk-note.md", "render-prompt.mjs"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
     for (const [k, count] of parts.entries()) {
       mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
       for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
@@ -1140,9 +1141,8 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
   }
 });
 
-test("the diff is folded at the line length the review reads whole", async () => {
-  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
-  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), `"${LONG_LINE_BYTES}"`, job);
+test("the diff is folded at the line length the review reads whole: no step sets its own, so chunk-diff.sh folds at diff_chunking.py's", () => {
+  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), undefined, job);
 });
 
 test("the report steps only record, so a broken one cannot stop the judgment", () => {

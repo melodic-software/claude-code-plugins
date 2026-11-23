@@ -45,8 +45,6 @@ done
 CLOSING_URL_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?):?[[:blank:]]*https?://github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+/issues/[0-9]+'
 HOLD_ERE='do(n[^[:space:]]{0,3}t|[[:space:]]+not)[[:space:]]+merge'
 
-# The hold wording in the body in file $1 that spans a line break, its
-# whitespace runs collapsed to one space, one per line.
 split_holds() {
   local rest match
   rest=$(tr -d '\r' <"$1" | tr '[:upper:]' '[:lower:]') || return 1
@@ -58,7 +56,6 @@ split_holds() {
   done
 }
 
-# The gate lines of the body in file $1, one per line, sorted.
 gate_lines() {
   local line lower in_followups=0
   local lead='^[[:blank:]>]*'

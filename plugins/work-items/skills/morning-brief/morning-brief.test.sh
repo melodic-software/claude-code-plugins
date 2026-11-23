@@ -378,11 +378,9 @@ RC=$?
 
 assert_exit "renders successfully" 0 "$RC"
 
-# Queues
 assert_contains "queue: needs-triage count" "$OUT" "needs-triage"
 assert_contains "queue: ready count 44" "$OUT" "44"
 
-# Merge-ready — only clean non-drafts, sorted; excludes draft + blocked
 assert_contains "merge-ready keeps clean #10" "$OUT" "#10 clean pr"
 assert_contains "merge-ready keeps clean #13" "$OUT" "#13 approved clean pr"
 assert_contains "merge-ready shows review verdict" "$OUT" "review=APPROVED"
@@ -428,7 +426,6 @@ assert_contains "merge-ready marks a clean PR past the compare cap unverified" "
 assert_contains "merge-ready reports a capped compare read as PARTIAL" "$FRESH_CAP" \
   "PARTIAL: 2 clean PRs; base freshness read for the first 1 only (raise --pr-limit)"
 
-# Decisions — two-tier RECOMMENDED extraction
 assert_contains "decision #100 uppercase marker wins" "$OUT" "Store the root in a userConfig key"
 assert_not_contains "decision #100 ignores 'not recommended'" "$OUT" "not recommended for this profile"
 assert_contains "decision #101 lowercase fallback" "$OUT" "keep the interim surface for now"
@@ -443,7 +440,6 @@ assert_not_contains "decision #105 ignores 'not recommended' rejection" "$OUT" "
 assert_contains "decision #106 uppercase marker beats earlier 'NOT RECOMMENDED'" "$OUT" "choose the managed sync path"
 assert_not_contains "decision #106 ignores 'NOT RECOMMENDED' rejection" "$OUT" "because of drift"
 
-# Telemetry — staleness + flags + skips
 assert_contains "telemetry babysit fresh age" "$OUT" "babysit"
 assert_contains "telemetry babysit not stale" "$OUT" "age=1h 30m"
 assert_contains "telemetry triage stale flagged" "$OUT" "STALE (>6h)"

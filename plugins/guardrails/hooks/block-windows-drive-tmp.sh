@@ -41,11 +41,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -61,41 +56,10 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. This is the guard the
-# issue recorded exiting 1 with no stderr on a live session; the allow it took
-# then is unchanged, the silence is not.
 guard::abort_boundary block-windows-drive-tmp PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# Non-Windows hosts: /tmp is the real POSIX temp, so this guard can never find a
-# violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
-# lane on Linux CI.
-#
-# THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking.
-# This hook matches Write / Edit / NotebookEdit, so evaluated any later, a Linux
-# or macOS host without jq on PATH would take require_jq_blocking's fail-closed
-# exit 2 on EVERY file edit — denying writes on a platform where the guard has
-# no opinion at all. Reading OSTYPE needs nothing from the payload, so the gate
-# is free to precede the read, as the kill switch above already does.
-#
-# Accepted cost: unlike the kill switch, this gate fires on every non-Windows
-# tool call, so a payload past roughly 64KB is left undrained there and a
-# writer that does not handle EPIPE would take SIGPIPE. The alternatives are
-# worse: a naive builtin drain blocks until EOF and can hang a tool call (which
-# is why hook::buffer_stdin is a bounded idle-timeout read), and draining via
-# buffer_stdin first would put its rc-2 fail-closed exit back in front of the
-# host gate.
-#
-# On Windows the case falls through to the fail-closed postures below, in
-# order: buffer_stdin rc 2, jq absence, unparsable payload, NUL bytes,
-# MAX_COMMAND_LEN.
-#
-# block-exported-msys-pathconv.sh deliberately keeps the opposite ordering. It
-# matches only Bash|PowerShell, where blocking on missing jq is the accepted
-# #2146 posture; the blast radius that forces the hoist here does not exist
-# there. Do not "fix the inconsistency" by aligning them.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) ;;
 *) exit 0 ;;
@@ -119,31 +83,14 @@ _DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item
 # Below the host gate so it stays adjacent to the work it actually times.
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
-# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that is
-# not JSON) FAILS CLOSED — the guard cannot evaluate the tool call, and a
-# silent skip would pass exactly the traffic this guard exists to stop; rc 3
-# (a JSON payload cut short by the pipe, a transport fault) is a loud skip
-# the dispatcher takes once. buffer_stdin already printed the reason. Buffering
-# does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
-# absence — same posture as the other Bash/PowerShell blocking guards (#2146).
 hook::require_jq_blocking "guardrails-block-windows-drive-tmp" "block_windows_drive_tmp_enabled"
 
-# Path fields only — never `.tool_input.content` / `.new_string` / `.new_source`.
-# HOOK_JQ_FIELDS_NUL is computed across every REQUESTED field, so pulling the
-# written CONTENT in here would make this guard block on a NUL anywhere in a
-# file body: a false-positive class that is hardcoded-path-check's concern, not
-# this guard's. `notebook_path` rides along in the same jq process (one spawn,
-# not two) because NotebookEdit spells its target differently from Write/Edit.
-# A NUL byte in any of these fields is fail-CLOSED (#2136 / #2122).
 jq_rc=0
 hook::jq_fields "$INPUT" \
   '.tool_input.command' '.tool_name' \
@@ -153,13 +100,9 @@ guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
-# Write / Edit spell the target `file_path`; NotebookEdit spells it
-# `notebook_path`. Reading both and taking whichever is populated keeps the lane
-# correct without depending on which spelling a given tool version emits.
 FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
 [[ -n "$FILE_PATH" ]] || FILE_PATH="${HOOK_JQ_FIELDS[3]:-}"
 
-# Neither door carried anything to inspect.
 [[ -n "$COMMAND" || -n "$FILE_PATH" ]] || exit 0
 
 MAX_COMMAND_LEN=16384
@@ -167,9 +110,6 @@ MAX_COMMAND_LEN=16384
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # Resolved HERE, not at top level, and in this shell: the subject is a
-  # telemetry field, so it is computed only when a sink is wired. Same shape
-  # as the plugin's other lazily-resolved telemetry fields.
   local SUBJECT data
   hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
@@ -188,29 +128,10 @@ block() {
   exit 2
 }
 
-# Above this length the command is not parsed — fail closed (same ceiling as the
-# other argv-faithful Bash guards). The ceiling exists because the COMMAND lane
-# below walks the string character by character twice (mask_quoted_redirect_ops_to,
-# split_shell_segments) before it matches anything. NO EQUIVALENT CEILING GUARDS
-# THE FILE-PATH LANE, and that is a decision rather than an omission: that lane
-# runs three EREs against one string with no tokenization, so length buys no
-# parse ambiguity there, and detection does not degrade with length — a
-# drive-root prefix matches at any total length. A blocking ceiling would only
-# add a false-positive class (a legitimate long path refused for its size). The
-# payload as a whole is still bounded upstream by hook::buffer_stdin's idle
-# timeout, which fails CLOSED on a truncated read.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long"
 fi
 
-# Slash-normalize so C:\tmp, C:/tmp, and \tmp share one matcher. Lowercase for
-# case-insensitive Windows path compare without relying on bash [[ =~ ]] flags.
-# Pure shell, no `printf | tr`: that pipeline is a fork AND an exec (~280 ms
-# together on Windows Git Bash) to fold one character class, and this guard now
-# fires on the per-Write surface as well, where that pair would be pure added
-# budget. Same bytes for ASCII paths and commands, which is all a drive-root
-# matcher reads. Result lands in NORM_OUT rather than on stdout because a
-# command substitution would fork the shell right back.
 norm_lower() {
   local s="${1//\\//}"
   NORM_OUT="${s,,}"
@@ -219,16 +140,6 @@ norm_lower() {
 norm_lower "$COMMAND"
 NORM="$NORM_OUT"
 
-# The fold above reads a backslash-led drive-root `\tmp` as POSIX /tmp, and on a
-# usertemp host the Bash tool lets that spelling through. A quoted `'\tmp\x'`
-# reaches Windows with its backslashes and is the volume root, so on that host
-# each `\tmp` that starts a path is rewritten to the `/c/tmp` spelling the matcher
-# blocks, before the fold. A `\tmp` behind an alphanumeric, `.`, `_`, `/`, `\` or
-# `:` is part of another path (`foo\tmp`, `.\tmp`, `D:\a\tmp`, a UNC host) and
-# stays, as does one followed by more name (`\tmpdir`). Unquoted, the shell
-# unescapes `\tmp\x` to the relative `tmpx`; the guard cannot see quoting after
-# the fold and blocks that too, as it does on a host without usertemp.
-# <var> <lowercased command>; the result still needs the fold.
 backslash_tmp_to_msys_root_to() {
   local __dt_dest="$1" __dt_rest="$2" __dt_out="" __dt_l __dt_r
   while [[ "$__dt_rest" == *'\tmp'* ]]; do
@@ -245,9 +156,6 @@ backslash_tmp_to_msys_root_to() {
   printf -v "$__dt_dest" '%s' "$__dt_out$__dt_rest"
 }
 
-# Cached: 0 = POSIX /tmp is this process's user temp, 1 = not (or unknown).
-# One probe per hook process; Git for Windows stock /tmp is a `usertemp` mount
-# of %TEMP% (#4251).
 _DRIVE_TMP_POSIX_USERTEMP=""
 _DRIVE_TMP_SKIP_POSIX=0
 
@@ -288,64 +196,22 @@ posix_tmp_maps_to_usertemp() {
   return 1
 }
 
-# True when <haystack> carries a drive-root tmp path reference:
-#   /tmp[/...]           — POSIX form (Git Bash maps this to <drive>:\tmp,
-#                          unless _DRIVE_TMP_SKIP_POSIX: Bash-tool /tmp that
-#                          already is %TEMP%)
-#   /x/tmp[/...]         — MSYS drive form (/c/tmp → C:\tmp)
-#   x:/tmp[/...]         — Windows drive-letter form
-# Left boundary excludes a relative `./tmp` and a `/var/tmp` suffix (the char
-# before `/tmp` in `/var/tmp` is `r`). Right boundary is a path component end.
 has_drive_root_tmp() {
   local s="$1"
-  # POSIX /tmp — not ./tmp, not /var/tmp, not /tmpdir
   if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
     [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
-  # MSYS /<drive>/tmp, in two arms because a `:` on the left is ambiguous and
-  # the two readings decide oppositely.
-  #
-  # A DRIVE COLON must NOT satisfy the boundary: after slash-normalization
-  # `D:\a\tmp\x` reads as `d:` + `/a/tmp`, and that is an ordinary `tmp`
-  # directory two levels down, not a drive root, and the identical MSYS
-  # spelling `/d/a/tmp/x` is allowed: one sink must not decide two ways.
-  #
-  # A PARAMETER COLON must still satisfy it. `-Path:` / `-FilePath:` /
-  # `-Destination:` is valid PowerShell binding, so `Set-Content -Path:/c/tmp/x`
-  # is a real drive-root write and one of its space-bound twins is a pinned
-  # MUST-fire case. Excluding `:` outright would have dropped that whole class.
-  #
-  # The discriminator is what sits before the colon. A DRIVE SPEC is exactly one
-  # alphanumeric at a word boundary — `D:`, ` D:`, `"D:`, `(D:` — so arm 2
-  # excludes only that shape and takes every other colon. Its three
-  # alternatives are: a
-  # non-alphanumeric immediately before the colon (`;:`, `":`, `):` — never a
-  # drive spec); two alphanumerics (a multi-character token such as `-Path:` or
-  # `host:`); and a single alphanumeric behind a flag dash (`-t:`).
-  #
-  # Two accepted residuals. A PATH-style list (`PATH=/usr/bin:/c/tmp cmd`) presents
-  # the multi-character-token shape and still matches, so a command whose write
-  # target is elsewhere can be matched over a search-path entry — lexically
-  # indistinguishable from a bound parameter. And a remote spec with a
-  # single-letter host (`ssh u@h:/c/tmp/x`) now reads as a drive spec and is not
-  # matched; it names a path on another machine, which this guard never governed.
   if [[ "$s" =~ (^|[^[:alnum:]._/:])\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
   if [[ "$s" =~ ([^[:alnum:]]|[[:alnum:]][[:alnum:]]|-[[:alnum:]]):\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
-  # Drive-letter X:/tmp
   [[ "$s" =~ (^|[^[:alnum:]])[a-z]:\/tmp(\/|[^[:alnum:]_./-]|$) ]]
 }
 
-# Replace `>` that sit inside single- or double-quoted spans so a prose mention
-# such as `git commit -m "echo x > /tmp/x"` is not treated as a redirect, while
-# a real redirect whose *target* is quoted (`echo x > "/tmp/x"`) still matches.
 mask_quoted_redirect_ops_to() { # <var> <segment>: the mask, in this shell
-  # Locals under a `__dt_` prefix so the caller's variable name (`s`) cannot
-  # collide with them and take the assignment (the `_to` helper convention).
   local __dt_dest="$1" __dt_s="$2" __dt_out="" __dt_i=0 __dt_c __dt_quote=""
   local -i __dt_len=${#__dt_s}
   while ((__dt_i < __dt_len)); do
@@ -370,9 +236,6 @@ mask_quoted_redirect_ops_to() { # <var> <segment>: the mask, in this shell
   printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
-# Write-shaped signal: a redirect whose target word is a drive-root tmp path.
-# Covers `> /tmp/x`, `>/tmp/x`, `>>/tmp/x`, `2>/tmp/err`, `&>/tmp/x`.
-# Redirect operators inside quotes are ignored (see mask_quoted_redirect_ops_to).
 has_redirect_to_drive_root_tmp() {
   local s
   mask_quoted_redirect_ops_to s "$1"
@@ -389,9 +252,6 @@ has_redirect_to_drive_root_tmp() {
     [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]
 }
 
-# Split a (already lowercased, slash-normalized) command on unquoted shell
-# control operators so `mkdir ./out && cat /tmp/x` is inspected per segment.
-# Emits NUL-terminated segments on stdout.
 split_shell_segments() {
   local s="$1" out="" i=0 c quote="" nex
   local -i len=${#s}
@@ -411,7 +271,6 @@ split_shell_segments() {
       i=$((i + 1))
       continue
     fi
-    # Control operators: ; | & and digraphs && ||
     if [[ "$c" == ';' || "$c" == '|' || "$c" == '&' ]]; then
       printf '%s\0' "$out"
       out=""
@@ -429,11 +288,6 @@ split_shell_segments() {
   printf '%s\0' "$out"
 }
 
-# Last non-option token of a utility segment — the usual destination for cp/mv
-# and Copy-Item/Move-Item. Flags of the form -x / --long are skipped; a flag
-# that consumes a path (-t / --target-directory / -destination) treats the next
-# token as the destination immediately. <var> <segment>: set in this shell, no
-# command-substitution fork.
 segment_destination_operand_to() {
   local __dt_dest="$1" __dt_tok __dt_out="" __dt_expect=0
   local -a __dt_tokens=()
@@ -465,7 +319,6 @@ segment_destination_operand_to() {
     tee | mktemp | mkdir | touch | install | cp | mv | dd | install.exe | tee.exe | \
     set-content | add-content | out-file | tee-object | new-item | export-clixml | \
     export-csv | copy-item | move-item | copy | move | cpi | mi | ac | ni)
-      # command word — skip
       ;;
     *)
       __dt_out="$__dt_tok"
@@ -475,14 +328,6 @@ segment_destination_operand_to() {
   printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
-# curl -o/--output/--output-dir and wget -O/--output-document write targets.
-# Glued (`-o/tmp/x`) and `--flag=path` forms count, and so does a cluster of
-# short flags whose first `o`/`O` is the output flag (`-sSLo /tmp/x`,
-# `-sSLo/tmp/x`): that flag takes the rest of the token, or the next one. A bare
-# `-O` is read the same way although curl's takes no operand: a URL is never a
-# drive-root path, so the extra token costs nothing. Every destination counts, so
-# a later `-o ./x` cannot hide an earlier `--output-dir /c/tmp`. A URL that merely
-# contains `/tmp` is not a destination. <var> <segment>: set in this shell.
 segment_downloader_output_operand_to() {
   local __dt_dest="$1" __dt_tok __dt_out="" __dt_expect=0 __dt_pre __dt_rest
   local -a __dt_tokens=()
@@ -495,9 +340,6 @@ segment_downloader_output_operand_to() {
     __dt_tok="${__dt_tok#\"}"
     __dt_tok="${__dt_tok%\"}"
     if ((__dt_expect)); then
-      # The token is the operand, and an option token is parsed as well: a bare -O
-      # (lowercased it is -o) takes no operand, so `-O -o /c/tmp/x` must not lose
-      # the second flag's destination to it.
       __dt_out+=" $__dt_tok"
       __dt_expect=0
       [[ "$__dt_tok" == -* ]] || continue
@@ -525,11 +367,6 @@ segment_downloader_output_operand_to() {
   printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
-# Basename of a command-position word that is path-qualified or ends in .exe,
-# without the .exe, lowercased. Bare `mkdir` stays on the regexes below so a
-# mention (`echo /usr/bin/mkdir /tmp/x`) is unchanged. A quoted word may contain
-# spaces, which is how Git for Windows spells `C:/Program Files/Git/usr/bin/mkdir.exe`
-# (#4527). Returns 1 when the segment does not start with such a word.
 segment_leading_exe_verb_to() {
   local __dt_dest="$1" __dt_s="$2" __dt_word __dt_verb
   __dt_s="${__dt_s#"${__dt_s%%[![:space:]]*}"}"
@@ -557,14 +394,8 @@ segment_leading_exe_verb_to() {
   printf -v "$__dt_dest" '%s' "$__dt_verb"
 }
 
-# True when a segment's destination-shaped operand is a drive-root tmp path.
-# Creators (mkdir/touch/…) treat any drive-root path argument as a write;
-# copy/move utilities bind only the destination operand.
 segment_writes_drive_root_tmp() {
   local subject="$1" dest lead=""
-  # Path-qualified and *.exe writers. The regexes below require the verb to end
-  # at a space, so `mkdir.exe` never matches `mkdir`, and a space in
-  # `Program Files` splits the path before the verb.
   if segment_leading_exe_verb_to lead "$subject"; then
     case "$lead" in
     tee | mktemp | mkdir | touch | dd)
@@ -579,12 +410,6 @@ segment_writes_drive_root_tmp() {
     *) ;; # unreachable: segment_leading_exe_verb_to only returns those verbs
     esac
   fi
-  # Path-qualified verbs only in command position: start of the segment, or
-  # after `sudo`. After any other space the verb must be bare, or
-  # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false
-  # positives (#3502). Quoted and unquoted command-position patterns are
-  # separate because bash ERE cannot pair opening and closing quotes.
-  # Creators / content writers: any drive-root tmp path in the segment is a write.
   if [[ "$subject" =~ $_DRIVE_TMP_CREATOR_QUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_CREATOR_UNQUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_CREATOR_BARE ]] ||
@@ -593,7 +418,6 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$subject"
     return
   fi
-  # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
   if [[ "$subject" =~ $_DRIVE_TMP_COPY_QUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_COPY_UNQUOTED ]] ||
     [[ "$subject" =~ $_DRIVE_TMP_COPY_BARE ]]; then
@@ -601,18 +425,11 @@ segment_writes_drive_root_tmp() {
     [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
     return
   fi
-  # curl / wget: output-flag operands only (#4251). A URL path containing
-  # `/tmp` is not a write target.
   if [[ "$subject" =~ (^|[[:space:];|&]|/)(curl|wget|curl\.exe|wget\.exe)([[:space:]]|$) ]]; then
     segment_downloader_output_operand_to dest "$subject"
     [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
     return
   fi
-  # Inline python write opening a drive-root tmp path, counted only when the
-  # command can run code (inline_code_can_run). write_text, write_bytes and
-  # makedirs are always writes; an `open(` is relieved only when the whole
-  # command is one python run (command_is_one_python_run) proven read-only
-  # (command_opens_only_for_read).
   if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
     has_drive_root_tmp "$subject" && inline_code_can_run
     return
@@ -629,8 +446,6 @@ segment_writes_drive_root_tmp() {
   return 1
 }
 
-# <var> <text>: <text> with every quoted string replaced by one `Q` word, set in
-# this shell. Returns 1 for an unterminated quote.
 collapse_quoted_to() {
   local __dt_dest="$1" __dt_rest="$2" __dt_bare="" __dt_q
   while [[ "$__dt_rest" =~ ^([^\"\']*)([\"\']) ]]; do
@@ -643,20 +458,7 @@ collapse_quoted_to() {
   printf -v "$__dt_dest" '%s' "$__dt_bare$__dt_rest"
 }
 
-# Inline `open(` / `write_text(` text is code only when something runs it, so a
-# quoted mention handed to a command that only carries text (`gh issue create
-# --body "open('/tmp/x','w') ..."`) is data (#3951). Judged once on the WHOLE
-# command and fail-closed by allowlist: the text is data only on the Bash tool
-# (PowerShell runs `[IO.File]::Open(` inline), with no `\`, `$`, backtick or
-# process substitution (an expansion or escape can build a command's name), and
-# when the command, once every quoted string is replaced by one placeholder
-# word, is exactly one of the listed text-carrying commands with plain flag
-# words and no operator, newline, glob or redirect. The placeholder keeps a
-# quoted word in its place, so a quoted command word (`"python3" "-c" "..."
-# echo`) never reads as the listed command after it. Any other command could be
-# an interpreter this guard does not know, so it keeps the rule.
 _DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:blank:]]+(issue|pr)[[:blank:]]+(create|comment|edit)|git[[:blank:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
-# Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
 _DRIVE_TMP_CODE_RC=""
 inline_code_can_run() {
   if [[ -z "$_DRIVE_TMP_CODE_RC" ]]; then
@@ -670,46 +472,20 @@ inline_code_can_run() {
   return "$_DRIVE_TMP_CODE_RC"
 }
 
-# Inline python READ of a drive-root tmp path (#3951), judged on the WHOLE
-# unsplit command, never per segment: split_shell_segments cuts a heredoc body
-# at each `;`, so a per-segment exemption let a decoy read clear one segment
-# while the write in the next matched nothing. True only when every `open`
-# anywhere is a provable read call, no drive-root tmp path is left once those
-# calls are cut out, and no indirection that could write elsewhere appears.
-# Anything else fails closed. A read call proves only as a bare `open(` with
-# one argument that is a plain path (a single whole quoted literal of path
-# characters only, or a bare name with optional `.attr` and `[0]` subscripts),
-# an optional read-mode literal (only r/b/t), optional literal
-# encoding=/errors=/newline= of path characters, then `)`, followed by `.read(`
-# / `.readline(` / `.readlines(` or wrapped whole in `json.load(`, so only the
-# file's content leaves the call. The argument is limited to path characters
-# because the drive-root path inside an accepted call is never seen by the
-# leftover-`tmp` check or the redirect check, so an argument that can carry a
-# command (Ruby's `open('|cmd')`, `%x[cmd]`, `"#{cmd}"`, `%q[|cmd]`) must not
-# be accepted. Any `.open(` (method form: its receiver can be rebound), any
-# identifier before `open(` (popen, fdopen) and any uncalled `open` name (an
-# alias, a getattr string) void the relief. So does any `\`, `$` or backtick in
-# the raw command: an escaped quote reads as a close quote here, and a shell
-# expansion can splice a write mode into a quoted literal.
 _DRIVE_TMP_PY_LIT="(\"[[:alnum:]_./:~ -]*\"|'[[:alnum:]_./:~ -]*')"
 _DRIVE_TMP_PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
 _DRIVE_TMP_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_DRIVE_TMP_PY_LIT}"
 _DRIVE_TMP_PY_OPEN_READ="^[[:space:]]*([rbu]*${_DRIVE_TMP_PY_LIT}|[[:alnum:]_.]+(\[[0-9]+\])*)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_DRIVE_TMP_PY_READ_MODE})?(${_DRIVE_TMP_PY_READ_KWARG})*[[:space:]]*\)"
 _DRIVE_TMP_PY_READ_CHAIN="^[[:space:]]*\.[[:space:]]*(read|readline|readlines)[[:space:]]*\("
 _DRIVE_TMP_PY_JSON_LOAD="(^|[^[:alnum:]_.])json[[:space:]]*\.[[:space:]]*load[[:space:]]*\([[:space:]]*$"
-# `import json` that starts a statement; `from x import json` rebinds the name.
 _DRIVE_TMP_PY_IMPORT_JSON="(^|[;\"'"$'\n'"])[[:space:]]*import[[:space:]]+json([[:space:]]*[,;\"'"$'\n'"]|[[:space:]]*$)"
 _DRIVE_TMP_PY_INDIRECTION="(^|[^[:alnum:]_])(exec[a-z]*|eval|compile|getattr|setattr|globals|locals|vars|__import__|__builtins__|builtins|importlib|__dict__|system|popen[0-9]*|spawn[a-z]*|subprocess|shutil|rename|renames|replace|mknod|mkfifo|link|symlink|truncate|mkdir|makedirs|touch|write_text|write_bytes|copy[a-z0-9]*|move|io|codecs|tempfile|ctypes|pty|pickle|marshal|shelve|yaml|dill)([^[:alnum:]_]|$)"
-# Cached per command: "" = not computed, 0 = an open( counts as a write, 1 = read-only.
 _DRIVE_TMP_OPEN_RC=""
 command_opens_only_for_read() {
   local rest="$1" before out="" call ws t
   [[ "$COMMAND" == *[\\\$\`]* ]] && return 1
   [[ "$rest" =~ $_DRIVE_TMP_PY_INDIRECTION ]] && return 1
-  # `from x import *` can rebind `open` without another `open` token.
   [[ "$rest" =~ import[[:space:]]*\* ]] && return 1
-  # `json` may appear only as json.load( / json.loads( or a statement-start
-  # `import json`; any other spelling could rebind the name.
   t="${rest//json.load(/ }"
   t="${t//json.loads(/ }"
   while [[ "$t" =~ $_DRIVE_TMP_PY_IMPORT_JSON ]]; do
@@ -719,19 +495,16 @@ command_opens_only_for_read() {
   while [[ "$rest" == *open* ]]; do
     before="${rest%%open*}"
     rest="${rest#*open}"
-    # Part of a longer name (opened, openssl): not the builtin.
     if [[ "${rest:0:1}" == [[:alnum:]_] ]]; then
       out+="${before}open"
       continue
     fi
     ws="${rest%%[![:space:]]*}"
     if [[ "${rest:${#ws}:1}" != '(' ]]; then
-      # A word ending in open (reopen) is not the builtin; a bare `open` is.
       [[ "${before: -1}" == [[:alnum:]_] ]] || return 1
       out+="${before}open"
       continue
     fi
-    # Python allows `x . open(`, so the method dot is judged past whitespace.
     t="${before%"${before##*[![:space:]]}"}"
     [[ "${before: -1}" == [[:alnum:]_:] || "${t: -1}" == . ]] && return 1
     rest="${rest:${#ws}+1}"
@@ -740,7 +513,6 @@ command_opens_only_for_read() {
     rest="${rest:${#call}}"
     if [[ ! "$rest" =~ $_DRIVE_TMP_PY_READ_CHAIN ]]; then
       [[ "$before" =~ $_DRIVE_TMP_PY_JSON_LOAD && "$rest" =~ ^[[:space:]]*\) ]] || return 1
-      # `x . json.load(` is an attribute of x, not the json module.
       t="${before%json*}"
       t="${t%"${t##*[![:space:]]}"}"
       [[ "${t: -1}" == . ]] && return 1
@@ -751,17 +523,6 @@ command_opens_only_for_read() {
   return 0
 }
 
-# The read relief needs an interpreter to be what consumes the read-call text:
-# in any other shape a pipeline can lift the literal out of the text and use it
-# as a write operand (`echo "open('/c/tmp/x').read()" | cut -d "'" -f2 | xargs
-# tee`), and a second run in the same command can write elsewhere. So the whole
-# command (already lowercased) must be exactly one bare python run, and the text
-# sits only in that run's code position: the `-c` string, or a heredoc fed to it
-# on stdin. Nothing else may follow: no pipe, `;`, `&&`, redirect, argument or
-# later line, and the run takes only plain flags (no `-m`, `-W`, `-X`), so no
-# module or script file reads the text instead. `py` is the Windows launcher. A
-# path-qualified, wrapped (`env`, `xargs`) or non-python interpreter keeps the
-# block.
 _DRIVE_TMP_PY_RUN="^[[:space:]]*(python([0-9]+(\.[0-9]+)*)?|py)(\.exe)?([[:blank:]]+(-[beiopqrsu]+|-[0-9]+(\.[0-9]+)*))*"
 _DRIVE_TMP_PY_RUN_C="${_DRIVE_TMP_PY_RUN}[[:blank:]]+-c[[:blank:]]+Q[[:blank:]]*\$"
 _DRIVE_TMP_PY_RUN_HEREDOC="${_DRIVE_TMP_PY_RUN}([[:blank:]]+-)?[[:blank:]]*<<[[:blank:]]*('[a-z_][a-z0-9_]*'|\"[a-z_][a-z0-9_]*\"|[a-z_][a-z0-9_]*)[[:blank:]]*\$"
@@ -776,8 +537,6 @@ command_is_one_python_run() {
   tag="${first##*<<}"
   tag="${tag//[[:blank:]\'\"]/}"
   rest="${s#*$'\n'}"
-  # The heredoc ends at the first line that is exactly the tag; only blank lines
-  # may follow it.
   while :; do
     line="${rest%%$'\n'*}"
     if ((ended)); then
@@ -791,14 +550,8 @@ command_is_one_python_run() {
   ((ended))
 }
 
-# Write-shaped signal: a known producer / destination utility whose write
-# target is a drive-root tmp path. Echo/printf alone are NOT enough (they write
-# stdout, and a prose mention of /tmp must stay allowed). Compound commands are
-# inspected per segment so `mkdir ./out && cat /tmp/src` stays allowed.
 has_write_utility_with_drive_root_tmp() {
   local s="$1" piece
-  # Whole-string matcher is the cheap reject. A glued dest flag (`curl -o/tmp/x`)
-  # hides `/tmp` behind an alphanumeric, so also walk when the letters appear.
   has_drive_root_tmp "$s" || [[ "$s" == *'/tmp'* ]] || return 1
   while IFS= read -r -d '' piece; do
     [[ -n "${piece//[[:space:]]/}" ]] || continue
@@ -809,14 +562,6 @@ has_write_utility_with_drive_root_tmp() {
   return 1
 }
 
-# --- File-path lane: Write / Edit / NotebookEdit -----------------
-# On these tools the payload's path IS the write target, so the whole
-# write-shape inference the command lane needs — redirect parsing, the producer
-# utility whitelist, per-segment splitting — is structurally absent here. The
-# matcher is the command lane's own has_drive_root_tmp(), so
-# every spelling the command lane blocks (POSIX /tmp, MSYS /c/tmp, C:\tmp,
-# drive-root \tmp) and every one it permits (%TEMP% expansions, /var/tmp,
-# ./tmp, foo/tmp) decide identically on this lane.
 if [[ -n "$FILE_PATH" ]]; then
   norm_lower "$FILE_PATH"
   if has_drive_root_tmp "$NORM_OUT"; then
@@ -824,16 +569,7 @@ if [[ -n "$FILE_PATH" ]]; then
   fi
 fi
 
-# --- Command lane: Bash / PowerShell -----------------------------------------
-# Skipped outright on a file-path payload: has_redirect_to_drive_root_tmp walks
-# the command character by character, and scanning an empty string would be
-# per-Write budget spent to reach a foregone `no`.
 if [[ -n "$COMMAND" ]]; then
-  # Bash-tool POSIX /tmp on a Git for Windows usertemp mount already lands in
-  # %TEMP%. Skip that spelling only; /c/tmp, C:\tmp and drive-root \tmp stay
-  # blocked, and PowerShell is unchanged (#4251). The probe forks cygpath twice
-  # on Windows, and both matchers it steers need `tmp` in the command, so a
-  # command without it never pays for the probe.
   _DRIVE_TMP_SKIP_POSIX=0
   _DRIVE_TMP_OPEN_RC=""
   _DRIVE_TMP_CODE_RC=""

@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// Check or write <home>/education.yaml, the repository layer of the
-// education plugin's settings, against schemas/education.schema.json.
-// <home> is the repository's convention home.
-//
 // The YAML reader is the copy bundled with /education:explain, under
 // skills/explain/scripts/. The usage, options, guarantees and exit codes are
 // in ../../../lib/setup-apply.mjs.

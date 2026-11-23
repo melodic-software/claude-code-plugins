@@ -15,8 +15,29 @@
 # .github/requirements-ci.txt): https://docs.zizmor.sh/usage/#exit-codes
 # and https://docs.zizmor.sh/usage/#operating-modes
 set -uo pipefail
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
-args=(--format=github --persona=regular --color=never)
+config=
+if [[ -n "${BASE_SHA:-}" ]]; then
+  config=$(mktemp) || exit 2
+  git cat-file -e "$BASE_SHA^{commit}" || { echo "::error::The base commit $BASE_SHA is not in the checkout."; exit 2; }
+  found=
+  for candidate in .github/zizmor.yml .github/zizmor.yaml zizmor.yml zizmor.yaml; do
+    if git cat-file -e "$BASE_SHA:$candidate" 2>/dev/null; then
+      git show "$BASE_SHA:$candidate" >"$config" || exit 2
+      found=$candidate
+      break
+    fi
+  done
+  if [[ -z "$found" ]]; then
+    gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/standards/contents/.github/zizmor.yml >"$config" || { echo "::error::melodic-software/standards .github/zizmor.yml could not be read."; exit 2; }
+    found=".github/zizmor.yml from melodic-software/standards"
+  fi
+  echo "zizmor config: $found (not the head's)"
+fi
+
+args=(--format=github --persona=regular --color=never ${config:+"--config=$config"})
 
 zizmor "${args[@]}" --no-online-audits -- . || exit
 

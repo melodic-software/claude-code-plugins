@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-no-verify.sh (guardrails plugin).
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained — no
-# host-repo assertion library.
 
 set -uo pipefail
 
@@ -17,14 +12,12 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 GUARD_UNDER_TEST="$HOOK"
 
-# run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
   expect "$label" "$expected" --command "$command" -- "$@"
 }
 
-# --- Form 1: --no-verify / -n on git commit ---------------------------------
 run "git commit --no-verify (blocked)" "git commit --no-verify -m test" 2
 run "git commit -n (blocked)" "git commit -n -m test" 2
 run "cd foo && git commit --no-verify (compound, blocked)" "cd foo && git commit --no-verify -m test" 2
@@ -33,7 +26,6 @@ run "git push --no-verify (blocked)" "git push --no-verify" 2
 run "quoted --no-verify prose (allowed)" 'echo "git commit --no-verify is banned"' 0
 run "echo git commit --no-verify (git as arg, allowed)" 'echo git commit --no-verify' 0
 
-# --- Form 1b: core.hooksPath assignment -------------------------------------
 run "git -c core.hooksPath=/dev/null commit (blocked)" "git -c core.hooksPath=/dev/null commit -m test" 2
 run "git -c core.hookspath=/dev/null push (blocked)" "git -c core.hookspath=/dev/null push" 2
 run "git commit -m core.hooksPath=/tmp (message literal, allowed)" \
@@ -41,9 +33,6 @@ run "git commit -m core.hooksPath=/tmp (message literal, allowed)" \
 run "cd foo && git -c core.hooksPath commit (compound, blocked)" "cd foo && git -c core.hooksPath=/dev/null commit -m test" 2
 run "quoted core.hooksPath prose (allowed)" 'echo "git -c core.hooksPath=/dev/null commit"' 0
 
-# --- Argv-faithful gate regressions (P3) ------------------------------------
-# The shell removes quotes/escapes before git parses argv, so quoting the git
-# executable, the subcommand, OR the flag must all still be caught.
 run "git commit \"--no-verify\" (quoted flag, blocked)" \
   'git commit "--no-verify" -m test' 2
 run "git commit --no-ver'ify' (partial-quote flag, blocked)" \
@@ -65,7 +54,6 @@ run "\"git\" -c core.hooksPath=… commit (quoted exec + config, blocked)" \
 run "git -c 'core.hooksPath=…' push (single-quoted config, blocked)" \
   "git -c 'core.hooksPath=/dev/null' push" 2
 
-# --- Argv-faithful negatives — must NOT block (exit 0) ----------------------
 run "echo \"git commit --no-verify\" (quoted arg, allowed)" \
   'echo "git commit --no-verify"' 0
 run "echo 'use git commit --no-verify never' (quoted arg, allowed)" \
@@ -77,7 +65,6 @@ run "\"git commit\" --no-verify (command-not-found form, allowed)" \
 run "git commit -m \"explain --no-verify\" (flag in message value, allowed)" \
   'git commit -m "explain --no-verify"' 0
 
-# --- [P2] git global options that consume an argument -----------------------
 run "git -C . commit --no-verify (arg-consuming -C, blocked)" \
   'git -C . commit --no-verify -m test' 2
 run "git --git-dir=/x commit --no-verify (=-form global, blocked)" \
@@ -87,7 +74,6 @@ run "git --work-tree /tmp commit --no-verify (two-word global, blocked)" \
 run "git -C . -c core.hooksPath=/dev/null push (blocked)" \
   'git -C . -c core.hooksPath=/dev/null push' 2
 
-# --- [P2] short-option bundle -n --------------------------------------------
 run "git commit -nm msg (n before arg-taking m, blocked)" \
   'git commit -nm msg' 2
 run "git commit -vn (n after non-arg short, blocked)" \
@@ -97,7 +83,6 @@ run "git commit -mn (m takes value 'n', allowed)" \
 run "git commit -am fix (no n-flag, allowed)" \
   'git commit -am fix' 0
 
-# --- [P2] wrappers (with options) transparently pass through ----------------
 run "env -i git commit --no-verify (env + option, blocked)" \
   'env -i git commit --no-verify -m test' 2
 run "nice git commit --no-verify (blocked)" \
@@ -131,7 +116,6 @@ run "eval git commit --no-verify (eval prefix, blocked)" \
 run "env -S 'ls -la' (split-string non-git, allowed)" \
   "env -S 'ls -la'" 0
 
-# --- wsl / wsl.exe run their command line in a Linux distro (#4242) ----------
 run "wsl git commit --no-verify (default-shell command line, blocked)" \
   'wsl git commit --no-verify -m x' 2
 run "wsl.exe -e git commit --no-verify (exec argv, blocked)" \
@@ -145,7 +129,6 @@ run "wsl -e git commit -m '--no-verify' (exec keeps the message one word, allowe
 run "wsl git commit -m x (allowed)" 'wsl git commit -m x' 0
 run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
 
-# --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
 *) exp_win=0 ;;                       # POSIX stays case-sensitive
@@ -155,7 +138,6 @@ run "GIT commit --no-verify (uppercase exec, OS-gated)" \
 run "git.exe commit --no-verify (.exe strip, OS-gated)" \
   'git.exe commit --no-verify -m test' "$exp_win"
 
-# --- [P5 subset] ANSI-C $'…' + backslash-newline continuation ---------------
 run "git commit \$'--no-verify' (ANSI-C plain, blocked)" \
   "git commit \$'--no-verify' -m test" 2
 run "git commit \$'\\x2d\\x2dno-verify' (ANSI-C hex, blocked)" \
@@ -164,12 +146,10 @@ lc_cmd=$(printf 'git commit --no-\\\nverify -m test')
 run "git commit --no-<backslash-newline>verify (continuation, blocked)" \
   "$lc_cmd" 2
 
-# --- [P4] over-length command fails CLOSED (blocked) ------------------------
 long_cmd="echo $(printf 'a%.0s' {1..20000})"
 run "command over the parse cap (fail-closed, blocked)" \
   "$long_cmd" 2
 
-# --- Form 2: hook-manager env-var bypass on git commit / push ---------------
 run "LEFTHOOK=0 git commit (blocked)" "LEFTHOOK=0 git commit -m test" 2
 run "LEFTHOOK=false git push (blocked)" "LEFTHOOK=false git push" 2
 run "LEFTHOOK=FALSE git commit (blocked, uppercase)" "LEFTHOOK=FALSE git commit -m test" 2
@@ -177,17 +157,14 @@ run "LEFTHOOK=False git push (blocked, mixed case)" "LEFTHOOK=False git push ori
 run "LEFTHOOK_SUFFIX=false git push (blocked, suffix var)" "LEFTHOOK_VERIFY_GATE_ENABLED=false git push" 2
 run "cd foo && LEFTHOOK=0 git commit (compound, blocked)" "cd foo && LEFTHOOK=0 git commit -m test" 2
 
-# --- Form 2 negatives — env-var alone or with non-git command must NOT block -
 run "LEFTHOOK=0 echo foo (not git, allowed)" "LEFTHOOK=0 echo foo" 0
 
-# Default manager set covers more than lefthook.
 run "HUSKY=0 git commit (default set, blocked)" "HUSKY=0 git commit -m test" 2
 run "HUSKY=false git push (default set, blocked)" "HUSKY=false git push" 2
 run "PRE_COMMIT=0 git commit (default set, blocked)" "PRE_COMMIT=0 git commit -m test" 2
 run "SIMPLE_GIT_HOOKS=false git commit (default set, blocked)" "SIMPLE_GIT_HOOKS=false git commit -m test" 2
 run "UNKNOWNMGR=0 git commit (not in set, allowed)" "UNKNOWNMGR=0 git commit -m test" 0
 
-# --- Form 2b: the hook-manager prefix set is configurable -------------------
 run "custom prefix blocks its manager" "MYHOOKS=0 git commit -m test" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
 run "custom set replaces the default (lefthook now allowed)" "LEFTHOOK=0 git commit -m test" 0 \
@@ -198,16 +175,13 @@ run "LEFTHOOK=false ls (not git, allowed)" "LEFTHOOK=false ls" 0
 run "LEFTHOOK=1 git commit (truthy value, allowed)" "LEFTHOOK=1 git commit -m test" 0
 run "LEFTHOOK=true git push (truthy value, allowed)" "LEFTHOOK=true git push" 0
 
-# --- Unrelated commands — always no-op --------------------------------------
 run "git status (read-only, allowed)" "git status" 0
 run "empty command (allowed)" "" 0
 run "git push (no env-var, allowed)" "git push" 0
 
-# --- Kill switch — disabled path is a clean no-op even on a bypass -----------
 run "kill switch off → no-op despite --no-verify" "git commit --no-verify -m test" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false
 
-# --- Telemetry: block emits a `blocked` envelope ----------------------------
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
@@ -221,10 +195,6 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
-# --- PowerShell tool coverage ------------------------------------------------
-# The guard is matched on Bash|PowerShell. The proven bypass must be caught on
-# the PowerShell tool; the canonical PowerShell commit form must be allowed; and
-# commit/push-shaped PowerShell the guard cannot parse must fail closed.
 run_pwsh() {
   local label="$1" command="$2" expected="$3"
   shift 3
@@ -247,21 +217,10 @@ run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")" 2
 run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
   "& { git commit --no-verify }" 2
-# An EXPANDABLE `@"` body is a different shape from the verbatim `@'` body above:
-# `$( … )` inside it is a command position evaluated where it is written, and the
-# body is dropped at intake, so no git-freedom proof can be taken over what is
-# left. Without a token this guard still refuses the class.
 run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")" 2
-# The `readonly-ok` relief this guard passes to the classifier does not reach the
-# class: the expandable short-circuit runs BEFORE the read-only narrowing, and it
-# has to, because the body that would prove the command read-only is the very
-# text that was dropped.
 run_pwsh "PS: expandable here-string body running read-only git (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
-# A command naming no git at all is refused here. Since #4252 the advertised
-# `ps-unparsable-herestring-subexpr` token clears it; without a token the
-# kill switch is still the only whole-guard lever.
 run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no token)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
@@ -295,7 +254,6 @@ run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
 run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
-# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
 run_pwsh "PS: a quote on a confirmed opener prefix hiding --no-verify (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git commit --no-verify -m x" "\"@")" 2
 run_pwsh "PS: a backslash on a confirmed opener prefix hiding --no-verify (blocked)" \
@@ -327,17 +285,11 @@ run_pwsh "PS #4683 S5: --no-verify behind block-comment opener (blocked)" \
 run_pwsh "PS #4683 N2: --no-verify behind orphan closer (blocked)" \
   "$(printf '%s\n%s\n%s\n%s' "Write-Output \"it's\" @'" "it's" "'@" "git commit --no-verify -m x")" 2
 
-# --- #4252: the advertised sink token also clears this guard -----------------
-# The printed remedy names `block_dangerous_git_allow=ps-unparsable-<trigger>`.
-# Before this change that list was read only by block-dangerous-git, so a
-# mutating shape still died here and the operator's next lever was the
-# whole-guard kill switch.
 run_pwsh "PS: Invoke-Command ScriptBlock git reset --hard (fail-closed, no token)" \
   "Invoke-Command -ScriptBlock { git reset --hard }" 2
 run_pwsh "PS: same probe with advertised sink token (allowed — #4252)" \
   "Invoke-Command -ScriptBlock { git reset --hard }" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-# A granted shape blanks only its region; a visible bypass beside it still blocks.
 run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
   "Invoke-Command -ScriptBlock { git status }; git commit --no-verify -m x" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
@@ -362,7 +314,6 @@ run_pwsh "PS: pwsh -File \$script with launcher token (allowed — #4252)" \
 run_pwsh "PS: expandable non-git body with herestring-subexpr token (allowed — #4252)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
-# The denial names the advertised option, not only the kill switch.
 expect "PS: sink denial names the advertised allow option" 2 \
   --tool PowerShell --command "Invoke-Command -ScriptBlock { git reset --hard }"
 assert_contains "PS: sink denial names block_dangerous_git_allow" "$GUARD_ERR" \
@@ -380,14 +331,11 @@ run_pwsh "PS: backtick inside push (git pu\`sh --force, blocked)" "git pu${bt}sh
 run_pwsh "PS: backtick inside git itself (g\`it com\`mit, blocked)" "g${bt}it com${bt}mit --no-verify" 2
 run_pwsh "PS: quoted subcommand + subexpression decoy (blocked)" "git 'commit' --no-verify \$(whoami)" 2
 run_pwsh "PS: quoted git command word (blocked via parser)" "& 'git' commit --no-verify" 2
-# Provably git-free PowerShell carrying an unparsable construct is NOT blocked
-# by the git guards (no over-block of legitimate non-git PowerShell).
 run_pwsh "PS: non-git scriptblock (allowed)" "Get-Process | Where-Object { \$_.CPU -gt 5 }" 0
 run_pwsh "PS: read-only git with scriptblock (allowed — #1415)" \
   "git fetch origin 2>&1 | ForEach-Object { \$_ | Select-Object -Last 5 }" 0
 run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
 
-# --- PowerShell hook-manager env assignment (same prefix list as Form 2) ------
 run_pwsh "PS env: \$env:LEFTHOOK=0; git commit (blocked)" "\$env:LEFTHOOK=0; git commit -m x" 2
 run_pwsh "PS env: \$env:LEFTHOOK = '0' (spaced, quoted, blocked)" "\$env:LEFTHOOK = '0'; git commit -m x" 2
 run_pwsh "PS env: \${env:LEFTHOOK}=0 (braced, blocked)" "\${env:LEFTHOOK}=0; git commit -m x" 2
@@ -432,8 +380,6 @@ run_pwsh "PS env: assignment quoted in a double-quoted message (allowed)" \
 run "\$env:LEFTHOOK=0 on the Bash tool is not a hook-manager assignment (allowed)" \
   "echo \$env:LEFTHOOK=0; git commit -m x" 0
 
-# --- Same-command git alias carrying a bypass flag -----------------------------
-# A definition must precede its use in the command; a definition alone is allowed.
 while IFS='|' read -r label cmd want; do
   run "alias: $label" "$cmd" "$want"
   run_pwsh "PS alias: $label" "$cmd" "$want"
@@ -517,11 +463,6 @@ run_pwsh "PS: git symbolic-ref (repoints HEAD, blocked)" \
 run_pwsh "PS: git update-index (index write, blocked)" "& { git update-index --force-remove a.txt }" 2
 run_pwsh "PS: git update-ref -d (ref delete, blocked)" "& { git update-ref -d refs/heads/main }" 2
 
-# Hyphenated siblings that the `-`-excluding boundary keeps from riding on an
-# already-listed token, so each needs its own entry and its own case: `commit-graph`
-# is not `commit`, `merge-index`/`merge-one-file` are not `merge`, `fast-import` is
-# not `import`, `update-server-info` is not `update-ref`, and
-# `credential-cache`/`credential-store` are not `credential`.
 run_pwsh "PS: git commit-graph write (admin-state write, not 'commit', blocked)" \
   "& { git commit-graph write --reachable }" 2
 run_pwsh "PS: git fast-import (bulk ref force-update, blocked)" "& { git fast-import --force }" 2
@@ -539,12 +480,8 @@ run_pwsh "PS: git credential-store (writes credentials to disk, not 'credential'
 run_pwsh "PS: git credential-cache (manages the cache daemon, not 'credential', blocked)" \
   "& { git credential-cache exit }" 2
 
-# GUI commit frontends. `git help -a` calls citool the "Graphical alternative to
-# git-commit", so a commit made through either inherits the session environment —
-# including a disabled hook manager — and must not ride the readonly-ok path.
 run_pwsh "PS: git citool (graphical git-commit, blocked)" "& { git citool }" 2
 run_pwsh "PS: git gui (commit frontend, blocked)" "& { git gui }" 2
-# Foreign-SCM bridges: dual-mode, and the mutating mode rewrites history and publishes.
 run_pwsh "PS: git svn dcommit (rewrites history + publishes, blocked)" "& { git svn dcommit }" 2
 run_pwsh "PS: git p4 submit (publishes to Perforce, blocked)" "& { git p4 submit }" 2
 run_pwsh "PS: git cvsexportcommit (publishes to CVS, blocked)" "& { git cvsexportcommit -c HEAD }" 2
@@ -567,15 +504,10 @@ run_pwsh "PS: git prune-packed (object-store admin write, not 'prune', blocked)"
 run_pwsh "PS: git credential (credential-store write, blocked)" "& { git credential reject }" 2
 run_pwsh "PS: git interpret-trailers --in-place (rewrites the file, blocked)" \
   "& { git interpret-trailers --in-place msg.txt }" 2
-# Widely-installed third-party subcommands invoked through the git dispatcher.
 run_pwsh "PS: git filter-repo (history rewrite, blocked)" "& { git filter-repo --force }" 2
 run_pwsh "PS: git lfs prune (destroys local LFS objects, blocked)" "& { git lfs prune }" 2
 run_pwsh "PS: git annex drop (destroys file content, blocked)" "& { git annex drop f.bin }" 2
 
-# The #1415 read-only allowance must SURVIVE the widening — over-blocking routine
-# read-only work is the friction class this narrowing exists to prevent. The
-# hyphen cases are the load-bearing ones: the boundary class excludes `-`, so a
-# hyphenated sibling or option must never match a listed token.
 run_pwsh "PS: git log in scriptblock (read-only, allowed)" "& { git log --oneline -5 }" 0
 run_pwsh "PS: git status in scriptblock (read-only, allowed)" "& { git status --porcelain }" 0
 run_pwsh "PS: git rev-list in scriptblock (read-only, allowed)" "& { git rev-list --count HEAD }" 0
@@ -615,9 +547,6 @@ run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
   "& { git merge-tree --write-tree main HEAD }" 0
 run_pwsh "PS: git count-objects (interrogator, allowed)" "& { git count-objects -v }" 0
 run_pwsh "PS: git for-each-ref (interrogator, allowed)" "& { git for-each-ref refs/heads }" 0
-# Dual-mode `remote` and `stash` are argument-aware: their read-only spellings
-# pass, their mutating verbs still block, and a mutating verb anywhere in the
-# command blocks the whole of it.
 run_pwsh "PS: git remote -v in scriptblock (read-only, allowed)" "& { git remote -v }" 0
 run_pwsh "PS: git remote --verbose (read-only, allowed)" "& { git remote --verbose }" 0
 run_pwsh "PS: bare git remote (read-only, allowed)" "& { git remote }" 0
@@ -645,8 +574,6 @@ run_pwsh "PS: invoke-expression of a literal (blocked)" "invoke-expression 'git 
 run_pwsh "PS: iex of a here-string (blocked)" \
   "$(printf 'iex @%s\ngit commit --no-verify\n%s@' "'" "'")" 2
 run_pwsh "PS: call of a string-literal command (blocked)" "& 'git commit --no-verify'" 2
-# A call/dot-source of a bare VARIABLE is the deferred variable-command-word form
-# (same residual the Bash guards carry) — it takes the parser path, not the sink.
 run_pwsh "PS: call of a bare variable (deferred residual — not blocked here)" "& \$sb" 0
 # #2848: that residual and a grouping construct are each allowed alone, so their
 # CONJUNCTION must be too — `foreach (…) { & $py run.py $x }` is ordinary
@@ -674,8 +601,6 @@ run_pwsh "PS: grouping + subexpression dot-source target (fail-closed block — 
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal git command word (still blocked by name)" \
   "foreach (\$x in @('a')) { git commit --no-verify }" 2
-# Launcher / nested-shell parity with the Bash guard's launcher + `-c` see-through.
-# Routed to the sink; blocked only when the launched argv / command names git.
 run_pwsh "PS: Start-Process git -ArgumentList (blocked)" "Start-Process git -ArgumentList 'commit','--no-verify'" 2
 run_pwsh "PS: saps git (Start-Process alias, blocked)" "saps git -ArgumentList 'push','--force'" 2
 run_pwsh "PS: pwsh -Command git (nested shell, blocked)" "pwsh -Command 'git commit --no-verify'" 2
@@ -703,13 +628,11 @@ run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
 # so a `--no-verify` hidden behind one is seen. Built from a BYTE ESCAPE, never
 # pasted literally — a formatter that normalized a raw U+00A0 to a plain space
 # would leave a case that passes while pinning nothing.
-PS_NBSP=$'\xc2\xa0' # U+00A0 NO-BREAK SPACE
+PS_NBSP=$'\xc2\xa0'
 run_pwsh "PS: U+00A0 before the -m flag of a --no-verify commit (blocked — #2928)" \
   "git commit --no-verify${PS_NBSP}-m x" 2
 run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
   "git${PS_NBSP}commit --no-verify -m x" 2
-# The normalization must not turn read-only git into a block: it changes where
-# token boundaries fall, not what counts as a bypass.
 run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
   "git log --oneline${PS_NBSP}-n 5" 0
 
@@ -744,9 +667,6 @@ assert_contains "PS msg: @\" opener names the \"@ terminator" \
   "$(pwsh_stderr "$(printf '%s\n%s\n%s' '@"' "body" '"X | git commit --no-verify')")" \
   "the \"@ terminator must start at column 0"
 
-# A literal call target is blocked by the invocation FORM, so the advice must be
-# to drop the operator — not to "invoke the target by its literal name", which is
-# the form the operator already used.
 assert_contains "PS msg: literal call target is told to drop the operator" \
   "$(pwsh_stderr "& 'git' commit --no-verify")" \
   "Drop the iex/'&'/'.'"
@@ -788,8 +708,6 @@ malformed_rc=0
 bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 
-# JSON whose fields jq cannot read gets past the stdin read above and is
-# refused by the field read.
 guard_invoke --payload '{"tool_name":"Bash","tool_input":"git push --no-verify"}'
 assert_exit "a payload whose fields jq cannot read (blocked)" 2 "$GUARD_RC"
 assert_eq "unreadable fields: the refusal says why" \
@@ -822,7 +740,6 @@ run_nul "leading NUL, text preserved (blocked)" "" "git push --no-verify" 2
 run_nul "all-NUL command strips to empty (blocked)" "" "" 2
 run_nul "NUL in an otherwise harmless command (blocked)" "echo hi" "; echo bye" 2
 
-# The block has to say what is wrong and what to do about it, not just refuse.
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
   "Reissue the call without it"
@@ -855,8 +772,6 @@ run_pwsh "PS: same call straddled by apostrophe-bearing strings (blocked — #29
 # shellcheck disable=SC2016
 run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
   "Write-Host \"Kyle's build\"; & ('g'+'it') commit --no-verify -m x; Write-Host \"that's all\"" 2
-# Over-block rails. An apostrophe inside message text must stay inert, and the
-# #2848 must-allow shape must survive an apostrophe appearing next to it.
 run_pwsh "PS: apostrophe in a commit message stays inert (allowed — #2965)" \
   "git commit -m \"it's a fix\"" 0
 run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2965)" \
@@ -876,7 +791,6 @@ run_pwsh "PS: quoted Path+Value is not a no-verify signal (allowed — #2906 con
 run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
 
-# --- #2663: PowerShell classifier is sourced only on the PowerShell lane -------
 bash_trace=$(bash -x "$HOOK" <<<"$(command_json 'git status')" 2>&1 >/dev/null) || true
 assert_absent "#2663: Bash lane does not source ps-command.sh" \
   "$bash_trace" "ps-command.sh"
@@ -884,14 +798,6 @@ pwsh_trace_err=$(bash -x "$HOOK" <<<"$(pwsh_command_json 'git status')" 2>&1 >/d
 assert_contains "#2663: PowerShell lane sources ps-command.sh" \
   "$pwsh_trace_err" "ps-command.sh"
 
-# --- The same verdicts under the dispatcher ----------------------------------
-# Every case above invokes the guard alone, which is not how hooks.json runs it:
-# under run-guards.sh stdin is read once and re-served, `.tool_input.command`
-# arrives from the dispatcher's primed jq cache instead of the guard's own jq
-# call, and the guard is `source`d into a subshell rather than exec'd. A verdict
-# that only holds on the standalone path is a guard that does not work where it
-# ships, and nothing else in this suite can see the difference. `expect_both`
-# asserts one expected exit code on both paths.
 expect_both "dispatched parity: git commit --no-verify" 2 \
   --command "git commit --no-verify -m test"
 expect_both "dispatched parity: git commit -m (allowed)" 0 \
@@ -902,13 +808,8 @@ expect_both "dispatched parity: quoted prose stays allowed" 0 \
   --command 'echo "git commit --no-verify is banned"'
 expect_both "dispatched parity: core.hooksPath assignment" 2 \
   --command "git -c core.hooksPath=/dev/null commit -m test"
-# A NUL in the payload defeats the dispatcher's primed cache, so the guard's
-# jq call falls through to hook::jq_fields_uncached — the one arm of the cache
-# that only a real payload exercises.
 expect_both "dispatched parity: NUL payload falls through the jq cache" 2 \
   --payload "$(nul_payload 'git push --no-verify' 'x')"
-# The PowerShell lane as hooks.json wires it: the classifier arrives as the
-# dispatcher's `--lib`, loaded once for the event instead of by the guard.
 expect_both "dispatched parity: PowerShell git commit --no-verify" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "git commit --no-verify -m x"
@@ -922,10 +823,6 @@ expect_both "dispatched parity: PS Invoke-Command reset-hard without token" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "Invoke-Command -ScriptBlock { git reset --hard }"
 
-# --- The check-placement skip key ---------------------------------------------
-# `git -c checks.skipmissing=<tool>` is the one sanctioned skip: a git-hook check
-# honors it only for a tool it finds absent, so it is allowed on commit and push,
-# in any case. Beside it, a core.hooksPath override still blocks.
 expect_both "checks.skipmissing on commit (allowed)" 0 \
   --command "git -c checks.skipmissing=typos commit -m test"
 expect_both "checks.skipmissing list on push (allowed)" 0 \
@@ -937,10 +834,6 @@ expect_both "checks.skipmissing beside core.hooksPath (blocked)" 2 \
 expect_both "checks.skipmissing beside --no-verify (blocked)" 2 \
   --command "git -c checks.skipmissing=typos commit --no-verify -m test"
 
-# --- A persistent core.hooksPath --------------------------------------------
-# `git config core.hooksPath <dir>` points every later commit and push at other
-# hooks. Only `.githooks`, the directory plain shared hooks live in (setup runs
-# exactly that command per clone), is allowed; reading or unsetting the key is.
 expect_both "git config core.hooksPath /tmp/x (blocked)" 2 \
   --command "git config core.hooksPath /tmp/x"
 HP_REPO="$TEST_TMPDIR/hookspath-repo"
@@ -965,7 +858,6 @@ expect_both "git -C repo config core.hooksPath .githooks (blocked: other reposit
   --chdir "$HP_REPO" --command "git -C $HP_BARE config core.hooksPath .githooks"
 expect_both "git config core.hooksPath .githooks (blocked: no dispatcher in .githooks)" 2 \
   --chdir "$HP_BARE" --command "git config core.hooksPath .githooks"
-# A symlink lets the marker live outside the clone, so it never counts.
 HP_DIRLINK="$TEST_TMPDIR/hookspath-dirlink"
 HP_FILELINK="$TEST_TMPDIR/hookspath-filelink"
 git init -q "$HP_DIRLINK"

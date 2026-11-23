@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# align-run.sh passes a browser skip locally and fails it under CI=true. It runs here against a copy of
-# align-run.sh in a throwaway folder beside a stub align.js that prints each SKIP line the real align.js
-# can print, taken from align.js itself.
 # test-scope: plugins/planning/shared/tests/align-run.sh plugins/planning/shared/tests/align.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -9,7 +6,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "${tmp:?}"' EXIT
 cp "$here/align-run.sh" "$tmp/"
 pass=0 failed=0
-check() { # <name> <expected exit> <actual exit>
+check() {
   if [[ $2 == "$3" ]]; then
     pass=$((pass + 1))
     echo "PASS $1"

@@ -8,9 +8,6 @@
 # page changes a command); the brew, winget and apt ones also match the jq
 # entry in ../prerequisites.json.
 
-# jqhint::install_command <ostype>: print the command that installs jq on this
-# platform, or nothing when no package manager the download page names is found.
-# <ostype> is bash's OSTYPE, passed in so a caller's test seam can pin it.
 jqhint::install_command() {
   case "${1:-}" in
   darwin*) printf 'brew install jq\n' ;;
@@ -31,8 +28,6 @@ jqhint::install_command() {
   esac
 }
 
-# jqhint::missing_message <script-name> <ostype>: the full stop message,
-# for the caller to print on stderr before it exits 2.
 jqhint::missing_message() {
   local install
   install="$(jqhint::install_command "${2:-}")"

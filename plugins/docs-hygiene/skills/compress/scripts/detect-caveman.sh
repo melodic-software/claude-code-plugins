@@ -26,7 +26,6 @@ EOF
 }
 
 emit() {
-  # <available|absent|unknown> <plugin id|none>
   printf 'Caveman backend: %s\nCaveman plugin id: %s\n' "$1" "$2"
 }
 
@@ -43,9 +42,6 @@ if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Prefer the pinned marketplace identity; require enabled=true across scopes.
-# Disabled installs must not report available (skills of disabled plugins are
-# not loaded). Empirically `claude plugin list --json` carries id + enabled.
 plugin_id="$(
   claude plugin list --json 2>/dev/null | jq -r '
     [.[] | select(.enabled == true) | select(.id | startswith("caveman@"))]

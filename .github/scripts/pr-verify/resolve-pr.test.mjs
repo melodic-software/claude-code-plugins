@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { createHash } from "node:crypto";
 
-import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
@@ -2598,11 +2598,7 @@ for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
     const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
-    const { child } = vector;
-    const ownAgent =
-      (child.labels ?? []).filter((name) => /^source:/i.test(name)).length === 1 &&
-      appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
-    assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
 

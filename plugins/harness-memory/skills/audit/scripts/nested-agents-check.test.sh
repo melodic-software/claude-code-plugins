@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for nested-agents-check.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +7,6 @@ SCRIPT="$SCRIPT_DIR/nested-agents-check.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Local assert_contains: the detail line also names the haystack.
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
@@ -43,7 +41,6 @@ commit_all() {
   }
 }
 
-# --- Case 1: --help, bad argument, outside a repo ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -58,28 +55,27 @@ rc=0
 (cd "$NOREPO" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT") >/dev/null 2>&1 || rc=$?
 assert_eq "outside a git repo exits 1" 1 "$rc"
 
-# --- Case 2: the mix this check exists for ---
 
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/shimmed" "$REPO/bare" "$REPO/linked" "$REPO/localonly" "$REPO/deep/a/b" "$REPO/vendor/x" "$REPO/node_modules/y"
-printf 'root agents\n' >"$REPO/AGENTS.md" # root-level: not examined
+printf 'root agents\n' >"$REPO/AGENTS.md"
 # The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: Claude
 # Code then reads CLAUDE.md files and never attaches a bare nested AGENTS.md.
 printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
-printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md" # wired by import
-printf 'bare\n' >"$REPO/bare/AGENTS.md"          # UNWIRED
+printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md"
+printf 'bare\n' >"$REPO/bare/AGENTS.md"
 printf 'linked\n' >"$REPO/linked/AGENTS.md"
 MSYS=winsymlinks:nativestrict ln -s AGENTS.md "$REPO/linked/CLAUDE.md" # wired by symlink; plain ln -s copies on Windows
 printf 'localonly\n' >"$REPO/localonly/AGENTS.md"
-printf '@AGENTS.md\n' >"$REPO/localonly/CLAUDE.local.md" # wired by a gitignored local file
+printf '@AGENTS.md\n' >"$REPO/localonly/CLAUDE.local.md"
 printf 'CLAUDE.local.md\n' >"$REPO/.gitignore"
 printf 'deep\n' >"$REPO/deep/a/b/AGENTS.md"
 printf '# Notes\n\nSee @hub.md for the rest.\n' >"$REPO/deep/a/b/CLAUDE.md"
-printf '@AGENTS.md\n' >"$REPO/deep/a/b/hub.md"      # wired through one hop
-printf 'vendored\n' >"$REPO/vendor/x/AGENTS.md"     # skipped tree
-printf 'module\n' >"$REPO/node_modules/y/AGENTS.md" # skipped tree
+printf '@AGENTS.md\n' >"$REPO/deep/a/b/hub.md"
+printf 'vendored\n' >"$REPO/vendor/x/AGENTS.md"
+printf 'module\n' >"$REPO/node_modules/y/AGENTS.md"
 commit_all "$REPO"
 
 rc=0
@@ -100,14 +96,12 @@ rc=0
 (cd "$REPO" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
 assert_eq "--check exits 1 with a finding" 1 "$rc"
 
-# --- Case 3: a sibling CLAUDE.md that does not import it is still unwired ---
 
 printf '# Bare\n\nNo import here.\n' >"$REPO/bare/CLAUDE.md"
 commit_all "$REPO" "sibling without import"
 OUT=$(cd "$REPO" && bash "$SCRIPT" --count)
 assert_eq "a sibling CLAUDE.md with no import does not wire it" "1" "$OUT"
 
-# --- Case 4: adding the shim clears the finding ---
 
 printf '@AGENTS.md\n' >"$REPO/bare/CLAUDE.md"
 commit_all "$REPO" "add shim"
@@ -117,23 +111,17 @@ rc=0
 (cd "$REPO" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
 assert_eq "--check exits 0 when clean" 0 "$rc"
 
-# --- Case 5: an untracked nested AGENTS.md is not examined ---
 
 mkdir -p "$REPO/untracked"
 printf 'untracked\n' >"$REPO/untracked/AGENTS.md"
 OUT=$(cd "$REPO" && bash "$SCRIPT" --count)
 assert_eq "untracked files are outside discovery" "0" "$OUT"
 
-# --- Case 6a: a root or ancestor CLAUDE.md that imports the file wires it ---
-# An import from the root CLAUDE.md, root .claude/CLAUDE.md, or an ancestor's
-# CLAUDE.md brings the file into context too, so it is not a finding.
 
 ENTRY="$TEST_TMPDIR/entry"
 make_repo "$ENTRY"
 mkdir -p "$ENTRY/.claude" "$ENTRY/byroot" "$ENTRY/bydotclaude" "$ENTRY/anc/mid/leaf" "$ENTRY/still-bare"
 printf '# Root\n@byroot/AGENTS.md\n' >"$ENTRY/CLAUDE.md"
-# A relative import resolves against the importing file's own directory, so the
-# root .claude/CLAUDE.md reaches a sibling-of-root tree through `../`.
 printf '@../bydotclaude/AGENTS.md\n' >"$ENTRY/.claude/CLAUDE.md"
 printf 'byroot\n' >"$ENTRY/byroot/AGENTS.md"
 printf 'bydotclaude\n' >"$ENTRY/bydotclaude/AGENTS.md"
@@ -150,9 +138,6 @@ assert_contains "a file no entry point imports is still a finding" "$OUT" "FAIL 
 OUT=$(cd "$ENTRY" && bash "$SCRIPT" --count)
 assert_eq "--count == 1 with three entry-point-wired files" "1" "$OUT"
 
-# --- Case 6b: the four-hop import limit is the loader's, not one more ---
-# CLAUDE.md -> h1 -> h2 -> h3 -> AGENTS.md is four hops and loads;
-# CLAUDE.md -> h1 -> h2 -> h3 -> h4 -> AGENTS.md is five and does not.
 
 HOPS="$TEST_TMPDIR/hops"
 make_repo "$HOPS"
@@ -174,9 +159,6 @@ OUT=$(cd "$HOPS" && bash "$SCRIPT")
 assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
 assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
 
-# --- Case 7: no CLAUDE.md above it, so the missing shim is not a finding ---
-# With no CLAUDE.md name on its path Claude Code attaches the AGENTS.md on a Read
-# there, so there is nothing to fix.
 
 NATIVE="$TEST_TMPDIR/native"
 make_repo "$NATIVE"
@@ -199,9 +181,6 @@ rc=0
 (cd "$NATIVE" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
 assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
 
-# --- Case 8: a nested .claude/CLAUDE.md counts, not only the root's ---
-# The memory page counts `.claude/CLAUDE.md` at any level, so a subdirectory's own
-# displaces the AGENTS.md beside it exactly as a plain one does.
 
 DOTC="$TEST_TMPDIR/dotclaude"
 make_repo "$DOTC"
@@ -219,9 +198,6 @@ assert_contains "a nested .claude/CLAUDE.md with no import is a finding" "$OUT" 
 assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$OUT" "wired/AGENTS.md"
 assert_not_contains "a directory with none of the three is not a finding" "$OUT" "free/AGENTS.md"
 
-# --- Case 9: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
-# The exclusion is about whose file it is, and only an AGENTS.md under
-# .codex/.cursor/.github belongs to that tool. A CLAUDE.md there is Claude's.
 
 OWNED="$TEST_TMPDIR/owned"
 make_repo "$OWNED"
@@ -238,7 +214,6 @@ assert_not_contains "another tool's AGENTS.md is never a finding" "$OUT" ".curso
 OUT=$(cd "$OWNED" && bash "$SCRIPT" --count)
 assert_eq "and a Claude CLAUDE.md there is not an AGENTS.md finding either" "0" "$OUT"
 
-# --- Case 6: a repo with no nested AGENTS.md at all ---
 
 NONE="$TEST_TMPDIR/none"
 make_repo "$NONE"

@@ -4,8 +4,6 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-ElevatedAppEvidence.ps1'
 
-    # 2026-03-04T05:06:07Z as a FILETIME, computed by hand:
-    # (1772600767 Unix seconds + 11644473600) * 10^7.
     $script:LaunchFileTime = [long]134170743670000000
     $script:LaunchedAt = [datetime]::new(2026, 3, 4, 5, 6, 7, [DateTimeKind]::Utc)
     $script:Older = [datetime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)

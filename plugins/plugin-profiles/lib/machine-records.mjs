@@ -72,7 +72,6 @@ function wasWorktree(commonDir, folder) {
   });
 }
 
-/** For a record of a main checkout's root file whose folder is gone, that repository's root file where it is now; none for a linked worktree of it. */
 function movedFile(home, settingsFile) {
   const commonDir = dirname(home);
   if (basename(home) !== "plugin-profiles" || basename(commonDir) !== ".git") return undefined;
@@ -80,7 +79,6 @@ function movedFile(home, settingsFile) {
   return join(dirname(commonDir), ".claude", "settings.local.json");
 }
 
-/** The plugin and skill entries a file holds, as preview names: plugin ids, then "skill <name>". */
 function entriesOf(file) {
   try {
     const { doc } = readSettings(file);

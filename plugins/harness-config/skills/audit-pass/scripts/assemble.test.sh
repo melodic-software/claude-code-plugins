@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# The fixture partial is built to be HOSTILE to the selection rules: it carries
-# an abandoned attempt with a complete-looking prefix, a superseded lower epoch,
-# and an `open` terminator. A test over a well-behaved partial would pass under
-# a selection rule that simply concatenated every row.
-#
-# Two are NEGATIVE tests in the sense this repo means it: they mutate a copy of
-# the script to delete exactly one selection rule and assert the mutated copy
-# produces the output the real one refuses.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,19 +37,12 @@ fi
 RUN_DIR="$TEST_TMPDIR/run"
 mkdir -p "$RUN_DIR"
 
-# A SUPERSEDED epoch. A writer that a stale-lease adoption fenced appends to its
-# own file; assembly must read only the highest epoch present, and the lower
-# files are retained as the evidence that an adoption happened.
 cat >"$RUN_DIR/findings.partial.1.jsonl" <<'EOF'
 {"record":"start","attempt":{"lane":"skills","ordinal":1}}
 {"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"derived","severity":"warn","finding_id/v1":"fencedfencedfenc","identity":{"check":"p/s/fenced","claim":"claim.fenced","sites":[{"surface":"fenced.md","anchor":"s:"}]}}
 {"record":"terminator","attempt":{"lane":"skills","ordinal":1},"state":"complete","verification":"verified"}
 EOF
 
-# The winning epoch. Lane `skills` has an ABANDONED attempt 1 that appended a
-# finding and never terminated, plus a terminated attempt 2. Lane `conflicts`
-# terminates normally. Lane `doctor` terminates `open`, which renders but leaves
-# the lane INCOMPLETE so --resume re-runs it.
 cat >"$RUN_DIR/findings.partial.2.jsonl" <<'EOF'
 {"record":"start","attempt":{"lane":"skills","ordinal":1}}
 {"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"derived","severity":"error","finding_id/v1":"abandonedabandon","identity":{"check":"p/s/abandoned","claim":"claim.abandoned","sites":[{"surface":"abandoned.md","anchor":"s:"}]}}
@@ -85,11 +70,9 @@ cat >"$TEST_TMPDIR/meta.json" <<'EOF'
 }
 EOF
 
-# --- Case 1: epoch selection ------------------------------------------------
 
 assert_eq "epoch reports the highest partial present" "2" "$(run epoch --run-dir "$RUN_DIR")"
 
-# --- Case 2: assembly ------------------------------------------------------
 
 OUT=$(run assemble --run-dir "$RUN_DIR" --meta "$TEST_TMPDIR/meta.json")
 assert_file "assembly writes findings.json" "$RUN_DIR/findings.json"
@@ -99,18 +82,13 @@ assert_contains "and names both artifacts on stdout" "$OUT" "report.md"
 JSON=$(cat "$RUN_DIR/findings.json")
 assert_contains "the assembled document carries its ownership header" "$JSON" "audit-pass/report/v1"
 
-# The superseded epoch is not read.
 assert_not_contains "a lower epoch's rows are not assembled" "$JSON" "fencedfencedfenc"
 assert_file "and the superseded partial is retained, not deleted" "$RUN_DIR/findings.partial.1.jsonl"
 
-# The abandoned attempt's rows are discarded outright, including its
-# complete-looking prefix.
 assert_not_contains "an abandoned attempt's findings are discarded" "$JSON" "abandonedabandon"
 assert_contains "the winning attempt's derived finding is assembled" "$JSON" "aaaaaaaaaaaaaaaa"
 assert_contains "the winning attempt's judged finding is assembled" "$JSON" "bbbbbbbbbbbbbbbb"
 
-# Tier routes the row to its section: derived to mechanical, judged to
-# behavioral, note to notes. They stay separate because their guarantees differ.
 MECH=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print([r["finding_id/v1"] for r in d["sections"]["mechanical"]])' "$RUN_DIR/findings.json")
 BEHAV=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print([r["finding_id/v1"] for r in d["sections"]["behavioral"]])' "$RUN_DIR/findings.json")
 NOTES=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print([r["note_id"] for r in d["sections"]["notes"]])' "$RUN_DIR/findings.json")
@@ -119,7 +97,6 @@ assert_contains "a judged row lands in the behavioral section" "$BEHAV" "bbbbbbb
 assert_contains "a note lands in the notes section, not among the findings" "$NOTES" "n1"
 assert_not_contains "and a note is not in the mechanical section" "$MECH" "n1"
 
-# `open` is an assembly terminator, not a completion.
 DOCTOR_COMPLETE=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print([l["complete"] for l in d["lanes"] if l["lane"]=="doctor"][0])' "$RUN_DIR/findings.json")
 assert_eq "an open terminator renders the lane but leaves it incomplete" "False" "$DOCTOR_COMPLETE"
 SKILLS_COMPLETE=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print([l["complete"] for l in d["lanes"] if l["lane"]=="skills"][0])' "$RUN_DIR/findings.json")
@@ -127,7 +104,6 @@ assert_eq "an ordinary completion marks the lane complete" "True" "$SKILLS_COMPL
 
 assert_contains "the supersession record is carried into the document" "$JSON" "supersession"
 
-# --- Case 3: report.md ------------------------------------------------------
 
 REPORT=$(cat "$RUN_DIR/report.md")
 assert_eq "the ownership line is the first line of report.md" \
@@ -139,16 +115,9 @@ assert_contains "and names the comparability input that moved" "$REPORT" "--lane
 assert_contains "a property with no verdict renders as not evaluated" "$REPORT" "not evaluated"
 assert_contains "the headline counts the tiers" "$REPORT" "## Headline"
 
-# §7 requires the headline to carry counts per tier AND per severity. This is the
-# line the run prints inline, so a missing severity distribution is one an
-# operator cannot see without opening the report and recounting it. The winning
-# epoch leaves one derived `warn` and one judged `info`.
 assert_contains "the headline carries the per-severity counts, not just the tiers" \
   "$REPORT" "1 derived, 1 judged (by severity: 1 warn, 1 info), 1 notes, 0 suppressed, 1 skipped, across 3 lanes"
 
-# A severity outside the known ladder is still counted and sorted in AFTER it,
-# never dropped; a row with no severity at all counts as `unspecified` rather
-# than vanishing from the total.
 SEV_DIR="$TEST_TMPDIR/sev"
 mkdir -p "$SEV_DIR"
 cat >"$SEV_DIR/findings.partial.1.jsonl" <<'EOF'
@@ -167,25 +136,18 @@ assert_contains "the ladder orders the known severities and sorts unknown ones i
   "$SEV_REPORT" \
   "3 derived, 3 judged (by severity: 1 blocker, 1 error, 1 info, 1 unspecified, 1 aardvark, 1 zebra), 0 notes, 0 suppressed, 0 skipped, across 1 lanes"
 
-# NEGATIVE: drop the severity half of the headline and the distribution is gone
-# from the one line the run prints inline. A count whose removal changes nothing
-# is not being rendered.
 COPY_SEV="$TEST_TMPDIR/no-severity-headline.sh"
 sed 's/ (by severity: %s)//; /^        severity_part,$/d' "$SCRIPT" >"$COPY_SEV"
 rc=0
 bash "$COPY_SEV" render --findings "$SEV_DIR/findings.json" --out "$TEST_TMPDIR/no-sev.md" \
   >/dev/null 2>&1 || rc=$?
 NO_SEV=$(cat "$TEST_TMPDIR/no-sev.md" 2>/dev/null || printf '')
-# The mutated copy must still RUN and still render a headline, or the assertion
-# below would pass on an empty file and prove nothing.
 assert_exit "the mutated copy still renders" 0 "$rc"
 assert_contains "and still counts the tiers" "$NO_SEV" "3 derived, 3 judged, 0 notes"
 assert_not_contains "but without the severity half the headline names no severity" \
   "$NO_SEV" "by severity"
 assert_contains "a finding renders its group" "$REPORT" "g:1111111111111111"
 
-# Every section renders, including the empty ones: an absent section and an
-# empty one look identical on the page and mean opposite things.
 for section in Notes Suppressed Delegated Skipped Verification Inventory; do
   assert_contains "the $section section is rendered" "$REPORT" "## $section"
 done
@@ -193,7 +155,6 @@ assert_contains "an empty section says none rather than vanishing" "$REPORT" "no
 assert_contains "a lane's skipped surface is carried with its reason" "$REPORT" "class 2 exclusion"
 assert_contains "verification mode is reported per lane" "$REPORT" "mode: \`inline\`"
 
-# --- Case 4: render re-renders from findings.json ---------------------------
 
 cp "$RUN_DIR/report.md" "$TEST_TMPDIR/report-from-assembly.md"
 rm -f "$RUN_DIR/report.md"
@@ -205,7 +166,6 @@ else
   fail "and produces byte-identical output to the one assembly wrote" "the two renderings differ"
 fi
 
-# --- Case 5: a malformed row is refused, never silently dropped -------------
 
 BAD_DIR="$TEST_TMPDIR/bad"
 mkdir -p "$BAD_DIR"
@@ -217,9 +177,7 @@ rc=0
 run assemble --run-dir "$BAD_DIR" >/dev/null 2>&1 || rc=$?
 assert_exit "a malformed partial row fails assembly rather than being skipped" 2 "$rc"
 
-# --- Case 6: NEGATIVE tests on the selection rules --------------------------
 
-# Delete the highest-epoch selection and the fenced writer's rows come back.
 COPY="$TEST_TMPDIR/no-epoch-select.sh"
 # shellcheck disable=SC2016  # the $ sequences are literal script text, not expansions
 sed 's/^    if \[\[ -z "\$best" || "\$ep" -gt "\$best" \]\]; then$/    if [[ -z "$best" ]]; then/' "$SCRIPT" >"$COPY"
@@ -231,7 +189,6 @@ MUT_JSON=$(cat "$MUT_DIR/findings.json" 2>/dev/null || printf '')
 assert_contains "without highest-epoch selection a fenced writer's rows are assembled" \
   "$MUT_JSON" "fencedfencedfenc"
 
-# Delete the attempt-ordinal filter and the abandoned attempt's findings come back.
 COPY2="$TEST_TMPDIR/no-attempt-filter.sh"
 sed '/if (ordinal if isinstance(ordinal, int) else 0) != winner\[0\]:/,+1d' "$SCRIPT" >"$COPY2"
 MUT2_DIR="$TEST_TMPDIR/mut2"
@@ -242,7 +199,6 @@ MUT2_JSON=$(cat "$MUT2_DIR/findings.json" 2>/dev/null || printf '')
 assert_contains "without the attempt filter an abandoned attempt's findings are assembled" \
   "$MUT2_JSON" "abandonedabandon"
 
-# --- Case 7: usage ----------------------------------------------------------
 
 rc=0
 run >/dev/null 2>&1 || rc=$?

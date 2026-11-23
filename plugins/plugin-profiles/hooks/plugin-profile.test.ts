@@ -1,7 +1,5 @@
 import { expect, test } from 'claude-code/testing'
 
-// The /plugin-profile command and its end-of-turn reload. The command-line tool is stubbed by its
-// argument vector; scripts/profiles.test.mjs tests the tool itself.
 
 const PROFILES = ['build', 'discovery', 'harness-upkeep', 'interface-design', 'planning', 'review']
 const MORE = 'More profiles'
@@ -21,8 +19,6 @@ const preview = (p: Preview = {}): Out => ({
   }),
 })
 
-// The world beneath the plugin: `cli` answers each run of profiles.mjs by its verb and flags, and
-// `answers` are the labels the person picks, in order.
 const clearPreview = (p: { recorded?: boolean; sessionProfile?: string | null; lines?: string[] } = {}): Out => ({
   exitCode: 0,
   stdout: JSON.stringify({
@@ -577,7 +573,6 @@ test('#17354: each folder without a record gets its own question, and only Remov
   expect(resets(w)).toEqual([['reset', '--yes', '--json', '--preview-id', 'preview-1', '--remove-unrecorded', '/b/.claude/settings.local.json', '--keep-unrecorded', '/a/.claude/settings.local.json']])
 })
 
-/** One picker cell: the answers given at the one question and at a folder's own question, the reset it runs (none when no answer is a yes) and what it says. */
 const PICKED = '/a/.claude/settings.local.json'
 const PICK_ARGS = ['reset', '--yes', '--json', '--preview-id', 'preview-1']
 const ALL_RESET = `Reset every profile this machine records. ${NEXT_STEP}`

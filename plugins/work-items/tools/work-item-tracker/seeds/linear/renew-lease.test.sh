@@ -16,13 +16,12 @@ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LONG_AGO="1999-01-01T00:00:00Z"
 HANDLE=1787227200500
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S"
-assert_usage_error "$S" "linear:acme/ENG#12"                          # no handle
-assert_usage_error "$S" "linear:acme/ENG#12" --lease-comment-id       # flag, no value
-assert_usage_error "$S" "linear:acme/ENG#12" --lease-comment-id "abc" # non-numeric
+assert_usage_error "$S" "linear:acme/ENG#12"
+assert_usage_error "$S" "linear:acme/ENG#12" --lease-comment-id
+assert_usage_error "$S" "linear:acme/ENG#12" --lease-comment-id "abc"
 assert_usage_error "$S" "not-an-id" --lease-comment-id "$HANDLE"
 assert_usage_error "$S" "github:o/r#1" --lease-comment-id "$HANDLE"
 
@@ -36,7 +35,6 @@ seed_lease() {
   lin_seed_issue 12 started
 }
 
-# --- happy path: a live lease renews in place ---
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "renewing a live lease → exit 0" "0" "$rc"
@@ -66,7 +64,6 @@ else
   pass "an expired lease is not written to"
 fi
 
-# --- a SUPERSEDED lease is refused, with its own diagnosis ---
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24 "$NOW")"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "superseded lease → exit 7" "7" "$rc"
@@ -84,11 +81,9 @@ if [[ "$(lin_requests)" == *"commentUpdate"* ]]; then
 else
   pass "an outranked lease is not written to"
 fi
-# The earlier lease itself still renews under the newer one.
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$((HANDLE - 1000))")"
 assert_eq "the earlier lease renews (0) under a newer live lease" "0" "$rc"
 
-# --- a ttl-0 lease is born expired ---
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 0)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "ttl-0 lease cannot be renewed" "7" "$rc"
@@ -101,12 +96,10 @@ rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "999999999999")"
 assert_eq "unknown handle → exit 7" "7" "$rc"
 assert_contains "and names the handle" "$(lin_err)" "999999999999"
 
-# --- no lease at all ---
 seed_lease '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "no lease on the item → exit 7" "7" "$rc"
 
-# --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5" --lease-comment-id "$HANDLE")"
 assert_eq "undeclared team → exit 2" "2" "$rc"

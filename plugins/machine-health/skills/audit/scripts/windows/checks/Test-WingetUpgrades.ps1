@@ -99,7 +99,6 @@ $CheckBody = {
             }
             if ($kevCount -gt 0) {
                 $kevGap = $null
-                # Index KEV by lowercase "vendor.product" so each upgrade Id is an O(1) lookup.
                 $kevIndex = @{}
                 foreach ($vuln in $kev.vulnerabilities) {
                     if ([string]::IsNullOrWhiteSpace($vuln.vendorProject) -or

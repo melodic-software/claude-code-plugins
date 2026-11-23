@@ -70,8 +70,6 @@ ROOT="$TEST_TMPDIR/root"
 mkdir -p "$ROOT"
 ROOT_NATIVE="$(native_of "$ROOT")"
 
-# --- CLI contract ---------------------------------------------------------------
-
 help_out="$(bash "$REMEDY" --help 2>&1)"
 assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help reaches the end of the header" "$help_out" "later paths are not touched"
@@ -81,8 +79,6 @@ assert_exit "no path is a usage error" 2 "$RC"
 
 run --bogus
 assert_exit "an unknown flag is a usage error" 2 "$RC"
-
-# --- two dead paths reaped in order ---------------------------------------------
 
 A="$ROOT_NATIVE/dead-a"
 B="$ROOT_NATIVE/dead-b"
@@ -106,8 +102,6 @@ assert_contains "the first path was reaped before the second" "$before_a" "in $A
 assert_contains "the uninstall is scoped to the project" "$log" "-s project"
 assert_not_contains "never escalates to user scope" "$log" "-s user"
 
-# --- an existing path is refused without reaping --------------------------------
-
 LIVE="$ROOT_NATIVE/live"
 mkdir -p "$LIVE"
 : >"$LIVE/work.txt"
@@ -120,8 +114,6 @@ assert_contains "the failure names the mkdir step" "$OUT" "failed at mkdir"
 assert_eq "no reap ran against the existing path" "" "$(cat "$LOG")"
 assert_eq "the record for the existing path is untouched" "1" "$(jq 'length' "$STATE")"
 assert_file_exists "the existing directory's contents survive" "$LIVE/work.txt"
-
-# --- stop after the first failing path ------------------------------------------
 
 C="$ROOT_NATIVE/dead-c"
 D="$ROOT_NATIVE/dead-d"
@@ -153,8 +145,6 @@ assert_contains "the missing parent fails at mkdir" "$OUT" "failed at mkdir"
 assert_contains "the message points at #7461" "$OUT" "#7461"
 assert_eq "no reap ran for a missing parent" "" "$(cat "$LOG")"
 assert_eq "mkdir did not create the parent" "no" "$([[ -e "$ROOT_NATIVE/no-such-parent" ]] && echo yes || echo no)"
-
-# --- a trailing separator names the same path -----------------------------------
 
 F="$ROOT_NATIVE/dead-f"
 seed_state "$(jq -n --arg f "$F" '[{id:"p@m",scope:"project",projectPath:$f}]')"

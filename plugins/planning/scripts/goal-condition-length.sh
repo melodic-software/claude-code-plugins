@@ -63,7 +63,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# No default limit, so a stale number is never baked in.
 [[ -n "$limit" ]] || die "--limit <N> is required (pass the current limit read from the official /goal docs)"
 if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -eq 0 ]]; then
   die "--limit must be a positive integer, got: $limit"
@@ -87,7 +86,6 @@ else
   chars="$(printf '%s' "$condition" | wc -m | tr -d '[:space:]')"
 fi
 
-# A crashed counter leaves $chars empty, which the comparison below would grade "ok".
 [[ "$chars" =~ ^[0-9]+$ ]] || die "character count failed (counter returned: '${chars:-<empty>}')"
 
 status=ok

@@ -1,52 +1,14 @@
 #!/usr/bin/env node
-// PreToolUse checkpoint: any Write/Edit/NotebookEdit aimed at a Claude Code settings
-// surface returns permissionDecision "ask", forcing a prompt even in
-// auto mode (the classifier may still deny; it cannot silently approve).
-// Unattended or unwatched it denies: https://github.com/melodic-software/claude-code-plugins/blob/main/AGENTS.md#unattended-lanes
-//
-// This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
-// modes decide what happens to its ask. README "Settings-write ask" holds the pointer record
-// for those limits and the measured headless run: the hook returns its ask with
-// the reason, Claude Code's own settings-file check rejects the write, and the
-// tool error carries Claude Code's text, not this hook's reason. Interactive
-// behavior is unmeasured; do not extrapolate. The checkpoint's value is that a
-// matched file-editing tool cannot rewrite a settings file silently while this
-// plugin is enabled. A shell write is outside that claim.
-//
-// Fail-open: on any internal error or unrecognized payload, exit 0 with no
-// output — a broken checkpoint must not block unrelated writes. Kill switch:
-// userConfig settings_write_ask_enabled, read via its hook-process mirror.
-//
-// Scope: the settings files Claude Code reads, and nothing else (hook-precision:
-// false positives erode trust in the prompt, so a fixture named
-// `.claude/settings.json` passes silently). Those are settings.json in the user
-// settings directory ($CLAUDE_CONFIG_DIR, else ~/.claude); settings(.local).json
-// in `.claude/` under the session's project directory or the payload cwd;
-// settings.local.json at the main checkout's root; plus managed-settings.json
-// and managed-settings.d/*.json in the managed system directory. Where Claude
-// Code keeps each file:
-// https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect and
-// https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository,
-// https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy,
-// as of 2026-10-11; recheck when any of these sections moves a settings file. The matcher sees
-// file-editing tool calls only: a settings write through Bash/PowerShell, or one
-// rendered into place by another program, never reaches this script, and the
-// hook is deliberately not widened to the shell lane (#3864; README "Settings-write ask"
-// records the decision).
 
 import { execFileSync } from 'node:child_process';
 
 const slash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '');
-// Windows resolves through PROGRAMFILES, as lib/managed-scope.sh does, so a
-// relocated Program Files directory still matches.
 const MANAGED_DIRS = [
   '/Library/Application Support/ClaudeCode',
   '/etc/claude-code',
   `${slash(process.env.PROGRAMFILES) || 'C:/Program Files'}/ClaudeCode`,
 ];
 
-// The root Claude Code keeps settings.local.json at: the main checkout's root,
-// which is the cwd's toplevel except in a linked worktree.
 function localSettingsRoot(cwd) {
   try {
     const [top, common] = execFileSync('git', ['--no-pager', '-c', 'core.fsmonitor=false',
@@ -73,10 +35,6 @@ process.stdin.on('end', () => {
     const target = slash(payload.tool_input?.file_path || payload.tool_input?.notebook_path);
     if (!target) process.exit(0);
 
-    // Case-insensitive: macOS (APFS/HFS+) and Windows (NTFS) resolve
-    // `.claude/Settings.json` to the same file on disk, so a case-sensitive
-    // match would let a differently-cased path bypass the checkpoint on
-    // exactly the platforms it supports (security-review finding).
     const name = /\/(settings(\.local)?\.json|managed-settings(\.d\/[^/]+)?\.json)$/i.exec(target)?.[1];
     if (!name) process.exit(0);
     const dir = target.slice(0, -name.length - 1).toLowerCase();
@@ -96,7 +54,6 @@ process.stdin.on('end', () => {
 
     const asks = process.env.CLAUDE_CODE_SESSION_ATTENDED === '1'
       && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
-    // The permission prompt already shows the target path.
     const reason = 'guardrails: this edit changes settings for every future session. '
       + (!asks
         ? 'Nobody can answer a prompt in this session (unattended, or GUARDRAILS_SESSION_UNWATCHED=1), '
@@ -114,6 +71,6 @@ process.stdin.on('end', () => {
     }));
     process.exit(0);
   } catch {
-    process.exit(0); // fail-open, by contract
+    process.exit(0);
   }
 });

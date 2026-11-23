@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for read-prep-audits.sh. Expected outputs follow the prep_audits
-# contract in reference/config-resolution.md: an absent key runs every default
-# audit, `enabled: false` turns one class's audit off, a `skill` replaces it,
-# and anything the reader cannot trust runs every default audit.
 
 set -uo pipefail
 
@@ -51,7 +47,6 @@ assert_eq "an inherited audit_rules does not turn the rules audit off" $'source\
 out=$(printf 'prep_audits:\n  - class: markdown\n    enabled: true\n' | env item_0_skill=/evil:skip bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "an inherited item_0_skill does not replace an enabled item" $'source\tconfig\n'"$ALL_DEFAULT" "$out"
 
-# Each untrusted shape: the source line fails closed with a reason, and every class runs its default.
 check_fail_closed() {
   local label="$1" doc="$2" reason="$3" got
   got=$(read_doc "$doc")

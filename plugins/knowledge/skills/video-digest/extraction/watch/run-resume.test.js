@@ -61,7 +61,6 @@ async function seedSlice({ completed, status = "watching", tempPresent }) {
     contactSheetsDir = await mkdtemp(path.join(os.tmpdir(), "run-resume-sheets-"));
     tempDirs.push(framesDir, contactSheetsDir);
   } else {
-    // Names never created: the reaped-temp case.
     framesDir = path.join(os.tmpdir(), `run-resume-gone-frames-${process.pid}-${Date.now()}`);
     contactSheetsDir = path.join(os.tmpdir(), `run-resume-gone-sheets-${process.pid}-${Date.now()}`);
   }

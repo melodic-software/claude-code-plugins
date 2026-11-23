@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
 ## [3.5.2] - 2026-11-21
 
 ### Changed

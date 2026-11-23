@@ -1,7 +1,3 @@
-// lib/prior-findings.mjs: which earlier posts count as a CI review lane's own
-// findings (bot author and lane footer, never text alone), whether the lines a
-// finding names changed since the head it was posted on (a real git diff), and
-// whether the lane already reviewed an earlier head, which makes it blocking only.
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -29,9 +25,6 @@ const LANE = "claude-security-review";
 const BOT = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
 const PERSON = { __typename: "User", login: "mallory" };
 
-// A throwaway repository: v1 is the head a finding was posted on, `shifted`
-// inserts lines above the finding (it moves, its text does not change), and
-// `edited` rewrites the finding's own line.
 const repo = mkdtempSync(join(tmpdir(), "prior-findings-"));
 after(() => rmSync(repo, { recursive: true, force: true }));
 const git = (...args) =>
@@ -48,7 +41,6 @@ const commit = (text) => {
 };
 git("init", "--quiet");
 const lines = ["a", "b", "c", "d", "if (author === trusted) merge();", "f", "g"];
-// The finding names line 5 of v1.
 const v1 = commit(`${lines.join("\n")}\n`);
 const shifted = commit(`x\ny\n${lines.join("\n")}\n`);
 const edited = commit(`x\ny\n${lines.slice(0, 4).join("\n")}\nif (isTrusted(author)) merge();\nf\ng\n`);
@@ -72,8 +64,6 @@ const run = (threads, head) => collect({ threads, reviews: [], comments: [], lan
 
 describe("which posts are the lane's own", () => {
   test("a forged lookalike from another account is not a prior finding, so the finding is still reported", () => {
-    // Right footer and severity line, wrong author: the same thread from the
-    // lane's bot is listed (paired presence case below), this one is not.
     const forged = run([thread(PERSON)], shifted);
     assert.deepEqual(forged.findings, []);
     assert.equal(forged.reviewed, 0);
@@ -113,7 +103,6 @@ describe("which posts are the lane's own", () => {
 
 describe("lines changed since the finding was posted", () => {
   test("a lane-authored prior finding on unchanged lines is suppressible: lines changed no", () => {
-    // Lines were inserted above it, so its line number moved; its text did not change.
     const [found] = run([thread(BOT)], shifted).findings;
     assert.equal(found.changed, "no");
     assert.equal(found.path, "gate.mjs");
@@ -127,7 +116,6 @@ describe("lines changed since the finding was posted", () => {
   });
 
   test("a resolved thread is never suppressible: only a thread still open is listed unchanged", () => {
-    // Same thread and unchanged lines as the case above, which answers no.
     const [found] = run([{ ...thread(BOT), isResolved: true }], shifted).findings;
     assert.match(found.changed, /^yes \(the thread is resolved/u);
     assert.equal(run([{ ...thread(BOT), isResolved: undefined }], shifted).findings[0].changed.startsWith("yes"), true);
@@ -164,11 +152,9 @@ describe("lines changed since the finding was posted", () => {
   });
 
   test("touchesOriginal reads the old side of each hunk", () => {
-    // Old line 5 replaced: touches 5, not 1-3 or 7.
     assert.equal(touchesOriginal("@@ -5 +7 @@\n", 5, 5), true);
     assert.equal(touchesOriginal("@@ -5 +7 @@\n", 1, 3), false);
     assert.equal(touchesOriginal("@@ -5 +7 @@\n", 7, 7), false);
-    // Two lines inserted after old line 0 border a range starting at 1 only.
     assert.equal(touchesOriginal("@@ -0,0 +1,2 @@\n", 1, 1), true);
     assert.equal(touchesOriginal("@@ -0,0 +1,2 @@\n", 5, 5), false);
   });
@@ -177,8 +163,6 @@ describe("lines changed since the finding was posted", () => {
 describe("earlier reviews and blocking only", () => {
   test("the count is the distinct earlier heads the lane posted findings on, never the head under review", () => {
     const second = { ...thread(BOT), comments: { nodes: [{ ...thread(BOT).comments.nodes[0], originalCommit: { oid: shifted } }] } };
-    // A rerun on `edited` already holds the lane's posts on it; they are not a
-    // round before this review.
     const onHead = { ...thread(BOT), comments: { nodes: [{ ...thread(BOT).comments.nodes[0], originalCommit: { oid: edited } }] } };
     const result = collect({
       threads: [thread(BOT), thread(BOT), second, onHead, thread(PERSON, `x\n\nclaude-lane: ${LANE}`, { originalCommit: { oid: edited } })],
@@ -209,7 +193,6 @@ describe("earlier reviews and blocking only", () => {
     };
     const reviewed = (comments, head = edited) => collect({ threads: [], reviews: [], comments, lane: LANE, head, diff }).reviewed;
     assert.equal(reviewed([summary(v1, 1), summary(shifted, 2)]), 2);
-    // A clean first review is still the first whole review.
     assert.equal(reviewed([summary(v1, 0)]), 1);
     // A partial read is not a whole review: files no review saw stay unreviewed.
     assert.equal(reviewed([summary(v1, 0, BOT, "3 of 18")]), 0);
@@ -233,7 +216,6 @@ describe("earlier reviews and blocking only", () => {
     const review = { url: "u", body: `**${LANE}**: 1 inline finding(s) on \`${v1}\`.\n\nclaude-lane: ${LANE}`, lastEditedAt: null, author: BOT, commit: { oid: v1 } };
     const result = (comments) => collect({ threads: [thread(BOT)], reviews: [review], comments, lane: LANE, head: edited, diff }).reviewed;
     assert.equal(result([partialSummary]), 0);
-    // The same thread and review with no partial summary still count v1.
     assert.equal(result([]), 1);
     // A skip's comment on v1 reports no read, so it does not mark v1 partial.
     const skip = { ...partialSummary, body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** needs no new review of \`${v1}\`: no file in scope changed.` };
@@ -280,7 +262,6 @@ describe("earlier reviews and blocking only", () => {
 describe("main reads the setting from CAP_CONFIG", () => {
   const dir = mkdtempSync(join(tmpdir(), "prior-findings-main-"));
   after(() => rmSync(dir, { recursive: true, force: true }));
-  // The lane reviewed an earlier head whole, so the default is blocking only.
   const earlier = "a".repeat(40);
   const summary = {
     url: "https://example.test/c1",
@@ -339,7 +320,6 @@ describe("a footed post counts only when the run its binding names recorded it",
   };
 
   test("a bound post its run recorded is the lane's, and is read without its binding line", async () => {
-    // The severity line sits right above the binding: the finding reads as it did before bindings.
     const { found } = await bindThreads([boundThread()], { [RUN]: laneRun([entry()], { lane: LANE }) });
     assert.equal(found.length, 1);
     assert.equal(found[0].body, FINDING);

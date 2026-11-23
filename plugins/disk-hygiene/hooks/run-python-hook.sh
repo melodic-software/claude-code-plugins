@@ -1,62 +1,7 @@
 #!/usr/bin/env bash
-# Launch every disk-hygiene hook through a Python 3 interpreter resolved
-# independently of a bare `python3` on PATH (#1504) — the two wired hooks in
-# hooks.json and the clean skill's frontmatter belt.
-#
-# When `python3` is absent, broken, or resolves to the zero-length WindowsApps
-# App Execution Alias stub, both the guard and its Stop detector died the same
-# way — the detector could not observe the guard's fail-open. This launcher
-# resolves a real interpreter before exec'ing the target script.
-#
-# Every caller invokes this file through node exec form (#3686). `command` is
-# `node`. `args` is `hooks/exec-bash.mjs`, then this script and its arguments.
-# exec-bash.mjs finds Git Bash and never `System32\bash.exe`, then spawns this
-# file with those arguments and forwards stdin. Bare `"command": "bash"` is not
-# used: on Windows that name resolves to the WSL relay (#1006, regressed by
-# #1504). `"command": "python3"` is not used either: it resolves to the
-# zero-length WindowsApps alias stub (#2568). A hook that fails to launch is a
-# non-blocking error, so the guard would silently enforce nothing.
-# The skill-frontmatter belt uses the same entry, but its args may substitute
-# ONLY `${CLAUDE_PLUGIN_ROOT}`: a skill hook receives no `${CLAUDE_PLUGIN_DATA}`
-# or `${user_config.*}`, and either makes Claude Code refuse the launch
-# outright (#1014).
-#
-# When no interpreter resolves (#3861), a guard that could not run must never
-# look like a guard that ran and allowed. It answers the way its watchdog
-# answers "could not decide" (`_watchdog_fire` in destructive_guard.py), with
-# one deliberate difference, marked below:
-#   * destructive_guard.py, belt mode (no `--mode`, or any value but
-#     `engine-gate`, the default `resolve_mode` also falls back to) — deny
-#     with exit 2 and the reason on stderr. The belt is deny-by-default, and
-#     the only engine shapes it passes name the hook runtime's own absolute
-#     interpreter, so with none resolved it would have passed nothing useful.
-#   * destructive_guard.py, `--mode engine-gate`, payload names `hygiene.py`
-#     (a plain case-insensitive substring over the whole payload, broader than
-#     the guard's basename test, so it can only over-deny) or is empty — deny
-#     with exit 2, as the watchdog does for a marker-bearing command.
-#   * destructive_guard.py, `--mode engine-gate`, marker-free payload — let the
-#     call proceed, with a `systemMessage` plus `additionalContext` notice once
-#     per session. THE DIFFERENCE: the watchdog asks here, because a missed
-#     deadline is transient. A missing interpreter is not, and an `ask` on every
-#     `PowerShell(*& $*)` call of every session is a work stoppage (and a deny
-#     under `-p`) on a host whose only fault is having no Python. The guard
-#     would have deferred on these, so the notice is the only change it makes.
-#   * engine_context.py (`/disk-hygiene:clean` expanding) — block the expansion
-#     with the reason, so the skill and its session-wide belt never load on a
-#     host where neither the engine nor the guard can run.
-#   * guard_launch_monitor.py — emit a once-per-run systemMessage on stdout
-#     (the detector's only output channel): the end-of-turn backstop for the
-#     per-call reports above.
 set -uo pipefail
-# `_lookup` reads bash's command hash table. A BASH_ENV (or inherited option
-# state) that turned hashing off would leave every lookup empty, so resolution
-# would find no interpreter at all and the guard would not run.
 set -h
 
-# Every registered caller passes this script's path absolute
-# (`${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh`), so the directory comes
-# from parameter expansion; only a relative spelling (a test harness, a hand
-# `./` run) pays the `cd`/`pwd` fork to normalize it.
 _SOURCE_DIR="${BASH_SOURCE[0]%/*}"
 if [[ "$_SOURCE_DIR" == "${BASH_SOURCE[0]}" ]]; then
   _SOURCE_DIR="."
@@ -67,24 +12,6 @@ case "$_SOURCE_DIR" in
 esac
 ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
 
-# Interpreter resolution is COLD-PATH ONLY. This launcher sits behind an
-# always-on `Bash|PowerShell` PreToolUse matcher, so every shell tool call in
-# every session pays for whatever runs here. Process creation is the dominant
-# cost on Windows (EDR scans every image) and the one that explodes under
-# concurrent load, when the guard's watchdog would deny benign commands. The
-# cache below answers the hot path; full resolution (WindowsApps App Execution
-# Alias stubs, the `py` launcher fallback, the minimum-version floor) runs only
-# when it misses.
-#
-# `PYTHON_VERSION_PROBE` reads the floor from the engine's `MIN_PYTHON`, its
-# single origin, inside the candidate interpreter, so the cold path spends ONE
-# spawn per candidate. The hardcoded floor applies when the engine is
-# unreadable or has no `MIN_PYTHON` line.
-#
-# Past the floor the probe reports `sys.executable` as filesystem-encoded bytes
-# (UTF-8 on Windows, which is how MSYS reads paths). `print` would encode it
-# with the ANSI code page when stdout is a pipe and raise on a path outside it,
-# failing the probe and rejecting a working interpreter.
 PYTHON_VERSION_PROBE='
 import os, re, sys
 floor = (3, 11)
@@ -102,113 +29,10 @@ if sys.version_info < floor:
 sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 '
 
-# --- optional per-session launch marker ------------------------------------
-#
-# Three OPTIONAL leading flags, consumed here and never forwarded to Python:
-#
-#   --marker-root <dir>            root the marker tree lives under, spelled
-#                                  `"${CLAUDE_PLUGIN_DATA}"` by every caller;
-#   --launch-marker <subdir>       remove `<root>/<subdir>/<session>.seen`, then
-#                                  write a launch token to `<session>.launched`
-#                                  beside it, BEFORE exec'ing the target;
-#   --skip-unless-marker <subdir>  exit 0 without exec'ing anything when at
-#                                  least one candidate directory exists and
-#                                  none of them holds that file, or when every
-#                                  `.launched` found is seen (`_launch_seen`).
-#
-# Together they let a `Stop` hook cost nothing in a session where the hook it
-# watches never ran. `guard_launch_monitor.py` reports failures of the
-# `PreToolUse` guard, and the guard rows are `if`-gated on the engine's file
-# name, so most sessions never launch the guard at all — yet the monitor still
-# started a whole Python on every turn to discover that. `Stop` rows accept
-# neither `matcher` nor `if`, so the only place that gate can live is here.
-#
-# A marker alone would keep the monitor running on every later Stop of a
-# session that launched one guard. So each launch writes a token unique to it
-# (epoch seconds, this bash's PID and `$RANDOM`, all builtins), the monitor
-# copies a token it has processed into `<session>.seen`, and a Stop skips when
-# every `.launched` holds a token its `.seen` repeats: it runs only after a new
-# launch. The launch writes in the order that degrades toward running: it
-# removes `.seen`, truncates `.launched`, then writes the token. A failed open
-# leaves no `.seen` and a failed write an empty `.launched`, and both run the
-# monitor. When the `.seen` removal and the `.launched` open both fail, the old
-# pair could still skip, so the launcher names that marker to the guard in
-# `DISK_HYGIENE_UNWRITTEN_MARKER` and the guard adds a `systemMessage` naming it.
-#
-# The root is passed EXPLICITLY rather than read from `CLAUDE_PLUGIN_DATA` in
-# the environment: a hook subprocess can inherit that variable naming a
-# DIFFERENT plugin's data directory, and a writer and a reader that disagree
-# about the root skip silently, which is the missed-detection failure this
-# monitor exists to prevent. An empty value, or an unsubstituted literal
-# `${CLAUDE_PLUGIN_DATA}`, is treated as absent (the placeholder idiom
-# `guard_launch_monitor.py` already uses) and the tmp fallback carries the
-# marker alone.
-#
-# Failure modes, stated rather than implied:
-#   * a marker is per session and is never removed. Under the tmp fallback the
-#     OS clears it; under `--marker-root` it is one small file per session that
-#     launched a guard, plus the monitor's `.seen`, and neither the clean engine
-#     nor `lib/guard_decision_log.py` runs a retention sweep over the plugin data
-#     root that could collect them.
-#   * an empty `.launched` holds no token, so it runs the monitor on every Stop
-#     until the next launch writes one.
-#   * a session whose guard rows never fired is skipped BY DESIGN: there is no
-#     guard invocation for the monitor to have found a failure of.
-#   * a hook that failed before this script ran leaves no marker and is not this
-#     monitor's to detect — the detector reads the transcript for the guard's
-#     own command string, which such a failure still records.
-#   * the marker is written before the interpreter is even resolved, so the
-#     failure the monitor DOES exist to catch — the guard launching and dying —
-#     still leaves the marker that keeps the monitor running.
-#   * the session id is recovered with a regex over the raw payload rather than
-#     a JSON parse, because a parse is the Python this gate exists to avoid.
-#     The match is anchored to the payload's opening key, which nothing further
-#     in the payload can reach; only a payload that does not open with
-#     `session_id` falls back to an unanchored match, where a NESTED
-#     `session_id` key could win instead and key the marker wrongly. Both rows
-#     parse identically, so that corner is a missed detection, never a false
-#     alarm.
-#   * a misparse fails SAFE: no session id means write nothing and skip
-#     nothing, which is this launcher's behavior before these flags existed.
-#   * a launch that could create NEITHER candidate directory leaves no marker
-#     at all, and a Stop that read only the marker file would then silence the
-#     monitor for the whole session: a silent failure in the one detector that
-#     exists to catch silent failures. So the skip is gated on a candidate
-#     DIRECTORY existing. With none, the Stop row falls through and runs the
-#     monitor, which is the behavior before these flags existed. The cost of
-#     that fail-open is that the skip is inert in a plugin data root where no
-#     guard has ever launched: every Stop pays the old price until the first
-#     guard launch spends its one `mkdir`.
-#   * the tmp fallback sits in a directory every local user can write, so
-#     another user could create its marker directory first, or a symlink in its
-#     place, and plant or delete markers: an empty planted directory would skip
-#     the monitor for every session. A tmp directory that is a symlink or that
-#     this user does not own is neither read nor written, so it counts as no
-#     candidate at all and this script does not skip on it. The launch side
-#     creates each marker directory with mode 700. GAP: `exec-bash.mjs` makes
-#     its own skip before bash starts, and does not check ownership yet.
-#   * RESIDUAL, and undetectable across processes: a candidate directory that
-#     exists while the marker FILE could not be written (a full disk, a
-#     permission denial on the file alone) still degrades to silence for that
-#     session. The file that failed is the only channel between the launch row
-#     and the Stop row, so the Stop row cannot tell that case apart from a
-#     session whose guard rows never fired.
-#
-# A fourth flag serves the PreToolUse `Skill` row, which exists only to record
-# that the model loaded /disk-hygiene:clean:
-#
-#   --only-skill <name>            write the launch marker only when the
-#                                  payload's `tool_input.skill` is <name>, with
-#                                  or without a leading `/`.
-#
-# With no target script after the flags, the launcher writes its marker and
-# exits 0 with no output, before resolving any interpreter: such a row makes no
-# permission decision, on a host with no Python as on any other.
 MARKER_ROOT=""
 LAUNCH_MARKER_SUBDIR=""
 SKIP_MARKER_SUBDIR=""
 ONLY_SKILL=""
-# Only this launch's own marker write may set it for the guard.
 unset DISK_HYGIENE_UNWRITTEN_MARKER
 while (($#)); do
   case "$1" in
@@ -251,34 +75,16 @@ _PAYLOAD=""
 _SESSION_ID=""
 _BUFFERED_STDIN=0
 
-# Buffer the whole hook payload into a variable and recover its session id.
-# `read` is a builtin, so buffering costs no process; the payload is handed to
-# Python on a here-string at `exec` time, leaving its stdin unchanged.
 _read_payload() {
   _BUFFERED_STDIN=1
   IFS= read -r -d '' _PAYLOAD || true
   local field='"session_id"[[:space:]]*:[[:space:]]*"([^"\\]*)"'
-  # Anchored first. The hooks reference shows `session_id` as the payload's
-  # opening key for every event but documents no ordering guarantee, and the
-  # payload nests objects of its own (`tool_input`) that could carry the same
-  # key name. An anchored match cannot be reached by either; the unanchored
-  # fallback runs only for a payload that did NOT open with the field, and keeps
-  # a reordered payload from turning this gate into a silent no-op.
   local anchored="^[[:space:]]*[{][[:space:]]*$field"
   if [[ "$_PAYLOAD" =~ $anchored ]] || [[ "$_PAYLOAD" =~ $field ]]; then
     _SESSION_ID="${BASH_REMATCH[1]}"
   fi
 }
 
-# Fill `_MARKER_PATHS` with the candidates for one subdir, most-preferred
-# first, mirroring `guard_launch_monitor.py`'s own `_marker_path_candidates`:
-# the data root when one resolved, then a tmp fallback whose directory name is
-# built from the subdir, so a `.launched` marker sits beside the `.warned` one
-# the monitor writes. Both flags resolve the tmp directory identically, which
-# is what the skip needs. The monitor writes `.seen` only beside a `.launched`
-# it finds through `tempfile.gettempdir()`; where that differs from
-# `${TMPDIR:-/tmp}`, a tmp-fallback launch is never seen and the Stop keeps
-# running the monitor.
 _marker_candidates() {
   local subdir="$1" session="$2" suffix="${3:-launched}"
   local safe="${session//[^a-zA-Z0-9_-]/_}"
@@ -291,28 +97,16 @@ _marker_candidates() {
   _MARKER_PATHS+=("$_TMP_MARKER_DIR/$safe.$suffix")
 }
 
-# True when `dir` is a real directory this user owns. The tmp fallback sits in a
-# directory every local user can write, so another user could create the marker
-# directory first, or a symlink in its place, and plant or hide a marker for any
-# session. A directory that fails this is neither read nor written. All three
-# tests are builtins.
 _owned_marker_dir() {
   [[ -d "$1" && ! -L "$1" && -O "$1" ]]
 }
 
-# True unless `dir` is the tmp fallback and fails `_owned_marker_dir`. The data
-# root is the plugin's own directory, so only the shared tmp one is checked.
 _trusted_marker_dir() {
   [[ "$1" != "$_TMP_MARKER_DIR" ]] || _owned_marker_dir "$1"
 }
 
 _LAUNCH_TOKEN_PATTERN=$'^[0-9]{1,15}-[0-9]{1,10}-[0-9]{1,5}\n?$'
 
-# True when `<base>.launched` holds a launch token and `<base>.seen` holds the
-# same bytes: the monitor ran after the last launch. An empty, unreadable or
-# malformed `.launched`, or a missing or unreadable `.seen`, is not seen.
-# `exec-bash.mjs`'s `launchSeen` makes the same test before bash starts. `read`
-# from a redirect is a builtin, so this spawns nothing.
 _launch_seen() {
   local launched="" seen=""
   [[ -f "$1.launched" && -r "$1.launched" && -f "$1.seen" && -r "$1.seen" ]] || return 1
@@ -326,11 +120,6 @@ if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
   _read_payload
   if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$SKIP_MARKER_SUBDIR" "$_SESSION_ID"; then
     _marker_unseen=0
-    # Skipping requires POSITIVE evidence that the launch side got as far as a
-    # marker tree. No candidate directory at all is the shape a launch whose
-    # `mkdir` failed for every root leaves behind, and silencing the monitor on
-    # it would be a silent failure in the detector that exists to catch silent
-    # failures. Every test is a builtin, so the skip path still spawns nothing.
     _marker_dir_seen=0
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _trusted_marker_dir "${_marker_path%/*}" || continue
@@ -346,10 +135,6 @@ if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
   fi
 fi
 
-# True unless `--only-skill` names a skill the payload does not. The closing
-# quote anchors the name, so `disk-hygiene:clean-x` and `repo-hygiene:clean` do
-# not match; a `"skill"` inside a string field arrives as `\"skill\"`, which the
-# unescaped quotes here cannot match.
 _skill_selected() {
   [[ -n "$ONLY_SKILL" ]] || return 0
   local key='"skill"[[:space:]]*:[[:space:]]*"/?'
@@ -392,24 +177,12 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
   fi
 fi
 
-# A marker-only row: nothing to launch, so no interpreter to resolve.
 [[ -n "$SCRIPT" ]] || exit 0
 
-# True when `path` names a zero-length Windows App Execution Alias stub (the
-# WindowsApps match is case-insensitive).
 _is_store_alias_stub() {
   [[ -f "$1" && ! -s "$1" && "${1,,}" == *windowsapps* ]]
 }
 
-# True when `path` has the basename an interpreter resolution can produce. The
-# hot path `exec`s a cached value, so the record is treated as untrusted: pure
-# parameter expansion, no spawn. Split on BOTH separators, because
-# `sys.executable` on Windows is a native backslash path
-# (`<drive>:\<path>\python.exe`); stripping only `/` would leave the whole path,
-# the allowlist would never match, and the cache would miss on every
-# invocation, silently. Case-insensitive, because Windows filenames are.
-# `python3.*` already covers `python3.exe`, `python3.13` and `python3.13.exe`;
-# spelling those separately is what SC2221/SC2222 flag as dead patterns.
 _interpreter_shaped() {
   local base="${1##*/}"
   base="${base##*\\}"
@@ -419,34 +192,17 @@ _interpreter_shaped() {
   esac
 }
 
-# Set `PYTHON` to the probe's output, less a trailing CR, when it is one
-# executable, non-empty path an interpreter resolution can produce.
 _use_probed_executable() {
   local exe="${1%$'\r'}"
   [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe" && PYTHON="$exe"
 }
 
-# Set `_LOOKUP` to where bash's own PATH search finds `name`, or to empty.
-# `hash` is a builtin and `BASH_CMDS` a variable, so this spawns nothing; the
-# cold path and the hot path both call it, so a record compares equal to a
-# fresh lookup exactly when the same file would win.
 _lookup() {
   _LOOKUP=""
   hash "$1" 2>/dev/null && _LOOKUP="${BASH_CMDS[$1]}"
   return 0
 }
 
-# Resolve a runnable Python 3 into `PYTHON`, or return 1. `_LOOKUPS` gets one
-# `<name>|<path>` entry per name tried, in order, each the path bash found for
-# that name (empty when none). The cache compares those against a fresh lookup:
-# the order and the stub/probe decisions are the same, so equal lookups mean
-# resolution would pick the same interpreter again.
-#
-# `PYTHON` is the probe's `sys.executable`, not the file PATH found: a uv
-# trampoline or a version-manager shim spends a second process on every launch
-# to reach the same interpreter, which reports identical `sys.prefix` and
-# `sys.path` either way. A venv launcher reports itself, so nothing changes
-# there. A value that fails the shape check falls back to the PATH file.
 resolve_python3() {
   local candidate exe
   PYTHON=""
@@ -470,55 +226,9 @@ resolve_python3() {
   _use_probed_executable "$exe"
 }
 
-# --- resolved-interpreter cache -------------------------------------------
-#
-# The hot path must reach `exec` with ZERO extra process spawns, so every check
-# below is a bash BUILTIN (`[[ -x ]]`, `[[ -s ]]`, `[[ -nt ]]`, `read`, `hash`,
-# `printf '%(%s)T'`). Anything that shells out here would reintroduce the cost
-# this cache exists to remove.
-#
-# Cache location is derived from `$HOME` and this script's own directory and
-# NOTHING else. That is a hard constraint, not a preference: the skill-
-# frontmatter registration may substitute only `${CLAUDE_PLUGIN_ROOT}` — a skill
-# hook receives no `${CLAUDE_PLUGIN_DATA}` and no `${user_config.*}`, and either
-# makes Claude Code refuse the launch outright (#1014). `SCRIPT_DIR` is already
-# version-pinned (`.../disk-hygiene/<version>/hooks`), so a plugin upgrade lands
-# on a different key and cannot read a stale entry.
-#
-# INVALIDATION, in the order the hot path checks it:
-#   1. schema tag mismatch      — a launcher upgrade rewrote the record shape;
-#   2. a recorded lookup differs from a fresh `_lookup` — another `python3`
-#      (or `python`, `py`) now wins on PATH, or the one recorded is gone. PATH
-#      itself is NOT compared: fnm puts a per-shell `fnm_multishells/<pid>_<ts>`
-#      directory on it, so a verbatim compare missed in every new shell while
-#      resolving the same interpreter;
-#   3. a recorded lookup NEWER than the cache file — a trampoline or shim
-#      rewritten to point elsewhere;
-#   4. interpreter not executable / zero-length — removed, or replaced by a
-#      WindowsApps App Execution Alias stub since the entry was written;
-#   5. interpreter NEWER than the cache file (`-nt`) — an in-place upgrade;
-#   6. TTL expiry — the backstop for the residual case none of the above sees:
-#      a NEW interpreter installed into an existing `PATH` directory with a
-#      preserved (older) mtime. Bounded staleness, not correctness, is what the
-#      TTL buys; every other shape is caught structurally above.
-# Any miss, unreadable record, or malformed field falls through to full
-# resolution. A cache failure must never be able to produce "no interpreter" —
-# that takes the no-interpreter posture below, which denies or runs unchecked.
 _CACHE_SCHEMA=2
-# COMPILED IN, deliberately not an environment override. A widened TTL makes
-# this launcher accept a record it would otherwise have rejected as stale, so
-# the knob is an env-borne input to a security control — the exact shape
-# `resolve_disk_hygiene_enabled` refuses on the Python side, because "a repo
-# `settings.json` `env` block reaches hook subprocesses and carries no
-# provenance a hook could check". A tunable staleness window is not worth a new
-# channel of that kind; an operator who needs re-resolution can delete the
-# record.
 _CACHE_TTL_SECONDS=86400
 
-# Every hot-path helper reports through a GLOBAL rather than stdout. Command
-# substitution — `x="$(f)"` — forks a subshell, and a subshell on Windows is a
-# real process spawn (MSYS emulates `fork`), which is the exact cost this cache
-# exists to remove. Assigning a global keeps the whole hit path in-process.
 _CACHE_FILE=""
 _RESOLVED_INTERPRETER=""
 _LOOKUP=""
@@ -529,17 +239,12 @@ _cache_file_path() {
   local home="${HOME:-}"
   [[ -n "$home" && -d "$home" ]] || return 1
   local key="${SCRIPT_DIR//[^a-zA-Z0-9]/_}"
-  # Bound the filename without `${key: -96}`: a negative offset whose magnitude
-  # exceeds the string length yields the EMPTY string in bash, which would
-  # collapse every plugin root onto one shared record.
   if ((${#key} > 96)); then
     key="${key:${#key}-96}"
   fi
   _CACHE_FILE="$home/.cache/disk-hygiene/interpreter-$key"
 }
 
-# Set `_RESOLVED_INTERPRETER` from a still-valid cache record, or return 1.
-# Builtins only — no forks, no spawns.
 _cached_python3() {
   local file="$1"
   _RESOLVED_INTERPRETER=""
@@ -569,28 +274,7 @@ _cached_python3() {
     [[ -z "$_LOOKUP" || ! "$_LOOKUP" -nt "$file" ]] || return 1
   done
   [[ -n "$interp" && -x "$interp" && -s "$interp" ]] || return 1
-  # Only a basename a resolution would itself have produced is accepted.
-  #
-  # KNOWN LIMIT, stated rather than implied. This validates SHAPE, not identity:
-  # an executable, non-empty file merely NAMED `python3` is accepted and
-  # `exec`'d, the guard never runs, and the hook exits 0 having enforced
-  # nothing. Proving the binary is really Python means running it, which is the
-  # spawn this cache exists to remove, so the check cannot be strengthened
-  # without giving back the win.
-  #
-  # Reaching that requires writing the record, and the record's location
-  # derives from `$HOME` — so unlike the pre-cache launcher, `HOME` is now an
-  # input to this control. Two honest readings: if nothing untrusted can set
-  # `HOME` for hook subprocesses, this is unreachable; if something can, it is a
-  # new instance of an exposure that already exists, since a hostile `PATH`
-  # fails open on the pre-cache launcher too (`PYTHON_VERSION_PROBE` only checks
-  # an exit status, which any script satisfies). It is NOT a new KIND of
-  # channel, and the plugin tree is not writable-adjacent to it, so the "anyone
-  # who can write here can already edit the hook registration" argument does not
-  # cover it. Recorded so a future reviewer weighs it deliberately.
   _interpreter_shaped "$interp" || return 1
-  # An interpreter modified after this record was written is not the one that
-  # was validated.
   [[ ! "$interp" -nt "$file" ]] || return 1
   [[ "$written" =~ ^[0-9]+$ ]] || return 1
   local now
@@ -600,26 +284,16 @@ _cached_python3() {
   _RESOLVED_INTERPRETER="$interp"
 }
 
-# Persist a validated interpreter. Best-effort throughout: a write failure
-# leaves the next invocation to re-resolve, which is slow, never wrong.
 _store_python3() {
   local file="$1" interp="$2" dir temp now entry
-  # A newline in any field would break the line-oriented record; such an
-  # environment simply goes uncached.
   for entry in "$interp" "${_LOOKUPS[@]}"; do
     [[ "$entry" != *$'\n'* ]] || return 0
   done
   dir="${file%/*}"
   [[ -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || return 0
-  # Best-effort on POSIX hosts. MSYS `chmod` is close to a no-op against
-  # Windows ACLs, so this narrows exposure where it can and is not relied on:
-  # the read path validates the record rather than trusting its location.
   chmod 700 "$dir" 2>/dev/null || true
   printf -v now '%(%s)T' -1
   temp="$file.$$.tmp"
-  # Concurrent hooks race to publish; `mv` is atomic within a filesystem, so the
-  # loser's record is replaced rather than interleaved with the winner's. A
-  # failed write never reaches `mv`, and it or a failed `mv` removes the temp.
   {
     printf 'schema=%s\n' "$_CACHE_SCHEMA"
     printf 'written=%s\n' "$now"
@@ -633,13 +307,10 @@ _store_python3() {
 PYTHON=""
 _cache_file_path || true
 
-# Hot path: a valid record reaches `exec` having spawned nothing at all.
 if [[ -n "$_CACHE_FILE" ]] && _cached_python3 "$_CACHE_FILE"; then
   PYTHON="$_RESOLVED_INTERPRETER"
 fi
 
-# Cold path: full resolution, then publish for the next invocation. Called
-# directly, not in `$(...)`, so the lookups it records reach the store.
 if [[ -z "$PYTHON" ]]; then
   resolve_python3 || PYTHON=""
   if [[ -n "$PYTHON" && -n "$_CACHE_FILE" ]]; then
@@ -648,15 +319,11 @@ if [[ -z "$PYTHON" ]]; then
 fi
 
 _NO_PYTHON='no usable Python 3 (python3, python, py -3)'
-# Forward slashes and no double quote, so the text stays valid inside the JSON the context and
-# monitor modes print.
 _CHECKER_ROOT="${SCRIPT_DIR%/*}"
 _CHECKER_ROOT="${_CHECKER_ROOT//\\//}"
 _CHECKER_ROOT="${_CHECKER_ROOT//\"/}"
 _NO_PYTHON_FIX="Install Python 3 ahead of WindowsApps on PATH; diagnose with: node '$_CHECKER_ROOT/lib/prerequisites.mjs' check '$_CHECKER_ROOT'"
 
-# Set `_MODE_VALUE` to the guard's `--mode`, read the way the guard's own
-# `_argv_flag_value` reads it: the first `--mode <value>` or `--mode=<value>`.
 _guard_mode_value() {
   local -a argv=("$@")
   local i
@@ -673,9 +340,6 @@ _guard_mode_value() {
   done
 }
 
-# True when this session already carries the no-interpreter notice. A session
-# with no id, or no marker that could be written, re-notices: over-reporting is
-# the safe direction for a notice that exists to end a silence.
 _no_python_noticed() {
   local path dir
   [[ -n "$_SESSION_ID" ]] || return 1
@@ -704,8 +368,6 @@ _guard_without_python() {
     printf '%s\n' "disk-hygiene: denied: $_NO_PYTHON, so this hygiene.py call cannot be checked. $_NO_PYTHON_FIX" >&2
     exit 2
   fi
-  # The user hears this once; the model hears it as the deny reason the first
-  # time it names the engine.
   _no_python_noticed && exit 0
   printf '{"systemMessage":"%s"}\n' \
     "disk-hygiene: $_NO_PYTHON; hygiene.py commands are denied this session. $_NO_PYTHON_FIX"
@@ -720,8 +382,6 @@ if [[ -z "$PYTHON" ]]; then
       "disk-hygiene: /disk-hygiene:clean cannot run: $_NO_PYTHON. $_NO_PYTHON_FIX"
     ;;
   monitor)
-    # Once per session, sharing the guard's notice marker: a user the guard
-    # already told hears nothing more at task end.
     ((_BUFFERED_STDIN)) || _read_payload
     _no_python_noticed && exit 0
     printf '{"systemMessage":"%s"}\n' \
@@ -732,11 +392,6 @@ if [[ -z "$PYTHON" ]]; then
   exit 0
 fi
 
-# A buffered payload is replayed on a here-string, which bash serves from a pipe
-# or a temp file without creating a process. Python reads the same bytes it
-# would have read from the inherited stdin, plus the newline `<<<` appends —
-# both consumers here (`json.load(sys.stdin)` in the guard, `sys.stdin.read()`
-# then `json.loads` in the monitor) ignore trailing whitespace.
 if ((_BUFFERED_STDIN)); then
   exec "$PYTHON" "$SCRIPT" "$@" <<<"$_PAYLOAD"
 fi

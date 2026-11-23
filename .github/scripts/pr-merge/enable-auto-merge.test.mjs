@@ -75,7 +75,7 @@ import {
   vetoLabelOwned,
   vetoNote,
 } from "./enable-auto-merge.mjs";
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";

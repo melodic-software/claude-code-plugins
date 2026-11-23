@@ -51,7 +51,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { loadTrustedActors, statusLabels as labelsByField } from "../../actions/resolve-config/read-status.mjs";
