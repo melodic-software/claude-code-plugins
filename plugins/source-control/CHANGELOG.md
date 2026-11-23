@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.8.5] - 2026-11-23
+
+### Changed
+
+- babysit-prs: the hold-floor pins in `test_floor_paths.py` and `test_merge_holds_sync.py` count `.github/scripts/lib/lane-vocabulary.mjs`, a trust-class floor row, which the merge-arm script now loads. No behavior changes.
+
 ## [13.8.4] - 2026-11-23
 
 ### Fixed

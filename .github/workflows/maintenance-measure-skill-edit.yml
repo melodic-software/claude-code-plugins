@@ -547,8 +547,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The key leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record the key leg
         if: always() && steps.run-key.outcome != 'skipped' && steps.run-key.outcome != ''
         continue-on-error: true
