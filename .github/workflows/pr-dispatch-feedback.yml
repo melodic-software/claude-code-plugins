@@ -154,6 +154,14 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+          sparse-checkout: |
+            /.github/
+            /docs/conventions/
+            /lib/publish-gate.mjs
+            /plugins/multi-agent/reference/defaults.yaml
+            /plugins/work-items/scripts/charge-words.json
+            /.node-version
+          sparse-checkout-cone-mode: false
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
@@ -360,6 +368,16 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+          sparse-checkout: |
+            /.github/
+            /docs/conventions/
+            /lib/publish-gate.mjs
+            /plugins/multi-agent/reference/defaults.yaml
+            /plugins/source-control/skills/babysit-prs/scripts/
+            /plugins/work-items/scripts/charge-words.json
+            /.node-version
+            /.python-version
+          sparse-checkout-cone-mode: false
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
