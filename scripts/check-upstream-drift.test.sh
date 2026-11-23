@@ -473,6 +473,29 @@ run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/r
 want_rc "allow list, git read checks links" 0
 want_out "allow list, git read checks links" "1 links ok"
 
+REAL_GIT=$(command -v git)
+mkdir -p "$f/gitbin"
+cat >"$f/gitbin/git" <<EOS
+#!/usr/bin/env bash
+echo "GIT_NO_LAZY_FETCH=\${GIT_NO_LAZY_FETCH:-} \$*" >>"$f/git.log"
+exec "$REAL_GIT" "\$@"
+EOS
+chmod +x "$f/gitbin/git"
+run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
+want_rc "allow list, git reads fetch each commit once at depth 1" 1
+fetches=$(grep -c ' fetch ' "$f/git.log")
+deep=$(grep ' fetch ' "$f/git.log" | grep -cv -- '--depth=1')
+if [[ "$fetches" -eq 2 && "$deep" -eq 0 ]]; then
+  pass "allow list: two depth-1 fetches, pin and HEAD"
+else
+  bad "allow list: two depth-1 fetches, pin and HEAD" "$(cat "$f/git.log")"
+fi
+if ! grep -q -e cat-file -e '^GIT_NO_LAZY_FETCH= ' "$f/git.log"; then
+  pass "allow list: no existence probe, lazy fetch off on every call"
+else
+  bad "allow list: no existence probe, lazy fetch off on every call" "$(cat "$f/git.log")"
+fi
+
 stub_api
 run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/nowhere" -- --report
 want_rc "allow list, git read fails, --report" 0

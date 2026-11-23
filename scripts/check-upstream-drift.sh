@@ -218,7 +218,7 @@ GIT_BASE="${UPSTREAM_DRIFT_GIT_BASE:-https://github.com}"
 GIT_TMP=""
 trap '[[ -z "$GIT_TMP" ]] || rm -rf "$GIT_TMP"' EXIT
 anon_git() {
-  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 timeout 300 git "$@"
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 timeout 300 git "$@"
 }
 
 anon_unreach() {
@@ -238,10 +238,14 @@ anon_repo() {
     die "git init failed: $(cat "$GIT_TMP/err")"
 }
 
+declare -A FETCHED=()
 anon_fetch() {
   anon_repo "$1" "$2"
-  anon_git -C "$ANON_REPO" cat-file -e "$3^{commit}" 2>/dev/null && return 0
-  anon_git -C "$ANON_REPO" fetch -q --no-tags --depth=1 --filter=blob:none "$GIT_BASE/$1/$2.git" "$3" 2>"$GIT_TMP/err" && return 0
+  [[ -z "${FETCHED[$1/$2@$3]:-}" ]] || return 0
+  if anon_git -C "$ANON_REPO" fetch -q --no-tags --depth=1 --filter=blob:none "$GIT_BASE/$1/$2.git" "$3" 2>"$GIT_TMP/err"; then
+    FETCHED[$1/$2@$3]=1
+    return 0
+  fi
   grep -q 'not our ref' "$GIT_TMP/err" && return 1
   anon_unreach "$GIT_TMP/err"
   return 5

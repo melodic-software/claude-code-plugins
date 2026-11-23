@@ -470,7 +470,7 @@ indented or quoted one), an `under` scope absent at the pin, or a tree path hold
 character exits 2 with nothing on stdout: an unread tree is never a clean
 report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). When an owner's IP
 allow list refuses the token, that owner's repositories are read anonymously over git (`ls-remote`
-for HEAD, a blobless depth-1 fetch and `ls-tree` for each commit), not anonymous REST, whose
+for HEAD, one blobless depth-1 fetch per commit with lazy fetching off, and `ls-tree`), not anonymous REST, whose
 per-address limit a hosted runner's shared address may already have spent. A page with any read
 (pin, HEAD or tree) still failing is named on stderr with git's error and listed as
 `status=unreachable` with `head=unknown`, the other pages are still read, and every mode but
