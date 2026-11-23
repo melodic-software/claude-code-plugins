@@ -62,16 +62,17 @@ Claude Code itself has no `--profile` flag; the function adds it:
   without checking plugin prerequisites again; `start --resume <id> --unattended` checks them
   and refuses where an unattended start would.
 - `claude -c` reaches Claude Code unchanged, so it continues the same conversation it always
-  would. When that conversation ran in a profile, its start notice prints the
-  `claude --resume <id>` that reopens it there. The tool cannot tell which conversation
-  `-c` picks, so it never guesses.
+  would, in the profile the folder's last session started in, from a per-folder record the
+  session-start hook writes for every session. Claude Code still picks the conversation; when it
+  picks one whose recorded profile differs, or one with none, its start notice says so and
+  prints the `claude --resume <id>` that restores the profile it now runs in.
 - `claude --resume <id>` with `--profile-add <plugin>` reopens that conversation in its profile
   with an installed plugin the profile switched off, and its dependencies, on for that
   conversation only.
   It takes a plugin id, a plugin name, `plugin:skill` or a skill name; an ambiguous one is refused
   with its candidates, and one that is not installed with its `claude plugin install` line. A later
-  `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions and
-  handoffs start without it. In a one-session profile the session-start hook tells the model this
+  `claude --resume <id>` of that conversation keeps the plugin; `claude -c` (in the profile alone),
+  new sessions and handoffs start without it. In a one-session profile the session-start hook tells the model this
   line, again after compaction, so a pointer to an off plugin leads to the offer.
 - Everything else `claude` does is unchanged.
 

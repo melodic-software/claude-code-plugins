@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1859,6 +1859,99 @@ test("#16914: -c passes through unchanged, so it continues the conversation plai
   assert.deepEqual(given.argv, ["claude", "--settings", given.file, "-c"]);
 });
 
+const byFolderDir = (w) => join(w.home, ".claude", "plugins", "data", "plugin-profiles-inline", "sessions", "by-folder");
+const folderRecordOf = (w) => JSON.parse(readFileSync(join(byFolderDir(w), `${createHash("sha256").update(realpathSync(w.project)).digest("hex")}.json`), "utf8"));
+
+test("#18319 AC6: -c after a profiled session starts in that profile with the exact line; after an unprofiled one it starts plain", () => {
+  const w = world();
+  const file = sessionInBuild(w, "abc-1");
+  const rec = folderRecordOf(w);
+  assert.deepEqual({ ...rec, at: undefined }, { sessionId: "abc-1", profile: "build", at: undefined }, "the record sits under sha256 of the folder's real path");
+  assert.ok(!Number.isNaN(Date.parse(rec.at)));
+  const s = argsJson(w, ["-c"]);
+  assert.equal(s.profile, "build");
+  assert.deepEqual(s.argv, ["claude", "--settings", file, "-c"], "claude still picks the conversation from -c");
+  assert.match(s.stderr, /^Continuing this folder's last conversation in profile build\.$/m);
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.deepEqual(folderRecordOf(w).profile, null, "an unprofiled session is recorded too");
+  const plain = argsJson(w, ["-c"]);
+  assert.equal(plain.profile, null);
+  assert.deepEqual(plain.argv, ["claude", "-c"]);
+  assert.doesNotMatch(plain.stderr, /Continuing this folder's last conversation in profile/);
+  assert.equal(readdirSync(byFolderDir(w)).length, 1, "one record per folder");
+});
+
+test("#18319 AC6: a named --profile wins over the folder's last profile for -c", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const given = argsJson(w, ["-c", "--profile", "review"]);
+  assert.equal(given.profile, "review");
+  assert.deepEqual(given.argv, ["claude", "--settings", given.file, "-c"]);
+  assert.doesNotMatch(given.stderr, /Continuing this folder's last conversation/);
+  assert.equal(startJson(w, ["review", "-c"]).profile, "review", "as start's first word too");
+});
+
+test("#18319 AC6 D10: -c after an exception session starts in its profile with the profile-only file, without the added plugins", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(exception, "utf8")).env);
+  const s = argsJson(w, ["-c"]);
+  assert.deepEqual(s.argv, ["claude", "--settings", recorded, "-c"]);
+  assert.deepEqual(s.added, []);
+  const started = reopen(w, ["-c"]);
+  assert.equal(started.file, recorded);
+  assert.equal(pluginsIn(started.file)[SONG], false, "build keeps songwriting off");
+  assert.ok(existsSync(exception), "the exception file stays with its conversation");
+});
+
+test("#18319 AC6: a resumed session's start notice names a profile change both ways: from another recorded profile, and from none", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const reviewEnv = JSON.parse(readFileSync(launchJson(w, ["review"]).file, "utf8")).env;
+  assert.match(hookStart(w, { session_id: "abc-1", source: "resume" }, reviewEnv), /^This session ran in profile build and now runs in review, so a later claude --resume abc-1 restores review\.$/m);
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.match(hookStart(w, { session_id: "plain-2", source: "resume" }, reviewEnv), /^This session ran without a profile and now runs in review, so a later claude --resume plain-2 restores review\.$/m);
+  assert.doesNotMatch(hookStart(w, { session_id: "plain-2", source: "resume" }, reviewEnv), /now runs in/, "once recorded in review, the same profile says nothing");
+  assert.doesNotMatch(hookStart(w, { session_id: "new-3", source: "startup" }, reviewEnv), /now runs in/, "a fresh start says nothing");
+});
+
+test("#18319: -c starts plain once the folder's last session was resumed without its profile", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const elsewhere = join(w.root, "elsewhere");
+  mkdirSync(elsewhere);
+  hookStart(w, { session_id: "abc-1", source: "resume" }, { CLAUDE_PROJECT_DIR: elsewhere });
+  assert.equal(argsJson(w, ["-c"]).profile, null);
+});
+
+test("#18319 AC6: a folder reached through a symbolic link finds the same per-folder record", { skip: process.platform === "win32" }, () => {
+  const w = world();
+  const link = join(w.root, "link");
+  symlinkSync(w.project, link, "dir");
+  installOnDisk(w);
+  const file = launchJson(w, ["build"]).file;
+  hookStart(w, { session_id: "abc-1", source: "startup" }, { ...JSON.parse(readFileSync(file, "utf8")).env, CLAUDE_PROJECT_DIR: link });
+  assert.equal(argsJson(w, ["-c"]).profile, "build", "recorded through the link, found from the real path");
+  hookStart(w, { session_id: "plain-2", source: "startup" });
+  assert.equal(argsJson(w, ["-c"], { CLAUDE_PROJECT_DIR: link }).profile, null, "recorded from the real path, found through the link");
+  assert.equal(readdirSync(byFolderDir(w)).length, 1);
+});
+
+test("#18319: a session start sweeps per-folder records no session has written for 30 days", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const [name] = readdirSync(byFolderDir(w));
+  const stale = join(byFolderDir(w), name);
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  utimesSync(stale, old, old);
+  const elsewhere = join(w.root, "elsewhere");
+  mkdirSync(elsewhere);
+  hookStart(w, { session_id: "other-2", source: "startup" }, { CLAUDE_PROJECT_DIR: elsewhere });
+  assert.equal(existsSync(stale), false);
+  assert.equal(readdirSync(byFolderDir(w)).length, 1, "the new folder's record stays");
+});
+
 test("#16893 launch sweeps session records no session has written for 30 days", () => {
   const w = world();
   sessionInBuild(w, "abc-1");
@@ -2006,14 +2099,14 @@ test("#16893 start --claude-args with no profile and no resume runs claude with 
   assert.deepEqual(started.argv, ["--model", "opus", "a b"]);
 });
 
-test("#16893 start --claude-args resumes --resume in the profile the session ran in and passes -c through", () => {
+test("#16893 start --claude-args resumes --resume in the profile the session ran in, and #18319 -c in the folder's last profile", () => {
   const w = world();
   const file = sessionInBuild(w, "abc-1");
   const resumed = argsJson(w, ["--resume", "abc-1", "--model", "opus"]);
   assert.equal(resumed.profile, "build");
   assert.deepEqual(resumed.argv, ["claude", "--settings", file, "--resume", "abc-1", "--model", "opus"]);
   const continued = argsJson(w, ["-c"]);
-  assert.deepEqual(continued.argv, ["claude", "-c"]);
+  assert.deepEqual(continued.argv, ["claude", "--settings", file, "-c"]);
   assert.equal(argsJson(w, ["--resume", "abc-1", "--profile", "review"]).profile, "review", "a given profile wins");
 });
 
@@ -3895,7 +3988,7 @@ test("#18314 D10: the exception stays with its conversation: a later resume keep
   const fresh = startJson(w, ["build"]);
   assert.equal(fresh.file, recorded);
   assert.deepEqual(fresh.added, []);
-  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "-c"]);
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "--settings", recorded, "-c"], "-c starts in the profile without the exception");
   const launched = launchJson(w, [], env);
   assert.equal(launched.file, recorded, "launch from the exception session writes the profile's own file");
   assert.equal(launched.enabledPlugins[SONG], false);

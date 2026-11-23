@@ -227,6 +227,12 @@ const RESUME_LINE = "A resumed session does not keep --settings; resume it with:
 const SESSION_ID = /^[A-Za-z0-9-]+$/;
 const validId = (id) => typeof id === "string" && SESSION_ID.test(id);
 const byIdDir = (dataDir) => join(dataDir, "sessions", "by-id");
+const byFolderDir = (dataDir) => join(dataDir, "sessions", "by-folder");
+/** A folder's record of its last session, keyed by its real path; Windows drive letters are lowercased, since C: and c: name one folder. */
+const byFolderFile = (dataDir, folder) => {
+  const key = process.platform === "win32" ? realPath(folder).replace(/^[A-Z]:/, (drive) => drive.toLowerCase()) : realPath(folder);
+  return join(byFolderDir(dataDir), `${createHash("sha256").update(key).digest("hex")}.json`);
+};
 const readJson = (path) => {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -808,6 +814,17 @@ function oneSessionProfileOf(where, id) {
   return rec && !rec.plainSince ? rec.profile : null;
 }
 
+/** The profile the folder's last session started in, from any copy's data folder, unless that session was resumed without it since. */
+function folderSessionProfile(where) {
+  const rec = [where.dataDir, ...otherDataDirs(where)]
+    .map((dir) => readJson(byFolderFile(dir, where.projectDir)))
+    .filter((r) => typeof r?.at === "string")
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  if (!rec?.profile) return null;
+  const byId = validId(rec.sessionId) ? sessionRecord(where, rec.sessionId) : null;
+  return byId?.plainSince && byId.plainSince >= rec.at ? null : rec.profile;
+}
+
 /** The first resume or continue flag among claude's arguments: resume with an id, the resume picker, or continue. */
 function resumeOf(args) {
   for (let i = 0; i < args.length; i++) {
@@ -921,7 +938,12 @@ function resumePlan(args, given, where) {
   const res = resumeOf(args);
   const plan = { args, name: given, reuse: null, folder: null, line: null, res, added: [] };
   if (res?.kind === "pick" && !given) plan.line = "Pick the session; if it ran in a profile, its start notice gives the command that resumes it there.";
-  if (res?.kind === "continue" && !given) plan.line = "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+  if (res?.kind === "continue" && !given) {
+    plan.name = folderSessionProfile(where);
+    plan.line = plan.name
+      ? `Continuing this folder's last conversation in profile ${plan.name}.`
+      : "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+  }
   if (res?.kind !== "resume") return plan;
   const rec = validId(res.id) ? sessionRecord(where, res.id) : null;
   if (!rec) {
@@ -1157,21 +1179,30 @@ function hookInput(io) {
   return doc && typeof doc === "object" ? doc : {};
 }
 
-/** Records the profile this session runs in under its id, or for a session resumed without one, the line naming the profile it ran in. */
+/**
+ * Records this session as the folder's last, with its profile or none, and the profile it runs in under its id; returns the line
+ * for a resumed session whose profile changed: to another, to one from none, or to none.
+ */
 function sessionStartRecord(where, env, input) {
   if (doesNotApply(where.surface) || !validId(input.session_id)) return null;
   const name = sessionProfile(env);
-  if (name && env[SESSION_FILE_VAR]) {
+  const profiled = Boolean(name && env[SESSION_FILE_VAR]);
+  const at = new Date().toISOString();
+  const folderFile = byFolderFile(where.dataDir, where.projectDir);
+  replaceFile(folderFile, `${JSON.stringify({ sessionId: input.session_id, profile: profiled ? name : null, at }, null, 2)}\n`);
+  sweepSessions(where, folderFile, byFolderDir(where.dataDir));
+  if (profiled) {
     const before = input.source === "resume" ? sessionRecord(where, input.session_id) : null;
     const added = addedIn(env[SESSION_FILE_VAR]);
-    const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at: new Date().toISOString(), ...(added.length ? { added } : {}) };
+    const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at, ...(added.length ? { added } : {}) };
     replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify(rec, null, 2)}\n`);
-    return before && before.profile !== name
-      ? `This session ran in profile ${before.profile} and now runs in ${name}, so a later claude --resume ${input.session_id} restores ${name}.`
-      : null;
+    if (input.source !== "resume") return null;
+    const ran = before && !before.plainSince ? before.profile : null;
+    if (ran === name) return null;
+    return `This session ran ${ran ? `in profile ${ran}` : "without a profile"} and now runs in ${name}, so a later claude --resume ${input.session_id} restores ${name}.`;
   }
   const rec = !name && input.source === "resume" ? sessionRecord(where, input.session_id) : null;
-  if (rec && !rec.plainSince) replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify({ ...rec, plainSince: new Date().toISOString() }, null, 2)}\n`);
+  if (rec && !rec.plainSince) replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify({ ...rec, plainSince: at }, null, 2)}\n`);
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
