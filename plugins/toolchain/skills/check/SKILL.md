@@ -188,7 +188,7 @@ The plugin's Stop hook reads it when the turn ends and warns when the line is no
 ## Next
 
 - Overall `PASS`: /verification:confirm before committing.
-- Overall `FAIL`: /testing:diagnose.
+- Overall `FAIL`: /testing:fix-failing.
 
 ## Gotchas (cross-ecosystem)
 

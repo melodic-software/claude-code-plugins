@@ -10,7 +10,7 @@
       "why": "another developer-experience skill is outside this check"
     },
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "testing:diagnose"}}],
+      "answer": [{"tool": "Skill", "input": {"skill": "testing:fix-failing"}}],
       "why": "another plugin's skill"
     }
   ],

@@ -193,7 +193,7 @@ Under `--exercised`, run them in the order [The exercised scope](#the-exercised-
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.
 - **Baseline suite red** → stop and report the failure. A red suite kills every mutant and reports a
-  perfect score. Invoke `/testing:diagnose` via the Skill tool when the `testing` plugin is enabled; otherwise diagnose
+  perfect score. Invoke `/testing:fix-failing` via the Skill tool when the `testing` plugin is enabled; otherwise diagnose
   with the project's own test command before returning here.
 
 Record the baseline run's result and wall-clock. Every later "killed" verdict is meaningful only

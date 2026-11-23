@@ -27,7 +27,7 @@ Unless this section says otherwise, treat a failure (not a repository, git unava
 
 Implementation is where plans become code. This skill structures the execution phase so changes are made incrementally, validated continuously, and abandoned early when the approach isn't working, rather than pushing through a broken implementation and discovering problems at PR time.
 
-It sits between planning and verification: exploration and external research provide understanding, a planning pass produces an approved plan, this skill executes it with discipline, and the companion skills in the `testing` and `verification` plugins (`/testing:plan`, `/testing:write`, `/testing:diagnose`, `/verification:confirm`) validate the result when those plugins are enabled.
+It sits between planning and verification: exploration and external research provide understanding, a planning pass produces an approved plan, this skill executes it with discipline, and the companion skills in the `testing` and `verification` plugins (`/testing:plan`, `/testing:write`, `/testing:fix-failing`, `/verification:confirm`) validate the result when those plugins are enabled.
 
 **Philosophy**: cost of a mid-implementation replan is minutes; cost of discovering a flawed approach at PR review is hours. Validate incrementally, commit at checkpoints, and route back to planning the moment something feels wrong.
 
