@@ -359,7 +359,7 @@ prints when a reader needs the rows behind a count.
 This section is read-only and sets no target. State no share, ratio or count a tier should reach,
 and do not call a tier too high or too low: the ladder's proportion is a direction with no number.
 The "Sits lower than it could" entries are candidates for a person to judge, not verdicts. One that
-looks worth moving up goes to `/corrections:codify` (if enabled) when the `corrections` plugin is enabled, and
+looks worth moving up goes to `/corrections:codify` (if enabled), and
 is otherwise named for the human; this audit adds none of them to its candidate list. A rule held
 by a mechanism no file shows, such as a type that makes the mistake impossible, is counted only
 when the repository declares it under `rule_inventory.declared` in its `harness-config.yaml`

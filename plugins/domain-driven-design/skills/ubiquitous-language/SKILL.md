@@ -84,7 +84,7 @@ is `prune`; anything else asks which action.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.
 - **No ADR ownership.** Why the system is built a certain way, a decision chosen over a weighed
-  alternative, is `/architecture:adr` (if enabled)'s; this skill records only what a term means.
+  alternative, belongs to `/architecture:adr` (if enabled); this skill records only what a term means.
 - **No speculative scaffolding.** An empty glossary or index is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write; `seed` writes only
   items the person accepted, an accept-all reply to the list shown included, and `prune` removes or

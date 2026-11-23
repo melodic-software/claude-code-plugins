@@ -147,8 +147,7 @@ configure (conventions at the path), or nothing to do.
    from the user's answers only; nothing under `~/.config` outside that folder is written. Done
    when the user has said yes to the shown file, or declined it.
 2. Find which coding agents are installed here and, from each agent's official docs fetched now,
-   where its personal instructions file lives. Research through `/discovery:research` (if enabled) when the
-   discovery plugin is enabled; otherwise research in-session from official docs first, label
+   where its personal instructions file lives. Research through `/discovery:research` (if enabled); otherwise research in-session from official docs first, label
    the basis, say discovery is not enabled and print `claude plugin enable discovery@<marketplace>`,
    preceded by `claude plugin install discovery@<marketplace>` when it is not installed.
    Done when each installed agent has a file path with its source URL, or is reported unresolved.

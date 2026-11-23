@@ -167,7 +167,7 @@ method:
 - `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
 - `code-tidying:audit-dead-code`. Unused exports, functions and files for the first shape of the
   disconnected-capability scan (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/disconnected.md`); without it, that recipe greps.
-- `/code-metrics:audit-duplication` (if enabled), when it is among the available skills. Copy count and clone
+- `/code-metrics:audit-duplication` (if enabled). Copy count and clone
   trend for the code dimension: run it with `--json --keep --all` and read the document it prints
   (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
   its number of instances; code-metrics computes `trend`, including the lists of new and grown
@@ -216,7 +216,7 @@ reader knows what the ranking could not see.
    output, with the candidate's evidence citation attached. A pick that fits one small PR may
    instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
    target, plus `--repo <owner/name>` when the candidate came from another repository.
-5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` (if enabled) when enabled; the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
+5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` (if enabled); the user decides which, if any. Each one filed carries the `source: improvement-find` label (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Source label", including what to do when the label is missing).
 
 Where a named pipeline skill is not enabled in the consuming project, summarize the equivalent
 handoff shape inline instead of blocking, but absence of a pipeline skill is never license to

@@ -178,7 +178,7 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
 each pushed commit, for commits that check never judged). `reference-verify` (CLI flags,
 `/plugin:skill` references and deleted repository paths) is not an entry: over the 3 s push
-budget, it runs in `/source-control:pull-request` (if enabled)'s pre-PR check and in CI. `verify` no longer
+budget, it runs in the pre-PR check of `/source-control:pull-request` (if enabled) and in CI. `verify` no longer
 lists a copy an earlier release installed, so look for one and, on the user's yes, remove it
 with your edit tools: the `pre-push.d/guardrails.reference-verify` marker and the
 `guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local plain

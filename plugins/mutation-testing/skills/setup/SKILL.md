@@ -197,8 +197,8 @@ unambiguous; ask only where the answer is genuinely the user's.
    any later question, name the detected test runner and what it supports, so the user can stop
    here; read its kind from the audit skill's
    [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
-   forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup` (if enabled)'s
-   mutation gate, which runs through it. A name-filter-only runner, or one whose kind that section
+   forms". A path-list runner or `dotnet test` supports `audit --exercised` and the mutation gate of
+   `/testing:cleanup` (if enabled), which runs through it. A name-filter-only runner, or one whose kind that section
    leaves unknown, supports neither: `audit --exercised` refuses
    unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
    need a path-list `test-command`, so it can offer only its cannot-fail-only mode. The diff,

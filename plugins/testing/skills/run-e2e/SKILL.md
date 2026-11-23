@@ -145,7 +145,7 @@ nothing to drive: Steps 3 and 4 launch and refresh nothing, and the report says 
 A feature's id is its index path without `features/` and the trailing `/README.md`, or `.md` for a
 legacy flat file: `features/billing/export/README.md` gives `billing/export`, and
 `features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, on either
-route, its file resolved in `/app-control:drive` (if enabled)'s order: `features/<id>/README.md` when it exists,
+route, its file resolved in the order `/app-control:drive` (if enabled) uses: `features/<id>/README.md` when it exists,
 and then never open the legacy `features/<id>.md`; only without that README, the legacy file.
 
 ### Expected outcome
@@ -287,7 +287,7 @@ fails no entry point: the summary records why, and the run does not fail for it.
 captures joins. Raw captures and every path in a `secrets_mark` list never join.
 
 `e2e-summary.json` joins last. Write it without its own path in `publishable`, then scan the text
-it would hold with that path appended, using the sources `/app-control:drive` (if enabled)'s "Mask post-check"
+it would hold with that path appended, using the sources the "Mask post-check" of `/app-control:drive` (if enabled)
 uses, applied the way it applies them: the values the `values:` line of the Mask in effect
 resolves to, held in memory and never written to any file, and the generic credential pattern. The
 hub is the file `affected.json`'s `control_skill` names on the drive route, and the hub Step 2 reads

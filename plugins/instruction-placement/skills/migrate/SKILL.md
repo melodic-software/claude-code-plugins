@@ -47,7 +47,7 @@ during `plan` or `apply`, however unnecessary it looks.
 [invocation-mode rubric](../../../../docs/contracts/invocation-mode/README.md) fits: this is not a
 `setup` skill (class ii), not maintainer-only (class iii), and not class (i) either, since the human
 already decides every write at the gate below rather than deciding the *timing* of an unattended
-mutation. It is also a chain target: `/harness-memory:audit` (if enabled)'s N1 fix route and this plugin's own
+mutation. It is also a chain target: the N1 fix route of `/harness-memory:audit` (if enabled) and this plugin's own
 `setup` remediation both point a repository here, and the invocation-reach invariant makes a `true`
 skill unreachable from another skill.
 
@@ -411,8 +411,8 @@ One native Claude Code surface works on the same file, and the two are easy to c
 - **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that reads `AGENTS.md` as
   project instructions, under its **Project instructions** (`instructionFiles`) option. It moves
   no file and writes no shim. Whether this build registers it, requires it in this session type,
-  and gates it is read at run time from `/harness-ops:inventory` (if enabled)'s `builtin_plugins` lane when the
-  `harness-ops` plugin is enabled, never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
+  and gates it is read at run time from the `builtin_plugins` lane of `/harness-ops:inventory` (if enabled),
+  never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
   - **Pointer**: for the plugin's settings IDs and the option's values, fetch
     [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
     live; the IDs are in the paragraphs after its table.

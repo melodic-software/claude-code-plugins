@@ -120,8 +120,7 @@ next step. Apply the contract in
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
 ground the affected code and its consumers or blast radius through
 `/discovery:explore` (if enabled), and the authoritative sources the contract names
-through `/discovery:research` (if enabled),
-when the `discovery` plugin is enabled; without it, do the same reads and
+through `/discovery:research` (if enabled); without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:
 `Basis: verified`, `Basis: judgment` (never on a consequential one), or

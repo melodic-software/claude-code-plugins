@@ -60,7 +60,7 @@ sections:
 [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source)).
 Ladder:
 
-1. The skills index from `/harness-ops:inventory` (if enabled), if that plugin is enabled: invoke it via the
+1. The skills index from `/harness-ops:inventory` (if enabled): invoke it via the
    Skill tool, asking for its Skills index (`--skills-index`) on stdout, with `--exclude` only
    when the exclude setting below names states. It
    prints one JSON record per skill from its frontmatter, `enabled`, `disabled` and

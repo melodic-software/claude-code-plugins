@@ -290,7 +290,7 @@ batch-level approval: every yes-gated item in it already had the user's answer, 
 is local. Report the commit's SHA and how to undo it (while it is the branch's latest commit,
 `git reset --soft HEAD~1` drops it and keeps its changes staged; later, `git revert <sha>`),
 then delete `before.tsv` and `after.tsv`. Push and open the pull request only when the user
-asks, through `/source-control:pull-request` (if enabled) when that plugin is enabled. Unattended runs stop
+asks, through `/source-control:pull-request` (if enabled). Unattended runs stop
 before the commit.
 
 ## Cannot-fail-only mode

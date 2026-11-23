@@ -51,7 +51,7 @@ re-captures it, and never edits a capture harness or the app's styles to make a 
    each drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory,
    and record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a
    capability gap, or writes no PNG, fall through to the next choice. Otherwise capture only
-   through the Playwright CLI (`/playwright:playwright` (if enabled), when it is among the available skills) or
+   through the Playwright CLI (`/playwright:playwright` (if enabled)) or
    through the repository's own harness when that harness writes PNG files. Any other driver,
    including one that returns screenshots only into the conversation, cannot feed a pixel count:
    stop with the gap report (what to hold, which driver resolved, and that a PNG-writing driver is

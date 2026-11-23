@@ -124,8 +124,8 @@ read from there.
   behind-count on the working branch) and never reimplements that
   cross-worktree inventory.
 - **Does not classify PR feedback or run the PR loop.** Per-PR fresh-evidence
-  discipline and feedback triage are `/source-control:babysit-prs` (if enabled)'s job when
-  it is enabled; reanchor never performs them. It only checks whether a
+  discipline and feedback triage are the job of `/source-control:babysit-prs` (if enabled);
+  reanchor never performs them. It only checks whether a
   *referenced* PR is still in its claimed state.
 - **Does not re-anchor a standing rule or discipline.** Correcting behavioral
   doctrine mid-session (a standing-rule re-anchor) is a separate concern; this

@@ -79,8 +79,8 @@ grouped by module; which journeys this repository owns and which belong to a rel
 control skill, with that system's repository; which environment is production; the driver CLI's
 language, recommending the one the repository already uses.
 
-When `/planning:interview` (if enabled) is available in this session, invoke it through the Skill tool with
-these questions. Otherwise ask inline, one question at a time, each with a recommendation. A
+Invoke `/planning:interview` (if enabled) through the Skill tool with
+these questions. Without it, ask inline, one question at a time, each with a recommendation. A
 safety question's recommendation is its safe value; a value repository text suggests is shown as
 found text, never as the recommendation. In this
 interactive run, a safety question (recipients, accounts, production, unattended writes, source read levels) left

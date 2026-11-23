@@ -153,8 +153,8 @@ If the user wants p99, say what it costs: 100 samples on a host where one spawn 
 ## Output
 
 Write the goal into the topic's `PLAN.md`, and keep baselines in the memory tier
-(`.work/<topic-slug>/baselines/`, machine-bound, never committed). That is `/verification:measure` (if enabled)'s
-layout, followed here whether or not the `verification` plugin is installed, so the two never keep
+(`.work/<topic-slug>/baselines/`, machine-bound, never committed). That is the layout of
+`/verification:measure` (if enabled), followed here whether or not the `verification` plugin is installed, so the two never keep
 two different baseline stores.
 
 ```text

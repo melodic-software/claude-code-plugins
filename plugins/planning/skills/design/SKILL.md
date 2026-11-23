@@ -170,7 +170,7 @@ Open these threads when their trigger holds:
 - **Test-seam posture**: any feature with a testable surface. Sketch where its tests will attach;
   reuse an existing seam before adding one, put any new seam as high in the stack as it can go, and
   aim for the fewest seams that cover the surface. The change→test-type mapping lives in
-  `/testing:plan` (if enabled)'s classification table; cite it when the `testing` plugin is enabled, otherwise
+  the classification table of `/testing:plan` (if enabled); cite it, or without that plugin
   apply standard test-design judgment. The sketch is input, not the decision: `/planning:plan`'s
   Test strategy names the test boundaries from it and its Step 5 approval settles them; a seam the
   design needs as a contract still goes in Contracts.
@@ -413,7 +413,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Inline prose otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its
   consumers and in external research that reads official docs first, routed to
-  `/discovery:explore` (if enabled) and `/discovery:research` (if enabled) if enabled. A recommendation that changes is
+  `/discovery:explore` (if enabled) and `/discovery:research` (if enabled). A recommendation that changes is
   restated as old → new → why. Contract:
   [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
 - **Self-answer before asking.** Each candidate question first passes
@@ -456,7 +456,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Code writing**: the implementation stage
 - **External research**: the research capability; this skill synthesizes its results
 - **Diagram craft**: this skill selects the dialect; layout and idiom route to
-  `/visualization:visualize` (if enabled) if enabled, else the plainest correct form is emitted
+  `/visualization:visualize` (if enabled), else the plainest correct form is emitted
 - **UI/UX design**: user research, flows and information architecture are
   `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if enabled)
 - **Domain event workshops**: an EventStorming-style capability; this skill may suggest it within

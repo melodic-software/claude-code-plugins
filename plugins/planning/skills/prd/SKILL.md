@@ -193,8 +193,8 @@ Optionally offer a self-contained HTML pitch view of the finalized PRD for non-e
 After writing the PRD, recommend the next step by remaining ambiguity:
 
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → `/planning:interview` in this session (it reads the topic's `PRD.md` as scope)
-- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` (if enabled) if enabled, otherwise the environment's codebase-exploration capability
-- **Need external research (libs, APIs, comparables)** → `/discovery:research` (if enabled) if enabled, otherwise the strongest research capability available
+- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` (if enabled), otherwise the environment's codebase-exploration capability
+- **Need external research (libs, APIs, comparables)** → `/discovery:research` (if enabled), otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
 - **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready` (if enabled), one tracker item carrying the PRD's acceptance criteria
 - **An open question waits on a stakeholder** → also `/planning:interview document <topic>`, the interview's document surface, which turns it into a document that person fills in; it runs beside the next step, not in place of it

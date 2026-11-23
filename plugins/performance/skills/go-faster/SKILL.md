@@ -150,7 +150,7 @@ conditions differ.
 - **Edits no repository file or setting.** It writes only its own data folder, through findings.py.
 - **Applies no fix.** A `later` finding goes to its owner; a `now` finding changes only how this
   session works, and only after a yes.
-- **Never removes or weakens a check.** That is `/overengineering:audit` (if enabled)'s to judge.
+- **Never removes or weakens a check.** Judging that belongs to `/overengineering:audit` (if enabled).
 - **Does not root-cause a failure.** A specific broken behavior is a debugging task.
 
 ## Next

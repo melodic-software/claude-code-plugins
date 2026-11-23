@@ -159,15 +159,13 @@ The table follows the Before text from its first word to its last:
   set is a fallback, and the output states which one was applied.
 - **Does not audit existing prose.** Structure and derivability belong to the `docs-hygiene` audit
   siblings; AI-writing tells belong to `ai-slop:audit`. This skill fires at the writing moment only.
-  Reshaping existing prose so a scanning reader gets the point is `/writing:be-concise` (if enabled) when the
-  `writing` plugin is enabled; without it, say the draft already exists and offer a re-read
+  Reshaping existing prose so a scanning reader gets the point is `/writing:be-concise` (if enabled); without it, say the draft already exists and offer a re-read
   against the standard you resolved, not a rewrite.
 - **Does not write agent-consumed markdown**. CLAUDE.md or AGENTS.md content, rules files, and
   agent-loaded reference docs are `docs-hygiene:write-for-agents`.
 - **Does not touch commit messages or PR bodies.** `source-control:commit`'s subject-convention
   ladder and the marketplace's PR-body-sections convention own their shape, and the markdown-prose
-  regime already excludes them. The wording inside a PR body is `/writing:be-concise` (if enabled) when the
-  `writing` plugin is enabled; without it, keep the required shape and leave the wording to the
+  regime already excludes them. The wording inside a PR body is `/writing:be-concise` (if enabled); without it, keep the required shape and leave the wording to the
   author. AI-writing tells in a commit message or PR body are `/ai-slop:audit commit` (if enabled) and
   `/ai-slop:audit pr-body` (if enabled).
 - **Does not cover product UI strings.** Button labels, empty states, and error toasts are product

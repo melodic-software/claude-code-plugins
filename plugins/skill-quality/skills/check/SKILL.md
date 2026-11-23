@@ -138,7 +138,7 @@ and `/evals:validate` (if enabled) checks them. Point an author adding evals the
 lists the skill's directory name in a one-line `tags: [...]`.
 
 1. Locate `<skills-root>/<skill-name>/evals/evals.json`. If absent, report that the skill ships no
-   skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate` (if enabled)'s.
+   skill-creator file (not a failure) and that its suite cases, if any, belong to `/evals:validate` (if enabled).
 2. Read the bundled schema at
    [`${CLAUDE_PLUGIN_ROOT}/reference/evals.schema.json`](../../reference/evals.schema.json) and the
    skill's `evals.json`.

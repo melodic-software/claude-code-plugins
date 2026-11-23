@@ -96,8 +96,7 @@ is never read, and `attended` only with the user present. When an environment ha
 Otherwise, or when drive reports no control skill, read the surfaces from the
 project's manifests and launch config. Stack specifics, such as where a framework writes its log or
 how it chooses a port, come from the repository's own config, rules and instructions; where those
-are silent, research them at run time with `/discovery:research` (if enabled) when the `discovery` plugin is
-enabled.
+are silent, research them at run time with `/discovery:research` (if enabled).
 
 Every log, console or network capture, queue or dead-letter record, drive report, deployment or
 workflow-run record, conversation transcript, chat or call note, and ticket or issue this skill
@@ -170,7 +169,7 @@ below; each failing one has its own remedies.
 | One verdict | the same code gives the same verdict on every run; a loop that flips between runs tells you almost nothing | stub the network, give each run a fresh directory, seed the random generator, freeze the clock |
 | Precision | it goes red on the reported symptom and on nothing else | assert on the 502 from the upload call itself, not on "the script exited non-zero" |
 
-The rule: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in. How this stack fakes a clock, seeds randomness or blocks the network comes from the repository's own test setup and rules; where those are silent, research it at run time with `/discovery:research` (if enabled) when the `discovery` plugin is enabled.
+The rule: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in. How this stack fakes a clock, seeds randomness or blocks the network comes from the repository's own test setup and rules; where those are silent, research it at run time with `/discovery:research` (if enabled).
 
 ### Intermittent failures
 
@@ -275,7 +274,7 @@ thing**, so any change in the verdict has one explanation.
 | Timer, benchmark, profiler or query plan | the report is "thumbnails got slow", not a wrong result | the first number is the baseline; bisect commits, inputs or code paths against it, and edit code only once the slow one is found |
 | Log everything, then search the output | never | the volume hides the line you need |
 
-Write each probe through the logger the code already uses, never an output API the project bans, and give it the session marker. Which logger, which APIs are banned, and which timing tools (benchmark harness, query-plan reader, profiler) fit this stack come from the repository's own rules, analyzers, config and existing code; where those are silent, research the stack at run time with `/discovery:research` (if enabled) when the `discovery` plugin is enabled.
+Write each probe through the logger the code already uses, never an output API the project bans, and give it the session marker. Which logger, which APIs are banned, and which timing tools (benchmark harness, query-plan reader, profiler) fit this stack come from the repository's own rules, analyzers, config and existing code; where those are silent, research the stack at run time with `/discovery:research` (if enabled).
 
 **A probe that writes a profile.** When an instrument step produces a CPU profile, heap snapshot or trace, read it with `/debugging:analyze-profile` and test its file:line finding against the Phase 3 prediction it was meant to check.
 
@@ -365,7 +364,7 @@ The run is not done until every line below holds. They fall into three groups.
   out of the fix commit, because a signal left on in production needs its own review for cost and
   noise; a Phase 4 probe kept as that signal loses its tag and goes through the same review.
   Design guidance for observability by default, built in as code is written, is owned by
-  `/implementation:implement` (if enabled) when the `implementation` plugin is enabled.
+  `/implementation:implement` (if enabled).
   Whether to propose is the `always_on_signal` key of `<home>/debugging.yaml` under the git toplevel. Run
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and follow its exit code; never
   parse the instruction file yourself. Exit 0 prints `<home>`; exit 1 (no pointer) means
@@ -390,7 +389,7 @@ reach the bug), write a recommendation:
 - File it with your issue tracker as an architectural finding
 - If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 
-If the answer is a check (a lint or analyzer rule, a test, a hook) that would have caught the mistake deterministically, name its owner instead of leaving it as a note. A repo or policy mistake (a banned API, a wrong file location, a review-standard violation) goes to `/corrections:codify "<the mistake>"` (if enabled) when the `corrections` plugin is enabled, which counts the mistake and proposes a check proven against the old code. A mistake in how the agent worked during the session goes to `/session-flow:retro` (if enabled) when the `session-flow` plugin is enabled, which decides when a check is worth proposing. Otherwise, file it with your issue tracker as its own prevention finding. Propose the check; do not build it here.
+If the answer is a check (a lint or analyzer rule, a test, a hook) that would have caught the mistake deterministically, name its owner instead of leaving it as a note. A repo or policy mistake (a banned API, a wrong file location, a review-standard violation) goes to `/corrections:codify "<the mistake>"` (if enabled), which counts the mistake and proposes a check proven against the old code. A mistake in how the agent worked during the session goes to `/session-flow:retro` (if enabled), which decides when a check is worth proposing. Otherwise, file it with your issue tracker as its own prevention finding. Propose the check; do not build it here.
 
 **Optional view.** After the post-mortem is written, offer an interactive view of it (the hypotheses with their verdicts and evidence, a tick for each the reader would re-open, a copy-out of the challenge). The page is never written beside the post-mortem, which stays the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the medium resolver decides the destination, with this plugin's `medium` option `${user_config.medium}` as its `--option`, or `""` when that reads empty or as an unsubstituted placeholder (read the value from this text; never put a `${user_config.*}` string in a shell command), and its report and notice lines are printed as they stand. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
@@ -447,5 +446,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Go back to Phase 1 and hold the loop to the exit check again
-- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` (if enabled) when the `planning` plugin is enabled (it hands off to `/planning:plan` (if enabled)), or your environment's own planning capability otherwise
+- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` (if enabled) (it hands off to `/planning:plan` (if enabled)), or your environment's own planning capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

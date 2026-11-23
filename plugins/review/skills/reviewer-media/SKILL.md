@@ -115,8 +115,8 @@ its narration step the settings from `config`: `voice_chain` as `--backend-chain
 `--voice <backend>:<voice>`, `voice_command` as `--command`, and each `scan.extra_patterns` entry as `--scan-pattern <regex>` to
 both the renderer and the narration. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
-paid voice. A narration exit that means no voice produced audio, per `/speech:narrate` (if enabled)'s exit
-list, renders captions-only and says why.
+paid voice. A narration exit that means no voice produced audio, per the exit list of
+`/speech:narrate` (if enabled), renders captions-only and says why.
 
 Each `SILENT:` line the render prints names a moment held in silence past its paragraph. Lengthen
 that moment's narration, or split it into smaller moments, still saying only what each frame

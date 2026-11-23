@@ -286,7 +286,7 @@ form, nothing in this skill changes. What differs here:
   pointer target, never a second copy. A tree read is not an identity-checked live fetch, so an
   in-estate finding never reaches `fingerprint-confirmed` and stays report-only. The contract's
   "Cross-repository signals" says which copies a mechanism owns, and whole-file duplicates across
-  repositories are `/coupling:reduce` (if enabled)'s measurement.
+  repositories are measured by `/coupling:reduce` (if enabled).
 - **Report.** One report across all repositories, merged as "Merging findings" says. Declined
   counts, stamp declines, budget telemetry and the verification line are stated per repository,
   since each reads its own config.

@@ -170,7 +170,7 @@ in this skill changes. What differs here:
 - **`fix` per repository.** The fix flow runs once per repository, with its own run directory,
   as "Writes stay per repository" says; a scratch worktree is never edited.
 - **No cross-repository signal.** This skill does not look for markdown copied between
-  repositories; that measurement is `/coupling:reduce` (if enabled)'s.
+  repositories; that measurement belongs to `/coupling:reduce` (if enabled).
 
 ### User-scope target
 

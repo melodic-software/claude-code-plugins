@@ -156,9 +156,7 @@ Recommend the next step; do not invoke it yourself:
   what `--type` takes, fetch [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options)
   live. If neither path
   applies and a work-item tracker MCP tool is available, use it.
-- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` (if enabled) when
-  enabled); when the report names the cause, go to the fix (`/implementation:implement` (if enabled) when
-  enabled). Without those, route to the project's own investigation or implementation workflow,
+- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` (if enabled)); when the report names the cause, go to the fix (`/implementation:implement` (if enabled)). Without those, route to the project's own investigation or implementation workflow,
   or scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off): done.
 

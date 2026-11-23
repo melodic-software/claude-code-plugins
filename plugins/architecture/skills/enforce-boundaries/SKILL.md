@@ -98,7 +98,7 @@ rule's candidates are, strongest first:
    refuses the violation: a reference that is not declared between projects or packages, a
    visibility rule (an internal folder, a module-private item), a package's declared exports.
 2. **The boundary or architecture-test tool the repository already uses**, as it is configured.
-3. **A maintained tool researched now**: `/discovery:research` (if enabled) when that skill is available, else
+3. **A maintained tool researched now**: `/discovery:research` (if enabled), else
    the tool's own current docs. Read its config syntax and current version from those docs, never
    from memory, and cite the page. It is a new dependency, so it is always asked.
 4. **A check in the repository's own check convention**: a script and its test beside the others.

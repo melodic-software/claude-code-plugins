@@ -121,7 +121,7 @@ level; the category ledger and the standards collector are part of that spine:
 | Effort | Step 5 review seams, research, and emitted-finding samples |
 |---|---|
 | `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. No claim is researched: every finding's `research:` stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` (if enabled) when that plugin is enabled; absent, the manual discipline in `reference/categories.md`) |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` (if enabled); absent, the manual discipline in `reference/categories.md`) |
 | `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every finding's claim and remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding

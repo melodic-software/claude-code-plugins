@@ -350,7 +350,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    | A PRD | `/planning:prd`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description |
    | A set of build items (a spec or plan) | `/planning:plan`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description, then `/work-items:decompose` (if enabled) from that plan. A map whose decisions already read as slices goes straight to `/work-items:decompose #<map-number>` (if enabled); its item source reads the map's body and comments, so it finds the decisions in the closing comment |
    | One change | `/work-items:work` (if enabled) on the item `/work-items:track add` (if enabled) files for it, its body carrying the decisions |
-   | A decision record | `/architecture:adr` (if enabled) when enabled, else the repository's ADR convention, given the decisions |
+   | A decision record | `/architecture:adr` (if enabled), else the repository's ADR convention, given the decisions |
    | A general summary | The closing comment is the summary; no further skill |
 
    The map's dossier branch, if one exists, goes through the work-items dossier-branch step, which

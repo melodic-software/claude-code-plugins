@@ -100,8 +100,8 @@ sibling divergences it owns.
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops; the author owns every treatment edit.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
   Tier 3 = likely legitimate, surfaced for awareness and carrying no treatment.
-- **Citation posture.** Skill size and description caps are `/playbooks:skill-authoring` (if enabled)'s (`## Body`,
-  `## Descriptions`); the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
+- **Citation posture.** Skill size and description caps belong to `/playbooks:skill-authoring` (if enabled), sections `## Body`
+  and `## Descriptions`; the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
   compaction re-attach budgets) are cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
   than trusted. Reserve consensus language for independently corroborated claims; label

@@ -88,9 +88,8 @@ a seeded result is an estimate of thoroughness, never a defect count. Seeding is
 - Plant hand-written faults. That is `/mutation-testing:seed-faults`.
 - Install or configure one. That is `/mutation-testing:setup`.
 - Answer general test-design questions (mocking, four pillars, classical vs London). Those belong to
-  `/tdd:principles` (if enabled) when the `tdd` plugin is enabled; without it, consult your project's own
+  `/tdd:principles` (if enabled); without it, consult your project's own
   test-design guidance.
 - Explain what a coverage, CRAP, or complexity number can and cannot say on its own. Those
-  cross-metric caveats belong to `/code-metrics:principles` (if enabled) when the `code-metrics` plugin is
-  enabled; without it, hold to the one rule this skill does own: coverage records execution,
+  cross-metric caveats belong to `/code-metrics:principles` (if enabled); without it, hold to the one rule this skill does own: coverage records execution,
   not detection, and no coverage figure substitutes for a mutation score.

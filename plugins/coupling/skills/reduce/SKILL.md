@@ -220,8 +220,8 @@ design exploration, and file the rest by invoking `/work-items:track add` (if en
 when that plugin is enabled, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
-ledger entry's `outcome`, and offer `/corrections:codify findings <file>` (if enabled) when that skill is
-available; never invoke it unasked. Close by reporting
+ledger entry's `outcome`, and offer `/corrections:codify findings <file>` (if enabled);
+never invoke it unasked. Close by reporting
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
 
@@ -275,12 +275,12 @@ is invoked via the Skill tool.
 
 | When | Then |
 |------|------|
-| Route-lane candidate needs design exploration | `/architecture:improve` (if enabled) when enabled; else summarize the candidate for a design session |
-| Deferred or route-lane items need tracking | `/work-items:track add` (if enabled) when enabled; else the repo's own tracker; else present the list |
-| Batch needs build/test verification | `/toolchain:check` (if enabled) when enabled; else the project's own commands |
-| Shipping a PR | `/source-control:pull-request create` (if enabled) when enabled; else the repo's own PR convention |
-| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` (if enabled) when enabled owns the extraction; else apply per the remediation catalog |
-| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` (if enabled) when enabled owns the sweep; else run `change` and review each row; records still stay |
+| Route-lane candidate needs design exploration | `/architecture:improve` (if enabled); else summarize the candidate for a design session |
+| Deferred or route-lane items need tracking | `/work-items:track add` (if enabled); else the repo's own tracker; else present the list |
+| Batch needs build/test verification | `/toolchain:check` (if enabled); else the project's own commands |
+| Shipping a PR | `/source-control:pull-request create` (if enabled); else the repo's own PR convention |
+| A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` (if enabled) owns the extraction; else apply per the remediation catalog |
+| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` (if enabled) owns the sweep; else run `change` and review each row; records still stay |
 
 ## Next
 

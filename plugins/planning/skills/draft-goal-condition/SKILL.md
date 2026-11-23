@@ -79,7 +79,7 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
 - **The lever is unreachable from an ordinary subagent.** We treat the `Workflow` tool as
   missing from every non-fork subagent (which tools a subagent gets:
   [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools);
-  `/discovery:research` (if enabled), if enabled, selects its workflow-backed deep tier only in the main
+  `/discovery:research` (if enabled) selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
   loop lanes' workers, for instance) cannot be the workflow row; recommend it only where the
   orchestrating context is the main thread or a fork.

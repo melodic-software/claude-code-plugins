@@ -107,7 +107,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
      `verification: skipped (<level>)` with the video reported as not independently judged for
      quality.
 9. **Post.** [reference/posting.md](reference/posting.md): verification evidence goes through
-   `/source-control:pull-request evidence` (if enabled) when it resolves. A demo a person asked for, or
+   `/source-control:pull-request evidence` (if enabled). A demo a person asked for, or
    evidence when that step does not resolve, goes locally through `gh pr comment --attach`, and in
    CI as a non-zipped Actions artifact plus a comment linking it. Pointer: when checking what
    `--attach` takes, fetch [gh pr comment: Options](https://cli.github.com/manual/gh_pr_comment#options)

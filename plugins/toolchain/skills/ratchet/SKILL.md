@@ -31,7 +31,7 @@ The counter arrives from one of five places:
 |---|---|
 | `/performance:protect` (if enabled) | a verified counter: name, command, field, and the goal with its Correlation value |
 | the ratchet offer on a counting rung's proposal from `/corrections:codify` (if enabled) | a lint rule, once it exists, whose violation count is above zero |
-| `/code-metrics:audit-suppressions` (if enabled), when that skill is available | a command that prints the suppression count |
+| `/code-metrics:audit-suppressions` (if enabled) | a command that prints the suppression count |
 | the user, from a telemetry store | a command that queries one run's count and prints it |
 | `/performance:target` (if enabled) on slow checks | a check count that grows with the repository: checks per hook stage or CI job, files a check scans, or test suites a change selects |
 

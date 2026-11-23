@@ -146,7 +146,7 @@ Otherwise take the first of these that resolves, and name the one used, with its
 report's first line:
 
 1. **Spec container**: the open container item the current branch's work item links to, read
-   through `/work-items:track` (if enabled) when it is among the available skills.
+   through `/work-items:track` (if enabled).
 2. **Branch**: the current branch, when it is not the default branch.
 3. **Plan file**: the plan file the conversation names.
 4. **Topic slug**: the frontmatter `topic` of the handoff this session resumed from.

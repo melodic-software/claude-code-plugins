@@ -65,8 +65,7 @@ that path.
 
 Present the markdown report as printed: the scope, the "Coverage of this run" table, the
 references with their provenance, then one row per file and per function. Keep the `--json`
-document when the numbers feed a comparison: pass it to `/verification:measure metrics` (if enabled) when the
-`verification` plugin is enabled, treating `status: empty` on either side as INCONCLUSIVE;
+document when the numbers feed a comparison: pass it to `/verification:measure metrics` (if enabled), treating `status: empty` on either side as INCONCLUSIVE;
 otherwise keep the JSON beside your notes and compare by hand.
 
 ## Getting a first artifact

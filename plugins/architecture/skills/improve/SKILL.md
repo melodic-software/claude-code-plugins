@@ -108,7 +108,7 @@ Graceful degradation: where a named step below is not available in the consuming
 | A candidate shape is agreed | Hand off to `/planning:design` (if enabled), whose handoff carries the shape into the plan; else summarize the agreed shape for design and planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:ubiquitous-language curate` (if enabled) via the Skill tool when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
-| The boundaries lens wrote a findings file | Offer `/corrections:codify findings <file>` (if enabled) when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
+| The boundaries lens wrote a findings file | Offer `/corrections:codify findings <file>` (if enabled); never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
 | The user accepts a conventions-lens proposal | Route it by kind: a boundary rule into the architecture concern file's `## Boundary rules` section; a divergence to `/corrections:codify` (if enabled); a paved-path entry to `/discipline:reuse-or-replace` (if enabled), which writes it after its own yes | Without the routed skill, the report carries the description or the draft (`actions/conventions.md`, Phase 4) |
 
 ## Next

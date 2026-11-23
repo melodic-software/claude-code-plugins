@@ -202,7 +202,7 @@ Self-review by the producing context is enough here: a fresh-context verifier is
 
 ### Phase H. Ship
 
-**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` (if enabled) when enabled). Print to the user the title, the body content `/source-control:pull-request create` (if enabled) would write, and the audit-trail sections below that would have gone to the PR, then stop.
+**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` (if enabled)). Print to the user the title, the body content `/source-control:pull-request create` (if enabled) would write, and the audit-trail sections below that would have gone to the PR, then stop.
 
 Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what is left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips.
 

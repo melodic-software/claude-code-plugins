@@ -159,8 +159,7 @@ Present the checkpoint findings, each skill-fit gap with an `Owner:` field or an
 naming `<plugin>:<skill>` or `no owner found`, then offer the forward routes; act only on the ones
 the user picks:
 
-- **Codify a durable learning** → `/corrections:codify "<the learning>"` (if enabled) when the `corrections`
-  plugin is enabled, otherwise `/session-flow:retro`, whose session mode codifies approved
+- **Codify a durable learning** → `/corrections:codify "<the learning>"` (if enabled), otherwise `/session-flow:retro`, whose session mode codifies approved
   learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself). A request, in the
   invocation or later, to write a learning into `CLAUDE.md`, `.claude/rules/` or memory gets this
   route as its answer: record the learning in the ledger, offer the route, and leave those files

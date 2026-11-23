@@ -289,14 +289,14 @@ a MIGRATE, the migration cost.
 
 Suggest the follow-ups the findings call for:
 
-- Verifying the changes end-to-end (`/verification:confirm` (if enabled) if enabled) if code changes were
+- Verifying the changes end-to-end (`/verification:confirm` (if enabled)) if code changes were
   involved
-- Targeted research (`/discovery:research` (if enabled) if enabled, or the strongest research capability
+- Targeted research (`/discovery:research` (if enabled), or the strongest research capability
   available) if critical assumptions remain unverified
 - The Alternatives Sweep on any incumbent a Round 2 finding flagged as supported only by
   incumbency (the finding's Mitigation names the invocation)
 - Filing deferred research or monitoring items in the project's work-item tracker
-  (`/work-items:track` (if enabled) if enabled)
+  (`/work-items:track` (if enabled))
 
 ## What This Skill Does Not Do
 

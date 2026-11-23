@@ -414,7 +414,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 ## Remediation. Delegated
 
-- **Write the killing tests**. `/testing:write` (if enabled) when the `testing` plugin is enabled, handed the
+- **Write the killing tests**. `/testing:write` (if enabled), handed the
   survivor list. Otherwise report the survivors and let the user author tests with their project's
   own conventions; do not author them here. An `input-gap` survivor can be closed by a property (a
   generator over the input class the mutant hides in) as well as by one more example; name both
@@ -484,5 +484,5 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - Write suppressions without the user accepting them.
 - Fail a build on a score. There is no threshold to configure; see the `principles` skill's
   `scaling-and-suppression.md`.
-- Answer test-design questions. Those belong to `/tdd:principles` (if enabled) when enabled; otherwise use the
+- Answer test-design questions. Those belong to `/tdd:principles` (if enabled); otherwise use the
   project's own test-design guidance.

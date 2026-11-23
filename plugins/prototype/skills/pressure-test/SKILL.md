@@ -162,7 +162,7 @@ other, and the question is whether both refuse a renewal of a reserved copy.
    - **Timing**: the wall-clock time of that variant's own calls, measured separately for each
      variant and labeled `timing (unqualified)`. It is one run on this machine, with no warm-up,
      repeats or load control, so it ranks nothing on its own. Qualified timing is
-     `/performance:snapshot` (if enabled)'s job.
+     the job of `/performance:snapshot` (if enabled).
 4. **Recommend.** Give a recommendation that names the variant to keep and the observed evidence
    behind it: the input, and what each variant did with it. When the runs do not tell the
    variants apart, say so and recommend nothing.

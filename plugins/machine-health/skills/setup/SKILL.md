@@ -345,7 +345,7 @@ Quote the rules as data. Never edit the settings file: narrowing a rule is the o
 **The monthly run researches the web in auto mode.** Both routes run in auto mode
 ([Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)), with no tool list or deny rules of their own: auto mode and the owner's settings decide
 what the run may do. The audit researches new unfamiliar findings and its check proposals through
-`/discovery:research` (if enabled) when that skill is available (audit SKILL.md, step 5), so the run reads web
+`/discovery:research` (if enabled), per audit SKILL.md step 5, so the run reads web
 pages and writes a notes file beside the report. Say so to the owner with the task. Before step 1
 of either route, run, appended to the [roots block](#resolving-the-state-root):
 

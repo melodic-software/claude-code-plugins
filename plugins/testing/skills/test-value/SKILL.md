@@ -48,7 +48,7 @@ A property is a source only when it comes from the spec, requirement, docstring 
 written down before it runs against the code. A property found by watching what the code does is a
 recording, and one that re-implements the code (`add(a, b) === a + b`) is the restated expectation
 this section rules out. A new property needs evidence that it can fail: a mutant it kills
-(`/mutation-testing:audit --exercised` (if enabled), when that plugin is enabled) or a known-bad input marked
+(`/mutation-testing:audit --exercised` (if enabled)) or a known-bad input marked
 expected-fail, such as Hypothesis `@example(...).xfail()`.
 
 Verification record. Claim: a material share of LLM-written property tests are unsound or

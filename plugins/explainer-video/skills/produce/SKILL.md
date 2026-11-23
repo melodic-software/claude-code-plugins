@@ -10,7 +10,7 @@ metadata:
 
 # Produce
 
-Turn a topic into a short MP4 made with ManimCE, narrated when `/speech:narrate` (if enabled) is available.
+Turn a topic into a short MP4 made with ManimCE, narrated through `/speech:narrate` (if enabled).
 The audio comes first: each scene change waits for the word that starts its part of the
 narration. Every render is checked by `render.py`, and you read its frames to fix what you see.
 Before the video is called done, a fresh-context subagent judges the delivery frames (step 7).

@@ -231,15 +231,15 @@ capture discipline. The verification record for the `design` registration is
 
 ## For a shared interview
 
-When `/planning:interview` (if enabled)'s shared session asks for the variants, read
+When the shared session of `/planning:interview` (if enabled) asks for the variants, read
 [reference/shared-interview.md](reference/shared-interview.md) before building: it holds the tiers
 to emit (screenshot, HTML snapshot, live), the staging placement, the manifest and its `lookAt`
 line, and the handover that replaces the reply template.
 
 ## Review mode
 
-When more than one person will decide, offer review mode once, in one line: each screen goes on
-`/planning:interview` (if enabled)'s shared page, every reviewer records a decision on it, and the round's digest
+When more than one person will decide, offer review mode once, in one line: each screen goes on the shared page of
+`/planning:interview` (if enabled), every reviewer records a decision on it, and the round's digest
 comes back as the report. Nothing is published to claude.ai. Run it only when the user asks or says
 yes, by [context/review-mode.md](context/review-mode.md), which also draws its boundaries with the
 `/design` canvas, a playground and the bundled `prototype` skill. When it cannot start, say so and
@@ -325,7 +325,7 @@ content set the switcher's worst-content toggle flips to, the one set allowed be
 one and defined once like it; states still derive from whichever set is shown, so the empty state
 is that set filtered to nothing, never a third set. On the real stack, drive the real page to it ([reference/switcher.md](reference/switcher.md#worst-content)).
 
-On the real stack, when `/user-interface:write-css` (if enabled) is enabled, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
+On the real stack, use `/user-interface:write-css` (if enabled) to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
 
 ### 3. Build the switcher
 
