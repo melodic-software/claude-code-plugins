@@ -262,8 +262,8 @@ apply_layer() {
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
     vendors.auto_delegation)
-      if [[ "$label" == team ]]; then
-        NOTES+=("team: vendors.auto_delegation ignored: it is a per-user setting; set it in the user or personal-override layer")
+      if [[ "$label" != user-config && "$label" != user-global ]]; then
+        NOTES+=("$label: vendors.auto_delegation ignored: only the user layer (role_map_file) sets it, never a file inside a repository")
         continue
       fi
       field=bool

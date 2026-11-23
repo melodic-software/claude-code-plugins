@@ -198,7 +198,8 @@ async function parseRaw(url, out) {
   const nl = text.indexOf('\n')
   const m = /^docs-raw: url=(\S+) state=(read|unread)((?: [a-z0-9_]+=\S*)*)$/.exec(nl < 0 ? text : text.slice(0, nl))
   if (!m || m[1] !== url) {
-    return { ...base, state: 'unread', reason: out == null ? 'no result from the fetch stage' : 'the fetch stage returned no docs-raw header for this URL' }
+    if (out == null) return { ...base, state: 'unread', unchecked: true, reason: 'no result from the fetch stage' }
+    return { ...base, state: 'unread', reason: 'the fetch stage returned no docs-raw header for this URL' }
   }
   const f = Object.fromEntries([...m[3].matchAll(/ ([a-z0-9_]+)=(\S*)/g)].map(x => [x[1], x[2]]))
   if (m[2] === 'unread') return { ...base, state: 'unread', reason: f.reason || 'unstated' }
@@ -346,8 +347,8 @@ function cleanNotes(raw) {
 }
 
 const judged = await inWaves(rows.map(row => async () => {
-  const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', reason: 'missing fetch result' }
-  const partial = slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large')
+  const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', unchecked: true, reason: 'missing fetch result' }
+  const partial = Boolean(slice.unchecked) || (slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large'))
   if (slice.state !== 'read' || partial) {
     return {
       source_id: row.id,
@@ -362,7 +363,11 @@ const judged = await inWaves(rows.map(row => async () => {
       age_days: null,
       covers_work_types: [],
       tests_current_models: 'unclear',
-      notes: cleanNotes([partial ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed' : slice.reason || 'unread']),
+      notes: cleanNotes([
+        slice.unchecked ? slice.reason + '; no change proposed'
+          : partial ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed'
+            : slice.reason || 'unread',
+      ]),
     }
   }
   const label = 'judge:' + row.id
@@ -383,11 +388,12 @@ const judged = await inWaves(rows.map(row => async () => {
       workloads: row.workloads,
       freshness_seconds: row.freshness_seconds ?? DEFAULT_FRESHNESS,
       reachable: false,
+      partial: true,
       page_date: null,
       age_days: null,
       covers_work_types: [],
       tests_current_models: 'unclear',
-      notes: ['no result from the judge stage'],
+      notes: ['no result from the judge stage; no change proposed'],
     }
   }
   const reachable = Boolean(v.reachable)

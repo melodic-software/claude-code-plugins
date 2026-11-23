@@ -380,7 +380,7 @@ schema: 1
 vendors:
   routing: true
   trials: true
-  auto_delegation: false
+  auto_delegation: true
   tiebreak:
     - fewest-tokens
     - vendor-order
@@ -408,16 +408,11 @@ vendors:
   claude:
     rank: 2
 YAML
-cat >"$T/vendorsvalid/repo/docs/conventions/multi-agent.local.yaml" <<'YAML'
-schema: 1
-vendors:
-  auto_delegation: true
-YAML
 out="$(run vendorsvalid worker --session-model opus --user-file "$T/vendorsvalid/user.yaml")"
 assert_eq "valid vendors block exits 0" 0 "$?"
 assert_lacks "valid vendors block produces no unknown key note" "$out" 'unknown key'
 assert_contains "valid vendors block has no notes" "$out" '"notes":[]'
-assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"personal-override","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
+assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
 if ! command -v node >/dev/null 2>&1; then
   pass "valid vendors output is valid JSON (skipped: no node)"
 elif printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
@@ -432,10 +427,16 @@ schema: 1
 vendors:
   auto_delegation: true
 YAML
+cat >"$T/vendorsteamauto/repo/docs/conventions/multi-agent.local.yaml" <<'YAML'
+schema: 1
+vendors:
+  auto_delegation: true
+YAML
 out="$(run vendorsteamauto worker --session-model opus)"
-assert_contains "team layer cannot turn on auto-delegation" "$out" '"auto_delegation":false,'
-assert_contains "team auto-delegation keeps the bundled source" "$out" '"auto_delegation":"bundled"'
-assert_contains "team auto-delegation is noted" "$out" 'team: vendors.auto_delegation ignored: it is a per-user setting'
+assert_contains "repository layers cannot turn on auto-delegation" "$out" '"auto_delegation":false,'
+assert_contains "repository auto-delegation keeps the bundled source" "$out" '"auto_delegation":"bundled"'
+assert_contains "team auto-delegation is noted" "$out" 'team: vendors.auto_delegation ignored: only the user layer'
+assert_contains "personal-override auto-delegation is noted" "$out" 'personal-override: vendors.auto_delegation ignored: only the user layer'
 
 fixture vendorsinvalid
 cat >"$T/vendorsinvalid/user.yaml" <<'YAML'

@@ -183,6 +183,20 @@ test('a mapped page whose sections cannot be read skips the judge and proposes n
   assert.equal(result.diff, null)
 })
 
+for (const stage of ['fetch:', 'judge:']) {
+  test(`a ${stage.slice(0, -1)} stage that returns nothing leaves rows partial and proposes no change`, async () => {
+    const { result } = await run({ rows: ROWS, asOf: '2026-11-23' }, {
+      reply: (p, o, d) => {
+        if (o.label.startsWith(stage)) throw new Error('budget cap reached')
+        return d(p, o)
+      },
+    })
+    assert.ok(result.rows.every(r => r.partial === true))
+    assert.deepEqual(result.proposedChanges, [])
+    assert.equal(result.diff, null)
+  })
+}
+
 test('a mapped page whose expect section is too large to read stays partial and proposes no demotion', async () => {
   const big = MAP.replace('\t9000\t', '\t70000\t')
   const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
