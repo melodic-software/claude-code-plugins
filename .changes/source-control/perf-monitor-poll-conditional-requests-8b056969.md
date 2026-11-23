@@ -8,6 +8,9 @@ bump: patch
   conditional request and replays the cached body on a `304 Not Modified`, which GitHub does not
   count against the primary rate limit. A poll where nothing changed now costs no REST requests,
   down from seven; a read that did change costs one request per page, as before. Each page is read
-  conditionally on its own, the comment reads keep `since` fixed at the watch's start so their
-  ETags hold, and a surface whose pages all answered 304 is not re-reported. The event lines and
-  the default 60-second interval are unchanged.
+  conditionally on its own, a full page with no next link still reads the page after it, the
+  comment reads keep `since` fixed at the watch's start so their ETags hold, a read's answers are
+  cached only once the whole read succeeded, and a surface whose pages all answered 304 is not
+  re-reported. The cache needs no Bash 4 feature, so the script still runs on macOS Bash 3.2. The
+  event lines are unchanged.
+- The monitor's default poll interval is 90 seconds, up from 60, and the monitor docs state 90.

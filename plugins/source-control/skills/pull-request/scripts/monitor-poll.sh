@@ -15,7 +15,7 @@ the GitHub facts behind each read: reference/providers/github/pull-request/monit
 
   --checkout  the checkout of the PR's repository; target-repo.sh resolves the repository
   --repo      the PR's base repository, named explicitly (a triangular flow); wins over --checkout
-  --interval  seconds between polls, default 60; every read is a conditional request, so a poll
+  --interval  seconds between polls, default 90; every read is a conditional request, so a poll
               where nothing changed counts nothing against the REST rate limit
   --baseline  re-arm only: the file a --snapshot run of this script wrote
   --snapshot  read the checks once, write them to this file under a marker line, then exit
@@ -32,7 +32,7 @@ EOF
 PR_NUMBER=""
 CHECKOUT=""
 OWNER_REPO=""
-INTERVAL=60
+INTERVAL=90
 BASELINE_FILE=""
 SNAPSHOT_FILE=""
 ONCE=0

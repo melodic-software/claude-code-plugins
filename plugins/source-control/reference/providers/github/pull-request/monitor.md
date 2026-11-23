@@ -56,7 +56,7 @@ its last answer, a `304 Not Modified` replays the cached body, and GitHub does n
 authorized 304 against the primary rate limit
 ([conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests)),
 so a poll where nothing changed costs nothing. The comment reads keep `since` at the watch's start,
-because a changed query string gets a new ETag. Raise `--interval <seconds>` (default 60) only
+because a changed query string gets a new ETag. Raise `--interval <seconds>` (default 90) only
 when the [API budget](../README.md#api-budget) arithmetic says so. `--once` exits 0 after the first poll that emits
 a line, for a background Bash run where the Monitor tool is unavailable. The first arming passes no `--baseline`; a re-arm
 passes `--baseline <file>`, the file this same script wrote in a snapshot run (`--snapshot <file>`:
