@@ -14,8 +14,12 @@ const SETTLE_MS = 7000
 const STATUS = 'on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0'
 
 /** Hooks that stand for the engine beneath the plugin. Answers the session's surfaces, records each placed row's id and each theme call. */
-function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: string[], themeCalls: string[] = []): MockClock {
-  on('command.register', () => ({ value: { command: 'bedroom' } }))
+function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: string[], themeCalls: string[] = [], registered: string[] = []): MockClock {
+  on('command.register', (_, e) => {
+    registered.push(e.name)
+
+    return { value: { command: 'bedroom' } }
+  })
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
   on('theme.set', () => {
@@ -37,6 +41,7 @@ function engine(on: On, surfaces: readonly ('terminal' | 'desktop')[], placed: s
   on('ui.log', () => ({ value: undefined }))
   on('ui.toast', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.attach', (_, e) => ({ clientId: e.clientId }))
 
   return mock.clock(on)
 }
@@ -610,20 +615,46 @@ test('a title typed and not yet set survives a redraw of the card, and a typed /
   await ui.unmount()
 })
 
-test('away from the desktop /bedroom answers with text alone and its row draws no card', async ($, on) => {
+test('a session no desktop window draws registers no /bedroom, sets no theme and draws no card', async ($, on) => {
+  const placed: string[] = []
+  const themeCalls: string[] = []
+  const registered: string[] = []
+
+  engine(on, ['terminal'], placed, themeCalls, registered)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  expect(registered).toEqual([])
+  expect(themeCalls).toEqual([])
+  expect(placed).toEqual([])
+})
+
+test('a desktop window attaching after the session starts starts the room once', async ($, on) => {
+  const placed: string[] = []
+  const themeCalls: string[] = []
+  const registered: string[] = []
+
+  engine(on, ['terminal'], placed, themeCalls, registered)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+  await $.session.attach({ surface: 'desktop', clientId: 'desktop:second' })
+
+  expect(registered).toEqual(['bedroom'])
+  expect(themeCalls).toEqual(['set'])
+})
+
+test('/bedroom answers are for the person alone: none reaches the model', async ($, on) => {
   const placed: string[] = []
 
-  engine(on, ['terminal'], placed)
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  await bedroom($, 'reset')
+  engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const answer = await $.command.run({
+    command: 'bedroom',
+    args: 'status',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 100 },
+  })
 
-  expect(await bedroom($, '')).toBe(STATUS)
-  expect(placed).toHaveLength(1)
-
-  const ui = await $.ui.mount({ ...cardOf(placed[0]!), surface: 'terminal' })
-
-  expect(await ui.find({ type: 'Button' })).toBeUndefined()
-  await ui.unmount()
+  expect(answer).toMatchObject({ text: STATUS, isTextDisplayOnly: true })
 })
 
 test('the desktop draws the card whatever the session says of its surfaces', async ($, on) => {
