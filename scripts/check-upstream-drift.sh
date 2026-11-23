@@ -272,8 +272,9 @@ anon_tree() {
   OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
     awk -v RS='\0' '
       { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1) }
-      p ~ /[[:cntrl:]]/ { print "control"; exit }
-      m[2] == "blob" { print m[3] " " p }')" ||
+      p ~ /[[:cntrl:]]/ { control = 1 }
+      !control && m[2] == "blob" { print m[3] " " p }
+      END { if (control) print "control" }')" ||
     die "git ls-tree $1/$2@$3 failed"
   [[ "$OUT_TREE" != control && "$OUT_TREE" != *$'\n'control ]] ||
     die "$1/$2@${3:0:12}: a tree path holds a control character"

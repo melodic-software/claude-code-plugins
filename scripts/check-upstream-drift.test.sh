@@ -474,13 +474,17 @@ want_rc "allow list, git read checks links" 0
 want_out "allow list, git read checks links" "1 links ok"
 
 REAL_GIT=$(command -v git)
-mkdir -p "$f/gitbin"
-cat >"$f/gitbin/git" <<EOS
+log_git() {
+  mkdir -p "$f/gitbin"
+  : >"$f/git.log"
+  cat >"$f/gitbin/git" <<EOS
 #!/usr/bin/env bash
 echo "GIT_NO_LAZY_FETCH=\${GIT_NO_LAZY_FETCH:-} \$*" >>"$f/git.log"
 exec "$REAL_GIT" "\$@"
 EOS
-chmod +x "$f/gitbin/git"
+  chmod +x "$f/gitbin/git"
+}
+log_git
 run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" --
 want_rc "allow list, git reads fetch each commit once at depth 1" 1
 fetches=$(grep -c ' fetch ' "$f/git.log")
@@ -568,12 +572,39 @@ want_rc "allow list, pin missing upstream" 2
 no_out "allow list, pin missing upstream"
 want_err "allow list, pin missing upstream" "is not a commit upstream"
 
+stub_api || exit 2
+scoped_page
+control_path=$'skills/alpha/control\tpath'
+echo malformed >"$f/src/$control_path"
+ugit add -- "$control_path" && ugit commit -qm control || exit 2
+control_head=$(ugit rev-parse HEAD) || exit 2
+mkdir -p "$f/control-remote/acme"
+git clone -q --bare "$f/src" "$f/control-remote/acme/widgets.git" || exit 2
+
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" -- --report
+want_rc "allow list, control in tree path, --report" 2
+no_out "allow list, control in tree path, --report"
+want_err "allow list, control in tree path, --report" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "allow list, control in tree path, --report"
+
+run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/control-remote" --
+want_rc "allow list, control in tree path, default mode" 2
+no_out "allow list, control in tree path, default mode"
+want_err "allow list, control in tree path, default mode" "acme/widgets@${control_head:0:12}: a tree path holds a control character"
+tmp_clean "allow list, control in tree path, default mode"
+
 stub_api '{"message":"Not Found","status":"404"}'
-run_env PATH="$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
+log_git
+run_env PATH="$f/gitbin:$f/bin:$PATH" TMPDIR="$f/tmp" UPSTREAM_DRIFT_GIT_BASE="file://$f/remote" -- --report
 want_rc "other gh failure does not retry" 2
 no_out "other gh failure does not retry"
 want_err "other gh failure does not retry" "Not Found (HTTP 404)"
 if [[ "$ERR" != *"over git"* ]]; then pass "other gh failure: no git read"; else bad "other gh failure: no git read" "$ERR"; fi
+if grep -Eq ' (ls-remote|fetch)( |$)' "$f/git.log"; then
+  bad "other gh failure: no ls-remote or fetch" "$(cat "$f/git.log")"
+else
+  pass "other gh failure: no ls-remote or fetch"
+fi
 
 # Missing prerequisites: gh outside the fixture seam, and jq always.
 setup
