@@ -3,6 +3,12 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.3] - 2026-11-23
+
+### Changed
+
+- `scripts/check-mod-load.sh` now runs the shared mods-floor check (`lib/mod-load-check.sh`, generated from the repository's `lib/`); its rows, wording and exit codes are unchanged.
+
 ## [4.2.2] - 2026-11-21
 
 ### Changed

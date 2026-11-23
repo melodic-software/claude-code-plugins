@@ -937,9 +937,24 @@ const lowersOnly = (clause, charges, isPublic) => {
   const at = clause.search(TOWARD);
   return at < 0 || clauseCharges(clause.slice(at), charges, isPublic).length === 0;
 };
-// A clause ends at a sentence end, or at a line break before a blank line or
-// a list item.
 const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
+const LIST_WORD = String.raw`(?!(?:or|and|nor)(?![\p{L}\p{N}]))[\p{L}\p{N}][\p{L}\p{N}'’-]*`;
+const LIST_ITEM = String.raw`${LIST_WORD}(?:[ \t]+${LIST_WORD})?`;
+const NEGATED_LIST = new RegExp(
+  String.raw`^(?:[^\p{L}]|\[x\])*(?:no|without)[ \t]+(${LIST_ITEM}(?:(?:[ \t]*,[ \t]*${LIST_ITEM})*,?[ \t]+(?:or|and|nor)[ \t]+${LIST_ITEM})*)[^\p{L}\p{N}]*$`,
+  "iu",
+);
+const negatedOnly = (clause, charges, isPublic) => {
+  const list = NEGATED_LIST.exec(clause)?.[1];
+  return (
+    list !== undefined &&
+    ![CHARGING, SAFEGUARD, SPEND_LIMIT].some((keeps) => keeps.test(clause)) &&
+    list
+      .split(/[ \t]*,[ \t]*(?:(?:or|and|nor)[ \t]+)?|[ \t]+(?:or|and|nor)[ \t]+/i)
+      .map((item) => item.replace(/^(?:new|additional|extra)[ \t]+/i, ""))
+      .every((item) => !/[ \t]/.test(item) || clauseCharges(item, charges, isPublic).join(" ") === item.toLowerCase())
+  );
+};
 
 // The charge words in what an issue will do, each once: its `title`, and its
 // `body`'s task items and work sections (workSections), or the whole body with
@@ -961,6 +976,7 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
       parts
         .flatMap(clausesOf)
         .filter((clause) => !lowersOnly(clause, charges, isPublic))
+        .filter((clause) => !negatedOnly(clause, charges, isPublic))
         .flatMap((clause) => {
           const named = clauseCharges(clause, charges, isPublic);
           const words = named.length > 0 ? named : accountsTakenOn(clause);
