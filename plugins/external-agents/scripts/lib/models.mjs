@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { breakerStatus } from "./breaker.mjs";
 import { query } from "./process.mjs";
 import { EXIT, guardValues, oneLine, pickBinary, setup, Stop } from "./runner.mjs";
 import { cacheFact, factsDir, installedVersion, MODELS_FILE } from "./update.mjs";
@@ -25,6 +26,9 @@ const PARSERS = {
         name: m.display_name,
         efforts: (m.supported_reasoning_levels ?? []).map((level) => level.effort),
         default_effort: m.default_reasoning_level,
+        ...(typeof m.context_window === "number" && Number.isFinite(m.context_window) && m.context_window > 0
+          ? { context_window: m.context_window }
+          : {}),
       })),
 };
 
@@ -81,6 +85,9 @@ export async function models(opts) {
       if (!doc.efforts) throw new Stop("failed", `${command(args)} lists no ${record.effort_flag} choices this record can read`);
       doc.efforts_source = `${command(args)} (${record.effort_flag})`;
     }
+    doc.tools = [...(record.harness?.tools ?? [])];
+    doc.image = record.harness?.image ?? false;
+    doc.breaker = breakerStatus(ctx.dataDir, record.product, ctx.now());
     doc.docs_index = record.docs_index;
     return { ...out(EXIT.ok, doc), stderr: state.notices.map((n) => `notice: ${n}\n`).join("") };
   } catch (error) {

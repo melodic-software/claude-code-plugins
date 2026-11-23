@@ -82,7 +82,8 @@ process tree; stopping the background Bash task alone may leave agy running.
   `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml` (ADR 0119
   decision 2). Pass `--mode write` with a task that should change files: under a read-only ceiling
   it runs read-only and prints a notice naming that key, and an `--add-dir` or `--unsandboxed` on
-  it is refused. Relay the notice, and never set the key yourself.
+  it is refused. Relay the notice. Set the key yourself only when the user asked, in their own
+  words, for agy to write, and then only in the personal `.local.yaml`, never the tracked team file.
 - **A refused action makes the run `blocked-by-mode`, even with a full answer.** agy keeps going
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and
