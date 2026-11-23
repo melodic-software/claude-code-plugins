@@ -17,7 +17,7 @@ function* sources(dir) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name !== "node_modules") yield* sources(path);
-    } else if (/\.(?:bash|sh|ya?ml)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
+    } else if (/\.(?:bash|sh|yml)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
       yield path;
     }
   }
