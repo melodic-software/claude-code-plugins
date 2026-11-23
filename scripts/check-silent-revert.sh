@@ -358,6 +358,7 @@ WINDOW="${SILENT_REVERT_WINDOW:-40}"
 # worth quoting (a bare brace tells a reader nothing).
 SAMPLES="${SILENT_REVERT_SAMPLES:-5}"
 SAMPLE_MIN_LEN=25
+MOVED_LINE_MIN_LEN=25
 
 INCIDENTS_FILE="${SILENT_REVERT_INCIDENTS:-scripts/silent-revert-incidents.txt}"
 ACK_FILE="${SILENT_REVERT_ACK:-scripts/silent-revert-acknowledged.txt}"
@@ -785,6 +786,57 @@ run_attributing_git() {
   ((rc == 0)) || die "$what (exit $rc): ${err:-no stderr}"
 }
 
+discount_moved_lines() {
+  local parent="$1" sha="$2" attributed="$3" added kept
+  [[ -s "$attributed" ]] || return 0
+  added="$(mktemp)" || die "mktemp failed"
+  kept="$(mktemp)" || die "mktemp failed"
+  run_attributing_git "$added" \
+    "git diff failed listing the lines $sha added" \
+    -c core.quotePath=false diff --no-ext-diff --no-textconv --unified=0 --no-color \
+    --no-prefix --diff-algorithm=myers -M -l0 "$parent" "$sha" -- .
+  LC_ALL=C awk -v min="$MOVED_LINE_MIN_LEN" '
+    function long_enough(line) {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      return length(line) >= min
+    }
+    FILENAME == ARGV[1] {
+      if (/^diff --git /) { in_header = 1; path = ""; next }
+      if (in_header) {
+        if (/^\+\+\+ /) {
+          path = substr($0, 5)
+          sub(/\t$/, "", path)
+          if (path == "/dev/null" || substr(path, 1, 1) == "\"") path = ""
+        } else if (/^@@ /) {
+          in_header = 0
+        }
+        next
+      }
+      if (path == "" || substr($0, 1, 1) != "+") next
+      text = substr($0, 2)
+      if (!long_enough(text)) next
+      if (!((text, path) in copies)) paths[text, ++path_count[text]] = path
+      copies[text, path]++
+      next
+    }
+    {
+      rest = substr($0, index($0, "\t") + 1)
+      file = substr(rest, 1, index(rest, "\t") - 1)
+      text = substr(rest, index(rest, "\t") + 1)
+      for (k = 1; k <= path_count[text]; k++) {
+        p = paths[text, k]
+        if (p != file && copies[text, p] > 0) {
+          copies[text, p]--
+          next
+        }
+      }
+      print
+    }
+  ' "$added" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
+  mv -f "$kept" "$attributed" || die "could not replace the attribution of $sha"
+  rm -f "$added"
+}
+
 # ---------------------------------------------------------------------------
 # Scan one commit. Returns 0 clean, 1 findings.
 # ---------------------------------------------------------------------------
@@ -904,6 +956,7 @@ scan_commit() {
       "$file_attr" >>"$attributed"
   done <"$enum_list"
   rm -f "$file_attr" "$enum_list"
+  discount_moved_lines "$parent" "$sha" "$attributed"
 
   # Keep only lines whose culprit is inside the recency window.
   local in_window

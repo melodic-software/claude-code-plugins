@@ -259,6 +259,94 @@ t_rename_is_not_a_removal() {
   fi
 }
 
+extract_block() {
+  local repo="$1" tag="$2" copied="$3"
+  grep "$copied" "$repo/feature.txt" >"$repo/helpers.txt" || true
+  grep -v "the $tag guard rejects" "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: extract the $tag guard (#99)"
+}
+
+t_cross_file_move_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  add_block "$repo" feature.txt 40 alpha
+  extract_block "$repo" alpha 'the alpha guard rejects'
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "moving 40 recent lines into a new file in the same commit is not a removal (threshold 20)"
+  else
+    fail "a cross-file move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_partial_move_counts_only_the_lines_not_re_added() {
+  local repo sink culprit
+  mk_repo repo
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  extract_block "$repo" alpha 'the alpha guard rejects .*, case [0-9]$'
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 31" ]]; then
+    ok "a commit re-adding 9 of 40 deleted lines elsewhere still fires on the other 31"
+  else
+    fail "want one 31-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_one_copy_discounts_one_deletion() {
+  local repo sink culprit
+  mk_repo repo
+  printf 'the alpha guard rejects a relocation outside the session root\n%.0s' $(seq 1 30) \
+    >>"$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  printf 'the alpha guard rejects a relocation outside the session root\n' >"$repo/helpers.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: keep one copy of the guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 29" ]]; then
+    ok "one re-added copy of a line deleted 30 times discounts one deletion, not all 30"
+  else
+    fail "want one 29-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_moved_short_lines_still_count() {
+  local repo sink culprit i
+  mk_repo repo
+  for i in $(seq 1 30); do
+    printf 'x%s = %s\n' "$i" "$i" >>"$repo/feature.txt"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the short assignments"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep '^x' "$repo/feature.txt" >"$repo/helpers.txt" || true
+  grep -v '^x' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: move the assignments (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 30" ]]; then
+    ok "lines shorter than the move minimum are not discounted when re-added elsewhere"
+  else
+    fail "want one 30-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
 # drop_fragments <repo> <consume> -- 31 existing plugin changelogs, a recent
 # commit adding ten-line .changes/ fragments for plugin1..30 (300 lines), then
 # a commit deleting every fragment. consume=yes also appends the fragments to
@@ -2477,6 +2565,10 @@ t_quiet_below_threshold
 t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
+t_cross_file_move_is_not_a_removal
+t_partial_move_counts_only_the_lines_not_re_added
+t_one_copy_discounts_one_deletion
+t_moved_short_lines_still_count
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
 t_fragments_dropped_beside_another_changelog_still_fire
