@@ -5,14 +5,16 @@ How preflight fills `leftover_sandboxes` and `tmp_free`. `<tmp>` is `$TMPDIR`, e
 Probe read-only:
 
 ```bash
-find <tmp> -maxdepth 1 -type d -name 'claude-eval-*'
-du -skc <tmp>/claude-eval-*
+find <tmp> -type d -name 'claude-eval-*' -prune
+find <tmp> -type d -name 'claude-eval-*' -prune -exec du -skc {} +
 df -k <tmp>
 ```
 
-The `find` lines are the count, the `du` `total` line is the size, and `df` gives `tmp_free`. An
-unreadable path reports `unknown`, never `0`. A non-zero `du` exit or a permission error means a
-partial total: report the size as `unknown` or `at least <total>`.
+The first `find`'s lines are the count, nested sandboxes included (`-prune` stops it descending
+into a sandbox), the sum of the `du` `total` lines is the size, and `df` gives `tmp_free`. An
+unreadable `<tmp>` reports `unknown`, never `0`. A permission error below it, such as another
+user's directory, means a partial count: report it as `at least <n>`. A non-zero `du` exit or a
+permission error means a partial total: report the size as `unknown` or `at least <total>`.
 
 Preflight removes nothing, blocks on neither field, and prints no removal command. `<tmp>` can be
 shared: two sessions running with the same `TMPDIR` each keep their sandboxes there, and a glob
@@ -40,9 +42,43 @@ lines over those roots, the `claude-eval-*` sandboxes nested in them. The size a
 rules are the ones above: a root `find` cannot read makes the sandbox count `unknown`, and a
 `sealed/` `du` cannot enter makes the size `at least <total>`.
 
-Preflight lists these roots and removes none of them. A root older than 3 days can still be a run
-whose session keeps it for a later read. Only the session that owns a root removes it, or the
-user once they confirm no session keeps it, by [Removing a run root](#removing-a-run-root).
+Preflight lists these roots and removes none of them. The next run's start removes each one
+[Pruning stale run roots](#pruning-stale-run-roots) accepts. It keeps a root that holds no
+`claude-eval-*` sandbox, a run that stopped before its first case: remove that one by
+[Removing a run root](#removing-a-run-root).
+
+## Pruning stale run roots
+
+Every run removes the run roots no run still uses before it creates its own
+([SKILL.md, Run](../SKILL.md#run) step 3), so the sandboxes of a run that died before its closing
+step do not stay forever:
+
+```bash
+python3 "<skill-dir>/scripts/prune-run-roots.py"
+```
+
+It checks every direct child of `$HOME/.ev` and removes one only when all of these hold:
+
+- it is a directory, not a symlink, and its `realpath` is a direct child of the `realpath` of
+  `$HOME/.ev`;
+- it holds at least one `claude-eval-*` directory;
+- nothing in it changed for 3 days, the age [Stale run roots](#stale-run-roots) reports by: no
+  entry under it, read without following symlinks, has a newer mtime. A directory it cannot open,
+  such as a mode-000 `sealed/`, counts by its own mtime;
+- no process has a file open under it or its working directory there, read from `/proc`. A
+  `/proc` mount shows only the processes of the PID namespace that mounted it
+  ([pid_namespaces(7)](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)), so a
+  process outside it is invisible to this check, and so is another user's process whose `fd`
+  links it may not read ([proc_pid_fd(5)](https://man7.org/linux/man-pages/man5/proc_pid_fd.5.html));
+  the age rule still holds for both.
+
+It removes a root the way [Removing a run root](#removing-a-run-root) does, `chmod 700` on each
+`sealed/` included. A path given as an argument is checked by the same rules, so a path outside
+`$HOME/.ev` is refused. Each path gets one line: `removed`, `kept` or `refused` with its reason, or
+`left behind` with the error and exit 1. Exit 2 removes nothing: `$HOME/.ev` resolves to `/`,
+`/tmp`, `/var/tmp` or the system temp directory, or `/proc` cannot be read. On exit 1 or 2, print
+the output for the user and go on with the run. A run kept for a later read is read before this
+rule's age passes, or the next run removes it.
 
 ## Removing a read's sandboxes
 
@@ -104,7 +140,8 @@ prescribe a rerun for that reason alone. The same holds after [Removing a run ro
 `$HOME/.ev/<short-run-id>`, by the literal path `mktemp` printed, which needs no results file.
 First finish everything the traces are needed for, the list that opens the read's removal in
 [Removing a read's sandboxes](#removing-a-reads-sandboxes). A session that ended before that step
-leaves the root for `stale_run_roots` ([Stale run roots](#stale-run-roots)) to list. The loop acts
+leaves the root for `stale_run_roots` ([Stale run roots](#stale-run-roots)) to list and a later
+run's start to remove ([Pruning stale run roots](#pruning-stale-run-roots)). The loop acts
 on a path only when all of these hold, and prints every other one with the reason:
 
 - it is a directory and not a symlink;

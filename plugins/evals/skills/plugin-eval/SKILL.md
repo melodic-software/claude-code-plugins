@@ -49,7 +49,7 @@ suite_tools:         <read-only | the gated tools the cases request>
 same_model:          <yes | no | unknown | off> (tested <model>, judge <model>)
 estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:             <n> USD | unlimited
-leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
+leftover_sandboxes:  [at least ]<n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 stale_run_roots:     <n> run roots (<m> claude-eval-* sandboxes, <total size>): <paths> | 0 | unknown | n/a
 eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) | n/a
@@ -57,7 +57,7 @@ eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) |
 
 `stale_run_roots` lists the run roots under `$HOME/.ev` older than 3 days on Linux and WSL2, else `n/a`. `eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, the run directory `$HOME/.ev/<short-run-id>` with each `X` of Run step 3's template standing for one character of the id, else `n/a`. **Refuse before any spend** when it is longer than 24 characters, the longest length measured to work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is fewer `X`s in Run step 3's template, and when even three do not fit, `$HOME` is too long for the bound: say so and stop.
 
-Preflight removes nothing and blocks on none of `leftover_sandboxes`, `stale_run_roots` and `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete, and a stale run root can still be one a session keeps for a later read. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)); when `stale_run_roots` is above zero, point at [Removing a run root](reference/sandboxes.md#removing-a-run-root). Report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on none of `leftover_sandboxes`, `stale_run_roots` and `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)); when `stale_run_roots` is above zero, say the next run's start removes the ones no run still uses ([Pruning stale run roots](reference/sandboxes.md#pruning-stale-run-roots)). Report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
@@ -252,7 +252,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
    Without it those cases run against an unstaged workspace, both arms score the same, and their
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
-   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, `$HOME/.ev` is the required eval temp root: create the run directory with `mkdir -p "$HOME/.ev"` and then `mktemp -d "$HOME/.ev/XXXXXX"` (with the fewer `X`s preflight's `eval_tmpdir` settled on, when it did), note the path it prints, and run the CLI as `env TMPDIR=<dir> claude plugin eval …` with `<dir>` that path, `$HOME/.ev/<short-run-id>`. Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, `$HOME/.ev` is the required eval temp root: first run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/prune-run-roots.py"`, which removes the stale run roots no run still uses and never stops the run ([sandboxes.md, Pruning stale run roots](reference/sandboxes.md#pruning-stale-run-roots)), then create the run directory with `mkdir -p "$HOME/.ev"` and then `mktemp -d "$HOME/.ev/XXXXXX"` (with the fewer `X`s preflight's `eval_tmpdir` settled on, when it did), note the path it prints, and run the CLI as `env TMPDIR=<dir> claude plugin eval …` with `<dir>` that path, `$HOME/.ev/<short-run-id>`. Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
 
    A non-TTY run against an untrusted directory needs `--trust-plugin` ([Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory)).
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
