@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json
 """The attempt answers the post-merge check carries in its attempts file.
 
 A completed attempt's job list cannot change, so `_Context.failing_checks`

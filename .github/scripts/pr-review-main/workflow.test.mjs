@@ -102,7 +102,6 @@ test("a chunked review that wrote no verdict records chunk-failed for the report
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-    // The job still fails: no verdict binds.
     assert.match(step("Fail without a verdict", job), /steps\.verdict\.outcome != 'success'/);
   }
 });
@@ -488,7 +487,6 @@ test("over the size cap a move an added line names prints whole, and so does one
     assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 20, word);
   }
   assert.match(patch, /^\+source x\/helper\.sh$/m);
-  // The move nothing names still collapses.
   assert.match(patch, /^rename to docs\/quiet\.md$/m);
   assert.doesNotMatch(patch, /^\+quiet /m);
   assert.doesNotMatch(patch, /^rename to build\//m);
@@ -512,7 +510,6 @@ test("over the size cap a move a shown line names by its bare name, or its name 
   for (const word of ["helper", "payload"]) {
     assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 10, word);
   }
-  // An unrelated pure move still collapses.
   assert.match(patch, /^rename to docs\/quiet\.md$/m);
   assert.doesNotMatch(patch, /^\+quiet /m);
 });
@@ -641,7 +638,6 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     // commit its lane's key leg recorded, which the route passed on.
     const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].text)[1];
     assert.equal(ref, job === KEY ? "${{ steps.tip.outputs.sha }}" : "${{ matrix.base }}", job);
-    // Right after it, the leg records the commit under the lane's name.
     assert.equal(index("Record the main commit", job), index(checkouts[0].name, job) + 1, job);
     assert.match(step("Record the main commit", job), /^ {8}run: echo "\$LANE-base-sha=\$\(git -C \.base rev-parse --verify HEAD\)" >>"\$GITHUB_OUTPUT"$/m);
     assert.match(checkouts[0].text, /^ {10}persist-credentials: false$/m);
@@ -855,7 +851,6 @@ test("the check-trigger job reads the files first and gates every lane-source pu
     const lane = runWith([pull(7)], { GH_PATHS: ".github/workflows/x.yml README.md" });
     assert.equal(lane.out, "pr-number=7\nreview=true\n");
     assert.match(lane.calls, /^api --paginate repos\/o\/r\/pulls\/7\/files\?per_page=100 /);
-    // A PR that changes no lane source: review=false skips the gate.
     assert.equal(runWith([pull(7)], { GH_PATHS: "README.md plugins/x/y.py" }).out, "pr-number=7\nreview=false\n");
     // No single PR at the head in this repository, or a failed read: no
     // result, so the gate runs.
@@ -977,7 +972,6 @@ test("a held file list marks the run and starts no review, in the check-trigger 
   const triggerSteps = stepsOf("check-trigger");
   for (const [job, steps] of [["check-trigger", triggerSteps], ...LEGS.map((job) => [job, STEPS[job]])]) {
     const names = steps.map((s) => s.name);
-    // The marker is the step right after the select, under faultHeld's name.
     assert.equal(names[names.indexOf("Select a lane-source pull request") + 1], HELD_STEP, job);
     const marker = /^ {8}if: (.*)$/m.exec(steps.find((s) => s.name === HELD_STEP).text)[1];
     assert.ok(admits(marker, selected("true")), job);
@@ -1106,7 +1100,6 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   assert.equal(input(upload, "retention-days"), "1");
   assert.equal(input(upload, "if-no-files-found"), "error");
   for (const block of [write, scan, upload]) assert.match(block, /^ {8}continue-on-error: true$/m);
-  // Right after the gate, before the skipped-leg reports.
   assert.equal(index(names[0], PROBE), index("Read the key's credit history", PROBE) + 1);
   assert.equal(index(names[1], PROBE), index(names[0], PROBE) + 1);
   assert.equal(index(names[2], PROBE), index(names[1], PROBE) + 1);
@@ -1136,7 +1129,6 @@ test("review-handoffs uploads the gate's marker only after a key leg's credit st
   assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
   assert.equal(input(upload, "if-no-files-found"), "error");
   assert.equal(input(upload, "retention-days"), "1");
-  // The run-history record steps the old gate read are gone everywhere.
   assert.doesNotMatch(text, /Record the key's credit stop/);
   for (const job of LEGS) assert.equal(index("Upload the key's credit-stop marker", job), -1, job);
 });
@@ -1616,7 +1608,6 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
       assert.match(jobText(from), new RegExp(`^ {6}${lane}: \\$\\{\\{ steps\\.handoff\\.outputs\\.${lane} \\}\\}$`, "m"));
     }
   }
-  // The fallback leg is the last: it hands nothing on.
   assert.equal(index("Hand the lane on", FB), -1);
   // Its outputs are the designed stops alone, for the report-review-counts job.
   const fbOutputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))[1];

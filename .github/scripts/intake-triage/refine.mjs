@@ -100,17 +100,14 @@ import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
 import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, SPLIT_PENDING, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { partitionProblem, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildHeader, splitDigest, splitRecord, splitTaskLines, subsetProblem, taskText } from "./size-split.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
+import { AGENT_READY, NEEDS_DECISION, NEEDS_HUMAN, READY } from "../lib/lane-vocabulary.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
-const NEEDS_DECISION = "needs-owner-decision";
-const READY = "status: ready";
-const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
-const AGENT_READY = "agent-ready";
 // The holds besides needs-decision a not-exact refinement could overwrite.
 const PERSON_HOLDABLE = [...INFO_LABELS, "needs-spec"];
 // The id of whoever last added label `name` in `events`, or undefined.

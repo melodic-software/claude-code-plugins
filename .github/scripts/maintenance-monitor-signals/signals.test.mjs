@@ -655,7 +655,6 @@ test("signal 13: each lane's hold notice parses, and other notices do not", () =
 test("signal 13: work-unblock's held issue read parses to the issue and the status", () => {
   const issueHold = (message) => parseHold("label-unblocked", message);
   assert.deepEqual(issueHold("#20: GET /repos/o/r/issues/20 failed with status 503; holding, and the next sweep reads it again"), { item: "#20", reason: "read fault HTTP 503" });
-  // A network fault names no status.
   assert.deepEqual(issueHold("#7: fetch failed; holding, and the next sweep reads it again"), { item: "#7", reason: "read fault" });
   // The run-ending error for the same issue, and another title, are no hold.
   assert.equal(issueHold("#20: GET /repos/o/r/issues/20 failed with status 404"), null);
@@ -671,9 +670,7 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
   assert.deepEqual(verdictHold(closing({ error: new GitHubError(502, "GET /repos/o/r/issues/7") })), { item: null, reason: "fault HTTP 502" });
   const admission = { admission: { outcome: "error", fault: true, reasons: ["GET /repos/o/r/issues/7/timeline failed with status 503"] } };
   assert.deepEqual(verdictHold(closing({ result: admission })), { item: null, reason: "admission fault HTTP 503" });
-  // A network fault names no status.
   assert.deepEqual(verdictHold(closing({ error: new TypeError("fetch failed") })), { item: null, reason: "fault" });
-  // Its error line and another title's held: text are no hold.
   const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
   assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
   assert.equal(parseHold("other-lane", "held: other-lane could not resolve the pull request: x failed with status 502"), null);
@@ -696,7 +693,6 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
   const workflow = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8");
   const step = /run: echo "(::notice title=WIP cap hold::[^"]*)"/.exec(workflow)[1];
   assert.deepEqual(parseHold(...annotation(step)), { item: null, reason: "WIP cap check unfinished" });
-  // A pause that was read is no hold.
   assert.equal(parseHold("admission paused", "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10"), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "work-resolve-issue").jobs.includes("pick-slot"));
 });
@@ -716,7 +712,6 @@ test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
   // A hold notice is read at notice level only.
   assert.equal(parseHold(...annotation(step), "warning"), null);
-  // The same job's notice for a plan that could not read the changed files.
   const files = [...workflow.matchAll(/echo "(::notice title=PR head hold::[^"]*)"/g)].map((m) => m[1]).find((line) => line.includes("changed files"));
   assert.deepEqual(parseHold(...annotation(files.replace("$PR_NUMBER", "9"))), { item: "#9", reason: "PR files unread" });
 });
@@ -742,7 +737,6 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
   const gates = [...workflow.matchAll(/echo "(::notice title=pr-verify::held: pr-verify's trigger gate[^"]*)"/g)].map((m) => m[1]);
   assert.equal(gates.length, 3);
   for (const line of gates) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "trigger gate fault" });
-  // A notice that is no hold, and another lane's title, parse to nothing.
   assert.equal(parseHold("pr-verify", "pr-verify judged #7: PASS"), null);
   assert.equal(parseHold("intake-sweep", annotation(gates[0])[1]), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
@@ -768,7 +762,6 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   const notices = [...workflow.matchAll(/echo "(::notice title=pr-review-main::held: [^"]*)"/g)].map((m) => m[1].replace("$retry_call_unknown", "HTTP 502"));
   assert.equal(notices.length, 4, "the check-trigger job's select step and each of three legs'");
   for (const line of notices) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "file list unread" });
-  // Another title's text, and a pr-review-main notice that is no hold, parse to nothing.
   assert.equal(parseHold("pr-verify", annotation(notices[0])[1]), null);
   assert.equal(parseHold("pr-review-main", "the file list read 12 files"), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
@@ -820,7 +813,6 @@ test("signal 13: pr-merge's lane token hold parses to one fixed reason, for eith
     const line = `::notice title=Lane token hold::${msg.replace("${rate_limit}", clause)}`;
     assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "lane token rate-limited" }, clause || "attempt cap");
   }
-  // Another title's text, and the kill-switch stop's notice, parse to nothing.
   assert.equal(parseHold("pr-merge", msg), null);
   assert.equal(parseHold("Lane token hold", "lane-token-stopped: the broker refused the token because a lanes kill switch is on"), null);
   const lane = HOLD_LANES.find((l) => l.lane === "pr-merge");

@@ -179,7 +179,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The off switch, checked before anything else.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -353,7 +352,6 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
-          # A sweep's carried verdicts in, and the ones it keeps for the next.
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
           # Minutes after which the sweep decides no further agent-ready issue
@@ -484,7 +482,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The off switch, checked before anything else.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]

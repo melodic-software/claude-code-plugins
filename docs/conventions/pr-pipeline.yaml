@@ -1693,6 +1693,8 @@ merge:
         class: trust
       - glob: ".github/scripts/pr-merge/enable-auto-merge.mjs"
         class: trust
+      - glob: ".github/scripts/lib/lane-vocabulary.mjs"
+        class: trust
       - glob: ".github/scripts/pr-merge/superseded.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
@@ -1742,6 +1744,8 @@ merge:
       - glob: ".github/scripts/pr-merge-risk/write-rating.mjs"
         class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh"
         class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust

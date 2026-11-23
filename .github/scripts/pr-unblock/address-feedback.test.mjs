@@ -1080,7 +1080,6 @@ test("once the fresh fixer's round ran, the code lane's findings escalate feedba
     assert.equal(result.maxRounds, 4);
     assert.equal(result.file, undefined);
   }
-  // The fresh fixer's own round still runs, and says which round it is.
   const fresh = await capped({ rounds: 3 });
   assert.equal(fresh.decision, "proceed");
   assert.equal(fresh.maxRounds, 4);
@@ -1192,7 +1191,6 @@ test("main select writes outputs and the thread file; escalation writes no threa
   assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   assert.equal(JSON.parse(readFileSync(join(dir, "decided.json"), "utf8")).threads[0].comments[2].direction, true);
 
-  // The human-gated label comes from TRACKER_CONFIG; a fix request sets human-gate=fix-request.
   const tracker = join(dir, "tracker.json");
   writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
   const gatedEnv = { ...env("gated"), TRACKER_CONFIG: tracker };
@@ -1679,7 +1677,6 @@ test("a Codex-started thread on a marker-confirmed head is worked like the revie
   const replied = await codexRun(fakeApi(botThread({ replies: [[101, CODEX, "finding 101"]] })));
   assert.equal(replied.decision, "proceed");
   assert.deepEqual(replied.file.threads[0].comments.map((row) => [row.id, row.author]), [[100, "reviewer"], [101, "reviewer"]]);
-  // The reply job's re-read keeps it too.
   const { kept } = await currentThreads({ api: fakeApi(botThread()), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
@@ -1706,7 +1703,6 @@ test("a Codex root carries the security-review lane's state: clear once the lane
   assert.equal(await stateOf(lanesMarked()), "pending");
   // A marker for another head, or the code lane's marker, does not clear it.
   assert.equal(await stateOf(lanesMarked(securityMarked(OLD_HEAD))), "pending");
-  // The reply job's re-read carries the same state.
   const { kept } = await currentThreads({ api: codexAt(lanesMarked(securityMarked())), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
   assert.equal(kept[0].comments[0].security, "clear");
   // The reviewer bot's own finding carries none.
@@ -1908,7 +1904,6 @@ test("a Codex thread answering a trusted person's @codex request is worked as to
     assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"], label);
     assert.deepEqual(lines, [], label);
   }
-  // The reply job's re-read keeps it too.
   const { kept } = await currentThreads({ api: askedBy([codexAsk()]), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
@@ -2274,7 +2269,6 @@ test("an earlier-fail round whose already-addressed stop on this head is queued 
   const result = await runEarlier(fakeApi(queued), { readFailNotes });
   assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-session"]);
   assert.equal(reads, 0);
-  // A stop on an older head does not hold this one.
   const older = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-already-addressed", { head: OLD_HEAD })] }), { readFailNotes });
   assert.equal(older.decision, "proceed");
 });

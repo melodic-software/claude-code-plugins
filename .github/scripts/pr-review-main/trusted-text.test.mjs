@@ -160,7 +160,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
     // The age limit is set once, for the whole workflow.
     assert.equal(envOf(take, "SHARED_TEXT_MAX_AGE_MINUTES"), undefined, job);
     assert.match(text, /^env:\n(?: {2}#.*\n)* {2}SHARED_TEXT_MAX_AGE_MINUTES: "[1-9][0-9]*"$/m);
-    // The download lands where the take step reads it.
     assert.equal(envOf(download, "path"), "${{ runner.temp }}/pr-review-main-shared-text", job);
     const reviewed = { steps: { diff: { outcome: "success", outputs: { stop: "" } } } };
     const select = ifOf(step(job, "Select the trusted PR text"));

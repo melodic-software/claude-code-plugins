@@ -132,11 +132,9 @@ const WORKFLOWS = [
 const at = (ms) => new Date(ms).toISOString();
 function fakeRuns() {
   const runs = [];
-  // 2,500 pr-merge runs, one every 30 s from the window start.
   for (let i = 0; i < 2500; i += 1) runs.push(run(10_000 + i, WORKFLOWS[0].path, "success", { created_at: at(FROM + i * 30_000) }));
   for (let i = 0; i < 50; i += 1) runs.push(run(20_000 + i, WORKFLOWS[1].path, "failure", { created_at: at(FROM + i * 600_000) }));
   for (let i = 0; i < 5; i += 1) runs.push(run(30_000 + i, WORKFLOWS[3].path, "success", { created_at: at(FROM + i * 1000) }));
-  // Outside the window on both sides.
   runs.push(run(40_000, WORKFLOWS[1].path, "failure", { created_at: at(FROM - 1000) }));
   runs.push(run(40_001, WORKFLOWS[1].path, "failure", { created_at: at(TO + 1000) }));
   return runs;

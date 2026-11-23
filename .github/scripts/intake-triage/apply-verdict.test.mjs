@@ -1806,7 +1806,6 @@ describe("run", () => {
     assert.deepEqual(states(fake.calls), ["ready"]);
   });
 
-  // A removal whose time cannot be read lifts nothing that held before.
   test("a person's needs-human before this run, removed at an unreadable time, keeps the hold when the bot adds it again", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -2155,8 +2154,6 @@ describe("run", () => {
     });
   }
 
-  // The issue carries no hold label and no label event: its field holds
-  // needs-owner-decision, which a person set.
   test("a hold that exists only on the Work status field blocks a ready verdict", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
     // A real time on the field event, an hour before this run started, so
@@ -2607,7 +2604,6 @@ describe("the workflow's --check steps", () => {
   }
 });
 
-// The prompt's paragraphs as flowing text, keyed by their capitalized lead.
 const PROMPT = ["../../workflows/intake-triage.yml", "./triage-rubric.txt"]
   .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
   .join("\n")

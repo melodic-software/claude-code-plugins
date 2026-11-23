@@ -26,7 +26,6 @@ import { graphqlCall } from "../lib/run-jobs.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
-// The checkout's pipeline config, three levels above this file.
 const CONFIG = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
 
 // The last run's carry, from the newest scheduled or hand-started run of

@@ -822,7 +822,6 @@ test("a capped pull request the close leaves open or fails on gets the lane's no
   assert.deepEqual((await run([standing], {}, { closeAnswer: () => ({ closed: true, restarted: [], parked: [] }), now })).statuses, []);
 });
 
-// Report-only closes nothing.
 test("report-only names the close it would make and closes nothing", async () => {
   const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: "fails at 3 heads", head: HEAD, ineligible: null, reviews: null };
   const { closed, lines } = await run([pull(4, { verdict: capped })], { REPORT_ONLY: "true" });
@@ -2460,9 +2459,7 @@ test("an event run handles only its own pull request", async () => {
   const pulls = [laneHeld(2, { autoMergeRequest: {} }), laneHeld(3, { autoMergeRequest: {} })];
   const event = await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "3" });
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_3" }]);
-  // An event naming no listed pull request handles none.
   assert.deepEqual((await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "9" })).writes, []);
-  // The schedule handles both, whatever EVENT_PR says.
   assert.deepEqual((await run(pulls, { EVENT_PR: "3" })).writes, [
     { mutation: "disarm", id: "PR_2" },
     { mutation: "disarm", id: "PR_3" },
@@ -3026,7 +3023,6 @@ test("while the gate holds its lane off, nothing is armed and armed lane pull re
       { ...ROOM, refusal },
     );
     assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], refusal);
-    // A held lane reads no verdict.
     assert.deepEqual(verified, [], refusal);
     assert.ok(lines.some((line) => line.includes(`#1 left: pr-merge's gate holds its lane off (${refusal})`)), refusal);
   }
@@ -3411,7 +3407,6 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
   assert.equal(calls.length, callsAtSpawn);
   assert.deepEqual(writes(), []);
   assert.deepEqual(notes, []);
-  // The stopped read's cost is still logged.
   assert.ok(lines.some((line) => /^enable-auto-merge: #1 calls=/.test(String(line))), lines.join("\n"));
   const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
   assert.equal(errors.length, 1, lines.join("\n"));
@@ -3539,7 +3534,6 @@ test("a verifier read stopped on a rate limit disarms the armed lanes pull reque
     rmSync(dir, { recursive: true, force: true });
   }
   assert.equal(code, 1);
-  // One verifier read; every armed lanes pull request is disarmed, none armed.
   assert.equal(asked.length, 1);
   assert.deepEqual(
     writes().sort((a, b) => a.id.localeCompare(b.id)),
@@ -4533,7 +4527,6 @@ test("the Merge-Risk record reads the comments the arm already read, lists none 
   // The head's record already holds this line: nothing is written.
   assert.deepEqual(writer.sent, []);
   assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && !line.includes("write=")), lines.join("\n"));
-  // No comment list was read beyond the one discussion read.
   assert.equal(calls.filter(({ body }) => body?.query === DETAIL_QUERY).length, 1);
   assert.equal(calls.filter(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments).length, 0);
 });

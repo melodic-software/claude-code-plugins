@@ -68,11 +68,9 @@ import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-g
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { callers, listedJob } from "../lib/lane-registry.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
+import { ACTIONS_BOT_ID, LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 
 const DEPENDABOT_ID = 49699333;
-// github-actions[bot], the actor of a run a GITHUB_TOKEN dispatch started.
-const ACTIONS_BOT_ID = 41898282;
 // A marker at the current head whose push has not landed within this long is
 // left to a person, so a push that keeps failing is not retried for days.
 const RETRY_MS = 60 * 60_000;

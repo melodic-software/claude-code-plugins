@@ -2087,7 +2087,6 @@ jobs:
           VERDICT_FILE: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
             && format('{0}/skill-reply/dependency-verdict.json', runner.temp) || '' }}
-          # Issue mode: the collect step's outcome files.
           OUTCOME_DIR: ${{ inputs.issue-number != '' && format('{0}/work-outcome', runner.temp) || '' }}
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
@@ -3534,8 +3533,6 @@ jobs:
             diff_bytes: $bytes, truncated: ($bytes > 1000000)}' >"$DATA/branch.json"
           echo "tip=$tip" >>"$GITHUB_OUTPUT"
 
-      # The summary pass's model, turns and effort: the summarize-reuse route
-      # of the base config's models block.
       - name: Resolve the summary pass's model
         id: summary-models
         if: steps.summary-data.outcome == 'success'
@@ -3700,8 +3697,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: reuse-summary${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}
 
-      # The summary leg's lane-outcome record: its credential, outcome and
-      # durationMs.
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
