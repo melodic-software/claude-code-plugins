@@ -50,7 +50,6 @@ assert_fail() { # <name> <output> <needle>
   fi
 }
 
-# --- node exec form is a real executable spelling ---------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 if out="$(run_check "$f" 2>&1)"; then
@@ -67,7 +66,6 @@ else
 fi
 rm -rf "$f"
 
-# --- shell form is outside this probe ---------------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_ROW"
 if out="$(run_check "$f" 2>&1)"; then
@@ -81,7 +79,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a .sh path as command is the shebang failure mode ----------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","args":["a"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -91,7 +88,6 @@ else
 fi
 rm -rf "$f"
 
-# --- .cmd / .bat shims are not executables ----------------------------------
 for shim in hook.cmd hook.bat; do
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"\${CLAUDE_PLUGIN_ROOT}/node_modules/.bin/${shim}\",\"args\":[]}]}]}"
@@ -103,7 +99,6 @@ for shim in hook.cmd hook.bat; do
   rm -rf "$f"
 done
 
-# --- bare bash is not a portable exec-form command --------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":["x.sh"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -113,7 +108,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an absolute bash.exe path is a shell image, not a fleet row ------------
 new_fixture f
 # portability-ok: Windows path fixture; \b is the bin and bash segments, not a GNU grep word boundary
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"C:\\\\Program Files\\\\Git\\\\usr\\\\bin\\\\bash.exe","args":["x.sh"]}]}]}'
@@ -124,7 +118,6 @@ else
 fi
 rm -rf "$f"
 
-# --- node.exe path and the documented bare .exe names pass ------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"C:\\\\Program Files\\\\nodejs\\\\node.exe","args":["x.mjs"]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
@@ -134,7 +127,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a bare name passes only when the allowlist carries it ------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":[]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
@@ -173,7 +165,6 @@ for name in node node.exe bash sh python3 pwsh powershell.exe; do
   rm -rf "$f"
 done
 
-# --- the probe reads the library's allowlist, not the gate's source ----------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 rm "$f/scripts/check-hook-exec-form.sh"
@@ -203,7 +194,6 @@ else
 fi
 rm -rf "$f"
 
-# --- args must be an array --------------------------------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":"x.mjs"}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -213,7 +203,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter exec form with a script command fails ----------------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/skills/demo"
 cat >"$f/plugins/alpha/skills/demo/SKILL.md" <<'EOF'
@@ -237,7 +226,6 @@ else
 fi
 rm -rf "$f"
 
-# --- frontmatter args must be a sequence too ---------------------------------
 new_fixture f
 mkdir -p "$f/plugins/alpha/skills/demo"
 printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
@@ -249,7 +237,6 @@ else
 fi
 rm -rf "$f"
 
-# --- unreadable hooks.json is a finding, not a pass -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{not json'
 if out="$(run_check "$f" 2>&1)"; then
@@ -270,7 +257,6 @@ else
 fi
 rm -rf "$f"
 
-# --- manifest-pointed and inline manifest configs are probed -----------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra.json",{"Stop":[{"hooks":[{"type":"command","command":"x.cmd","args":[]}]}]}]}'
 plugin_file "$f" alpha config/extra.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}'
@@ -293,7 +279,6 @@ else
 fi
 rm -rf "$f"
 
-# --- forced spawn delivers the args array when node is present --------------
 if command -v node >/dev/null 2>&1; then
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
@@ -393,7 +378,6 @@ else
   echo "SKIP: node is not on PATH; spawn-delivery cases not exercised" >&2
 fi
 
-# --- a required spawn with node hidden fails closed -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 hidden="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -415,7 +399,6 @@ else
 fi
 rm -rf "$f" "$hidden"
 
-# --- live probe: healthy fake claude, dropped args, and missing claude ------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 bin="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"

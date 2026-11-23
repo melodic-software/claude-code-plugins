@@ -703,8 +703,6 @@ f="$scratch/feed-output-mismatch.yml"
 xform_replace_line "$base" "alpha-node=" "            alpha-node=\${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.node-work.outcome }}" "$f"
 expect "a feed override paired with a different output is rejected" 1 "THE FEED MIRRORS A REAL GATE" --check "$f"
 
-# --- fail closed on shape and usage -----------------------------------------
-
 f="$scratch/bad-shape.yml"
 xform_insert_after "$base" "jobs:" "  not a job key" "$f"
 expect "an unparsed workflow shape is inconclusive, never a pass" 2 "unrecognized workflow shape" --check "$f"
@@ -818,7 +816,5 @@ if [[ -z "$suite_steps" ]]; then
 else
   fail "scripts/ or lib/ suite(s) run as steps of their own:$(printf '%s' "$suite_steps" | tr '\n' ' ')"
 fi
-
-# --- verdict ----------------------------------------------------------------
 
 test_harness::report
