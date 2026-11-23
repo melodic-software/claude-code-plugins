@@ -5421,18 +5421,6 @@ jobs:
             printf '%s' "$rows"
           } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
           [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || exit 1
-      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing, and the aggregate below passes those skips. That
-      # green check stays on the head after the ready flip until the
-      # ready_for_review run replaces it, so an enqueue in that gap meets the
-      # required check, and the merge-group run does not fully close it: the
-      # changed-file gates that read only github.base_ref decline there. No
-      # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. The hold steps that read
-      # GitHub (cost hold, human-gated, hold-lift,
-      # lanes hold) skip on a draft too, so a held draft is green as well;
-      # the ready_for_review run judges every hold. This step says why it is
-      # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
         run: |
@@ -7390,31 +7378,6 @@ jobs:
       # reconcile.mjs matches the error below, and a trusted person's re-run
       # does the same. The admin bypass stays the break-glass. A
       # check-kill-switch job that failed stopped the review too, and fails.
-      # Dependabot, the release App and the
-      # standards-sync App, by numeric author id, are exempt: no review lane
-      # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it (with merge.diff-check.path-holds false, Dependabot
-      # alone: the generated guard after hold_patterns empties the list for
-      # every other author), unless every change block of a Dependabot PR
-      # only swaps the ref of an action whose owner the base lists in
-      # merge.dependabot.trusted-action-owners (owner decision
-      # Q-ANTHROPIC-DEPS). A person on the base commit's trusted-actor list
-      # approving the head clears that hold: their newest non-comment review,
-      # matched by numeric id, is APPROVED at the head. It counts as that
-      # person's whatever client submitted it. An unreadable review or
-      # trusted-actor list keeps it. Any other
-      # same-repository PR changing one that an agent App
-      # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
-      # opened, authored or committed a commit of, or pushed to its head
-      # branch (the repository activity API, one page) fails too, since its
-      # head can rewrite the review callers; it still needs
-      # both lanes otherwise. Those reads run only once a trust-gate path
-      # matched, and an unreadable base config, PR, commit list or push
-      # history, or a short commit list or full push page, fails closed. A draft is exempt
-      # (see `Note a draft`). pr-dispatch-feedback.yml re-runs this job when a
-      # review run completes, and after a listed person's approval
-      # (pr-review-approved.yml). An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
       # step it lists with no conclusion, or not at all, proves nothing either
       # way. Then the job's own check-run annotations decide. The review
