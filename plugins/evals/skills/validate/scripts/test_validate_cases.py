@@ -35,7 +35,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
     r"|not loadable|schema_version|is required|requires|no prompt|sample"
-    r"|JavaScript|is not a value|history_file)",
+    r"|JavaScript|is not a value|history_file|names no|does not exist)",
     re.MULTILINE,
 )
 
@@ -1905,6 +1905,142 @@ class HistoryChain(ValidatorTestCase):
     def test_a_record_that_is_not_json_fails(self):
         self.resumed(history_records(*CHAINED) + "{not json\n")
         self.assert_fail(self.validate(), "history_file record 4 is not JSON")
+
+
+class StaleReferences(ValidatorTestCase):
+    """The suite sits at plugins/demo/evals, so plugins/ is the plugins root,
+    holding demo (skill `real`, agent `helper`) and discovery (agent
+    `explorer`)."""
+
+    def setUp(self):
+        super().setUp()
+        plugins = Path(self._tmp) / "plugins"
+        self.eval_dir = plugins / "demo" / "evals"
+        self.eval_dir.mkdir(parents=True)
+        write(plugins / "demo" / "skills" / "real" / "SKILL.md", "---\nname: real\n---\n")
+        write(plugins / "demo" / "agents" / "helper.md", "---\nname: helper\n---\n")
+        write(plugins / "demo" / "agents" / "code-reviewer.md", "---\nname: cr\n---\n")
+        write(plugins / "discovery" / "agents" / "explorer.md", "---\nname: x\n---\n")
+
+    def ref_case(self, prompt_line="/demo:real go", tags="[smoke]", context="",
+                 graders=""):
+        return self.case(
+            "refs",
+            case_yaml='schema_version: "1.1"\nname: refs\ntags: %s\n%s'
+            "execution:\n  prompt: '%s'\n  allowed_tools: [Read, Skill, Agent]\n"
+            "graders:\n  - name: says-done\n    type: regex\n    pattern: done\n%s"
+            % (tags, context, prompt_line, graders),
+        )
+
+    @staticmethod
+    def tool_grader(name, tool, input_match):
+        return (
+            "  - name: %s\n    type: tool_used\n    tool: %s\n    input_match: '%s'\n"
+            % (name, tool, input_match)
+        )
+
+    def test_a_leading_slash_skill_that_resolves_to_no_skill_fails(self):
+        self.ref_case(prompt_line="/demo:gone go")
+        self.assert_fail(
+            self.validate_without_node(),
+            "FAIL refs/case.yaml: the prompt's leading /demo:gone names no skill: "
+            "plugins/demo/skills/gone/SKILL.md does not exist",
+        )
+
+    def test_a_scaffold_or_fixture_path_that_does_not_exist_fails(self):
+        self.ref_case(
+            context="context:\n  scaffold_script: scaffold.sh\n"
+            "  history_file: turn-1.jsonl\n  add_dirs: [resources]\n"
+        )
+        result = self.validate_without_node()
+        for field, value in (
+            ("scaffold_script", "scaffold.sh"),
+            ("history_file", "turn-1.jsonl"),
+            ("add_dirs", "resources"),
+        ):
+            self.assert_fail(
+                result,
+                'FAIL refs/case.yaml: context.%s "%s" names no file or directory '
+                "in the case directory" % (field, value),
+            )
+
+    def test_a_skill_or_agent_input_match_naming_nothing_fails(self):
+        self.ref_case(
+            graders=self.tool_grader("loads", "Skill", '"skill":"demo:gone"')
+            + self.tool_grader("dispatches", "Agent", '"subagent_type":"demo:nobody"')
+            + self.tool_grader("open-prefix", "Agent", "demo:nob|demo:helper")
+            + self.tool_grader("slash-skill", "Agent", "/demo:helper\\b")
+        )
+        result = self.validate_without_node()
+        self.assert_fail(
+            result,
+            'FAIL refs/case.yaml: grader "loads" input_match names demo:gone, but '
+            "plugins/demo/skills/gone/SKILL.md does not exist",
+            'FAIL refs/case.yaml: grader "dispatches" input_match names '
+            "demo:nobody, but plugins/demo/agents/nobody.md does not exist",
+            'FAIL refs/case.yaml: grader "open-prefix" input_match names '
+            "demo:nob, but plugins/demo/agents/nob*.md does not exist",
+            'FAIL refs/case.yaml: grader "slash-skill" input_match names '
+            "demo:helper, but plugins/demo/skills/helper/SKILL.md does not exist",
+        )
+        self.assertNotIn('"open-prefix" input_match names demo:helper', result.stdout)
+
+    def test_a_reference_inside_a_group_is_checked_against_what_follows_it(self):
+        write(
+            self.eval_dir.parent / "skills" / "gone-replacement" / "SKILL.md",
+            "---\nname: gone-replacement\n---\n",
+        )
+        self.ref_case(
+            graders=self.tool_grader("non-capturing", "Skill", '"skill":"(?:demo:gone)"')
+            + self.tool_grader("capturing", "Skill", '"skill":"(demo:gone)"')
+            + self.tool_grader("open-group", "Skill", '"skill":"(demo:gone)')
+            + self.tool_grader("alternative", "Skill", '"(?:demo:real|demo:gone)"')
+        )
+        result = self.validate_without_node()
+        for grader in ("non-capturing", "capturing", "alternative"):
+            self.assert_fail(
+                result,
+                'FAIL refs/case.yaml: grader "%s" input_match names demo:gone, but '
+                "plugins/demo/skills/gone/SKILL.md does not exist" % grader,
+            )
+        self.assertNotIn('"open-group" input_match', result.stdout)
+
+    def test_a_plugin_skill_tag_naming_no_skill_fails(self):
+        self.ref_case(tags="[smoke, demo:gone]")
+        self.assert_fail(
+            self.validate_without_node(),
+            'FAIL refs/case.yaml: tag "demo:gone" names no skill: '
+            "plugins/demo/skills/gone/SKILL.md does not exist",
+        )
+
+    def test_references_that_resolve_and_non_literal_parts_pass(self):
+        case_dir = self.ref_case(
+            tags="[smoke, demo:real]",
+            context="context:\n  scaffold_script: scaffold.sh\n",
+            graders=self.tool_grader("loads", "Skill", '"skill":"demo:real"')
+            + self.tool_grader("optional-prefix", "Skill", '"(?:demo:)?real"')
+            + self.tool_grader("lookahead", "Skill", '^(?=.*demo:gone)')
+            + self.tool_grader("class", "Skill", '[demo:gone]')
+            + self.tool_grader("agent", "Agent", "demo:helper")
+            + self.tool_grader("explorer", "Agent", '"subagent_type":"discovery:explorer"')
+            + self.tool_grader("prose", "Agent", "Intent: not stated")
+            + self.tool_grader("open-prefix", "Agent", "discovery:explore")
+            + self.tool_grader("slash-skill", "Agent", "/demo:real\\b")
+            + self.tool_grader("hyphen-wildcard", "Agent", "demo:code-.*")
+            + self.tool_grader("optional-suffix", "Agent", "demo:code-review(er)?")
+            + self.tool_grader("split-name", "Agent", "demo:(code|security)-reviewer"),
+        )
+        write(case_dir / "scaffold.sh", "#!/usr/bin/env bash\ntrue\n")
+        result = self.validate_without_node()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("names no", result.stdout)
+        self.assertNotIn("does not exist", result.stdout)
+
+    def test_a_suite_outside_any_plugins_directory_skips_name_checks(self):
+        self.eval_dir = Path(self._tmp) / "evals"
+        self.ref_case(prompt_line="/demo:gone go", tags="[demo:gone]")
+        result = self.validate_without_node()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
 class PilotSuite(unittest.TestCase):
