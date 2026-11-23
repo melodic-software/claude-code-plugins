@@ -1742,9 +1742,6 @@ def remove_run_dirs(run_dir: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
-# --- command line ------------------------------------------------------------------
-
-
 def build_base(repo_root: Path, root: Path, cfg: RunConfig) -> Path:
     """One committed snapshot of the repository at HEAD, cloned by every run."""
     call = cfg.call or default_call
