@@ -457,8 +457,6 @@ jobs:
           echo "::warning::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -742,8 +740,6 @@ jobs:
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -1006,8 +1002,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true

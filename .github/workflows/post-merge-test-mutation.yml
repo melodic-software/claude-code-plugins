@@ -433,8 +433,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
         continue-on-error: true
@@ -1412,8 +1410,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
         continue-on-error: true

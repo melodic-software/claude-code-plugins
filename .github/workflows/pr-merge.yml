@@ -292,7 +292,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
-          # Where the check writes the lane floor's anchor, uploaded below.
           BABYSIT_POSTMERGE_ANCHOR: ${{ runner.temp }}/post-merge-anchor/anchor.json
           BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json
           BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED: 'true'
@@ -1807,7 +1806,6 @@ jobs:
           # candidate the saved listing would allow lists again before it is
           # allowed.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
-          # The head-ref map read above, if any.
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The lane records read and added to above, for a gate that checks
           # earlier lane merges again.
