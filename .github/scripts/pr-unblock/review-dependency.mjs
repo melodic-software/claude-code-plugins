@@ -34,6 +34,7 @@ import {
   provenanceReasons,
   withProvenance,
 } from "./dependency-classify.mjs";
+import { cdnRequest } from "./cdn-pins-sync.mjs";
 import { parseGroups, relockRequest, relockTarget } from "./dependency-relock.mjs";
 import { movePin, PACKAGE, unifiedDiff } from "./install-script-pin.mjs";
 
@@ -230,6 +231,7 @@ export async function select({
   dependabotId,
   config = null,
   groups = [],
+  baseDir,
   policy,
   repository = "",
   maxRounds = DEFAULT_MAX_ROUNDS,
@@ -280,6 +282,13 @@ export async function select({
   } catch (error) {
     relockError = error.message;
   }
+  let cdnError = "";
+  try {
+    const cdn = await cdnRequest({ files, changedFiles: pull.changed_files, baseDir, readText: (path) => api.getText(path, headSha, { exactUtf8: true }) });
+    if (cdn) return { decision: "cdn-sync", cdn, classification };
+  } catch (error) {
+    cdnError = error.message;
+  }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
   const checkRuns = [];
@@ -291,7 +300,7 @@ export async function select({
   const shas = whole ? commits.map((commit) => commit.sha) : null;
   const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
-    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError };
+    return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification, pinError, relockError, cdnError };
   }
 
   return {
@@ -300,6 +309,7 @@ export async function select({
     classification,
     pinError,
     relockError,
+    cdnError,
     file: {
       version: 1,
       repository,
@@ -429,6 +439,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config,
+    baseDir: env.BASE_DIR,
     groups: config === null ? [] : parseGroups(readFileSync(env.DEPENDABOT_CONFIG, "utf8")),
     policy: readPolicy(env.DEPENDABOT_POLICY, log),
     provenance,
@@ -462,6 +473,17 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     output("relock-sha256", createHash("sha256").update(request).digest("hex"));
     summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
   }
+  if (result.cdn) {
+    need(env, ["CDN_SYNC_DIR"]);
+    const request = `${JSON.stringify(result.cdn)}\n`;
+    writeFileSync(`${env.CDN_SYNC_DIR}/request.json`, request);
+    output("cdn-sync-state", "written");
+    output("cdn-sync-sha256", createHash("sha256").update(request).digest("hex"));
+    summary("The CDN pins sync runs before any dependency model turn");
+  }
+  if (result.cdnError) {
+    log("::warning::the CDN pins sync request could not be built; the model reviews the pull request as it stands");
+  }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);
   }
@@ -469,7 +491,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     log(`::warning::the dependency group's lagging directory was not relocked (${result.relockError}); the model reviews the pull request as it stands`);
   }
   output("proceed", String(result.decision === "proceed"));
-  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn" }[result.decision] ?? "");
+  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn", relock: "no-model-turn", "cdn-sync": "no-model-turn" }[result.decision] ?? "");
   output("escalation-reason", result.escalationReason ?? "");
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {

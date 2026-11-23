@@ -318,9 +318,10 @@
       "retention-days": 1,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-dependency-pin job, same run",
-        ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-dependency-relock job, same run"
+        ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-dependency-relock job, same run",
+        ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-cdn-pins-sync job, same run"
       ],
-      "reason": "The install-script pin patch review-dependency-select writes, or the group relock patch review-dependency-relock-patch writes; read by its own run's apply-dependency-pin or apply-dependency-relock job, and a later run writes it again from the head, so 1 day, the minimum, is enough.",
+      "reason": "The install-script pin, dependency relock or CDN pins patch is read by its own run's apply job. A later run writes it again from the head, so 1 day is enough.",
       "scan": "upload"
     },
     "patch-pr-unblock-sync-shared-copies-*": {
@@ -664,6 +665,22 @@
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"
+    },
+    "cdn-pins-request-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-unblock.yml review-cdn-pins-sync and review-cdn-pins-sync-patch, same run"
+      ],
+      "reason": "The CDN pins sync request is rebuilt from the head on a new run, so 1 day is enough.",
+      "scan": "upload"
+    },
+    "cdn-pins-result-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-unblock.yml review-cdn-pins-sync-patch, same run"
+      ],
+      "reason": "The tokenless sync job produces these files. The patch job reads them as data and scans the resulting patch before upload.",
+      "scan": "none"
     },
     "dependency-relock-request-*": {
       "retention-days": 1,

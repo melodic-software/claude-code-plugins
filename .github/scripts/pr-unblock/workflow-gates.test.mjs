@@ -19,6 +19,9 @@ import { REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 import { evaluate as evaluateIn } from "../lib/gate-expression.mjs";
 import { ifOf, stepsOf, workflowText } from "../lib/workflow-text.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const read = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
@@ -816,6 +819,7 @@ test("pr-unblock.yml: report-stop-status posts on the commit the activity's push
     ["apply-dependency-patch", "review-dependency-select"],
     ["apply-dependency-pin", "review-dependency-select"],
     ["apply-dependency-relock", "review-dependency-select"],
+    ["apply-cdn-pins-sync", "review-dependency-select"],
     [null, "fix-ci-context"],
     [null, "sync-shared-copies-select"],
   ];
@@ -1733,4 +1737,19 @@ test("refine: the dispatch waits out a rate-limit reset for WAIT_BUDGET_SECONDS.
   assert.ok(step.includes(`          API_BUDGET_WAIT_SECONDS: "${WAIT_BUDGET_SECONDS.workResolveIssue}"`));
   const minutes = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobBlock(DISPATCHER, "refine").join("\n"))?.[1]);
   assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${minutes} min`);
+});
+
+test("the CDN pins sync runs in a digest-pinned container without a token", () => {
+  const sync = workflowText(read(UNBLOCK)).job("review-cdn-pins-sync");
+  assert.match(sync, /^    permissions: \{\}$/m);
+  assert.match(sync, /^          CDN_SYNC_IMAGE: node:[\d.]+-slim@sha256:[a-f0-9]{64}$/m);
+  assert.match(sync, /"\$request:\/request:ro"/);
+  assert.match(sync, /\[script, "sync", work\]/);
+  assert.doesNotMatch(sync, /token|secrets\.|actions\/checkout|--env|-e /i);
+  const patch = workflowText(read(UNBLOCK)).job("review-cdn-pins-sync-patch");
+  assert.match(patch, /sha256sum/);
+  assert.match(patch, /name: patch-pr-unblock-review-dependency-/);
+  const apply = workflowText(read(UNBLOCK)).job("apply-cdn-pins-sync");
+  assert.match(apply, /patch-prepare: cdn-pins-sync/);
+  assert.match(apply, /patch-sha256: .*review-cdn-pins-sync-patch\.outputs\.pin-sha256/);
 });

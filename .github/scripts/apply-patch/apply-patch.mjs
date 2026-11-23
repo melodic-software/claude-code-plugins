@@ -68,12 +68,15 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import { runAsScript } from "../lib/run-main.mjs";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
+import { CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "./cdn-paths.mjs";
 import { fixRefusal, installScriptPinRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
 import { NOTE_ID, sharedCopyPairs, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
@@ -324,6 +327,30 @@ export const CONTENT_RULES = {
         text: async (side, path) => blobText(git, side === "before" ? byPath.get(path).oldSha : byPath.get(path).newSha),
       },
     );
+  },
+  "cdn-pins-sync": async ({ entries, git, context, headSha }) => {
+    const wrong = entries.find(({ path, status, oldMode, newMode }) =>
+      !context.cdnPins?.has(path) || status !== "M" || oldMode !== newMode || ![REGULAR, EXECUTABLE].includes(newMode));
+    if (wrong) return `${wrong.path} is not an in-place modification of a regular CDN pin file`;
+    const root = mkdtempSync(join(tmpdir(), "cdn-pins-check-"));
+    try {
+      const base = JSON.parse(readFileSync(join(context.baseDir, CDN_RECORD), "utf8"));
+      const patched = new Map(entries.map(({ path, newSha }) => [path, newSha]));
+      for (const path of [CDN_MANIFEST, ...cdnPaths(base)]) {
+        const dest = join(root, path);
+        mkdirSync(dirname(dest), { recursive: true });
+        writeFileSync(dest, git(["cat-file", "blob", patched.get(path) ?? `${headSha}:${path}`]));
+      }
+      const record = JSON.parse(readFileSync(join(root, CDN_RECORD), "utf8"));
+      if (!isDeepStrictEqual(record.targets, base.targets)) return "the CDN pin targets changed";
+      const { check } = await import(pathToFileURL(resolve(context.baseDir, CDN_SCRIPT)).href);
+      const messages = check(root);
+      return messages.length === 0 ? null : messages.join("\n");
+    } catch {
+      return "the CDN pins could not be checked with the base sync script";
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   },
   // The root package.json alone, modified in place, with one install-script
   // pin moved to the version the manifest pins and nothing else
@@ -1596,6 +1623,15 @@ export function sharedCopiesFrom(baseDir) {
   return new Set(sharedCopyPairs(readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8")).map(([, copy]) => copy));
 }
 
+export function cdnPinsFrom(baseDir) {
+  if (!baseDir) return null;
+  try {
+    return new Set(cdnPaths(JSON.parse(readFileSync(join(baseDir, CDN_RECORD), "utf8"))));
+  } catch {
+    return null;
+  }
+}
+
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
 // file does not read; the dependency-manifests predicate then throws.
 export function dependabotPairs(baseDir) {
@@ -1705,6 +1741,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
+      baseDir: env.BASE_DIR,
+      cdnPins: row.allow.includes("cdn-pins") ? cdnPinsFrom(env.BASE_DIR) : undefined,
       sharedCopies: row.allow.includes("shared-copies") ? sharedCopiesFrom(env.BASE_DIR) : undefined,
       merge,
     },

@@ -57,6 +57,18 @@
     "empty-at-push": "invalid",
     "escalations": ["dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path"]
   },
+  "cdn-pins-sync": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "allow": ["cdn-pins"],
+    "max-files": 6,
+    "requires": [],
+    "content-rule": "cdn-pins-sync",
+    "commit": { "parents": ["head"], "message": "Sync the CDN pins to the bumped manifest on {ref} [dependabot skip]", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
+    "escalations": ["dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path"]
+  },
   "merge-base": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],

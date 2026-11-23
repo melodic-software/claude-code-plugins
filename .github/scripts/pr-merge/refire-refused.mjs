@@ -108,6 +108,7 @@ const LANES = Object.freeze({
       ["Apply Dependency Verdict", "apply-dependency-verdict"],
       ["Apply Dependency Pin", "apply-dependency-pin"],
       ["Apply Dependency Relock", "apply-dependency-relock"],
+      ["Apply CDN Pins Sync", "apply-cdn-pins-sync"],
       ["Apply Patch", "apply-patch"],
       ["Apply Patch Rung Up", "apply-patch-rung-up"],
       ["Apply Shared Copies", "apply-shared-copies"],

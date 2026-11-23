@@ -3097,6 +3097,9 @@ jobs:
       relock-state: ${{ steps.upload-relock.outcome == 'success' && 'written' || '' }}
       relock-sha256: ${{ steps.upload-relock.outcome == 'success' && steps.select.outputs.relock-sha256 || '' }}
       relock-attempt: ${{ steps.upload-relock.outcome == 'success' && github.run_attempt || '' }}
+      cdn-sync-state: ${{ steps.upload-cdn-sync.outcome == 'success' && 'written' || '' }}
+      cdn-sync-sha256: ${{ steps.upload-cdn-sync.outcome == 'success' && steps.select.outputs.cdn-sync-sha256 || '' }}
+      cdn-sync-attempt: ${{ steps.upload-cdn-sync.outcome == 'success' && github.run_attempt || '' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -3190,8 +3193,10 @@ jobs:
           # A stale install-script pin's patch (install-script-pin.mjs).
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
           RELOCK_DIR: ${{ runner.temp }}/dependency-relock
+          BASE_DIR: .base
+          CDN_SYNC_DIR: ${{ runner.temp }}/cdn-pins-request
         run: |
-          mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")" "$RELOCK_DIR"
+          mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")" "$RELOCK_DIR" "$CDN_SYNC_DIR"
           DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
           export DEPENDENCY_REVIEW_ROUNDS
           DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" CONTEXT_RUN_FILE="$DEPENDENCY_DIR/context.json" \
@@ -3262,6 +3267,23 @@ jobs:
         with:
           name: dependency-relock-request-${{ github.run_attempt }}
           path: ${{ runner.temp }}/dependency-relock
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Scan the CDN sync request for credentials
+        id: scan-cdn-sync
+        if: steps.select.outputs.cdn-sync-state == 'written'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Upload the CDN sync request
+        id: upload-cdn-sync
+        if: (steps.select.outputs.cdn-sync-state == 'written') && steps.scan-cdn-sync.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cdn-pins-request-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
           retention-days: 1
           if-no-files-found: error
 
@@ -3783,6 +3805,181 @@ jobs:
       patch-attempt: ${{ needs.review-dependency-relock-patch.outputs.pin-attempt }}
       patch-activity: review-dependency
       patch-prepare: dependency-relock
+      patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+
+  review-cdn-pins-sync:
+    name: Review CDN Pins Sync
+    needs: review-dependency-select
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.cdn-sync-state == 'written' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    outputs:
+      result-attempt: ${{ steps.upload-result.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      - name: Download the CDN sync request
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-request-${{ needs.review-dependency-select.outputs.cdn-sync-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Sync the CDN pins
+        env:
+          CDN_SYNC_IMAGE: node:24.21.0-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
+          REQUEST_SHA256: ${{ needs.review-dependency-select.outputs.cdn-sync-sha256 }}
+        run: |
+          request="$RUNNER_TEMP/cdn-pins-request"
+          result="$RUNNER_TEMP/cdn-pins-result"
+          sum=$(sha256sum <"$request/request.json")
+          [[ ${sum%% *} == "$REQUEST_SHA256" ]]
+          mkdir "$result"
+          docker run --rm -i --cap-drop ALL --security-opt no-new-privileges \
+            -v "$request:/request:ro" -v "$result:/result" "$CDN_SYNC_IMAGE" node --input-type=module <<'JS'
+          import { execFileSync } from "node:child_process";
+          import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+          import { dirname, join } from "node:path";
+
+          const request = JSON.parse(readFileSync("/request/request.json", "utf8"));
+          const work = mkdtempSync("/tmp/cdn-pins-");
+          const script = join(work, "lib/cdn-pins/sync.mjs");
+          const inputs = {
+            ...request.files,
+            "lib/cdn-pins/package.json": request.manifest,
+            "lib/cdn-pins/sync.mjs": request.script,
+          };
+          for (const [path, text] of Object.entries(inputs)) {
+            const dest = join(work, path);
+            mkdirSync(dirname(dest), { recursive: true });
+            writeFileSync(dest, text);
+          }
+          execFileSync(process.execPath, [script, "sync", work], { stdio: "inherit" });
+          for (const [path, before] of Object.entries(request.files)) {
+            const synced = join(work, path);
+            if (!lstatSync(synced).isFile()) throw new Error(`${path} is not a regular sync result`);
+            if (readFileSync(synced).equals(Buffer.from(before))) continue;
+            const dest = join("/result", path);
+            mkdirSync(dirname(dest), { recursive: true });
+            copyFileSync(synced, dest);
+          }
+          JS
+
+      - name: Upload the synced CDN pins
+        id: upload-result
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cdn-pins-result-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cdn-pins-result
+          retention-days: 1
+          if-no-files-found: error
+
+  review-cdn-pins-sync-patch:
+    name: Review CDN Pins Sync Patch
+    needs: [review-dependency-select, review-cdn-pins-sync]
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.cdn-sync-state == 'written' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      pin-state: ${{ steps.upload-pin.outcome == 'success' && 'written' || '' }}
+      pin-sha256: ${{ steps.upload-pin.outcome == 'success' && steps.patch.outputs.pin-sha256 || '' }}
+      pin-attempt: ${{ steps.upload-pin.outcome == 'success' && github.run_attempt || '' }}
+      escalation-reason: ${{ steps.upload-pin.outcome != 'success' && 'dependency-pin-invalid' || '' }}
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Download the CDN sync request
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-request-${{ needs.review-dependency-select.outputs.cdn-sync-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-request
+
+      - name: Download the synced CDN pins
+        id: download-result
+        if: needs.review-cdn-pins-sync.outputs.result-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cdn-pins-result-${{ needs.review-cdn-pins-sync.outputs.result-attempt }}
+          path: ${{ runner.temp }}/cdn-pins-result
+
+      - name: Build the CDN pins patch
+        id: patch
+        if: steps.download-result.outcome == 'success'
+        env:
+          REQUEST_SHA256: ${{ needs.review-dependency-select.outputs.cdn-sync-sha256 }}
+        run: |
+          sum=$(sha256sum <"$RUNNER_TEMP/cdn-pins-request/request.json")
+          if [[ ${sum%% *} != "$REQUEST_SHA256" ]]; then
+            echo "::error::the CDN sync request is not the one the select job wrote"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/dependency-pin"
+          node .base/.github/scripts/pr-unblock/cdn-pins-sync.mjs patch "$RUNNER_TEMP/cdn-pins-request/request.json" \
+            "$RUNNER_TEMP/cdn-pins-result" "$RUNNER_TEMP/dependency-pin/patch.diff" || exit 0
+          sum=$(sha256sum <"$RUNNER_TEMP/dependency-pin/patch.diff")
+          echo "pin-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the CDN pins patch for credentials
+        id: scan-pin
+        if: steps.patch.outputs.pin-sha256 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
+
+      - name: Upload the CDN pins patch
+        id: upload-pin
+        if: (steps.patch.outputs.pin-sha256 != '') && steps.scan-pin.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-pr-unblock-review-dependency-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
+          retention-days: 1
+          if-no-files-found: error
+
+  apply-cdn-pins-sync:
+    name: Apply CDN Pins Sync
+    needs: [review-dependency-select, review-cdn-pins-sync-patch]
+    if: ${{ !cancelled() && needs.review-cdn-pins-sync-patch.outputs.pin-state == 'written' }}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: apply-dependency-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: written
+      patch-sha256: ${{ needs.review-cdn-pins-sync-patch.outputs.pin-sha256 }}
+      patch-attempt: ${{ needs.review-cdn-pins-sync-patch.outputs.pin-attempt }}
+      patch-activity: review-dependency
+      patch-prepare: cdn-pins-sync
       patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
 
   # The verdict job, a script with no model: it holds pull-requests and
@@ -4680,7 +4877,9 @@ jobs:
       - apply-dependency-patch
       - apply-dependency-pin
       - review-dependency-relock-patch
+      - review-cdn-pins-sync-patch
       - apply-dependency-relock
+      - apply-cdn-pins-sync
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
@@ -4702,7 +4901,9 @@ jobs:
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.review-dependency-relock-patch.outputs.escalation-reason != ''
+      || needs.review-cdn-pins-sync-patch.outputs.escalation-reason != ''
       || needs.apply-dependency-relock.outputs.escalation-reason != ''
+      || needs.apply-cdn-pins-sync.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
@@ -4716,6 +4917,7 @@ jobs:
       || needs.apply-dependency-verdict.result == 'success' && needs.apply-dependency-verdict.outputs.skip-reason == ''
       || needs.apply-dependency-pin.result == 'success' && needs.apply-dependency-pin.outputs.skip-reason == ''
       || needs.apply-dependency-relock.result == 'success' && needs.apply-dependency-relock.outputs.skip-reason == ''
+      || needs.apply-cdn-pins-sync.result == 'success' && needs.apply-cdn-pins-sync.outputs.skip-reason == ''
       || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
       || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
       || needs.apply-shared-copies.result == 'success' && needs.apply-shared-copies.outputs.skip-reason == ''
@@ -4771,6 +4973,7 @@ jobs:
             || needs.apply-feedback-patch.outputs.pushed-commit || needs.address-feedback-select.outputs.head-sha
             || needs.apply-dependency-patch.outputs.pushed-commit || needs.apply-dependency-pin.outputs.pushed-commit
             || needs.apply-dependency-relock.outputs.pushed-commit
+            || needs.apply-cdn-pins-sync.outputs.pushed-commit
             || needs.review-dependency-select.outputs.head-sha
             || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha }}
           ESCALATION_REASON: >-
@@ -4784,7 +4987,9 @@ jobs:
             || needs.apply-dependency-verdict.outputs.escalation-reason
             || needs.apply-dependency-pin.outputs.escalation-reason
             || needs.review-dependency-relock-patch.outputs.escalation-reason
+            || needs.review-cdn-pins-sync-patch.outputs.escalation-reason
             || needs.apply-dependency-relock.outputs.escalation-reason
+            || needs.apply-cdn-pins-sync.outputs.escalation-reason
             || needs.fix-ci-context.outputs.escalation-reason
             || needs.apply-patch.outputs.escalation-reason
             || needs.apply-patch-rung-up.outputs.escalation-reason
@@ -4818,7 +5023,9 @@ jobs:
       - apply-dependency-patch
       - apply-dependency-pin
       - review-dependency-relock-patch
+      - review-cdn-pins-sync-patch
       - apply-dependency-relock
+      - apply-cdn-pins-sync
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
@@ -4855,7 +5062,9 @@ jobs:
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.review-dependency-relock-patch.outputs.escalation-reason != ''
+      || needs.review-cdn-pins-sync-patch.outputs.escalation-reason != ''
       || needs.apply-dependency-relock.outputs.escalation-reason != ''
+      || needs.apply-cdn-pins-sync.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
@@ -4891,7 +5100,9 @@ jobs:
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.apply-dependency-pin.outputs.escalation-reason
         || needs.review-dependency-relock-patch.outputs.escalation-reason
+        || needs.review-cdn-pins-sync-patch.outputs.escalation-reason
         || needs.apply-dependency-relock.outputs.escalation-reason
+        || needs.apply-cdn-pins-sync.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
         || needs.apply-patch.outputs.escalation-reason
         || needs.apply-patch-rung-up.outputs.escalation-reason

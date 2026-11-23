@@ -2012,7 +2012,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
     // as of 2026-10-21; recheck when that section changes its size limits);
     // null when the path is absent.
-    async getText(path, ref) {
+    async getText(path, ref, { exactUtf8 = false } = {}) {
       const url = `${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`;
       const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
       if (response.status === 404) {
@@ -2021,7 +2021,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       if (!response.ok) {
         throw new Error(`GET ${url} returned ${response.status}`);
       }
-      return response.text();
+      return exactUtf8 ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer()) : response.text();
     },
     async listThreads(pr) {
       const nodes = [];

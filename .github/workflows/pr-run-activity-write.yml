@@ -355,8 +355,8 @@ on:
         description: >-
           The patch-activity's prepare mode in the base config (ci-context for
           fix-ci), which picks its patch-rules.json row; docs for fix-docs,
-          which has no prepare mode and takes the markdown-only row; empty for
-          none.
+          which has no prepare mode and takes the markdown-only row;
+          cdn-pins-sync for the deterministic CDN pins patch; empty for none.
         required: false
         type: string
         default: ""
@@ -522,9 +522,9 @@ on:
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
           conflict-patch-not-applied or conflict-patch-protected-path; for
-          apply-patch under patch-prepare install-script-pin or
-          dependency-relock, dependency-pin-invalid, dependency-pin-not-applied or
-          dependency-pin-protected-path; empty otherwise. Set only by runner
+          apply-patch under patch-prepare install-script-pin, dependency-relock
+          or cdn-pins-sync, dependency-pin-invalid, dependency-pin-not-applied
+          or dependency-pin-protected-path; empty otherwise. Set only by runner
           steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -1747,15 +1747,15 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
-            # apply-patch under the merge-base, install-script-pin and
-            # shared-copies rows gives that row's own reasons alone.
+            # These apply-patch rows give their own reasons alone.
             case "$PREPARE:$PATCH_PREPARE" in
-              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:shared-copies)
+              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:dependency-relock | apply-patch:cdn-pins-sync | apply-patch:shared-copies)
                 case "$PATCH_PREPARE:$escalation" in
                   merge-base:unresolved-conflict | merge-base:workflow-staged | merge-base:unexpected-path-staged) ;;
                   merge-base:conflict-patch-invalid | merge-base:conflict-patch-not-applied | merge-base:conflict-patch-protected-path) ;;
                   install-script-pin:dependency-pin-invalid | install-script-pin:dependency-pin-not-applied | install-script-pin:dependency-pin-protected-path) ;;
                   dependency-relock:dependency-pin-invalid | dependency-relock:dependency-pin-not-applied | dependency-relock:dependency-pin-protected-path) ;;
+                  cdn-pins-sync:dependency-pin-invalid | cdn-pins-sync:dependency-pin-not-applied | cdn-pins-sync:dependency-pin-protected-path) ;;
                   shared-copies:shared-copy-workflow-staged | shared-copies:shared-copy-unexpected-path-staged) ;;
                   shared-copies:shared-copy-patch-invalid | shared-copies:shared-copy-patch-not-applied | shared-copies:shared-copy-patch-protected-path) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
