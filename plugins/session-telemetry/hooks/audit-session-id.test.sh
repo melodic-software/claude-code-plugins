@@ -40,7 +40,6 @@ members() {
   esac
 }
 
-# row <name> -> the script that serves it
 script_for() {
   case "$1" in
   skill-usage-audit) printf '%s.sh' "$1" ;;

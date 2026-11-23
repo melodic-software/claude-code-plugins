@@ -53,7 +53,6 @@ run() {
   env CLAUDE_PROJECT_DIR="$proj" PATH="$SHIM:$PATH" "$@" bash "$HOOK" </dev/null >/dev/null 2>&1
 }
 
-# --- disabled: nothing happens ----------------------------------------------
 P="$TEST_TMPDIR/off"
 populate "$P/.observability/claude" 40
 run "$P"
@@ -114,7 +113,6 @@ run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS=5 CLAUDE_PLUGIN_OP
 kept=$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')
 if ((kept >= 39 && kept <= 40)); then ok "age protects beyond count ($kept kept)"; else bad "age protects beyond count: kept $kept"; fi
 
-# --- under the count nothing is touched, and an empty root is fine -----------
 P="$TEST_TMPDIR/few"
 populate "$P/.observability/claude" 10
 run "$P" "$ON"
@@ -128,13 +126,11 @@ mkdir -p "$P"
 run "$P" "$ON"
 assert_exit "no root at all → exit 0" 0 "$?"
 
-# --- invalid knobs fall back to the defaults --------------------------------------
 P="$TEST_TMPDIR/knobs"
 populate "$P/.observability/claude" 100
 run "$P" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS=zero CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS=-3
 assert_eq "invalid knobs → defaults (30/14)" 30 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
 
-# --- pre-prune command: files move aside, the command runs detached ---------------
 P="$TEST_TMPDIR/archiver"
 populate "$P/.observability/claude" 40
 ARCHIVE_LOG="$TEST_TMPDIR/archiver.log"
@@ -156,7 +152,6 @@ assert_eq "the archiver received the pending directory as its argument" "$pendin
 # its own pid: a host-wide pkill also ends other suites' sleeps.
 if kill "$(cat "$ARCHIVE_PID" 2>/dev/null)" 2>/dev/null; then ok "the archiver was still sleeping"; else bad "the archiver was not sleeping"; fi
 
-# --- a pending directory is swept only once it is older than 24 h ----------------
 P="$TEST_TMPDIR/sweep"
 populate "$P/.observability/claude" 5
 mkdir -p "$P/.observability/claude/prune-pending/1-old" "$P/.observability/claude/prune-pending/2-fresh"
@@ -170,7 +165,6 @@ else
   bad "fresh pending directory was swept"
 fi
 
-# --- the hook sources nothing from hook-utils ------------------------------------------
 assert_eq "no hook-utils.sh source" 0 "$(grep -cE '^[[:space:]]*(source|\.)[[:space:]].*hook-utils' "$HOOK")"
 
 report

@@ -51,7 +51,6 @@ for row in "${ROWS[@]}"; do
   mkdir -p "$rowproj/.claude/rules"
   : >"$rowproj/.claude/rules/x.md"
 
-  # --- the envelope this row emits -----------------------------------------
   TEL="$TEST_TMPDIR/$id.json"
   if emit_envelope "$HOOK" "$payload" "$TEL" CLAUDE_PROJECT_DIR="$PROJ"; then
     assert_eq "$id: hook id" "$hook_id" "$(jq -r '.hook' "$TEL")"
@@ -65,24 +64,20 @@ for row in "${ROWS[@]}"; do
     bad "$id: no envelope written when a sink is wired"
   fi
 
-  # --- this row's kill switch, and only this row's -------------------------
   expect_no_envelope "$id: kill switch → no envelope" \
     "$HOOK" "$payload" "$TEST_TMPDIR/$id.killed.json" \
     CLAUDE_PROJECT_DIR="$rowproj" "CLAUDE_PLUGIN_OPTION_${switch}_ENABLED=false"
 
-  # --- unwired: exit 0, and nothing on stdout or stderr --------------------
   OUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$rowproj" bash "$HOOK" <<<"$payload" 2>&1)
   RC=$?
   assert_exit "$id: unwired → exit 0" 0 "$RC"
   assert_silent "$id: unwired → silent" "$OUT"
 
-  # --- the required field is missing: a silent skip ------------------------
   expect_no_envelope "$id: missing required field → no envelope" \
     "$HOOK" "$missing" "$TEST_TMPDIR/$id.missing.json" CLAUDE_PROJECT_DIR="$rowproj"
 done
 assert_eq "every row in the table was driven" 7 "$n"
 
-# --- One row's switch does not silence another ------------------------------
 TELX="$TEST_TMPDIR/cross-switch.json"
 if emit_envelope "$HOOK" \
   '{"session_id":"sess-1","hook_event_name":"PreCompact","trigger":"auto"}' "$TELX" \
@@ -92,7 +87,6 @@ else
   bad "a disabled sibling row suppressed pre-compact-audit"
 fi
 
-# --- No row for the event → silent skip -------------------------------------
 expect_no_envelope "unknown event → no envelope" \
   "$HOOK" '{"session_id":"sess-1","hook_event_name":"SessionStart","source":"startup"}' \
   "$TEST_TMPDIR/unknown-event.json" CLAUDE_PROJECT_DIR="$PROJ"
@@ -279,7 +273,6 @@ assert_eq "user-scope row carries the project field" "exp-user" \
 assert_file_absent "user scope leaves the project tree untouched" \
   "$PROJU/.claude/observability/skill-usage.jsonl"
 
-# The shared switch suppresses BOTH of this row's outputs.
 PROJK="$TEST_TMPDIR/exp-killed"
 mkdir -p "$PROJK"
 expect_no_envelope "skill-expansion: kill switch → no envelope (again, with the store)" \
@@ -288,7 +281,6 @@ expect_no_envelope "skill-expansion: kill switch → no envelope (again, with th
 assert_file_absent "skill-expansion: kill switch → no second store" \
   "$PROJK/.claude/observability/skill-usage.jsonl"
 
-# A missing command_name skips both outputs.
 PROJN="$TEST_TMPDIR/exp-nocmd"
 mkdir -p "$PROJN"
 expect_no_envelope "skill-expansion: no command_name → no envelope" \
