@@ -67,6 +67,7 @@ fragment's `{{row}}` slot. The fragments cover mechanically exact shapes only:
 |---|---|
 | `command_position` | a Bash command string up to where a command starts (POSIX shells) |
 | `command_position_multishell` | the same, also through PowerShell, `cmd /c`, `python -m`, `$(` |
+| `install_command` | a package or tool install, after `command_position_multishell`; the one list every `no-install` grader builds from |
 | `command_anywhere` | anywhere inside the Bash command string |
 | `token_argument` | the rest of the same simple command, up to a token |
 | `table_header_rule` | a Markdown table's header rule line |
