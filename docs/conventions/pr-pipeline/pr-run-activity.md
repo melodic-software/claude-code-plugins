@@ -1352,7 +1352,14 @@ warns of a [classifier gap](README.md#classifier-gaps).
    with no model turn and no escalation, so no human-gated label goes on (that label would keep
    CI Status red after the approval); its step summary says the lane did not judge the update's
    content. The dispatcher does not record that skip as handled: once CI Status passes on the
-   head it sends review-dependency again, and while CI Status stays red it sends nothing.
+   head it sends review-dependency again, and while CI Status stays red it sends nothing. The hold
+   CI Status words as `#<n> by Dependabot swaps only action refs, each to a tagged commit, on
+   trust-gate paths` (an owner `merge.dependabot.trusted-action-owners` leaves out) is not
+   skipped: the model reviews it, `dependency.json` carries `merge_clears_gate_hold: true`, and a
+   `merge` round marker at the head clears that hold. The dispatcher re-runs the head's CI
+   Status job once the lanes App's newest round marker names the head with `verdict=merge` and
+   was posted after that CI Status started, while that hold is its only failure; it reads
+   nothing for this unless the listing's rollup shows CI Status failed on the head.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or

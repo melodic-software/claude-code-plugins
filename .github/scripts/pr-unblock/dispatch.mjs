@@ -678,6 +678,13 @@ export function createGitHubApi({
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
+    listIssueComments: (number) => paginate(`issues/${Number(number)}/comments`),
+    async rerunJob(jobId) {
+      if (!RUN_ID.test(String(jobId))) {
+        throw new Error("not a job id");
+      }
+      return request(`${repoUrl}/actions/jobs/${jobId}/rerun`, "POST");
+    },
     // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
     async listCommitCheckRuns(sha) {
@@ -937,6 +944,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
+    laneAppId: appSenderId,
   });
   // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
   // human-gated label is read only when owners are adopted; an unreadable

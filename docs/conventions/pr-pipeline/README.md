@@ -1231,8 +1231,8 @@ select job whose head's stop already sits in the `needs-session` queue, so it do
 again), `owned-branch` (a fix-ci select job on a pull request whose head branch
 `merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
 would race the rebuild), `gate-hold` (a review-dependency select job whose head's only CI Status
-failure is the trust-gate hold: no model turn ran, and the dispatcher sends the head again once CI
-Status passes on it), or, for an issue run under
+failure is the trust-gate hold only a person clears: no model turn ran, and the dispatcher sends
+the head again once CI Status passes on it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -3407,7 +3407,14 @@ them on every `pull_request` run, contract-only runs included:
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
-  owner list fails closed. The same holds a same-repository PR that changes a trust-gate
+  owner list fails closed. The same shape and tag check for an owner the list leaves out
+  (owner decision 2026-11-23, dependency review verdict for any owner) clears the hold once the
+  lanes App's newest pr-unblock review-dependency round marker on the PR names the head with
+  `verdict=merge`; until then ci-status fails with `#<n> by Dependabot swaps only action refs,
+  each to a tagged commit, on trust-gate paths`, which review-dependency reviews instead of
+  skipping, and the pr-unblock dispatcher re-runs ci-status after the verdict. A marker by any
+  other account, for another head, a newer non-merge marker, or unreadable comments keep the
+  hold. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the
