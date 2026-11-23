@@ -1,4 +1,4 @@
-// test-scope: .github/scripts/apply-patch/fixtures/cdn-check.mjs
+// test-scope: .github/scripts/apply-patch/* .github/scripts/lib/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";

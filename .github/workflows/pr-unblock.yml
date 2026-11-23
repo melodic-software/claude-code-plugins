@@ -3276,8 +3276,9 @@ jobs:
       - name: Scan the CDN sync request for credentials
         id: scan-cdn-sync
         if: steps.select.outputs.cdn-sync-state == 'written'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/cdn-pins-request
 
       - name: Upload the CDN sync request
@@ -3943,8 +3944,9 @@ jobs:
       - name: Scan the CDN pins patch for credentials
         id: scan-pin
         if: steps.patch.outputs.pin-sha256 != ''
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
 
       - name: Upload the CDN pins patch
