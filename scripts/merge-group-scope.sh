@@ -145,11 +145,11 @@ found=$(jq -r '
 [[ $found =~ ^[0-9a-f]{40}$ ]] || fallback "$found"
 merge="$found"
 
-git -C "$repo" cat-file -e "$merge^{commit}" 2>/dev/null ||
+GIT_NO_LAZY_FETCH=1 git -C "$repo" cat-file -e "$merge^{commit}" 2>/dev/null ||
   git -C "$repo" fetch --quiet --no-tags origin "$merge" 2>/dev/null ||
-  fallback tested-merge-unreadable
+  fallback tested-merge-fetch-refused
 [[ "$(git -C "$repo" rev-parse --verify --quiet "$merge^2")" == "$head" ]] || fallback tested-merge-not-of-head
-tested_base=$(git -C "$repo" rev-parse --verify --quiet "$merge^1") || fallback tested-merge-unreadable
+tested_base=$(git -C "$repo" rev-parse --verify --quiet "$merge^1") || fallback tested-merge-no-parent
 git -C "$repo" merge-base --is-ancestor "$tested_base" "$group_base" 2>/dev/null || fallback tested-base-not-ancestor
 
 git -C "$repo" diff --no-renames --name-only "$merge" HEAD -- >"$WORK/x.txt" || fallback x-diff-failed
@@ -161,7 +161,7 @@ if ((xfiles == 0)); then
   identical=true
 else
   mapfile -t x <"$WORK/x.txt"
-  "$planner" -- "${x[@]}" >"$WORK/x-plan.txt" 2>"$WORK/x-plan.err" || fallback x-plan-failed
+  (cd "$repo" && "$planner" -- "${x[@]}") >"$WORK/x-plan.txt" 2>"$WORK/x-plan.err" || fallback x-plan-failed
   all_units "$WORK/x-plan.txt" >"$WORK/x-units.txt"
   comm -12 <(sort "$WORK/p.txt") <(sort "$WORK/x-units.txt") >"$WORK/run.txt"
   whole=0

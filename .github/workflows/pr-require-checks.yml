@@ -836,7 +836,7 @@ jobs:
     name: Select Tests
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 12
     permissions:
       contents: read
       pull-requests: read

@@ -61,7 +61,7 @@ build() {
   c0="$("${g[@]}" rev-parse HEAD)"
   "${g[@]}" checkout -qb pr && echo b >"$REPO/p.sh" && "${g[@]}" commit -qam head
   HEAD_SHA="$("${g[@]}" rev-parse HEAD)"
-  "${g[@]}" checkout -q --detach "${2:-$c0}" && "${g[@]}" merge -q --no-ff -m tested pr
+  "${g[@]}" checkout -q --detach "$c0" && "${g[@]}" merge -q --no-ff -m tested pr
   MERGE="$("${g[@]}" rev-parse HEAD)"
   "${g[@]}" checkout -q main
   if [[ -n "$1" ]]; then echo b >"$REPO/$1" && "${g[@]}" commit -qam main; fi
@@ -69,7 +69,7 @@ build() {
   "${g[@]}" checkout -q --detach && "${g[@]}" merge -q --no-ff -m group pr
 }
 
-pull_json() { jq -cn --arg h "$HEAD_SHA" '{number: 7, head: {sha: $h}}'; }
+pull_json() { jq -cn --arg h "${PULL_HEAD-$HEAD_SHA}" '{number: 7, head: {sha: $h}}'; }
 statuses_json() {
   jq -cn --arg s "$1" --arg d "${2-$(marker "$MERGE")}" --arg login "${3:-github-actions[bot]}" '
     "https://github.com/o/r/actions/runs/100" as $u
@@ -84,7 +84,7 @@ run_sut() {
   rm -f "$TMP_ROOT/statuses.json"
   if [[ -n "${STATUSES-}" ]]; then printf '%s\n' "$STATUSES" >"$TMP_ROOT/statuses.json"; fi
   OUT="$(STUB_PLANNER_LOG="$TMP_ROOT/planner.log" "$SUT" --pull "$TMP_ROOT/pull.json" \
-    --statuses "$TMP_ROOT/statuses.json" --group-base "$GROUP_BASE" --pr-plan "${PR_PLAN-$TMP_ROOT/pr-plan.txt}" \
+    --statuses "$TMP_ROOT/statuses.json" --group-base "${GROUP_BASE_ARG-$GROUP_BASE}" --pr-plan "${PR_PLAN-$TMP_ROOT/pr-plan.txt}" \
     --summary "$TMP_ROOT/summary.md" --planner "$TMP_ROOT/bin/planner" --repo "$REPO" 2>"$TMP_ROOT/err")"
   RC=$?
   ERR="$(cat "$TMP_ROOT/err")"
@@ -141,7 +141,7 @@ run_sut
 expect_line "a green run whose marker names no merge commit falls back" "$FALLBACK_LINE fallback=no-tested-merge-recorded"
 STATUSES="$(statuses_json success "$(marker 0123456789abcdef0123456789abcdef01234567)")"
 run_sut
-expect_line "a tested merge commit the checkout cannot read falls back" "$FALLBACK_LINE fallback=tested-merge-unreadable"
+expect_line "a tested merge commit origin cannot serve falls back" "$FALLBACK_LINE fallback=tested-merge-fetch-refused"
 STATUSES=""
 run_sut
 expect_line "unreadable statuses fall back" "$FALLBACK_LINE fallback=statuses-unreadable"
@@ -149,6 +149,32 @@ STATUSES="$(statuses_json success)"
 PR_PLAN="$TMP_ROOT/none.txt" run_sut
 expect_line "no plan for the group falls back with nothing to run" \
   'would-run=0 would-skip=0 whole-tree-would-skip=0 tree-identical=unknown x-files=unknown est-job-min-saved=0 fallback=pr-plan-missing'
+GROUP_BASE_ARG=main run_sut
+expect_line "a group base that is not a commit SHA falls back" "$FALLBACK_LINE fallback=group-base-invalid"
+PULL_HEAD="" run_sut
+expect_line "a queued pull request with no head SHA falls back" "$FALLBACK_LINE fallback=pull-unreadable"
+build "" || fail "fixture: build failed"
+STATUSES="$(jq -c --arg d "$(marker 0123456789abcdef0123456789abcdef01234567)" '
+  [.[0] | .id = 3] + [{id: 2, context: "ci-lanes", state: "pending", description: $d,
+    target_url: "https://github.com/o/r/actions/runs/200", creator: {login: "github-actions[bot]"}}] + [.[1]]' <<<"$(statuses_json success)")"
+run_sut
+expect_line "the tested merge comes from the green run's own marker, not another run's" \
+  'would-run=0 would-skip=4 whole-tree-would-skip=6 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
+
+ORIGIN="$TMP_ROOT/origin-$RANDOM$RANDOM.git"
+git_test_config "$REPO" update-ref refs/pull/7/merge "$MERGE"
+git_test_config "$REPO" update-ref refs/heads/group HEAD
+git_test_config "$TMP_ROOT" clone -q --mirror "$REPO" "$ORIGIN"
+git_test_config "$ORIGIN" config uploadpack.allowFilter true
+git_test_config "$ORIGIN" config uploadpack.allowAnySHA1InWant true
+CLONE="$TMP_ROOT/clone-$RANDOM$RANDOM"
+git_test_config "$TMP_ROOT" clone -q --filter=blob:none --branch group "file://$ORIGIN" "$CLONE"
+if GIT_NO_LAZY_FETCH=1 git_test_config "$CLONE" cat-file -e "$MERGE^{commit}" 2>/dev/null; then fail "fixture: the partial clone already holds the tested merge"; fi
+REPO="$CLONE"
+STATUSES="$(statuses_json success)"
+run_sut
+expect_line "a partial clone without the tested merge fetches it from origin" \
+  'would-run=0 would-skip=4 whole-tree-would-skip=6 tree-identical=true x-files=0 est-job-min-saved=0.3 fallback=none'
 
 build lib/shared.sh || fail "fixture: build failed"
 git_test_config "$REPO" checkout -q --detach "$GROUP_BASE~1"
