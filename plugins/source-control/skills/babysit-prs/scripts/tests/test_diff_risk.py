@@ -1143,6 +1143,31 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         self.assertEqual(reason.code, "evidence-unbound:claude-review")
         self.assertIn("not bound", reason.detail)
 
+    def test_rerun_not_allowed_detail_names_the_whole_review_and_update_branch(self):
+        for unbound_reason, names_fix in (
+            ("rerun-not-allowed", True),
+            ("incremental-gap", False),
+        ):
+            with self.subTest(unbound_reason):
+                lanes = (
+                    _lane(
+                        "claude-review",
+                        bound=False,
+                        unbound_reason=unbound_reason,
+                        open_findings=None,
+                    ),
+                    _lane("claude-security-review"),
+                )
+                reason = score(_input(lanes=lanes)).reasons[0]
+                self.assertEqual(reason.code, "evidence-unbound:claude-review")
+                self.assertIn(unbound_reason, reason.detail)
+                for remedy in ("whole-review request", "gh pr update-branch"):
+                    self.assertEqual(
+                        remedy in reason.detail,
+                        names_fix,
+                        f"{unbound_reason} detail names {remedy}: {reason.detail}",
+                    )
+
     def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
         # Spec: unrecognized data is a miss, never a pass.
         clean = (_lane("claude-review"), _lane("claude-security-review"))

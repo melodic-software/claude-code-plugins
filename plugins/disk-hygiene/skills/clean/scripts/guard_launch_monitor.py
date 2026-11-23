@@ -154,11 +154,7 @@ _DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
 _MARKER_DIRNAME = "guard-launch-monitor"
 _STDERR_TRUNCATE_CHARS = 300
 
-# run-python-hook.sh's launch token: epoch seconds, bash PID and $RANDOM.
 _LAUNCH_TOKEN = re.compile(rb"([0-9]{1,15})-[0-9]{1,10}-[0-9]{1,5}\n?")
-# The engine-gate rows' 60-second hook timeout (hooks/hooks.json), since a
-# launch younger than that may still be running, plus a margin for the token's
-# whole-second floor and the transcript write that follows a timed-out guard.
 _SEEN_MIN_AGE_SECONDS = 60 + 10
 
 
@@ -172,13 +168,6 @@ def _argv_flag_value(argv: list[str], flag: str) -> str | None:
 
 
 def _resolve_data_root(argv: list[str]) -> str | None:
-    """Resolve the plugin's persistent data root, or None if unavailable.
-
-    A literal unsubstituted ``${CLAUDE_PLUGIN_DATA}`` placeholder is treated
-    as absent, matching ``destructive_guard.py``'s placeholder idiom (see
-    module docstring) — this module does not import that idiom, only mirrors
-    it, per the issue's stdlib-only requirement.
-    """
     direct = _argv_flag_value(argv, _DATA_ROOT_FLAG)
     if direct and direct != _DATA_ROOT_PLACEHOLDER:
         return direct
@@ -207,7 +196,6 @@ def _marker_path_candidates(
 
 
 def _trusted_candidates(paths: list[Path]) -> list[Path]:
-    """``paths`` without the tmp fallback unless this user owns its directory."""
     *rooted, tmp = paths
     return rooted + ([tmp] if _owned_dir(tmp.parent) else [])
 
@@ -223,10 +211,6 @@ def _already_warned(marker_paths: list[Path]) -> bool:
 
 
 def _write_first(paths: list[Path], text: str) -> None:
-    """Best-effort: write ``text`` to the first candidate that takes it.
-
-    The tmp fallback takes it only in a directory this user owns.
-    """
     tmp = paths[-1]
     for path in paths:
         try:
@@ -240,12 +224,10 @@ def _write_first(paths: list[Path], text: str) -> None:
 
 
 def _write_marker(marker_paths: list[Path]) -> None:
-    """Best-effort write. Failure here must never suppress a real finding."""
     _write_first(marker_paths, "1")
 
 
 def _read_cursor(cursor_paths: list[Path], transcript_path: str) -> int:
-    """Return the offset a clean scan of this transcript reached, or 0."""
     for path in _trusted_candidates(cursor_paths):
         try:
             text = path.read_text(encoding="utf-8")
@@ -260,17 +242,10 @@ def _read_cursor(cursor_paths: list[Path], transcript_path: str) -> int:
 
 
 def _write_cursor(cursor_paths: list[Path], offset: int, transcript_path: str) -> None:
-    """Best-effort: a cursor that cannot be written only costs a rescan."""
     _write_first(cursor_paths, f"b{offset}\n{transcript_path}\n")
 
 
 def _owned_dir(path: Path) -> bool:
-    """True when ``path`` is a real directory, not a symlink, this user owns.
-
-    The launcher's ``_owned_marker_dir`` test for the shared tmp fallback, where
-    another local user can create the directory first. Where ``os.getuid`` does
-    not exist (Windows) the directory test alone stays.
-    """
     try:
         info = os.lstat(path)
     except OSError:
@@ -282,7 +257,6 @@ def _owned_dir(path: Path) -> bool:
 def _read_launches(
     data_root: str | None, session_id: str
 ) -> list[tuple[Path, bytes]]:
-    """Each ``.launched`` marker that holds a launch token, with that token."""
     launches: list[tuple[Path, bytes]] = []
     for path in _trusted_candidates(
         _marker_path_candidates(data_root, session_id, ".launched")
@@ -299,11 +273,6 @@ def _read_launches(
 
 
 def _record_seen(launches: list[tuple[Path, bytes]]) -> None:
-    """Best-effort: copy each token old enough into ``.seen`` beside its marker.
-
-    A write that fails, or a token too young to copy, only runs this module
-    again on the next ``Stop``.
-    """
     now = time.time()
     for path, token in launches:
         match = _LAUNCH_TOKEN.fullmatch(token)
@@ -316,11 +285,6 @@ def _record_seen(launches: list[tuple[Path, bytes]]) -> None:
 
 
 def _read_new(transcript_path: str, cursor: int) -> tuple[bytes, int]:
-    """Return the bytes to scan and the offset the next clean scan may resume at.
-
-    Starts at ``cursor`` when the byte before it is still a newline, else at 0.
-    The returned offset stops after the last newline read.
-    """
     with open(transcript_path, "rb") as handle:
         start = 0
         if cursor >= 2:
@@ -333,11 +297,6 @@ def _read_new(transcript_path: str, cursor: int) -> tuple[bytes, int]:
 
 
 def _iter_guard_failures(data: bytes):
-    """Yield the ``hook_non_blocking_error`` attachment of each guard failure.
-
-    Lines without the attachment type's name cannot match, so they skip the
-    decode and the JSON parse.
-    """
     if _FAILURE_NEEDLE not in data:
         return
     for raw in data.split(b"\n"):
@@ -379,15 +338,6 @@ def _build_message(audit_fields: dict) -> str:
 
 
 def _audit_fields(failures: list[dict], session_id: str) -> dict:
-    """Structured detail for the local decision record and the warning text.
-
-    Deliberately separate from ``telemetry_data``: the telemetry envelope's
-    contents are a published contract for a configured sink, and the local
-    record is a different consumer with a different need (enough to explain one
-    failure without the session's transcript), so neither shapes the other.
-    """
-    # Records are scanned in file order (chronological); the last match is
-    # the most recent failure.
     latest = failures[-1]
     return {
         "failure_count": len(failures),
@@ -399,14 +349,6 @@ def _audit_fields(failures: list[dict], session_id: str) -> dict:
 
 
 def _record_not_run(data_root: str | None, audit_fields: dict) -> None:
-    """Record that the guard produced no decision at all for this session.
-
-    The third state the guard itself structurally cannot write: a hook that
-    failed to launch, or launched and exited non-zero, records nothing from
-    inside its own process. Written once per session, at the same moment the
-    warning is emitted and before the suppression marker lands, so the record
-    follows the warning's own once-per-session cadence.
-    """
     try:
         guard_decision_log.record(
             data_root,
@@ -423,13 +365,6 @@ def _record_not_run(data_root: str | None, audit_fields: dict) -> None:
 def _run(
     hook_input: dict, data_root: str | None
 ) -> tuple[str | None, list[Path] | None, str | None, dict[str, object], dict]:
-    """Return warning text, marker paths, telemetry status, telemetry data, audit.
-
-    ``telemetry_status`` is ``None`` when no envelope should be emitted (a
-    pre-evaluation short-circuit). Recording the marker is the caller's job,
-    deliberately: the marker suppresses every later ``Stop`` in the session, so
-    it must not be written until the warning has actually left the process.
-    """
     transcript_path = hook_input.get("transcript_path")
     session_id = str(hook_input.get("session_id") or "unknown-session")
     launches = _read_launches(data_root, session_id)

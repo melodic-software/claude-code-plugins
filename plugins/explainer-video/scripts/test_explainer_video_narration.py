@@ -1,5 +1,3 @@
-"""narration.py and the narrated half of render.py: timing, beat cues, captions, stream checks (standard library
-only), and a real ffmpeg mux (skipped without ffmpeg and ffprobe)."""
 import importlib.util
 import json
 import os
@@ -26,7 +24,6 @@ SCRIPT = 'Take a right triangle.\n\nCall its sides a and b.\n\n\nDone.\n'
 
 
 def record(script, starts, duration):
-    """A words.json record whose paragraph k starts at starts[k]: a word every 0.25 s, each 0.2 s long."""
     words = []
     for para, t in zip(narration.paragraphs(script), starts):
         for i, token in enumerate(para):
@@ -115,7 +112,7 @@ class Captions(unittest.TestCase):
         rec = record(script, [0.0, 3.0], 4.0)
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=2)
         self.assertEqual([c[2] for c in cues], ['One two.', 'Three four', 'five', 'Six'])
-        self.assertEqual(cues[0][:2], (0.0, 0.5))   # held past its last word up to the next cue's start
+        self.assertEqual(cues[0][:2], (0.0, 0.5))
 
     def test_a_sentence_end_inside_a_closing_quote_or_bracket_still_breaks_the_caption(self):
         script = '"Done." (Yes.) Next one'
@@ -131,13 +128,13 @@ class Captions(unittest.TestCase):
 
     def test_a_short_cue_stays_up_for_the_minimum_when_a_pause_follows_it(self):
         script = 'Done.\n\nNext part'
-        rec = record(script, [0.0, 3.0], 4.0)   # 'Done.' spoken 0.0-0.2 s, then 2.8 s of pause
+        rec = record(script, [0.0, 3.0], 4.0)
         (first, *_) = narration.captions(rec, narration.timing(script, rec)['beats'], min_seconds=0.834)
         self.assertEqual(first, (0.0, 0.834, 'Done.'))
 
     def test_a_cue_too_short_to_hold_joins_its_neighbor_in_the_beat(self):
         script = 'Yes. Then the rest follows'
-        rec = record(script, [0.0], 2.0)   # 'Yes.' has 0.25 s before 'Then' starts
+        rec = record(script, [0.0], 2.0)
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=8)
         self.assertEqual([c[2] for c in cues], ['Yes. Then the rest follows'])
 
@@ -196,7 +193,7 @@ class Mux(unittest.TestCase):
                             '-af', 'volume=-22dB', '-ar', '24000', '-ac', '1', str(d / 'n.wav')], check=True)
             (d / 'c.srt').write_text(narration.srt([(0.0, 1.0, 'Take a right triangle.')]), encoding='utf-8')
             source = render.measure_loudness(d / 'n.wav')
-            self.assertTrue(render.loudness_defects(source), source)   # too quiet before normalizing
+            self.assertTrue(render.loudness_defects(source), source)
             mode = render.normalize(d / 'n.wav', d / 'norm.wav', source)
             self.assertIn(mode, ('linear', 'dynamic'))
             render.mux(d / 'v.mp4', d / 'norm.wav', d / 'c.srt', d / 'out.mp4')

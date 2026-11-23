@@ -1,5 +1,3 @@
-"""Tests for query_profile.py, run against a database built from the cpuprofile fixture."""
-
 import contextlib
 import json
 import shutil
@@ -124,12 +122,6 @@ ROOT = ("synthetic", "", 0)
 
 
 def snapshot(nodes, edges):
-    """A heap snapshot in the fixture's snapshot.meta layout.
-
-    nodes: (type, name, self_size) per node, in idx order; node_id is idx * 2 + 1.
-    edges: (from idx, type, name, to idx); an edge's seq follows its owner's idx,
-    then its place in this list.
-    """
     strings = [""]
 
     def intern(text):

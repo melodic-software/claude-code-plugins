@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for buffer.sh: adapter binding, fallback, obs_id, redaction, caps and dedupe.
 # test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -22,9 +21,6 @@ done
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 N=0
-# The core runs only adapters shipped under the plugin's own adapters/, so the cases run a copy of
-# the plugin with their fake adapters installed there. The copy sits in a marketplace install
-# layout, so it reads the user-scope binding from $CONFIG/settings.json.
 CONFIG="$TEST_TMPDIR/config"
 PLUGIN_COPY="$CONFIG/plugins/cache/mkt/corrections/1.0.0"
 mkdir -p "$(dirname "$PLUGIN_COPY")"
@@ -32,20 +28,16 @@ cp -R "$REPO_ROOT/plugins/corrections" "$PLUGIN_COPY"
 BUFFER="$PLUGIN_COPY/tools/findings-buffer/buffer.sh"
 ADAPTERS="$PLUGIN_COPY/tools/findings-buffer/adapters"
 
-# new_repo: sets R to a new empty git repository.
 new_repo() {
   N=$((N + 1))
   R="$TEST_TMPDIR/repo$N"
   mkdir -p "$R"
   git -C "$R" init -q
 }
-# bind <repo> <adapter-token>: writes the team binding.
 bind() {
   mkdir -p "$1/docs/conventions"
   printf 'adapter: %s\n' "$2" >"$1/docs/conventions/findings-buffer.yaml"
 }
-# fake_adapter <dir> <append-exit>: an adapter that copies each append to <dir>/captured.jsonl
-# and exits <append-exit>; read.sh prints that file.
 fake_adapter() {
   local d="$1"
   rm -rf "$d"
@@ -64,7 +56,6 @@ exit 0
 EOF
   chmod +x "$d/append.sh" "$d/read.sh"
 }
-# run <repo> <args...>: buffer.sh from inside <repo>; stdout to $OUT, stderr to $ERR.
 run() {
   local repo="$1"
   shift
@@ -73,15 +64,12 @@ run() {
   OUT="$(cat "$TEST_TMPDIR/out")"
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
-# local_file <repo>: the local-file adapter's file, under the repository's git common directory.
 local_file() { printf '%s/findings-buffer/findings.jsonl' "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)"; }
-# used_local <rc> <repo> <stderr>: the append succeeded into the local file and said so.
 used_local() { [[ $1 -eq 0 && -s "$(local_file "$2")" ]] && grep -q "local-file" <<<"$3"; }
 local_rows() { cat "$(local_file "$1")" 2>/dev/null; }
 
 ROW='{"kind":"lint","session":"s1","msg":"unused variable"}'
 
-# 1. No binding uses local-file and says so.
 new_repo
 run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
@@ -92,7 +80,6 @@ check "no binding: the row lands in the local file with obs_id and ts" test "$GO
 DETAIL="stderr: $ERR"
 check "no binding: stderr names local-file" grep -q "local-file" <<<"$ERR"
 
-# 2. A bound adapter that fails falls back to the local file.
 new_repo
 fake_adapter "$ADAPTERS/broken" 1
 bind "$R" broken
@@ -106,7 +93,6 @@ DETAIL="exit $RC; out: $OUT"
 check "failing adapter: read merges the adapter and fallback rows, once per obs_id" \
   test "$RC" -eq 0 -a "$(grep -c '"unused variable"' <<<"$OUT")" -eq 1
 
-# 3. A retried row keeps its obs_id and reads back once.
 new_repo
 fake_adapter "$ADAPTERS/ok" 0
 bind "$R" ok
@@ -127,7 +113,6 @@ check "retry: the same finding in another session gets its own obs_id" \
 run "$R" append < <(printf '{"obs_id":"0123456789abcdef","msg":"caller id"}\n')
 check "a caller obs_id of 16 hex characters is kept" grep -q '"obs_id":"0123456789abcdef"' "$ADAPTERS/ok/captured.jsonl"
 
-# 4. A planted fake token is redacted before it reaches the adapter.
 new_repo
 fake_adapter "$ADAPTERS/ok" 0
 bind "$R" ok
@@ -142,7 +127,6 @@ DETAIL="exit $RC; captured: $(tail -n 1 "$ADAPTERS/ok/captured.jsonl" 2>/dev/nul
 check "redaction: a token used as an object key never reaches the adapter" \
   test "$RC" -eq 0 -a "$(grep -c "$TOKEN" "$ADAPTERS/ok/captured.jsonl")" -eq 0
 
-# 5. An oversize row is capped.
 new_repo
 fake_adapter "$ADAPTERS/ok" 0
 bind "$R" ok
@@ -172,7 +156,6 @@ DETAIL="obs_ids: $(tail -n 2 "$ADAPTERS/ok/captured.jsonl" | jq -r .obs_id | tr 
 check "cap: key order does not change what is trimmed or the obs_id" \
   test "$(tail -n 2 "$ADAPTERS/ok/captured.jsonl" | jq -r .obs_id | sort -u | wc -l)" -eq 1
 
-# 6. A redaction failure writes nothing anywhere.
 new_repo
 fake_adapter "$ADAPTERS/ok" 0
 bind "$R" ok
@@ -186,7 +169,6 @@ check "redaction failure: append exits non-zero" test "$RC" -ne 0
 check "redaction failure: nothing reaches the adapter or the local file" \
   test ! -e "$ADAPTERS/ok/captured.jsonl" -a ! -e "$R/.git/findings-buffer/findings.jsonl"
 
-# 7. A committed binding never runs repository code: only a plugin adapter name is accepted.
 new_repo
 fake_adapter "$R/evil" 0
 fake_adapter "$R/tools/evil" 0
@@ -211,14 +193,11 @@ check "a plugin adapter name that links outside adapters/: append uses local-fil
   used_local "$RC" "$R" "$ERR"
 check "a plugin adapter name that links outside adapters/: it never runs" test ! -e "$R/evil/captured.jsonl"
 
-# 8. A user-scope binding runs the repository's own adapter, in that repository only.
-# user_bind <repository> <path>: the user-scope binding, in the install's user settings.
 user_bind() {
   jq -n --arg r "$1" --arg p "$2" \
     '{pluginConfigs: {"corrections@mkt": {options: {findings_buffer_adapter_repository: $r, findings_buffer_adapter_path: $p}}}}' \
     >"$CONFIG/settings.json"
 }
-# refused_user <rc> <repo> <stderr>: the user-scope binding was refused and the append used local-file.
 refused_user() { used_local "$1" "$2" "$3" && grep -q "user-scope adapter binding is refused" <<<"$3"; }
 
 new_repo
@@ -250,7 +229,6 @@ DETAIL="exit $RC; stderr: $ERR"
 check "a binding made for repository A applies in a worktree of A" \
   test "$RC" -eq 0 -a -s "$W/tools/mine/captured.jsonl"
 
-# A plain directory whose .git file names A's git directory is not a checkout A registers.
 H="$TEST_TMPDIR/claims-a"
 mkdir -p "$H"
 printf 'gitdir: %s\n' "$A/.git" >"$H/.git"
@@ -261,8 +239,6 @@ check "a directory whose .git file names A's git directory: refused, append uses
   refused_user "$RC" "$H" "$ERR"
 check "a directory whose .git file names A's git directory: its adapter never runs" test ! -e "$H/tools/mine/captured.jsonl"
 
-# A repository-written value for the user-scope keys is never read: not from the team file, a
-# project settings file or the CLAUDE_PLUGIN_OPTION_* environment.
 rm -f "$CONFIG/settings.json"
 new_repo
 fake_adapter "$R/tools/mine" 0
@@ -278,7 +254,6 @@ DETAIL="exit $RC; stderr: $ERR"
 check "repository-written user-scope keys: append uses local-file" used_local "$RC" "$R" "$ERR"
 check "repository-written user-scope keys: the repository's adapter never runs" test ! -e "$R/tools/mine/captured.jsonl"
 
-# The adapter must resolve inside the checkout and outside any repository nested in it.
 new_repo
 fake_adapter "$TEST_TMPDIR/outside" 0
 ln -s "$TEST_TMPDIR/outside" "$R/out"
@@ -287,7 +262,6 @@ git -C "$R/vendor/nested" init -q
 fake_adapter "$R/vendor/nested/adapter" 0
 ln -s "$R/vendor/nested/adapter" "$R/into"
 fake_adapter "$R/tools/abs" 0
-# A tracked adapter directory whose append.sh links into a repository nested inside it.
 fake_adapter "$R/tools/split" 0
 mkdir -p "$R/tools/split/sub"
 git -C "$R/tools/split/sub" init -q
@@ -308,7 +282,6 @@ DETAIL="exit $RC; stderr: $ERR"
 check "a user-scope binding with one option set: refused, append uses local-file and says so" refused_user "$RC" "$R" "$ERR"
 rm -f "$CONFIG/settings.json"
 
-# A binding file of unknown keys prints the first five errors, then a count of the rest.
 new_repo
 mkdir -p "$R/docs/conventions"
 {
@@ -321,14 +294,12 @@ check "1200 unknown keys: append exits 0" test "$RC" -eq 0
 check "1200 unknown keys: six stderr lines for the layer" test "$(grep -c 'team (' <<<"$ERR")" -eq 6
 check "1200 unknown keys: the last line counts the rest" grep -q 'team (.*findings-buffer.yaml): and 1195 more$' <<<"$ERR"
 
-# Usage.
 new_repo
 run "$R" bogus
 check "an unknown verb exits 2" test "$RC" -eq 2
 run "$R" read --since yesterday
 check "a bad --since exits 2" test "$RC" -eq 2
 
-# --since reaches both reads: an old row in the bound adapter and one in the local file are left out.
 new_repo
 fake_adapter "$ADAPTERS/broken" 1
 cat >"$ADAPTERS/broken/read.sh" <<'EOF'
@@ -347,7 +318,6 @@ DETAIL="exit $RC; out: $OUT"
 check "read --since: both reads leave out rows older than since and keep the new one" \
   test "$RC" -eq 0 -a "$(grep -c 'old .* row' <<<"$OUT")" -eq 0 -a "$(grep -c '"unused variable"' <<<"$OUT")" -eq 1
 
-# Worktrees of one clone share the local file, and a row also left in the old per-worktree file reads once.
 new_repo
 git -C "$R" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -q --allow-empty -m fixture
 WT="$TEST_TMPDIR/worktree-of-repo$N"

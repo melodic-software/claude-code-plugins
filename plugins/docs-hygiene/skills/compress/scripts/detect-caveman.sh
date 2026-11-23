@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# Detect caveman plugin availability for /compress backend selection.
-#
-# Output:
-#   Caveman backend: available|absent|unknown
-#   Caveman plugin id: <id|none>
-#
 # Exit: always 0.
-# set -e omitted — script must never abort; always exits 0 per contract.
 set -uo pipefail
 
 usage() {

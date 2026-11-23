@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/evals/scripts/case_skills.py
-"""Unit tests for plugins/evals/scripts/case_skills.py.
-
-Run directly with: python3 plugins/evals/scripts/test_case_skills.py
-"""
-
 import importlib.util
 import sys
 import unittest
