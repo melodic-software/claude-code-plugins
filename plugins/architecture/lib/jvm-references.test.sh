@@ -18,7 +18,6 @@ assert_contains "the shared reader says it is sourced" "$ran" "sourced"
 
 T=$'\t'
 
-# Groovy settings.
 groovy="$TEST_TMPDIR/settings.gradle"
 cat >"$groovy" <<'EOF'
 rootProject.name = "demo" // the name
@@ -43,7 +42,6 @@ assert_contains "an include after a comment line is read" "$records" "include${T
 assert_contains "a double-quoted literal is read" "$records" "include${T}plain${T}"
 assert_not_contains "a settings file with only literals has no unread line" "$records" "unread"
 
-# Kotlin DSL settings.
 kts="$TEST_TMPDIR/settings.gradle.kts"
 cat >"$kts" <<'EOF'
 rootProject.name = "demo"
@@ -57,7 +55,6 @@ assert_contains "a Kotlin include with two arguments reads both" "$records" "inc
 assert_not_contains "a // inside a string is not a comment" "$records" "include${T}:after${T}"
 assert_contains "a statement that shares a line with other code is unread" "$records" "unread${T}val url = \"http://example.com//path\"; include(\":after\")"
 
-# Settings shapes the reader does not read.
 odd="$TEST_TMPDIR/odd/settings.gradle"
 mkdir -p "$TEST_TMPDIR/odd"
 cat >"$odd" <<'EOF'
@@ -93,7 +90,6 @@ assert_contains "the computed part of a mixed include is unread" "$records" "unr
 assert_contains "an unterminated include is unread" "$records" "unread${T}<unterminated include> include( \"open\""
 assert_not_contains "an unread include gives no include line for its variable" "$records" "include${T}modules"
 
-# Build files.
 build="$TEST_TMPDIR/build.gradle.kts"
 cat >"$build" <<'EOF'
 dependencies {
@@ -142,7 +138,6 @@ assert_contains "project() used as a receiver in a statement is unread" "$record
 assert_contains "a project( that leaves the line is unread" "$records" "unread${T}implementation(project("
 assert_not_contains "an unread receiver reference draws no project line" "$records" "project${T}:a${T}"
 
-# Maven.
 pom="$TEST_TMPDIR/pom.xml"
 cat >"$pom" <<'EOF'
 <?xml version="1.0"?>

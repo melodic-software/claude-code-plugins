@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# The github.com identity of a git remote URL.
-#
-# Source this file. github_remote_path URL prints the `owner/repo...` path of a
-# remote whose host is github.com; github_repo_name URL prints its repository
-# segment. Both return 1 and print nothing for any other URL.
-#
-# The host is the authority with the scheme and user info removed, compared
-# case-insensitively, with `www.` allowed. With a scheme, a port of digits
-# (possibly empty, as RFC 3986 allows) is removed; any other `:` after the host
-# is not a port and the URL names no github.com path. A URL without a scheme
-# counts only in the scp form `host:path`. Empty path segments left by a remote
-# rewrite (`host//owner/repo`, `git@github.com:/owner/repo`) are dropped. So
-# `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a `/github.com/`
-# path on another server, a `file://` path and a relative path all fail.
-#
-# Executing this file prints usage and exits 2.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'github-remote.sh: source this file; it is not a command\n' >&2

@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// Build an interactive view of one map-* record: the checked-in template plus
-// the record's own rows as escaped JSON data, through the shared view builder
-// (interactive profile). Writes the page to one deterministic path under the OS
-// temp directory, never beside the record, and prints that path.
-//
-//   node build-view.mjs <kind> --record <record.json> [--from <node-id>]
-//
-// kind: landscape containers components dependencies data events flow context deployment.
-// --from keeps the nodes reachable from that node id and the edges between
-// them (the closure a component view charts), and drops the record's other
-// arrays; it needs a nodes and an edges array.
-//
-// Every value in the record reaches the page as data, never as markup or script.
-//
 // Exit 0 built, 1 the record or the page fails its checks, 2 usage or environment.
 
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -49,8 +35,6 @@ const rowOf = (kind, item) => {
   return { kind, name, fields: Object.entries(item).map(([field, value]) => `${field}: ${show(value)}`) };
 };
 
-// The project nodes reachable from `start` over resolved project edges, `start` included.
-// Package edges and unresolved edges are not reachability, as in render-components.sh.
 const closureFrom = (record, start) => {
   const { nodes, edges } = record;
   if (!Array.isArray(nodes) || !Array.isArray(edges)) throw new RecordError("--from needs a record with nodes and edges");
@@ -73,7 +57,6 @@ const closureFrom = (record, start) => {
       }
     }
   }
-  // Findings and cycles name nodes outside the closure, so only the scalars, nodes and edges stay.
   const scalars = Object.entries(record).filter(([, value]) => value === null || typeof value !== "object");
   return {
     ...Object.fromEntries(scalars),
@@ -82,7 +65,6 @@ const closureFrom = (record, start) => {
   };
 };
 
-// Scalars become facts; each array is counted and its items become rows; an object becomes one row.
 const viewData = (kind, record, from) => {
   const source = from ? closureFrom(record, from) : record;
   const facts = from ? [`scope: reachable from ${from}`] : [];
@@ -129,7 +111,6 @@ try {
     template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
     data: viewData(kind, record, flags["--from"]),
   });
-  // The temp root is shared: keep the directory private and never write through a link.
   const dir = join(tmpdir(), "architecture-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!lstatSync(dir).isDirectory())

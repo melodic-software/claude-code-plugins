@@ -75,8 +75,6 @@ FILE_CAP=5
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote.sh"
 
 usage() {
-  # Print the header comment block only, selected by comment marker so --help
-  # stays correct as the block grows.
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
@@ -129,9 +127,6 @@ repo="$(cd "$repo_arg" 2>/dev/null && pwd)" || {
   printf 'reference-edges.sh: unreadable: %s\n' "$repo_arg" >&2
   exit 1
 }
-# Tentative identity: directory basename. Overridden below when a github.com
-# origin resolves, so two differently named checkouts of the same repository
-# share one node key (#4554).
 name="$(basename "$repo")"
 
 if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
@@ -139,27 +134,15 @@ if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Owner
-# ---------------------------------------------------------------------------
 
 origin="$(git -C "$repo" remote get-url origin 2>/dev/null)" || origin=""
 origin="$(github_remote_path "$origin")" || origin=""
 
-# The owner segment of a github.com remote. Only github.com is read here: this
-# owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
-# token on a host whose path shape we have not verified is how fixture names
-# become systems.
 owner="$owner_override"
 if [[ -z "$owner" && "$origin" == */* ]]; then
   owner="${origin%%/*}"
 fi
 
-# The `owner/repo` slug of a github.com origin remote. A worktree or a renamed
-# clone sits in a directory whose name is not the repository's, so the
-# directory basename alone would read the repository's own citations as an
-# edge to a second system. The slug is the remote's own, independent of
-# --owner, which moves the subject organization but not what this clone is.
 self_slug=""
 origin_owner="${origin%%/*}"
 origin_repo="${origin#*/}"
@@ -168,31 +151,15 @@ if [[ -n "$origin_owner" && -n "$origin_repo" && "$origin_owner" != "$origin" ]]
   self_slug="$origin_owner/$origin_repo"
 fi
 
-# Prefer the github.com repository name as the subject identity when origin
-# resolves (#4554). Edge `from` and portfolio `name` must agree across checkouts.
 if [[ -n "$self_slug" ]]; then
   name="${self_slug#*/}"
 fi
 
-# The owner this run resolved, for a caller that has to record which
-# organization the graph was drawn from. Reading it back from here keeps one
-# resolution: a second implementation elsewhere would drift from this one about
-# what counts as the subject, and then the edges and the nodes would disagree.
 if [[ "$print_owner" -eq 1 ]]; then
   printf '%s\n' "${owner:-unknown}"
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# Reserved GitHub path prefixes
-# ---------------------------------------------------------------------------
-#
-# `github.com/<first>/<second>` is only an owner/repo pair when <first> is an
-# account. These first segments are GitHub's own product surfaces, so a funding
-# link (`github.com/sponsors/acme`) or a marketplace page is not a repository.
-# `user-attachments` is the attachment-delivery prefix GitHub issues, PRs and
-# comments embed uploads under (`github.com/user-attachments/assets/...`,
-# `.../files/...`); the segment after it is an opaque asset id, never a repo.
 is_reserved_owner() {
   case "$1" in
   sponsors | features | orgs | settings | apps | marketplace | topics | \
@@ -205,11 +172,6 @@ is_reserved_owner() {
   esac
 }
 
-# A segment that can actually be a GitHub owner or repository name. This is the
-# backstop for every extractor: a regex tuned to one surface still catches
-# neighboring punctuation and documentation templates, so `<source>`,
-# ``acme-tools` ``, and `claude-code-plugins`;` are rejected here rather than by
-# making each pattern progressively more baroque.
 is_valid_segment() {
   case "$1" in
   "" | . | ..) return 1 ;;
@@ -218,9 +180,6 @@ is_valid_segment() {
   esac
 }
 
-# An owner segment additionally never holds a dot: GitHub account names are
-# letters, digits and hyphens. A dotted owner is prose, not an account: the
-# elided `github.com/.../issues` in a skill body, or `a.b/c` in a test vector.
 is_valid_owner() {
   is_valid_segment "$1" || return 1
   case "$1" in
@@ -229,12 +188,6 @@ is_valid_owner() {
   esac
 }
 
-# Documentation placeholders. `github.com/owner/repo` in a usage example names
-# the SHAPE of a reference, not a repository, and charting it invents a system
-# called `owner/repo` that every docs-heavy repository would appear to depend
-# on. `example` and `acme` are the conventional stand-in names; `other` is the
-# second repository in an example (`other/repo`), and `eval-fixture` is the
-# origin an eval fixture serves, named in changelog entries about it.
 is_placeholder_owner() {
   case "$1" in
   owner | org | user | username | your-org | your-owner | myorg | my-org | \
@@ -246,16 +199,7 @@ is_placeholder_owner() {
   esac
 }
 
-# ---------------------------------------------------------------------------
-# Emission
-# ---------------------------------------------------------------------------
 
-# A test, fixture, or eval file names repositories that do not exist: `acme/api`
-# and `Owner/Repo` are scaffolding for an assertion, not systems this repository
-# relates to. Charting them fills the landscape with invented nodes, so the
-# whole file is out of scope for every extractor. A test is named `*.test.*` or
-# `*.spec.*` in any language (`.mjs`, `.cjs`, `.py`, `.sh`), and a
-# `*.vectors.json` file is a table of test inputs.
 is_fixture_file() {
   case "$1" in
   *.test.* | *.spec.* | *.vectors.json) return 0 ;;
@@ -268,12 +212,6 @@ is_fixture_file() {
   esac
 }
 
-# This skill's own committed output names every repository it charted, so once
-# those artifacts are tracked the extractor would read them back as fresh
-# evidence: each run would raise every count by one and cite the record as its
-# own source, and a drift gate could never report clean again. The artifact
-# names are fixed by this skill's contract while only their directory varies,
-# so matching the basename is enough to keep derived output out of the input.
 is_own_artifact() {
   case "${1##*/}" in
   landscape.json | landscape.md | landscape.dsl | landscape-notes.md | portfolio.md)
@@ -283,12 +221,6 @@ is_own_artifact() {
   esac
 }
 
-# GitHub treats an owner and a repository name case-insensitively, so
-# `Melodic-Software/Claude-Code-Plugins` and `melodic-software/claude-code-plugins`
-# are one target, and one of them is this repository referring to itself. Folded
-# with `nocasematch` rather than a `tr` subshell: this runs once per hit, and a
-# fork per hit is the cost that dominated the sibling collector. The prior
-# setting is restored so the shopt never leaks into the extractors' own globs.
 is_self_reference() {
   local result=1 had_nocase=0
   [[ -n "$owner" || -n "$self_slug" ]] || return 1
@@ -300,16 +232,10 @@ is_self_reference() {
   return "$result"
 }
 
-# Raw hits accumulate here as `type<TAB>owner/repo<TAB>file`, one per line, and
-# are aggregated once at the end. Collecting first and counting later keeps each
-# extractor a plain producer with no shared counter to get wrong.
 HITS=""
 add_hit() {
-  # $1 type, $2 owner/repo, $3 file
   local target="$2" file="$3" o r
   is_fixture_file "$file" && return 0
-  # A bare token with no slash names no repository. Without this guard the
-  # expansions below both return the whole token and it emits as `X/X`.
   case "$target" in
   */*) ;;
   *) return 0 ;;
@@ -317,46 +243,30 @@ add_hit() {
   o="${target%%/*}"
   r="${target#*/}"
   r="${r%%/*}"
-  # A `uses:` pin carries its ref; the repository is not named `checkout@<sha>`.
   r="${r%%@*}"
-  # A clone URL carries the suffix; the repository is not named `repo.git`.
   r="${r%.git}"
-  # Prose ends sentences. A dot is legal INSIDE a repository name (`docs.rs`)
-  # and never terminates one, so `owner/repo.` in running text is `owner/repo`
-  # plus the full stop that followed it.
   while [[ "$r" == *. ]]; do r="${r%.}"; done
   is_valid_owner "$o" || return 0
   is_valid_segment "$r" || return 0
   is_reserved_owner "$o" && return 0
   is_placeholder_owner "$o" && return 0
-  # A reference to this repository itself is not an edge.
   is_self_reference "$o/$r" && return 0
   HITS="$HITS$1	$o/$r	$file"$'\n'
 }
 
-# ---------------------------------------------------------------------------
-# Extractors
-# ---------------------------------------------------------------------------
 
-# `git grep -I` skips binary files; `-o` prints each match on its own line
-# prefixed by the file, which is where the per-edge `files` list comes from.
 grep_tracked() {
   local pattern="$1"
   shift
   git -C "$repo" grep -I -o -E -e "$pattern" -- "$@" 2>/dev/null
 }
 
-# 1. uses-workflow. A `uses:` step names a reusable workflow or action. Local
-#    (`./path`) and container (`docker://`) forms name no repository.
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   file="${line%%:*}"
   match="${line#*:}"
   ref="${match#*uses:}"
   ref="${ref#"${ref%%[![:space:]]*}"}"
-  # A YAML scalar may be quoted either way. The quotes belong to the syntax and
-  # not to the repository, and the owner segment carrying one fails the segment
-  # check, so an ordinary quoted `uses:` would drop out of the graph in silence.
   case "$ref" in
   \"?*\")
     ref="${ref#\"}"
@@ -376,10 +286,6 @@ while IFS= read -r line; do
 done < <(grep_tracked '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*[^[:space:]]+' \
   '.github/workflows' '.github/actions' '*.yml' '*.yaml')
 
-# 2. installs-plugin. A marketplace source, or the documented install line. A
-#    LOCAL source (`./plugins/foo`) is this repository's own component, not
-#    another repository: a monorepo marketplace declares one per plugin, so
-#    reading them as references invents an edge per directory.
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   file="${line%%:*}"
@@ -393,7 +299,6 @@ while IFS= read -r line; do
 done < <(grep_tracked '(plugin marketplace add[[:space:]]+|"source"[[:space:]]*:[[:space:]]*")[A-Za-z0-9_./-]+' \
   '*.json' '*.md')
 
-# 3. depends-on. A Go module path names its repository directly.
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   file="${line%%:*}"
@@ -402,8 +307,6 @@ while IFS= read -r line; do
   add_hit depends-on "$ref" "$file"
 done < <(grep_tracked '(^|[^A-Za-z0-9.-])github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' 'go.mod' '*/go.mod')
 
-# 4. cites, from a github.com URL. Any owner; the reserved-prefix filter in
-#    add_hit drops GitHub's own product pages.
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   file="${line%%:*}"
@@ -416,10 +319,6 @@ while IFS= read -r line; do
   add_hit cites "$ref" "$file"
 done < <(grep_tracked '(^|[^A-Za-z0-9.-])github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 
-# 5. cites, from a BARE `owner/repo` token, and only when the owner is this
-#    repository's own. This is the rule that finds a sibling named in prose or
-#    in a rule file without a URL, and the owner requirement is what keeps
-#    `acme/billing` in a fixture from becoming a system.
 if [[ -n "$owner" ]]; then
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -430,13 +329,6 @@ if [[ -n "$owner" ]]; then
   done < <(grep_tracked "(^|[^A-Za-z0-9_./-])${owner}/[A-Za-z0-9_.-]+")
 fi
 
-# ---------------------------------------------------------------------------
-# Aggregate and emit
-# ---------------------------------------------------------------------------
-#
-# One record per (target, type). A target reached by two surfaces earns two
-# records, because "runs its CI" and "is mentioned in a doc" are different
-# claims and collapsing them loses the stronger one.
 
 [[ -n "$HITS" ]] || exit 0
 

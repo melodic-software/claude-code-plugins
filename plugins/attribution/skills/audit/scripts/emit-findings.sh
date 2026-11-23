@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# Compose a conforming findings file from the audit's report sidecar.
-#
-#   emit-findings.sh --report <sidecar.json> --out <path> [--branch <b>]
-#
-# The FINDINGS HOME is never resolved here. The caller — the audit skill's
-# context/persist-findings.md — resolves it from the memory root
-# and runs the detector-findings fetch-and-refuse gate, then hands the resolved
-# path in as --out: resolution reads prose, which is model work under Brief
-# constraint C1. What is left here is reasoning-free composition: cell
-# escaping, rule-id-first Finding cells, and tier lookup.
-#
-# The RELAY BOUNDARY is enforced here, not upstream. Only fingerprint-confirmed
-# copies, the two deterministic stamp rules, and one judged rule under a declared
-# outcome may reach a findings file; judgment verdicts (vendored-snapshot, source-fetched-similar,
-# llm-suspected, not-found) stay in the human report. They are counted in
-# `## Surfaces` rather than dropped, and their tier names are deliberately NOT
-# printed — the findings file is the apply relay's input, and a tier name in it
-# invites a consumer to act on a verdict this producer withheld on purpose.
-#
-# The judged rule is rule-restated-upstream-fact. Its relay decision keys on the
-# rule, the class and the DECLARED OUTCOME (a unanimous STANDS that the refutation
-# pass could not refute), never on a tier name: such a finding maps to a judgment
-# tier by fixed rule, so a tier test would either withhold every one or relay every
-# judgment verdict. Its Confidence cell is empty, because a judgment selected the row.
-#
-# The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/contracts/detector-findings/README.md. That
-# table is the source of truth — a tier change lands there first and is copied
-# here, never the reverse.
-#
-# No `tier:` frontmatter is emitted: nothing here computes a run-size value,
-# and the shape contract makes it required of review:fanout's own writer only.
-#
 # Exit: 0 on success (with findings or none — coverage is the payload), 2 on
 # usage error, 3 when the report is not usable audit output (it does not parse, it
 # has no findings key, its findings key is not a list, or a `not-found` finding
@@ -106,8 +73,6 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# Each refusal names its own cause, so parse first: `has("findings")` also
-# fails on unparsable input.
 if ! jq -e 'type == "object"' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT is not a JSON object; not audit output" >&2
   exit 3
@@ -118,30 +83,11 @@ if ! jq -e 'has("findings")' "$REPORT" >/dev/null 2>&1; then
   exit 3
 fi
 
-# Checked before the not-found gate, which iterates `findings`.
 if ! jq -e '(.findings | type) == "array"' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has a findings key that is not a list; not audit output" >&2
   exit 3
 fi
 
-# --- The declared-tier reader ------------------------------------------------------
-#
-# ONE reader, THREE callers: the searched-surfaces gate immediately below, the
-# relay-boundary withhold predicate, and the fingerprint-confirmed eligibility test
-# beside it.
-#
-# WHERE the tier is read is an EXPLICIT KEY ALLOWLIST: the top-level `tier`, and the
-# whole of a top-level `verdict`. Both are the record DECLARING its tier, and nothing
-# else is. Keys are matched case-folded so casing is not a way around the boundary,
-# but only at those two positions, so `{"xref": {"TIER": "prior: not-found"}}` stays
-# the cross-reference it reads as.
-#
-# WHICH VALUES NAME A TIER: the WRAPPER is read generously, the NAME exactly. Every
-# string anywhere inside the declared value is a candidate, trimmed and case-folded,
-# and it names a tier only when it EQUALS one. That keeps `"  not-found  "`,
-# `["not-found"]`, `{"name": "llm-suspected"}` and `"LLM-Suspected"` the verdicts
-# they say they are, while a future `not-found-v2` is an unknown tier rather than the
-# verdict it happens to start with.
 # shellcheck disable=SC2016  # `$name` is a jq parameter, not a shell expansion.
 TIER_DEFS='
 def key_slot($k):
@@ -251,13 +197,6 @@ def stray_verdict:
   [ . ] | names_in | any(is_verdict_name);
 '
 
-# The searched-surfaces schema check, on the same input-refusal exit code as the
-# guard above and for the same reason: refusing beats composing from a sidecar
-# whose neutral outcome asserts nothing. A `not-found` outcome is only meaningful
-# when it names the surfaces it checked.
-#
-# It reads the tier through the SHARED reader above, not an exact top-level string
-# compare.
 if ! jq -e "$TIER_DEFS"'
   [ (.findings // [])[]
     | select(declares_not_found)
@@ -278,19 +217,13 @@ fi
 
 CORPUS_FILES="$(jq -r '.counts.files // ""' "$REPORT" 2>/dev/null)"
 
-# ISO-8601 EXTENDED, colons in the time portion. The consumer reads this field
-# only when it is a full date-time with an explicit UTC designator; the
-# colon-free rule the convention states elsewhere binds the FILE NAME, not this.
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Non-overwrite naming: never clobber an unconsumed findings file.
 if [[ -e "$OUT" ]]; then
   n=2
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done
   OUT="${OUT%.md}-$n.md"
 fi
-# Both writing steps are checked explicitly, since `set -e` is off: a failed
-# write must never reach the success message.
 if ! mkdir -p "$(dirname "$OUT")" 2>/dev/null; then
   echo "emit-findings.sh: cannot create the destination directory for $OUT" >&2
   exit 5
@@ -304,13 +237,6 @@ if [[ -n "$REPO_ROOT" ]]; then
   REPO_ROOT_ALT="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || REPO_ROOT_ALT=""
   [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
 fi
-
-# --- Record stream ---------------------------------------------------------------
-#
-# jq classifies and composes the per-rule detail text; awk below owns escaping
-# and table assembly. Fields are joined on tabs rather than @tsv because @tsv
-# escapes backslashes, and an excerpt legitimately carries `\|` — the very
-# sequence the idempotent escaper downstream has to see intact.
 
 RECORDS="$(jq -r "$TIER_DEFS"'
 def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
@@ -411,8 +337,6 @@ def outcome_declared:
   echo "emit-findings.sh: could not read $REPORT as JSON" >&2
   exit 3
 }
-
-# --- Composition -----------------------------------------------------------------
 
 LC_ALL=C awk -F'\t' \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v corpus_files="$CORPUS_FILES" \
