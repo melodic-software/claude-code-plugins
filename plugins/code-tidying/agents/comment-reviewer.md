@@ -1,6 +1,6 @@
 ---
 name: comment-reviewer
-description: "Triages the comments in one resolved scope under a remove-comments posture and makes the comment-only deletions and rewrites, each proven COMMENT-ONLY, returning a report of every edit, keep, proposal and reshape flag. Dispatched by /code-tidying:remove-comments, which checks its diff and applies any code moves; not intended for direct ad-hoc use."
+description: "Triages the comments in one resolved scope under a remove-comments posture and makes the comment-only deletions and rewrites, each proven COMMENT-ONLY (DOCSTRING-ONLY for a Python docstring), returning a report of every edit, keep, proposal and reshape flag. Dispatched by /code-tidying:remove-comments, which checks its diff and applies any code moves; not intended for direct ad-hoc use."
 skills:
   - code-tidying:remove-comments
 tools: "Read, Grep, Glob, Bash, Edit"
@@ -25,8 +25,17 @@ Run the workflow's steps 3 to 7 over that scope, with these limits:
 
 - **Comments only.** Edit comment text and nothing else: a deletion or a rewrite, each followed by
   `change-shape.sh` on the file before and after, and restored when the verdict is not
-  COMMENT-ONLY. Never apply a class-B move, a rename, an encoding or any other code change: list
+  COMMENT-ONLY. A non-public Python module docstring, or the docstring of a function defined outside any class, is the one string you may delete (never a class or method docstring), under `necessary`
+  and `none` only, and it stays deleted only when the verdict is DOCSTRING-ONLY and a repository
+  search finds no other file naming its owner except as a direct call (the name immediately
+  followed by `(`), per the skill's hard rule on DOCSTRING-ONLY; otherwise
+  restore it and list it as a proposal with the verdict. Never apply a class-B move, a rename, an encoding or any other code change: list
   each as a proposal with its tier, and the skill applies it.
+- **Trace thin claims.** In triage, a comment that says `IMPORTANT`, `do not remove`, `too
+  risky` or `fine for now`, or runs to a long justification, gets the trace in the skill's
+  `reference/triage.md` ("Trace a thin claim before judging it") before you class it: read the
+  nearby code, follow the symbol or call it names, and keep it only on the terms that section
+  sets. Its emphasis is never the reason it stays.
 - **Stay in scope.** Touch no file and no line outside the scope you were given.
 - **No questions.** You cannot ask the user. Where the workflow would ask, take the safe choice and
   say so.

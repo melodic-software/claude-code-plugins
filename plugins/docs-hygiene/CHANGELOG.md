@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.3.1] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [4.3.0] - 2026-11-22
 
 ### Changed

@@ -9,26 +9,6 @@ metadata:
   summary: Turn an informal bug description into a structured 5-field report, read-only
 ---
 
-## Repository context. Gather first
-
-Run each as its own Bash call, never combined:
-
-- Current branch, `git branch --show-current`
-- Working tree (empty = clean), `git status --porcelain | head -5`
-
-Keep the pipe in the command: a read-time cap ("read only the first 5 entries") bounds nothing,
-because the result is already formed. Pointer: how
-much of a command's output reaches the result, and in what form, is read at
-[tools reference: output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
-calls rather than pre-compute lines. The dated record for how the pre-compute block is composed is
-owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
-shell invocation"); which commands a worktree-isolated session refuses is read at
-[worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
-and how injected commands run at
-[skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-
 ## Pre-computed context
 
 Consumer gotchas:
