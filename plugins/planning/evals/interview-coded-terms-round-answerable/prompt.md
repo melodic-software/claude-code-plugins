@@ -1,6 +1,6 @@
 ---
 description: "A resumed interview whose ledger names every constraint, answer and coined term by code (C1 to C3, Q1 to Q4, R-cap). Why hard: the ledger is in the agent's context, so 'Checked against: C1, C3' or 'rests on Q3' reads as complete to it, while a reader with none of the session's knowledge cannot answer; the easy repair, a lay rewording, drops the technical terms the owner uses."
-tags: [interview, plain-names, scaffold]
+tags: [interview, plain-names, scaffold, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 900

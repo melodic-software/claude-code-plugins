@@ -47,18 +47,21 @@ the Brief.
 A request that names a solution and no problem ("add a retry wrapper") gets its problem worked
 back out: what failure or gap would this solution fix? State that problem with its evidence
 rating, then ask one question: rethink the approach against the problem, or accept the prescribed
-solution. An attended run always asks, however obvious the problem looks. A request that states
-its problem is restated and confirmed, and gets no rethink-or-accept question: its named solution
-is accepted. No question reopens it, including one that asks to choose or settle the mechanism
+solution. An attended run always asks, however obvious the problem looks; in `/planning:interview`
+outside `lock` this is the intake round's problem question, asked open in discovery shape
+([`../skills/interview/context/lookups.md`](../skills/interview/context/lookups.md) "The intake
+round"). A request that states its problem is restated and confirmed, and gets no
+rethink-or-accept question: its named solution is accepted. No question reopens it, including one that asks to choose or settle the mechanism
 against an alternative (a durable queue instead of the named wrapper); questions about the
 solution stay on its parameters. A concern that the solution may not cover the problem is recorded
-under `### Captured assumptions` with the condition that would revisit it, and stated in one line,
-never asked.
+under `### Captured assumptions` with the condition that would revisit it, never asked; a round
+states it in at most one line, which names no other cause and no other approach.
 
 ## Reported-only evidence
 
-A stated problem whose evidence is only `reported` gets one instance question, asked with the
-restatement: the last concrete instance, what it cost, and who hit it. It is one question, never
+A stated problem whose evidence is only `reported` gets one instance question, paired with the
+restatement's confirmation ask: one question that asks the user to confirm the restated problem
+and to give the last concrete instance, what it cost, and who hit it. It is one question, never
 a why chain, and it asks about the problem's evidence only: it never reopens the named solution.
 Under `lock` it joins the one confirmation question. The answer rewrites the Evidence line (an
 artifact the user points at is `observed`; an instance the user recounts stays `reported`), and no

@@ -3,12 +3,20 @@
     {
       "answer": "Items: 'Map the personal-data stores' (research), 'Decide whether backups count as retained copies' (interview).",
       "why": "meets the rule"
+    },
+    {
+      "answer": "Proposed map (created after your yes):\n- Create decision item 'Which stores hold personal data?' (wayfind: research), under the map.\n\nOne ready question for you now, in one round:\nQ1: Do backups count as retained copies? Recommended: yes, so deletion reaches them within the backup rotation window.",
+      "why": "one open question is an item, the other is asked as a ready question with a recommendation"
     }
   ],
   "fail": [
     {
       "answer": "Items: 'Map the personal-data stores'. Backups: left for later.",
       "why": "breaks the rule"
+    },
+    {
+      "answer": "Q1: Which stores hold personal data? Recommended: start from the service inventory.\nQ2: Do backups count as retained copies? Recommended: yes.",
+      "why": "both open questions are asked and neither is a decision item"
     }
   ]
 }

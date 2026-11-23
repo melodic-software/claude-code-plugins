@@ -106,7 +106,7 @@ export function freshness(lastCommit, now) {
 }
 
 const offerText = (e, date) =>
-  `${e.name}, an optional ${e.kind} that ${e.helps}${date ? `, last updated ${date}` : ''}, is not installed; say "install ${e.name}" to add it`
+  `${e.name} ${e.helps}${date ? ` (last updated ${date})` : ''}. Say "install ${e.name}" to add it`
 
 export async function findOffers({
   entries = loadOfferable(),

@@ -3,6 +3,7 @@ export default {
   id: 'terminal',
   reportName: 'terminal',
   aliases: ['inline', 'prose', 'conversation'],
+  where: 'here',
   available: () => ({ ok: true, reason: 'needs no tool' }),
   start: () => ({
     read: [],

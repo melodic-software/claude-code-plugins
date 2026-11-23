@@ -23,6 +23,17 @@
         "auto"
       ]
     },
+    "question_detail": {
+      "type": "string",
+      "title": "Interview question detail",
+      "description": "How much of each question /planning:interview prints: standard (default; hides Origin, Basis, Checked against and the source quote), full (the whole block) or minimal (answer lines and an alternatives count). The round file keeps the full block; a session request or planning.yaml overrides it.",
+      "default": "standard",
+      "options": [
+        "full",
+        "standard",
+        "minimal"
+      ]
+    },
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",
