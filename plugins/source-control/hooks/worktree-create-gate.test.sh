@@ -56,10 +56,6 @@ payload() {
     "$2" "$1"
 }
 
-# --------------------------------------------------------------------------
-# Placement
-# --------------------------------------------------------------------------
-
 REPO="$(mkrepo)"
 ROOT="$TEST_TMPDIR_NATIVE/external-root"
 
@@ -87,10 +83,6 @@ assert_silent "a bad session id prints no path" "$OUT"
 assert_contains "the refusal names the session id" "$(cat "$TEST_TMPDIR/badsid.err")" "session_id"
 assert_eq "a bad session id creates nothing" "1" \
   "$(git -C "$REPO_BADSID" worktree list | grep -c .)"
-
-# --------------------------------------------------------------------------
-# Unconfigured root falls back to plugin data, which is still outside the repo
-# --------------------------------------------------------------------------
 
 REPO2="$(mkrepo)"
 DATA_DIR="$(mktemp -d "$TEST_TMPDIR/dataXXXXXX")"
@@ -245,10 +237,6 @@ ERR="$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"WorktreeCreate"}
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
 assert_contains "a nameless payload is reported as a nameless payload" \
   "$ERR" "parsed but carried no .name"
-
-# --------------------------------------------------------------------------
-# The payload reader
-# --------------------------------------------------------------------------
 
 # Field order must not matter, and the reader must not be defeated by another
 # field whose value happens to contain the string it looks for.
