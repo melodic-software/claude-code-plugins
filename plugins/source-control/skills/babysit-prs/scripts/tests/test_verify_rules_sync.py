@@ -1,4 +1,6 @@
 # test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/scripts/pr-verify/write-verdict.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-verify/prompt.md
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/*
 """The verifier's two shared rules agree across languages: the gate's
 (`babysit_verify_evidence`, `babysit_classify`) and the resolver's
 (`.github/scripts/pr-verify/resolve-pr.mjs`, run here under node).
