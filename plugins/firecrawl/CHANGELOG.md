@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-11-23
+
+### Changed
+
+- `/firecrawl:update`'s sync record moves to the current upstream `SKILL.md` (SHA256 `3a86fb35`), with CLI 1.30.0, still npm latest. The only upstream change since `b4d49850` drops the `POST /support/docs-search` endpoint, which the wrapper never used, so `/firecrawl:firecrawl` is unchanged.
+
 ## [0.9.3] - 2026-11-22
 
 ### Changed
