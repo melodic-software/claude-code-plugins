@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The opt-in size check over a change-scoped size report.
 
-  size_check.py add --config <resolved.json> <report.json>   add `size_check` in place; exit 0 pass, 1 fail, 2 cannot decide
-  size_check.py render <report.json>                         print the markdown section for it
+  size_check.py add --config <resolved.json> [--registry <file>]... [--manifest <file>] <report.json>
+                                     add `size_check` in place; exit 0 pass, 1 fail, 2 cannot decide
+  size_check.py render <report.json> print the markdown section for it
 
 The rule is the resolved `size.check`:
 
@@ -19,6 +20,14 @@ the working-tree file, the base count on the file as the base commit holds it,
 under its earlier name when git sees a rename, and 0 when the base has no such
 file. Every copy a replica row stands for is checked on its own. A `file_lines`
 run row that did not measure its lane leaves the check undecided.
+
+A file is a generated copy measured at its canonical only when both sources
+agree: a registry's cluster line `<canonical> -> <member>...` names it as a
+member (members are literal root-relative paths or gitignore-style globs, and
+the file is not the canonical itself), and the copies manifest
+(`size.copies_manifest`, one `<canonical> <copy>` pair per line) lists that
+exact pair. A row such a copy would have produced carries `canonical` and never
+fails; the canonical keeps the rule. Without a manifest nothing is exempt.
 """
 
 from __future__ import annotations
@@ -27,7 +36,12 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from pathglob import matches as glob_matches  # noqa: E402
+
+CLUSTER_MARKER = " -> "
 RULES = ("report", "crossing", "crossing-or-growth")
 GUIDANCE = (
     "Split each failing file along a real responsibility boundary, so each part "
@@ -104,6 +118,53 @@ def _files(row: dict) -> list[str]:
     return list(dict.fromkeys([row["file"], *copies]))
 
 
+def _clean(path: str) -> str:
+    return path.replace("\\", "/").lstrip("/")
+
+
+def read_clusters(paths: list[str]) -> list[tuple[str, list[str]]]:
+    clusters: list[tuple[str, list[str]]] = []
+    for path in paths:
+        with open(path, encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if line.startswith("#") or CLUSTER_MARKER not in line:
+                    continue
+                canonical, _, rest = line.partition(CLUSTER_MARKER)
+                clusters.append(
+                    (_clean(canonical.strip()), [_clean(t) for t in rest.split()])
+                )
+    return clusters
+
+
+def read_manifest(path: str | None) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    if not path:
+        return pairs
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            fields = raw.split()
+            if len(fields) >= 2 and not fields[0].startswith("#"):
+                pairs.add((_clean(fields[0]), _clean(fields[1])))
+    return pairs
+
+
+def canonical_of(
+    path: str,
+    clusters: list[tuple[str, list[str]]],
+    manifest: set[tuple[str, str]],
+) -> str | None:
+    path = _clean(path)
+    for canonical, members in clusters:
+        if (
+            path != canonical
+            and (canonical, path) in manifest
+            and any(glob_matches(m, path) for m in members)
+        ):
+            return canonical
+    return None
+
+
 def _reference(document: dict) -> tuple[float | None, str]:
     for entry in document.get("thresholds") or []:
         if entry.get("measure") == "file_lines":
@@ -111,7 +172,14 @@ def _reference(document: dict) -> tuple[float | None, str]:
     return None, "bundled default"
 
 
-def add(document: dict, config: dict) -> int:
+def add(
+    document: dict,
+    config: dict,
+    clusters: list[tuple[str, list[str]]] | None = None,
+    manifest: set[tuple[str, str]] | None = None,
+) -> int:
+    clusters = clusters or []
+    manifest = manifest or set()
     rule = (config.get("size") or {}).get("check") or "report"
     layer = (config.get("_layers") or {}).get("size.check", "bundled default")
     reference, reference_layer = _reference(document)
@@ -165,16 +233,18 @@ def add(document: dict, config: dict) -> int:
             kind, fails = "grew", rule == "crossing-or-growth"
         else:
             continue
-        block["rows"].append(
-            {
-                "file": path,
-                "base_file": old,
-                "base_lines": base,
-                "head_lines": head,
-                "kind": kind,
-                "fails": fails,
-            }
-        )
+        row = {
+            "file": path,
+            "base_file": old,
+            "base_lines": base,
+            "head_lines": head,
+            "kind": kind,
+            "fails": fails,
+        }
+        canonical = canonical_of(path, clusters, manifest)
+        if canonical:
+            row.update(canonical=canonical, fails=False)
+        block["rows"].append(row)
     block["rows"].sort(key=lambda r: (not r["fails"], r["file"]))
     block["failed"] = sum(1 for r in block["rows"] if r["fails"])
     return 1 if block["failed"] else 0
@@ -204,7 +274,9 @@ def render(document: dict) -> str:
                 if r["base_file"] == r["file"]
                 else f"{r['file']} (was {r['base_file']})"
             )
-            if r["kind"] == "crossed":
+            if r.get("canonical"):
+                result = f"reported: a copy, measured at its canonical {r['canonical']}"
+            elif r["kind"] == "crossed":
                 result = "fails: crossed the reference"
             elif r["fails"]:
                 result = "fails: already over, grew"
@@ -228,17 +300,31 @@ def render(document: dict) -> str:
 
 def main(argv: list[str]) -> int:
     try:
-        if len(argv) == 4 and argv[0] == "add" and argv[1] == "--config":
+        pairs = argv[3:-1]
+        flags = pairs[::2]
+        if (
+            len(argv) >= 4
+            and argv[:2] == ["add", "--config"]
+            and len(pairs) % 2 == 0
+            and all(flag in ("--registry", "--manifest") for flag in flags)
+            and flags.count("--manifest") <= 1
+        ):
             with open(argv[2], encoding="utf-8") as handle:
                 config = json.load(handle)
-            with open(argv[3], encoding="utf-8") as handle:
+            given = list(zip(flags, pairs[1::2]))
+            clusters = read_clusters([v for f, v in given if f == "--registry"])
+            manifest = read_manifest(
+                next((v for f, v in given if f == "--manifest"), None)
+            )
+            report = argv[-1]
+            with open(report, encoding="utf-8") as handle:
                 document = json.load(handle)
             try:
-                status = add(document, config)
+                status = add(document, config, clusters, manifest)
             except CannotDecide as exc:
                 print(f"size_check.py: {exc}", file=sys.stderr)
                 status = 2
-            with open(argv[3], "w", encoding="utf-8") as handle:
+            with open(report, "w", encoding="utf-8") as handle:
                 json.dump(document, handle, indent=2)
             return status
         if len(argv) == 2 and argv[0] == "render":

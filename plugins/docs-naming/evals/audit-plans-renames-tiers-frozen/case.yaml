@@ -33,7 +33,7 @@ graders:
     arm: both
   - name: report-count-stated
     type: regex
-    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:sites?[*_`]*\s+)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report|frozen)\b|untouched\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as written|unchanged)\b|listed\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
+    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:sites?[*_`]*\s+)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report|frozen)\b|untouched\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as written|unchanged)\b|listed\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b(?:\s*\([^)\n]{0,20}\))?[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
     flags: 'i'
     target: last_message
     arm: both
@@ -72,6 +72,6 @@ graders:
     arm: with-only
   - name: rows-and-tiers
     type: llm
-    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and quotes any cited sweep rows verbatim. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
+    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and grounds each cited site''s tier, action and excerpt in the sweep output. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
     focus: trace
     arm: both

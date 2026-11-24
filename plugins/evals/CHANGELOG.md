@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.26.1] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [0.26.0] - 2026-11-23
 
 ### Added

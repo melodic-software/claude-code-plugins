@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.5] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [0.21.4] - 2026-11-23
 
 ### Changed

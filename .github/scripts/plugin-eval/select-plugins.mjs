@@ -6,21 +6,25 @@
 //
 // Reads changed paths, one per line, on stdin and prints each plugin
 // directory (`plugins/<name>`) that has a changed file under its skills/,
-// agents/ or evals/, sorted, one per line. Prints nothing when none does.
+// agents/, context/ or evals/, sorted, one per line. Prints nothing when none
+// does. context/ is admitted by the owner decision at
+// https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380.
 //
 // A selected plugin's suite runs with the pull request's own plugin loaded
 // under --trust-plugin and the eval's credential in the environment, so only
 // changes known not to add code that runs are let through, an allowlist:
 //
-// - every changed path of a selected plugin sits under skills/, agents/ or
-//   evals/;
-// - every changed path under skills/ or agents/ is markdown, since a script
-//   there can be called by an unchanged hook, server or skill;
-// - a changed markdown file under skills/ or agents/ keeps, between --base
-//   and --head in the git repository --repo, every frontmatter key outside
-//   SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a frontmatter
-//   shape frontmatter() can read and with no YAML alias in those keys, and
-//   adds or changes no `!` shell-preprocessing line or ```! block, and
+// - every changed path of a selected plugin sits under skills/, agents/,
+//   context/ or evals/;
+// - every changed path under skills/, agents/ or context/ is markdown, since
+//   a script there can be called by an unchanged hook, server or skill
+//   (context/:
+//   https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380);
+// - a changed markdown file under skills/, agents/ or context/ keeps,
+//   between --base and --head in the git repository --repo, every frontmatter
+//   key outside SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a
+//   frontmatter shape frontmatter() can read and with no YAML alias in those
+//   keys, and adds or changes no `!` shell-preprocessing line or ```! block, and
 //   changes no body text of a file that already has one. Without --repo it
 //   cannot be read, so it is refused;
 // - every changed path under evals/ is a case file: prompt.md, case.yaml,
@@ -51,9 +55,9 @@ import process from "node:process";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
-const SUITE_PATH = /^plugins\/([A-Za-z0-9._-]+)\/(?:skills|agents|evals)\//;
+const SUITE_PATH = /^plugins\/([A-Za-z0-9._-]+)\/(?:skills|agents|context|evals)\//;
 const PLUGIN_PATH = /^plugins\/([A-Za-z0-9._-]+)\/(.*)$/;
-const PROSE_PATH = /^(?:skills|agents)\//;
+const PROSE_PATH = /^(?:skills|agents|context)\//;
 const SEG = "[A-Za-z0-9_-][A-Za-z0-9._-]*";
 const CASE_FILE = new RegExp(`^evals/(?:${SEG}/)+(?:prompt\\.md|case\\.yaml|graders/${SEG}\\.md|samples/(?:${SEG}/)*${SEG}\\.json)$`);
 const CASE_DEFINITION = /(?:^|\/)(?:prompt\.md|case\.yaml)$/;
@@ -358,7 +362,7 @@ export function refusals(paths, plugins, read = () => undefined) {
     };
     let reason = null;
     if (!SUITE_PATH.test(path)) {
-      reason = "outside skills/, agents/ and evals/";
+      reason = "outside skills/, agents/, context/ and evals/";
     } else if (rest.startsWith("evals/")) {
       if (!CASE_FILE.test(rest)) {
         reason = "not a case file (prompt.md, case.yaml, graders/*.md, samples/**/*.json)";

@@ -47,6 +47,8 @@ vendors:
   routing: true
   trials: false
   auto_delegation: false
+  promotion_audits: 3
+  promotion_days: 30
 
 roles:
   orchestrator:

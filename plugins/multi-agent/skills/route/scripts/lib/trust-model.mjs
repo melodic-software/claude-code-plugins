@@ -1,4 +1,4 @@
-import { DATE_RE, applyCodingEffortFloor, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
+import { DATE_RE, EFFORT_LADDER, applyCodingEffortFloor, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
 import { isPairFailed } from './trials.mjs'
 
 export function publisherToVendor(publisher) {
@@ -23,6 +23,22 @@ export function isWithinSixMonths(pageDateStr, nowDate) {
   const cutoff = new Date(Date.UTC(targetYear, targetMonth, Math.min(cutoffDay, lastDay)))
   const maxAllowed = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000)
   return dt >= cutoff && dt <= maxAllowed
+}
+
+export function matchCurrentModel(vInfo, model, effort) {
+  if (!model || !vInfo) return null
+  const key = model.toLowerCase()
+  if (vInfo.idSet.has(key)) return vInfo.idCanonical.get(key)
+  const prefix = `${key}-`
+  const variants = vInfo.ids.filter((id) => {
+    const lower = id.toLowerCase()
+    if (!lower.startsWith(prefix)) return false
+    const efforts = vInfo.effortsByModel.get(lower) || vInfo.topEfforts || EFFORT_LADDER
+    return efforts.some((e) => String(e).toLowerCase() === lower.slice(prefix.length))
+  })
+  if (variants.length === 0) return null
+  const wanted = effort ? `${prefix}${String(effort).toLowerCase()}` : null
+  return variants.find((id) => id.toLowerCase() === wanted) || variants[0]
 }
 
 export function clusterSources(leadingSources, notes) {
@@ -151,11 +167,14 @@ export function evaluateSources({
         r.verdict = 'abstain'
         continue
       }
-      if (!r.model || !vInfo.idSet.has(r.model.toLowerCase())) {
+      const currentId = matchCurrentModel(vInfo, r.model, r.effort)
+      if (!currentId) {
         notes.push(
           `${row.id}: abstains for ${r.vendor} (model '${r.model ?? 'none'}' is not in current models)`,
         )
         r.verdict = 'abstain'
+      } else if (!vInfo.idSet.has(r.model.toLowerCase())) {
+        r.model = currentId
       }
     }
 

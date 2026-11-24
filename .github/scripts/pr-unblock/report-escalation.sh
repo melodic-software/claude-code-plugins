@@ -82,25 +82,16 @@ need_head_and_repo() {
   [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
 }
 
-# Sets context to the commit status context of activity $1's stop.
 set_context() {
   if [[ $1 == resolve-conflicts ]]; then context=pr-unblock/conflict; else context=pr-unblock/$1; fi
 }
 
-# Posts a <state> status of <context> on HEAD_SHA with <description>, linked
-# to TARGET_URL when it is set.
 post_status() {
   local args=(-f "state=$2" -f "context=$1" -f "description=$3")
   [[ -z ${TARGET_URL:-} ]] || args+=(-f "target_url=$TARGET_URL")
   gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" "${args[@]}" >/dev/null
 }
 
-# After the hold route adds the human-gated label: a queued PR leaves the merge
-# queue, so its group does not run only for ci-status to fail it on the label.
-# The read and the dequeue are address-feedback.mjs's QUEUE_ENTRY_QUERY and
-# DEQUEUE_MUTATION (leaveQueueOnHold), the one copy of each. A refused read or
-# dequeue warns and the escalation goes on: the label is the hold. Prints one
-# hold-label-dequeue notice.
 leave_queue() {
   local queries answer entry outcome number=${PR_NUMBER:-} repo=${GITHUB_REPOSITORY:-}
   if ! queries=$(QUEUE_MODULE="$(dirname "${BASH_SOURCE[0]}")/address-feedback.mjs" node --input-type=module -e '
@@ -147,7 +138,6 @@ retried_refusal() {
     notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100") || return 1
     annotations=$(jq -c --arg id "$id" --argjson notes "$notes" '. + {($id): $notes}' <<<"$annotations") || return 1
   done
-  # The head's address-feedback rounds, which the sweep counts against its cap.
   rounds=$(gh api "repos/$GITHUB_REPOSITORY/commits/${HEAD_SHA:-}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&per_page=100") || return 1
   # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
   REFIRE_MODULE="$(dirname "${BASH_SOURCE[0]}")/../pr-merge/refire-refused.mjs" DISPATCH_MODULE="$(dirname "${BASH_SOURCE[0]}")/feedback-dispatch.mjs" JOBS="$jobs" ANNOTATIONS="$annotations" ROUNDS="$rounds" node --input-type=module -e '
@@ -199,19 +189,14 @@ fi
 [[ ${ESCALATION_REASON:-} =~ ^[a-z]+(-[a-z]+)*$ ]] || die "unknown escalation reason [${ESCALATION_REASON:-}]"
 entry=$(jq -c --arg r "$ESCALATION_REASON" 'if has($r) then .[$r] else null end' "$routes") || die "cannot read $routes"
 if [[ $entry == null ]]; then
-  # Fail-safe: a reason the table does not list holds for a person, with no
-  # activity to resume.
   why="the lane stopped on a reason its routing table does not list, so a person decides"
   activity='' route=hold session_label='' owner_reason=''
 else
   why=$(jq -er '.why | strings' <<<"$entry") || die "no why for $ESCALATION_REASON in $routes"
   activity=$(jq -er '.activity | strings' <<<"$entry") || die "no activity for $ESCALATION_REASON in $routes"
   route=$(jq -er '.route | select(. == "hold" or . == "fail")' <<<"$entry") || die "no route for $ESCALATION_REASON in $routes"
-  # The session-builder queue label a fail-routed reason may name.
   session_label=$(jq -er --arg route "$route" 'if has("label") then .label | strings | select(test("^[a-z]+(-[a-z]+)*$") and $route == "fail") else "" end' <<<"$entry") ||
     die "the label for $ESCALATION_REASON in $routes is not a label name on a fail route"
-  # The stop-reason code a hold row names (`owner-reason`), which the hold
-  # comment carries as ../lib/stop-reason.mjs's marker and visible line.
   owner_reason=$(jq -er --arg route "$route" 'if has("owner-reason") then ."owner-reason" | strings | select(test("^[a-z]+$") and $route == "hold") else "" end' <<<"$entry") ||
     die "the owner-reason for $ESCALATION_REASON in $routes is not a code on a hold route"
 fi
@@ -228,8 +213,6 @@ case ${1:-} in
     # shellcheck disable=SC2310 # retried_refusal returns 1 itself on every failed read
     if [[ $ESCALATION_REASON == feedback-publish-failed ]] && refusal=$(retried_refusal); then
       echo "::notice title=report-stop-status::no status for $ESCALATION_REASON: the reply job's lane token was refused ($refusal), and a retry takes this head"
-      # The step's status-withheld output: report-escalation posts no
-      # lane-stopped comment for the same refusal.
       [[ -z ${GITHUB_OUTPUT:-} ]] || echo "status-withheld=true" >>"$GITHUB_OUTPUT"
       exit 0
     fi
@@ -265,8 +248,6 @@ fi
 if [[ $route == hold ]]; then
   marker='<!-- work-items:escalation lane=pr-unblock kind=escalated -->'
   key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
-  # personReasonLines throws for a code that is not a person reason, so a bad
-  # row fails here, before the label goes on.
   reason_lines=''
   if [[ -n $owner_reason ]]; then
     reason_lines=$(STOP_REASON_MODULE="$(dirname "${BASH_SOURCE[0]}")/../lib/stop-reason.mjs" OWNER_REASON=$owner_reason node --input-type=module -e '
@@ -385,8 +366,6 @@ if [[ $route == fail ]]; then
   more=''
   next_text='When a retry on this head can change the outcome, the lane runs one on its own, up to its per-head cap, and edits this comment if it stops again; a run that does not stop clears the status. When no retry can (a review thread the lane does not take or settle, or a failing check after the retries are spent), a person resolves the threads or gets the checks green, then dispatches the workflow below: that run finds the cause gone and clears the status. On a pull request the lanes App opened, the dispatchers start that run once per stop; on any other, a person does. A new commit to the branch starts clean.'
   if [[ $ESCALATION_REASON == feedback-not-converging && ${lane_pr:-false} == true ]]; then
-    # The pr-merge lane closes a lanes App pull request stopped here and
-    # re-admits its issue (enable-auto-merge.mjs notConverging).
     next_text="The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt. To keep it open for one more round, first add \`$label\`, which holds the close but not a requested round, then reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\`. \`do-not-merge\` holds the close too, but it also stops the lane's rounds, so with it a person resolves the threads and dispatches the workflow below before removing it."
   elif [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     more=" A reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\` grants one more round on that thread."
@@ -406,8 +385,6 @@ To run it again on this head now, dispatch the \`pr-unblock\` workflow:
 $dispatch
 \`\`\`
 EOF
-  # The session-builder queue label goes on before the comment that explains it, and back on when
-  # a session removed it and the lane stops again with the same comment.
   if [[ -n $session_label ]] && [[ $(gh api "$issue" | jq --arg l "$session_label" '[.labels[].name] | index($l) != null') != true ]]; then
     gh api -X POST "$issue/labels" -f "labels[]=$session_label" >/dev/null
   fi
@@ -434,7 +411,6 @@ else
 fi
 {
   printf '%s\n%s\n' "$marker" "$key_line"
-  # The stop-reason marker, then its visible line after the summary.
   [[ -z $reason_lines ]] || printf '%s\n' "${reason_lines%%$'\n'*}"
   printf 'The pr-unblock lane stopped on this pull request and needs a person: %s.\n\n' "$why"
   [[ -z $reason_lines ]] || printf '%s\n\n' "${reason_lines#*$'\n'}"

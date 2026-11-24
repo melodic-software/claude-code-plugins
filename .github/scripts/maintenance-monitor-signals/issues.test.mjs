@@ -1,8 +1,3 @@
-// The incident rules: a signal holds at most one open issue, found by its
-// marker, filed past its open threshold and closed past its close threshold;
-// a signal that flaps inside its thresholds files and comments nothing; a
-// closed-as-not-planned or duplicate incident mutes the signal; platform
-// incidents are logged, never filed; the old rolling issues are retired.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -175,8 +170,6 @@ test("an unread signal keeps its timers and leaves its incident as it is", () =>
   assert.deepEqual(firing.file, []);
 });
 
-// Signal 13 at its default threshold of 4 held runs in 24 hours: 4 held
-// work-unblock runs fire it, 3 do not.
 const LANE_HOLDS = "13 lane holds";
 const heldRuns = (n) =>
   Array.from({ length: n }, (_, i) => ({ lane: "work-unblock", runId: 70 + i, url: `https://github.com/o/r/actions/runs/${70 + i}`, item: null, reason: "open listing failed", at: hoursAgo(i + 1) }));
@@ -218,7 +211,6 @@ test("a partly-read gap leaves no signal unread and marks only signal 13 partly 
   assert.equal(partlyReadSignals(["lane holds: the monitor.lane-holds rule was not read: yq failed", "audits: x"]).size, 0);
 });
 
-// A failed lane-hold marker list leaves the scan's reads, a floor on the whole.
 const MARKERS_FAILED = ["lane hold markers: GET artifacts: HTTP 502"];
 
 test("a failed marker list reads signal 13 partly: a lane at 4 holds still files, and under 4 an open incident stays open", () => {

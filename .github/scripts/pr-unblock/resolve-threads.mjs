@@ -90,7 +90,6 @@ export function judgeThread({ thread, rows, review, security, reviewerId, review
   if (!comments.every(bot) || comments[0].authorId === appId) {
     return "not-bot-only";
   }
-  // Tagged as keepThreads tags them for adjudicable.
   const tagged = comments.map((comment, i) => {
     const author = comment.authorId === appId ? "lane" : "reviewer";
     const lane = isLaneComment(comment) ? laneOf(comment.body) : null;
@@ -135,8 +134,6 @@ export async function resolveThreads({ api, pr, appId, reviewerId, reviewerIds =
       continue;
     }
     try {
-      // Judged again on the re-read bodies and edits: a comment edited since
-      // the first read (say, rated CRITICAL) leaves the thread open.
       const now = await api.readThread(thread.id);
       const nodes = now.nodes ?? [];
       const fresh =
@@ -168,8 +165,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   need(env, ["GH_TOKEN", "GITHUB_REPOSITORY", "PR_NUMBER", "APP_SENDER_ID", "TRUSTED_ACTORS", "SKIP_REASON_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const { skipReason } = await resolveThreads({
-    // The lane comments' bindings are read with ARTIFACT_READ_TOKEN, never
-    // the lane token (laneReader).
     api: withLaneBinding(
       api ??
         createGitHubApi({

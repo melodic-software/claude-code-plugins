@@ -30,10 +30,12 @@ export async function sendDispatch(api, log, { workflow, base, node, inputs, lab
 // review-dependency head a head-lag stop left (limit-stop.mjs
 // lagStopsRelease), and version 7 an address-feedback or fix-ci head
 // pr-verify's FAIL cap held, which a superseded FAIL now clears
-// (https://github.com/melodic-software/claude-code-plugins/issues/17646). A fix-ci
+// (https://github.com/melodic-software/claude-code-plugins/issues/17646), and
+// version 8 a review-dependency head a not-applicable skip taken before its
+// CI Status finished left (dependency-dispatch.mjs). A fix-ci
 // head recorded at its per-head cap needs no new version: a record with no
 // fix-ci entry reads the same either way; nor do fix-docs runs, read as none.
-export const RECORD_VERSION = 7;
+export const RECORD_VERSION = 8;
 const MAX_DOCS_RUNS = 20;
 
 export function emptyRecord() {

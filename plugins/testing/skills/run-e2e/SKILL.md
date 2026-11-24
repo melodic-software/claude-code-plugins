@@ -352,7 +352,7 @@ edits no component code; fixes go to the user. It always takes own driving and s
 - Surface verification available → the bundled `/verify` skill covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: its start stays with the user, and this skill's orchestrator path runs unchanged either way. Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), which says which bundled skills Claude invokes on its own.
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending → invoke `/review:quality-gate` (if enabled) via the Skill tool; otherwise the consuming setup's review step
 - All scenarios pass after review → invoke `/verification:confirm outcome` (if enabled) via the Skill tool (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
-- Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
+- Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:fix-failing` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 
 ## Boundary, the bundled `run` skill
@@ -400,7 +400,7 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
-- A scenario fails: `/testing:diagnose`.
+- A scenario fails: `/testing:fix-failing`.
 - Touched features not matched (app-control not installed): enable app-control, installing it
   first if it is not installed, then run this skill again.
 

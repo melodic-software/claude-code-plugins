@@ -16,7 +16,6 @@ const SCRIPT = fileURLToPath(new URL("./capture-probe.mjs", import.meta.url));
 // Built at run time so no key-shaped literal sits in the file.
 const KEY = `${"sk-ant-"}api03-${"Q".repeat(40)}`;
 
-// A /proc stand-in: one directory per pid, each with its environ.
 const fakeProc = (processes) => {
   const root = tempDir("capture-probe-proc-");
   for (const [pid, entries] of Object.entries(processes)) {
@@ -38,14 +37,12 @@ test("an environment hit names the variable, and a key under any name is a hit",
   assert.deepEqual(envHits(["ACTIONS_RUNTIME_TOKEN=eyJ0"]), ["ACTIONS_RUNTIME_TOKEN"]);
   assert.deepEqual(envHits([`HIDDEN=${KEY}`]), ["a credential-shaped value in HIDDEN"]);
   assert.deepEqual(envHits([`GH=${"ghs_"}${"a".repeat(36)}`]), ["a credential-shaped value in GH"]);
-  // Set but empty carries nothing; a name that only looks like one is no hit.
   assert.deepEqual(envHits(["ANTHROPIC_API_KEY=", "GITHUB_TOKEN_NAME=github-token", "PATH=/bin"]), []);
 });
 
 test("a name the job adds is a hit by name in the environment and in /proc, and pr-verify's list stays as it was", () => {
   const names = probedNames("ISSUE_LANE_CLAUDE_API_KEY  OTHER_SECRET\n");
   assert.deepEqual(names.slice(-2), ["ISSUE_LANE_CLAUDE_API_KEY", "OTHER_SECRET"]);
-  // A value of no credential shape, so only the name can hit.
   const entries = ["ISSUE_LANE_CLAUDE_API_KEY=plain", "PATH=/bin"];
   assert.deepEqual(envHits(entries, names), ["ISSUE_LANE_CLAUDE_API_KEY"]);
   assert.deepEqual(envHits(entries), []);
@@ -99,7 +96,6 @@ test("the verdict passes only a clean scan that saw its canary", () => {
   const procScan = (hits, canarySeen) => ({ hits, read: 3, canarySeen });
   assert.equal(verdict({ ownHits: [], procScan: procScan([], true), fileHits: [] }).exit, 0);
   assert.equal(verdict({ ownHits: [], procScan: procScan([], true), fileHits: [] }).clean, true);
-  // A scan that missed its own canary proves nothing, whatever else it found.
   for (const hits of [[], [{ where: "process 1", name: "GITHUB_TOKEN" }]]) {
     const result = verdict({ ownHits: [], procScan: procScan(hits, false), fileHits: [] });
     assert.equal(result.exit, 2);
@@ -122,19 +118,14 @@ const TARGETS = ["/proc/self/environ", "/runner/_temp/probe.md"];
 test("the driver's file tools pass only when a Read of every fenced path was refused", () => {
   const refused = [readUse("a", TARGETS[0]), readResult("a", true), readUse("b", TARGETS[1]), readResult("b", true), resultMessage(["a", "b"])];
   assert.deepEqual(fileReach(refused, TARGETS), { clean: true, reach: TARGETS.map((target) => ({ target, status: "refused" })) });
-  // Listed as a denial alone counts as refused.
   assert.equal(fileReach([readUse("a", TARGETS[0]), readUse("b", TARGETS[1]), resultMessage(["a", "b"])], TARGETS).clean, true);
-  // A read that came back, one with no result, and one never tried all fail it.
   const read = fileReach([readUse("a", TARGETS[0]), readResult("a", false), readUse("b", TARGETS[1]), readResult("b", true)], TARGETS);
   assert.deepEqual(read, { clean: false, reach: [{ target: TARGETS[0], status: "read" }, { target: TARGETS[1], status: "refused" }] });
   assert.equal(fileReach([readUse("a", TARGETS[0]), readUse("b", TARGETS[1]), readResult("b", true)], TARGETS).reach[0].status, "unknown");
   assert.equal(fileReach([readUse("b", TARGETS[1]), readResult("b", true)], TARGETS).reach[0].status, "not tried");
-  // A second, successful try after a refusal is a read.
   assert.equal(fileReach([readUse("a", TARGETS[0]), readResult("a", true), readUse("c", TARGETS[0]), readResult("c", false), readUse("b", TARGETS[1]), readResult("b", true)], TARGETS).clean, false);
   assert.equal(fileReach(null, TARGETS).clean, false);
   assert.equal(fileReach(refused, []).clean, false);
-  // The ~/.claude fence file is a third target: refused with the others it
-  // passes; read, or never tried, it fails the probe.
   const fence = "/home/runner/.claude/pr-verify-probe-fence";
   const three = [...TARGETS, fence];
   assert.equal(fileReach([...refused.slice(0, 4), readUse("f", fence), readResult("f", true), resultMessage(["a", "b", "f"])], three).clean, true);
@@ -178,7 +169,6 @@ test("the reads subcommand exits 3, not 1, when the session never tried a path, 
   const partial = run([readUse("a", TARGETS[0]), readResult("a", true)]);
   assert.equal(partial.status, 3, partial.stdout);
   assert.match(partial.stdout, /\/runner\/_temp\/probe\.md not tried/);
-  // A Read that came back, or one with no result, is a breach whatever else went untried.
   const read = run([readUse("b", TARGETS[1]), readResult("b", false)]);
   assert.equal(read.status, 1, read.stdout);
   assert.doesNotMatch(read.stdout, /not tested/);

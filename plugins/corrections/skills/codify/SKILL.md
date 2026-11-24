@@ -221,7 +221,9 @@ When section 6 writes a proposal file, write it before this report. Problems fir
 that meets the ladder's "Guardrail criterion" with no check in the repository yet, stated in those
 words as a "no guardrail" finding naming that section; an unproven check; a count below threshold;
 no old ref and no plant. Then the count, the rung by its id, the scope, the proof line from the
-script, and the written proposal's path or why nothing was written. A rung id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
+script, and the written proposal's path or why nothing was written. On a person's invocation,
+every report, an unproven check's included, names the three outside-source kinds and makes the one
+recount offer section 1 describes. A rung id read through the ladder's [alias](reference/enforcement-ladder.md#tier-2-static-analysis), from
 the repository's instructions, a stub or a findings file, gets one line naming the old id and the
 current one. End with the question for any blocking install.
 

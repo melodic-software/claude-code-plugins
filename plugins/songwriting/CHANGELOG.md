@@ -3,6 +3,19 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-24
+
+### Fixed
+
+- `audit` runs the rubric's countable passes as commands; reporting only no longer reads as a reason to skip them.
+
+## [3.0.0] - 2026-11-24
+
+### Changed
+
+- The lyric review and rewrite skill is invoked as `/songwriting:revise`, with no alias; `diagnose` stays its default action and changes nothing.
+- Its per-skill verification level in `songwriting.yaml` is keyed `verification_skills.revise`; a `diagnose` key no longer applies.
+
 ## [2.0.17] - 2026-11-23
 
 ### Changed

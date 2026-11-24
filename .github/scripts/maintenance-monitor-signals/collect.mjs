@@ -1,7 +1,3 @@
-// The monitoring lane's reads: every source the signals need, through the
-// job's own GITHUB_TOKEN and githubstatus.com, into one data object. A source
-// that fails to read is recorded in `gaps` and the others still run. Every
-// list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
 import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
@@ -19,17 +15,12 @@ export const LIMITS = {
   inProgressRuns: 30,
   failedRuns: 12,
   failedRunPages: 5,
-  // Failed scheduled work-unblock runs signal 14 reads, apart from the failed
-  // runs above so their cap never hides one. The schedule is hourly, so the
-  // window plus its lookback holds about 7.
   laneVariableRuns: 10,
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
   mergeGroupList: 100,
   mergeGroupRuns: 10,
   mergeQueuePulls: 50,
-  // pr-merge-summary artifacts read newest first: room for a held streak past
-  // LISTING_HELD_SWEEPS and the sweep that listed before it.
   sweepArtifacts: 8,
   // pr-merge-post-merge-report artifacts listed in one call, newest first; a
   // fork's runs can upload under the same name, so the page is wide.
@@ -78,20 +69,11 @@ export const LIMITS = {
   // 7-hour created span in the 7 days to 2026-11-05. A lane with more is a
   // gap, since its oldest-created runs go unlisted.
   holdListPages: 3,
-  // Held runs the carry keeps, newest first.
   holdsKept: 300,
 };
-// report-escalation.sh's comment for a stop routed to a failing status, one
-// per activity, edited at each stop (gate-source.mjs LANE_STOPPED).
 const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=([a-z]+(?:-[a-z]+)*) -->$/;
 const STOP_FIELD = (name) => new RegExp(`^- ${name}: \`([^\`]+)\``, "m");
-// clear-escalations.mjs's comment when it took off a needs-human an older run
-// set (gate-source.mjs CLEARED): a reason now routed to a failing status left
-// that head with no stop comment of its own.
 const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=([a-z,-]+) head=([0-9a-f]{40}) -->$/;
-// One GraphQL query reading one field per item under its own alias, so a
-// source reads every pull request it covers in one call. The repository is
-// the query's $owner and $name.
 export const batchQuery = (fields) =>
   `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.map((field, i) => `a${i}: ${field}`).join(" ")} } }`;
 async function queryRepo(graphql, repo, query) {
@@ -111,19 +93,9 @@ const restComment = (node) => ({
   updated_at: node.updatedAt,
   html_url: node.url,
 });
-// An attempt of the activity on the head: any of its check runs but a skip,
-// which a select job posts without running the activity (a stop's own
-// lane-stopped, a held awaiting-human, not-applicable, or stop-resolved).
 const attempted = (run) => !(run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped:"));
-// A select job that finds the stop gone on its head skips stop-resolved and
-// report-stop-status posts success over the failing status, which this job
-// cannot read, so that skip stands for the success.
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-file-upstream-drift-issues"];
-// Pull-request and merge-group runs hold no lane token, and a merge-group
-// failure is counted as an ejection instead.
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
-// The test-suite runs hold no lane token either, and their failure annotations
-// name tests, some of them for rate limits; signal 1 reads main's suite.
 const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-platforms.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 export const QUEUE_HOLD_STEPS = new Set(["Fail a queued pull request a hold stops, before the lanes", "Fail a lanes App pull request on kill switch, hold path, verifier or veto"]);
@@ -151,22 +123,17 @@ export function queueRemovals(pr, nodes, since) {
   }
   return out;
 }
-// Signal 14's job and the two steps of its repository variable check, as
-// work-unblock.yml names them.
 const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
 export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
-// That job's name, and its id as a run from before the job rename lists it.
 const PUBLISH_LANE_LEVEL_NAMES = new Set(["Publish Lane Level", PUBLISH_LANE_LEVEL_JOB]);
 export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
-// pr-merge's merge job by name, then by the id a run from before the job rename lists.
 const MERGE_JOB = "Merge";
 const MERGE_JOB_BEFORE_RENAME = "merge";
 const mergeJob = (jobs) => jobs.find((j) => j.name === MERGE_JOB) ?? jobs.find((j) => j.name === MERGE_JOB_BEFORE_RENAME);
-// The step name every lane workflow gives request-lane-token in token mode.
 const MINT_STEP = "Request the lane token";
 // Events whose run takes its workflow code from the default branch; a push
 // or a dispatch counts only on main. A pull_request or review event runs a
@@ -174,20 +141,14 @@ const MINT_STEP = "Request the lane token";
 const DEFAULT_BRANCH_EVENTS = new Set(["schedule", "workflow_run", "pull_request_target", "issues", "issue_comment"]);
 const MAIN_ONLY_EVENTS = new Set(["push", "workflow_dispatch"]);
 const RUN_ID = /^[0-9]+$/;
-// A run is read in the window it completes in, so the list reaches back to
-// runs created this long before the window opened.
 const RUN_LOOKBACK_HOURS = 6;
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-// The artifact that carries completed runs' job reads from one run of this
-// lane to the next, and its file's version: bump it whenever the fields kept
-// or the rule for keeping them change.
 export const JOBS_ARTIFACT = "monitor-signals-jobs";
 export const JOBS_FILE = "jobs.json";
 export const JOBS_VERSION = 2;
 const isTimeOrNull = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
 
-// The carried job reads by run id and attempt, or an error for any other shape.
 export function parseJobsCarry(text, repo) {
   const data = JSON.parse(text);
   const entry = (e) =>
@@ -202,10 +163,6 @@ const NO_HELD = { runs: [], from: null, through: null, scanned: [] };
 const NO_EPISODES = { at: null, signals: {} };
 export const jobsCarryFile = (repo, runs, held = NO_HELD, episodes = NO_EPISODES) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held, episodes });
 
-// The signals' timers the same file carries, {signal: {onSince, clearSince}},
-// empty when the file has none or they are older than RUN_LOOKBACK_HOURS: runs
-// that kept no carry for that long say nothing about the time between. An
-// error for any other shape.
 export function parseEpisodeCarry(text, repo, now) {
   const data = JSON.parse(text);
   const episodes = data?.episodes ?? NO_EPISODES;
@@ -217,11 +174,6 @@ export function parseEpisodeCarry(text, repo, now) {
   return episodes.signals;
 }
 
-// The held runs the same file carries, {runs, from, through, scanned}: the
-// runs, the unbroken span of completion times the lane read them over (null
-// when not known, as in a file written before it carried them), and the runs
-// read with no hold, {lane, runId, at} by completion time (none in a file
-// written before it carried them), or an error for any other shape.
 export function parseHeldCarry(text, repo) {
   const data = JSON.parse(text);
   const held = data?.held ?? NO_HELD;
@@ -242,14 +194,6 @@ export function parseHeldCarry(text, repo) {
   return { runs: held.runs, from: held.from, through: held.through, scanned };
 }
 
-// `carriedJobs` is the last run's job reads (parseJobsCarry). A completed
-// run's carried read is used while its listing shows the same attempt and
-// updated_at, and a whole read of a completed run whose every job finished and
-// listed its steps in full is kept; data.jobsCarry holds what the next run
-// carries: this run's reads and hits, nothing else. `holds`, when set, is
-// {rule, carried}: signals.mjs holdRule's result or the error reading it, and
-// the last run's held runs (parseHeldCarry), or null when there were none or
-// they were not read; data.heldCarry holds what the next run carries.
 export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null, carriedJobs = new Map(), holds = null }) {
   const gaps = [];
   const jobsMemo = new Map();
@@ -268,7 +212,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         const jobs = listing.jobs ?? [];
         if (
           final &&
-          // An empty listing may not have settled yet, so it is never carried.
           jobs.length > 0 &&
           jobs.length === listing.total_count &&
           jobs.every((j) => j?.status === "completed" && j.conclusion != null && stepsKnown(j) && (j.run_attempt === undefined || j.run_attempt === run.run_attempt))
@@ -310,10 +253,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       if (annotations) annotationsMemo.set(job.id, annotations);
     });
   };
-  // Reads `runs`' jobs in the order the source's loop does, stopping as it
-  // would once `limit` jobs are picked, then the picked jobs' annotations in
-  // batches. The loop reads jobs through the returned function, so a read that
-  // failed here fails the loop at the same run, and is not made twice.
   const prefetch = async (runs, read, pick, limit = Number.POSITIVE_INFINITY) => {
     const got = new Map();
     const picked = [];
@@ -354,10 +293,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   };
 
-  // pr-merge's runs on main, any status, listed once for the sources that
-  // read them: dispatch-post-merge-runs keeps its report while the run's merge
-  // jobs still run, so the report source needs runs in progress too; the
-  // budget source keeps completed ones only.
   let prMergeList = null;
   const prMergeRuns = async () =>
     (prMergeList ??= (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&created=${created}&per_page=50`))
@@ -458,12 +393,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   });
 
-  // Signal 14's own read: main's failed scheduled work-unblock runs in the
-  // window and their publish-lane-level job. A failure annotation names a
-  // variable check result; a variable step that failed with none (a timeout)
-  // is kept as a failed step. More runs than the cap is a gap, so the signal
-  // reads unread rather than clear. A run that hit its timeout concludes
-  // timed_out, so both conclusions are listed.
   await source("lane variable runs", async () => {
     const listed = [];
     for (const status of ["failure", "timed_out"]) {
@@ -567,15 +496,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   });
 
-  // The newest sweep that listed, and the held sweeps above it, newest first:
-  // a held summary carries no verdicts, so it never stands in for the sweep
-  // signals 5 and 8 read. A trusted run that kept no summary neither counts
-  // nor resets. Calls: one artifact list, one run read per artifact and one
-  // download per trusted summary, stopping at the sweep that listed (3 while
-  // the listing reads). None within the cap, or one older than
-  // SWEEP_MAX_AGE_MINUTES, leaves no sweep and is a gap for signals 5 and 8,
-  // under its own name: their issues neither clear nor file from stale data,
-  // while signals 3 and 12 still fire.
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
@@ -622,14 +542,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (data.heldSweeps.length > 0) gaps.push(`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`);
   });
 
-  // The report dispatch-post-merge-runs keeps per sweep (pr-merge-post-merge-report:
-  // the post-merge check's exit code and JSON), from trusted pr-merge runs
-  // only, a run still in progress included, newest first, stopping at the first that is not exit 3 or at
-  // POST_MERGE_UNREADABLE_SWEEPS. A run that kept no report (not live, a rate
-  // stop) neither counts nor resets. No report within SWEEP_MAX_AGE_MINUTES
-  // is a gap, so an open issue is not cleared without a readable sweep. Calls:
-  // the shared run list, one artifact list, and one download per report read
-  // (one when the newest is readable, at most POST_MERGE_UNREADABLE_SWEEPS).
   await source("post-merge reports", async () => {
     const trusted = new Set((await prMergeRuns()).filter(trustedPrMerge).map((r) => r.id));
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-post-merge-report&per_page=${LIMITS.postMergeArtifacts}`)).artifacts ?? [];
@@ -645,7 +557,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       try {
         reason = JSON.parse(files["post-merge.json"])?.reason ?? null;
       } catch {
-        // No JSON: the code alone decides.
       }
       data.postMergeReports.push({
         runId: a.workflow_run.id,
@@ -677,7 +588,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const batch = await get(
         `/repos/${repo}/issues/comments?since=${iso(windowStart)}&sort=created&direction=desc&per_page=100&page=${page}`,
       );
-      // Newest first: once a page reaches back before the window, nothing older matters.
       unread = batch.length === 100 && !batch.some((c) => Date.parse(c.created_at) < windowStart.getTime());
       for (const c of batch) {
         const at = Date.parse(c.created_at);
@@ -692,26 +602,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (unread) gaps.push(`lane stops: over ${LIMITS.commentPages * 100} comments in the window; the oldest were not read`);
   });
 
-  // Held runs of the HOLD_LANES: green runs (and red ones, for a lane whose
-  // statuses list failure) of this repository's head on the default branch's
-  // code that completed in the window, whose hold job succeeded with a hold
-  // notice or warning (signals.mjs parseHold), one entry per run,
-  // added to the carried ones still inside the rule's window. A run already
-  // carried is not read again, nor counted against LIMITS.holdRuns, and nor is
-  // a run carried as read with no hold while its completion time is the one
-  // carried: a new attempt is read again. Those runs are carried while they
-  // completed inside the run list's lookback from this window, the oldest the
-  // next run can list. The carry also records the span it was read over,
-  // which ends at the last run read
-  // when a lane had more than the cap. It stays unbroken when the last run
-  // read through a time inside the run list's lookback: runs that completed
-  // since then are read, so a late cron loses none. Otherwise (no carry, a
-  // stale one, a failed read) it starts again at this window. An unread rule
-  // is a gap that leaves signal 13 unread. A lane over the cap, or a span
-  // shorter than the rule's window, is a partly-read gap: holds read in part
-  // of the window are a floor on the whole window's, so a lane at the
-  // threshold still files or keeps its issue, but the issue never clears on
-  // such a read. The carried runs still go on to the next run.
   const heldRuns = new Map();
   const scannedRuns = new Map();
   const listedRuns = new Map();
@@ -730,16 +620,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       return at >= readFrom && at <= now.getTime();
     };
     await source("lane holds", async () => {
-      // The span is read through now unless a lane has more unread runs than
-      // the cap: then only its oldest are read, and the span stops at the last
-      // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
       for (const { lane, workflow, jobs: ids, names, earlier = [], holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
-        // A job by its name, or by its id on a run from before the job rename,
-        // or by the name or id it had before a later rename.
         const jobs = [...names, ...ids, ...earlier];
-        // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {
           const listed = new Set();
@@ -815,13 +699,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       if (partly.length > 0) gaps.push(`lane holds partly read: ${partly.join("; ")}`);
     });
 
-    // The lane-hold-<lane> artifact each hold job keeps for a day when it held
-    // (lib/lane-hold-marker.mjs): one list call per lane, newest 100. A marker
-    // counts only for a run the lane's listing above holds, so it passes the
-    // same trust and status checks, and only for a run the scan did not find
-    // held, whose read reason stands. It reaches the runs the scan's cap
-    // leaves unread. Past 100 markers the newest stand as a floor: that many
-    // is over any threshold. A lane with no listing is the scan's gap.
     if (!(holds.rule instanceof Error)) {
       await source("lane hold markers", async () => {
         const since = now.getTime() - holds.rule.windowHours * 3600_000;
@@ -846,10 +723,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const at = Date.parse(s.at);
     return at >= listedSince && at <= now.getTime();
   });
-  // Marker-only holds are carried like the rest: the run listing reaches back
-  // only about 7 h, so the carry is what keeps a marked hold in the 24-hour
-  // count. Its reason stays "hold marker"; the scan reads forward from its
-  // last read and does not come back for it.
   data.heldCarry = { runs: data.laneHolds, from: heldThrough ? heldFrom : null, through: heldThrough, scanned };
 
   // Open pull requests whose head carries a stop the pr-unblock lane routed to
@@ -880,9 +753,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       comments: (node.comments?.nodes ?? []).map(restComment),
       older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
     }));
-    // A PR's own markers on its current head: a lane-stopped comment naming it,
-    // or a cleared label for it. An older head's marker says nothing of this
-    // head's stop, which can sit in an older comment edited in place.
     const marks = (pull) =>
       pull.comments.some((c) => {
         if (c.user?.login !== agentIdentity) return false;
@@ -906,8 +776,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     for (const pull of pulls) {
       const { head, comments } = pull;
-      // Each stop on this head: the newest lane-stopped comment per activity,
-      // or a cleared label whose reason is now routed to a failing status.
       const stops = new Map();
       for (const c of comments) {
         if (c.user?.login !== agentIdentity) continue;
@@ -924,8 +792,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (cleared && cleared[2] === head) {
           for (const reason of cleared[1].split(",")) {
             const of = escalationActivity(reason);
-            // feedback-not-landed clears only once its cause is gone (no
-            // unresolved lane thread on a moved head), so no stop stands.
             if (escalationRoute(reason) === "fail" && reason !== "feedback-not-landed" && !stops.has(of)) {
               stops.set(of, { activity: of, reason, stoppedAt: c.created_at, url: c.html_url });
             }
@@ -983,11 +849,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   return data;
 }
 
-// Issues the lane filed: github-actions[bot]'s, any state and any age, newest
-// first. The lane writes nothing while evidence is unchanged, so an update-time
-// cutoff would drop a quiet open or muted key, and a page cap would drop the
-// oldest. Paging stops at a short page; the call budget bounds it, and spending
-// it throws before any write. The caller keeps those carrying the marker.
 export async function listFiled({ get, repo }) {
   const out = [];
   for (let page = 1; ; page += 1) {

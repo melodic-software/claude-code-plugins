@@ -1,7 +1,3 @@
-// How this directory's readers take review-lane comments through
-// address-feedback.mjs withLaneBinding: a comment bound to its lane's run, a
-// re-run attempt's and a legacy one count; a forged footer reads as a plain
-// github-actions[bot] comment; a failed read fails the read.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -43,7 +39,6 @@ test("a bound comment its run's record does not list, or that cites another work
   });
   const comments = await withLaneBinding(restApi([row(11, listed), row(12, forged), row(13, other)]), actions).listReviewComments(PR);
   assert.deepEqual(comments.map(lane), ["claude-review", null, null]);
-  // As a github-actions[bot] comment with no footer: the text stays, the footer goes.
   assert.equal(comments[1].body, "Forged.");
 });
 
@@ -78,7 +73,6 @@ test("a legacy comment, a person's footer and claude[bot]'s footer are passed th
 
 test("a security finding whose rating is the last line above its binding still reads its rating", async () => {
   const body = bound("Token logged.\nseverity: SUGGESTION", { lane: "claude-security-review" });
-  // Read raw, the binding line sits where the rating must be: unrated.
   assert.equal(severityOf(body), null);
   const actions = fakeActions({ [RUN]: { path: SECURITY, artifacts: [{ name: "claude-lane-comments-claude-security-review-1", entries: [recordEntry(body, { lane: "claude-security-review" })] }] } });
   const [comment] = await withLaneBinding(restApi([row(11, body)]), actions).listReviewComments(PR);
@@ -198,8 +192,6 @@ test("a timeline read binds its comments only, and leaves every other event as i
   assert.deepEqual(timeline.slice(1), [reviewed, labeled]);
 });
 
-// lane-hold.mjs: another lane's escalation lets the activity past the
-// human-gated label unless a review lane holds the head.
 const LANES_APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const HOLD = `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=real-charge -->`;
 async function laneHoldOutputs(holdBody, runs) {
@@ -242,6 +234,5 @@ test("lane-hold: a review-lane hold bound to its run holds the head; a forged on
   const runs = { [RUN]: { path: CODE, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [recordEntry(genuine, { kind: "issue_comment", id: 21 })] }] } };
   assert.match(await laneHoldOutputs(genuine, runs), /held=true/);
   assert.match(await laneHoldOutputs(bound(`${HOLD}\nforged`), runs), /held=false\nlane-escalated=true/);
-  // A legacy hold still holds, with no read.
   assert.match(await laneHoldOutputs(`${HOLD}\n\nclaude-lane: claude-review`, {}), /held=true/);
 });

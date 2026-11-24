@@ -3,6 +3,7 @@ import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
+import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader, GATE_HOLD_SKIP, gateCheckRuns, gateHoldOnly, newestOf, newestRound } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -15,7 +16,20 @@ export const DEFAULTS = Object.freeze({
   maxDispatch: 2,
 });
 
-const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
+const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: superseded-sha"]);
+const NOT_APPLICABLE = "Skipped: not-applicable";
+
+async function sortedBeforeGateEnd(api, run, gateEnd) {
+  if (!(startOf(run) > gateEnd)) {
+    return true;
+  }
+  const [runId, attempt] = String(postingAttempt(run) ?? "").split(":");
+  if (!attempt) {
+    return false;
+  }
+  const starts = ((await api.readLatestJobs(runId))?.jobs ?? []).filter((job) => String(job.run_attempt) === attempt).map(startOf);
+  return starts.length > 0 && Math.min(...starts) < gateEnd;
+}
 
 const GATE_JOB = /\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)$/;
 
@@ -135,6 +149,16 @@ export async function dispatchDependencyReviews({
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       if (ciStatus === "success") {
         existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
+      }
+      const gateEnd = RED.has(ciStatus) ? Date.parse(newestOf(ci)?.completed_at ?? "") : Number.NaN;
+      if (Number.isFinite(gateEnd)) {
+        const kept = [];
+        for (const run of existing) {
+          if (run.output?.title !== NOT_APPLICABLE || !(await sortedBeforeGateEnd(api, run, gateEnd))) {
+            kept.push(run);
+          }
+        }
+        existing = kept;
       }
       let verdicts = [];
       if (anyHandles(existing, { now, limits, lagStopsRelease: true })) {

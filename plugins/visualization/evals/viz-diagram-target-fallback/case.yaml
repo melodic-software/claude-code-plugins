@@ -4,10 +4,10 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: override-read
-    type: 'tool_used'
-    tool: 'Read'
-    input_match: 'visualization\.local\.yaml'
-    min: 1
+    type: 'regex'
+    pattern: '^[^\n]*diagram_target:[ \t]*`?excalidraw`?[ \t]*\((?:[^)\n]*/)?visualization\.local\.yaml\)'
+    flags: 'm'
+    target: 'last_message'
     arm: 'with-only'
   - name: fallback-notice
     type: 'regex'

@@ -1,6 +1,6 @@
 {
   "pass": [
-    {"answer": ["scripts/check-file-names.sh", "scripts/check-file-names.test.sh"], "why": "the emitted pair"}
+    {"answer": ["tools/check-file-names.sh", "tools/check-file-names.test.sh"], "why": "the emitted pair"}
   ],
   "fail": [
     {"answer": [".claude/rules/file-names.md"], "why": "the rule alone"},
