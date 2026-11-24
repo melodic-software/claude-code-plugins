@@ -2707,12 +2707,16 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   for (const [name, [on, jobs, expected]] of Object.entries(cases)) assert.deepEqual(gates(on, jobs), expected, name);
 });
 
+const LANELESS_ROLES = ["evals"];
+
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
-  for (const role of fundingCatalog().roles) {
+  const roles = fundingCatalog().roles;
+  assert.deepEqual(roles.filter((role) => role.lanes.length === 0).map((role) => role.id), LANELESS_ROLES, "only a role held assignable before its lanes move to it holds none: evals (melodic-software/architecture#235)");
+  for (const role of roles) {
     assert.equal(role.secretPrefix, role.id.toUpperCase().replaceAll("-", "_"), role.id);
     assert.equal(role.keySecret, `${role.secretPrefix}_CLAUDE_API_KEY`, role.id);
     assert.equal(role.tokenSecret, `${role.secretPrefix}_CLAUDE_CODE_OAUTH_TOKEN`, role.id);
-    if (role.keyed) assert.ok(role.lanes.some((lane) => lane.launcher === "run-claude-cli"), role.id);
+    if (role.keyed && role.lanes.length > 0) assert.ok(role.lanes.some((lane) => lane.launcher === "run-claude-cli"), role.id);
   }
 });
 
