@@ -1245,10 +1245,10 @@ jobs:
             echo "::notice::the base has no scripts/setup-env.sh; the skill runs without its dependencies"
             exit 0
           fi
-          policy=.github/standards/runner-policy
-          mkdir -p "$DEST/scripts" "$DEST/$policy"
+          deps=scripts/ci-deps
+          mkdir -p "$DEST/$deps"
           for file in scripts/setup-env.sh .python-version .github/requirements-ci.txt \
-            package.json package-lock.json "$policy/package.json" "$policy/package-lock.json"; do
+            package.json package-lock.json "$deps/package.json" "$deps/package-lock.json"; do
             cp ".base/$file" "$DEST/$file"
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
@@ -1479,7 +1479,7 @@ jobs:
           # Node resolves a package from the importing file's directory, so the
           # base-built trees are copied into the checkout, where node_modules
           # is ignored.
-          for dir in . .github/standards/runner-policy; do
+          for dir in . scripts/ci-deps; do
             [ -d "$GITHUB_WORKSPACE/$dir" ] || continue
             rm -rf "${GITHUB_WORKSPACE:?}/$dir/node_modules"
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"

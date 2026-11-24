@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml scripts/ci-deps/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
 # Runs the shell of two read-lane check-broker steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The check-broker job"):
@@ -12,12 +12,11 @@
 #     lease older than its own, and the run job's go step then runs no model;
 #   - exactly one of the read runner's report job and the caller's write runner
 #     report job releases each lease, the write side after the PR opens.
-# Needs node and the yaml package (npm ci --prefix .github/standards/runner-policy).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
-POLICY_DIR="$ROOT/.github/standards/runner-policy"
+DEPS_DIR="$ROOT/scripts/ci-deps"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
@@ -37,7 +36,7 @@ lift() {
     const run = eval(process.argv[3]);
     if (typeof run !== "string") process.exit(1);
     fs.writeFileSync(process.argv[4], "#!/usr/bin/env bash\n" + run);
-  ' "$POLICY_DIR" "$1" "$2" "$3"
+  ' "$DEPS_DIR" "$1" "$2" "$3"
 }
 
 GATE="$WORK/gate.sh"
@@ -178,7 +177,7 @@ holds() {
     const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
     const d = yaml.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
     process.exit(eval(process.argv[3]) === true ? 0 : 1);
-  ' "$POLICY_DIR" "$2" "$3" 2>/dev/null; then
+  ' "$DEPS_DIR" "$2" "$3" 2>/dev/null; then
     ok "$1"
   else
     fail "$1"
@@ -274,7 +273,7 @@ who() {
     });
     const writes = (applyRuns && writeReleases(apply, "apply-issue-patch", skip)) || (reportRuns && writeReleases(report, "report-outcome", ""));
     console.log(`${readReleases && writes ? "both" : readReleases ? "read" : writes ? "write" : "none"} ${reportRuns ? "yes" : "no"}`);
-  ' "$POLICY_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$CALLER_YML" "${@:4}")"
+  ' "$DEPS_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$CALLER_YML" "${@:4}")"
   if [[ $got == "$2 $3" ]]; then ok "$1"; else fail "$1: got '$got', expected '$2 $3'"; fi
 }
 export WORK
