@@ -47,9 +47,9 @@ test("the kill switch is checked before the script reads anything", () => {
   assert.match(text, /\n {8}if: steps\.kill\.outputs\.proceed == 'true'\n {8}env:\n {10}GITHUB_TOKEN/);
 });
 
-test("every action is pinned to a full commit", () => {
+test("every action ref follows the pin rule", () => {
   for (const [, ref] of text.matchAll(/uses: ([^\s]+)/g)) {
     if (ref.startsWith("./")) continue;
-    assert.match(ref, /@[0-9a-f]{40}$/, ref);
+    assert.match(ref, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|(?!(?:melodic-software|actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/)\S+@[0-9a-f]{40})$/, ref);
   }
 });

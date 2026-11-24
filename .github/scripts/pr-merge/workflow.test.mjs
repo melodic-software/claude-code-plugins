@@ -29,7 +29,7 @@ import { ifOf, workflowText } from "../lib/workflow-text.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
-const CI_SCAN = "melodic-software/ci-workflows/\\.github/actions/scan-upload@[0-9a-f]{40} # v\\S+";
+const CI_SCAN = "melodic-software/ci-workflows/\\.github/actions/scan-upload@main";
 const jobs = merge.slice(merge.indexOf("\njobs:\n"));
 const { job } = workflowText(merge);
 
@@ -1421,7 +1421,7 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   const dispatch = job("dispatch-post-merge-runs");
   const keep = /- name: Keep the post-merge report for enable-auto-merge\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(dispatch)?.[1];
   assert.ok(keep, "dispatch-post-merge-runs keeps its report");
-  assert.match(keep, /uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  assert.match(keep, /uses: actions\/upload-artifact@v7\b/);
   // The directory holds post-merge.json, so the download below finds it at
   // post-merge/post-merge.json.
   assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
@@ -1440,7 +1440,7 @@ test("enable-auto-merge reads the lane's room from this run's dispatch-post-merg
   assert.match(keepStep[1], /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/m);
   const read = /- name: Read this run's post-merge report\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(read, "a download of the report");
-  assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
+  assert.match(read, /uses: actions\/download-artifact@v8\b/);
   assert.match(read, /\n {10}name: pr-merge-post-merge-report\n/);
   // Not 'success': a step after the kept report can fail the job.
   assert.match(read, /needs\.dispatch-post-merge-runs\.result != 'skipped'/);
@@ -2230,7 +2230,7 @@ test("enable-auto-merge reads the skip records only from a trusted run and uploa
   assert.match(scan, new RegExp(`\\n {8}uses: ${CI_SCAN}\\n {8}with:\\n {10}gate-path: \\.base/lib/publish-gate\\.mjs\\n`), scan);
   for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
   assert.ok(scan.includes("\n          path: ${{ runner.temp }}/verify-answers/eam-skip.json\n"), scan);
-  assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  assert.match(upload, /\n {8}uses: actions\/upload-artifact@v7\b/);
   // Bounded, so the job's timeout stays above the sum of its steps'.
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
   assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);

@@ -78,7 +78,7 @@ for (const [key, row] of Object.entries(families)) {
   }
 }
 
-const SCAN_ACTION = /^(?:(?:.*\/)?\.github\/actions\/scan-upload|melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40})$/;
+const SCAN_ACTION = /^(?:(?:.*\/)?\.github\/actions\/scan-upload|melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@main)$/;
 function scanOf(step) {
   const id = step.get("id");
   if (typeof id !== "string") return null;

@@ -348,7 +348,7 @@ check "a missing workflow fails machine-specific-paths closed" \
   '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"exclude pathspecs cannot be read"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_paths"
 
-pin="$(grep -oE 'check-machine-paths@[0-9a-f]{40}' "$SELF_DIR/../.github/workflows/pr-require-checks.yml" | head -n1)"
+pin="$(grep -oE 'check-machine-paths@main' "$SELF_DIR/../.github/workflows/pr-require-checks.yml" | head -n1)"
 pin="${pin#*@}"
 composite="$tmp/composite"
 mkdir -p "$composite"

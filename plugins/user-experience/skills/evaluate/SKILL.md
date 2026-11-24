@@ -96,6 +96,12 @@ Nothing comes before the record's header block. Put the stage line and every not
 Route (the team file not read and its skipped reason, the route taken, the access that would help)
 after the record.
 
+## Related
+
+- Write a usability test script for an evaluation plan: /user-experience:plan-user-research.
+- Redesign flows after findings: /user-experience:structure.
+- Code-level UI craft audit: /user-interface:audit.
+
 ## Gotchas
 
 - When the Agent tool is unavailable, evaluate inline and say in the record that the evaluator saw

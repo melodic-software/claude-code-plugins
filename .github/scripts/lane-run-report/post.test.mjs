@@ -451,7 +451,6 @@ test("a posting failure warns and does not fail the step", async () => {
   assert.ok(out.lines.some((line) => line.startsWith("::warning::could not post")));
 });
 
-// A thrown GitHubError's shape: its status and responseDetail's line.
 const refusal = (status, detail) =>
   Object.assign(new Error(`POST /repos/o/r/issues/42/comments failed with status ${status}`), { status, detail });
 
@@ -563,7 +562,6 @@ test("rows that template alike fold into one before the cap", () => {
   assert.equal(out.dropped, MAX_ROWS + 19);
 });
 
-// The run job's carry step, as each run-activity workflow writes it.
 const CARRY = "Carry the failed API calls to the report job";
 function carryScript(name) {
   const text = readFileSync(
@@ -583,7 +581,6 @@ test("both run jobs carry the failed API calls with one script", () => {
   );
 });
 
-// Each top-level job of a workflow: its name, text, and permissions map.
 function jobsOf(name) {
   const text = readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
   const body = text.slice(text.search(/^jobs:\n/m));
@@ -623,8 +620,6 @@ test("every job calling a runner grants pull-requests: write", () => {
   assert.ok(callers.length > 0, "no job calls either runner");
 });
 
-// Many failures on distinct ids fold into one template in post.mjs, so the
-// carry must not spend its rows on them before a later, different failure.
 test("a different failure after 60 distinct-id 404s reaches the report", () => {
   const dir = tempDir("lane-run-report-carry-");
   const failures = join(dir, "api-failures.jsonl");

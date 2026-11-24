@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract: every seeded eval fixture parses and self-certifies through
-# change-shape.py, so a 0-score case is a skill regression. The UNPROVABLE
-# excerpt's exit 21 is the point of the case it feeds, not a defect.
-# When tree-sitter (or its grammar) is absent the self-certify checks skip
-# visibly, matching test_change_shape.py. CI sets
-# CODE_TIDYING_REQUIRE_TREE_SITTER=1 so a missing dependency fails there.
 # test-scope: plugins/code-tidying/evals/*
 set -euo pipefail
 
@@ -50,9 +44,6 @@ check_self_certifies() {
   fi
 }
 
-# Exit 3 is change-shape's EXIT_NO_TOOLING (package or that language's grammar).
-# Probe every language the self-certify checks use, so a present Bash grammar
-# does not hide a missing Python grammar.
 unavailable_reason=""
 note_unavailable() {
   local lang="$1" errfile="$2" reason="" line
@@ -153,8 +144,6 @@ for file in "${python_fixtures[@]}"; do
   fi
 done
 
-# Presence is independent of self-certify. The seeding loop below only sees
-# files that exist, so a missing UNPROVABLE fixture would otherwise pass.
 [[ -f "$fixtures/$unprovable_fixture" ]] || fail "$unprovable_fixture is missing"
 if [[ "$bash_certify" -eq 1 && -f "$fixtures/$unprovable_fixture" ]]; then
   set +e
@@ -171,8 +160,6 @@ for file in "${other_fixtures[@]}"; do
 done
 ok "the non-source fixtures are present"
 
-# Every fixture ships to feed a case: a scaffold, or a fixtures seed script a scaffold
-# runs, must seed it by name. A seed script counts only when some scaffold names it.
 seeders=("$plugin"/evals/*/scaffold.sh)
 for seed in "$fixtures"/*seed.sh; do
   [[ -f "$seed" ]] || continue

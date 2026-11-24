@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A retro of one standards file is not a retro mode. Run `/corrections:codify rules docs/standards/testing.md`: it turns each rule into a check, keeps it as prose, deletes it or holds it, in a ledger.",
+      "why": "names the route with the file"
+    },
+    {
+      "answer": "That is corrections:codify rules, not a session retro.",
+      "why": "names the route without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `/corrections:codify` on the mistakes you keep seeing in docs/standards/testing.md.",
+      "why": "codify without its rules action"
+    },
+    {
+      "answer": "Phase 1: session metrics. 42 turns, 3 corrections. Phase 2: the testing standard held up well.",
+      "why": "ran a retro instead of routing"
+    }
+  ]
+}

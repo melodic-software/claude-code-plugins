@@ -146,6 +146,31 @@ assert_eq "case 10: the request was pinned to the checked address with no proxy"
   "$(grep -c -- '^-q .*--noproxy \* --connect-to ::93\.184\.216\.34: ' "$TEST_TMPDIR/curl.log")"
 assert_eq "case 10: the shared docs cache holds nothing" 0 "$(find "$DOCS_CACHE_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')"
 
+{
+  printf '# Mid\n\n## One\n\n'
+  for _ in $(seq 1 600); do printf '%s\n' 'one line of sixty bytes of filler text for the size cap xx'; done
+} >"$FETCH_DOCS_FIXTURE_DIR/mid.md"
+printf '%s\n' '- [Mid](https://code.claude.com/docs/en/mid.md): m' >>"$FETCH_DOCS_FIXTURE_DIR/llms.txt"
+out="$(DOCS_CACHE_WHOLE_PAGE_BYTES=100000 bash "$SCRIPT" https://code.claude.com/docs/en/mid)"
+assert_eq "case 11: a page over the cap is a map" "kind=map" "$(head -1 <<<"$out" | grep -oE 'kind=[a-z-]+')"
+if [[ ${#out} -lt 30000 ]]; then pass "case 11: output under 30000 characters"; else fail "case 11: output size" "${#out}"; fi
+
+rc=0
+err="$(bash "$SCRIPT" --render https://docs.example.com/page 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 12: --render with no registry is refused" "2 docs-raw: --render needs a benchmark registry beside this script" "$rc $err"
+PLUG="$TEST_TMPDIR/plug"
+mkdir -p "$PLUG/scripts" "$PLUG/reference"
+cp "$SCRIPT_DIR"/docs-raw.sh "$SCRIPT_DIR"/fetch-docs.sh "$SCRIPT_DIR"/fetch-docs-generic.sh "$SCRIPT_DIR"/docs-cache.sh "$PLUG/scripts/"
+[[ ! -f "$SCRIPT_DIR/html2md.py" ]] || cp "$SCRIPT_DIR/html2md.py" "$PLUG/scripts/"
+printf '{"rows":[{"link":"https://docs.example.com/page","expect":"not in the page"}]}\n' >"$PLUG/reference/benchmarks.json"
+rc=0
+err="$(bash "$PLUG/scripts/docs-raw.sh" --render https://docs.example.com/other 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 12: --render on a URL that is no row link is refused" "2 docs-raw: --render: not a registry row link: https://docs.example.com/other" "$rc $err"
+out="$(env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$TEST_TMPDIR/curl.log" FETCH_DOCS_ADDRESSES='docs.example.com=93.184.216.34' \
+  bash "$PLUG/scripts/docs-raw.sh" --render https://docs.example.com/page)"
+assert_eq "case 12: a page without the row's marker is unread" \
+  "docs-raw: url=https://docs.example.com/page state=unread reason=no-content" "$out"
+
 if [[ $FAILED -gt 0 ]]; then
   printf '\n%d failure(s)\n' "$FAILED" >&2
   exit 1

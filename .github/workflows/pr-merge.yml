@@ -180,24 +180,24 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -397,7 +397,7 @@ jobs:
           steps.post-merge.conclusion == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/post-merge-report/
@@ -407,7 +407,7 @@ jobs:
           (steps.post-merge.conclusion == 'success') && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge-report/
@@ -424,7 +424,7 @@ jobs:
           steps.post-merge.conclusion == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/post-merge-anchor/anchor.json
@@ -434,7 +434,7 @@ jobs:
           (steps.post-merge.conclusion == 'success') && steps.scan-upload-5.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-post-merge-anchor
           path: ${{ runner.temp }}/post-merge-anchor/anchor.json
@@ -659,7 +659,7 @@ jobs:
         if: >-
           steps.dispatch.outputs.run-id != ''
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dispatched.json
@@ -670,7 +670,7 @@ jobs:
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
           path: ${{ runner.temp }}/dispatched.json
@@ -780,7 +780,7 @@ jobs:
         if: >-
           !cancelled() && steps.rerun.outputs.recorded == 'true'
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/rerun.json
@@ -788,7 +788,7 @@ jobs:
       - name: Record the re-run
         if: >-
           (!cancelled() && steps.rerun.outputs.recorded == 'true') && steps.scan-upload-3.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
           path: ${{ runner.temp }}/rerun.json
@@ -929,7 +929,7 @@ jobs:
         if: >-
           !cancelled() && steps.alert.outputs.run-id != ''
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/alerted.json
@@ -937,7 +937,7 @@ jobs:
       - name: Record the alert sent
         if: >-
           (!cancelled() && steps.alert.outputs.run-id != '') && steps.scan-upload-4.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
           path: ${{ runner.temp }}/alerted.json
@@ -1083,7 +1083,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
 
@@ -1091,20 +1091,20 @@ jobs:
       # Full history: the gate reads the pipeline config's history from this
       # clone with git instead of one contents-API call per commit.
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -1114,7 +1114,7 @@ jobs:
       # interpreter is the repository's pinned one, whose wheels the
       # requirements file hashes; only the PyYAML entry is installed.
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .base/.python-version
 
@@ -1558,7 +1558,7 @@ jobs:
           && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           pattern: pr-merge-post-merge-report
           merge-multiple: true
@@ -1945,7 +1945,7 @@ jobs:
         if: >-
           always() && steps.gate.outcome != 'skipped'
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/gate-cursor/cursor.json
@@ -1953,7 +1953,7 @@ jobs:
       - name: Record where the gate stopped
         if: >-
           (always() && steps.gate.outcome != 'skipped') && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-gate-cursor
           path: ${{ runner.temp }}/gate-cursor/cursor.json
@@ -1987,7 +1987,7 @@ jobs:
           always() && steps.head-refs.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/head-refs/head-refs.json
@@ -1996,7 +1996,7 @@ jobs:
         if: >-
           (always() && steps.head-refs.outcome == 'success') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-head-refs
           path: ${{ runner.temp }}/head-refs/head-refs.json
@@ -2028,7 +2028,7 @@ jobs:
           always() && steps.lane-records.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-records/lane-records.json
@@ -2037,7 +2037,7 @@ jobs:
         if: >-
           (always() && steps.lane-records.outcome == 'success') && steps.scan-upload-3.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-lane-records
           path: ${{ runner.temp }}/lane-records/lane-records.json
@@ -2076,7 +2076,7 @@ jobs:
           always() && steps.carry.outputs.carried == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -2085,7 +2085,7 @@ jobs:
         if: >-
           (always() && steps.carry.outputs.carried == 'true') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-run-cache
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -2176,7 +2176,7 @@ jobs:
           always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-merge-sweep.json
@@ -2186,7 +2186,7 @@ jobs:
           (always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')) && steps.scan-upload-5.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-summary
           path: ${{ runner.temp }}/pr-merge-sweep.json
@@ -2202,7 +2202,7 @@ jobs:
           always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-merge-summary.json
@@ -2213,7 +2213,7 @@ jobs:
           (always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true') && steps.scan-upload-6.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-gate-rows
           path: ${{ runner.temp }}/pr-merge-summary.json
@@ -2251,7 +2251,7 @@ jobs:
           && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 4
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
 
@@ -2364,7 +2364,7 @@ jobs:
       - name: Keep the lane hold marker
         if: steps.hold-marker.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: lane-hold-pr-merge
           path: ${{ runner.temp }}/lane-hold/pr-merge
@@ -2494,25 +2494,25 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
 
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -2522,7 +2522,7 @@ jobs:
       # interpreter is the repository's pinned one, whose wheels the
       # requirements file hashes; only the PyYAML entry is installed.
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@v7
         with:
           python-version-file: .base/.python-version
 
@@ -2750,7 +2750,7 @@ jobs:
           && needs.dispatch-post-merge-runs.result != 'skipped'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge
@@ -2998,7 +2998,7 @@ jobs:
           always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/verify-answers/eam-skip.json
@@ -3008,7 +3008,7 @@ jobs:
           (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr) && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-verify-answers
           path: ${{ runner.temp }}/verify-answers/eam-skip.json
@@ -3044,7 +3044,7 @@ jobs:
           always() && steps.carry.outputs.kept == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -3053,7 +3053,7 @@ jobs:
         if: >-
           (always() && steps.carry.outputs.kept == 'true') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-verify-run-cache
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -3071,7 +3071,7 @@ jobs:
       - name: Keep the lane hold marker
         if: steps.hold-marker.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: lane-hold-pr-merge
           path: ${{ runner.temp }}/lane-hold/pr-merge
@@ -3182,18 +3182,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -3280,7 +3280,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       # The api-budget library and the upload scanner, from the default
@@ -3291,7 +3291,7 @@ jobs:
       - name: Check out the api-budget library
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
@@ -3479,7 +3479,7 @@ jobs:
         if: >-
           steps.dispatch.outputs.run-id != ''
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dispatched.json
@@ -3490,7 +3490,7 @@ jobs:
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
           path: ${{ runner.temp }}/dispatched.json
@@ -3521,13 +3521,13 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the api-budget library
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
@@ -3602,18 +3602,18 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
       - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -3621,7 +3621,7 @@ jobs:
         id: rows
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8
         with:
           name: pr-merge-gate-rows
           path: ${{ runner.temp }}/rows

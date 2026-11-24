@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/pre-push-content.sh
-# Contract tests for the guardrails commit-msg entry (git-hooks/commit-msg-convention.sh):
-# a subject off the team's tracked subject_pattern fails, as does one off the
-# operator's ignored personal pattern where the team tracks none, a matching one and
-# the autosquash forms and git's own Merge and Revert subjects pass, no tracked pattern (or a non-ERE one) enforces
-# nothing, a missing resolver never blocks blind, and the plugin's vendored
-# installer wires the entry so `git commit` runs it from the installed copy.
-# The hook and its resolver are POSIX sh: every case runs the hook under dash
-# where it is installed, the shell that rejects a bashism a bash-backed sh lets
-# through.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/resolve-convention-pattern.sh plugins/guardrails/lib/git-hooks/install.mjs
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh
 # test-scope: plugins/guardrails/hooks/abort-boundary.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/hook-utils.sh plugins/guardrails/hooks/run-guards.sh
@@ -17,7 +8,6 @@
 # test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT GIT_EDITOR
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,7 +29,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
 n=0
-new_repo() { # [team yaml body], written to the tracked docs/conventions/source-control.yaml
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -52,13 +42,13 @@ new_repo() { # [team yaml body], written to the tracked docs/conventions/source-
   fi
   return 0
 }
-folder() { # <repo> <body>: the tracked folder-form commit-convention.yml
+folder() {
   mkdir -p "$1/docs/conventions/source-control"
   printf '%s\n' "$2" >"$1/docs/conventions/source-control/commit-convention.yml"
   git -C "$1" add docs/conventions/source-control/commit-convention.yml
 }
 
-msg() { # <repo> <message> <script> -> rc
+msg() {
   local repo="$1" text="$2" script="${3:-$CHECK}"
   printf '%s\n' "$text" >"$WORK/msg"
   (cd "$repo" && "$SH" "$script" "$WORK/msg") >/dev/null 2>&1
@@ -89,7 +79,7 @@ expect "amend! passes (autosquash)" 0 "$(msg "$REPO" "amend! anything")"
 expect "an empty message is git's to refuse" 0 "$(msg "$REPO" "")"
 # With no editor (-m, -F) git keeps comment lines, and says so to the hook with
 # GIT_EDITOR=:, so a subject starting with the comment character is the subject.
-noedit() { # <repo> <message> -> rc
+noedit() {
   printf '%s\n' "$2" >"$WORK/msg"
   (cd "$1" && GIT_EDITOR=: "$SH" "$CHECK" "$WORK/msg") >/dev/null 2>&1
   echo $?
@@ -120,7 +110,6 @@ expect "the failure names the subject and how to fix it, never a skip" "yes|no" 
 expect "the failure names the folder-form file that holds the pattern" yes \
   "$(grep -q 'subject_pattern in docs/conventions/source-control/commit-convention.yml' <<<"$err" && echo yes || echo no)"
 
-# The team YAML, tracked, outranks the folder-form pattern.
 new_repo "subject_pattern: '^(feat|fix): .+'"
 folder "$REPO" "$TICKET"
 expect "team yaml pattern: a matching subject passes" 0 "$(msg "$REPO" "feat: add thing")"
@@ -129,10 +118,7 @@ err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$
 expect "the failure names the team yaml as the pattern's file" yes \
   "$(grep -q 'subject_pattern in docs/conventions/source-control.yaml' <<<"$err" && echo yes || echo no)"
 
-# The personal layer: a git-ignored docs/conventions/source-control.local.yaml
-# supplies the pattern only where the team tracks none. core.excludesFile names
-# a missing file, so no global ignore rule decides a case.
-personal() { # <repo>: give the repo's operator an ignored ticket pattern
+personal() {
   git -C "$1" config core.excludesFile "$WORK/no-global-excludes"
   mkdir -p "$1/docs/conventions"
   printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" >"$1/docs/conventions/source-control.local.yaml"
@@ -150,16 +136,11 @@ personal "$REPO"
 expect "personal pattern under a team pattern: a subject the team allows passes" 0 "$(msg "$REPO" "feat: add thing")"
 expect "personal pattern under a team pattern: a subject only it allows fails" 1 "$(msg "$REPO" "ABC-1: fine")"
 
-# A copy with no resolver beside it and none in a plugin tree enforces nothing.
 mkdir -p "$WORK/lone"
 cp "$CHECK" "$WORK/lone/commit-msg-convention.sh"
 new_repo "$TICKET"
 expect "no resolver anywhere: passes rather than block blind" 0 "$(msg "$REPO" "junk subject" "$WORK/lone/commit-msg-convention.sh")"
 
-# A stub resolver beside a copy of the hook, so the resolver's exit code and
-# stderr are the test's to choose (STUB_RC, STUB_ERR, STUB_OUT). Exit 1 with empty
-# stderr is "no convention tracked": silent. Exit 1 with stderr, or exit 2, means
-# the check did not run: one notice with the diagnostic on stderr, exit 0.
 mkdir -p "$WORK/stub"
 cp "$CHECK" "$WORK/stub/commit-msg-convention.sh"
 cat >"$WORK/stub/resolve-convention-pattern.sh" <<'EOF'
@@ -169,13 +150,13 @@ cat >"$WORK/stub/resolve-convention-pattern.sh" <<'EOF'
 exit "${STUB_RC:-0}"
 EOF
 new_repo ""
-stub() { # <rc> <stderr> <stdout> <subject> -> sets STUB_EXIT, STUB_STDOUT, STUB_STDERR
+stub() {
   printf '%s\n' "$4" >"$WORK/msg"
   STUB_STDOUT="$(cd "$REPO" && STUB_RC="$1" STUB_ERR="$2" STUB_OUT="$3" "$SH" "$WORK/stub/commit-msg-convention.sh" "$WORK/msg" 2>"$WORK/stub.err")"
   STUB_EXIT=$?
   STUB_STDERR="$(<"$WORK/stub.err")"
 }
-has() { grep -q -- "$1" <<<"$STUB_STDERR" && echo yes || echo no; } # <text> -> yes|no
+has() { grep -q -- "$1" <<<"$STUB_STDERR" && echo yes || echo no; }
 stub 1 "" "" "junk subject"
 expect "resolver exit 1, empty stderr: exit 0 and nothing printed" "0|" "$STUB_EXIT|$STUB_STDERR$STUB_STDOUT"
 stub 1 "resolve-convention-pattern: broken pointer" "" "junk subject"
@@ -195,7 +176,6 @@ expect "a resolved convention still passes a matching subject" "0|" "$STUB_EXIT|
 expect "the sentinel marker stays on line 2 of the source" yes \
   "$(grep -q 'guardrails-commit-msg-convention' < <(sed -n 2p "$CHECK") && echo yes)"
 
-# End to end through the plugin's vendored installer and a real commit.
 new_repo ""
 folder "$REPO" "$TICKET"
 git -C "$REPO" commit -q --allow-empty -m "ABC-1: seed"
@@ -211,7 +191,6 @@ git -C "$REPO" commit -q --allow-empty -m "#123 fix thing" 2>/dev/null
 expect "git commit -m refuses a subject that starts with #" 1 "$?"
 git -C "$REPO" commit -q --allow-empty -m "ABC-2: fine subject" 2>/dev/null
 expect "git commit with a matching subject succeeds" 0 "$?"
-# The installed copy reads the team YAML through the installed parser.
 mkdir -p "$REPO/docs/conventions"
 printf '%s\n' "subject_pattern: '^feat: .+'" >"$REPO/docs/conventions/source-control.yaml"
 git -C "$REPO" add docs/conventions/source-control.yaml
@@ -221,7 +200,6 @@ git -C "$REPO" commit -q --allow-empty -m "ABC-3: folder shape" 2>/dev/null
 expect "the installed entry enforces the team yaml over the folder form" 1 "$?"
 expect "verify reports the entry ok" "ok	commit-msg-convention" \
   "$(node "$INSTALL" verify --repo "$REPO" | grep 'commit-msg-convention')"
-# The installed copy reads the personal file where the team tracks no pattern.
 new_repo ""
 personal "$REPO"
 git -C "$REPO" commit -q --allow-empty -m "seed" 2>/dev/null

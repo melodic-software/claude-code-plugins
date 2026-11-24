@@ -15,6 +15,7 @@ die() {
 USAGE="usage: delegate --user-file <role_map_file> <codex|antigravity> [--use task|investigate] [--model <id>] [--effort <level>] < prompt"
 [[ $# -ge 3 && "$1" == --user-file ]] || die "$USAGE"
 user_file="$2"
+[[ "$user_file" == \~/* ]] && user_file="$HOME/${user_file#\~/}"
 product="$3"
 shift 3
 

@@ -69,7 +69,6 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
       if (!file) throw new Error("GITHUB_WORKFLOW_REF names no workflow file");
       const share = paceShare(apiLimitsOrBuiltIn({ resolvedPath: env.RESOLVED_CONFIG })["github-token"], file);
       const api = env.GITHUB_API_URL ?? "https://api.github.com";
-      // Counted for the job-end api-calls notice like any guarded call.
       const get = (path) =>
         countRequests(fetchImpl)(`${api}/repos/${env.GITHUB_REPOSITORY}${path}`, {
           headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },

@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import { effectiveLevel, encodeLevel, LEVEL_VARIABLE, levelSettings, parseLevel, variableOf } from "./lane-level-value.mjs";
 
-// 2026-11-10T23:00:00Z, in epoch seconds.
 const NOW_S = 1794351600;
 const NOW = NOW_S * 1000;
 const live = levelSettings({ shadow: false });
@@ -37,7 +36,6 @@ test("live: an empty, expired or malformed value reads as the default 3", () => 
     ["4@1794360600 ", "malformed"],
     ["0@1794360600", "malformed"],
     ["-4@1794360600", "malformed"],
-    // valid-minutes (150) from now is 1794360600: one second past it was set by hand.
     ["4@1794360601", "malformed"],
     ["4@999999999999", "malformed"],
   ]) {

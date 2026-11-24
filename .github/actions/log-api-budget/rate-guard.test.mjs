@@ -16,7 +16,6 @@ const NOW = VECTORS.vector_now * 1000;
 const ROOT = process.getuid?.() === 0;
 const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
 
-// Runs fn in a fresh directory, removed once fn (sync or async) is done.
 async function withDir(fn) {
   const dir = tempDir("rate-guard-");
   try {
@@ -42,10 +41,6 @@ for (const vector of VECTORS.vectors) {
   });
 }
 
-// headerStop is set before the body is read, so it must hold no more than
-// classify's verdict with any body: run every vector's headers against every
-// vector's body, and the header stop has that verdict's reset and its pool or
-// `*`. Where the headers give no time, the body decides and there is none.
 test("headerStop is a stop every body's verdict keeps, and none where the body decides the time", () => {
   const bodies = [null, ...VECTORS.vectors.map((vector) => vector.input.body)];
   const taken = [];
@@ -106,7 +101,6 @@ test("poolOf and entryOf name the resource and its config entry", () => {
   assert.equal(entryOf("core", undefined), "github-token");
 });
 
-// A fake GitHub: answers in order, counting requests.
 function fakeGitHub(answers) {
   const sent = [];
   return {
@@ -119,7 +113,6 @@ function fakeGitHub(answers) {
   };
 }
 
-// A latch on a fake clock: each wait moves the clock on instead of sleeping.
 function latchFor({ now = NOW, hold = false, budgetMs } = {}) {
   const lines = [];
   const waits = [];
@@ -170,10 +163,6 @@ test("retry-after is honored: refused before it ends, sent after", async () => {
   assert.equal(gh.sent.length, 2);
 });
 
-// Outage posture element 1: a reset within the 60 s budget is waited out (the
-// reset plus a second, so the call lands after it), and the call goes; the
-// budget counts the resets, summed, so a second 31 s reset after a 30 s one
-// (61 s) is refused, red.
 test("a stop within the 60 s budget is waited out and the call sent; past the budget it is refused red", async () => {
   const secondary = (seconds) => [403, { "retry-after": String(seconds) }, { message: "You have exceeded a secondary rate limit." }];
   const gh = fakeGitHub([secondary(30), [200], secondary(31), [200]]);
@@ -192,9 +181,6 @@ test("a stop within the 60 s budget is waited out and the call sent; past the bu
   assert.equal(failed(), 3);
 });
 
-// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): under
-// API_BUDGET_HOLD the step holds: a notice, no ::error, the step not failed;
-// the call is still refused, so a caller never reads a refusal as an answer.
 test("a holding latch refuses a stop past the budget with a notice and fails nothing", async () => {
   const gh = fakeGitHub([PRIMARY, [200]]);
   const { latch, lines, waits, failed } = latchFor({ hold: true });
@@ -361,10 +347,6 @@ test("a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays
   }
 });
 
-// A call in flight beside one whose answer latches reaches the guard's check
-// (the last step before a send) in the microtask after classify's clock read,
-// while the guard may still be reading that answer: the stop must be set by
-// then, so the check refuses it.
 test("a call in flight while a latching answer is still being read is not sent", async () => {
   const answers = {
     "a 403 with remaining 0": PRIMARY,
@@ -409,8 +391,6 @@ test("a call in flight while a latching answer is still being read is not sent",
   }
 });
 
-// A stop its headers alone show is set before the body is read, so a body
-// that never arrives leaves the pool stopped, not open.
 test("a latching answer whose body never arrives still stops the next call", async () => {
   const answers = {
     "a 403 with remaining 0": [403, PRIMARY[1]],
@@ -477,8 +457,6 @@ test("github-token's read floor is a share of the header's limit: 4050 of 5000 r
   assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (499 of 5000); reads continue"]);
 });
 
-// stop-floor 0.02 of a header limit of 5000 is 100 left. The reset,
-// 2026-10-23T10:33:20Z, is an hour past NOW, so a later call is refused, not waited out.
 const nearZero = (remaining, extra = {}) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core", ...extra }];
 
 test("stop-floor defaults to 0.02 for every pool", () => {
@@ -658,9 +636,6 @@ test("the built-in defaults are the values rate-limits.json ships", () => {
   assert.deepEqual(apiLimits({ resolvedPath: "", defaultsPath: null }), apiLimits({ resolvedPath: "" }));
 });
 
-// The process-wide stop, end to end in a child process: createGitHub trips the
-// shared latch, then budgetedFetch's next call is refused without a request,
-// and the process exits 1 although main set exitCode 0, unless the step holds.
 test("one limit stops every helper in the process, and the process exits red unless the step holds", () => {
   const script = `
     import { createGitHub } from "./.github/scripts/lib/github-client.mjs";
@@ -686,7 +661,6 @@ test("one limit stops every helper in the process, and the process exits red unl
   assert.match(red.stdout, /sent=1 refused=RateLimitStop/);
   assert.match(red.stdout, /::error::GET \/repos\/o\/r|::error::GET https:\/\/api\.github\.com\/repos\/o\/r /);
   assert.equal(red.status, 1);
-  // A holding step: the same refusal, a notice for an error, and the caller's exit.
   const held = run("1");
   assert.match(held.stdout, /sent=1 refused=RateLimitStop/);
   assert.match(held.stdout, /::notice::GET https:\/\/api\.github\.com\/repos\/o\/r hit GitHub's core API rate limit/);
@@ -694,8 +668,6 @@ test("one limit stops every helper in the process, and the process exits red unl
   assert.equal(held.status, 0);
 });
 
-// The job-wide stop: a latch writes its stop to the file the gh wrapper
-// shares, and a later step's latch, or the wrapper, starts from it.
 test("a stop is written to the job's stop file, and a later latch refuses from it", async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
@@ -727,8 +699,6 @@ test("a stop the stop file cannot take is reported in the error line, and the la
     chmodSync(dirname(stopFile), 0o755);
   }));
 
-// The stop-file reader every port shares: rate-guard.vectors.json's
-// stop_files, read through a latch at vector_now.
 const POOL_URLS = {
   core: "https://api.github.com/repos/o/r",
   graphql: "https://api.github.com/graphql",
@@ -746,9 +716,6 @@ for (const vector of VECTORS.stop_files) {
     }));
 }
 
-// The cause file beside the stop file: rate-guard.vectors.json's stop_causes,
-// read through a latch at vector_now. No cause, the safe reading, is a rate
-// limit.
 for (const vector of VECTORS.stop_causes) {
   test(`stop cause: ${vector.name}`, () =>
     withDir((dir) => {
@@ -780,8 +747,6 @@ test("each stop's cause goes in the job's cause file, and a later latch words a 
     assert.deepEqual(lines, [`::error::GET ${URL_B} was not sent: GitHub's core API rate limit holds until 2026-10-23T10:33:20Z`]);
   }));
 
-// A refusal with no reset header stops for primaryFallbackSeconds. Its time is
-// named a fallback, held only by this job, wherever it is reported.
 test("a stop no header timed goes in the fallback file, not guessed, and its hit and refusals name it a fallback", async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
@@ -804,8 +769,6 @@ test("a stop no header timed goes in the fallback file, not guessed, and its hit
     assert.equal(gh.sent.length, 1);
   }));
 
-// As in api-budget.bash and babysit_gh.py, a cause goes in only beside a stop
-// the stop file took.
 test("a stop the stop file cannot take leaves the cause file unwritten", { skip: ROOT && "root writes past any file mode" }, async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
@@ -820,10 +783,6 @@ test("a stop the stop file cannot take leaves the cause file unwritten", { skip:
     chmodSync(stopFile, 0o644);
   }));
 
-// A stop file that exists but cannot be read holds every pool, with an error
-// naming it; a missing one holds nothing (rate-guard.vectors.json's
-// stop_file_errors).
-// Each vector's layout; the returned function undoes its permissions.
 function makeStopFileError(dir, layout) {
   const budget = join(dir, "api-budget");
   const stop = join(budget, "stop");

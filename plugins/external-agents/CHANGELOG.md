@@ -3,6 +3,13 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-11-24
+
+### Fixed
+
+- When a CLI fact command fails, `external-agents update <product>` and `external-agents models <product>` add the start of what the CLI printed (stderr first, else stdout) to the reason, as in `models: models exited 1: <excerpt>`: one line, clipped to 200 characters, with email addresses replaced by `<email>`. A failed command that printed nothing keeps the old reason.
+- The `antigravity` skill's update reference says what to do when `models.txt` is absent: relay the `models:` reason, and neither confirm nor reject a configured model slug.
+
 ## [0.6.1] - 2026-11-23
 
 ### Fixed

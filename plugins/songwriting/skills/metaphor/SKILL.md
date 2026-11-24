@@ -103,4 +103,4 @@ override wins over the bundled skill default, first match, per that file's "Temp
 - Sensory raw material feeding collisions or cliche repair: /songwriting:object-writing.
 - Rhyme partner for metaphor key word: /songwriting:rhyme.
 - Structural placement of image: /songwriting:song-form.
-- Whole-draft diagnosis: /songwriting:diagnose.
+- Whole-draft diagnosis: /songwriting:revise diagnose.

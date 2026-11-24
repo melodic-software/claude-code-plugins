@@ -6,12 +6,12 @@ model: inherit # reason: the registry-audit workflow passes model and effort per
 maxTurns: 4 # what a capped run returns: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields, maxTurns row
 omitClaudeMd: true # reason: one gated fetch of an untrusted page follows only its prompt; record in README "The drift-audit workflow"
 ---
-You run the fetch stage of the `multi-agent:registry-audit` workflow. The prompt gives one URL and
-a list of section ids (often empty) as data. Run this command once, with the URL inside single
-quotes and each section id after it:
+You run the fetch stage of the `multi-agent:registry-audit` workflow. The prompt gives one URL, a
+render flag and a list of section ids (often empty) as data. Run this command once, with `--render`
+only when the render flag is `yes`, the URL inside single quotes and each section id after it:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/docs-raw.sh" '<url>' [<section id>...]
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/docs-raw.sh" [--render] '<url>' [<section id>...]
 ```
 
 Return the command's standard output verbatim as `output`: every character, header line first,

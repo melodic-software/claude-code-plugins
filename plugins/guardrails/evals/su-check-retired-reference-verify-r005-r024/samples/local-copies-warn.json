@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "guardrails-r005 to guardrails-r014 (.git/hooks/, the old reference-verify marker, script and assets): each WARN, delete; run /guardrails:setup apply to clean each one."
+    },
+    {
+      "answer": "| guardrails-r005 | WARN | apply |\n| guardrails-r006 | WARN | apply |\n| guardrails-r007 | WARN | apply |\n| guardrails-r008 | WARN | apply |\n| guardrails-r009 | WARN | apply |\n| guardrails-r010 | WARN | apply |\n| guardrails-r011 | WARN | apply |\n| guardrails-r012 | WARN | apply |\n| guardrails-r013 | WARN | apply |\n| guardrails-r014 | WARN | apply |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "guardrails-r005 to guardrails-r014: FAIL; run apply.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "guardrails-r005 and guardrails-r006: WARN; run apply.",
+      "why": "near miss: the assets are missing"
+    },
+    {
+      "answer": "guardrails-r005 to guardrails-r014: WARN; delete them with rm.",
+      "why": "near miss: wrong remediation"
+    }
+  ]
+}

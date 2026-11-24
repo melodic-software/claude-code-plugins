@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.15.2] - 2026-11-24
+
+### Changed
+
+- Removes the wayfind eval case for the `/session-flow:workflow` route the skill no longer has.
+
+## [5.15.1] - 2026-11-23
+
+### Changed
+
+- Shared `yaml_subset.py` synced where this plugin carries it (comments removed, no behavior change); no other change to this plugin.
+
 ## [5.15.0] - 2026-11-23
 
 ### Changed

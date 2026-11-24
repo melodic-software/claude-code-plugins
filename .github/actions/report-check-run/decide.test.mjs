@@ -8,8 +8,6 @@ import { decide } from "./decide.mjs";
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
 const FALLBACK = "f".repeat(40);
-// The enum and map from contract-spec SkipReason and GateSkipReasons, typed
-// out by hand so the table is tested against the contract, not the files.
 const SKIP_REASONS = [
   "not-applicable-paths",
   "not-applicable",
@@ -74,7 +72,6 @@ function gateStop(reason, gate = "trigger") {
   };
 }
 
-// A gate stop as both the run job's outputs (env) and the verdict copy see it.
 function stoppedAt(reason, { gate = "trigger", headSha = HEAD } = {}) {
   return {
     verdict: verdict({
@@ -238,8 +235,6 @@ test("a verdict whose gates all proceed while env has a gate reason is a mismatc
   assert.equal(report.conclusion, "failure");
 });
 
-// The gate clears head-sha on every stop, so a no-pr stop on pull_request
-// reaches the report with only the event's head SHA as the fallback.
 test("a no-pr gate stop with no env head SHA posts neutral untrusted-trigger on the fallback head", () => {
   const { verdict: v, inputs: i } = stoppedAt("no-pr", { headSha: "" });
   const report = posted(decide(v, i));
@@ -293,22 +288,16 @@ test("a verdict gate stop with an empty reason posts failure", () => {
   assert.equal(report.conclusion, "failure");
 });
 
-// A re-run by an account off the list must not turn an earlier red check on
-// the same SHA neutral, so its reason has no skip mapping.
 test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
   const { verdict: v, inputs: i } = stoppedAt("untrusted-rerunner");
   assert.equal(posted(decide(v, i)).conclusion, "failure");
 });
 
-// A PR on a non-default base is judged by scripts it may have changed, so
-// its stop must not turn neutral either.
 test("an untrusted-base trigger stop posts failure, not neutral", () => {
   const { verdict: v, inputs: i } = stoppedAt("untrusted-base");
   assert.equal(posted(decide(v, i)).conclusion, "failure");
 });
 
-// The gated head is not the branch's current head, and the push that moved
-// the branch is gated by its own run, so the stop is a superseded-sha skip.
 test("a head-lag trigger stop posts neutral with superseded-sha", () => {
   const { verdict: v, inputs: i } = stoppedAt("head-lag");
   const report = posted(decide(v, i));
@@ -398,9 +387,6 @@ test("a skip-reason never neutralizes a run job that did not succeed", () => {
   }
 });
 
-// The patch output mode of pr-run-activity-read.yml: the outcome is named in
-// the title, so a run that changed nothing reads differently from one that
-// wrote a patch.
 test("a written patch posts success titled for the patch", () => {
   const report = posted(decide(verdict({ patch: "written" }), inputs()));
   assert.equal(report.conclusion, "success");
@@ -444,8 +430,6 @@ test("a run job that did not succeed posts failure even when the act step succee
   assert.equal(report.conclusion, "failure");
 });
 
-// A run job that fails before its act step, for example on a broker denial at
-// the lane-token step, leaves the act outcome skipped.
 const NOT_RUN = verdict({ config: "not-read", outcome: "not-run" });
 
 test("a run job that failed before the act step names the run-job failure, not the act step", () => {
@@ -472,8 +456,6 @@ test("a run job failure carries the failed step's reason into the summary", () =
   );
 });
 
-// A job that never ran its activity (publish-feedback after an
-// address-feedback run with no feedback round) reports with no verdict.
 test("a not-run reason on a skipped run posts neutral with that reason and needs no verdict", () => {
   const report = posted(
     decide(
@@ -541,9 +523,6 @@ test("every key of the shipped gate-skip-reasons.json posts neutral with its map
   }
 });
 
-// request-lane-token's kill-switch-ok: the broker refused the mint for a
-// switch turned on after the kill step proceeded, so no gate stopped the run
-// and the token step's skip reason alone names it.
 test("a broker kill-switch refusal after the gates proceeded posts neutral kill-switch", () => {
   const report = posted(decide(verdict({ "skip-reason": "kill-switch" }), inputs({ actOutcome: "skipped" })));
   assert.equal(report.conclusion, "neutral");

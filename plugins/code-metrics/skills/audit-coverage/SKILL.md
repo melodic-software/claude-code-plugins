@@ -178,6 +178,10 @@ Everything tunable resolves through the code-metrics layers (layers and keys in
 - Coverage looks healthy but the tests may assert nothing: `/mutation-testing:audit`.
 - A number is about to be quoted at someone: `/code-metrics:principles`.
 
+## Related
+
+- Complexity without coverage artifacts: /code-metrics:audit complexity.
+
 ## Gotchas
 
 - The complexity collector decides which functions can carry CRAP at all. With no collector

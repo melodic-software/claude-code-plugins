@@ -310,7 +310,7 @@ say(summaryIds.every((id) => sById(id).id === id) && !/lane-token/.test(JSON.str
 const sBase = ssteps.find((s) => /actions\/checkout/.test(s.uses ?? "")) ?? {};
 const sTip = sById("tip");
 say(sBase.with?.ref === "${{ steps.tip.outputs.sha }}" && sBase.if === "steps.tip.outputs.sha != ''"
-  && sTip.with?.branch === "${{ github.event.repository.default_branch }}" && /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40}$/.test(sTip.uses ?? "")
+  && sTip.with?.branch === "${{ github.event.repository.default_branch }}" && /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main$/.test(sTip.uses ?? "")
   && ssteps.indexOf(sTip) !== -1 && ssteps.indexOf(sTip) < ssteps.indexOf(sBase)
   && sBase.with?.["persist-credentials"] === false
   && ssteps.filter((s) => /actions\/checkout/.test(s.uses ?? "")).length === 1,

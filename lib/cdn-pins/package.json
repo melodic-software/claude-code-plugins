@@ -1,0 +1,9 @@
+{
+  "name": "cdn-pins",
+  "private": true,
+  "description": "Manifest only, never installed: the exact versions the rendered views load from jsDelivr, which Dependabot bumps and sync.mjs writes into the views.",
+  "dependencies": {
+    "@tailwindcss/browser": "4.3.5",
+    "mermaid": "12.3.0"
+  }
+}

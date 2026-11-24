@@ -1,10 +1,3 @@
-// The OIDC token request inside the action's `run:` script: a transient
-// failure (HTTP 5xx or 429 under --fail, a timeout, a connection error) is
-// retried inside the broker retries' budget of 3 requests and 60 s of waiting,
-// and a last transient failure is titled "GitHub server error". The curl
-// stand-in answers the Mth OIDC GET from $OIDC/M.exit and $OIDC/M.headers
-// (absent: a token), and every broker POST from $BROKER/N.status and
-// $BROKER/N.json (past the last: the last).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -110,8 +103,6 @@ const http = (status, extra = "") => ({ exit: 22, headers: `HTTP/2 ${status}\r\n
 const curlExit = (code) => ({ exit: code });
 const OK = null;
 
-// `oidc` lists the OIDC answers in order (OK, or beyond the list: a token);
-// `broker` lists the broker answers (absent: one mint).
 function request({ oidc = [], broker = [{ status: "200", body: MINT }], inputs = {} } = {}) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(["output", "summary", "auth", "oidc", "sleep"].map((name) => [name, path.join(dir, name)]));

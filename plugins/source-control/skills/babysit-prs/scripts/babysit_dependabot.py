@@ -48,8 +48,8 @@ of its files to be modified in place, in `in_fix_scope()`, a regular file, and
 changed only by a version. The one other lanes App commit the merge gate takes
 is the CDN pins sync: `cdn_sync_refusal()` (the pr-unblock lane's
 `cdnSyncRefusal`) admits only the base pins.json and its targets, each
-modified in place, in a single-parent `[dependabot skip]` commit GitHub signed
-for the lanes App.
+modified in place, in a single-parent commit GitHub signed for the lanes App
+whose message is exactly the cdn-pins-sync row's on the pull request's head.
 """
 
 from __future__ import annotations
@@ -1211,6 +1211,31 @@ _CDN_REFUSED = frozenset(
 )
 _CDN_PART = re.compile(r"[A-Za-z0-9_.-]+")
 WEB_FLOW_ID = 19864447
+CDN_SYNC_TRAILER = "Lane-Activity: pr-unblock/review-dependency"
+_REF_SAFE = re.compile(r"(?!.*[~^:?*\[\\])[!-~]+")
+
+
+def cdn_sync_subject(ref: str) -> str:
+    return f"Sync the CDN pins to the bumped manifest on {ref} {SKIP_MARKER}"
+
+
+def cdn_sync_message_refusal(message: Any, head_ref: Any) -> str | None:
+    """Why a commit message is not the cdn-pins-sync row's (patch-rules.json)
+    as apply-patch renders it for pr-unblock.yml's apply-cdn-pins-sync job on
+    `head_ref`:
+    `cdn-sync-message` for another subject, `cdn-sync-trailer` for a body that
+    is not its one trailer line, else None. The twin of
+    `cdnSyncMessageRefusal` in dependency-classify.mjs."""
+    lines = str(message or "").rstrip("\n").split("\n")
+    if (
+        not isinstance(head_ref, str)
+        or not _REF_SAFE.fullmatch(head_ref)
+        or lines[0] != cdn_sync_subject(head_ref)
+    ):
+        return "cdn-sync-message"
+    if lines[1:] == ["", CDN_SYNC_TRAILER]:
+        return None
+    return "cdn-sync-trailer"
 
 
 def cdn_sync_paths(text: str | None) -> frozenset[str] | None:
@@ -1244,11 +1269,13 @@ def cdn_sync_refusal(
     lane_identity: str | None,
     paths: Callable[[], frozenset[str] | None],
     entry: Callable[[str, str], Any],
+    head_ref: Any,
 ) -> str | None:
     """Why one pull-request commit (a REST commit with its `files`) is not the
     CDN pins sync pr-unblock pushes, or None. The merge path alone reads it:
     GitHub signed it for the lanes App (author login `lane_identity`,
-    committer web-flow), one parent, the `[dependabot skip]` marker, and each
+    committer web-flow), one parent, the cdn-pins-sync row's subject on
+    `head_ref` and its trailer (`cdn_sync_message_refusal`), and each
     file one of `paths()` (`cdn_sync_paths`, read only once the commit's own
     checks pass; None when that read failed) modified in place, a regular
     non-executable file on both sides (`entry(side, path)`, side "before" or
@@ -1269,8 +1296,9 @@ def cdn_sync_refusal(
     parents = item.get("parents")
     if not isinstance(parents, list) or len(parents) != 1:
         return "cdn-sync-parents"
-    if SKIP_MARKER not in str(commit.get("message") or ""):
-        return "cdn-sync-message"
+    message = cdn_sync_message_refusal(commit.get("message"), head_ref)
+    if message:
+        return message
     files = item.get("files")
     if not isinstance(files, list) or not files:
         return "cdn-sync-files"

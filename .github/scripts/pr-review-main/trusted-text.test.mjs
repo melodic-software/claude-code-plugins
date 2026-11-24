@@ -135,7 +135,7 @@ test("each leg reads its own text unless the shared read was taken, from the col
     assert.deepEqual(names.slice(at - 2, at + 1), ["Download the shared trusted PR text", "Take the shared trusted PR text", "Select the trusted PR text"], job);
     const download = step(job, "Download the shared trusted PR text");
     assert.match(download, /^ {8}continue-on-error: true$/m, job);
-    assert.match(download, /^ {8}uses: actions\/download-artifact@[0-9a-f]{40} # /m, job);
+    assert.match(download, /^ {8}uses: actions\/download-artifact@v8$/m, job);
     assert.match(download, /^ {10}name: trusted-text-pr-review-main$/m, job);
     const take = step(job, "Take the shared trusted PR text");
     assert.match(take, /^ {8}id: shared$/m, job);
