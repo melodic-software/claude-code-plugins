@@ -331,8 +331,6 @@ else
 fi
 TRACKED_TOTAL=$(wc -l <"$TRACKED_FILE" | tr -d ' ')
 
-# BUDGET_KEY is deliberately NOT the displayed source: the budget belongs to a
-# rule's whole `paths:` list, so each standalone `--glob` is its own unit of one.
 declare -a SOURCES=() BUDGET_KEYS=() PATTERNS=()
 FM_BAD=0
 if [[ "$SUBCOMMAND" == "validate" ]]; then

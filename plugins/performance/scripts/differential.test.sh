@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Tests for differential.py, the pre-change versus post-change behavior proof.
-#
-# Two cases carry the weight, and neither is about detecting a real difference:
-#
-#   * NEVER EXERCISED. Two arms that both produced nothing and both failed the
-#     same way are not "parity", they are a harness that never ran the subject.
-#     Reported as parity, that is a confident wrong verdict about behavior.
-#   * SELF-DISCLOSURE. Byte-identical stdout is only a valid bar when the arms
-#     cannot differ merely by living at different paths, so an arm that prints
-#     its own location invalidates the comparison rather than failing it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,9 +19,6 @@ mkdir -p "$WORK/base" "$WORK/cand"
 
 run_differential() { capture "$HARNESS_PYTHON" "$DIFFERENTIAL" "$@"; }
 
-# A subject whose verdict depends on the mode it was given and the command it
-# was handed on stdin. The optional-group form in the config is what lets the
-# matrix cover "no --mode at all", the shape a caller gets by default.
 cat >"$WORK/base/subject.py" <<'SUBJECT'
 import json
 import sys
@@ -53,15 +40,12 @@ cat >"$WORK/config.json" <<'CONFIG'
 }
 CONFIG
 
-# --- 1. identical arms report parity, and the matrix really ran ---
 run_differential --baseline "$WORK/base/subject.py" --candidate "$WORK/cand/subject.py" \
   --config "$WORK/config.json"
 assert_eq "identical arms exit 0" "0" "$RUN_RC"
 assert_contains "parity is stated in full" "PARITY: byte-identical stdout and exit code" "$RUN_OUT"
 assert_contains "both matrix combinations ran" "matrix combinations  : 2" "$RUN_OUT"
 assert_contains "all four invocations were compared" "invocations compared : 4" "$RUN_OUT"
-# Four distinct results prove the null-mode optional group and the corpus both
-# discriminate; one distinct result would mean the matrix changed nothing.
 assert_contains "the corpus and matrix produced distinct results" "baseline=4 candidate=4" "$RUN_OUT"
 
 # --- 1b. a stderr-only difference is DISCLOSED, not silently outside the bar ---
@@ -95,7 +79,6 @@ assert_contains "the stderr gap is disclosed with a count" \
   "stderr differed on 1 of 1 invocations" "$RUN_OUT"
 assert_contains "the disclosure names what is unverified" "it is UNVERIFIED here" "$RUN_OUT"
 
-# --- 2. a real behavior change is reported as a mismatch, not smoothed over ---
 cat >"$WORK/cand/subject.py" <<'CHANGED'
 import json
 import sys
@@ -129,7 +112,6 @@ assert_contains "the refusal denies it is parity" "That is not parity" "$RUN_OUT
 assert_contains "the refusal names the confident-wrong-verdict shape" "confident, wrong verdict" "$RUN_OUT"
 assert_not_contains "a never-exercised run never claims parity" "PARITY:" "$RUN_OUT"
 
-# --- 4. an arm that discloses its own path invalidates byte-exactness ---
 cat >"$WORK/base/leaky.py" <<'LEAKY'
 print(__file__)
 LEAKY
@@ -147,7 +129,6 @@ assert_contains "the disclosure is reported" "SELF-DISCLOSURE:" "$RUN_OUT"
 assert_contains "the refusal explains why byte-exactness is invalid here" \
   "differ purely by living at different paths" "$RUN_OUT"
 
-# --- 5. preconditions ---
 run_differential --baseline "$WORK/base/subject.py" --candidate "$WORK/base/subject.py" \
   --config "$WORK/config.json"
 assert_eq "comparing a file with itself is refused" "2" "$RUN_RC"
@@ -165,7 +146,6 @@ run_differential --baseline "$WORK/base/does-not-exist.py" --candidate "$WORK/ca
 assert_eq "a missing baseline is refused" "2" "$RUN_RC"
 assert_contains "the refusal lists the spellings tried" "any spelling this harness tried" "$RUN_OUT"
 
-# --- 6. a harvest that finds nothing is refused, never silently empty ---
 cat >"$WORK/suite.py" <<'SUITE'
 def test_nothing():
     assert True

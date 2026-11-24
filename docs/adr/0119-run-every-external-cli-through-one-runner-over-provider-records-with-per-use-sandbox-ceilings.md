@@ -26,7 +26,7 @@ configurable method".
 2. **Each use runs in a sandbox mode, and the configured mode is both its default and its ceiling.**
    Review and investigate are read-only. Task is write for Codex. For agy, task is read-only by
    default, and write is one line in a personal or team file (`antigravity.uses.task.mode`, shipped
-   in #17967). The mode is passed on every run, resume included, with no approval prompt and no
+   in #17967) or the per-machine plugin option `antigravity_uses_task_mode`. The mode is passed on every run, resume included, with no approval prompt and no
    escalation path, and a bypass flag is never passed. A request above the ceiling runs at the
    ceiling, and the reply names the config key. Prompts never carry file contents.
 3. **Exit 0 is not success.** A run is `ok` only when the CLI exits 0, its output shows a completed

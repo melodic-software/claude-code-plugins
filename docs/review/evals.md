@@ -64,15 +64,18 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380)).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
-- Four kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
+- Five kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
   cases with deterministic graders only and changes no skill text, because compare mode refuses
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
   judge (Q45); one that adds or edits a script or a case scaffold and cuts no existing skill
   text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
-  decision, melodic-software/architecture#208); and a skill rename, since compare mode refuses its
+  decision, melodic-software/architecture#208); a skill rename, since compare mode refuses its
   manifest and probe edits and a renamed skill has no comparable base arm (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380)).
-  Any other cut keeps its compare run before merge: split it from the script change. One suite run
+  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380));
+  and one whose compare run cannot start, because the org API key is off or compare mode refuses
+  the PR, where a FAIL of the run that follows reverts it (owner decision,
+  [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400)).
+  Any other cut keeps its compare run before merge. One suite run
   on the default branch, scoped to the affected cases, follows; a rename's run uses
   `credential: subscription` and `runs: 3`. For a judged case, the dispatching session posts the
   record by hand under [Graders](#graders).
@@ -142,4 +145,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The org variable `CLAUDE_EVALS_DISABLED` stops every eval path; an eval job runs only while it
   reads exactly `false` (Q52).
-- A session may set it to `false` for a decided, costed run and back to `true` after (Q52, Q55).
+- It stays `false`: every eval workflow is started deliberately (dispatch or the `eval: run`
+  label), none runs on a schedule. `true` is the owner's emergency kill switch; sessions never
+  change it (owner decision 2026-11-24, replacing the reset to `true` after a run). Scoping is
+  unchanged: run only the cases the change affects (Q52, Q55).

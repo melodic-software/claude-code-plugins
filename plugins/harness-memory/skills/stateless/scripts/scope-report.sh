@@ -36,8 +36,6 @@ presence_row() {
   row "$1" "$state" "$3"
 }
 
-# Presence-only: non-file policy surfaces are named, never read, so an absent JSON
-# file is never mistaken for "no managed policy deployed".
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/managed-scope.sh
 source "$plugin_root/lib/managed-scope.sh"

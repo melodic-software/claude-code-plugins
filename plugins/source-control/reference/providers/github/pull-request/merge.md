@@ -95,7 +95,9 @@ pr-verify judges the PR's author by `merge.verify-authors` in that commit's
 component `components/trusted-actors/trusted-actors.json` in the repository `standards_repository`
 names, when the base's `docs/conventions/source-control.yaml` sets
 `trusted_actors_source: standards`, else the
-repository's `.github/standards/trusted-actors/trusted-actors.json`), and `any` every author
+repository's `.github/standards/trusted-actors/trusted-actors.json`, a `standards_repository`
+alone included: that key by itself moves only the Dependabot policy read,
+[config-resolution.md](../../../config-resolution.md#yaml-keys-docsconventionssource-controlyaml)), and `any` every author
 (`.github/scripts/pr-verify/resolve-pr.mjs`). Before that setting, the resolver skips a PR whose
 base is not the default branch, whose head is in a fork, or whose author is a dependency-manager
 Bot (`dependabot`, `dependabot-preview`, `renovate`, `renovate-bot`): pr-verify never judges one, so

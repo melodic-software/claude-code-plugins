@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for run-prepare.sh with a stand-in prepare.sh that prints what each
-# case names, so every output rule is checked without a merge; prepare.sh's
-# own tests cover the merge.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

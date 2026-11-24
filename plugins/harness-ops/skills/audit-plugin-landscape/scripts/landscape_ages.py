@@ -34,7 +34,6 @@ MIN_PYTHON = (3, 11)
 STALE_DAYS = 60
 MARKETPLACE_MANIFEST = ".claude-plugin/marketplace.json"
 
-# An api callable takes an endpoint and returns (http_status, parsed_body).
 Api = Callable[[str], tuple[int, object]]
 
 

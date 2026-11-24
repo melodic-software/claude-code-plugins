@@ -60,14 +60,14 @@ from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundl
 MIN_PYTHON = (3, 11)
 
 
-MEASURED = "measured"  # read off the filesystem or a config file in this run
+MEASURED = "measured"
 DOCUMENTED_DEFAULT = (
-    "documented-default"  # absent locally; upstream's documented default
+    "documented-default"
 )
-INFERRED = "inferred"  # a step was taken beyond what was measured
-NO_UPSTREAM_ROW = "no-upstream-row"  # no documentation covers the path either way
-DOCUMENTED = "documented"  # a claim whose basis is an upstream page, cited with a date
-OBSERVED_UNDOCUMENTED = "observed-undocumented"  # seen on real trees; no upstream row
+INFERRED = "inferred"
+NO_UPSTREAM_ROW = "no-upstream-row"
+DOCUMENTED = "documented"
+OBSERVED_UNDOCUMENTED = "observed-undocumented"
 
 EVIDENCE_VOCABULARY = frozenset(
     {
@@ -80,17 +80,8 @@ EVIDENCE_VOCABULARY = frozenset(
     }
 )
 
-# Bumped whenever a section is added or a field's meaning changes. /2 added the
-# environment block, size attribution, the report header, shaped unknown samples,
-# grouped PID rows, the content_read flags and the sentinels block. /3 added
-# unreferenced_versions and its note. /4 caps unreferenced_versions in the JSON at
-# UNREFERENCED_VERSIONS_CAP entries (largest first) and adds
-# unreferenced_versions_total and unreferenced_versions_truncated.
 SCHEMA = "claude-install-state/4"
 
-# Entries of unreferenced_versions kept in the stdout JSON. The complete list goes to
-# --versions-out, because the report is read end to end and this list grows with every
-# plugin update.
 UNREFERENCED_VERSIONS_CAP = 25
 
 # --------------------------------------------------------------------------
@@ -113,10 +104,6 @@ NEVER_READ_GLOBS = (
 )
 
 
-# The complete set of files inside the target tree whose BYTES this engine
-# opens. Everything else -- including every file deposited by a sibling plugin
-# -- is stat-only. A plugin owns its own state; this engine inventories such
-# paths by name, size and mtime, and does not parse them or attribute an owner.
 CONTENT_READ_ALLOWLIST = (
     "settings.json",
     ".last-cleanup",
@@ -162,7 +149,6 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
     if relpath not in CONTENT_READ_ALLOWLIST and (
         path.is_symlink() or not path.is_file()
     ):
-        # A cached plugin controls these paths; never follow a link out of the audited root.
         raise OSError(f"{relpath} is not a regular file")
     with path.open(encoding="utf-8", errors="replace") as fh:
         return fh.read(limit)
@@ -181,14 +167,11 @@ KEPT = "product-managed-kept"  # documented as never age-swept
 SESSION_SCOPED = (
     "product-managed-session-scoped"  # removed at session exit, not age-swept
 )
-AUTHORED = "authored"  # you wrote it; the product will not remove it
-SECRET = "secret"  # never-read list
-UNCLASSIFIED = "unclassified"  # not in any upstream table -- the interesting bucket
+AUTHORED = "authored"
+SECRET = "secret"
+UNCLASSIFIED = "unclassified"
 
-# name -> (surface, note). Keys are matched case-SENSITIVELY against the literal
-# directory entry name; see `classify_entry` for why.
 SURFACE_TABLE: dict[str, tuple[str, str]] = {
-    # Cleaned up automatically (age-swept at cleanupPeriodDays)
     "projects": (
         SWEPT,
         "Transcripts, subagent transcripts, spilled tool results, auto memory",
@@ -224,7 +207,6 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         SWEPT,
         "Legacy; no longer written. Sweep removes contents then the directory",
     ),
-    # Kept until you delete them
     "history.jsonl": (KEPT, "Every prompt typed, with timestamp and project path"),
     "stats-cache.json": (KEPT, "Aggregated token and cost counts shown by /usage"),
     "remote-settings.json": (
@@ -237,12 +219,10 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     ),
     "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
     "jobs": (KEPT, "Background session state; see claude-directory#state-files-to-keep"),
-    # Session-scoped, explicitly NOT age-swept
     "sessions": (
         SESSION_SCOPED,
         "One file per running session; removed at session exit, crash leftovers cleared at launch",
     ),
-    # Authored / explicitly do-not-delete
     "settings.json": (AUTHORED, "Primary user settings. Upstream: do not delete"),
     "settings.local.json": (AUTHORED, "Personal overrides"),
     "CLAUDE.md": (AUTHORED, "Global memory file"),
@@ -263,7 +243,6 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         "marketplace's cache tree keeps its .orphaned_at markers and is swept on the same clock "
         "while any plugin stays installed. A version directory with no marker is never swept",
     ),
-    # Secrets
     ".credentials.json": (SECRET, "OAuth/API credentials -- never opened"),
     "daemon": (SECRET, "Contains control.key / pipe.key -- those two are never opened"),
 }
@@ -295,21 +274,10 @@ SWEEP_UNIT_UNDOCUMENTED = (
     "each file's mtime or on a containing unit"
 )
 
-# Directories whose contents are session-keyed or otherwise churn while a scan
-# runs. A clean unanimous small-n count over one of these is a red flag, not a
-# confirmation (see reference/evidence-discipline.md).
 VOLATILE_DIRS = frozenset(
     {"sessions", "backups", "projects", "shell-snapshots", "ide", "tasks"}
 )
 
-# --------------------------------------------------------------------------
-# Deliberate / experimental state
-#
-# Runs BEFORE any staleness classification. A directory holding one of these
-# ledgers is the sole copy of somebody's revert path until proven otherwise.
-# --------------------------------------------------------------------------
-
-# Names that mean "somebody's revert path" almost wherever they appear.
 STRONG_LEDGER_GLOBS = (
     "RESTORE.md",
     "RESTORE.txt",
@@ -318,17 +286,12 @@ STRONG_LEDGER_GLOBS = (
     "restore*.sh",
 )
 
-# Names that mean it only in the right neighborhood. Scanned across the whole
-# tree these are pure noise -- a live run over a real install matched browser
-# payloads, plugin-cache test fixtures and subagent directories, and deny-listed
-# most of the tree. Restricted to a shallow hotspot they are high signal.
 CORROBORATING_LEDGER_GLOBS = (
     "manifest.json",
     "*baseline*.json",
     "*BASELINE*",
 )
 
-# Where a revert store is most likely to hide, and least likely to be looked for.
 DELIBERATE_STATE_HOTSPOTS = ("plugins/data",)
 
 # Corroborating names count only this many directory levels below a hotspot.
@@ -336,19 +299,7 @@ DELIBERATE_STATE_HOTSPOTS = ("plugins/data",)
 # payloads bury their manifests far deeper.
 HOTSPOT_CORROBORATING_MAX_DEPTH = 3
 
-# Vendored upstream payloads. Their `RESTORE.md` or `baseline.json` belongs to
-# somebody else's repository, not to this install's state.
 LEDGER_SCAN_SKIP_PREFIXES = ("plugins/cache", "plugins/marketplaces")
-
-# --------------------------------------------------------------------------
-# Numeric filename schemes -- the PID trap
-#
-# A number in a filename is NOT reliably a PID. Applying a process lookup to a
-# non-PID returns a meaningless miss that reads as "dead" and authorizes a wrong
-# deletion. Liveness is attempted for exactly one meaning: PID. Everything else,
-# INCLUDING every pattern this table does not recognize, returns
-# `not_applicable`.
-# --------------------------------------------------------------------------
 
 PID = "pid"
 TCP_PORT = "tcp_port"
@@ -437,8 +388,6 @@ NAME_SCHEMES: tuple[NameScheme, ...] = (
 
 _HAS_DIGITS = re.compile(r"\d")
 
-# Liveness verdicts. `dead` is reachable ONLY from a successful probe that
-# positively reported no such process.
 ALIVE = "alive"
 DEAD = "dead"
 UNVERIFIED = "unverified"
@@ -550,11 +499,6 @@ def verdict_for(rel: str, probe=probe_pid) -> NameVerdict:
         )
     liveness, reason = probe(pid)
     return NameVerdict(PID, liveness, reason, MEASURED, pid)
-
-
-# --------------------------------------------------------------------------
-# Sampled counts -- a range with its n, never a central tendency
-# --------------------------------------------------------------------------
 
 
 @dataclasses.dataclass
@@ -762,8 +706,6 @@ def read_retention(root: Path) -> dict:
         "effective_evidence": DOCUMENTED_DEFAULT,
         "last_cleanup": None,
         "last_cleanup_age_hours": None,
-        # The file is read and its advance is real, but its ROLE as the sweep's
-        # watermark is an observation with no upstream row (see `sentinels`).
         "last_cleanup_evidence": OBSERVED_UNDOCUMENTED,
         "plugin_inuse_sweep": None,
         "findings": [],
@@ -776,8 +718,6 @@ def read_retention(root: Path) -> dict:
         raw = data["cleanupPeriodDays"]
         days = valid_retention_days(raw)
         if days is None:
-            # Reported, not silently ignored, and it does NOT drive
-            # effective_days -- the previously effective value stands.
             result[field] = f"invalid: {raw!r}"
         else:
             result[field] = result["effective_days"] = days
@@ -834,9 +774,6 @@ def read_retention(root: Path) -> dict:
                 )
             break
 
-    # The settings-unparsable finding names managed settings as the exception that
-    # keeps the sweep running, so withdraw it once a valid managed value is measured.
-    # The parse failure itself stays reported in `user_settings_parse`.
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
             f
@@ -958,34 +895,21 @@ def rollup(
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
 
-    # Same precision as FileRow.mtime, so the lexicographic comparison below is
-    # exact rather than off by up to a second at the boundary.
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat(
         timespec="seconds"
     )
     out: list[dict] = []
     for name, members in sorted(groups.items()):
         surface, note = classify_entry(name)
-        # `classify_entry` reads SURFACE_TABLE only, so an entry with no row of its
-        # own (such as `ide`, whose `*.lock` members are never-read) would read
-        # `unclassified` above SECRET member rows. The entry line is what a reader
-        # scans first and must never be milder than its rows, so a SECRET member
-        # promotes the entry.
         secret_members = sum(1 for m in members if m.surface == SECRET)
         if surface != SECRET and secret_members:
             surface = SECRET
-            # The count lets a reader weigh it against `files`: a mixed tree can be
-            # promoted by a couple of vendored `*.pem` bundles.
             note = (
                 f"Contains {secret_members} never-read secret-bearing file(s), so the entry "
                 f"is classified by its contents rather than by its own name. "
                 f"Own classification: {note}"
             )
         older = [m for m in members if m.mtime < cutoff]
-        # Which member files the engine opened by content. Orthogonal to the
-        # surface: `settings.json` stays AUTHORED and the two sentinels stay
-        # unclassified; the flag records the engine's own behavior, so the
-        # retention section and this table agree about what was read.
         read_paths = sorted(
             m.relpath
             for m in members
@@ -1658,10 +1582,6 @@ def engine_version() -> str:
     except (OSError, ValueError):
         return "unknown"
 
-
-# --------------------------------------------------------------------------
-# Sentinels the engine reads by content and no upstream page names
-# --------------------------------------------------------------------------
 
 SENTINELS: dict[str, str] = {
     ".last-cleanup": (

@@ -143,7 +143,6 @@ rule_title() {
   ' "$file" 2>/dev/null)"
   [[ -n "$title" ]] || title="$(first_h1 "$file")"
   [[ -n "$title" ]] || title="$(basename "$file" .md)"
-  # Pipes would break the markdown table row.
   printf '%s' "${title//|/\\|}"
 }
 
@@ -356,8 +355,6 @@ fi
 if [[ -n "$TARGET" ]] && ! is_abs_path "$TARGET"; then
   anchor="$PWD"
   if ((ROOT_GIVEN)); then
-    # A relative --root is itself anchored to the caller's cwd, so resolve it
-    # before joining or the target stays relative past the `cd` below.
     if is_abs_path "$ROOT"; then anchor="${ROOT%/}"; else anchor="$PWD/${ROOT%/}"; fi
   fi
   TARGET="$anchor/$TARGET"
