@@ -7,7 +7,6 @@ import {
   READ_STATES,
   ROW_STATUSES,
   SAFE_FIELD_RE,
-  TIEBREAK_STEPS,
   VERDICTS,
   WORK_TYPES,
   die,
@@ -59,7 +58,6 @@ const SETTINGS_KEYS = new Set([
   'routing',
   'trials',
   'auto_delegation',
-  'tiebreak',
   'trials_prove',
   'trials_fail',
   'promotion_audits',
@@ -136,7 +134,6 @@ export function loadSettings(filePath, defaults) {
     routing: defaults.vendors.routing,
     trials: defaults.vendors.trials,
     auto_delegation: defaults.vendors.auto_delegation,
-    tiebreak: [],
     trials_prove: null,
     trials_fail: null,
     vendors: {
@@ -190,18 +187,6 @@ export function loadSettings(filePath, defaults) {
       if (typeof doc[b] !== 'boolean') die(`settings.${b} must be a boolean`)
       base[b] = doc[b]
     }
-  }
-  if ('tiebreak' in doc && doc.tiebreak !== null) {
-    if (!Array.isArray(doc.tiebreak)) die('settings.tiebreak must be an array')
-    const seen = new Set()
-    for (const step of doc.tiebreak) {
-      if (typeof step !== 'string' || !TIEBREAK_STEPS.has(step)) {
-        die(`settings.tiebreak has unknown step '${step}'`)
-      }
-      if (seen.has(step)) die(`settings.tiebreak has duplicate step '${step}'`)
-      seen.add(step)
-    }
-    base.tiebreak = [...doc.tiebreak]
   }
   if ('trials_prove' in doc && doc.trials_prove !== null) {
     if (!Number.isInteger(doc.trials_prove) || doc.trials_prove < 1) {
@@ -486,46 +471,6 @@ export function normalizeModels(doc) {
       breaker,
       skippedModels: new Set(),
     })
-  }
-  return byVendor
-}
-
-export function loadUsage(filePath) {
-  const byVendor = new Map()
-  if (!filePath) return byVendor
-  const doc = readJson(filePath, 'usage')
-  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
-    die('--usage must be a JSON object')
-  }
-  for (const [rawKey, entry] of Object.entries(doc)) {
-    const vendor = rawKey.toLowerCase() === 'antigravity' ? 'gemini' : rawKey.toLowerCase()
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-      byVendor.set(vendor, { status: 'unavailable', remaining: null, reason: 'invalid usage reading' })
-      continue
-    }
-    if (
-      entry.status === 'ok' &&
-      typeof entry.remaining === 'number' &&
-      Number.isFinite(entry.remaining) &&
-      entry.remaining >= 0 &&
-      entry.remaining <= 1
-    ) {
-      byVendor.set(vendor, {
-        status: 'ok',
-        remaining: entry.remaining,
-        window: typeof entry.window === 'string' ? entry.window : null,
-        resets_at: typeof entry.resets_at === 'string' ? entry.resets_at : null,
-        source: typeof entry.source === 'string' ? entry.source : null,
-      })
-    } else {
-      const reason =
-        typeof entry.reason === 'string' && entry.reason.trim()
-          ? entry.reason.trim()
-          : entry.status === 'ok'
-            ? 'missing valid remaining fraction'
-            : `status ${String(entry.status ?? 'unavailable')}`
-      byVendor.set(vendor, { status: 'unavailable', remaining: null, reason })
-    }
   }
   return byVendor
 }

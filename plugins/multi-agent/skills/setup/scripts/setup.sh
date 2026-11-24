@@ -194,11 +194,7 @@ render() {
       c = 0
       while (c < n - 1 && c < prev_depth && p[c + 1] == pp[c + 1]) c++
       for (i = c + 1; i < n; i++) printf "%" (2 * (i - 1)) "s%s:\n", "", p[i]
-      if (n == 3 && p[1] == "vendors" && p[2] == "tiebreak" && p[3] ~ /^[0-9]+$/) {
-        printf "%" (2 * (n - 1)) "s- %s\n", "", $2
-      } else {
-        printf "%" (2 * (n - 1)) "s%s: %s\n", "", p[n], $2
-      }
+      printf "%" (2 * (n - 1)) "s%s: %s\n", "", p[n], $2
       prev_depth = n - 1
       for (i = 1; i <= n; i++) pp[i] = p[i]
     }'
@@ -311,7 +307,7 @@ apply() {
     existing="$(awk -F '\t' '$1!="schema" && $1!="block"' <<<"$records")"
   fi
 
-  local pair key value tb_i tb_item tb_parts
+  local pair key value
   for pair in "${PAIRS[@]}"; do
     key="${pair%%=*}" value="${pair#*=}"
     [[ "$key" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ && "$key" != schema ]] || die "invalid key '$key'"
@@ -323,21 +319,6 @@ apply() {
         die "$key: '$value' is not off, light, standard or strict"
     elif [[ "$key" =~ ^verification ]]; then
       die "invalid key '$key'"
-    fi
-    if [[ "$key" == vendors.tiebreak ]]; then
-      existing="$(awk -F '\t' '$1!="vendors.tiebreak" && $1!~/^vendors\.tiebreak\./' <<<"$existing")"
-      if [[ -n "$value" ]]; then
-        [[ "$value" != ,* && "$value" != *, && "$value" != *,,* ]] ||
-          die "invalid value for $key"
-        tb_i=0
-        tb_parts=()
-        IFS=',' read -ra tb_parts <<<"$value"
-        for tb_item in "${tb_parts[@]}"; do
-          existing+=$'\n'"vendors.tiebreak.$tb_i"$'\t'"$tb_item"
-          tb_i=$((tb_i + 1))
-        done
-      fi
-      continue
     fi
     existing="$(awk -F '\t' -v k="$key" '$1!=k' <<<"$existing")"
     [[ -n "$value" ]] && existing+=$'\n'"$key"$'\t'"$value"

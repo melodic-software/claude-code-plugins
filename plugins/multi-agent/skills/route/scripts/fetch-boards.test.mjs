@@ -47,3 +47,49 @@ test('fetch-boards checks each row expect marker: a page lacking it is unread no
   assert.equal(byId.shell.state, 'unread')
   assert.equal(byId.shell.reason, 'no-content')
 })
+
+test('fetch-boards fetches only rows that can lead when trials are inactive', (t) => {
+  if (skipWithoutBash(t)) return
+  const page = '# Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score |\n|---|---|\n| sparrow-1 | 82.0% |\n'
+  const rows = [
+    row('lead-row', { link: 'https://www.tbench.ai/lead-row', expect: 'sparrow-1' }),
+    row('new-row', { link: 'https://www.tbench.ai/new-row', status: 'support-only', expect: 'sparrow-1' }),
+    row('own-row', { link: 'https://www.tbench.ai/own-row', provider_own: true, expect: 'sparrow-1' }),
+  ]
+  const pages = {
+    'www-tbench-ai/lead-row.md': page,
+    'www-tbench-ai/new-row.md': page,
+    'www-tbench-ai/own-row.md': page,
+  }
+
+  const noSettings = runFetchBoardsOnce(t, rows, pages)
+  assert.equal(noSettings.res.status, 0, noSettings.res.stderr)
+  assert.deepEqual(noSettings.manifest.boards.map((b) => b.source_id), ['lead-row'])
+
+  const incompleteTrials = runFetchBoardsOnce(t, rows, pages, {
+    settings: { vendors: { trials: true } },
+  })
+  assert.equal(incompleteTrials.res.status, 0, incompleteTrials.res.stderr)
+  assert.deepEqual(incompleteTrials.manifest.boards.map((b) => b.source_id), ['lead-row'])
+})
+
+test('fetch-boards fetches support-only and provider-own rows when trials are active', (t) => {
+  if (skipWithoutBash(t)) return
+  const page = '# Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score |\n|---|---|\n| sparrow-1 | 82.0% |\n'
+  const rows = [
+    row('lead-row', { link: 'https://www.tbench.ai/lead-row', expect: 'sparrow-1' }),
+    row('new-row', { link: 'https://www.tbench.ai/new-row', status: 'support-only', expect: 'sparrow-1' }),
+    row('own-row', { link: 'https://www.tbench.ai/own-row', provider_own: true, expect: 'sparrow-1' }),
+  ]
+  const pages = {
+    'www-tbench-ai/lead-row.md': page,
+    'www-tbench-ai/new-row.md': page,
+    'www-tbench-ai/own-row.md': page,
+  }
+
+  const active = runFetchBoardsOnce(t, rows, pages, {
+    settings: { vendors: { trials: true, trials_prove: 3, trials_fail: 2 } },
+  })
+  assert.equal(active.res.status, 0, active.res.stderr)
+  assert.deepEqual(active.manifest.boards.map((b) => b.source_id), ['lead-row', 'new-row', 'own-row'])
+})

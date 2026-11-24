@@ -56,7 +56,7 @@
       "description": "Per-skill verification level, keyed by skill name (for example audit-defaults); an entry beats this file's verification value."
     },
     "vendors": {
-      "description": "Vendor routing switches, tiebreak order, trial counts, per-vendor availability and ranking, and per-source enable overrides.",
+      "description": "Vendor routing switches, trial counts, per-vendor availability and ranking, and per-source enable overrides.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -74,12 +74,6 @@
           "description": "When true, eligible routed work delegates automatically; false recommends without delegating.",
           "type": "boolean",
           "default": false
-        },
-        "tiebreak": {
-          "description": "Ordered tiebreak steps on a tie across trusted sources. Empty or omitted keeps the caller's vendor.",
-          "type": "array",
-          "uniqueItems": true,
-          "items": { "enum": ["vendor-order", "fewest-tokens", "most-usage-left"] }
         },
         "trials_prove": {
           "description": "Accepted trial results required to mark a pair proven. Unset by default.",

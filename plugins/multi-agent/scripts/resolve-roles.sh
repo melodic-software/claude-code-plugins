@@ -57,7 +57,7 @@ Options:
 JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
 {"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
 {"model", "fanout_model", "effort"}}}, "vendors": {"routing", "trials",
-"auto_delegation", "tiebreak", "trials_prove", "trials_fail", "promotion_audits",
+"auto_delegation", "trials_prove", "trials_fail", "promotion_audits",
 "promotion_days", "claude", "codex", "antigravity", "sources", "source"}, "layers": [{"layer", "path", "state"}],
 "notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
 basis is `upstream` or `judgment` as the bundled layer records it
@@ -83,7 +83,6 @@ EOF
 # level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable "
 EFFORTS=" low medium high xhigh max "
-TIEBREAK_STEPS=" vendor-order fewest-tokens most-usage-left "
 SOURCE_ID_RE='^[a-z0-9][a-z0-9-]*$'
 
 die() {
@@ -186,8 +185,6 @@ LAYERS_JSON=()
 WL_NAMES=()
 WL_KEYS=()
 WL_NAME_RE='^[A-Za-z0-9_][A-Za-z0-9_-]*$'
-V_TIEBREAK=()
-V_TIEBREAK_SRC=""
 V_SOURCE_IDS=()
 
 while IFS=$'\t' read -r key value; do
@@ -197,10 +194,6 @@ while IFS=$'\t' read -r key value; do
   if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then WL_NAMES+=("${BASH_REMATCH[1]}"); fi
   if [[ "$key" =~ ^roles\.[^.]+\.workloads\.([^.]+)\.(model|effort)$ ]]; then
     WL_KEYS+=("bundled"$'\t'"$key"$'\t'"${BASH_REMATCH[1]}")
-  fi
-  if [[ "$key" =~ ^vendors\.tiebreak\.[0-9]+$ ]]; then
-    V_TIEBREAK+=("$value")
-    V_TIEBREAK_SRC=bundled
   fi
   if [[ "$key" =~ ^vendors\.sources\.([^.]+)\.enabled$ ]]; then
     sid="${BASH_REMATCH[1]}"
@@ -244,7 +237,6 @@ layer_state() { # layer_state <label> <path> <state>
 # apply_layer <label> <path> <records>
 apply_layer() {
   local label="$1" path="$2" records="$3" key value field role w sid=""
-  local layer_tb=() layer_tb_seen=0 layer_tb_bad=0
   if [[ "$(awk -F '\t' '$1=="schema"{print $2}' <<<"$records")" != 1 ]]; then
     NOTES+=("$label layer skipped: $path does not declare schema: 1")
     layer_state "$label" "$path" skipped
@@ -272,12 +264,6 @@ apply_layer() {
     vendors.trials_prove) field=trials_prove ;;
     vendors.trials_fail) field=trials_fail ;;
     vendors.promotion_audits | vendors.promotion_days) field=positive_int ;;
-    vendors.tiebreak)
-      value="${value//[^[:print:]]/?}"
-      NOTES+=("$label: vendors.tiebreak rejected: '${value:0:40}' is not a list of allowed tiebreak steps; the layer below supplies it")
-      layer_tb_bad=1
-      continue
-      ;;
     *)
       if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then
         w="${BASH_REMATCH[1]}" field=declared
@@ -293,19 +279,6 @@ apply_layer() {
           NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
           continue
         fi
-      elif [[ "$key" =~ ^vendors\.tiebreak\.[0-9]+$ ]]; then
-        layer_tb_seen=1
-        if [[ "$TIEBREAK_STEPS" != *" $value "* ]]; then
-          value="${value//[^[:print:]]/?}"
-          NOTES+=("$label: vendors.tiebreak rejected: '${value:0:40}' is not an allowed value; the layer below supplies it")
-          layer_tb_bad=1
-        elif [[ " ${layer_tb[*]+"${layer_tb[*]}"} " == *" $value "* ]]; then
-          NOTES+=("$label: vendors.tiebreak rejected: duplicate step '$value'; the layer below supplies it")
-          layer_tb_bad=1
-        else
-          layer_tb+=("$value")
-        fi
-        continue
       elif [[ "$key" =~ ^vendors\.(claude|codex|antigravity)\.(in_use|rank)$ ]]; then
         if [[ "${BASH_REMATCH[2]}" == in_use ]]; then
           field=bool
@@ -348,10 +321,6 @@ apply_layer() {
       fi
     fi
   done <<<"$records"
-  if ((layer_tb_seen && !layer_tb_bad)); then
-    V_TIEBREAK=("${layer_tb[@]+"${layer_tb[@]}"}")
-    V_TIEBREAK_SRC="$label"
-  fi
 }
 
 # read_layer <label> <path>
@@ -525,7 +494,7 @@ raw_or_null() {
 }
 
 vendors_json() {
-  local r t ad tp tf pa pd tb_items=() step vn v_parts=() vs_parts=() s_parts=() ss_parts=() sorted_sids sid
+  local r t ad tp tf pa pd vn v_parts=() vs_parts=() s_parts=() ss_parts=() sorted_sids sid
   r="$(val vendors.routing)"
   [[ -n "$r" ]] || r=true
   t="$(val vendors.trials)"
@@ -536,10 +505,6 @@ vendors_json() {
   tf="$(raw_or_null "$(val vendors.trials_fail)")"
   pa="$(raw_or_null "$(val vendors.promotion_audits)")"
   pd="$(raw_or_null "$(val vendors.promotion_days)")"
-
-  for step in "${V_TIEBREAK[@]+"${V_TIEBREAK[@]}"}"; do
-    tb_items+=("$(json_str "$step")")
-  done
 
   for vn in claude codex antigravity; do
     v_parts+=("$(json_str "$vn"):{\"in_use\":$(raw_or_null "$(val "vendors.$vn.in_use")"),\"rank\":$(raw_or_null "$(val "vendors.$vn.rank")")}")
@@ -555,13 +520,12 @@ vendors_json() {
     done <<<"$sorted_sids"
   fi
 
-  printf '{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":[%s],"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s},"source":{"routing":%s,"trials":%s,"auto_delegation":%s,"tiebreak":%s,"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s}}}' \
-    "$r" "$t" "$ad" "$(join "${tb_items[@]+"${tb_items[@]}"}")" "$tp" "$tf" "$pa" "$pd" \
+  printf '{"routing":%s,"trials":%s,"auto_delegation":%s,"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s},"source":{"routing":%s,"trials":%s,"auto_delegation":%s,"trials_prove":%s,"trials_fail":%s,"promotion_audits":%s,"promotion_days":%s,%s,"sources":{%s}}}' \
+    "$r" "$t" "$ad" "$tp" "$tf" "$pa" "$pd" \
     "$(join "${v_parts[@]}")" "$(join "${s_parts[@]+"${s_parts[@]}"}")" \
     "$(json_or_null "$(src vendors.routing)")" \
     "$(json_or_null "$(src vendors.trials)")" \
     "$(json_or_null "$(src vendors.auto_delegation)")" \
-    "$(json_or_null "$V_TIEBREAK_SRC")" \
     "$(json_or_null "$(src vendors.trials_prove)")" \
     "$(json_or_null "$(src vendors.trials_fail)")" \
     "$(json_or_null "$(src vendors.promotion_audits)")" \

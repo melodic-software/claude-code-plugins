@@ -148,7 +148,7 @@ option (set it in `/config`), then the team file
 (`docs/conventions/multi-agent.yaml`), then a gitignored personal override
 (`docs/conventions/multi-agent.local.yaml`). Each overrides the bundled defaults
 per key, for both role mappings and the `vendors` routing settings (`routing`,
-`trials`, `auto_delegation`, `tiebreak`, `trials_prove`, `trials_fail`,
+`trials`, `auto_delegation`, `trials_prove`, `trials_fail`,
 `promotion_audits`, `promotion_days`, per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
 `/multi-agent:setup` writes any of the three. A repository can also append team
 benchmark rows in `docs/conventions/multi-agent/benchmarks.json` (same closed

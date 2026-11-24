@@ -254,7 +254,7 @@ test('AC14: new sources with status support-only do not count toward consensus',
 })
 
 
-test('AC3: on a tie with no tiebreak configured, lists tied vendors with token counts and keeps caller vendor', (t) => {
+test('AC3: on a tie, lists tied vendors with token counts and keeps claude', (t) => {
   const res = twoBoards(t, tieWithTokensRecords())
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
@@ -266,18 +266,6 @@ test('AC3: on a tie with no tiebreak configured, lists tied vendors with token c
   assert.equal(claudeTie.tokens.length, 2)
   assert.equal(codexTie.tokens[0].value, 90000)
 })
-
-test('AC3: on a tie with fewest-tokens tiebreak configured, picks the vendor with fewer tokens', (t) => {
-  const res = twoBoards(t, tieWithTokensRecords(), {
-    extraArgs: ['--task-type', 'coding', '--tiebreak', 'fewest-tokens'],
-  })
-  assert.equal(res.code, 0, res.stderr)
-  assert.equal(res.json.vendor, 'codex')
-  assert.equal(res.json.model, 'sparrow-1')
-  assert.equal(res.json.basis, 'consensus')
-  assert.equal(res.json.ties.length, 2)
-})
-
 
 test('AC7: stale cached page is stamped cached-stale, shown as support-only with age, and cannot form consensus', (t) => {
   const res = makeFixture(t, {
@@ -431,7 +419,6 @@ test('multi-agent.schema.json defines closed vendors block with exact keys and c
       'promotion_days',
       'routing',
       'sources',
-      'tiebreak',
       'trials',
       'trials_fail',
       'trials_prove',
@@ -440,8 +427,6 @@ test('multi-agent.schema.json defines closed vendors block with exact keys and c
   assert.equal(v.properties.routing.type, 'boolean')
   assert.equal(v.properties.trials.type, 'boolean')
   assert.equal(v.properties.auto_delegation.type, 'boolean')
-  assert.equal(v.properties.tiebreak.type, 'array')
-  assert.deepEqual(v.properties.tiebreak.items.enum, ['vendor-order', 'fewest-tokens', 'most-usage-left'])
   assert.equal(v.properties.trials_prove.type, 'integer')
   assert.equal(v.properties.trials_fail.type, 'integer')
   assert.equal(v.properties.trials_fail.minimum, 2)
@@ -521,34 +506,76 @@ test('AC4: vendor declared in_use true but unavailable in --models gets exactly 
   assert.match(geminiNotes[0], /cli missing/i)
 })
 
-test('AC3: settings tiebreak steps apply in order using vendor ranks; empty tiebreak keeps caller vendor', (t) => {
-  const tieRecords = [
-    rec('board-a', 'claude', 'kestrel-1', 'tie'),
-    rec('board-a', 'codex', 'sparrow-1', 'tie'),
-    rec('board-b', 'claude', 'kestrel-1', 'tie'),
-    rec('board-b', 'codex', 'sparrow-1', 'tie'),
-  ]
-  const resEmpty = twoBoards(t, tieRecords, {
-    settings: { routing: true, tiebreak: [], codex: { rank: 1 }, claude: { rank: 2 } },
-  })
-  assert.equal(resEmpty.code, 0, resEmpty.stderr)
-  assert.equal(resEmpty.json.vendor, 'claude')
-  assert.equal(resEmpty.json.basis, 'default')
+test('a tie between claude and codex keeps claude even when vendor ranks put codex first', (t) => {
+  const res = twoBoards(
+    t,
+    [
+      rec('board-a', 'claude', 'kestrel-1', 'tie'),
+      rec('board-a', 'codex', 'sparrow-1', 'tie'),
+      rec('board-b', 'claude', 'kestrel-1', 'tie'),
+      rec('board-b', 'codex', 'sparrow-1', 'tie'),
+    ],
+    { settings: { routing: true, codex: { rank: 1 }, claude: { rank: 2 } } },
+  )
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'claude')
+  assert.equal(res.json.basis, 'default')
+  assert.equal(res.json.ties.length, 2)
+  assert.ok(res.json.notes.some((n) => /tie across independent sources; keeping default claude/.test(n)))
+})
 
-  const resOrder = twoBoards(t, tieRecords, {
-    settings: {
-      routing: true,
-      tiebreak: ['fewest-tokens', 'most-usage-left', 'vendor-order'],
-      codex: { rank: 1 },
-      claude: { rank: 2 },
-    },
+test('--tiebreak is no longer accepted', (t) => {
+  const res = twoBoards(t, codexLeadRecords(), {
+    extraArgs: ['--task-type', 'coding', '--tiebreak', 'vendor-order'],
   })
-  assert.equal(resOrder.code, 0, resOrder.stderr)
-  assert.equal(resOrder.json.vendor, 'codex')
-  assert.equal(resOrder.json.basis, 'consensus')
-  assert.ok(resOrder.json.notes.some((n) => /fewest-tokens skipped/i.test(n)))
-  assert.ok(resOrder.json.notes.some((n) => /most-usage-left unavailable/i.test(n)))
-  assert.ok(resOrder.json.notes.some((n) => /vendor-order selected codex/i.test(n)))
+  assert.equal(res.code, 2)
+})
+
+test('a support-only or provider-own row missing from the manifest is listed not-read and raises no unread note', (t) => {
+  const res = makeFixture(t, {
+    registry: {
+      version: 1,
+      rows: [
+        row('board-a'),
+        row('board-b'),
+        row('board-new', { status: 'support-only' }),
+        row('openai-card', { publisher: 'OpenAI', provider_own: true }),
+      ],
+    },
+    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
+    records: codexLeadRecords(),
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'codex')
+  assert.equal(res.json.basis, 'consensus')
+  const newSrc = res.json.sources.find((s) => s.source_id === 'board-new')
+  assert.equal(newSrc.read, 'not-read')
+  assert.equal(newSrc.role, 'support-only')
+  assert.equal(newSrc.link, 'https://board-new.example/board')
+  assert.equal(newSrc.reason, 'not read: support-only rows cannot lead')
+  const ownSrc = res.json.sources.find((s) => s.source_id === 'openai-card')
+  assert.equal(ownSrc.read, 'not-read')
+  assert.equal(ownSrc.role, 'support-only')
+  assert.equal(ownSrc.reason, 'not read: provider-own rows cannot lead')
+  assert.equal(res.json.notes.some((n) => /board-new|openai-card/.test(n)), false)
+})
+
+test('a permanent row missing from the manifest is still unread', (t) => {
+  const res = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a'), row('board-c')] },
+    manifest: { boards: [boardEntry('board-a')] },
+    records: [
+      rec('board-a', 'codex', 'sparrow-1', 'lead'),
+      rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    ],
+    extraArgs: ['--task-type', 'coding'],
+  })
+  assert.equal(res.code, 0, res.stderr)
+  const missing = res.json.sources.find((s) => s.source_id === 'board-c')
+  assert.equal(missing.read, 'unread')
+  assert.equal(missing.role, 'unread')
+  assert.equal(missing.reason, 'missing-from-manifest')
 })
 
 test('sources.<id>.enabled false in settings disables that registry row', (t) => {
@@ -885,51 +912,6 @@ test('AC4: vendor with breaker.open true is skipped with one note naming reset_a
   })
   assert.equal(resSilent.code, 0, resSilent.stderr)
   assert.equal(resSilent.json.notes.some((n) => /codex/i.test(n)), false)
-})
-
-test('D12/AC17: most-usage-left picks highest remaining; unavailable or missing reading falls back to vendor order with one note', (t) => {
-  const tieRecords = [
-    rec('board-a', 'claude', 'kestrel-1', 'tie'),
-    rec('board-a', 'codex', 'sparrow-1', 'tie'),
-    rec('board-b', 'claude', 'kestrel-1', 'tie'),
-    rec('board-b', 'codex', 'sparrow-1', 'tie'),
-  ]
-  const resMost = twoBoards(t, tieRecords, {
-    settings: { routing: true, tiebreak: ['most-usage-left'], claude: { rank: 1 }, codex: { rank: 2 } },
-    usage: {
-      claude: { status: 'ok', remaining: 0.32, window: '5h', source: 'rate-limits' },
-      codex: { status: 'ok', remaining: 0.84, window: '5h', source: 'codex app-server' },
-    },
-  })
-  assert.equal(resMost.code, 0, resMost.stderr)
-  assert.equal(resMost.json.vendor, 'codex')
-  assert.equal(resMost.json.basis, 'consensus')
-  assert.ok(resMost.json.notes.some((n) => /most-usage-left selected codex/i.test(n)))
-
-  const resUnavail = twoBoards(t, tieRecords, {
-    settings: { routing: true, tiebreak: ['most-usage-left'], codex: { rank: 1 }, claude: { rank: 2 } },
-    usage: {
-      claude: { status: 'unavailable', reason: 'rate-limits plugin not enabled', source: 'rate-limits' },
-      codex: { status: 'ok', remaining: 0.84, window: '5h', source: 'codex app-server' },
-    },
-  })
-  assert.equal(resUnavail.code, 0, resUnavail.stderr)
-  assert.equal(resUnavail.json.vendor, 'codex')
-  assert.equal(resUnavail.json.basis, 'consensus')
-  const fbNotes = resUnavail.json.notes.filter((n) => /most-usage-left unavailable/i.test(n))
-  assert.equal(fbNotes.length, 1, `expected 1 fallback note, got: ${JSON.stringify(fbNotes)}`)
-  assert.match(fbNotes[0], /vendor-order/i)
-
-  const resOrderIgnoresUsage = twoBoards(t, tieRecords, {
-    settings: { routing: true, tiebreak: ['vendor-order'], claude: { rank: 1 }, codex: { rank: 2 } },
-    usage: {
-      claude: { status: 'ok', remaining: 0.1, window: '5h' },
-      codex: { status: 'ok', remaining: 0.99, window: '5h' },
-    },
-  })
-  assert.equal(resOrderIgnoresUsage.code, 0, resOrderIgnoresUsage.stderr)
-  assert.equal(resOrderIgnoresUsage.json.vendor, 'claude')
-  assert.equal(resOrderIgnoresUsage.json.notes.some((n) => /most-usage-left/i.test(n)), false)
 })
 
 test('AC8/AC20: image routes to capable vendor with claude-cannot; every capable vendor failed recommends nothing and lets user choose', (t) => {

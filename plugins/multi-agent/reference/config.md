@@ -57,13 +57,12 @@ after a preview and an explicit yes.
 | `vendors.routing` | `true`, `false` | `true` |
 | `vendors.trials` | `true`, `false` | `false` |
 | `vendors.auto_delegation` | `true`, `false` | `false` |
-| `vendors.tiebreak` | ordered list (no duplicates) from `vendor-order`, `fewest-tokens`, `most-usage-left` | unset (caller keeps its vendor on a tie) |
 | `vendors.trials_prove` | integer >= 1 | unset |
 | `vendors.trials_fail` | integer >= 2 (`1` is rejected) | unset |
 | `vendors.promotion_audits` | integer >= 1 | `3` |
 | `vendors.promotion_days` | integer >= 1 | `30` |
 | `vendors.<vendor>.in_use` | `true`, `false` (`<vendor>` is `claude`, `codex` or `antigravity`) | unset |
-| `vendors.<vendor>.rank` | integer (lower rank wins `vendor-order` tiebreak) | unset |
+| `vendors.<vendor>.rank` | integer (lower rank comes first in vendor order) | unset |
 | `vendors.sources.<id>.enabled` | `true`, `false` (`<id>` matches `^[a-z0-9][a-z0-9-]*$`) | unset (uses the row's `enabled`, default `true`) |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` |
 
@@ -171,10 +170,9 @@ stops every worker at once.
 
 The `vendors` block resolves across the same layers (`bundled`, `user-config`,
 `team`, `personal-override`) under the same invalid-value rule: an invalid
-value (such as `trials_fail: 1` or an unknown `tiebreak` step) is rejected with
-a note, and the layer below keeps the key. `/multi-agent:setup apply` runs the
-same validation before writing; pass `vendors.tiebreak=step1,step2` to write a
-tiebreak list, or `vendors.tiebreak=` to clear it.
+value (such as `trials_fail: 1`) is rejected with a note, and the layer below
+keeps the key. `/multi-agent:setup apply` runs the same validation before
+writing.
 
 - `vendors.routing: false`: `/multi-agent:route vendors` reports that routing is
   off and recommends nothing (including work Claude cannot do), while trials
@@ -195,12 +193,6 @@ tiebreak list, or `vendors.tiebreak=` to clear it.
 - `vendors.auto_delegation` for `coding`, `web-ui` and `knowledge` work: `true`
   runs a caller's brief through route's `delegate` script (`--use investigate`
   read-only, or `--use task --mode write`) per the Caller contract in `vendors.md`.
-- `vendors.tiebreak`: a higher layer's valid list replaces the lower layer's
-  list whole. With no tiebreak set, a tie across trusted sources keeps the
-  caller's vendor. When `most-usage-left` is listed, `/multi-agent:route vendors`
-  queries `external-agents usage <product>` per in-use vendor and Claude's
-  `rate-limits` status tool (when enabled) before deciding; any missing or
-  `unavailable` reading falls back to `vendor-order` with one note.
 - `vendors.sources.<id>.enabled: false`: disables a shipped or team benchmark
   row during fetch and decision.
 - `vendors.promotion_audits` and `vendors.promotion_days`: `/multi-agent:audit-defaults registry`
