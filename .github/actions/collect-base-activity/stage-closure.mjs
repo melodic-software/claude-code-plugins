@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -19,22 +19,30 @@ export function loads(file) {
   return [...code.matchAll(kind === "shell" ? SH_LOADS : JS_LOADS)].map((m) => path.resolve(path.dirname(file), m[1]));
 }
 
+const KEPT_TREES = [path.join(".github", "actions", "resolve-config", "node_modules")];
+
 export function stage(base, script, dest) {
   const root = path.resolve(base);
-  const targets = new Set();
+  const copies = new Set();
   const seen = new Set();
   const visit = (file) => {
     const rel = path.relative(root, file);
     if (seen.has(file) || !rel || rel.startsWith("..") || path.isAbsolute(rel) || !existsSync(file)) return;
     seen.add(file);
-    if (statSync(file).isDirectory()) return targets.add(rel);
+    if (statSync(file).isDirectory()) return copies.add(rel);
     const module = moduleKind(file, readFileSync(file, "utf8"));
-    targets.add(!module || path.dirname(rel) === "." ? rel : path.dirname(rel));
+    if (!module || path.dirname(rel) === ".") copies.add(rel);
+    else {
+      const dir = path.dirname(rel);
+      for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
+        if (!entry.isDirectory()) copies.add(path.join(dir, entry.name));
+      }
+      for (const kept of KEPT_TREES) if (path.dirname(kept) === dir && existsSync(path.join(root, kept))) copies.add(kept);
+    }
     if (module) for (const next of loads(file)) visit(next);
   };
   visit(path.join(root, script));
-  for (const rel of targets) {
-    if ([...targets].some((dir) => rel.startsWith(`${dir}${path.sep}`))) continue;
+  for (const rel of copies) {
     mkdirSync(path.dirname(path.join(dest, rel)), { recursive: true });
     cpSync(path.join(root, rel), path.join(dest, rel), { recursive: true, verbatimSymlinks: true });
   }

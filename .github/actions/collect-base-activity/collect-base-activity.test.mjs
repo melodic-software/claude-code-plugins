@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
 import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
@@ -195,7 +196,7 @@ test("every module and file a runner's script activity loads resolves in the sta
   assert.deepEqual(missing, {});
 });
 
-test("a data file a module loads from outside its directory is staged alone, and the module's directory whole", () => {
+test("a data file a module loads from outside its directory is staged alone, and every file beside the module", () => {
   const dest = mkdtempSync(path.join(root, "closure-"));
   stageClosure(REPO_ROOT, ".github/scripts/intake-triage/admit.mjs", dest);
   const github = path.join(dest, ".github");
@@ -203,7 +204,26 @@ test("a data file a module loads from outside its directory is staged alone, and
   assert.deepEqual(top.filter((e) => e.isFile()).map((e) => e.name), ["recurring-schedule.json"]);
   assert.ok(!top.some((e) => e.name === "workflows"), top.map((e) => e.name).join(" | "));
   assert.deepEqual(readFileSync(path.join(github, "recurring-schedule.json")), readFileSync(path.join(REPO_ROOT, ".github/recurring-schedule.json")));
-  assert.deepEqual(readdirSync(path.join(github, "scripts/intake-triage")).sort(), readdirSync(path.join(REPO_ROOT, ".github/scripts/intake-triage")).sort());
+  const files = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name).sort();
+  assert.deepEqual(files(path.join(github, "scripts/intake-triage")), files(path.join(REPO_ROOT, ".github/scripts/intake-triage")));
+});
+
+test("a module's directory is staged without its subdirectories nothing loads from", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/pr-unblock/publish-feedback.mjs", dest);
+  const unblock = path.join(dest, ".github/scripts/pr-unblock");
+  assert.ok(existsSync(path.join(unblock, "publish-feedback.mjs")));
+  assert.ok(existsSync(path.join(REPO_ROOT, ".github/scripts/pr-unblock/fixtures")));
+  assert.ok(!existsSync(path.join(unblock, "fixtures")));
+});
+
+test("a staged resolve-config module still loads yaml and ajv from the copied node_modules", async () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/actions/resolve-config/resolve.mjs", dest);
+  for (const pkg of ["yaml", "ajv"]) assert.ok(existsSync(path.join(dest, ".github/actions/resolve-config/node_modules", pkg, "package.json")), pkg);
+  const staged = path.join(dest, ".github/actions/resolve-config/resolve.mjs");
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(staged).href)});`], { cwd: dest, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied
