@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for reassess-limits.sh, black-box with a stubbed `gh` on PATH
 # and a real git repository for the worktree claims.
-# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
+# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 
 set -uo pipefail
 
