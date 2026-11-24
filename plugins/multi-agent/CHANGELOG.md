@@ -3,6 +3,15 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.4] - 2026-11-24
+
+### Fixed
+
+- let route's `delegate` script accept the `~/` user-file path the route skill passes
+
+  `delegate` refused `--user-file '~/.config/multi-agent/role-map.yaml'` as not absolute, so
+  every auto-delegated brief failed. It now expands a leading `~/` to `HOME`, as the resolver does.
+
 ## [3.6.3] - 2026-11-24
 
 ### Fixed
