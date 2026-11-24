@@ -2,9 +2,16 @@
   "pass": [
     {
       "answer": "view: file (personal override)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```"
+    },
+    {
+      "answer": "view: terminal (fell back: file unreachable: non-interactive run). Form: Mermaid flowchart, because this is a process.\n\n```mermaid\nflowchart TD\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```\n\nThis is Mermaid source and has not been rendered."
     }
   ],
   "fail": [
+    {
+      "answer": "view: terminal (fell back: artifact unreachable: non-interactive run)",
+      "why": "a fallback from a medium the scaffold does not set"
+    },
     {
       "answer": "view: auto (plugin default)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```",
       "why": "the plugin default"

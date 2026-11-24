@@ -512,6 +512,24 @@ jobs:
         with:
           bin-dir: /opt/tools/bin
 
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
+
       # run-claude-cli's classifier, at the ref every lane runs it, for
       # eval-handoff.mjs: its published contract, contract-files.txt and the
       # paths it lists, nothing run here:
@@ -1219,6 +1237,24 @@ jobs:
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
+
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
 
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'

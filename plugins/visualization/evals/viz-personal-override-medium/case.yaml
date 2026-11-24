@@ -25,7 +25,7 @@ graders:
     arm: 'both'
   - name: report-line-personal
     type: 'regex'
-    pattern: 'view: file \(personal override\)'
+    pattern: 'view: (?:file \(personal override\)|terminal \(fell back: file unreachable: non-interactive run\))'
     target: 'last_message'
   - name: not-default-decided
     type: 'regex'

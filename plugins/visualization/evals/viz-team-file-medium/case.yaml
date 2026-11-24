@@ -25,7 +25,7 @@ graders:
     arm: 'both'
   - name: report-line-team
     type: 'regex'
-    pattern: 'view: file \(team\)'
+    pattern: 'view: (?:file \(team\)|terminal \(fell back: file unreachable: non-interactive run\))'
     target: 'last_message'
   - name: no-override-error
     type: 'regex'

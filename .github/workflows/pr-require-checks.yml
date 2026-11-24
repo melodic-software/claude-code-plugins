@@ -3745,22 +3745,7 @@ jobs:
           color: 'false'
       - name: Install pinned Go and goimports for the go-format remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        env:
-          GO_VERSION: 1.27.4
-          GO_SHA256: 7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840
-          GOIMPORTS_VERSION: v0.52.0
-        run: |
-          mkdir -p "$RUNNER_TEMP/go-dist" "$HOME/.cache/ci-tools"
-          cached="$HOME/.cache/ci-tools/go$GO_VERSION.linux-amd64.tar.gz"
-          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
-            "https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz"
-          cp "$cached" "$RUNNER_TEMP/go-dist/go.tar.gz"
-          echo "$GO_SHA256  $RUNNER_TEMP/go-dist/go.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/go-dist/go.tar.gz" -C "$RUNNER_TEMP"
-          test "$("$RUNNER_TEMP/go/bin/go" env GOVERSION)" = "go$GO_VERSION"
-          GOBIN="$RUNNER_TEMP/gobin" GOTOOLCHAIN=local "$RUNNER_TEMP/go/bin/go" install "golang.org/x/tools/cmd/goimports@$GOIMPORTS_VERSION"
-          echo "$RUNNER_TEMP/gobin" >> "$GITHUB_PATH"
-          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
+        run: bash .github/scripts/lib/install-pinned-goimports.sh "$RUNNER_TEMP/gobin" "$HOME/.cache/ci-tools"
       # The guardrails remote's end-to-end suite runs real lefthook against a
       # stand-in remote; a broken lefthook-remote.yml would block every
       # consumer's commits, so it fails here instead of skipping
