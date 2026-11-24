@@ -179,7 +179,6 @@ def check_inventory_shape(inventory) -> list:
 
 
 def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
-    """Field and evidence checks for one row; returns True when fully clean."""
     label = f"row[{index}]" + (
         f" (node_id {row.get('node_id')!r})"
         if isinstance(row, dict) and "node_id" in row

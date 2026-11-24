@@ -134,7 +134,6 @@ else
   digest_tool=""
 fi
 
-# Emits the bare hex digest. Fails closed when no digest tool was found.
 digest_of() {
   case "$digest_tool" in
   sha256sum) sha256sum -- "$1" 2>/dev/null | awk '{print $1}' ;;
@@ -143,7 +142,6 @@ digest_of() {
   esac
 }
 
-# The original manifest, or a generation manifest `packet.sha256.<digits>`.
 is_manifest_name() {
   [[ "$1" == "$MANIFEST_NAME" || "$1" =~ ^packet\.sha256\.[0-9]+$ ]]
 }
@@ -155,8 +153,6 @@ seal_header() {
   printf '# sealed-at %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-# The seal moment a manifest states, or `unknown` when its first line is not a
-# `# sealed-at` header (a manifest written before the header existed).
 seal_moment() {
   local moment
   moment="$(sed -n '1s/^# sealed-at \([^ ]*\).*/\1/p' "$1")"
@@ -189,11 +185,6 @@ latest_generation() {
   printf '%s' "$latest"
 }
 
-# note_divergence <manifest> <label> [<missing-label>]: prints `<label> <name>`
-# for each entry whose file still exists with different bytes, and adds each to
-# `relaundered`. A missing file is skipped unless <missing-label> is given: the
-# original manifest reports it as MISSING on every verify, but a new generation
-# stops listing it, so acknowledging one is the last time it is named.
 note_divergence() {
   local line prev_digest prev_name now_digest
   while IFS= read -r line; do
@@ -314,9 +305,6 @@ fi
 manifest="$packet/$MANIFEST_NAME"
 
 if [[ "$action" == record ]]; then
-  # Enumerate BEFORE creating the temp manifest: a temp file inside the packet
-  # is itself a packet file, and a walk that sees it would seal the manifest
-  # into itself under a name that vanishes on `mv`.
   files=()
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
@@ -324,14 +312,6 @@ if [[ "$action" == record ]]; then
     files+=("$name")
   done < <(packet_files "$packet")
 
-  # Re-sealing must not LAUNDER divergence. Overwriting the manifest blindly
-  # would replace the digest of an already-altered file with a digest of its
-  # altered bytes, converting a detectable rewrite into a clean bill of health —
-  # the one outcome that makes this tool worse than useless. So an existing
-  # manifest is verified first, and a changed entry stops the reseal.
-  # An acknowledged divergence is permanent: once a generation manifest exists,
-  # an ordinary reseal is refused even if the altered bytes were restored.
-  # Later notes are sealed into the next generation instead.
   latest="$(latest_generation "$packet")" || exit 2
   if [[ "$acknowledge" -eq 0 && -n "$latest" ]]; then
     echo "error: this packet has an acknowledged divergence (packet.sha256.$latest exists) — refusing to reseal packet.sha256" >&2
@@ -342,9 +322,6 @@ if [[ "$action" == record ]]; then
     relaundered=0
     note_divergence "$manifest" CHANGED
     [[ -z "$latest" ]] || note_divergence "$packet/packet.sha256.$latest" GEN-CHANGED GEN-MISSING
-    # With a generation in place nothing has to differ: restoring the altered
-    # bytes and then adding notes leaves only notes to seal, and they belong in
-    # the next generation. Without one, acknowledging needs a divergence.
     if [[ "$relaundered" -gt 0 || -n "$latest" ]]; then
       if [[ "$acknowledge" -eq 0 ]]; then
         echo "error: $relaundered already-sealed file(s) differ from the existing manifest — refusing to reseal" >&2
@@ -355,10 +332,6 @@ if [[ "$action" == record ]]; then
         echo "       later notes are sealed into that generation, and verify reads the latest one." >&2
         exit 1
       fi
-      # A generation manifest seals the bytes as they are now. packet.sha256
-      # stays the record of the divergence. Generation files are not themselves
-      # packet content: verify of the original still reports CHANGED, and a
-      # generation is not a clean bill of health for the first seal.
       generation=$((10#${latest:-1} + 1))
       while [[ -e "$packet/packet.sha256.$generation" ]]; do
         generation=$((generation + 1))
@@ -383,7 +356,6 @@ if [[ "$action" == record ]]; then
   exit 0
 fi
 
-# verify
 [[ -f "$manifest" ]] || {
   echo "error: no $MANIFEST_NAME in $packet — nothing was sealed, so nothing can be verified" >&2
   exit 2
@@ -392,9 +364,6 @@ fi
 unsealed=0
 sealed_names=()
 
-# verify_manifest <manifest> <label-prefix>: a sealed name that no longer
-# matches, or is gone entirely. Every name read joins sealed_names, and the
-# tallies land in v_matched / v_changed / v_missing.
 verify_manifest() {
   local line expected name file actual
   v_matched=0
@@ -426,8 +395,6 @@ verify_manifest() {
   done <"$1"
 }
 
-# packet.sha256 is graded exactly as before. The latest generation, if any, is
-# graded on top of it and never in place of it.
 verify_manifest "$manifest" ""
 matched=$v_matched
 changed=$v_changed

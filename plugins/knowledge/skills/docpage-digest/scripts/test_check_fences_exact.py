@@ -14,7 +14,7 @@ import os
 import sys
 import unittest
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gate_harness import KEEP, GateTestCase, gate_path, write  # noqa: E402
 
@@ -119,7 +119,6 @@ class TestFailLoudZeroParse(GateHarness):
 
 class TestFenceContract(GateHarness):
     def test_indented_fence_fails(self):
-        # REPAIR-pass corruption: indent the fence. strip() would hide this.
         text = CLEAN.replace(f"```\n{KEEP}\n```", f"    ```\n    {KEEP}\n    ```")
         proc = self.run_gate(text, 1)
         self.assertIn(b"indented", proc.stderr)
@@ -255,8 +254,6 @@ none
         self.assertIn(b"1 **CN.**", proc.stdout)
 
     def test_four_tick_wrapper_around_immediate_inner_fence(self):
-        # Guards against truncation at the first inner ``` yielding payload ""
-        # and failing the empty-payload check on a valid verbatim quote.
         inner = "```\nprint(1)\n```"
         source = write(self.dir, "src-immediate.md", inner + "\n")
         text = f"""## Key claims (verbatim)

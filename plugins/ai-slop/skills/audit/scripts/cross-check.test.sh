@@ -45,8 +45,6 @@ T="$TEST_TMPDIR/targets.tsv"
 printf '%s\t%s\n' plain.md "$F/plain.md" listfence.md "$F/listfence.md" markers.md "$F/markers.md" \
   filemark.md "$F/filemark.md" >"$T"
 
-# --- counting -------------------------------------------------------------------
-
 out="$(bash "$CROSS" --targets "$T" 2>&1)"
 rc=$?
 assert_exit "count: exit 0" 0 "$rc"
@@ -65,8 +63,6 @@ assert_contains "count: openers the detector rejects stay prose" "$out" "CrossCh
 bash "$CROSS" >/dev/null 2>&1
 rc=$?
 assert_exit "usage: no --targets exits 2" 2 "$rc"
-
-# --- comparison with hand-written detector output ---------------------------------
 
 D="$TEST_TMPDIR/detector.txt"
 {
@@ -117,8 +113,6 @@ out="$(bash "$CROSS" --targets "$TEST_TMPDIR/filemark.tsv" --detector "$D5" 2>&1
 assert_contains "disagree: a file marker resets the line set" "$out" \
   "Disagree: file=filemark.md detector=1 cross_check=0 detector_only=1 cross_check_only=-"
 
-# --- config: allowed paths and a disabled rule ---------------------------------------
-
 A="$TEST_TMPDIR/allowcfg"
 mkdir -p "$A/docs/conventions"
 git init -q "$A" >/dev/null 2>&1
@@ -134,8 +128,6 @@ printf '%s\n' 'disabled_rules: ["rule-em-dash"]' >"$X/docs/conventions/ai-slop.y
 out="$(CLAUDE_PROJECT_DIR="$X" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
 assert_contains "disabled: the comparison is skipped" "$out" "CrossCheck: comparison skipped: rule-em-dash disabled"
 assert_not_contains "disabled: no file rows" "$out" "CrossCheck: file="
-
-# --- the real detector over the same fixtures ----------------------------------------
 
 RT="$TEST_TMPDIR/real-targets.tsv"
 RD="$TEST_TMPDIR/real-detector.txt"
@@ -158,8 +150,6 @@ bash "$DETECT" --paths-file "$GT" >"$GD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$GT" --detector "$GD" 2>&1)"
 assert_contains "generated: the region's lines are not counted" "$out" "generated.md em_dash_lines=2"
 assert_contains "generated: the detector agrees" "$out" "CrossCheck total: files=1 disagreements=0"
-
-# --- Result ---------------------------------------------------------------------
 
 echo
 TOTAL=$((CASE_NUM + SKIPPED))

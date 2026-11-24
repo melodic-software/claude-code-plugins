@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for goal-condition-length.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir. Fixture
-# limits are small, arbitrary numbers — never the documented /goal limit — so
-# the tool and its test stay grep-clean of any baked-in doc value.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

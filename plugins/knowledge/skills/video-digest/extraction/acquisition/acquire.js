@@ -393,7 +393,6 @@ export async function acquireYouTubeMedia(
     captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
     captionError = captionRetry.detail;
     if (!captionResult.success && !captionRetry.spawnResult.success) {
-      // No caption file was fetched, so the ladder's "no captions" message would hide the cause.
       return failVideo(
         isRetryableAcquireError(captionRetry.detail)
           ? `Caption download rate-limited or temporarily unavailable after retries; the captions may exist, so wait several minutes and retry. yt-dlp: ${captionRetry.detail}`

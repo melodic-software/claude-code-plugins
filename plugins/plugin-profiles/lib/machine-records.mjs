@@ -1,9 +1,3 @@
-// Every settings file on this machine that a profile changed, for reset. A record's file name is a
-// hash of its settings file, so nothing lists the repositories a profile was applied in; reset reads
-// the record homes it can reach: the user state home, each data folder, and the git common folder
-// of each repository that a pointer, a folder Claude Code has opened, a session record or a live
-// session names (scenario rows of
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";

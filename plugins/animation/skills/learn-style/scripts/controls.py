@@ -38,7 +38,7 @@ import inkstats  # noqa: E402
 import render  # noqa: E402
 import workdir  # noqa: E402
 
-FPS = inkstats.BASE_FPS   # the frame grid every control is built, encoded and measured on
+FPS = inkstats.BASE_FPS
 GAME = 'blur0.9+stripes12'
 ATTACK = 'warp0.5+blur0.9+rows0.15+noise0.4+retime72'
 NEAR = ['none', 'blur0.9', 'stripes12', GAME, 'blur0.6', 'blur1.3', 'blur0.9+noise4', 'blur0.9+noise8',
@@ -84,10 +84,10 @@ def post(spec, frames):
                 f = [cv2.GaussianBlur(rng.normal(0, 1, (h, w)).astype(np.float32), (0, 0), 6) for _ in 'xy']
                 gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
                 cache[kind, shape, v] = (gx + f[0] * v / f[0].std(), gy + f[1] * v / f[1].std())
-            elif kind == 'patch':   # blocky tonal patches: one random gray offset per 8 px block, sd v
+            elif kind == 'patch':
                 m = rng.normal(0, v, (h // 8 + 1, w // 8 + 1)).astype(np.float32)
                 cache[kind, shape, v] = np.kron(m, np.ones((8, 8), np.float32))[:h, :w]
-            elif kind == 'rows':   # horizontal tonal rows near the woodcut source's texture peak: 20-40 px apart
+            elif kind == 'rows':
                 f = np.fft.rfft(rng.normal(0, 1, h))
                 f[(np.fft.rfftfreq(h) < 1 / 40) | (np.fft.rfftfreq(h) > 1 / 20)] = 0
                 r = np.fft.irfft(f, h).astype(np.float32)
@@ -96,7 +96,7 @@ def post(spec, frames):
                 m = np.zeros((h, w), bool)
                 m[:, :w // 2:3] = True
                 cache[kind, shape, v] = m
-            else:   # dry-brush streaks: short, slightly slanted 2 px lines over the frame or its left half
+            else:
                 m = np.zeros((h, w), np.float32)
                 for _ in range(int(9000 * w * h / 1762 / 982)):
                     x, y, L, a = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(30, 110), rng.normal(0, 0.15)
@@ -122,7 +122,7 @@ def post(spec, frames):
                 x[dark & static(kind, dark.shape, v)] += v
         x = np.clip(x, 0, 255).astype(np.uint8)
         yield x, t + late / FPS
-        if retime and i % retime == 0:   # hold this frame one FPS frame longer
+        if retime and i % retime == 0:
             late += 1
             yield x, t + late / FPS
 

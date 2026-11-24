@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Drift check: the citation fields the auditor produces and the audit skill
-# consumes must also appear on the emitted work-item body schema. The
-# emit-schema gap was exactly this drop — produce and consume required a
-# retrieval channel plus a byte count or line number; config.md's body
-# sections did not.
-#
-# Asserts the load-bearing phrases in all three files after normalization
-# (backticks/emphasis stripped, whitespace flattened). A wording change on
-# one surface fails this lane until the other two move with it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,14 +29,10 @@ all_three() {
 }
 
 all_three "retrieval channel" "retrieval channel"
-# auditor.md says "the fetched byte count or the line number"; the skill and
-# emit schema say "byte count or line number". Both halves must appear.
 all_three "byte count" "byte count"
 all_three "line number" "line number"
 all_three "unverified on a missing field" "unverified"
 
-# The emit schema is the surface that dropped the channel. Pin the body
-# paragraph itself, not just a mention somewhere in config.md.
 CONFIG_BODY=$(sed -n 's/.*Body sections: \(.*\) Claim protocol.*/\1/p' <<<"$CONFIG_N")
 if [[ -z "$CONFIG_BODY" ]]; then
   fail "config.md body-sections paragraph not found"

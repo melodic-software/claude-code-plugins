@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for history.sh: a stub gh on PATH serves merged sweep PRs, a fixture repo holds
-# Playbook-Step trailers, and a fixture installed_plugins.json supplies current versions.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -35,7 +33,7 @@ commit "$(trailers $'Playbook-Step: a:x@1.9\nPlaybook-Step: b:x@1.0')"
 commit "$(trailers $'Playbook-Step: claude-api@builtin\nPlaybook-Step: loop@builtin-2.1.283')"
 gitf -C "$repo" update-ref refs/remotes/origin/main HEAD
 gitf -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-commit "$(trailers 'Playbook-Step: new:x@1.0')" # local only: not on the default branch
+commit "$(trailers 'Playbook-Step: new:x@1.0')"
 assert_eq "fixture trailers parse" "claude-api@builtin
 loop@builtin-2.1.283" \
   "$(git -C "$repo" log -1 --format='%(trailers:key=Playbook-Step,valueonly)' origin/HEAD | awk NF)"
@@ -45,7 +43,7 @@ jq -n '{version: 2, plugins: {
   "c@m": [{scope: "user", version: "3.0"}], "d@m": [{scope: "user", version: "1.0"}],
   "new@m": [{scope: "user", version: "1.0"}], "p@m": [{scope: "user", version: "1.0"}], "n@m": [{scope: "user", version: "1.0"}]}}' >"$TMP/installed.json"
 
-body() { # <done lines...>
+body() {
   printf 'Summary\n<!-- repo-sweep:begin playbook=fixture -->\r\n'
   printf '%s\r\n' "$@"
   printf '<!-- repo-sweep:end -->\r\n'

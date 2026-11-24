@@ -188,7 +188,6 @@ argv_destructive() {
       done
       ;;
     git)
-      # The subcommand past git's global options, a separate value included.
       hook::git_resolve_subcommand "$i" "${w[@]}" || continue
       sub="$HOOK_GIT_SUB"
       rest=("${w[@]:HOOK_GIT_SUB_IDX+1}")
@@ -309,12 +308,10 @@ substitutions_to() {
   local -a chars=() bodies=("$@")
   local n i=0 b=0 nb=$# dq=0 hd=0 hd_end=0 c rest start j s
   _st_out=()
-  # The parser's own byte split, into this function's chars (dynamic scope).
   hook::_bps_chars "$cmd"
   n=${#chars[@]}
   while ((i < n)); do
     ((hd && i >= hd_end)) && hd=0
-    # A body inside a substitution already scanned past (subst_end_to's span).
     while ((!hd && b < nb)); do
       rest="${bodies[b]#* }"
       ((${rest%% *} <= i && ${bodies[b]%% *} < i)) || break
