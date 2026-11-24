@@ -4,7 +4,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const STATE = join(here, 'vendor-state')
@@ -361,6 +361,62 @@ test('D16: two writers crossing the prove threshold concurrently produce exactly
   assert.ok(c.code === 0 || d.code === 0)
   assert.equal(listFilesRecursive(join(dataDir2, 'vendor-state', 'outcomes')).length, 1)
   assert.deepEqual(listFilesRecursive(join(dataDir2, 'vendor-state', 'trials')), [])
+})
+
+const CONCURRENT_WRITE_PRELOAD = `'use strict'
+const fs = require('node:fs')
+const path = require('node:path')
+const liveDir = process.env.VENDOR_STATE_TEST_LIVE_TRIAL_DIR
+const realRmSync = fs.rmSync
+let injected = false
+fs.rmSync = function rmSyncWithConcurrentRecord(target, options) {
+  if (injected || !options || !options.recursive) return realRmSync.call(fs, target, options)
+  injected = true
+  let entries
+  try {
+    entries = fs.readdirSync(target)
+  } catch (err) {
+    if (err.code === 'ENOENT' && options.force) return
+    throw err
+  }
+  for (const name of entries) fs.unlinkSync(path.join(target, name))
+  fs.mkdirSync(liveDir, { recursive: true })
+  fs.writeFileSync(path.join(liveDir, 'concurrent-record.json'), JSON.stringify({ verdict: 'accepted' }))
+  fs.rmdirSync(target)
+}
+`
+
+test('D16: a concurrent record writing into the key trial dir mid-removal does not fail the record that wrote the Outcome', (t) => {
+  const dataDir = makeTempDir(t)
+  const cfgDir = makeTempDir(t)
+  const settingsPath = writeSettings(cfgDir, { routing: true, trials: true, trials_prove: 2, trials_fail: 2 })
+  const key = 'codex:sparrow-1:1:high:coding'
+  const trialsDir = join(dataDir, 'vendor-state', 'trials')
+
+  const first = runState(['record', '--key', key, '--verdict', 'accepted', '--settings', settingsPath, '--data-dir', dataDir])
+  assert.equal(first.code, 0, first.stderr)
+  const [keyDirName] = readdirSync(trialsDir)
+
+  const preload = join(cfgDir, 'concurrent-write-preload.cjs')
+  writeFileSync(preload, CONCURRENT_WRITE_PRELOAD)
+  const env = {
+    ...process.env,
+    NODE_OPTIONS: `--import ${pathToFileURL(preload).href}`,
+    VENDOR_STATE_TEST_LIVE_TRIAL_DIR: join(trialsDir, keyDirName),
+  }
+  delete env.CLAUDE_PLUGIN_DATA
+  const second = runState(['record', '--key', key, '--verdict', 'accepted', '--settings', settingsPath, '--data-dir', dataDir], { env })
+  assert.equal(second.code, 0, `record that crossed the threshold must succeed despite the concurrent write: ${second.stderr}`)
+  assert.equal(second.json.outcome_created, true)
+  assert.equal(second.json.outcome.result, 'proven')
+  assert.equal(second.json.outcome.accepted, 2, 'the two recorded trials are counted once each')
+  assert.equal(second.json.outcome.results_counted, 2)
+  assert.deepEqual(readdirSync(trialsDir), [keyDirName], 'no tombstone dir is left behind')
+
+  const later = runState(['record', '--key', key, '--verdict', 'rejected', '--settings', settingsPath, '--data-dir', dataDir])
+  assert.equal(later.code, 3, 'a record after the Outcome reads it and is refused')
+  const outcome = runState(['outcome', '--key', key, '--data-dir', dataDir])
+  assert.equal(outcome.json.result, 'proven')
 })
 
 test('D16/AC19: record after an Outcome is refused (exit 3); proven key re-enters trial only through send-back', (t) => {
