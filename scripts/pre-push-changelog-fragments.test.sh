@@ -96,16 +96,20 @@ commit "$f" base
 git_test_config "$f" branch -q -M main
 git_test_config "$f" update-ref refs/remotes/origin/main main
 git_test_config "$f" checkout -q -b topic
-for i in $(seq 1 20); do
-  printf 'v2\n' >"$f/plugins/p$i/skills/a.md"
-  printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- Topic.\n' >"$f/.changes/p$i/topic-$(printf '%08x' "$i").md"
+for i in $(seq 1 110); do
+  p=$(((i - 1) % 100 + 1))
+  printf 'v2\n' >"$f/plugins/p$p/skills/a.md"
+  printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- Topic.\n' >"$f/.changes/p$p/topic-$(printf '%08x' "$i").md"
 done
 commit "$f" change
 h="$(head_of "$f")"
 start=$(date +%s%N)
-expect "a 100-plugin, 20-fragment push passes" 0 "" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
+expect "a 100-plugin, 110-fragment push passes" 0 "" "$f" "refs/heads/topic $h refs/heads/topic $ZERO"
 ms=$((($(date +%s%N) - start) / 1000000))
-if ((ms <= BUDGET_SECONDS * 1000)); then
+tracer="$(awk '/^TracerPid:/ {print $2}' /proc/$$/status 2>/dev/null)"
+if [[ -n "$tracer" && "$tracer" != 0 ]]; then
+  ok "budget not judged: a tracer (pid $tracer) slows every syscall; ${ms} ms"
+elif ((ms <= BUDGET_SECONDS * 1000)); then
   ok "the hook ran in ${ms} ms at that scale, within the ${BUDGET_SECONDS} s pre-push budget"
 else
   fail "the hook took ${ms} ms at that scale, over the ${BUDGET_SECONDS} s pre-push budget"
