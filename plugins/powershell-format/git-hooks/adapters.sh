@@ -194,16 +194,55 @@ psf_lint_off() {
     v="$(git config --type=bool --get checks.powershell-format.powershell-check.declined 2>/dev/null)" ||
     v="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
   [[ "$v" == true ]] && return 0
-  for f in lefthook-local.yml .lefthook-local.yml; do
-    [[ -f "$f" ]] || continue
-    awk '
-      /^[ \t]*-?[ \t]*name:[ \t]*"?powershell-format-remote-lint"?[ \t]*$/ { hit = 1; next }
-      /^[ \t]*-?[ \t]*name:/ { hit = 0 }
-      hit && /^[ \t]*skip:[ \t]*true[ \t]*$/ { found = 1 }
-      END { exit !found }
-    ' "$f" && return 0
+  for f in lefthook-local.yml lefthook-local.yaml .lefthook-local.yml .lefthook-local.yaml; do
+    [[ -f "$f" ]] && psf__job_skipped powershell-format-remote-lint <"$f" && return 0
   done
   return 1
+}
+
+psf__job_skipped() {
+  awk -v job="$1" '
+    function close_items(min, d) {
+      for (d = top; d >= min; d--) {
+        if (open[d] && name[d] == job && skip[d] == "true") found = 1
+        open[d] = 0
+      }
+    }
+    function scalar(v) {
+      sub(/^[ \t]+/, "", v)
+      if (v ~ /^"/) { sub(/^"/, "", v); sub(/".*$/, "", v); return v }
+      if (v ~ /^\047/) { sub(/^\047/, "", v); sub(/\047.*$/, "", v); return v }
+      sub(/[ \t]+#.*$/, "", v)
+      sub(/[ \t]+$/, "", v)
+      return v
+    }
+    function key(d, line, k) {
+      k = line
+      sub(/:.*/, "", k)
+      sub(/^[^:]*:/, "", line)
+      if (k == "name") name[d] = scalar(line)
+      else if (k == "skip") skip[d] = scalar(line)
+    }
+    { sub(/\r$/, "") }
+    /^[ \t]*(#|$)/ { next }
+    {
+      match($0, /^ */)
+      ind = RLENGTH
+      line = substr($0, ind + 1)
+      if (line ~ /^- /) {
+        close_items(ind)
+        open[ind] = 1; name[ind] = ""; skip[ind] = ""
+        if (ind > top) top = ind
+        rest = substr(line, 3)
+        sub(/^ +/, "", rest)
+        if (rest ~ /^[A-Za-z_]+:/) key(ind, rest)
+        next
+      }
+      close_items(ind - 1)
+      if (ind >= 2 && open[ind - 2] && line ~ /^[A-Za-z_]+:/) key(ind - 2, line)
+    }
+    END { close_items(0); exit !found }
+  '
 }
 
 psf_lint_store() {

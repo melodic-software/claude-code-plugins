@@ -244,12 +244,50 @@ git -C "$REPO" config checks.powershell-format.lint.declined false
 (cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
 expect "shared run: a lint entry opted back in is linted by format again" "2" "$(cached "$REPO")"
 
+skip_job() {
+  printf 'pre-commit:\n  jobs:\n    - name: powershell-format-remote\n      group:\n        jobs:\n%s\n' "$1"
+}
+for shape in \
+  "name first|          - name: powershell-format-remote-lint
+            skip: true" \
+  "skip first, with a comment|          - skip: true # disabled locally
+            name: powershell-format-remote-lint" \
+  "quoted name, a comment on its own line|          - name: 'powershell-format-remote-lint' # broken here
+            # kept for now
+            skip: true"; do
+  new_repo
+  skip_job "${shape#*|}" >"$REPO/lefthook-local.yml"
+  printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+  git -C "$REPO" add a.ps1
+  (cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+  expect "shared run: a lint job skipped in lefthook-local.yml (${shape%%|*}) makes format lint nothing" "0" "$(cached "$REPO")"
+done
 new_repo
-printf 'pre-commit:\n  jobs:\n    - name: powershell-format-remote\n      group:\n        jobs:\n          - name: powershell-format-remote-lint\n            skip: true\n' >"$REPO/lefthook-local.yml"
+skip_job "          - name: powershell-format-remote-format
+            skip: true
+          - name: powershell-format-remote-lint" >"$REPO/lefthook-local.yml"
 printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
 git -C "$REPO" add a.ps1
 (cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
-expect "shared run: a lint job skipped in lefthook-local.yml makes format lint nothing" "0" "$(cached "$REPO")"
+expect "shared run: a skip on the format job alone still lets format lint" "2" "$(cached "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/rules"
+printf '@{\n    CustomRulePath = %s\n    IncludeRules = @(%s, %s)\n    Rules = @{ PSUseCorrectCasing = @{ Enable = $true } }\n}\n' \
+  "'./rules'" "'PSUseCorrectCasing'" "'PSAvoidGlobalVars'" >"$REPO/PSScriptAnalyzerSettings.psd1"
+printf 'function Measure-R {\n    param($ScriptBlockAst)\n    Write-Verbose %s\n}\nExport-ModuleMember -Function Measure-R\n' "'r'" >"$REPO/rules/R.psm1"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m rules --no-verify
+printf 'function Measure-R {\n    param($ScriptBlockAst)\n    write-verbose %s\n}\nExport-ModuleMember -Function Measure-R\n' "'r'" >"$REPO/rules/R.psm1"
+printf 'Get-ChildItem .\n' >"$REPO/a.ps1"
+git -C "$REPO" add -A
+marker="$(cd "$REPO" && bash "$CHECK" 2>&1 | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$marker"
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: format rewrote the approved, staged rule module" "    Write-Verbose 'r'" "$(sed -n 3p "$REPO/rules/R.psm1")"
+expect "shared run: with CustomRulePath declared, format lints nothing, so no rule module runs unsigned" "0" "$(cached "$REPO")"
+expect "shared run: a rule module format rewrote stops lint at the trust gate, as lint's own start does" yes \
+  "$(cd "$REPO" && bash "$CHECK" 2>&1 | grep -q 'trust gate: linting skipped' && echo yes || echo no)"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

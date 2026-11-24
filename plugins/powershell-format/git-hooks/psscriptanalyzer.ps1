@@ -394,23 +394,40 @@ function errorLine([string]$rel, $err) {
     "PSSA_ERROR ${rel}: $oneLine"
 }
 
-$formatFailed = $false
-$lintLines = [System.Collections.Generic.List[string]]::new()
-$lintFailed = $false
-$lintFound = $false
+$files = [System.Collections.Generic.List[object]]::new()
 foreach ($rel in $targets) {
     if ([string]::IsNullOrWhiteSpace($rel)) { continue }
     $file = $rel
     if (-not [System.IO.Path]::IsPathRooted($file)) { $file = Join-Path $runDir $rel }
-    if ($mode -eq "format") {
+    $files.Add(@{ Rel = $rel; File = $file })
+}
+
+$formatFailed = $false
+if ($mode -eq "format") {
+    foreach ($t in $files) {
         try {
-            formatFile $file
+            formatFile $t.File
         } catch {
-            Write-Output (errorLine $rel $_)
+            Write-Output (errorLine $t.Rel $_)
             $formatFailed = $true
         }
-        if (-not $lintOut) { continue }
     }
+    $settingsFull = [System.IO.Path]::GetFullPath($settings)
+    $settingsFormatted = @($files | Where-Object {
+            [string]::Equals([System.IO.Path]::GetFullPath($_.File), $settingsFull,
+                [System.StringComparison]::OrdinalIgnoreCase)
+        }).Count -gt 0
+    $gateSignedBytesFormatMayHaveChanged = $sd.ContainsKey("CustomRulePath") -or $settingsFormatted
+    if ($gateSignedBytesFormatMayHaveChanged) { $lintOut = "" }
+}
+
+$lintLines = [System.Collections.Generic.List[string]]::new()
+$lintFailed = $false
+$lintFound = $false
+foreach ($t in $files) {
+    if ($mode -eq "format" -and -not $lintOut) { break }
+    $rel = $t.Rel
+    $file = $t.File
     try {
         foreach ($line in @(lintFile $file $rel)) {
             $lintLines.Add($line)
