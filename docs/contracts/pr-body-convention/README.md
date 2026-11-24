@@ -50,7 +50,7 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
   `issue_body_format_gate: false` turns it off.
 - **CI / enforcement (deferred).** A gate validating an *already-opened* PR body against the same
   team-tracked value, the enforcement half of the two-reads pattern the
-  [commit-convention seam](../commit-convention/README.md) already establishes for the
+  [commit convention](../commit-convention/README.md) already establishes for the
   commit-subject / PR-title convention. No such consumer exists yet in this fleet; this doc reserves
   the concern so a CI adopter reads the same key instead of inventing a parallel one.
 
