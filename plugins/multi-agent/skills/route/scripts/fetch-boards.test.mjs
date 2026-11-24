@@ -1,8 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { devNull } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { row, runFetchBoardsCacheFixture, runFetchBoardsOnce } from './lib/test-fixtures.mjs'
+
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
 process.env.GIT_CONFIG_GLOBAL ??= devNull
 process.env.GIT_CONFIG_NOSYSTEM = '1'
@@ -30,19 +35,43 @@ test('AC6: second fetch-boards run on a fixture row within its window has source
   assert.equal(m2.boards[0].page_date, '2026-11-18')
 })
 
-test('fetch-boards does not date a page from a model-name or model-id date suffix', (t) => {
+test('fetch-boards dates captured boards by their page dates, never by a model snapshot date', (t) => {
   if (skipWithoutBash(t)) return
-  const withPageDate = runFetchBoardsCacheFixture(t, {
-    page: '# Terminal-Bench Leaderboard\n\nUpdated Nov 18, 2026\n\n| Model | Score |\n|---|---|\n| Qwen Image 2.0 Pro (2026-11-20) | 82.0% |\n| [Mini](/models/openai_gpt-5.4-mini-2026-11-21) | 78.0% |\n',
+  const captured = (name) => readFileSync(join(FIXTURES, name), 'utf8')
+  const board = (id) => row(id, { link: `https://www.tbench.ai/${id}`, expect: 'Leaderboard' })
+  const { res, manifest } = runFetchBoardsOnce(
+    t,
+    [
+      row('aa-image-t2i', {
+        link: 'https://artificialanalysis.ai/image/leaderboard/text-to-image',
+        expect: 'AA-Image-T2I',
+      }),
+      row('terminal-bench', { link: 'https://www.tbench.ai/leaderboard', expect: 'TERMINAL-BENCH' }),
+      board('heading'),
+      board('changelog'),
+      board('updated'),
+      board('id-suffix'),
+    ],
+    {
+      'artificialanalysis-ai/image/leaderboard/text-to-image.md': captured('aa-image-t2i-page.md'),
+      'www-tbench-ai/leaderboard.md': captured('terminal-bench-page.md'),
+      'www-tbench-ai/heading.md': '# Leaderboard\n\n## v1.1.1 (2026-11-18)\n',
+      'www-tbench-ai/changelog.md': '# Leaderboard\n\n- Added 3 models (2026-11-18)\n',
+      'www-tbench-ai/updated.md': '# Leaderboard\n\nLast updated (2026-11-18)\n',
+      'www-tbench-ai/id-suffix.md':
+        '# Leaderboard\n\n| [GPT 5.4 Mini](/models/openai_gpt-5.4-mini-2026-03-17)  |  Mini-SWE-agent |\n',
+    },
+  )
+  assert.equal(res.status, 0, res.stderr)
+  const dateOf = Object.fromEntries(manifest.boards.map((b) => [b.source_id, b.page_date]))
+  assert.deepEqual(dateOf, {
+    'aa-image-t2i': null,
+    'terminal-bench': '2026-11-18',
+    heading: '2026-11-18',
+    changelog: '2026-11-18',
+    updated: '2026-11-18',
+    'id-suffix': null,
   })
-  assert.equal(withPageDate.run1.status, 0, withPageDate.run1.stderr)
-  assert.equal(withPageDate.m1.boards[0].page_date, '2026-11-18')
-
-  const suffixOnly = runFetchBoardsCacheFixture(t, {
-    page: '# Terminal-Bench Leaderboard\n\n| Model | Score |\n|---|---|\n| Qwen Image 2.0 Pro (2026-04-22) | 82.0% |\n',
-  })
-  assert.equal(suffixOnly.run1.status, 0, suffixOnly.run1.stderr)
-  assert.equal(suffixOnly.m1.boards[0].page_date, null)
 })
 
 test('fetch-boards checks each row expect marker: a page lacking it is unread no-content', (t) => {

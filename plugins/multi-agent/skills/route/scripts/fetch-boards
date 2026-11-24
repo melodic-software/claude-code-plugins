@@ -109,7 +109,8 @@ fi
 
 # Extract the latest valid non-future YYYY-MM-DD date from a page file
 # (ISO dates, "Mon DD, YYYY", or "DD Mon YYYY").
-# Date suffixes on model names and ids are not page dates.
+# A date glued to an id (gpt-5.4-mini-2026-03-17) or ending a table cell's model
+# name (Qwen Image 2.0 Pro (2026-04-22) |) is a model snapshot, not a page date.
 extract_page_date() {
   local file="$1"
   [[ -s "$file" ]] || return 0
@@ -142,8 +143,8 @@ extract_page_date() {
       while (match(s, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
         abs = off + RSTART
         prev = abs > 1 ? substr($0, abs - 1, 1) : ""
-        nextc = abs + RLENGTH <= length($0) ? substr($0, abs + RLENGTH, 1) : ""
-        if (prev !~ /[A-Za-z0-9_-]/ && !(prev == "(" && nextc == ")")) {
+        rest = substr($0, abs + RLENGTH)
+        if (prev !~ /[A-Za-z0-9_-]/ && !(prev == "(" && rest ~ /^\)[ \t]*\|/)) {
           consider(substr(s, RSTART, RLENGTH))
         }
         off += RSTART + RLENGTH - 1
