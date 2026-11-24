@@ -18,7 +18,6 @@ readonly POLL_MAX_TRIES=40
 readonly SENTINEL_MAX_AGE_MINUTES="${CC_OTEL_SENTINEL_MAX_AGE_MINUTES:-60}"
 
 OWNER_ID=""
-# Trap state (script-level so the EXIT trap sees them).
 OWN_SENTINEL=false
 STAMP_DIR=""
 STOPPED=false
@@ -204,10 +203,6 @@ ensure_collector_briefly() {
 
 cleanup() {
   local original_rc=$?
-  # Restart only if this prune stopped it. A restart failure must be visible: silently leaving
-  # the machine telemetry service down is worse than converting an otherwise successful prune
-  # into a failure. Keep the sentinel through this attempt so another prune cannot start while
-  # the Collector is still down or restarting.
   if [[ "$STOPPED" == true ]]; then
     if ! start_collector; then
       err "failed to restart Collector service '$COLLECTOR_SERVICE_NAME'"
@@ -216,8 +211,6 @@ cleanup() {
   fi
   # The probe reads the stamp as proof of a completed run, so write it only after a clean restart.
   if ((original_rc == 0)) && [[ -n "$STAMP_DIR" ]]; then stamp_last_prune "$STAMP_DIR"; fi
-  # Release last: the sentinel covers the complete stop -> mutate -> restart lifecycle, including
-  # a failed restart attempt. The next operator run may then retry recovery explicitly.
   if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then
     release_sentinel
   fi

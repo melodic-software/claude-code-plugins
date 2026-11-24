@@ -61,13 +61,11 @@ fail() {
 }
 assert_contains() { if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "contains: $2" "$3"; fi; }
 
-# --- The OTEL pre-compute line this script replaced, verbatim ----------------
 ORIG_OTEL="$TMP/original-otel-store.sh"
 cat >"$ORIG_OTEL" <<'ORIG'
 d="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"; for f in cc-logs.json cc-metrics.json cc-traces.json; do if [[ -f "$d/$f" ]]; then echo "$f:$(wc -c < "$d/$f" 2>/dev/null || echo 0)B"; else echo "$f:absent"; fi; done 2>/dev/null || echo "unknown"
 ORIG
 
-# --- Stubs -------------------------------------------------------------------
 STUB="$TMP/stub"
 mkdir -p "$STUB"
 cat >"$STUB/git" <<'SH'
@@ -89,10 +87,6 @@ SH
 chmod +x "$STUB/git"
 export PATH="$STUB:$PATH"
 
-# --- Fixtures ----------------------------------------------------------------
-# WIRED: a checkout whose hook log root holds two session files (2 + 1 lines),
-# a shared file (4 lines), a healthy guard, and whose OTEL store holds two of
-# three files.
 WIRED="$TMP/wired"
 mkdir -p "$WIRED/.git" "$WIRED/.observability/claude/sessions" "$WIRED/.claude/observability/otel"
 printf '*\n' >"$WIRED/.observability/claude/.gitignore"
@@ -137,7 +131,6 @@ run_both() {
   assert_eq "$label (matches the original inline line byte-for-byte)" "$orig" "$got"
 }
 
-# --- --hook-events ------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"
 assert_eq "hook log present → events summed across session files and the shared file" \
   "$WIRED_EVENTS" "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
@@ -172,7 +165,6 @@ assert_eq "CRLF toplevel is stripped (--hook-events)" "$WIRED_EVENTS" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
 unset STUB_GIT_CRLF
 
-# The replaced line had no env override; CC_OTEL_STORE must not steer this mode.
 export CC_OTEL_STORE="$ALTSTORE"
 assert_eq "CC_OTEL_STORE does not steer --hook-events" "$WIRED_EVENTS" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
@@ -198,7 +190,6 @@ else
   fail "a linked worktree fixture could be created" ".git file" "absent"
 fi
 
-# --- --otel-store -------------------------------------------------------------
 run_both "store under the git toplevel: mixed present/absent, fixed order" \
   --otel-store "$ORIG_OTEL" "$WIRED_STORE_LINES"
 
@@ -225,7 +216,6 @@ assert_eq "CRLF toplevel is stripped (--otel-store)" "$WIRED_STORE_LINES" \
   "$(bash "$SCRIPT" --otel-store 2>/dev/null | head -n 3)"
 unset STUB_GIT_CRLF
 
-# Cold tier, last-prune and prune-task lines follow the three original lines.
 export STUB_GIT_TOPLEVEL="$WIRED"
 assert_eq "no cold dir and no stamp → cold:absent, last-prune:never" \
   "$(printf 'cold:absent\nlast-prune:never')" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 4,5p)"
@@ -312,7 +302,6 @@ assert_eq "prune-task: no text from the action reaches the line" "prune-task:sta
 unset STUB_SCHTASKS_XML
 OSTYPE="$HOST_OSTYPE"
 
-# --- --pipeline ---------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"
 P_OUT="$(bash "$SCRIPT" --pipeline --enabled true --keep-sessions 5 2>/dev/null)"
 assert_eq "pipeline: six lines" "6" "$(printf '%s\n' "$P_OUT" | wc -l | tr -d ' ')"
@@ -378,8 +367,6 @@ export STUB_GIT_TOPLEVEL="$ENVELOPED"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: per-session envelope rows are counted apart from the event-log switch" \
   "envelope: 3 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
-# Every line of the shared file is a sink envelope in the legacy shape (no
-# `source` marker), so the tier counts the file whole.
 printf '{"event":"PostToolUse","hook":"d"}\n{"event":"Stop","hook":"e"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: the shared file's legacy envelopes join the count" \
@@ -397,8 +384,6 @@ if [[ "$P_OUT" != *"event log:"* ]]; then
 else
   fail "pipeline --observed: no option tier is printed" "no event log: text" "$P_OUT"
 fi
-# The sink rotates the shared file to hook-events.jsonl.1 at its size cap; both
-# files are the hook log, so a rotation must not drop rows from any count.
 printf '{"event":"Stop","hook":"f"}\n{"event":"Stop","hook":"g"}\n{"event":"Stop","hook":"h"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl.1"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: the rotated .1 joins the shared count" \
@@ -443,7 +428,6 @@ done < <(grep -E '!`[^`]*probe-observability-state\.sh' "$SKILL_MD")
 assert_eq "SKILL.md carries the two probe-invoking pre-compute lines this case guards" "2" "$probe_lines"
 unset STUB_GIT_TOPLEVEL
 
-# --- Mode validation ----------------------------------------------------------
 out="$(bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "no mode exits 3" "3" "$rc"

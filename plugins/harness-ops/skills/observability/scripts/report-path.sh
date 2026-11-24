@@ -120,7 +120,6 @@ key_args=()
 [[ $EXPLAIN -eq 1 ]] && key_args+=(--explain)
 
 STATE_KEY="$(bash "$STATE_KEY_SH" "${key_args[@]+"${key_args[@]}"}")"
-# Fail closed. Falling back to the unkeyed path is the defect being fixed.
 if [[ -z "$STATE_KEY" ]]; then
   echo "ERROR: could not derive a state key ($STATE_KEY_SH)" >&2
   exit 2
@@ -142,7 +141,6 @@ fi
 COMPONENT_DIR="$DATA_DIR/reports"
 REPORT_DIR="$COMPONENT_DIR/$STATE_KEY"
 
-# Rule 3: name the unattributable leftovers, read none of them.
 for legacy in "$COMPONENT_DIR"/claude-observability-*.md; do
   [[ -f "$legacy" ]] || continue
   echo "NOTE: unkeyed leftover from an older layout, not read: $legacy" >&2
