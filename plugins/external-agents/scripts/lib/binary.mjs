@@ -9,7 +9,6 @@ const isFile = (path) => {
   }
 };
 
-/** A file this user can run: Windows runs any file with a PATHEXT extension, POSIX needs the execute bit. */
 const isRunnable = (path, windows) => {
   if (!isFile(path)) return false;
   if (windows) return true;

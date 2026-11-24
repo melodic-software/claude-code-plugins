@@ -5,8 +5,6 @@ import { SKILLS_FIX, tokens } from './parts'
 const PANE = 'context-budget-live'
 const HEADER = '◆ context 90k of 1M · compacts at 955k 9%'
 
-// A 1,000,000-token window with 90,000 in use: two used rows, the compaction buffer, the free
-// space, and one deferred row that sits outside the window. The window rows sum to 1,000,000.
 const CATEGORIES = [
   { name: 'System prompt', tokens: 10_000, color: 'promptBorder', isDeferred: false, kind: 'used' },
   { name: 'Messages', tokens: 80_000, color: 'permission', isDeferred: false, kind: 'used' },
@@ -15,11 +13,6 @@ const CATEGORIES = [
   { name: 'MCP tools', tokens: 5_000, color: 'subtle', isDeferred: true, kind: 'deferred' },
 ]
 
-// 'empty': no response measured yet (a fresh session, or just after a compaction), so the window
-// figures carry no tokens while the local breakdown estimate still answers.
-// 'breakdown-rejected': the breakdown call fails while the plain figures still answer.
-// 'skills-over' and 'skills-under': a Skills row at 1% and at 0.9% of the window, taken from the
-// free space so the window rows still sum to 1,000,000.
 type Usage = 'breakdown' | 'no-threshold' | 'no-breakdown' | 'rejected' | 'breakdown-rejected' | 'empty' | 'skills-over' | 'skills-under'
 
 const withSkills = (skills: number) =>
@@ -50,8 +43,6 @@ const breakdown = (threshold: boolean, skills?: number) => ({
   apiUsage: null,
 })
 
-// The engine beneath the plugin, and a second plugin's band row beneath this one's.
-// `held`: that usage call answers only once `until` settles, with an older 50k total.
 const world = (on: any, usage: Usage = 'breakdown', held?: { call: number; until: Promise<void> }) => {
   const w = { open: [] as string[], registered: [] as unknown[], usageCalls: 0, toasts: [] as string[], surfaces: ['terminal'] }
   on('session.surfaces', () => ({ value: w.surfaces }))
@@ -256,7 +247,6 @@ test('pane: a second /context-budget live closes the open pane', async ($, on) =
 test('pane: after the person closes the pane, /context-budget live opens it again', async ($, on) => {
   const w = world(on)
   await live($)
-  // The person's close (ui.close, origin person) is the engine's: its pane list drops the pane.
   w.open = []
   await live($)
   expect(w.open).toEqual([PANE])
@@ -471,7 +461,6 @@ test('warning: a Skills row at 1% of the window is amber in the pane and names t
   expect(shown.indexOf(FIX)).toBe(shown.indexOf(SKILLS_ROW) + 1)
   expect(FIX).toContain('/skill-doctor')
   expect(FIX).toContain('skillListingBudgetFraction')
-  // No other row is colored or carries a fix; swatches and bar segments keep their row theme keys.
   const rows = found.filter(t => t.text !== '■ ' && segments([t]).length === 0)
   expect(rows.filter(t => t.props.color === 'warning').map(t => t.text)).toEqual([SKILLS_ROW, FIX])
 })
@@ -486,7 +475,6 @@ test('warning: a Skills row below 1% renders as any other row, with no color and
   expect(found.map(t => t.text).join('\n')).not.toContain('/skill-doctor')
 })
 
-// The band line has no room for the fix text; the pane row carries it (the test above).
 test('warning: the band legend draws a Skills entry at 1% in the warning color, the rest plain', { options: { live_display: 'band' } }, async ($, on) => {
   world(on, 'skills-over')
   await measure($)

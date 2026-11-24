@@ -6,7 +6,9 @@
 Reads `git diff --name-status -M -z <diff-base>...HEAD --`, classifies each
 changed file against the eval run policy, maps files to skills and cases
 through the shared `case_skills.py` rule, and prints one block per affected
-plugin (or `no affected cases`).
+plugin (or `no affected cases`). When the repository has
+`.github/scripts/plugin-eval/select-plugins.mjs`, each block also names the
+changed paths that script refuses, which a compare run will not take.
 
 Exit codes:
 
@@ -22,6 +24,8 @@ import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 MIN_PYTHON = (3, 8)
@@ -44,6 +48,13 @@ VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
 )
 SELECT_MAPPING_PY = os.path.join(HERE, "select_mapping.py")
+SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
+SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
+REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
+COMPARE_REFUSED_ADVICE = (
+    "a compare run refuses these, so run the cases in a suite run"
+    " on the default branch after merge"
+)
 
 
 def _load_module(name, path):
@@ -376,11 +387,69 @@ def load_all_suites(repo_root):
     return eval_dirs, cases_by_plugin
 
 
+def compare_refusals(repo_root, merge_base):
+    """Map each plugin name to the `<path>: <reason>` lines compare mode refuses.
+
+    Runs the repository's own select-plugins.mjs on the plugin paths changed
+    since merge_base, listed as compare-arms.sh lists them (git's default path
+    quoting, so a quoted path is refused the same way) and without each
+    plugin's tests/, which compare-arms.sh leaves out.
+    Returns {} when the repository has no such script, None when it cannot run.
+    """
+    script = os.path.join(repo_root, *SELECT_PLUGINS_MJS)
+    if not os.path.isfile(script):
+        return {}
+    diff = subprocess.run(
+        ["git", "-C", repo_root, "diff", "--no-renames", "--name-only", merge_base, "HEAD", "--", "plugins"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if diff.returncode != 0:
+        return None
+    paths = [
+        path
+        for path in diff.stdout.split("\n")
+        if path and path.split("/")[2:3] != ["tests"]
+    ]
+    if not paths:
+        return {}
+    node = shutil.which("node")
+    if node is None:
+        return None
+    done = subprocess.run(
+        [node, script, "--repo", repo_root, "--base", merge_base, "--head", "HEAD"],
+        input="\n".join(paths) + "\n",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if done.returncode == 0:
+        return {}
+    lines = done.stderr.splitlines()
+    if done.returncode != 1 or not lines or not lines[0].startswith(SELECT_PLUGINS_HEADER):
+        return None
+    refused = collections.defaultdict(list)
+    for line in lines[1:]:
+        match = REFUSED_PLUGIN_RE.match(line)
+        if match:
+            refused[match.group(1)].append(line)
+    return refused
+
+
 def select_cases(repo_root, diff_base, merge_base):
     """Compute affected cases per plugin for `diff_base...HEAD`."""
     entries = select_mapping.changed_entries(repo_root, diff_base)
     if entries is None:
         return None
+    refused = compare_refusals(repo_root, merge_base)
+    if refused is None:
+        sys.stderr.write(
+            "warning: select-plugins.mjs gave no readable result; compare-mode refusals are unchecked\n"
+        )
+        refused = {}
     eval_dirs, cases_by_plugin = load_all_suites(repo_root)
     all_cases = [c for cases in cases_by_plugin.values() for c in cases]
     fixture_ref_cache = {}
@@ -641,6 +710,7 @@ def select_cases(repo_root, diff_base, merge_base):
         | set(plugin_wide)
         | set(unmapped)
         | set(unread_graders)
+        | set(refused)
     )
 
     result = {}
@@ -667,6 +737,7 @@ def select_cases(repo_root, diff_base, merge_base):
         plugin_wide_list = sorted(plugin_wide.get(plugin, set()))
         unmapped_list = sorted(unmapped.get(plugin, set()))
         unread_list = sorted(unread_graders.get(plugin, set()))
+        refused_list = refused.get(plugin, [])
 
         if not any(
             (
@@ -678,6 +749,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 plugin_wide_list,
                 unmapped_list,
                 unread_list,
+                refused_list,
             )
         ):
             continue
@@ -696,6 +768,7 @@ def select_cases(repo_root, diff_base, merge_base):
             "plugin-wide": plugin_wide_list,
             "unmapped": unmapped_list,
             "unread-graders": unread_list,
+            "compare-refused": refused_list,
             "agent-runs": agent_runs,
         }
     return result
@@ -723,6 +796,11 @@ def format_text(result):
             values = data[key]
             if values:
                 lines.append("%s: %s" % (key, " ".join(values)))
+        if data.get("compare-refused"):
+            lines.append(
+                "compare-refused: %s; %s"
+                % ("; ".join(data["compare-refused"]), COMPARE_REFUSED_ADVICE)
+            )
         lines.append("agent-runs: %d" % data["agent-runs"])
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)

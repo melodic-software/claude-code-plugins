@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-claim-eligibility.py.
-#
-# Self-contained and cwd-independent; mutates only its own guarded mktemp dir.
-#
-# The cases that matter are the ones a verifier kept failing by hand: a
-# single-source flag on a behavior claim or a third-party report (row 4), and
-# a HIGH claim whose tier mix is MEDIUM (row 7). Each has a passing twin.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +14,6 @@ trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# run <expected-exit> <label> [--err <stderr-substring>] [args...]
 run() {
   local expected="$1" label="$2" want_err=""
   shift 2
@@ -52,14 +44,11 @@ expect_out() {
   fi
 }
 
-# src <tier> <pool> [role] [standing]
 src() {
   printf '      - url: "https://example.com/%s"\n        tier: %s\n        pool: "%s"\n        role: %s\n        standing: %s\n' \
     "$2" "$1" "$2" "${3:-corroborator}" "${4:-current}"
 }
 
-# claim <id> <confidence> <kind or -> <owner or -> <extra key lines> <sources>
-# "-" omits that key.
 claim() {
   printf '  - claim: "c"\n    id: %s\n    confidence: %s\n' "$1" "$2"
   if [[ "$3" != - ]]; then printf '    claim_kind: %s\n' "$3"; fi
@@ -68,7 +57,6 @@ claim() {
   printf '    sources:\n%s\n' "$6"
 }
 
-# mkslice <name> <claims text>; prints the slice dir.
 mkslice() {
   local d="$WORK/$1"
   mkdir -p "$d"
@@ -82,8 +70,6 @@ THREE="$(src 1 Vendor primary)
 $(src 1 'Lab A')
 $(src 0 'Own probe')"
 REASON='    single_source: "the vendor publishes its own changelog; copies quote it"'
-
-# --- row 7: the tier mix behind HIGH ----------------------------------------
 
 run 0 "HIGH on three current Tier 0/1 pools passes" \
   "$(mkslice high-ok "$(claim H1 HIGH behavior Vendor '' "$THREE")")"
@@ -103,8 +89,6 @@ $(src 1 'Lab A')
 $(src 0 'Own probe' corroborator historical)")")"
 run 0 "a MEDIUM claim needs no tier mix" \
   "$(mkslice medium "$(claim M1 MEDIUM behavior Vendor '' "$(src 1 Vendor primary)")")"
-
-# --- row 4: single-source flag eligibility ----------------------------------
 
 run 0 "a first-party content claim may carry the flag" \
   "$(mkslice flag-ok "$(claim F1 'HIGH (single source)' content Vendor "$REASON" "$(src 1 Vendor primary)")")"

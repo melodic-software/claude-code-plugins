@@ -141,7 +141,6 @@ def literal_text(pattern):
 
 
 def _enclosing_close(pattern, index):
-    """The index of the `)` closing the group around `index`, else None."""
     depth = 0
     while index < len(pattern):
         char = pattern[index]
@@ -221,8 +220,6 @@ def _is_escaped(pattern, index):
 
 
 def _optional_prefix_open(pattern, inner_start, close_pos):
-    """The `(` index when pattern[open:close_pos+1] is a single group wrapping
-    only the prefix ending at close_pos and followed by `?`, else None."""
     if pattern[close_pos : close_pos + 2] != ")?":
         return None
     open_pos = pattern.rfind("(", 0, inner_start)
@@ -237,7 +234,6 @@ def _optional_prefix_open(pattern, inner_start, close_pos):
 
 
 def _grader_references(pattern, kind, path):
-    """Deduplicated Reference list extracted from one tool_used input_match."""
     text, starts, ends = literal_text(pattern)
     found = []
     for match in LITERAL_REFERENCE.finditer(text):

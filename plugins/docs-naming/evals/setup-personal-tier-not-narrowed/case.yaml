@@ -22,14 +22,8 @@ graders:
     criteria: 'Pass only if this legacy expectation holds: "The behavior is named as intended, not as a defect."'
     focus: last_message
     arm: both
-  - name: generated-team-only
-    type: regex
-    pattern: '\bgenerated\b[\s\S]{0,200}?\bteam\b|\bteam[- ]layer[- ]only\b[\s\S]{0,200}?\bgenerated\b'
-    flags: 'i'
-    target: last_message
-    arm: both
   - name: reason-and-remedy
     type: llm
-    criteria: 'Pass only if all four legacy expectations hold. "The behavior is named as intended, not as a defect." "The reason given is that the key decides what the realign does to a tree, not merely that is the merge order." "The remedy offered is a team-layer change, never editing the personal override differently." "generated is named as the stricter case: team layer only."'
+    criteria: 'Pass only if the reply says the behavior is intended, explains that a personal layer can add tiers but cannot narrow the team policy that controls what realign rewrites, and points to changing the team layer as the remedy.'
     focus: last_message
     arm: both

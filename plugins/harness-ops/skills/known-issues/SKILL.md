@@ -171,6 +171,13 @@ The same table says the Bash tool's environment does not receive `CLAUDE_PLUGIN_
 registry-location rule relies on. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- Bugs in your own repo code: /bugs:write.
+- Local telemetry and hook logs: /harness-ops:observability.
+- Integrating new Claude Code features: /harness-ops:changelog.
+- Filing follow-up items for resolved issues: /work-items:track.
+
 ## What This Skill Does Not Do
 
 - **Does not read local telemetry**. OTEL store, collector, hooks, ccusage → invoke `/harness-ops:observability` via the Skill tool

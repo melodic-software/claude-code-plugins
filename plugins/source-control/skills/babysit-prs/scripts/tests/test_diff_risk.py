@@ -298,7 +298,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 74, "enforcement": 67},
+            {"trust": 26, "gate": 73, "enforcement": 68},
         )
         self.assertEqual(
             FLOOR.high,
@@ -347,6 +347,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/apply-patch/apply-patch.mjs", ".github/scripts/apply-patch/apply-patch.mjs"),
             (".github/scripts/apply-patch/predicates.mjs", ".github/scripts/apply-patch/predicates.mjs"),
             (".github/scripts/apply-patch/protected-paths.mjs", ".github/scripts/apply-patch/protected-paths.mjs"),
+            (".github/scripts/apply-patch/cdn-paths.mjs", ".github/scripts/apply-patch/cdn-paths.mjs"),
             (".github/scripts/lib/run-main.mjs", ".github/scripts/lib/run-main.mjs"),
             (".github/scripts/lib/github-rest.mjs", ".github/scripts/lib/github-rest.mjs"),
             (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
@@ -1143,6 +1144,31 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         self.assertEqual(reason.code, "evidence-unbound:claude-review")
         self.assertIn("not bound", reason.detail)
 
+    def test_rerun_not_allowed_detail_names_the_whole_review_and_update_branch(self):
+        for unbound_reason, names_fix in (
+            ("rerun-not-allowed", True),
+            ("incremental-gap", False),
+        ):
+            with self.subTest(unbound_reason):
+                lanes = (
+                    _lane(
+                        "claude-review",
+                        bound=False,
+                        unbound_reason=unbound_reason,
+                        open_findings=None,
+                    ),
+                    _lane("claude-security-review"),
+                )
+                reason = score(_input(lanes=lanes)).reasons[0]
+                self.assertEqual(reason.code, "evidence-unbound:claude-review")
+                self.assertIn(unbound_reason, reason.detail)
+                for remedy in ("whole-review request", "gh pr update-branch"):
+                    self.assertEqual(
+                        remedy in reason.detail,
+                        names_fix,
+                        f"{unbound_reason} detail names {remedy}: {reason.detail}",
+                    )
+
     def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
         # Spec: unrecognized data is a miss, never a pass.
         clean = (_lane("claude-review"), _lane("claude-security-review"))
@@ -1239,6 +1265,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/apply-patch/apply-patch.mjs",
             ".github/scripts/apply-patch/predicates.mjs",
             ".github/scripts/apply-patch/protected-paths.mjs",
+            ".github/scripts/apply-patch/cdn-paths.mjs",
             ".github/scripts/lib/run-main.mjs",
             ".github/scripts/lib/github-rest.mjs",
             ".github/scripts/pr-unblock/fix-ci-context.mjs",
@@ -2335,7 +2362,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 67)
+        self.assertEqual(len(FLOOR.review), 68)
         for glob in FLOOR.review:
             with self.subTest(glob):
                 path = glob.replace("**", "x.md")

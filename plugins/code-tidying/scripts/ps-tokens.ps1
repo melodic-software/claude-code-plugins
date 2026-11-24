@@ -31,8 +31,6 @@ $script:reserved = @(
     '_', 'PSItem', 'args', 'input', 'this', 'null', 'true', 'false', 'Matches', 'Error', 'Host'
 ) | Sort-Object -Unique
 
-# A CommandAst is NOT on the list: prose about PowerShell parses as one, so admitting
-# it flags every comment in a PowerShell-documenting file. A bare command line is missed.
 $script:evidence = @(
     'AssignmentStatementAst', 'IfStatementAst', 'ForEachStatementAst', 'ForStatementAst',
     'WhileStatementAst', 'FunctionDefinitionAst', 'TryStatementAst', 'HashtableAst',
@@ -54,8 +52,6 @@ function Test-CodeLike {
     return @($hits).Count -gt 0
 }
 
-# ConvertTo-Json costs seconds on a 100k-token file where the parse costs
-# milliseconds; System.Text.Json reads the runtime type behind each `object`.
 function Write-Json {
     param([hashtable]$Fields)
     $d = [System.Collections.Generic.Dictionary[string, object]]::new()
@@ -71,19 +67,12 @@ if ($PSCmdlet.ParameterSetName -eq 'Bodies') {
     exit 0
 }
 
-# `"text $x here"` is ONE token, so a rename missing the interpolated `$x` would read
-# clean. Nested tokens go to a recursive side list keyed on the string's index, and the
-# string token itself stays, so editing the string is still a change. A side list
-# because a `List.Add` per token in the main loop costs 3.9 s on 97k tokens against 1.0 s.
 function Add-NestedTokens {
     param([System.Collections.Generic.List[string]]$Out, [int]$Index, $Token)
     foreach ($n in $Token.NestedTokens) {
         if ($null -eq $n) { continue }
         $Out.Add([string]$Index)
         if ($n -is [System.Management.Automation.Language.VariableToken]) {
-            # `${x}` and `$x` are one variable. Normalizing to the bare spelling
-            # is what lets the stale-name and collision guards see a reference
-            # the rename missed, whichever spelling it wore.
             $Out.Add('InterpolatedVariable')
             $Out.Add('$' + $n.VariablePath.UserPath)
         }

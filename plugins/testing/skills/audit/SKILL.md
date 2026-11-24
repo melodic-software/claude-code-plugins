@@ -315,6 +315,11 @@ above, with `cant-fail-ok: relation across rows`.
 - Findings are persisted with `--persist-findings`: `/review:fanout fix`.
 - No findings and no other Test-stage check (coverage plan, end to end) still pending: `/review:quality-gate`.
 
+## Related
+
+- Dynamic mutation-testing complement: /mutation-testing:audit.
+- Expected-value and can't-fail taxonomy: /testing:test-value.
+
 ## Gotchas
 
 - **Interaction-style tests trip `mock-only-oracle` by design**, hence advisory in `--check` with no

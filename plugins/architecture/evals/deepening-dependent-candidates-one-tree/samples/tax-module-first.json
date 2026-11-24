@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Candidates 1 and 2 are one tree; I start with the tax module, then the invoice total."},
+    {"answer": "Order: the tax module first, since invoice total needs its interface.", "why": "tax module first"},
+    {"answer": "Candidate 1 before candidate 2, then the mail sender on its own.", "why": "before"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I'll start with the invoice total, then the tax module.", "why": "wrong order"},
+    {"answer": "The mail sender stands alone.", "why": "no order"}
+  ]
+}

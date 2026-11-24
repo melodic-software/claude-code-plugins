@@ -1,8 +1,6 @@
 # Retired consumer-facing conventions for the guardrails plugin.
 # Contract: docs/contracts/retired-conventions/README.md (append-only; ids never reused).
 # Evaluated by lib/check-retirements.sh in setup `check`; cleanup is operator-gated in `apply`.
-# The paths are the hooks the retired `apply install-commit-msg` and
-# `apply install-pre-commit-content` actions wrote into a clone's .git/hooks/.
 ---
 id: guardrails-r001
 retired: 2026-10-16
@@ -40,3 +38,183 @@ kind: dir
 path: .git/hooks/guardrails-content-lib
 action: delete
 note: "pattern libraries the retired install-pre-commit-content hook ran; nothing reads them once that hook is gone"
+---
+id: guardrails-r005
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/pre-push.d/guardrails.reference-verify
+content_match: '^guardrails/reference-verify\.sh$'
+action: delete
+note: "pre-push marker of the removed reference-verify git-hook entry; while it stays, the dispatcher runs the old script at every push"
+---
+id: guardrails-r006
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/reference-verify.sh
+content_match: '^# guardrails reference-verify sha256:[0-9a-f]{64}$'
+action: delete
+note: "script copy of the removed reference-verify git-hook entry; clean it after guardrails-r005 and after any lefthook job that runs it, or pushes fail"
+---
+id: guardrails-r007
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/run-guards.sh
+content_match: 'run several guardrails guards'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r008
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/abort-boundary.sh
+content_match: 'Abort boundary for the guardrails hooks'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r009
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/hook-utils.sh
+content_match: 'Shared hook utility library'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r010
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/cli-flag-verify.sh
+content_match: 'verify CLI flags in newly-written'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r011
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/skill-reference-verify.sh
+content_match: 'references written to markdown'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r012
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/stale-path-verify.sh
+content_match: 'repo-relative path cited in newly-written'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r013
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/verify-cli-flag.sh
+content_match: 'Verify whether a CLI flag exists'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r014
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .git/hooks/guardrails/cli-flag-cache.sh
+content_match: 'Shared by lib/verification/verify-cli-flag\.sh'
+action: delete
+note: "asset the removed reference-verify git-hook entry copied beside its script; no current entry ships it"
+---
+id: guardrails-r015
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/pre-push.d/guardrails.reference-verify
+content_match: '^guardrails/reference-verify\.sh$'
+action: delete
+note: "shared pre-push marker of the removed reference-verify git-hook entry; commit its removal so every clone stops running the old script"
+---
+id: guardrails-r016
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/reference-verify.sh
+content_match: '^# guardrails reference-verify sha256:[0-9a-f]{64}$'
+action: delete
+note: "shared script copy of the removed reference-verify git-hook entry; clean it after guardrails-r015 and after any lefthook job or .husky/pre-push line that runs it, or pushes fail; commit its removal"
+---
+id: guardrails-r017
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/run-guards.sh
+content_match: 'run several guardrails guards'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r018
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/abort-boundary.sh
+content_match: 'Abort boundary for the guardrails hooks'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r019
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/hook-utils.sh
+content_match: 'Shared hook utility library'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r020
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/cli-flag-verify.sh
+content_match: 'verify CLI flags in newly-written'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r021
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/skill-reference-verify.sh
+content_match: 'references written to markdown'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r022
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/stale-path-verify.sh
+content_match: 'repo-relative path cited in newly-written'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r023
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/verify-cli-flag.sh
+content_match: 'Verify whether a CLI flag exists'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"
+---
+id: guardrails-r024
+retired: 2026-11-22
+plugin_version: 4.0.0
+kind: file
+path: .githooks/guardrails/cli-flag-cache.sh
+content_match: 'Shared by lib/verification/verify-cli-flag\.sh'
+action: delete
+note: "shared asset the removed reference-verify git-hook entry copied beside its script; commit its removal"

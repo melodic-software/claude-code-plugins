@@ -34,6 +34,7 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | `plugin-wide:` | Hooks, `.mcp.json`, `plugin.json` or settings changed | No automatic run; judge whether a case should run |
 | `unmapped:` | A changed file no rule maps to a case | Judge it by hand |
 | `unread-graders:` | A Skill or Agent grader whose `input_match` names no skill the shared rule can read | Rewrite the grader so it names its skill, or check it by hand |
+| `compare-refused:` | Each changed path of the plugin that the repository's `.github/scripts/plugin-eval/select-plugins.mjs` refuses, with its reason; printed only where that script exists and Node runs it | Dispatch no compare run; merge first, then run the cases in a suite run on the default branch |
 | `agent-runs:` | Each run-requiring case's runs times two arms, summed | State it with the case list before dispatch |
 
 A triggering or no-fire case is one that leaves the choice of skill to the model (its prompt does

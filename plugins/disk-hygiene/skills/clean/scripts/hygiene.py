@@ -43,7 +43,6 @@ import yaml_subset  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
-# Overlay versions the loader accepts; version 2 adds the `rules` array.
 OVERLAY_VERSIONS = (1, 2)
 RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
@@ -59,12 +58,7 @@ CONVENTION_HOME_MARKERS = (
 )
 CONVENTION_HOME_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 MAX_SNAPSHOT_ENTRIES = 250_000
-# The temp-zone size walk runs on every scan whose target overlaps the temp
-# directory, including the gated large-target probe, so it stays well below
-# the inventory cap.
 TEMP_ZONE_ENTRY_CAP = 100_000
-# The tier vocabulary is declared with the command grammar so `--confirm-tier`
-# and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
 TIER_RANK = {"low": 0, "medium": 1, "high": 2}
 VCS_NAMES = {".git", ".hg", ".svn"}
@@ -83,33 +77,6 @@ GITHUB_REMOTE_RE = re.compile(
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 FILE_ATTRIBUTE_HIDDEN = 0x2
 FILE_ATTRIBUTE_SYSTEM = 0x4
-# "The bytes are not here." Each of these marks a name whose content lives in a
-# provider's cloud rather than on this disk, so its st_size is a REMOTE byte
-# count while local occupancy is roughly zero — and deleting it propagates the
-# delete to the cloud copy, which for an organization's sync root is the only
-# copy. FILE_ATTRIBUTE_OFFLINE is the long-standing HSM/remote-storage bit that
-# iCloud and Dropbox eviction reuse; FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS is
-# what the Windows Cloud Files API sets on a dehydrated placeholder.
-#
-# Measured against a OneDrive for Business sync root on Windows 11: a
-# dehydrated placeholder reads 0x400020 through os.lstat — ARCHIVE plus
-# RECALL_ON_DATA_ACCESS — with OFFLINE, SPARSE, and REPARSE_POINT all CLEAR.
-# So RECALL_ON_DATA_ACCESS is the only member observed on a real placeholder,
-# and a reparse-point test cannot stand in for this class (#1804). OFFLINE is
-# carried for the eviction states it documents and must not be assumed to fire.
-#
-# FILE_ATTRIBUTE_RECALL_ON_OPEN is deliberately ABSENT. Its value, 0x00040000,
-# is the same number as FILE_ATTRIBUTE_EA ("a file or directory with extended
-# attributes"), and RECALL_ON_OPEN "only appears in directory enumeration
-# classes" while every attribute read here comes from lstat
-# (https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants,
-# fetched 2026-07-30). Read through lstat the bit therefore means EA, and
-# including it protected ordinary local files: a sweep of two non-cloud trees on
-# this host flagged .NET build output and temp .node files that are fully
-# present on disk. Protecting build artifacts from cleanup would defeat the
-# engine's purpose, so the ambiguous bit stays out. Recheck when the
-# file-attribute-constants page changes the 0x00040000 value of RECALL_ON_OPEN
-# or documents it for non-enumeration reads.
 FILE_ATTRIBUTE_OFFLINE = 0x00001000
 FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
 FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200
@@ -120,14 +87,7 @@ FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 FILE_ATTRIBUTE_NORMAL = 0x00000080
 DELETE = 0x00010000
 OPEN_EXISTING = 3
-# st_blocks is documented in units of 512-byte blocks on every Unix Python
-# cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
-# size read; Windows lstat does not expose st_blocks, so allocated_size stays
-# null there rather than paying for GetCompressedFileSizeW on every entry.
 ST_BLOCKS_BYTES = 512
-# Folders whose presence at a drive root identifies that drive as an OS/system
-# drive. A user-provisioned non-OS volume (a Windows Dev Drive) carries none of
-# them, so they are the discriminator for whole-volume-root classification.
 WINDOWS_OS_DRIVE_MARKERS = {
     "Program Files",
     "Program Files (x86)",
@@ -135,18 +95,11 @@ WINDOWS_OS_DRIVE_MARKERS = {
     "Recovery",
     "Windows",
 }
-# Per-volume filesystem metadata every Windows volume carries, OS drive or not.
-# Protected from deletion on every drive, but never evidence a volume is the OS
-# drive — a Dev Drive has a System Volume Information and $Recycle.Bin too.
 WINDOWS_PER_VOLUME_METADATA = {
     "$Recycle.Bin",
     "System Volume Information",
 }
 WINDOWS_VOLUME_SYSTEM_NAMES = WINDOWS_OS_DRIVE_MARKERS | WINDOWS_PER_VOLUME_METADATA
-# Well-known OS-provisioned volume-root directory names that are not always in
-# WINDOWS_VOLUME_SYSTEM_NAMES / system_roots(), but are never the user-created
-# residue root-children mode exists to reach. Prefer excluding when ambiguous
-# (#2588).
 WINDOWS_OS_ROOT_EXTRA_NAMES = {
     "Users",
     "PerfLogs",
@@ -154,9 +107,6 @@ WINDOWS_OS_ROOT_EXTRA_NAMES = {
     "XboxGames",
     "Windows.old",
 }
-# Volume-root FILE names that are OS-owned even when attributes look ordinary.
-# Directory sets above stay directory-only; these names never share that table
-# so a regular file like `/swapfile` cannot be admitted on attributes alone.
 WINDOWS_OS_ROOT_FILE_NAMES = {
     "bootmgr",
     "bootnxt",
@@ -198,13 +148,6 @@ QUIET_SCAN_NOTE = (
     "cleanup verdicts."
 )
 
-# Root-children mode's coverage qualification is not a restatement of the
-# rollup, so the quiet note cannot drop it the way it drops the rest of the
-# interpretation prose: the volume root and every excluded entry were never
-# walked, and that limit is not recoverable from any other stdout field.
-# `root_children_skipped` lives in the snapshot alone, and `truncated_paths`
-# does not represent those entries, so a caller reading only quiet stdout has
-# no other signal that the inventory is partial by construction.
 QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
     "truncated_paths is the count of truncated paths rather than the list and "
@@ -416,8 +359,6 @@ DATA_ROOT_OVERRIDE: str | None = None
 
 
 def _data_root() -> Path:
-    # Never read CLAUDE_PLUGIN_DATA here: a repository settings.json env block can
-    # set it, so only the --data-root the guard validated may place state.
     if not DATA_ROOT_OVERRIDE:
         raise HygieneError("a generated-state root is required: pass --data-root")
     return Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
@@ -484,8 +425,6 @@ def close_clean_runs(ended: Path | None = None) -> None:
     try:
         if runs.is_symlink() or not runs.is_dir():
             return
-        # The guard rewrites a marker under the same lock, so a verify admitted
-        # in a parallel batch cannot land between this read and the delete.
         with engine_grammar.run_marker_lock(runs):
             info = marker.lstat()
             if not stat.S_ISREG(info.st_mode):
@@ -930,8 +869,6 @@ def windows_disk_image_mounts(path: Path) -> list[str] | None:
     if not powershell:
         raise OSError("powershell not found")
     encoded = base64.b64encode(WINDOWS_DISK_IMAGE_PROBE.encode("utf-16-le")).decode()
-    # ponytail: one PowerShell spawn per image per engine call; batch one
-    # Get-DiskImage per scan if image-heavy targets make scans slow.
     run = subprocess.run(
         [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
         capture_output=True,
@@ -1022,15 +959,11 @@ def hard_protection(
         reasons.append("target-root")
     if is_volume_root(path) and is_os_managed_target(path):
         reasons.append("os-managed-root")
-    # Only the entry itself: a directory that merely carries an image-style name
-    # holds no image, and its contents are judged entry by entry. A path that
-    # cannot be stat'ed reads as not-a-directory, which fails closed.
     if is_virtual_disk_name(path.name) and not path.is_dir():
         reasons.append("virtual-disk")
         try:
             mounts = virtual_disk_attachment(path)
         except (OSError, subprocess.SubprocessError, ValueError):
-            # Never read an unanswered probe as detached.
             reasons.append("virtual-disk-attach-unverified")
         else:
             if mounts is not None:
@@ -1044,17 +977,6 @@ def hard_protection(
         if linkish:
             reasons.append("symlink-junction-or-reparse-point")
         if cloud_placeholder and (current != target or path == target):
-            # Its bytes live in the provider's cloud, so deleting it here
-            # propagates the delete THERE — for a tenant sync root, to the
-            # organization's only copy. Nothing local is reclaimed either way.
-            #
-            # The target's own iteration is exempted for every OTHER entry, on
-            # the same reasoning as target-is-mount-point below: a target that
-            # itself carries a recall/offline bit would otherwise mark EVERY
-            # entry cloud-placeholder, and scan_tree truncates any directory
-            # with protections — collapsing the whole walk with no diagnostic.
-            # The target entry itself still reports the reason honestly, so the
-            # condition is visible rather than silently swallowed.
             reasons.append("cloud-placeholder")
         mounted, mount_error = mount_state(current, known_linux_mounts)
         if mount_error:
@@ -1063,13 +985,6 @@ def hard_protection(
             if current != target:
                 reasons.append("nested-mount-point")
             elif not is_volume_root(target):
-                # A volume-root target is inherently a mount point and is
-                # admitted as such by the reasoned target-level checks; flagging
-                # it here would mark every descendant target-is-mount-point and
-                # defeat the admitted scan. A non-volume-root target that is a
-                # mount is still blocked (it should never have been admitted, or
-                # became a mount after the snapshot). Nested mounts below the
-                # target stay blocked regardless.
                 reasons.append("target-is-mount-point")
         if current == target:
             break
@@ -1340,9 +1255,6 @@ def load_policy(
             result, path, project_scope=path.resolve() in repository
         )
     result["policy_warnings"].extend(warnings)
-    # A class rule covers every hint carrying the class across all layers, so a
-    # later layer's hint joins an earlier layer's rule; `hint_sources` records
-    # which layer supplied each hint so a match can be traced to it.
     for rule in result["rules"]:
         if "class" in rule:
             rule["hint_ids"] = [
@@ -1852,13 +1764,8 @@ def metadata(
         qualifiers.append("not-walked")
     if is_cloud_placeholder_stat(info):
         qualifiers.append("cloud-placeholder")
-    # An image's size is a guest disk's capacity or growth ceiling, and the file
-    # is never deletable by name, so its bytes are not reclaimable.
     if kind == "file" and is_virtual_disk_name(path.name):
         qualifiers.append("virtual-disk")
-    # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
-    # subdirectory) on POSIX; that is not multi-name hard-linking of content.
-    # Only regular files with more than one directory entry share one object.
     if kind == "file" and nlink > 1:
         qualifiers.append("hardlinked")
     if kind == "file" and (
@@ -2054,9 +1961,6 @@ def accumulate_child_rollup(
     caller that feeds records one at a time need not retain them.
     """
     relative = entry.get("path")
-    # `.` is the target itself, never one of its children: `scan_tree` keeps
-    # the target's record out of the inventory, and the same skip in the gap
-    # loop keeps a target-level truncation from inventing a `.` child row.
     if not isinstance(relative, str) or not relative or relative == ".":
         return
     name = child_rollup_name(relative)
@@ -2099,9 +2003,6 @@ def child_rollup_rows(
         child = bucket["self"]
         causes = set(gaps.get(name, ()))
         if child is None:
-            # An immediate child whose own record never reached the inventory
-            # (its lstat or its parent's scandir failed) is a coverage gap, not
-            # a zero-byte child.
             causes.add("scan-error")
         walked = not causes
         rows.append(
@@ -2268,7 +2169,6 @@ def measure_temp_zone(temp_root: Path) -> dict[str, Any]:
                     except OSError:
                         complete = False
                         continue
-                    # A placeholder's size is remote, not local occupancy.
                     if is_linkish_stat(info) or is_cloud_placeholder_stat(info):
                         continue
                     if stat.S_ISDIR(info.st_mode):
@@ -2377,8 +2277,6 @@ def os_autoclean_advisory(
         elif zone["complete"] or effective:
             recommendation = None
         else:
-            # An incomplete measurement below the threshold proves nothing
-            # about the size, so only the configuration speaks.
             recommendation = (
                 "This zone includes the user temp directory, which Windows "
                 "Storage Sense can clean automatically. Recommend enabling "
@@ -2638,8 +2536,6 @@ def root_child_skip_reason(
             return "os-owned"
         if is_reg and volume_root_os_owned_file_name_matches(name):
             return "os-owned"
-        # Windows metadata / upgrade residue often uses a $-prefix outside the
-        # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
         if name.startswith("$"):
             return "os-owned"
         attributes = int(getattr(info, "st_file_attributes", 0) or 0)
@@ -2791,11 +2687,7 @@ def scan_tree(
     in_flight_refs: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
-    # A sizes-only walk keeps no per-path record: each path folds straight into
-    # these running totals, so memory follows the immediate children rather than
-    # the tree.
     child_totals: dict[str, dict[str, Any]] = {}
-    # Only the count and a bounded sorted sample of empty directories are kept.
     empty_directory_total = 0
     empty_directory_sample: list[str] = []
     inventoried = 0
@@ -2804,8 +2696,6 @@ def scan_tree(
     not_walked_paths: set[str] = set()
     errors: list[dict[str, str]] = []
     truncated: list[str] = []
-    # Why each uninventoried path is uninventoried, so the per-child roll-up can
-    # name the cause instead of reporting an undifferentiated gap.
     unwalked_reasons: dict[str, str] = {}
     repositories, repo_errors = discover_enclosing_git(target)
     exact_names = set(policy["protected_exact_names"])
@@ -2830,13 +2720,9 @@ def scan_tree(
             errors.append(
                 {"path": directory.relative_to(target).as_posix(), "error": str(exc)}
             )
-            # Unknown coverage — not an empty directory. Caller marks not-walked.
             return None
         for child in children:
             path = Path(child.path)
-            # Root-children mode never walks the volume root as a whole: only
-            # explicitly selected immediate children are entered, and
-            # unselected siblings are never inventoried, only named.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -2862,8 +2748,6 @@ def scan_tree(
                     data = metadata(path, kind)
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
-                    # Stat before any read of the directory: listing it can move
-                    # its atime, which an atime-basis rule must not see.
                     info = path.lstat()
                     subtotal: int | None = 0
                     cut: str | None = None
@@ -2872,20 +2756,6 @@ def scan_tree(
                     elif not sizes_only and protections:
                         cut = "protected"
                     elif max_depth is not None and depth >= max_depth:
-                        # A depth cut is the one truncation reason emptiness can
-                        # answer. One cheap first-child probe (no recursion, no
-                        # count) decides it: an empty directory has no
-                        # descendants, so nothing is left uninventoried and its
-                        # size is genuinely 0 rather than unknown — record it
-                        # walked, and keep it out of truncated so the four
-                        # downstream consumers stop treating a vacuously complete
-                        # inventory as a coverage gap. Anything with a child, or
-                        # any directory the probe cannot read, keeps the old
-                        # not-walked marking. Scoped to THIS branch on purpose:
-                        # the VCS and protection branches above refuse to walk
-                        # for reasons emptiness does not answer, so an empty
-                        # protected or VCS directory must still land in
-                        # truncated.
                         if directory_has_child(path):
                             cut = "depth-cut"
                     else:
@@ -2893,7 +2763,6 @@ def scan_tree(
                         subtotal = visit(path, depth + 1)
                         descendants = inventoried - before
                         if subtotal is None:
-                            # scandir failed inside this child: unknown, not empty.
                             unwalked_reasons[relative] = "scan-error"
                     if cut is not None:
                         subtotal = None
@@ -2902,8 +2771,6 @@ def scan_tree(
                     data = metadata(
                         path, kind, subtotal, walked=subtotal is not None, info=info
                     )
-                    # Truncated children contribute unknown, not zero: adding
-                    # null as 0 was what made a truncated subtree look empty.
                     if subtotal is not None:
                         total += subtotal
                 elif child.is_file(follow_symlinks=False):
@@ -2983,20 +2850,12 @@ def scan_tree(
         apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-        # Last, after rules and in-flight refs have ticked or unticked: the
-        # rank reads recorded fields only and nothing downstream reads it.
         review_ranking = ranking_signals.annotate(entries)
     target_identity = metadata(target, "directory", total_size)
-    # The target itself was walked, but any truncated child means the target's
-    # byte roll-up is incomplete. Keep the known walked sum in logical_size and
-    # surface the gap on the qualifier rather than claiming the target is empty.
     if truncated:
         target_identity["size_qualifiers"] = sorted(
             set(target_identity["size_qualifiers"] + ["not-walked"])
         )
-    # Everything the walk could not fully account for, from all three places it
-    # can be recorded: an explicit truncation, a scan error (which never adds a
-    # truncation and can leave no entry at all), and a `not-walked` record.
     unknown_paths = set(truncated) | error_paths | not_walked_paths
     if sizes_only:
         reclaimable = reclaimable_total
@@ -3118,7 +2977,6 @@ def annotate_stdlib_shadowing(
             shadows[stem] = entry
     cache = children.get("__pycache__")
     compiled: list[str] | None = None
-    # Compare folded names: shadows is keyed by the folded stem.
     folded_children = {fold(name): entry for name, entry in children.items()}
     if cache is not None and cache.get("kind") == "directory":
         compiled = bytecode_module_names(target / cache["path"])
@@ -3172,13 +3030,6 @@ def annotate_tracked(
         return
     by_path = {entry["path"]: entry for entry in entries}
     for repo in repositories:
-        # Scope the query to what --max-depth actually inventoried: a bare
-        # `ls-files` walks the whole repository regardless of the requested
-        # scan bound. `base` restricts to target's own subtree (or "." when
-        # target IS the repo, or a nested repo was discovered beneath
-        # target); each truncated directory is then subtracted so a
-        # bounded profile/root audit never pulls an unbounded repo-wide
-        # tracked-file list just to annotate a handful of scanned entries.
         try:
             base = target.relative_to(repo).as_posix()
         except ValueError:
@@ -3398,10 +3249,6 @@ def validate_plan(
                 f"candidate owner must be named or unmanaged: {relative}"
             )
         if owner != "unmanaged":
-            # Managed candidates are permanently report-only (preview and apply
-            # block them unconditionally). This gate exists so the report can
-            # name a proven-runnable native-GC command, and so managed state
-            # whose native GC is not even eligible is never proposed at all.
             native = candidate.get("native_gc_evidence")
             if (
                 not isinstance(native, dict)
@@ -3552,8 +3399,6 @@ def validate_vcs_evidence(
             "stash_copies": copies,
         }
         if "accept_unpublished" in item:
-            # Relaxes gates 1-2 only, and only for a repository that is itself one
-            # exact approved path: never a nested repository, never a pattern.
             if item["accept_unpublished"] is not True:
                 raise HygieneError(f"accept_unpublished must be true: {relative}")
             reason = item["reason"]
@@ -3615,10 +3460,6 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         kind = "file"
     else:
         kind = "other"
-    # A directory's st_size is not a stable observation: on NTFS one lstat
-    # reports the index allocation and the next reports 0, so an unchanged
-    # directory would flap drifted/clear. Callers compare the descendant set
-    # separately, so a directory needs only object identity here.
     if kind == "directory":
         return same_object_identity(info, entry)
     checks = (
@@ -3629,9 +3470,6 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         info.st_ino == entry.get("inode"),
         stat.S_IFMT(info.st_mode) == entry.get("mode"),
     )
-    # File hard-link count is part of reclaimability. A new name after scan
-    # leaves size/mtime/dev/ino/mode unchanged, so identity must notice nlink
-    # or preview/apply would still treat the full size as reclaimable.
     if kind == "file":
         checks = (*checks, int(info.st_nlink) == entry.get("nlink"))
     return all(checks)
@@ -3933,9 +3771,6 @@ def verify_stash_copy(
         copy_common = Path(common.stdout.strip()).resolve(strict=True)
     except OSError:
         return None, set(), "stash-copy-unreadable"
-    # Linked worktrees share the source common dir (and therefore stash refs).
-    # Reject any copy whose Git storage is the source store or lives under the
-    # candidate about to be deleted.
     if (
         copy_common == source_common_dir
         or is_within(copy_common, source_common_dir)
@@ -4037,9 +3872,6 @@ def verify_vcs_checkout_evidence(
             "--ignored=matching",
             "--ignore-submodules=none",
         )
-        # The operator's accept_unpublished waives only the two content gates:
-        # a status that ran and listed paths, and heads that ran but are not on
-        # a GitHub remote. A probe that failed to run still fails closed.
         accepted = "accept_unpublished" in config
         clean = status.returncode == 0 and not status.stdout
         if clean:
@@ -4411,10 +4243,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 blockers.append("outside-root-children-selection")
         expected_paths = subtree_names(relative, entries)
         if "truncated-not-inventoried" in blockers:
-            # A truncated candidate is already hard-blocked from planning above;
-            # walking its live subtree here would be the same unbounded
-            # traversal --max-depth exists to avoid, for a candidate that can
-            # never become approvable anyway.
             current_paths = expected_paths
         else:
             try:
@@ -4433,8 +4261,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             current = target.joinpath(*PurePosixPath(name).parts)
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
-            # The candidate itself is in expected_paths and was judged above; a
-            # second call would spawn the attach probe again for an image.
             if name != relative:
                 blockers.extend(
                     hard_protection(current, target, exact_names, known_mounts)
@@ -4444,12 +4270,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 blockers.append("consumer-protected-path")
                 consumer_matches.extend(matches)
         if "truncated-not-inventoried" in blockers:
-            # Same rationale as the current_descendants short-circuit above: a
-            # truncated candidate can never leave "blocked" state, so skip the
-            # live VCS-repository walk (discover_current_repositories, an
-            # unbounded recursive scandir) and the live handle-state probe
-            # (POSIX's `lsof +D`, also unbounded) instead of running them
-            # against a subtree --max-depth was never asked to inventory.
             state, detail = "unverified", "truncated-not-inventoried"
         else:
             vcs = tracked_blocker(path, target)
@@ -4511,9 +4331,6 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
-    # A blocker that is a fact about the platform, identical for every
-    # candidate, routes the operator to the manual handoff lane; only a
-    # blocker about a path means "do not proceed".
     platform_only = {reason for item in results for reason in item["blockers"]} == {
         PLATFORM_BLOCKER
     }
@@ -4582,9 +4399,6 @@ def emptied_container_order(
     for name in entries:
         parent = name.rsplit("/", 1)[0] if "/" in name else ""
         if parent:
-            # A top-level entry's parent is the scan target itself, which is
-            # never a candidate for removal — hard_protection calls it
-            # target-root — so it is deliberately absent from this map.
             children.setdefault(parent, set()).add(name)
     emptied: set[str] = set()
     ordered: list[str] = []
@@ -4593,10 +4407,6 @@ def emptied_container_order(
         if entry is None or entry.get("kind") != "directory" or name in removed:
             continue
         if "not-walked" in (entry.get("size_qualifiers") or []):
-            # The scan never enumerated this directory, so its inventoried
-            # children are not known to be all of its children. A coverage gap
-            # is not emptiness (the rule entry_is_empty_directory already
-            # applies to the scan's own tidiness count).
             continue
         if all(child in removed or child in emptied for child in children[name]):
             emptied.add(name)
@@ -4640,10 +4450,6 @@ def verify_emptied_container(
         info = path.lstat()
     except OSError as exc:
         return lstat_failure_verdict(relative, exc)
-    # Object identity, not stat identity: a directory's mtime and size change
-    # every time a child is added or removed, and removing this container's
-    # children is the whole premise. same_stat_identity would report the
-    # container drifted for the very removals that empty it.
     if not same_object_identity(info, entries[relative]):
         drifted.add("changed-since-scan")
     contested.update(hard_protection(path, target, exact_names, known_mounts))
@@ -4653,8 +4459,6 @@ def verify_emptied_container(
     expected_paths = subtree_names(relative, entries)
     current_paths: set[str] | None = None
     if overlaps_truncated(relative, truncated_paths):
-        # Same rationale as preview's short-circuit: a truncated container can
-        # never clear, so skip the unbounded live walk and probes.
         contested.add("truncated-not-inventoried")
     else:
         try:
@@ -4665,14 +4469,6 @@ def verify_emptied_container(
             contested.add("filesystem-state-unverified")
         else:
             if current_paths - expected_paths:
-                # Anything live that the snapshot did not record survives the
-                # approved removals, so this container does not become empty.
-                # Only the surplus matters, not exact equality: the manual lane
-                # deletes one approved path at a time, so by the time a later
-                # path is verified the container is legitimately missing the
-                # earlier ones. An inventoried child that was replaced rather
-                # than removed is caught by that child's own approved-path
-                # verdict, which then keeps it out of the settled set.
                 drifted.add("changed-since-scan")
         try:
             vcs = tracked_blocker(path, target)
@@ -4680,10 +4476,6 @@ def verify_emptied_container(
             vcs = "vcs-state-unverified"
         if vcs:
             contested.add(vcs)
-        # Probe only descendants that still exist. After verify-one-delete-one,
-        # expected_paths still names settled missing children; CreateFileW
-        # OPEN_EXISTING on those returns ERROR_FILE_NOT_FOUND (2) and would
-        # make an emptied container handle-state-unverified.
         handle_paths = current_paths if current_paths is not None else expected_paths
         try:
             state, detail = candidate_handle_state(target, path, handle_paths)
@@ -4733,11 +4525,6 @@ def handoff_verify(
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
     containers: list[dict[str, Any]] = []
-    # Two passes when container probes run: those walks and handle checks can
-    # outlast a concurrent same-name replacement of an approved path, and the
-    # container surplus-name check does not see that replacement. Revalidate
-    # the approved paths after the container work and recompute containers
-    # from the post-revalidation settled set.
     for _ in range(2):
         verdicts = []
         for relative in approved:
@@ -4780,9 +4567,6 @@ def handoff_verify(
             )
             expected_paths = subtree_names(relative, entries)
             if truncated and not evidence_inventory_eligible:
-                # A truncated path has no captured descendant set, so no live walk
-                # can prove anything about it — never clear (same rationale as the
-                # preview short-circuit).
                 contested.add("truncated-not-inventoried")
                 current_paths = expected_paths
             else:
@@ -4792,9 +4576,6 @@ def handoff_verify(
                         path,
                         opaque_git_metadata=bool(candidate_evidence),
                     )
-                # On failure, treat the live set as unknown rather than empty
-                # (preview's choice): an unreadable subtree is contested, not
-                # provably drifted — "changed" cannot be claimed without a read.
                 except PermissionError:
                     current_paths = expected_paths
                     contested.add("needs-elevation")
@@ -4848,10 +4629,6 @@ def handoff_verify(
             for name in expected_paths:
                 entry = entries[name]
                 current = target.joinpath(*PurePosixPath(name).parts)
-                # Distinguish unverifiable descendant state from real drift:
-                # same_identity's blanket OSError->False would report a denied
-                # lstat as changed-since-scan, telling the lane to rescan when
-                # the actual remedy is resolving access (review finding).
                 try:
                     info = current.lstat()
                 except FileNotFoundError:
@@ -4873,9 +4650,6 @@ def handoff_verify(
                     )
                     if not identity_matches:
                         drifted.add("changed-since-scan")
-                # The candidate itself is in expected_paths and its protections
-                # were added above; a second call would spawn the attach probe
-                # again for an image.
                 if name != relative:
                     current_protections = hard_protection(
                         current, target, exact_names, known_mounts
@@ -4894,18 +4668,12 @@ def handoff_verify(
                     contested.add("consumer-protected-path")
                     consumer_matches.extend(matches)
             if not truncated or evidence_inventory_eligible:
-                # A hung git (TimeoutExpired) must degrade to this one path's
-                # contested verdict, not abort the whole run with no verdicts —
-                # the subcommand promises a verdict per approved path.
                 try:
                     vcs = tracked_blocker(path, target)
                 except (OSError, subprocess.SubprocessError):
                     vcs = "vcs-state-unverified"
                 if vcs and not (evidence_verified and vcs == "vcs-tracked-content"):
                     contested.add(vcs)
-                # Same degradation rule as the VCS probe: a probe that fails to
-                # LAUNCH (lsof vanishing after which(), a ctypes load error) is
-                # this path's contested verdict, not a whole-run abort.
                 try:
                     state, detail = candidate_handle_state(target, path, expected_paths)
                 except (OSError, subprocess.SubprocessError):
@@ -4923,9 +4691,6 @@ def handoff_verify(
             if evidence_result is not None:
                 item["vcs_evidence"] = evidence_result
             verdicts.append(item)
-        # Only paths that are actually going away can empty a container. A contested
-        # or drifted approved path stays on disk, so a container that depends on it
-        # must not be named removable.
         settled = [
             item["path"] for item in verdicts if item["verdict"] in {"clear", "gone"}
         ]
@@ -5329,7 +5094,6 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 
 
 INVENTORY_REPORT_KIND = "deep-inventory-report"
-# Distinct from 2 (invalid), 3 (blocked) and 4 (apply skipped paths).
 INVENTORY_VALIDATION_FAILED = 5
 INVENTORY_REPORTS_KEPT = 3
 INVENTORY_STEM = re.compile(r"inventory-\d{8}T\d{12}Z")
@@ -5582,12 +5346,6 @@ def handoff_apply_report(
     }
 
 
-# The Windows Recycle Bin backend, through ctypes so the engine stays
-# stdlib-only. GUIDs and vtable slots come from shobjidl_core.h and the IUnknown
-# declaration, flag values from IFileOperation::SetOperationFlags (each
-# `_OPFLAG_` constant keeps its SDK flag's suffix) and TRANSFER_SOURCE_FLAGS,
-# and SHQUERYRBINFO's layout from shellapi.h, which packs it to one byte on
-# 32-bit Windows only; the backend refuses 32-bit Python.
 _IID_UNKNOWN = "00000000-0000-0000-c000-000000000046"
 _IID_PROGRESS_SINK = "04b0f1a7-9490-44bc-96e1-4296a31252e2"
 _IID_FILE_OPERATION = "947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8"
@@ -5604,9 +5362,6 @@ _OPFLAG_ALLOWUNDO = 0x0040
 _OPFLAG_NOERRORUI = 0x0400
 _OPFLAG_RECYCLEONDELETE = 0x00080000
 _OPFLAG_EARLYFAILURE = 0x00100000
-# No dialog an agent's process could wait on, a stop at the first error, and a
-# request for the Recycle Bin. These flags only ask: the progress sink is what
-# refuses a permanent delete.
 _RECYCLE_OPERATION_FLAGS = (
     _OPFLAG_SILENT
     | _OPFLAG_NOCONFIRMATION
@@ -5841,7 +5596,6 @@ def windows_recycle(path: Path) -> dict[str, Any]:
                 return result("failed", "recycle-failed", status)
             return result("failed", "recycle-unconfirmed")
         if not seen["deleted"]:
-            # Gone, but no delete was reported, so nothing shows it reached the bin.
             seen["permanent"] = True
         return result("removed" if seen["permanent"] else "recycled")
     finally:
@@ -5926,7 +5680,6 @@ def handoff_apply(
         ):
             raise HygieneError("anchored target was replaced since the snapshot")
         for index, relative in enumerate(approved):
-            # Once a path is removed, an error must not lose the report of it.
             try:
                 result = handoff_verify(snapshot, [relative], vcs_evidence)
                 verdict = result["verdicts"][0]
@@ -6007,7 +5760,6 @@ def recycle_handoff_path(
         return [], [skip], recycled["permanent"]
     names = subtree_names(relative, entries)
     in_bin = recycled["outcome"] == "recycled"
-    # Recycled bytes stay on the volume until the bin is emptied.
     reclaimable = (entry_reclaimable_local_bytes(entries[name]) for name in names)
     item = {
         "path": relative,
@@ -6063,8 +5815,6 @@ def unlink_handoff_path(
         )
         if consumer_protected(path):
             reasons.append("consumer-protected-path")
-        # Git metadata holds no tracked content, and tracked_blocker cannot
-        # answer for it: `git rev-parse --show-toplevel` fails inside `.git`.
         if path not in git_metadata:
             try:
                 vcs = tracked_blocker(path, target)
@@ -6080,8 +5830,6 @@ def unlink_handoff_path(
     candidate_blockers = path_blockers(
         target.joinpath(*PurePosixPath(relative).parts), known_mounts
     )
-    # Git metadata is deleted after the working tree, so what sits inside it
-    # is checked now, before anything is removed.
     candidate_blockers += [
         blocker
         for metadata in sorted(git_metadata)
@@ -6287,8 +6035,6 @@ def main(argv: list[str] | None = None) -> int:
                     }
                     if not args.quiet:
                         return emit(listing, 0)
-                    # A busy /tmp lists tens of thousands of entries; the file
-                    # carries no snapshot schema, so preview refuses it.
                     write_json(output_path, listing)
                     kinds = Counter(
                         str(item.get("kind", "unknown")) for item in admitted
@@ -6306,9 +6052,6 @@ def main(argv: list[str] | None = None) -> int:
                         },
                         0,
                     )
-                # This status and large-target-confirmation-required name the
-                # documented next step, so they exit 0 and `status` carries the
-                # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
                     home_note = withheld_home_container_note(skipped)
                     if os_managed:
@@ -6347,9 +6090,6 @@ def main(argv: list[str] | None = None) -> int:
                 resolved_children = normalize_root_child_selection(
                     selected_root_children, admitted, skipped=skipped
                 )
-                # Each selected child is its own audit target for large-scan
-                # gating: a home directory selected under the volume root still
-                # requires a bound or confirmation.
                 child_large_reasons: list[str] = []
                 for child_name in resolved_children:
                     child_path = target / child_name
@@ -6664,10 +6404,6 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, subprocess.SubprocessError) as exc:
         return emit({"status": "filesystem-state-unverified", "error": str(exc)}, 3)
     finally:
-        # Close the test-isolation window: a call to `main()` must never leave
-        # this override live for a later `state_output_path()` call (direct,
-        # or via a subsequent `main()` invocation in the same process) to
-        # observe a stale --data-root after this invocation has returned.
         DATA_ROOT_OVERRIDE = None
 
 

@@ -2470,9 +2470,11 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The
   review's verdict job posts no merge marker on a pull request whose change to a workflow or
-  action file is anything but a full-SHA pin swap (each `uses:` line keeps its action path and
-  moves from one full SHA to another, with only the trailing comment otherwise changing), and
-  escalates `dependency-workflow-unpinned`. A `fix` verdict lands only when
+  action file is anything but a pin swap (each `uses:` line keeps its action path and moves from
+  one full SHA to another or, for an official vendor's action (`VENDOR_ACTION_OWNERS`: `actions`,
+  `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case), from one
+  version tag `vN`, `vN.N` or `vN.N.N` to another, with only the trailing comment otherwise
+  changing), and escalates `dependency-workflow-unpinned`. A `fix` verdict lands only when
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
@@ -3745,7 +3747,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, except a dispatch and a pull request it opens or pushes to, whose `pull_request` runs wait for approval ([GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)); the lane sweep's digest and the monitoring lane rely on this so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs unattended, which a `GITHUB_TOKEN` write does not (its pull request pushes start runs only after approval); one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml`, `maintenance-repin-ci-workflows.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Claude secrets
@@ -4674,14 +4676,10 @@ the lanes.
 | Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
 | Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
 
-The calls to ci-workflows reusable workflows (`pr-review-cli.yml`, `intake-triage.yml`,
-`intake-label-needs-triage.yml` and `maintenance-check-links-online.yml`) track `@main`, while the
-ci-workflows actions are pinned to the release `maintenance-repin-ci-workflows.yml` moves. The
-synced runner policy admits a ci-workflows reusable only at `@main` or at a commit its contract
-lists in `approvedShas` (`.github/standards/runner-policy/runner-policy.mjs`,
-`reusableWorkflowContract`). Those lists come from the standards sync and do not follow the repin,
-so a call pinned to the repin release fails `runner-target-contract`, and
-`scripts/repin-ci-workflows.sh` moves only the action pins.
+Every ci-workflows reference, reusable workflow and action alike, tracks `@main`, and official
+vendor actions run at their moving major tag (ADR 0129). The synced runner policy admits a
+ci-workflows reusable only at `@main` or at a commit its contract lists in `approvedShas`
+(`.github/standards/runner-policy/runner-policy.mjs`, `reusableWorkflowContract`).
 
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.

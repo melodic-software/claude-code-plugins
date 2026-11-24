@@ -14,6 +14,8 @@ from __future__ import annotations
 import base64
 import json
 import pathlib
+import shutil
+import subprocess
 import sys
 import unittest
 from typing import Any
@@ -1845,6 +1847,137 @@ class FixRule(unittest.TestCase):
         ):
             reason = dependabot.fix_refusal([item], [("npm", "/")], entry, text)
             self.assertTrue(str(reason).startswith(why), reason)
+
+
+_ROOT = pathlib.Path(__file__).resolve().parents[6]
+_CLASSIFY = _ROOT / ".github/scripts/pr-unblock/dependency-classify.mjs"
+_CDN_PATHS = _ROOT / ".github/scripts/apply-patch/cdn-paths.mjs"
+_APP_ID = 7
+_PINS = "lib/cdn-pins/pins.json"
+_TARGET = "docs/cdn.md"
+_REGULAR = {"type": "blob", "mode": 0o100644}
+
+
+def _sync_detail(**overrides: Any) -> dict[str, Any]:
+    """The CDN pins sync commit as the REST commit API returns it."""
+    return {
+        "sha": HEAD,
+        "author": {"id": _APP_ID, "login": IDENTITY},
+        "committer": {"id": 19864447},
+        "parents": [{"sha": OLD_HEAD}],
+        "commit": {
+            "message": "Sync the CDN pins on x [dependabot skip]",
+            "verification": {"verified": True, "reason": "valid"},
+        },
+        "files": [
+            {"filename": _PINS, "status": "modified"},
+            {"filename": _TARGET, "status": "modified"},
+        ],
+        **overrides,
+    }
+
+
+_UNSIGNED = {"message": "[dependabot skip]", "verification": {"verified": False}}
+CDN_SYNC_VECTORS: dict[str, tuple[dict[str, Any], dict[str, Any], list[str] | None]] = {
+    "the sync": (_sync_detail(), {}, [_PINS, _TARGET]),
+    "an extra file": (_sync_detail(files=[{"filename": "src/x.js", "status": "modified"}]), {}, [_PINS, _TARGET]),
+    "an added file": (_sync_detail(files=[{"filename": _TARGET, "status": "added"}]), {}, [_PINS, _TARGET]),
+    "a rename": (_sync_detail(files=[{"filename": _TARGET, "status": "renamed", "previous_filename": "a.md"}]), {}, [_PINS, _TARGET]),
+    "an executable before": (_sync_detail(), {f"before:{_TARGET}": {"type": "blob", "mode": 0o100755}}, [_PINS, _TARGET]),
+    "a symbolic link after": (_sync_detail(), {f"after:{_TARGET}": {"type": "blob", "mode": 0o120000}}, [_PINS, _TARGET]),
+    "another author": (_sync_detail(author={"id": 5, "login": "maintainer"}), {}, [_PINS, _TARGET]),
+    "a person's committer": (_sync_detail(committer={"id": 5}), {}, [_PINS, _TARGET]),
+    "an unverified signature": (_sync_detail(commit=_UNSIGNED), {}, [_PINS, _TARGET]),
+    "two parents": (_sync_detail(parents=[{"sha": OLD_HEAD}, {"sha": SHA}]), {}, [_PINS, _TARGET]),
+    "no skip marker": (_sync_detail(commit={"message": "sync", "verification": {"verified": True, "reason": "valid"}}), {}, [_PINS, _TARGET]),
+    "no files": (_sync_detail(files=[]), {}, [_PINS, _TARGET]),
+    "an unreadable base": (_sync_detail(), {}, None),
+}  # fmt: skip
+CDN_RECORDS = {
+    "two targets": json.dumps({"targets": [{"path": _TARGET}, {"path": "a/b.md"}]}),
+    "no targets": json.dumps({"targets": []}),
+    "a parent path": json.dumps({"targets": [{"path": "../x"}]}),
+    "a .git part": json.dumps({"targets": [{"path": "a/.git/x"}]}),
+    "an empty part": json.dumps({"targets": [{"path": "a//b"}]}),
+    "a bump path": json.dumps({"targets": [{"path": "lib/cdn-pins/package-lock.json"}]}),
+    "the sync script": json.dumps({"targets": [{"path": "lib/cdn-pins/sync.mjs"}]}),
+    "the registry itself": json.dumps({"targets": [{"path": _PINS}]}),
+    "a duplicate": json.dumps({"targets": [{"path": _TARGET}, {"path": _TARGET}]}),
+    "a number path": json.dumps({"targets": [{"path": 1}]}),
+    "a null target": json.dumps({"targets": [None]}),
+    "no targets key": json.dumps({}),
+    "an array": json.dumps([]),
+    "not JSON": "{",
+    "a non-ASCII part": json.dumps({"targets": [{"path": "déjà.md"}]}),
+}
+
+_NODE_CDN = """
+const { cdnSyncRefusal } = await import(%s);
+const { cdnPaths } = await import(%s);
+const [vectors, records, appId] = JSON.parse(process.argv[1]);
+const refusals = [];
+for (const [detail, entries, paths] of vectors) {
+  const entry = async (side, path) => entries[`${side}:${path}`] ?? %s;
+  refusals.push(await cdnSyncRefusal(detail, appId, async () => paths && new Set(paths), entry));
+}
+const sets = records.map((text) => {
+  try {
+    return [...cdnPaths(JSON.parse(text))].sort();
+  } catch {
+    return null;
+  }
+});
+console.log(JSON.stringify([refusals, sets]));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class CdnSyncIsTheGates(unittest.TestCase):
+    """`cdn_sync_refusal` and `cdn_sync_paths` answer as the pr-unblock
+    lane's `cdnSyncRefusal` (dependency-classify.mjs) and `cdnPaths`
+    (cdn-paths.mjs) do, vector for vector."""
+
+    def test_both_gates_take_and_refuse_the_same_sync_commits(self) -> None:
+        script = _NODE_CDN % (
+            json.dumps(_CLASSIFY.as_uri()),
+            json.dumps(_CDN_PATHS.as_uri()),
+            json.dumps(_REGULAR),
+        )
+        vectors = list(CDN_SYNC_VECTORS.values())
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                json.dumps([vectors, list(CDN_RECORDS.values()), _APP_ID]),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        refusals, sets = json.loads(proc.stdout)
+        for (name, (detail, entries, paths)), js in zip(
+            CDN_SYNC_VECTORS.items(), refusals, strict=True
+        ):
+            py = dependabot.cdn_sync_refusal(
+                detail,
+                IDENTITY,
+                lambda p=paths: None if p is None else frozenset(p),
+                lambda side, path, e=entries: e.get(f"{side}:{path}", _REGULAR),
+            )
+            with self.subTest(name):
+                self.assertEqual(py, js)
+        self.assertIsNone(refusals[0])
+        self.assertEqual(sum(r is None for r in refusals), 1)
+        for (name, text), js in zip(CDN_RECORDS.items(), sets, strict=True):
+            py = dependabot.cdn_sync_paths(text)
+            with self.subTest(name):
+                self.assertEqual(None if py is None else sorted(py), js)
+        self.assertIsNotNone(sets[0])
+
+    def test_an_absent_registry_admits_nothing(self) -> None:
+        self.assertIsNone(dependabot.cdn_sync_paths(None))
 
 
 class BaseMergeShape(unittest.TestCase):

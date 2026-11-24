@@ -304,8 +304,6 @@ for key in $KEY_ORDER; do
       contributors="$contributors,$layer"
       ;;
     *)
-      # Additive: the team layer is the authority and replaces; a personal layer
-      # only adds to what the team, or the bundled default, already decided.
       [[ "$key" = tiers ]] && incoming="$(stamp_layer "$incoming" "$layer")"
       if [[ "$layer" = team || "$value" = "null" ]]; then
         value="$incoming"

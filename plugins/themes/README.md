@@ -19,10 +19,11 @@ The catalog entry sets `defaultEnabled: false`, because the backdrop takes over 
 
 ## Requirements
 
-- The Claude Code desktop app. The mod draws only on the desktop surface; a terminal session loads
-  it and draws nothing.
-- Claude Code 2.1.287 or later, the floor for mods. `claude plugin validate` and
-  `claude plugin test` pass on 2.1.329.
+- The Claude Code desktop app. The room and `/bedroom` start only once a desktop window shows the
+  session; a session no desktop window shows (a terminal, VS Code, mobile or `claude -p`) lists no
+  `/bedroom` and runs none of the room's work. A desktop window that attaches later starts it then.
+- Claude Code 2.1.326 or later, the first version that keeps `/bedroom` answers from the model.
+  `claude plugin validate` and `claude plugin test` pass on 2.1.331.
 
 ## Bedroom
 
@@ -163,7 +164,8 @@ the room being sent again. A switch's button draws dim, with `…` after its sta
 has finished changing, about a second (three for the console, which boots), and a press on it
 meanwhile does nothing; clicks in the room are never held back. The card follows changes made by
 clicks in the room and by typed commands. Close puts it away; `/bedroom` shows it again at the end
-of the conversation. Away from the desktop app, `/bedroom` answers in text alone.
+of the conversation. Its answers are shown to you and never sent to the model. After the last
+desktop window closes, `/bedroom` stays listed for the session and says no desktop window shows it.
 
 ### Dim and titles
 
@@ -176,7 +178,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 
 | Command | Does |
 |---|---|
-| `/bedroom` | Says what is on and off; in the desktop app, also shows the settings card |
+| `/bedroom` | Says what is on and off and shows the settings card |
 | `/bedroom status` | Says what is on and off, and whose theme covers the room, if another plugin's does |
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips. A switch already in that state stays as it is |
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |

@@ -95,6 +95,11 @@ export function markStarted(): void {
   isStarted = true
 }
 
+/** Whether the room has started: a session no desktop window draws never starts it. */
+export function hasStarted(): boolean {
+  return isStarted
+}
+
 /** Whether the shader runs now, every value seeded: a switch order before then is left to the seeding. */
 export function isShaderRunning(): boolean {
   return isShaderShown

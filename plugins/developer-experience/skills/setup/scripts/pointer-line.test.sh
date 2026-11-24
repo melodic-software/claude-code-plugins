@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Tests for pointer-line.sh, the helper that keeps the developer-experience
-# pointer line inside the shared plugin-conventions block of a consumer's
-# AGENTS.md. Every expected file below is written out by hand from the block
-# contract (marker text, line text, ownership prefix), never captured from a run.
-#
-# Each case builds its own fixture repository under one mktemp directory that
-# the EXIT trap removes. Cases that need a symlink or a chmod the host does not
-# honor (Git Bash without symlink rights, NTFS modes) print SKIP and move on.
-#
-# The helper walks every directory above --root for CLAUDE.md files, and the
-# test cannot control the directories above mktemp's. So no case asserts the
-# absence of a may-not-load finding or a note it could cause, except where the
-# repository's own CLAUDE.md imports AGENTS.md and the walk never runs.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR POINTER_LINE_RESOLVER
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -132,8 +119,6 @@ test_stale_path_replaced() {
   assert_file "stale: only the DX line replaced, in place" "$r/AGENTS.md" "$r/want"
 }
 
-# A line an earlier release wrote: same ownership prefix and path, older tail.
-# It is still this helper's line, so apply converges it in place.
 test_old_tail_replaced() {
   local r old
   r="$(fixture)"
@@ -645,7 +630,6 @@ test_help_and_usage_errors() {
   assert_eq "--root not a directory: exits 2" 2 "$RC"
 }
 
-# A new AGENTS.md that a .claude/CLAUDE.md without the import keeps out of context.
 test_created_agents_note_for_dot_claude() {
   local r
   r="$(fixture)"

@@ -189,6 +189,11 @@ do about it**. The three failure statuses have different fixes and saying "inval
 
 `/instruction-placement:realign`. It fixes a failing glob or a stale index behind the per-item gate.
 
+## Related
+
+- Full placement sweep of all instructions: /instruction-placement:audit.
+- Incremental movement and broken-glob check: /instruction-placement:delta.
+
 ## Gotchas
 
 - **Exit 3 is not a failure.** `render-index.sh check` returns 3 when the file carries no index

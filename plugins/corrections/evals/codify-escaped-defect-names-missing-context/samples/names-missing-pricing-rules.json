@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Rung: `static-check`. Missing context: the model never had the pricing rules file in front of it; it was never opened in either session."},
+    {"answer": "What the model did not have in front of it: the pricing rules file, which neither session read.", "why": "missing-context phrasing first"},
+    {"answer": "The pricing rules file was not loaded when the null price slipped through.", "why": "not loaded"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Rung: `unit-test`. Add a test that a null price fails checkout. Proof: exit 1 on 7ad3f90, exit 0 on HEAD.", "why": "no missing-context answer"},
+    {"answer": "The pricing rules are fine; the checkout code lacked a null check.", "why": "names the file without saying it was missing"},
+    {"answer": "Here is how to configure the ratchet offer.", "why": "different question"}
+  ]
+}

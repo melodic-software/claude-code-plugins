@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { WAIT_BUDGET_SECONDS } from "../../actions/log-api-budget/rate-guard.mjs";
+import { cdnPinsFrom } from "../apply-patch/apply-patch.mjs";
 import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
@@ -18,6 +19,9 @@ import { DEFERRED_RECORD } from "./feedback-dispatch.mjs";
 import { REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 import { evaluate as evaluateIn } from "../lib/gate-expression.mjs";
 import { ifOf, stepsOf, workflowText } from "../lib/workflow-text.mjs";
+
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const read = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
 
@@ -816,6 +820,7 @@ test("pr-unblock.yml: report-stop-status posts on the commit the activity's push
     ["apply-dependency-patch", "review-dependency-select"],
     ["apply-dependency-pin", "review-dependency-select"],
     ["apply-dependency-relock", "review-dependency-select"],
+    ["apply-cdn-pins-sync", "review-dependency-select"],
     [null, "fix-ci-context"],
     [null, "sync-shared-copies-select"],
     [null, "fix-test-scope-select"],
@@ -1657,7 +1662,7 @@ test("refine invariant 4: no secret and no token beyond GITHUB_TOKEN; only the l
   const body = lines.join("\n");
   assert.doesNotMatch(body, /secrets\.|secrets\[|id-token|toJSON\(secrets\)/);
   const uses = lines.filter((line) => /^\s+(?:- )?uses: /.test(line)).map((line) => line.trim().replace(/^- /, "").replace(/\s*#.*$/, ""));
-  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
+  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@v7|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload)@main|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
   for (const use of uses) {
     assert.match(use, allowed, `${use} is not an action the refine job may run`);
   }
@@ -1734,4 +1739,65 @@ test("refine: the dispatch waits out a rate-limit reset for WAIT_BUDGET_SECONDS.
   assert.ok(step.includes(`          API_BUDGET_WAIT_SECONDS: "${WAIT_BUDGET_SECONDS.workResolveIssue}"`));
   const minutes = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobBlock(DISPATCHER, "refine").join("\n"))?.[1]);
   assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${minutes} min`);
+});
+
+test("the CDN pins sync runs in a digest-pinned container without a token, as the runner user that owns the result directory", () => {
+  const sync = workflowText(read(UNBLOCK)).job("review-cdn-pins-sync");
+  assert.match(sync, /^    permissions: \{\}$/m);
+  assert.match(sync, /docker run --rm -i --user "\$\(id -u\):\$\(id -g\)" --cap-drop ALL --security-opt no-new-privileges /);
+  assert.match(sync, /^          CDN_SYNC_IMAGE: node:[\d.]+-slim@sha256:[a-f0-9]{64}$/m);
+  assert.match(sync, /"\$request:\/request:ro"/);
+  assert.match(sync, /\[script, "sync", work\]/);
+  assert.doesNotMatch(sync, /token|secrets\.|actions\/checkout|--env|-e /i);
+  const patch = workflowText(read(UNBLOCK)).job("review-cdn-pins-sync-patch");
+  assert.match(patch, /sha256sum/);
+  assert.match(patch, /name: patch-pr-unblock-review-dependency-/);
+  const apply = workflowText(read(UNBLOCK)).job("apply-cdn-pins-sync");
+  assert.match(apply, /patch-prepare: cdn-pins-sync/);
+  assert.match(apply, /patch-sha256: .*review-cdn-pins-sync-patch\.outputs\.pin-sha256/);
+});
+
+test("the write runner's apply-patch base holds the base CDN registry and script for a cdn-pins-sync patch, and only then", () => {
+  const script = stepScript(stepBlock("pr-run-activity-write.yml", "run", "Copy the apply-patch base files"));
+  const copy = (prepare, { cdn = true } = {}) => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-base-"));
+    const base = join(dir, ".base");
+    for (const sub of [".github/actions/resolve-config", ".github/scripts/lib", ".github/scripts/pr-unblock", ".github/scripts/pr-merge", "lib/cdn-pins"]) {
+      mkdirSync(join(base, sub), { recursive: true });
+    }
+    for (const file of ["lib/retry-fetch.mjs", "lib/run-main.mjs", "lib/lane-branch.mjs", "pr-unblock/thread-scope.mjs", "pr-unblock/test-scope.mjs", "pr-unblock/dependency-classify.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "pr-merge/merge-holds.mjs"]) {
+      writeFileSync(join(base, ".github/scripts", file), "");
+    }
+    writeFileSync(join(base, ".github/actions/resolve-config/patch-rules.json"), "{}");
+    if (cdn) {
+      writeFileSync(join(base, "lib/cdn-pins/pins.json"), JSON.stringify({ targets: [{ path: "docs/view.md", packages: ["x"] }] }));
+      writeFileSync(join(base, "lib/cdn-pins/sync.mjs"), "export function check() { return []; }\n");
+    }
+    const temp = join(dir, "temp");
+    mkdirSync(temp);
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", script], {
+      cwd: dir,
+      env: { PATH: process.env.PATH, RULES: ".github/actions/resolve-config/patch-rules.json", DEST: join(temp, "apply-patch-base"), PATCH_PREPARE: prepare, MERGE_BASE_SHA: "", RUNNER_TEMP: temp, GITHUB_OUTPUT: join(dir, "out") },
+      encoding: "utf8",
+    });
+    return { dir, dest: join(temp, "apply-patch-base"), status: result.status, stderr: result.stderr };
+  };
+  const dirs = [];
+  try {
+    const synced = copy("cdn-pins-sync");
+    dirs.push(synced.dir);
+    assert.equal(synced.status, 0, synced.stderr);
+    assert.deepEqual([...cdnPinsFrom(synced.dest)].sort(), ["docs/view.md", "lib/cdn-pins/pins.json"]);
+    assert.equal(readFileSync(join(synced.dest, "lib/cdn-pins/sync.mjs"), "utf8"), "export function check() { return []; }\n");
+    const other = copy("dependency-relock");
+    dirs.push(other.dir);
+    assert.equal(other.status, 0, other.stderr);
+    assert.equal(cdnPinsFrom(other.dest), null, "no other row reads the CDN registry");
+    const absent = copy("cdn-pins-sync", { cdn: false });
+    dirs.push(absent.dir);
+    assert.equal(absent.status, 0, absent.stderr);
+    assert.equal(cdnPinsFrom(absent.dest), null, "a base without the registry copies nothing, so the class allows nothing");
+  } finally {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  }
 });

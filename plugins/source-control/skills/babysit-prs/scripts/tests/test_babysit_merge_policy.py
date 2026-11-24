@@ -10309,7 +10309,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.lane_fix(gh, [path])
                 self.assertEqual(
                     self.eligibility(hold_majors=False).reason,
-                    f"dependabot-fix-content:fix-scope:{path}",
+                    f"dependabot-fix-content:fix-scope:{path};cdn-sync-author",
                 )
 
     PARENT = "d" * 40
@@ -10458,7 +10458,7 @@ class DependabotEligibility(unittest.TestCase):
                         ["package.json"],
                         modes={"package.json": {"type": kind, "mode": mode}},
                     ),
-                    "dependabot-fix-content:fix-mode:package.json",
+                    "dependabot-fix-content:fix-mode:package.json;cdn-sync-author",
                 )
         steal = {"test": "node t.js", "postinstall": "node steal.js"}
         self.assertEqual(
@@ -10466,7 +10466,8 @@ class DependabotEligibility(unittest.TestCase):
                 ["package.json"],
                 after={"package.json": self.pkg("^2.0.0", scripts=steal)},
             ),
-            "dependabot-fix-content:fix-content:package.json:package-json-key:scripts",
+            "dependabot-fix-content:fix-content:package.json:package-json-key:scripts"
+            ";cdn-sync-author",
         )
         self.assertEqual(
             self.lane_fix_reason(
@@ -10478,7 +10479,7 @@ class DependabotEligibility(unittest.TestCase):
                 },
             ),
             "dependabot-fix-content:fix-content:package-lock.json:"
-            "lock-resolved:node_modules/x",
+            "lock-resolved:node_modules/x;cdn-sync-author",
         )
         evil = "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"
         self.assertEqual(
@@ -10487,7 +10488,7 @@ class DependabotEligibility(unittest.TestCase):
                 after={"package-lock.json": self.lock("2.0.0", evil)},
             ),
             "dependabot-fix-content:fix-content:package-lock.json:"
-            "lock-resolved:node_modules/x",
+            "lock-resolved:node_modules/x;cdn-sync-author",
         )
 
     def test_a_lanes_app_install_script_pin_move_is_eligible_and_no_other_pin(
@@ -10516,7 +10517,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertEqual(
                     reason(pin),
                     "dependabot-fix-content:fix-content:package.json:"
-                    "package-json-key:allowScripts",
+                    "package-json-key:allowScripts;cdn-sync-author",
                 )
 
     PIN_MESSAGE = (
@@ -10597,6 +10598,176 @@ class DependabotEligibility(unittest.TestCase):
             f"dependabot-review:commit-not-dependabot:{self.HEAD[:12]};"
             "review-verdict-head-moved",
         )
+
+    SYNC_MESSAGE = (
+        "Sync the CDN pins to the bumped manifest on "
+        "dependabot/npm_and_yarn/x-1.3.0 [dependabot skip]\n\n"
+        "Lane-Activity: pr-unblock/review-dependency\n"
+    )
+    CDN_TARGETS = ("plugins/example/reference/view.md", "docs/cdn.md")
+    PINS_URL = f"repos/{REPO}/contents/lib/cdn-pins/pins.json?ref={SHA}"
+
+    def cdn_sync(
+        self,
+        paths: list[str] | None = None,
+        *,
+        files: list[dict[str, Any]] | None = None,
+        detail: dict[str, Any] | None = None,
+        modes: dict[tuple[str, str], dict[str, Any]] | None = None,
+        pins: Any = None,
+    ) -> Any:
+        """A semver-patch Dependabot bump with the lanes App's CDN pins sync
+        commit (patch-rules.json row `cdn-pins-sync`) at the head, judged with
+        a merge verdict at the head. `modes` maps (commit, path) to a tree
+        entry, else a regular file; `pins` is the base's pins.json answer."""
+        paths = paths or ["lib/cdn-pins/pins.json", self.CDN_TARGETS[0]]
+        listing = files or [{"filename": p, "status": "modified"} for p in paths]
+        sync = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message=self.SYNC_MESSAGE,
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        gh = self.fake(
+            commits=[dependabot_commit("semver-patch"), sync],
+            comments=[self.marker()],
+            pushes=self.PUSHES,
+            files=[{"filename": "package-lock.json"}]
+            + [{"filename": f["filename"]} for f in listing],
+        )
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": listing,
+            "parents": [{"sha": self.PARENT}],
+            "author": {"login": IDENTITY},
+            "committer": {"id": 19864447},
+            "commit": {
+                "message": self.SYNC_MESSAGE,
+                "verification": {"verified": True, "reason": "valid"},
+            },
+            **(detail or {}),
+        }
+        record = {
+            "packages": {"x": {"version": "1.3.0"}},
+            "targets": [{"path": p, "packages": ["x"]} for p in self.CDN_TARGETS],
+        }
+        gh.rest[self.PINS_URL] = (
+            file_payload(json.dumps(record)) if pins is None else pins
+        )
+        gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
+
+        def tree(variables: dict[str, str]) -> dict[str, Any]:
+            ref, at = variables["e"].split(":", 1)
+            entries = [
+                {
+                    "name": f["filename"].rsplit("/", 1)[-1],
+                    **(modes or {}).get(
+                        (ref, f["filename"]), {"type": "blob", "mode": 0o100644}
+                    ),
+                }
+                for f in listing
+                if f["filename"].rpartition("/")[0] == at
+            ]
+            return {"repository": {"object": {"entries": entries}}}
+
+        gh.graphql["FixTree"] = tree
+        return self.eligibility()
+
+    def assert_sync_refused(self, result: Any, reason: str) -> None:
+        self.assertFalse(result.eligible)
+        self.assertRegex(str(result.reason), r"^dependabot-fix-content:fix-")
+        self.assertIn(f";{reason}", str(result.reason))
+
+    def test_the_lanes_app_cdn_pins_sync_commit_merges_on_a_verdict_at_the_head(
+        self,
+    ) -> None:
+        result = self.cdn_sync()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.tier, "review")
+        every = self.cdn_sync(["lib/cdn-pins/pins.json", *self.CDN_TARGETS])
+        self.assertTrue(every.eligible, every.reason)
+
+    def test_a_cdn_pins_sync_commit_is_only_the_base_registry_files_in_place(
+        self,
+    ) -> None:
+        pins, target = "lib/cdn-pins/pins.json", self.CDN_TARGETS[0]
+        self.assert_sync_refused(
+            self.cdn_sync([pins, target, "src/x.js"]), "cdn-sync-scope:src/x.js"
+        )
+        self.assert_sync_refused(
+            self.cdn_sync([pins, "lib/cdn-pins/sync.mjs"]),
+            "cdn-sync-scope:lib/cdn-pins/sync.mjs",
+        )
+        for listing in (
+            [{"filename": target, "status": "added"}],
+            [{"filename": target, "status": "removed"}],
+            [{"filename": target, "status": "renamed", "previous_filename": "a.md"}],
+        ):
+            with self.subTest(status=listing[0]["status"]):
+                self.assert_sync_refused(
+                    self.cdn_sync(files=listing), f"cdn-sync-status:{target}"
+                )
+        for ref, mode in (
+            (self.PARENT, 0o100755),
+            (self.HEAD, 0o100755),
+            (self.HEAD, 0o120000),
+        ):
+            with self.subTest(ref=ref[:1], mode=oct(mode)):
+                modes = {(ref, target): {"type": "blob", "mode": mode}}
+                self.assert_sync_refused(
+                    self.cdn_sync(modes=modes), f"cdn-sync-mode:{target}"
+                )
+        message = {
+            "commit": {
+                "message": "Sync the CDN pins",
+                "verification": {"verified": True, "reason": "valid"},
+            }
+        }
+        self.assert_sync_refused(self.cdn_sync(detail=message), "cdn-sync-message")
+
+    def test_a_cdn_pins_sync_commit_is_the_lanes_apps_with_one_parent(
+        self,
+    ) -> None:
+        unsigned = {
+            "commit": {
+                "message": self.SYNC_MESSAGE,
+                "verification": {"verified": False, "reason": "unsigned"},
+            }
+        }
+        for label, detail in (
+            ("another author", {"author": {"login": "maintainer"}}),
+            ("no author account", {"author": None}),
+            ("a committer other than web-flow", {"committer": {"id": 5}}),
+            ("an unverified signature", unsigned),
+        ):
+            with self.subTest(label):
+                self.assert_sync_refused(
+                    self.cdn_sync(detail=detail), "cdn-sync-author"
+                )
+        two = self.cdn_sync(
+            detail={"parents": [{"sha": self.PARENT}, {"sha": "b" * 40}]}
+        )
+        self.assertEqual(
+            two.reason, f"dependabot-fix-content:commit-parents:{self.HEAD[:12]}"
+        )
+
+    def test_a_cdn_pins_sync_commit_refuses_when_the_base_registry_does_not_read(
+        self,
+    ) -> None:
+        for label, pins in (
+            ("absent", 404),
+            ("a failed read", 502),
+            ("not JSON", file_payload("{")),
+            ("an invalid target", file_payload('{"targets": [{"path": "../x"}]}')),
+            (
+                "a bump path target",
+                file_payload('{"targets": [{"path": "lib/cdn-pins/package.json"}]}'),
+            ),
+        ):
+            with self.subTest(label):
+                self.assert_sync_refused(
+                    self.cdn_sync(pins=pins), "cdn-sync-base-unreadable"
+                )
 
     def test_a_verdict_admits_no_other_second_commit_on_a_patch_bump(self) -> None:
         refused = f"commit-not-dependabot:{self.HEAD[:12]}"

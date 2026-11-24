@@ -243,6 +243,13 @@ inventoried, classified and unclassified, and a Sources line citing the pages fe
 dates. End every run with a verifier attestation line naming the surface batches verified, verified
 inline, or skipped, and which check the verifier ran on each: `proposals` or `verdicts`.
 
+## Related
+
+- Audit existing instruction text that is wrong or stale: /harness-config:audit-instructions.
+- Run a coordinated pass combining both lanes: /harness-config:audit-pass.
+- Pick strongest enforcement rung for a missing P7 destructive-action gate: /corrections:codify.
+- Structural skill lint: /skill-quality:check.
+
 ## Gotchas
 
 - **Presence can live one file away.** A SKILL.md that routes to a context file the model must

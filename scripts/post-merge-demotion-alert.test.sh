@@ -102,7 +102,7 @@ uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^
 checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
 first_step="$(awk '/^    steps:$/ { on = 1; next } on && /^      - / { n++ } n == 1 { print } n > 1 { exit }' <<<"$alert_job")"
 dropin="$(awk '/- name: Write the source-control trust settings/ { on = 1; next } on && /^      - |^$/ { exit } on' <<<"$alert_job")"
-want_dropin='        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@[0-9a-f]{40} # v[0-9.]+
+want_dropin='        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control'

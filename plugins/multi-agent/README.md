@@ -96,7 +96,10 @@ and `registry-fetcher`: inside each subagent the gate denies every tool call exc
 one shape, `bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`,
 with no query string. The URL must be on first-party docs hosts for `docs-fetcher`, and on the exact
 host set of `reference/benchmarks.json` for `registry-fetcher` (enforced by
-`hooks/registry-fetcher-gate.test.sh`). For that command each gate makes no decision,
+`hooks/registry-fetcher-gate.test.sh`), which alone may put `--render` before the URL:
+`docs-raw.sh` then checks the page for that row's `expect` marker and, when the docs-cache
+`renderer` is `firecrawl`, renders a blocked page or an empty script shell through the Firecrawl
+CLI, which sends the public URL to Firecrawl's service. For that command each gate makes no decision,
 and passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the host
 must resolve only to global addresses and curl connects to the checked one alone. A
 stdin error or a crash inside the gate denies. Both rows set `"onFailure": "block"`

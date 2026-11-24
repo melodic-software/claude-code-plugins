@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for derivable-list.py (assertions from test-helpers.sh beside
-# this file). Every fixture is a throwaway git repo under one mktemp -d root,
-# isolated from any inherited git environment. Expected counts are worked out
-# by hand from each fixture's entries and its tracked files.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -127,11 +123,6 @@ stage "$FX"
 OUT=$(dl --root "$(host_path "$FX")" owners.json)
 assert_eq "K1: keys that name folders" $'candidate\t5\t5\towners.json\t/owners (keys)' "$OUT"
 
-# --- hostile entry names ------------------------------------------------------
-# Each entry would create a marker file, read outside the tree, or split a row
-# if the script ever evaluated, stat-ed or printed it raw. Three of the five
-# name nothing, so the list is below the threshold; the outside-tree spellings
-# must never count as named even though the target exists on disk.
 FX=$(new_fixture hostile)
 plugin_dirs "$FX" ant bee
 mkdir -p "$TEST_TMPDIR/outside"
@@ -159,7 +150,6 @@ OUT=$(dl --root "$(host_path "$FX")" list.json)
 assert_eq "H3: control characters are escaped, every row on one line" \
   $'candidate\t4\t5\tlist.json\t/a\\u0009b\\u000ac\nunnamed\tlist.json\t/a\\u0009b\\u000ac\t"bad\\u0000\\n\\u2028x"' "$OUT"
 
-# A list file whose own name carries shell syntax is read as data.
 FX=$(new_fixture hostile-name)
 plugin_dirs "$FX" ant bee cat dog elk
 # shellcheck disable=SC2016
@@ -171,7 +161,6 @@ assert_eq "H4: a hostile list name is printed, not run" \
   $'candidate\t5\t5\tlists/$(touch pwned-file).txt\tlines' "$OUT"
 assert_eq "H4: no marker file was created" "" "$(find "$FX" -name 'pwned-file' 2>/dev/null)"
 
-# --- arguments that are not tracked files are skipped ------------------------
 FX=$(new_fixture skips)
 plugin_dirs "$FX" ant
 printf 'a\0b' >"$FX/blob.bin"
@@ -182,7 +171,6 @@ assert_exit "K2: skip rows still exit 0" 0 $?
 assert_eq "K2: outside, untracked and binary arguments are skipped" \
   $'skip\t../outside/secret\toutside-root\nskip\tloose.json\tuntracked\nskip\tblob.bin\tbinary' "$OUT"
 
-# --- a tracked symlink to a file outside the root is never opened -------------
 FX=$(new_fixture symlink)
 plugin_dirs "$FX" ant bee cat dog elk
 printf '%s\n' '["outside-marker-1", "outside-marker-2", "outside-marker-3", "outside-marker-4", "outside-marker-5"]' \
@@ -194,7 +182,6 @@ OUT=$(dl --root "$(host_path "$FX")" link.json)
 assert_eq "Y1: the symlink is skipped as outside-root" $'skip\tlink.json\toutside-root' "$OUT"
 assert_not_contains "Y1: no outside content is printed" "$OUT" "outside-marker"
 
-# --- paths come from a file or stdin, never the command line ------------------
 FX=$(new_fixture paths-from)
 plugin_dirs "$FX" ant bee cat dog elk
 # shellcheck disable=SC2016
@@ -212,7 +199,6 @@ assert_eq "P2: no marker file was created" "" "$(find "$FX" "$PWD" -maxdepth 2 -
 OUT=$(printf '' | dl --root "$(host_path "$FX")" --paths-from - 2>&1)
 assert_exit "P3: an empty path list exits 2" 2 $?
 
-# --- usage errors ---------------------------------------------------------------
 mkdir -p "$TEST_TMPDIR/plain"
 dl --root "$(host_path "$TEST_TMPDIR/plain")" x.json >/dev/null 2>&1
 assert_exit "E1: not a git work tree exits 2" 2 $?

@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for measure.mjs — the offline surfaces only.
-#
-# Covers: the /context markdown parser (current-format fixture, the
-# stdin-warning trap, loud refusal on an unrecognized format), compare's
-# comparability rules (identical runs comparable; skill-listing signature
-# mismatch marks System tools incomparable; schema validation), the ledger
-# (one file per run plus an appended history line; schema-checked append),
-# the attribute/additivity pipeline in cli-parse mode against a fake
-# `claude` binary (a vanished bucket is unmeasured and incomparable, never a
-# coerced zero; per-bucket verdicts; an unmeasured verdict distinct from a
-# measured negative), and verify-catalogue (binary-scan present/absent, never
-# invents presence). The sdk measurement path spawns a real Claude Code
-# binary and is exercised manually, not here — this suite must stay hermetic.
-#
-# Prerequisites: node on PATH (the engine's own runtime — required for
-# correctness; absent, this suite fails loudly rather than skipping).
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
 
 set -uo pipefail
 
@@ -35,7 +16,6 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-# assert_eq <actual> <expected> <ok-message> <fail-message>
 assert_eq() {
   if [[ "$1" == "$2" ]]; then
     ok "$3"
@@ -43,8 +23,6 @@ assert_eq() {
     fail "$4 (got: $1)"
   fi
 }
-# assert_exit <expected-code> <ok-message> <fail-message> <cmd...> — runs the
-# command with both streams discarded and checks its exit code
 assert_exit() {
   local want="$1" okmsg="$2" failmsg="$3"
   shift 3
@@ -56,8 +34,6 @@ assert_exit() {
     fail "$failmsg (exit $rc)"
   fi
 }
-# assert_degrade <out-file> <needle> <ok-message> <fail-message> <cmd...> — the
-# command must exit 3 and leave a record naming the needle on stdout
 assert_degrade() {
   local out="$1" needle="$2" okmsg="$3" failmsg="$4"
   shift 4
@@ -76,33 +52,23 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 WORK="$(mktemp -d)"
-# Git Bash hands node a POSIX /tmp path inside JS source strings unconverted;
-# a mixed-form path reads on both sides.
 if command -v cygpath >/dev/null 2>&1; then WORK="$(cygpath -m "$WORK")"; fi
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
-# jsonget <file> <js-expression over parsed `j`> — prints the value
 jsonget() {
   node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));const v=(function(){return eval(process.argv[2])})();process.stdout.write(String(v))" "$1" "$2"
 }
 
-# jsonmutate <in-file> <out-file> <js-statement over parsed `j`> — writes the
-# mutated record to the out file
 jsonmutate() {
   node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));eval(process.argv[3]);fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$1" "$2" "$3"
 }
 
-# write_snapshot <file> <mode> <version> <signature> <systemtools> <skilltokens>
-# Minimal but schema-valid snapshot record for compare tests. The deferred
-# bucket is the literal 1000 in every record, which is why two of them compare
-# with a deferred delta of 0 (the dA/dB test below).
 write_snapshot() {
   printf '{"schema":"context-budget.snapshot/1","timestampUtc":"2026-01-01T00:00:00Z","mode":"%s","precision":"exact","label":null,"deny":[],"binary":{"path":"/opt/fake/claude","version":"%s"},"categories":{"System tools":%s,"System tools (deferred)":1000,"Skills":%s},"totalTokens":%s,"skillListing":{"signature":"%s","tokens":%s,"rows":3}}\n' \
     "$2" "$3" "$5" "$6" "$5" "$4" "$6" >"$1"
 }
 
-# --- parse-context: current-format fixture --------------------------------
 
 out="$WORK/parsed.json"
 if ! node "$ENGINE" parse-context --file "$FIXTURE" --out "$out" >/dev/null; then
@@ -122,7 +88,6 @@ else
     "model line parsed" "model line misparsed"
 fi
 
-# --- parse-context: the unredirected-stdin warning trap -------------------
 
 warned="$WORK/warned.md"
 {
@@ -137,7 +102,6 @@ else
   fail "warning-line trap not handled"
 fi
 
-# --- parse-context: signature is content-derived and stable ---------------
 
 sig1="$(jsonget "$out" 'j.skillListing.signature')"
 sig2="$(jsonget "$out2" 'j.skillListing.signature')"
@@ -147,7 +111,6 @@ else
   fail "signature not deterministic: '$sig1' vs '$sig2'"
 fi
 
-# --- parse-context: loud refusal on an unrecognized format ----------------
 
 printf 'Totally different output\nwith no markdown tables at all\n' >"$WORK/garbage.md"
 assert_degrade "$WORK/garbage-out.json" 'context-budget.error/1' \
@@ -155,17 +118,13 @@ assert_degrade "$WORK/garbage-out.json" 'context-budget.error/1' \
   "unrecognized format: expected exit 3 + error record" \
   node "$ENGINE" parse-context --file "$WORK/garbage.md"
 
-# A category table that parses but lacks the System tools row must also refuse.
 printf '## Context Usage\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|---|---|---|\n| Something else | 1.0k | 1.0%% |\n' >"$WORK/norow.md"
 assert_degrade "$WORK/norow-out.json" 'System tools' \
   "missing System tools row refuses rather than guessing" \
   "missing System tools row: expected exit 3 naming the row" \
   node "$ENGINE" parse-context --file "$WORK/norow.md"
 
-# --- parse-context: one system-tool bucket alone parses --------------------
 
-# Deferred-only shape (observed on headless Claude Code 2.1.289). Expected
-# values come from the fixture's own cells: 14k deferred, 2.5k system prompt.
 donly="$WORK/deferred-only.json"
 if node "$ENGINE" parse-context --file "$SCRIPT_DIR/fixtures/context-deferred-only.md" --out "$donly" >/dev/null; then
   ok "deferred-only table exits 0"
@@ -183,7 +142,6 @@ else
   fail "deferred-only table did not parse"
 fi
 
-# Prefix-only shape: the deferred row is the absent one.
 printf '## Context Usage\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|---|---|---|\n| System tools | 3.0k | 1.0%% |\n| Messages | 10 | 0.0%% |\n' >"$WORK/prefix-only.md"
 ponly="$WORK/prefix-only.json"
 if node "$ENGINE" parse-context --file "$WORK/prefix-only.md" --out "$ponly" >/dev/null; then
@@ -230,7 +188,6 @@ else
   fail "signature-mismatch reason missing"
 fi
 
-# --- compare: every recorded mismatch poisons the predicate ---------------
 
 jsonmutate "$WORK/a.json" "$WORK/d.json" "j.binary.path='/opt/other/claude'"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/d.json" --out "$WORK/row-path.json" >/dev/null
@@ -298,8 +255,6 @@ node "$ENGINE" ledger --list --dir "$LDIR" >"$listed"
 assert_eq "$(jsonget "$listed" 'j.rows.length')" "2" \
   "ledger list returns both rows" "ledger list wrong row count"
 
-# Same row appended again (same timestamp + lever): the run file must not be
-# overwritten — the runId collides into a numbered suffix.
 node "$ENGINE" ledger --append "$row" --dir "$LDIR" >/dev/null
 runfiles=$(find "$LDIR/runs" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "$runfiles" "3" \
@@ -314,12 +269,6 @@ assert_exit 2 "ledger rejects a relative --dir" \
   "ledger accepted a relative --dir" \
   node "$ENGINE" ledger --append "$row" --dir "relative/dir"
 
-# --- attribute: additivity never coerces a vanished bucket to zero --------
-# Hermetic live-path exercise: a fake `claude` binary answers `--version` and
-# `-p /context` with deterministic category tables keyed off the deny list and
-# FAKE_MODE, so the attribute/additivity pipeline runs end-to-end in cli-parse
-# mode with no real Claude Code binary. Run from $WORK so no Agent SDK is
-# resolvable and the engine cannot leave cli-parse mode.
 
 FAKEDIR="$WORK/fakebin"
 mkdir -p "$FAKEDIR"
@@ -388,17 +337,12 @@ MINGW* | MSYS* | CYGWIN* | Windows_NT*)
   ;;
 esac
 
-# attr <fake-mode> <out-file> <attribute-args...> — one hermetic attribute run
-# against the fake binary, from $WORK so the engine stays in cli-parse mode.
 attr() {
   local mode="$1" out="$2"
   shift 2
   (cd "$WORK" && FAKE_MODE="$mode" node "$ENGINE" attribute "$@" --binary "$FAKE" --out "$out" >/dev/null)
 }
 
-# The bug (#3197): the combined deny empties the deferred bucket out of the
-# snapshot, its delta is null, and the verifier must publish the record as
-# incomparable with a null combinedSaved — never a coerced 0.
 avanish="$WORK/attr-vanish.json"
 if attr vanish "$avanish" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$avanish" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1400" \
@@ -417,8 +361,6 @@ if attr vanish "$avanish" --tools AlphaTool,BetaTool --verify-additivity; then
   else
     fail "vanished-bucket reason missing from additivity record"
   fi
-  # Per bucket: the vanished deferred side is unmeasured, but the prefix side
-  # was measured in both runs and still gets a verdict.
   assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].sumOfParts')" "1600" \
     "per-bucket sum of parts comes off the per-tool prefixDelta values" "per-bucket prefix sumOfParts wrong"
   assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].combinedSaved')" "1600" \
@@ -433,9 +375,6 @@ else
   fail "attribute --verify-additivity (vanish scenario) exited nonzero"
 fi
 
-# A measured negative: every bucket present in every run, the reading
-# comparable, and the prefix side genuinely failing to add. The unmeasured
-# verdict above must NOT be the same value as this one.
 anon="$WORK/attr-nonadditive.json"
 if attr nonadd "$anon" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$anon" 'j.additivity.comparable')" "true" \
@@ -455,7 +394,6 @@ else
   fail "attribute --verify-additivity (nonadd scenario) exited nonzero"
 fi
 
-# Control: all buckets present in every run — the verdict must be untouched.
 actl="$WORK/attr-control.json"
 if attr control "$actl" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$actl" 'j.additivity.combinedSaved')" "2100" \
@@ -503,8 +441,6 @@ else
   fail "attribute --operator-deny exited nonzero"
 fi
 
-# Synthesized zero: the combined prefix arithmetic adds, and the guard must
-# still refuse a verdict.
 asat="$WORK/attr-saturate.json"
 if attr saturate "$asat" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$asat" 'j.additivity.additive')" "null" \
@@ -524,8 +460,6 @@ else
   fail "attribute --verify-additivity (saturate scenario) exited nonzero"
 fi
 
-# A product interactive-only name that WAS a candidate this run is not
-# repeated as known-uncovered — it is measured (or unmeasured-but-candidate).
 aart="$WORK/attr-artifact-candidate.json"
 if attr control "$aart" --tools Artifact; then
   assert_eq "$(jsonget "$aart" 'j.knownUncovered.tools.includes("Artifact")')" "false" \
@@ -536,7 +470,6 @@ else
   fail "attribute --tools Artifact exited nonzero"
 fi
 
-# A single deny that empties a bucket poisons that per-tool row the same way.
 agamma="$WORK/attr-gamma.json"
 if attr control "$agamma" --tools AlphaTool,GammaTool --verify-additivity; then
   assert_eq "$(jsonget "$agamma" 'j.perTool.find((t)=>t.tool==="GammaTool").savedTokens')" "null" \
@@ -549,8 +482,6 @@ else
   fail "attribute (gamma scenario) exited nonzero"
 fi
 
-# A bucket absent from BOTH runs is outside the binary's category vocabulary —
-# a non-event, not a missing measurement.
 anv="$WORK/attr-novocab.json"
 if attr novocab "$anv" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$anv" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1000" \
@@ -567,10 +498,6 @@ else
   fail "attribute (novocab scenario) exited nonzero"
 fi
 
-# Prefix-only listing drift: the combined run's skill listing (or Skills-token
-# count) changes, so systemToolsComparable is false, but the deferred bucket's
-# numeric deltas remain valid under the shared mode/binary checks. Applying
-# the prefix flag to every bucket would publish the deferred verdict as null.
 askillsig="$WORK/attr-skillsig.json"
 if attr skillsig "$askillsig" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$askillsig" 'j.additivity.comparable')" "false" \
@@ -622,11 +549,6 @@ else
   fail "attribute --verify-additivity (skilltok scenario) exited nonzero"
 fi
 
-# --- verify-catalogue: binary existence, never invents presence -----------
-# A tiny catalogue plus a byte file standing in for the binary: one row's
-# keys are in the file, one row's key is not, one row has nothing to grep.
-# The engine must report present/absent from the bytes, not from the
-# catalogue's own claims.
 
 minicat="$WORK/mini-levers.json"
 node -e '
@@ -708,7 +630,6 @@ else
   fail "verify-catalogue --find-unstored exited nonzero"
 fi
 
-# ReDoS-shaped title (long same-case run then _) must finish, not hang.
 redoscat="$WORK/redos-levers.json"
 node -e '
 const fs = require("fs");
@@ -734,7 +655,6 @@ else
   fail "camelCase extract hung or failed on a ReDoS-shaped title"
 fi
 
-# A .cmd path with a sibling .exe scans the exe, not the wrapper.
 printf 'wrapper-only no-keys-here' >"$WORK/shim-claude.cmd"
 printf 'payload disableWorkflows CLAUDE_CODE_DISABLE_WORKFLOWS' >"$WORK/shim-claude.exe"
 shimout="$WORK/verify-shim.json"
@@ -745,15 +665,12 @@ else
   fail "verify-catalogue on a .cmd shim exited nonzero"
 fi
 
-# --- snapshot: pinned-binary honesty --------------------------------------
 
 assert_degrade "$WORK/nobin.json" 'binary-not-found' \
   "snapshot with a missing --binary degrades with a structured error" \
   "missing --binary: expected exit 3 + binary-not-found" \
   node "$ENGINE" snapshot --binary "$WORK/does-not-exist"
 
-# Headless /context with no prefix System tools row (the 2.1.289 shape) and no
-# Agent SDK: snapshot must return a cli-parse record, not exit 3.
 snapnp="$WORK/snap-noprefix.json"
 if (cd "$WORK" && FAKE_MODE=noprefix node "$ENGINE" snapshot --binary "$FAKE" --out "$snapnp" >/dev/null); then
   assert_eq "$(jsonget "$snapnp" 'j.mode')" "cli-parse" \
@@ -766,9 +683,6 @@ else
   fail "snapshot exited nonzero on a table without a System tools row"
 fi
 
-# Two such snapshots compared: the prefix bucket is absent from both, but the
-# parser disclosed it, so the ledger row must say it went unmeasured. Both
-# runs print the same deferred cell (12000), so that delta is 0.
 snapnp2="$WORK/snap-noprefix-2.json"
 (cd "$WORK" && FAKE_MODE=noprefix node "$ENGINE" snapshot --binary "$FAKE" --out "$snapnp2" >/dev/null)
 node "$ENGINE" compare --before "$snapnp" --after "$snapnp2" --out "$WORK/row-noprefix.json" >/dev/null
@@ -779,9 +693,6 @@ assert_eq "$(jsonget "$WORK/row-noprefix.json" 'typeof j.unmeasured["System tool
 assert_eq "$(jsonget "$WORK/row-noprefix.json" 'j.delta["System tools (deferred)"]')" "0" \
   "the measured deferred bucket still compares" "deferred delta wrong between noprefix runs"
 
-# Attribution over the same shape: the deferred side moves by 400 (12000 vs
-# 11600 with AlphaTool denied), but with the prefix bucket unmeasured the
-# saving is null and the row incomparable, never 400 with the prefix as 0.
 anp="$WORK/attr-noprefix.json"
 if attr noprefix "$anp" --tools AlphaTool; then
   assert_eq "$(jsonget "$anp" 'j.perTool[0].deferredDelta')" "-400" \
@@ -795,11 +706,6 @@ else
   fail "attribute (noprefix scenario) exited nonzero"
 fi
 
-# --- snapshot --measure-only ------------------------------------------------
-# Read-only consumer mode: with the SDK absent it exits 4 (distinct from the
-# degradation code 3), does not fall back to cli-parse, offers no install, and
-# leaves the data dir and working dir untouched. Run from $WORK, where the SDK
-# does not resolve and the fake binary would satisfy a cli-parse fallback.
 MO_DATA="$WORK/mo-data"
 mkdir -p "$MO_DATA/sub"
 printf 'keep\n' >"$MO_DATA/sub/f.txt"

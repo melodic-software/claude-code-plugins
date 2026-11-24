@@ -148,3 +148,8 @@ or nothing, means no names: leave the flag out.
 
 - Apply what the audit predicts: `/harness-ops:plugins sync` (user-invoked).
 - Reconcile a reported divergence: `/harness-ops:plugins converge` (user-invoked).
+
+## Related
+
+- Checking upstream plugin staleness and alternatives: /harness-ops:audit-plugin-landscape.
+- Auditing project settings against upstream catalogs: /harness-config:audit.

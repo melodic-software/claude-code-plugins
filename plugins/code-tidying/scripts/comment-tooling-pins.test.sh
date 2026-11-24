@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract: the eval seed (comment-tooling-seed.sh) installs exactly the pygments
-# and tree-sitter* requirements of .github/requirements-ci.txt, version and hash
-# set, read from that file at seed time. A pin changed in that file alone moves
-# the seed with it, with no second pin file to move.
-# Usage: comment-tooling-pins.test.sh [<ci requirements>]
 # test-scope: plugins/code-tidying/evals/fixtures/comment-tooling-seed.sh .github/requirements-ci.txt
 set -euo pipefail
 
@@ -14,7 +9,6 @@ ci_req="${1:-$root/.github/requirements-ci.txt}"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
-# One line per requirement: continuations joined, comments dropped, hashes sorted.
 requirements() {
   awk '
     /^[[:space:]]*#/ { next }
@@ -33,8 +27,6 @@ fail() {
   rc=1
 }
 
-# The seed's requirements for CI file $1 are that file's pygments and tree-sitter*
-# requirements, and cover every package the seed imports.
 check() {
   local ci="$1" all want got name
   all="$(requirements "$ci")"
@@ -52,7 +44,6 @@ check() {
 
 check "$ci_req"
 
-# With no file named, the seed reads the repository's .github/requirements-ci.txt.
 if [[ -z "${1:-}" ]]; then
   bash "$seed" --print-requirements >"$scratch/default.txt"
   bash "$seed" --print-requirements "$ci_req" >"$scratch/named.txt"
@@ -60,7 +51,6 @@ if [[ -z "${1:-}" ]]; then
     fail "the seed's default requirements are not those of $ci_req"
 fi
 
-# A tree-sitter bump in the CI file alone: new version, one hash replaced.
 moved="$scratch/requirements-ci.txt"
 new_hash="sha256:$(printf 'f%.0s' {1..64})"
 awk -v h="$new_hash" '

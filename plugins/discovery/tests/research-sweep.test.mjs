@@ -1,5 +1,3 @@
-// Runs workflows/research-sweep.js against stubbed workflow hooks (agent,
-// parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -12,7 +10,6 @@ const source = readFileSync(join(here, '..', 'workflows', 'research-sweep.js'), 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }
@@ -21,14 +18,10 @@ const sourceUrl = prompt => JSON.parse(prompt.match(/<data name="source-url">\n(
 
 const data = (prompt, name) => JSON.parse(prompt.match(new RegExp('<data name="' + name + '">\\n([\\s\\S]*?)\\n</data>'))[1])
 
-// One docs-raw output for a URL, as lib/docs-raw.sh prints it: header line, then body.
 const rawPage = (url, body = 'body of ' + url) =>
   'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + Buffer.byteLength(body) +
   ' body_sha256=' + createHash('sha256').update(body).digest('hex') + '\n' + body
 
-// Default stub: fetchers return a raw page for their URL; each searcher finds
-// two sources, each reader extracts one claim, consolidation marks every claim
-// load-bearing, skeptics uphold.
 function defaultReply(prompt, o) {
   const label = o.label || ''
   if (label.startsWith('fetch:')) return { output: rawPage(data(prompt, 'url')) }
@@ -544,7 +537,6 @@ test('the read and finding source schemas carry an optional dated_by', async () 
   }
 })
 
-// ---- applies_to grammar (criterion 13) ----
 
 const finding = (id, appliesTo, sources = []) => ({ id, claim: id, confidence: 'HIGH', applies_to: appliesTo, inference: 'i', qualifiers: ['q'], sources })
 const cited = (url, appliesTo) => ({ url, tier: 1, pool: 'example', published: '2026-09', applies_to: appliesTo, role: 'primary', measures: 'm' })

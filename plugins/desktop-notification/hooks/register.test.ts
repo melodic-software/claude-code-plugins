@@ -1,6 +1,5 @@
 import { expect, test } from 'claude-code/testing'
 
-// A second mod that toasts on every Bash call. Inline plugins close over nothing of this file.
 const SENDER = {
   name: 'toast-sender',
   register(on: any) {
@@ -11,7 +10,6 @@ const SENDER = {
   },
 } as any
 
-// A mod that toasts whatever is notified: forwarding must stop after one notification.
 const ECHO = {
   name: 'toast-echo',
   register(on: any) {

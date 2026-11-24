@@ -332,6 +332,13 @@ writing it into a brief; never hand a `${…}` token from those files to the Bas
 - Picked candidate fits one small PR: /improvement:improve TARGET.
 - Picked candidate needs design or several PRs: /planning:interview.
 
+## Related
+
+- Single-lens architecture deepening: /architecture:improve.
+- Structure-only code tidying: /code-tidying:tidy.
+- Verifying docs and config drift: /codebase-health:audit.
+- Filing unpicked candidates: /work-items:track.
+
 ## Gotchas
 
 Known traps:
