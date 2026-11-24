@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The opt-in size check over a change-scoped size report.
 
-  size_check.py add --config <resolved.json> <report.json>   add `size_check` in place; exit 0 pass, 1 fail, 2 cannot decide
-  size_check.py render <report.json>                         print the markdown section for it
+  size_check.py add --config <resolved.json> [--registry <file>]... <report.json>
+                                     add `size_check` in place; exit 0 pass, 1 fail, 2 cannot decide
+  size_check.py render <report.json> print the markdown section for it
 
 The rule is the resolved `size.check`:
 
@@ -19,6 +20,13 @@ the working-tree file, the base count on the file as the base commit holds it,
 under its earlier name when git sees a rename, and 0 when the base has no such
 file. Every copy a replica row stands for is checked on its own. A `file_lines`
 run row that did not measure its lane leaves the check undecided.
+
+A file a registry's cluster line `<canonical> -> <member>...` names as a member
+(and that is not the canonical itself) is a generated copy measured at its
+canonical: a row it would have produced carries `canonical` and never fails.
+The canonical keeps the rule. Members are literal root-relative paths or
+gitignore-style globs, and the first matching line in file order names the
+canonical.
 """
 
 from __future__ import annotations
@@ -27,7 +35,12 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from pathglob import matches as glob_matches  # noqa: E402
+
+CLUSTER_MARKER = " -> "
 RULES = ("report", "crossing", "crossing-or-growth")
 GUIDANCE = (
     "Split each failing file along a real responsibility boundary, so each part "
@@ -104,6 +117,33 @@ def _files(row: dict) -> list[str]:
     return list(dict.fromkeys([row["file"], *copies]))
 
 
+def _clean(path: str) -> str:
+    return path.replace("\\", "/").lstrip("/")
+
+
+def read_clusters(paths: list[str]) -> list[tuple[str, list[str]]]:
+    clusters: list[tuple[str, list[str]]] = []
+    for path in paths:
+        with open(path, encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if line.startswith("#") or CLUSTER_MARKER not in line:
+                    continue
+                canonical, _, rest = line.partition(CLUSTER_MARKER)
+                clusters.append(
+                    (_clean(canonical.strip()), [_clean(t) for t in rest.split()])
+                )
+    return clusters
+
+
+def canonical_of(path: str, clusters: list[tuple[str, list[str]]]) -> str | None:
+    path = _clean(path)
+    for canonical, members in clusters:
+        if path != canonical and any(glob_matches(m, path) for m in members):
+            return canonical
+    return None
+
+
 def _reference(document: dict) -> tuple[float | None, str]:
     for entry in document.get("thresholds") or []:
         if entry.get("measure") == "file_lines":
@@ -111,7 +151,10 @@ def _reference(document: dict) -> tuple[float | None, str]:
     return None, "bundled default"
 
 
-def add(document: dict, config: dict) -> int:
+def add(
+    document: dict, config: dict, clusters: list[tuple[str, list[str]]] | None = None
+) -> int:
+    clusters = clusters or []
     rule = (config.get("size") or {}).get("check") or "report"
     layer = (config.get("_layers") or {}).get("size.check", "bundled default")
     reference, reference_layer = _reference(document)
@@ -165,16 +208,18 @@ def add(document: dict, config: dict) -> int:
             kind, fails = "grew", rule == "crossing-or-growth"
         else:
             continue
-        block["rows"].append(
-            {
-                "file": path,
-                "base_file": old,
-                "base_lines": base,
-                "head_lines": head,
-                "kind": kind,
-                "fails": fails,
-            }
-        )
+        row = {
+            "file": path,
+            "base_file": old,
+            "base_lines": base,
+            "head_lines": head,
+            "kind": kind,
+            "fails": fails,
+        }
+        canonical = canonical_of(path, clusters)
+        if canonical:
+            row.update(canonical=canonical, fails=False)
+        block["rows"].append(row)
     block["rows"].sort(key=lambda r: (not r["fails"], r["file"]))
     block["failed"] = sum(1 for r in block["rows"] if r["fails"])
     return 1 if block["failed"] else 0
@@ -204,7 +249,9 @@ def render(document: dict) -> str:
                 if r["base_file"] == r["file"]
                 else f"{r['file']} (was {r['base_file']})"
             )
-            if r["kind"] == "crossed":
+            if r.get("canonical"):
+                result = f"reported: a copy, measured at its canonical {r['canonical']}"
+            elif r["kind"] == "crossed":
                 result = "fails: crossed the reference"
             elif r["fails"]:
                 result = "fails: already over, grew"
@@ -228,17 +275,25 @@ def render(document: dict) -> str:
 
 def main(argv: list[str]) -> int:
     try:
-        if len(argv) == 4 and argv[0] == "add" and argv[1] == "--config":
+        pairs = argv[3:-1]
+        if (
+            len(argv) >= 4
+            and argv[:2] == ["add", "--config"]
+            and len(pairs) % 2 == 0
+            and all(flag == "--registry" for flag in pairs[::2])
+        ):
             with open(argv[2], encoding="utf-8") as handle:
                 config = json.load(handle)
-            with open(argv[3], encoding="utf-8") as handle:
+            clusters = read_clusters(pairs[1::2])
+            report = argv[-1]
+            with open(report, encoding="utf-8") as handle:
                 document = json.load(handle)
             try:
-                status = add(document, config)
+                status = add(document, config, clusters)
             except CannotDecide as exc:
                 print(f"size_check.py: {exc}", file=sys.stderr)
                 status = 2
-            with open(argv[3], "w", encoding="utf-8") as handle:
+            with open(report, "w", encoding="utf-8") as handle:
                 json.dump(document, handle, indent=2)
             return status
         if len(argv) == 2 and argv[0] == "render":

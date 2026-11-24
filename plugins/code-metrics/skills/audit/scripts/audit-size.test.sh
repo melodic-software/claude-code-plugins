@@ -202,6 +202,20 @@ team $'  file_lines: 5\n  check: crossing\n'
 assert_eq "--check under a rule cannot decide past a failed collector (exit 2)" 2 "$?"
 rm -rf "${BROKEN:?}"
 
+mkdir -p "$GATE/lib" "$GATE/plugins/p/scripts"
+printf 'lib/tool.txt -> plugins/*/scripts/tool.txt\n' >"$GATE/docs/registry.txt"
+printf 'scope:\n  exclude: ["docs/**", ".claude/**"]\n  registries: [docs/registry.txt]\nsize:\n  file_lines: 5\n  check: crossing\n' >"$GATE/docs/conventions/code-metrics.yaml"
+seq 1 4 >"$GATE/lib/tool.txt"
+seq 1 7 >"$GATE/plugins/p/scripts/tool.txt"
+out="$(gate --check)"
+assert_eq "a registered copy that crossed passes (exit 0)" 0 "$?"
+assert_contains "the copy is reported at its canonical" "$out" "| plugins/p/scripts/tool.txt | 0 | 7 | reported: a copy, measured at its canonical lib/tool.txt |"
+seq 1 7 >"$GATE/lib/tool.txt"
+out="$(gate --check)"
+assert_eq "the canonical that crossed still fails (exit 1)" 1 "$?"
+assert_contains "the canonical's crossing is named" "$out" "| lib/tool.txt | 0 | 7 | fails: crossed the reference |"
+rm -rf "${GATE:?}/lib" "${GATE:?}/plugins"
+
 team $'  file_lines: 5\n  check: true\n'
 out="$(gate --check)"
 assert_eq "an invalid size.check exits 2" 2 "$?"

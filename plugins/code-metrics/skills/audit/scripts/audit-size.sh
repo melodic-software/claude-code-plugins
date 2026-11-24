@@ -124,7 +124,14 @@ if [[ -n "$COMMITS_SINCE" ]]; then
   "${PY[@]}" -I "$SCRIPT_DIR/size_commits.py" add --since "$COMMITS_SINCE" "$WORK/report.json" || exit 2
 fi
 if [[ "$CHECK" -eq 1 ]]; then
-  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" add --config "$CM_CONFIG" "$WORK/report.json"
+  # shellcheck source=../../../scripts/replica-collapse.sh
+  source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
+  REGISTRIES="$(cm_registry_paths "$CM_CONFIG")" || exit 2
+  REGISTRY_ARGS=()
+  while IFS= read -r registry; do
+    [[ -n "$registry" ]] && REGISTRY_ARGS+=(--registry "$registry")
+  done <<<"$REGISTRIES"
+  "${PY[@]}" -I "$SCRIPT_DIR/size_check.py" add --config "$CM_CONFIG" ${REGISTRY_ARGS[@]+"${REGISTRY_ARGS[@]}"} "$WORK/report.json"
   check_rc=$?
   if [[ $rc -eq 3 && "$RULE" != "report" ]]; then
     echo "audit-size.sh: --check cannot decide: a collector produced nothing parseable (see the run table)" >&2
