@@ -167,9 +167,9 @@ run 7 >/dev/null 2>&1
 assert_exit "an eval line from a bot with no lanes App setting holds the flip" 3 "$?"
 
 APP_PLUGIN="$TEST_TMPDIR/app-plugin"
-mkdir -p "$APP_PLUGIN/skills/pull-request/scripts" "$APP_PLUGIN/skills/babysit-prs/scripts"
+mkdir -p "$APP_PLUGIN/skills/pull-request/scripts" "$APP_PLUGIN/skills/babysit-prs/scripts" "$APP_PLUGIN/lib"
 cp "$SCRIPT" "$APP_PLUGIN/skills/pull-request/scripts/"
-cp -R "$SCRIPT_DIR/../../../lib" "$APP_PLUGIN/lib"
+cp "$SCRIPT_DIR/../../../lib/"{base-file.sh,convention-key.sh,yaml-subset.awk} "$APP_PLUGIN/lib/"
 printf 'babysit_python() { printf %q; }\n' "{\"issue_status_app_login\":\"$LANES_APP\"}" >"$APP_PLUGIN/skills/babysit-prs/scripts/babysit-python.sh"
 PATH="$STUB_DIR:$PATH" bash "$APP_PLUGIN/skills/pull-request/scripts/check-ready-holds.sh" 7 >/dev/null 2>&1
 assert_exit "an eval line from the lanes App the settings name lets the flip go on" 0 "$?"
