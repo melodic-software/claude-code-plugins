@@ -5,12 +5,13 @@ THREADS_SCRIPT="$SCRIPT_DIR/../../../scripts/source-control-review-threads"
 
 usage() {
   cat >&2 <<'EOF'
-usage: monitor-poll.sh --pr <n> (--checkout <dir> | --repo <owner>/<repo>) [--interval <seconds>] [--baseline <file>] [--snapshot <file>] [--once]
+usage: monitor-poll.sh --pr <n> (--checkout <dir> | --repo <owner>/<repo>) [--interval <seconds>] [--baseline <file>] [--snapshot <file>] [--once] [--verdict]
 
 The pull-request monitor's Monitor watch: polls one PR over REST and prints a line for each
-check that finishes, each new comment on the three review surfaces, and each change in the
-unresolved review-thread count. Contract: reference/monitor.md 3.0.1 of the pull-request skill;
-the GitHub facts behind each read: reference/providers/github/pull-request/monitor.md
+check that finishes, each new comment on the three review surfaces, each change in the
+unresolved review-thread count, and each new pr-verify verdict at the PR's head where the base
+branch has .github/workflows/pr-verify.yml. Contract: reference/monitor.md 3.0.1 of the
+pull-request skill; the GitHub facts behind each read: reference/providers/github/pull-request/monitor.md
 "Poll checks over REST" in this plugin.
 
   --checkout  the checkout of the PR's repository; target-repo.sh resolves the repository
@@ -18,11 +19,14 @@ the GitHub facts behind each read: reference/providers/github/pull-request/monit
   --interval  seconds between polls, default 90; every read is a conditional request, so a poll
               where nothing changed counts nothing against the REST rate limit
   --baseline  re-arm only: the file a --snapshot run of this script wrote
-  --snapshot  read the checks once, write them to this file under a marker line, then exit
-  --once      exit 0 at the end of the first poll that printed a check, comment or thread line
+  --snapshot  read the checks and the verdicts once, write them to this file under a marker line, then exit
+  --once      exit 0 at the end of the first poll that printed a check, comment, thread or verdict line
+  --verdict   read the pr-verify verdicts at the head once, print them, then exit
 
-Exit 0: the PR is merged or closed, the snapshot was written, or a --once poll printed a line.
-Exit 1: the repository did not resolve, or a snapshot run's checks read failed.
+Exit 0: the PR is merged or closed, the snapshot was written, a --once poll printed a line, or
+        a --verdict run read the verdicts.
+Exit 1: the repository did not resolve, a snapshot run's checks read failed, or a --verdict
+        run's read failed.
 Exit 2: a rate limit stopped the watch.
 Exit 3: usage error.
 EOF
@@ -36,9 +40,10 @@ INTERVAL=90
 BASELINE_FILE=""
 SNAPSHOT_FILE=""
 ONCE=0
+VERDICT_ONLY=0
 while [[ $# -gt 0 ]]; do
-  if [[ "$1" == --once ]]; then
-    ONCE=1
+  if [[ "$1" == --once || "$1" == --verdict ]]; then
+    [[ "$1" == --once ]] && ONCE=1 || VERDICT_ONLY=1
     shift
     continue
   fi
@@ -64,11 +69,16 @@ fi
 OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
 
 SNAPSHOT_MARK='# monitor-poll checks snapshot'
+VERDICT_KEY='^PR-VERIFY (pass|pass-notes|fail) [0-9a-f]{40}$'
 prev_checks=""
 baselined=0
+pv_seen=""
+pv_based=0
 if [[ -n "$BASELINE_FILE" && "$(head -n 1 "$BASELINE_FILE" 2>/dev/null | tr -d '\r')" == "$SNAPSHOT_MARK" ]]; then
-  prev_checks=$(tail -n +2 "$BASELINE_FILE" | tr -d '\r' | grep -v '^$' | sort || true)
+  prev_checks=$(tail -n +2 "$BASELINE_FILE" | tr -d '\r' | grep -v '^$' | grep -vE "$VERDICT_KEY" | sort || true)
+  pv_seen=$(tail -n +2 "$BASELINE_FILE" | tr -d '\r' | grep -E "$VERDICT_KEY" || true)
   baselined=1
+  pv_based=1
 elif [[ -n "$BASELINE_FILE" ]]; then
   echo "BASELINE-UNREADABLE $BASELINE_FILE — missing or not a snapshot this script wrote; first checks poll only records; run a full scan"
 fi
@@ -130,6 +140,7 @@ cget() {
     head=${out%%$'\n\n'*} body=""
     [[ "$head" != "$out" ]] && body=${out#*$'\n\n'}
     status=${head%%$'\n'*} status=${status#* } status=${status%% *}
+    cget_status=$status
     tag="" next=""
     while IFS= read -r line; do
       case "$line" in
@@ -161,16 +172,81 @@ cget() {
   [[ "${2:-}" == defer ]] || cache_commit
 }
 
+# Verdict and FAIL-index artifact names (artifactName, failIndexNames):
+# https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-verify/write-verdict.mjs
+pv_base="" pv_on=0
+verdict_read() {
+  local v name ref d n before ids_pr sel
+  pv_now=""
+  [[ -n "$base_ref" && "$base_ref" != null && "$default_branch" != null ]] || return 1
+  if [[ "$pv_base" != "$base_ref" ]]; then
+    ref=$(jq -rn --arg r "$base_ref" '$r | @uri') || return 1
+    before=${#errs}
+    if cget "repos/$OWNER/$REPO/contents/.github/workflows/pr-verify.yml?ref=$ref"; then
+      pv_on=1
+    elif [[ "$cget_status" == 404 || "${errs:before}" == *"(HTTP 404)"* ]]; then
+      pv_on=0
+    else
+      return 1
+    fi
+    pv_base=$base_ref
+  fi
+  [[ "$pv_on" -eq 1 ]] || return 0
+  # shellcheck disable=SC2016 # $n and $d are jq variables
+  sel='[.[].artifacts[]? | select(.name == $n and .expired == false and .workflow_run.head_branch == $d) | .workflow_run.id] | unique'
+  d=$(printf '%s' "$head_ref" | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -c1-16)
+  [[ "$d" =~ ^[0-9a-f]{16}$ ]] || d=""
+  for v in pass pass-notes; do
+    for name in "pr-verify-$PR_NUMBER-$head_sha-$v" ${d:+"pr-verify-$PR_NUMBER-$head_sha-$v-$d"}; do
+      cget "repos/$OWNER/$REPO/actions/artifacts?name=$name&per_page=$per_page" || return 1
+      n=$(printf '%s' "$out" | jq -s --arg n "$name" --arg d "$default_branch" "$sel | length") || return 1
+      if [[ "${n//$'\r'/}" -gt 0 ]]; then
+        pv_now+="PR-VERIFY $v $head_sha"$'\n'
+        break
+      fi
+    done
+  done
+  for name in "pr-verify-index-pr-$PR_NUMBER" "pr-verify-index-sha-$head_sha"; do
+    cget "repos/$OWNER/$REPO/actions/artifacts?name=$name&per_page=$per_page" || return 1
+    n=$(printf '%s' "$out" | jq -s -c --arg n "$name" --arg d "$default_branch" "$sel") || return 1
+    [[ "$name" == *-pr-* ]] && ids_pr=$n && continue
+    n=$(jq -n --argjson a "$ids_pr" --argjson b "$n" '$a - ($a - $b) | length') || return 1
+    [[ "${n//$'\r'/}" -gt 0 ]] && pv_now+="PR-VERIFY fail $head_sha"$'\n'
+  done
+  return 0
+}
+pv_print() {
+  if [[ "$1" == "PR-VERIFY fail "* ]]; then
+    echo "$1 — label pr-verify-failed; its notes are the review threads that open with <!-- pr-verify:fail-note -->"
+  else
+    echo "$1"
+  fi
+}
+
 while true; do
   if cget "repos/$OWNER/$REPO/pulls/$PR_NUMBER" &&
-    pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"'); then
-    read -r state head_sha <<<"${pr//$'\r'/}"
+    pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha) \(.base.ref) \(.base.repo.default_branch) \(.head.ref)"'); then
+    read -r state head_sha base_ref default_branch head_ref <<<"${pr//$'\r'/}"
   elif grep -qiE 'rate limit|HTTP 429' <<<"$errs"; then
     echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' <<<"$errs")"
     exit 2
   fi
   if [[ "$state" == "MERGED" || "$state" == "CLOSED" ]]; then
     echo "PR #$PR_NUMBER $state — watch complete"
+    exit 0
+  fi
+  if [[ "$VERDICT_ONLY" -eq 1 ]]; then
+    if [[ -z "${head_sha:-}" ]] || ! verdict_read; then
+      echo "PR-VERIFY-UNREAD — $(grep -m1 . <<<"$errs")"
+      exit 1
+    fi
+    if [[ "$pv_on" -eq 0 ]]; then
+      echo "PR-VERIFY off — the base branch has no .github/workflows/pr-verify.yml"
+    elif [[ -z "$pv_now" ]]; then
+      echo "PR-VERIFY none $head_sha"
+    else
+      while IFS= read -r key; do [[ -n "$key" ]] && pv_print "$key"; done <<<"$pv_now"
+    fi
     exit 0
   fi
 
@@ -201,7 +277,8 @@ while true; do
       echo "SNAPSHOT-FAILED — checks read failed; no snapshot written"
       exit 1
     fi
-    printf '%s\n%s\n' "$SNAPSHOT_MARK" "$cur_checks" >"$SNAPSHOT_FILE.tmp" &&
+    verdict_read || pv_now=""
+    printf '%s\n%s\n%s' "$SNAPSHOT_MARK" "$cur_checks" "$pv_now" >"$SNAPSHOT_FILE.tmp" &&
       mv "$SNAPSHOT_FILE.tmp" "$SNAPSHOT_FILE"
     exit $?
   fi
@@ -213,6 +290,17 @@ while true; do
     fi
     prev_checks="$cur_checks"
     baselined=1
+  fi
+  if [[ -n "${head_sha:-}" ]] && verdict_read; then
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      grep -qxF -- "$key" <<<"$pv_seen" && continue
+      pv_seen+=$'\n'$key
+      [[ "$pv_based" -eq 1 ]] || continue
+      pv_print "$key"
+      emitted=1
+    done <<<"$pv_now"
+    pv_based=1
   fi
 
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)

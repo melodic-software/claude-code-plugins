@@ -138,6 +138,7 @@ Read all three comment surfaces, paginated, printing each item's author and the 
 - [ ] No fix pushes are in flight (a push restarts the entire monitoring loop)
 - [ ] No VALID (fix now) comments remain unaddressed
 - [ ] No UNCERTAIN classifications remain unresolved (escalate to user)
+- [ ] Where the repository runs pr-verify, no `fail` verdict at the head without a later pass ([monitor.md](monitor.md) B3); its notes are review threads, settled under Gate 7
 
 ### Gate 7: No unresolved review threads
 
@@ -163,6 +164,7 @@ Only when all gates pass, present:
 **PR:** #N: title
 **Check runs:** X passed, Y skipped, Z named in merge_guard_ignored_checks
 **Readiness script:** READY at <head sha> [each NOTICE line]
+**pr-verify:** [the `--verdict` line at the head: pass, pass-notes, none, or off]
 **Security:** GitGuardian [evaluated, N findings: X false positive, Y not applicable]
 **Comments:** X from N reviewers: Y fixed, Z deferred, W incorrect
 **Review threads:** 0 unresolved
