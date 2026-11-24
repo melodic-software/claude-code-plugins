@@ -37,7 +37,6 @@ else
   fail "the aggregate does not read steps.lanes.outputs.results"
 fi
 
-# lanes <scope-result> <run_bash> <run_python> <run_node> <bash> <python> <node> [<run_shell> <lint-shell>]
 lanes() {
   printf '{"select-tests":{"result":"%s","outputs":{"run_bash":"%s","run_python":"%s","run_node":"%s","run_shell":"%s"}},' "$1" "$2" "$3" "$4" "${8-true}"
   printf '"lint-repo":{"result":"success","outputs":{}},"lint-shell":{"result":"%s","outputs":{}},' "${9-success}"
@@ -45,7 +44,6 @@ lanes() {
   printf '"test-node":{"result":"%s","outputs":{}}}' "$7"
 }
 
-# expect <label> <want-rc> <want-results> <lanes-json>
 expect() {
   local out rc got
   : >"$TMP_ROOT/out"

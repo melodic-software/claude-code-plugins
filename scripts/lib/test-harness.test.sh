@@ -24,8 +24,6 @@ REPO_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 # shellcheck source=test-harness.sh
 . "$HARNESS"
 
-# Independent tally the library cannot reach. Parent assertions must use
-# these wrappers; child suites source the harness afresh and use ok/fail.
 _self_pass=0
 _self_fail=0
 
@@ -39,13 +37,9 @@ self_fail() {
   fail "$@"
 }
 
-# Runs <body> in a child bash and leaves its combined output in `out` and its
-# exit status in `rc` for the assertion that follows.
 run_child() {
   out="$(bash -c "$1" 2>&1)" && rc=0 || rc=$?
 }
-
-# --- sourced-only ---------------------------------------------------------
 
 if bash "$HARNESS" >/dev/null 2>&1; then
   self_fail "executing the library exited 0"
@@ -57,8 +51,6 @@ else
     self_fail "executing the library exited $rc, expected 2"
   fi
 fi
-
-# --- fail then report cannot exit 0 ---------------------------------------
 
 run_child "
   # shellcheck source=test-harness.sh
@@ -72,8 +64,6 @@ else
   self_fail "fail+report should exit non-zero with FAIL=1, got rc=$rc out='$out'"
 fi
 
-# --- ok then report exits 0 -----------------------------------------------
-
 run_child "
   . \"$HARNESS\"
   ok \"one pass\"
@@ -85,7 +75,6 @@ else
   self_fail "ok+report should exit 0 with PASS=1 FAIL=0, got rc=$rc out='$out'"
 fi
 
-# Mixed: one fail among passes still exits non-zero.
 run_child "
   . \"$HARNESS\"
   ok \"a\"
@@ -99,8 +88,6 @@ else
   self_fail "mixed run should be PASS=2 FAIL=1 non-zero, got rc=$rc out='$out'"
 fi
 
-# --- EXIT trap installed before the harness is sourced --------------------
-
 run_child "
   trap 'echo CLEANUP_BEFORE' EXIT
   . \"$HARNESS\"
@@ -112,8 +99,6 @@ if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 
 else
   self_fail "pre-source trap + fail should be non-zero with cleanup, got rc=$rc out='$out'"
 fi
-
-# --- EXIT trap installed after the harness is sourced ---------------------
 
 run_child "
   . \"$HARNESS\"
@@ -127,8 +112,6 @@ else
   self_fail "post-source trap + fail should be non-zero with cleanup, got rc=$rc out='$out'"
 fi
 
-# --- failing cleanup does not turn a clean suite red ----------------------
-
 run_child "
   . \"$HARNESS\"
   ok \"clean\"
@@ -141,8 +124,6 @@ else
   self_fail "failing cleanup + clean suite should exit 0, got rc=$rc out='$out'"
 fi
 
-# --- succeeding cleanup does not mask a recorded failure ------------------
-
 run_child "
   . \"$HARNESS\"
   fail \"recorded failure\"
@@ -154,8 +135,6 @@ if [[ "$rc" -ne 0 && "$out" == *"PASS=0 FAIL=1"* && "$out" == *"CLEANUP_OK"* ]];
 else
   self_fail "succeeding cleanup + fail should stay non-zero, got rc=$rc out='$out'"
 fi
-
-# --- summary prints before the caller's EXIT trap -------------------------
 
 run_child "
   . \"$HARNESS\"
@@ -176,8 +155,6 @@ case "$out" in
   ;;
 esac
 
-# --- printf format specifiers print verbatim ------------------------------
-
 run_child "
   . \"$HARNESS\"
   ok \"%s %d %q\"
@@ -189,8 +166,6 @@ if [[ "$rc" -ne 0 && "$out" == *'ok: %s %d %q'* && "$out" == *'FAIL: %s %d %q'* 
 else
   self_fail "format specifiers should print verbatim, got rc=$rc out='$out'"
 fi
-
-# --- summary once despite subshells; subshells do not disturb status ------
 
 run_child "
   . \"$HARNESS\"
@@ -205,7 +180,6 @@ else
   self_fail "subshells should leave one PASS=1 FAIL=0 summary and rc=0, got rc=$rc count=$summary_count out='$out'"
 fi
 
-# Complementary: a parent failure stays non-zero when a subshell records a pass.
 run_child "
   . \"$HARNESS\"
   fail \"parent-fail\"
@@ -218,8 +192,6 @@ if [[ "$rc" -ne 0 && "$summary_count" -eq 1 && "$out" == *"PASS=0 FAIL=1"* ]]; t
 else
   self_fail "parent fail + subshell pass should be PASS=0 FAIL=1 non-zero once, got rc=$rc count=$summary_count out='$out'"
 fi
-
-# --- counters accumulate across repeated calls ----------------------------
 
 run_child "
   . \"$HARNESS\"
@@ -238,8 +210,6 @@ else
   self_fail "repeated ok/fail/report should accumulate, got rc=$rc out='$out'"
 fi
 
-# --- a suite with no assertions exits 0 -----------------------------------
-
 run_child "
   . \"$HARNESS\"
   test_harness::report
@@ -249,8 +219,6 @@ if [[ "$rc" -eq 0 && "$out" == *"PASS=0 FAIL=0"* ]]; then
 else
   self_fail "empty suite should exit 0 with PASS=0 FAIL=0, got rc=$rc out='$out'"
 fi
-
-# --- re-sourcing must not reset recorded failures -------------------------
 
 run_child "
   . \"$HARNESS\"
@@ -263,8 +231,6 @@ if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 
 else
   self_fail "re-source after fail should stay PASS=0 FAIL=1 non-zero, got rc=$rc out='$out'"
 fi
-
-# --- last-line discipline -------------------------------------------------
 
 last_code_line() {
   local f="$1"
@@ -285,8 +251,6 @@ shopt -s nullglob
 missing=()
 for f in "$REPO_ROOT"/scripts/*.test.sh "$REPO_ROOT"/scripts/lib/*.test.sh; do
   sources_harness "$f" || continue
-  # This self-test follows report with an independent-tally check. Every
-  # other sourcer must still end on the call.
   if [[ "$f" -ef "${BASH_SOURCE[0]}" ]]; then
     continue
   fi
@@ -302,13 +266,6 @@ else
   self_fail "sourcer(s) missing trailing test_harness::report: ${missing[*]}"
 fi
 
-# --- mutated harness cannot silence this self-test --------------------------
-#
-# Two mutations against a throwaway copy: delete report's `return 1`, and
-# remove fail()'s increment. Both print FAIL lines and still exited 0 when
-# the suite trusted the library's own counters. The independent tally is
-# the only signal the library cannot reach.
-
 MUT_SCRATCH=""
 trap '[[ -z "$MUT_SCRATCH" ]] || rm -rf "$MUT_SCRATCH"' EXIT
 
@@ -322,8 +279,6 @@ run_mutated_self_test() {
   mkdir -p "$scratch/scripts/lib"
   copied_h="$scratch/scripts/lib/test-harness.sh"
   copied_t="$scratch/scripts/lib/test-harness.test.sh"
-  # $copied_h is written fresh by the mutation branches below; only the test
-  # file is copied verbatim.
   cp "${BASH_SOURCE[0]}" "$copied_t"
   chmod +x "$copied_t"
 
@@ -364,8 +319,6 @@ if [[ -z "${TEST_HARNESS_SKIP_MUTATION_REGRESSION:-}" ]]; then
   run_mutated_self_test "remove fail increment" drop-fail-increment
 fi
 
-# The library's own report/counters are under test. An independent tally
-# is the only signal CI can trust when those are sabotaged.
 test_harness::report
 report_rc=$?
 if ((_self_fail > 0)); then

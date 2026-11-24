@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for generate-cheatsheet.mjs. Each scenario builds a throwaway
-# fixture tree (config + marketplace + skills + spine + scaffold sheet) under
-# mktemp and drives the generator through --root: the green generate/--check
-# path, every enforcement failure mode (missing stage, excluded-but-mapped
-# conflict, unknown stage/cadence enums, summary cap, charset guard, cadence
-# coupling, orphaned exclusion), drift detection, and the spine-drift
-# assertion. The fixture config re-exports the REAL summaryError so the guard
-# the generator enforces in tests is the shipped one, not a copy.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +22,6 @@ esac
 # declaring the out-var here is what tells it (SC2154) the name is written.
 tree=""
 
-# write_skill <dir> <plugin> <skill> [metadata lines...]
 write_skill() {
   local dir="$1" plugin="$2" skill="$3"
   shift 3
@@ -50,8 +41,6 @@ write_skill() {
   } >"$dir/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
-# write_steps <dir> [task-kind rows...]: the fixture spine, one stage heading
-# plus a Task kinds table holding the given rows (no table when none given).
 write_steps() {
   local dir="$1"
   shift
@@ -66,9 +55,7 @@ write_steps() {
   } >"$dir/plugins/session-flow/skills/workflow/context/steps.md"
 }
 
-# mk_tree — baseline green fixture: one mapped skill, one rule-excluded setup
-# skill, one operator skill; single-stage spine with one task kind.
-mk_tree() { # <out-var>
+mk_tree() {
   local dir
   fixture_tree::build "$1" || return 1
   dir="${!1}"
@@ -105,15 +92,13 @@ EOF
     'summary: Fixture operator skill with a cadence'
 }
 
-run_gen() { # run_gen <tree> [extra args...] — stdout+stderr to $OUT, exit code in $CODE
+run_gen() {
   local tree="$1"
   shift
   OUT="$(node "$GENERATOR" --root "$tree" "$@" 2>&1)"
   CODE=$?
 }
 
-# assert_fails <label> <tree> <expected substring>: generate fails naming the
-# defect and leaves the sheet byte-unchanged.
 assert_fails() {
   local label="$1" tree="$2" expected="$3" before
   before="$(od -c "$tree/docs/skill-cheat-sheet.md")"
@@ -126,7 +111,6 @@ assert_fails() {
   rm -rf "$tree"
 }
 
-# --- green path: generate, idempotent --check, content shape -----------------
 mk_tree tree
 run_gen "$tree"
 if [[ "$CODE" -eq 0 ]]; then ok "green generate exits 0"; else fail "green generate (exit=$CODE: $OUT)"; fi
@@ -164,16 +148,11 @@ else
   echo "skip: markdownlint-cli2 not installed locally"
 fi
 
-# --- drift: hand-edit after generate, --check fails ---------------------------
 sed -i.bak 's/Fixture skill mapped to the plan stage/edited by hand/' \
   "$tree/plugins/alpha/skills/mapped/SKILL.md" &&
   rm -f "$tree/plugins/alpha/skills/mapped/SKILL.md.bak"
 run_gen "$tree" --check
 if [[ "$CODE" -ne 0 && "$OUT" == *"drift"* ]]; then ok "--check fails on drift"; else fail "drift not detected (exit=$CODE: $OUT)"; fi
-# The drift DETAIL comes from scripts/lib/report-first-difference.mjs, the block
-# shared with scripts/generate-catalog.mjs. Assert on it separately: the header
-# line above is emitted by this generator, so a helper that threw or fell silent
-# would leave the case above green and the regression unseen.
 if [[ "$OUT" == *"First difference at generated line "* && "$OUT" == *"expected: "* && "$OUT" == *"found:    "* ]]; then
   ok "drift report names the first differing generated line"
 else
@@ -181,9 +160,8 @@ else
 fi
 rm -rf "$tree"
 
-# --- enforcement failure modes -------------------------------------------------
 mk_tree tree
-write_skill "$tree" alpha mapped # metadata stripped entirely
+write_skill "$tree" alpha mapped
 assert_fails "missing workflow-stage names the skill" "$tree" \
   "alpha/mapped: no workflow-stage and no exclusion entry"
 
@@ -215,9 +193,6 @@ write_skill "$tree" alpha mapped 'workflow-stage: plan' \
 assert_fails "charset guard rejects YAML-special lead" "$tree" \
   "starts with a YAML-special character"
 
-# Remaining summaryError branches, plus the generator's own raw-value check:
-# a trailing " #" comment on a swept key is rejected from the RAW value before
-# comment-strip semantics apply, so a hand-edit cannot silently truncate.
 mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'summary: truncated by a trailing # comment'
@@ -262,7 +237,6 @@ sed -i.bak 's/EXCLUDED_SKILLS = new Map()/EXCLUDED_SKILLS = new Map([["alpha\/gh
 assert_fails "orphaned exclusion entry" "$tree" \
   'orphaned exclusion: skill "alpha/ghost" does not exist'
 
-# --- blank line inside metadata block does not truncate later keys --------------
 mk_tree tree
 cat >"$tree/plugins/beta/skills/looper/SKILL.md" <<'EOF'
 ---
@@ -285,8 +259,6 @@ else
 fi
 rm -rf "$tree"
 
-# --- Actions and Next columns -----------------------------------------------------
-# write_rich_skill <dir> <plugin> <skill> <argument-hint line or ""> <body>
 write_rich_skill() {
   local dir="$1" plugin="$2" skill="$3" hint="$4" body="$5"
   mkdir -p "$dir/plugins/$plugin/skills/$skill"
@@ -298,7 +270,7 @@ write_rich_skill() {
   } >"$dir/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
-row_of() { # row_of <tree> <plugin:skill>: the sheet row for that skill
+row_of() {
   grep -F "[\`/$2\`]" "$1/docs/skill-cheat-sheet.md"
 }
 
@@ -386,7 +358,6 @@ else
 fi
 rm -rf "$tree"
 
-# --- task kinds: the by-kind view joins steps.md's Task kinds table ---------------
 mk_tree tree
 run_gen "$tree"
 sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
@@ -398,7 +369,6 @@ else
 fi
 rm -rf "$tree"
 
-# --- conditional stages: the heading's condition shows beside the command ---------
 mk_tree tree
 run_gen "$tree"
 sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
@@ -428,8 +398,6 @@ printf '## 3. Plan (fixture spine)\n\n## Task kinds\n\n| Kind | Stages, in order
 assert_fails "a steps.md missing the conditional-stage sentence fails naming it" "$tree" \
   'has no sentence starting "A conditional stage runs only when its trigger holds"'
 
-# --- stage commands: the command typed per stage, with cited runs-for-you claims ---
-# stage_commands <tree> <skill key> <basis>: one plan-stage entry with one claim.
 stage_commands() {
   cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
 export const STAGE_COMMANDS = [
@@ -461,8 +429,6 @@ stage_commands "$tree" alpha/ghost "anything"
 assert_fails "a stage command naming no listed skill fails naming the entry" "$tree" \
   'stage commands: plan names "alpha/ghost", which is not a listed skill'
 
-# stage_also <tree> <skill key>: a plan-stage entry whose situational command
-# runs only in a stated situation.
 stage_also() {
   cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
 export const STAGE_COMMANDS = [
@@ -514,7 +480,6 @@ write_steps "$tree"
 assert_fails "a steps.md with no Task kinds table fails" "$tree" \
   "has no Task kinds table"
 
-# --- upstream equivalents: link the record's attribution table -----------------
 mk_tree tree
 mkdir -p "$tree/docs/upstream"
 cat >"$tree/docs/upstream/fixture-upstream.md" <<'EOF'
@@ -554,19 +519,17 @@ EOF
 assert_fails "an upstream record with no attribution table fails naming it" "$tree" \
   "upstream record docs/upstream/missing.md has no ## Attribution table"
 
-# --- spine drift ----------------------------------------------------------------
 mk_tree tree
 printf '## 3. Blueprint (renamed upstream)\n' \
   >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
 assert_fails "spine-drift assertion fires on renamed stage" "$tree" "spine drift"
 
-# --- marker forms: either form is read, and regenerating keeps the one found -----
 OLD_START='<!-- cheatsheet:start -->'
 OLD_END='<!-- cheatsheet:end -->'
 GEN_START='<!-- BEGIN GENERATED: cheatsheet. Run node scripts/generate-cheatsheet.mjs -->'
 GEN_END='<!-- END GENERATED: cheatsheet -->'
 
-write_sheet() { # write_sheet <tree> <marker line...>
+write_sheet() {
   local tree="$1"
   shift
   {
@@ -642,8 +605,6 @@ write_sheet "$tree" "no markers here"
 assert_fails "a sheet with no markers fails, naming the BEGIN GENERATED pair first" "$tree" \
   "is missing the cheatsheet markers ($GEN_START ... $GEN_END or $OLD_START ... $OLD_END)"
 
-# --- review and pull-request skill map -------------------------------------------
-# map_config <tree> <skill key> <posts> <basis>: fixture config plus one map row.
 map_config() {
   cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
 export const REVIEW_PR_MAP_HEADING = "Review map";

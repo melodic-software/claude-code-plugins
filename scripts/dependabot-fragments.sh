@@ -49,7 +49,6 @@ if ! changed_files::verify_base "$ref"; then
   exit 2
 fi
 
-# listed_at <commit> <plugin>: 0 when the commit's own list names the plugin.
 listed_at() {
   local names=() name text
   text="$(git show "$1:$CF_LIST" 2>/dev/null)" || return 1
@@ -99,7 +98,6 @@ while IFS= read -r sha; do
     mkdir -p ".changes/$plugin" || exit 2
     {
       printf -- '---\nbump: patch\n---\n\n### Changed\n\n'
-      # A purged CHANGELOG.md takes no em dash, and the release copies this body into it.
       git log -1 --format=%B "$sha" | dependabot_entry::deps |
         dependabot_entry::item "$title" "$pr" "$bundle" | sed $'s/\xe2\x80\x94/-/g'
     } >"$path" || exit 2
