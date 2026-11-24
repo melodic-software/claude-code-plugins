@@ -89,8 +89,9 @@ export function validateProvider(record) {
     if (!isMap(record.harness)) {
       problems.push("harness: expected a mapping");
     } else {
-      known(record.harness, ["tools", "image"], "harness");
+      known(record.harness, ["tools", "read_only_tools", "image"], "harness");
       optional(record.harness.tools, isStrings, "harness.tools", "expected a list of tool names");
+      optional(record.harness.read_only_tools, (v) => isStrings(v) && isStrings(record.harness.tools) && v.every((t) => record.harness.tools.includes(t)), "harness.read_only_tools", "expected a list of names from harness.tools");
       optional(record.harness.image, (v) => typeof v === "boolean", "harness.image", "expected a boolean");
     }
   }

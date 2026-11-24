@@ -81,7 +81,9 @@ reason, and covers the rest.
   harness whose `tools` lacks a required tool and any model whose `context_window` is below
   `--context`, each with one note. Claude's `context_window` comes from its `claude` entry in
   `--models` (filled live from the model overview pointer above); when unknown, Claude is not
-  skipped.
+  skipped. With `--use investigate` (a read-only brief), the tool check reads the vendor's
+  `read_only_tools` instead, falling back to `tools` when the entry has none; `--use task`, the
+  default, reads `tools`.
 - **Usage tiebreak**: plan usage is queried only when the resolved `vendors.tiebreak` names
   `most-usage-left`, via `external-agents usage <product>` per in-use vendor outside delegated
   runs, and from the `rate-limits` status tool (`mcp__rate-limits__status`) for Claude when that

@@ -788,6 +788,39 @@ test('AC5: --needs-tools skips harness lacking a required tool with one note; ca
   assert.equal(resOk.json.basis, 'consensus')
 })
 
+test('--use investigate gates --needs-tools on read_only_tools, --use task on tools, and a vendor with no read_only_tools falls back to tools', (t) => {
+  const claude = { ...MODELS.claude, tools: ['file', 'shell', 'web', 'mcp'] }
+  const codexTools = ['file', 'shell', 'web', 'mcp']
+  const run = (codex, use) =>
+    twoBoards(t, codexLeadRecords(), {
+      models: { claude, codex: { ...MODELS.codex, ...codex } },
+      extraArgs: ['--task-type', 'coding', '--needs-tools', 'web', '--use', use],
+    })
+
+  const investigate = run({ tools: codexTools, read_only_tools: ['file'] }, 'investigate')
+  assert.equal(investigate.code, 0, investigate.stderr)
+  assert.equal(investigate.json.vendor, 'claude', 'a read-only brief needing web skips codex whose read_only_tools lack web')
+  const notes = investigate.json.notes.filter((n) => /codex/i.test(n) && /read-only/i.test(n))
+  assert.equal(notes.length, 1, `expected one read-only tool note for codex, got: ${JSON.stringify(investigate.json.notes)}`)
+  assert.match(notes[0], /web/)
+
+  const task = run({ tools: codexTools, read_only_tools: ['file'] }, 'task')
+  assert.equal(task.code, 0, task.stderr)
+  assert.equal(task.json.vendor, 'codex', 'a task brief gates on tools, which include web')
+  assert.equal(task.json.basis, 'consensus')
+
+  const fallback = run({ tools: codexTools }, 'investigate')
+  assert.equal(fallback.code, 0, fallback.stderr)
+  assert.equal(fallback.json.vendor, 'codex', 'with no read_only_tools, the read-only gate checks tools')
+  assert.equal(fallback.json.basis, 'consensus')
+})
+
+test('--use rejects a value other than investigate or task', (t) => {
+  const res = twoBoards(t, codexLeadRecords(), { extraArgs: ['--task-type', 'coding', '--use', 'review'] })
+  assert.notEqual(res.code, 0)
+  assert.match(res.stderr, /--use must be investigate or task/)
+})
+
 test('AC5: --context skips models below required tokens with one note and does not skip Claude when unknown', (t) => {
   const resSkipCodex = twoBoards(t, codexLeadRecords(), {
     models: {

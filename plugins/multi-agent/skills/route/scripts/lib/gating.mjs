@@ -3,11 +3,13 @@ export function applyHarnessGating({
   skippedSilentVendors,
   unavailableInUseVendors,
   needsTools,
+  use,
   contextTokens,
   notes,
 }) {
   const gatedVendors = new Set()
   const requiredTools = Array.isArray(needsTools) ? needsTools : []
+  const readOnly = use === 'investigate'
 
   for (const [vName, vInfo] of modelsByVendor.entries()) {
     if (skippedSilentVendors.has(vName) || unavailableInUseVendors.has(vName)) continue
@@ -22,11 +24,13 @@ export function applyHarnessGating({
 
     if (vInfo.status !== 'ok') continue
 
-    if (requiredTools.length > 0 && vInfo.toolSet !== null) {
-      const missing = requiredTools.filter((t) => !vInfo.toolSet.has(t))
+    const toolSet = readOnly ? vInfo.readOnlyToolSet : vInfo.toolSet
+    if (requiredTools.length > 0 && toolSet != null) {
+      const missing = requiredTools.filter((t) => !toolSet.has(t))
       if (missing.length > 0) {
         gatedVendors.add(vName)
-        notes.push(`${vName}: skipped (harness lacks needed tool(s): ${missing.join(', ')})`)
+        const where = readOnly ? 'harness lacks needed tool(s) in read-only mode' : 'harness lacks needed tool(s)'
+        notes.push(`${vName}: skipped (${where}: ${missing.join(', ')})`)
         continue
       }
     }

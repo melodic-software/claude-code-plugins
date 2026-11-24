@@ -52,7 +52,7 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
 1. Classify the task into a `work_type` (`coding`, `web-ui`, `knowledge`, `image`) and a task
    class (`everyday` or `heavy`) from `vendors.md` and state why. Note any harness tools the task
    requires (for `--needs-tools`, e.g. `file`, `shell`, `web`, `mcp`) and any minimum context size
-   in tokens (for `--context`) when the task needs them.
+   in tokens (for `--context`) when the task needs them. A research or fact-check brief needs `web`.
 2. Run `${CLAUDE_SKILL_DIR}/scripts/route.sh worker` (plus `session=<alias>` when known, and
    `--user-file '${user_config.role_map_file}'`) as under Run, and save its JSON output (which
    holds `roles.worker` and the resolved `vendors` object) to `<tmp-dir>/settings.json`. Its
@@ -66,7 +66,7 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    `vendors.<product>.in_use` is `false`. Each prints one JSON document; a `status` other than
    `ok` makes that vendor unavailable, with its `reason`. Write a temporary `<tmp-dir>/models.json`
    mapping each candidate vendor (`claude`, `codex`, `gemini`) to its current model ids, efforts,
-   defaults, `tools`, `image`, `breaker` (`open`, `reason`, `reset_at`), per-model
+   defaults, `tools`, `read_only_tools`, `image`, `breaker` (`open`, `reason`, `reset_at`), per-model
    `context_window`, and `status`/`reason`. For `claude`, set `image: false`, its current model
    id, and (only when passing `--context`) its `context_window` read live from Claude's model docs
    pointer in `vendors.md` (omit `context_window` when unknown so Claude is not skipped). For each
@@ -106,10 +106,11 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
 6. Run the trust-model decider with the resolved `vendors` settings, binding each reader output to
    its manifest `source_id` (when zero pages were read, pass one empty JSON array file `[]`; pass
    `--needs-tools <comma-list>`, `--context <tokens>`, and `--usage <tmp-dir>/usage.json` when
-   applicable):
+   applicable). Pass `--use <use>`, with `<use>` as step 12 defines it, so a read-only brief is
+   gated on the vendor's `read_only_tools`:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json [--needs-tools <tools>] [--context <tokens>] [--usage <tmp-dir>/usage.json] --records <source_id>=<tmp-dir>/records-<source_id>.json
+   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>] [--usage <tmp-dir>/usage.json] --records <source_id>=<tmp-dir>/records-<source_id>.json
    ```
 
 7. Print the recommendation and per-vendor lines grounded in `vendor-decide`'s Decision JSON,
