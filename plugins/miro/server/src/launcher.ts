@@ -131,8 +131,7 @@ function removeStalePartials(target: string): void {
     const path = join(parent, name);
     try {
       if (statSync(path).mtimeMs < cutoff) rmSync(path, { recursive: true, force: true });
-    } catch {
-    }
+    } catch {}
   }
 }
 
@@ -148,8 +147,7 @@ export function buildAtomically(
   const discard = () => {
     try {
       rmSync(partial, { recursive: true, force: true });
-    } catch {
-    }
+    } catch {}
   };
   try {
     removeStalePartials(target);

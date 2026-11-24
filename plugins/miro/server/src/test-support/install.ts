@@ -17,8 +17,7 @@ export function tempDataDir(): { dataDir: string; cleanup: () => void } {
       // recursive delete can never walk into the development install.
       try {
         unlinkSync(join(installDir(dataDir), "node_modules"));
-      } catch {
-      }
+      } catch {}
       rmSync(dataDir, { recursive: true, force: true });
     },
   };
