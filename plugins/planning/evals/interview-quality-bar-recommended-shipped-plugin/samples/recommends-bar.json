@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q1: **What problem does --dry-run solve for you?**\n\nDiscovery: the answer sets which files the listing must cover.\n\n❓ Q2: **Which quality bar is this work for?**\n\nContext:\n- The marketplace manifest publishes notes-export to users (.claude-plugin/marketplace.json:5).\n- The release workflow tags each version (.github/workflows/release.yml:1).\n\n➡️ My recommendation: **production**. It ships to users who run it on their own machines (verified, README.md:3).\nFlips if: the --dry-run flag stays off the published release.\n\nAlternatives:\n- (a) internal tool. Less depth, but users still run it.\n- (b) throwaway prototype. Scoping only.",
+      "why": "the bar asked as a numbered question, production recommended from the manifest, README and release workflow, alternatives and a Flips if: line"
+    },
+    {
+      "answer": "2. **Which quality bar?**\n**My recommendation:** production, because the README's install steps put the plugin on users' machines (README.md:7).\n**Flips if:** you only run the flag yourself.\nAlternatives: an internal tool.",
+      "why": "bold labels, one alternative, README evidence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\nContext:\n- A throwaway prototype gets scoping questions only; an internal tool adds failure handling; production adds monitoring and rollback.\n\nDiscovery: the answer sets how deep the rest of the interview goes.",
+      "why": "the bar asked open with no recommendation, despite the shipping evidence"
+    },
+    {
+      "answer": "Settled by evidence: quality bar is production (.claude-plugin/marketplace.json:5).\n\n❓ Q1: **What problem does --dry-run solve for you?**",
+      "why": "the bar settled on a Settled by evidence: line instead of asked"
+    },
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **production**. It sounds like something people will use.\nFlips if: you never publish it.\n\nAlternatives:\n- (a) internal tool.",
+      "why": "a recommendation with no repository evidence in its reason"
+    },
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **production**. It ships to users (verified, README.md:3).\nFlips if: the --dry-run flag stays off the published release.",
+      "why": "no alternative bar listed"
+    },
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **production**. It ships to users (verified, README.md:3).\n\nAlternatives:\n- (a) internal tool.",
+      "why": "no Flips if: line"
+    },
+    {
+      "answer": "I'll assume a production bar, since the marketplace manifest publishes the plugin (.claude-plugin/marketplace.json:5).\n\n❓ Q1: **What problem does --dry-run solve for you?**",
+      "why": "the bar stated as an assumption without a question"
+    }
+  ]
+}

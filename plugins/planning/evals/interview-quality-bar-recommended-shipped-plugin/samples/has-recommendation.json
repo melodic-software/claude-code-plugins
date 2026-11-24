@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **production**. It ships to users who run it on their own machines (verified, README.md:3).\nFlips if: the --dry-run flag stays off the published release.",
+      "why": "a recommendation label with an emoji marker"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\n**My recommendation:** production",
+      "why": "a bold recommendation label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\nContext:\n- A throwaway prototype gets scoping questions only; an internal tool adds failure handling; production adds monitoring and rollback.\n\nDiscovery: the answer sets how deep the rest of the interview goes.",
+      "why": "the bar asked open, with no recommendation"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\nMy recommendation would be production, since it ships.",
+      "why": "the words mid-sentence are not the label"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\nMy recommendation:",
+      "why": "an empty label"
+    }
+  ]
+}
