@@ -564,6 +564,11 @@ class PowerShellVerdicts(unittest.TestCase):
         code, out, _ = run(before, after, ".ps1")
         self.assertEqual(code, 0, out)
 
+    def test_crlf_multiline_block_comment_deletion_is_comment_only(self):
+        before = "<#\r\nnote\r\n#>\r\n$x = 1\r\n"
+        code, out, _ = run(before, "$x = 1\r\n", ".ps1")
+        self.assertEqual(code, 0, out)
+
 
 PS_INTERPOLATION = """$old = 1
 Write-Output "$old"

@@ -180,14 +180,19 @@ def powershell_leaves(record: dict) -> list[tuple[str, str]]:
 
 
 def powershell_comment_spans(text: str, record: dict) -> list[tuple[int, int]]:
-    """Character spans of the comments, from their 1-based line and column."""
+    """Character spans of the comments, from their 1-based line and column.
+
+    `text` comes from read_text(), which turns every CRLF and CR into LF; the
+    body pwsh reports keeps them, so it is measured in the same form."""
     starts = [0]
     for line in text.split("\n"):
         starts.append(starts[-1] + len(line) + 1)
     spans = []
     for line, _, column, body in record["comments"]:
         start = starts[line - 1] + column - 1
-        spans.append((start, start + len(body)))
+        spans.append(
+            (start, start + len(body.replace("\r\n", "\n").replace("\r", "\n")))
+        )
     return spans
 
 
