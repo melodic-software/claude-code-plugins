@@ -115,12 +115,6 @@ export function validatePolicy(value) {
     }
   });
 
-  // `managedLabelPatterns` is a DETECTION surface: deliberately loose so every
-  // label-shaped string is caught and refused. It is the wrong gate for
-  // ADMISSION, which needs the opposite bias, so the labels a job may name
-  // directly are an explicit reviewed set, exactly like the hosted ones. Every
-  // entry must itself read as a managed label and must not be a hosted label,
-  // so this set can never quietly admit an arbitrary or hosted target.
   const approvedManagedRunnerLabels = new Set(value.approvedManagedRunnerLabels);
   for (const label of approvedManagedRunnerLabels) {
     if (label !== label.trim()) {
@@ -142,9 +136,6 @@ export function validatePolicy(value) {
 
   const approvedReusableWorkflowContracts = new Map();
   for (const [reference, contract] of Object.entries(value.approvedReusableWorkflowContracts)) {
-    // A list of exact maps lets a permission or secret change land
-    // expand/contract: the old and new maps both pass until every caller has
-    // moved to the new one.
     const callerPermissionMaps = exactMapEntries(
       contract.allowedCallerPermissions,
       `reusable workflow contract ${reference}.allowedCallerPermissions`,
@@ -189,10 +180,6 @@ export function validatePolicy(value) {
             `reusable workflow contract ${reference}.minimumCallerPermissions must require read access only (${writeScopes.join(", ")}); GitHub downgrades caller write grants on forked and Dependabot pull requests, so a write floor cannot be proven from the caller's declaration — use allowedCallerPermissions for a write obligation`,
           );
         }
-        // The two caller-permission terms are independent — a ceiling and a
-        // floor — but a contract naming both must be satisfiable: a caller may
-        // present only an exact waiver map, so every listed map must clear the
-        // floor or it admits nothing at all.
         for (const { map: permissions, location } of callerPermissionMaps) {
           const shortfall = minimumPermissionShortfall(
             permissions,
@@ -212,9 +199,6 @@ export function validatePolicy(value) {
         );
       }
       if (Object.hasOwn(contract, "allowedCallerPermissions")) {
-        // A secret maps to its own name, or, for a contract that declares a
-        // funding role, to that role's prefixed name: several roles can then
-        // share one repository, and the role is a reviewed literal.
         const prefix = contract.role ? `${contract.role.toUpperCase().replaceAll("-", "_")}_` : "";
         for (const { map: secrets, location } of secretMaps) {
           for (const [name, expression] of Object.entries(secrets)) {
@@ -231,12 +215,6 @@ export function validatePolicy(value) {
           }
         }
       }
-      // Every runner-input contract's reviewed secret mapping feeds a
-      // fleet-routed caller whose secrets: block the generic credential
-      // scan then trusts, so each value must be one exact whole named-secret
-      // expression (the workflow_call input name may differ from the
-      // repository secret name) — a transformed or indirect expression would
-      // ride the reviewed boundary onto the fleet.
       for (const { map: secrets, location } of secretMaps) {
         for (const [name, expression] of Object.entries(secrets)) {
           if (typeof expression !== "string" || !EXACT_NAMED_SECRET_EXPRESSION.test(expression)) {
@@ -291,8 +269,6 @@ export function validatePolicy(value) {
       "policy.governedReusableRunnerInput.default must be in policy.fallbackLabelAllowlist",
     );
   }
-  // Every allowlist member is an executable fallback route, so each
-  // must be a label this policy already recognizes as routable.
   for (const label of value.fallbackLabelAllowlist) {
     if (
       !approvedHostedRunnerLabels.has(label) &&
@@ -425,9 +401,7 @@ async function readRepositoryConfig(filePath, { configPath, repositoryVisibility
       try {
         await lstat(filePath);
         existsAsLink = true;
-      } catch {
-        // Truly absent, not a dangling symlink.
-      }
+      } catch {}
       if (!existsAsLink) {
         if (repositoryVisibility === "public") {
           return DEFAULT_PUBLIC_REPOSITORY_CONFIG;
@@ -789,12 +763,6 @@ function auditLocalPermissionFlow({
     }
 
     const target = runnerTargetStatus(job, record.workflow, policy, record.file, workflowIndex);
-    // A called job that names the fleet label literally executes on the
-    // persistent host. Before the fleet label was a routing target it
-    // classified `invalid` here, matching neither this test nor the hosted one
-    // below, so the whole flow pass fell through and emitted nothing: a called
-    // job inheriting write-capable caller permissions ran on the fleet with no
-    // finding at all.
     const localExecution =
       locallyRoutedTarget(target) ||
       target.kind === "reusable-input" ||
@@ -812,13 +780,6 @@ function auditLocalPermissionFlow({
     }
 
     if (HOSTED_TARGET_KINDS.has(target.kind) && capability !== "read-only") {
-      // The direct audit of this same job classifies a declared packages-only
-      // write map (with no other privileged surface) as publication — with the
-      // structural container categories taking precedence over that downgrade;
-      // this flow pass must demand the same category or the two checks
-      // contradict each other on one exception key. Anything else — a broader
-      // declared map, an additional privileged surface, or an undeclared map
-      // that merely inherits the caller's write capability — stays privileged.
       const declaredRequirement = privilegedHostedRequirement(record.workflow, job, target, policy);
       let requiredReason = "privileged-control-plane";
       if (declaredRequirement?.reason === "publication") {
@@ -869,10 +830,6 @@ function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   if (unexpected.length > 0) {
     return `${location} has unapproved properties: ${unexpected.join(", ")}`;
   }
-  // A canonical value is either one exact governed expression or an exact set of
-  // them (e.g. the default and review-tier self-hosted-label variables). Set
-  // membership stays fail-closed: any expression outside the reviewed set is
-  // rejected, and a single-string value keeps identical exact-match behavior.
   for (const [name, expected] of Object.entries(required)) {
     const allowed = Array.isArray(expected) ? expected : [expected];
     if (!allowed.includes(actual[name])) {
@@ -898,8 +855,6 @@ function exactMapEntries(allowed, location) {
   return allowed.map((map, index) => ({ map, location: `${location}[${index}]` }));
 }
 
-// Each reviewed map is matched exactly, so the boundary stays exact; a caller
-// passes when its mapping equals any one of them.
 function exactMapsError(actual, allowedMaps, location) {
   const errors = allowedMaps.map((map) =>
     exactCanonicalMap(actual, map, {}, new Set(Object.keys(map)), location),
@@ -913,12 +868,9 @@ function exactMapsError(actual, allowedMaps, location) {
   return `${location} must be exactly one of ${allowedMaps.map((map) => JSON.stringify(map)).join(", ")}`;
 }
 
-// A listed map is fleet-wide, so no one repository can see that callers have
-// stopped sending the old one; the date is what forces the contract step.
 const SWITCHOVER_MAX_DAYS = 90;
 const DAY_MILLISECONDS = 86_400_000;
 
-// Days since the epoch for a real YYYY-MM-DD calendar date, else undefined.
 function utcDay(text) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
   if (match === null) {
@@ -953,8 +905,6 @@ function switchoverDeadline(contract, reference, field, maps) {
   return Object.freeze({ field, dateField, date: contract[dateField], day });
 }
 
-// One finding per rule names every affected contract, because findings are
-// deduplicated by file, job, and rule.
 function switchoverFindings(contracts, today, policyFile) {
   const todayDay = utcDay(today);
   const expired = [];
@@ -1238,23 +1188,6 @@ function runnerTargetStatus(job, workflow, policy, file, workflowIndex) {
       reason: `runner expression ${JSON.stringify(target)} is not an approved routing contract`,
     };
   }
-  // A literal governed fleet label is the only routing target that reaches the
-  // managed fleet on an enrolled private repository. Admission is exact
-  // membership in the reviewed `approvedManagedRunnerLabels` set, mirroring the
-  // hosted-literal check below, and deliberately NOT a `managedLabelPatterns`
-  // match: that pattern is a deliberately loose detection surface, so reusing
-  // it here would admit any unreviewed near-miss
-  // (`melodic-anything-ubuntu-24.04-x64`) or an adjacent-text string
-  // (`bogus/melodic-review-ubuntu-24.04-x64`) with the same trust as the real
-  // fleet label. The check also sits AFTER the expression catch-all above, so a
-  // `${{ … }}` expression that merely mentions the label is not a literal.
-  // Approval is unconditional here and the routing gate below
-  // (`routingEnabled`) refuses it on a public or non-enrolled repository, so
-  // the public case keeps reporting `public-self-hosted-routing` rather than a
-  // generic contract failure.
-  // Compared without trimming, exactly as the hosted-literal check below is, and
-  // exactly as validatePolicy requires of every set entry: a padded label is a
-  // different string from the reviewed one and is not admitted.
   if (policy.approvedManagedRunnerLabels.has(target)) {
     return { approved: true, kind: "managed-literal", label: target };
   }
@@ -1268,10 +1201,6 @@ function runnerTargetStatus(job, workflow, policy, file, workflowIndex) {
   };
 }
 
-// The one way a job reaches the managed fleet: on an enrolled private
-// repository, the governed fleet label written literally. Keeping it behind a
-// named predicate is what stops the grant-applicability test and the
-// grant-consumption test from drifting apart.
 function locallyRoutedTarget(target) {
   return target?.kind === "managed-literal";
 }
@@ -1335,11 +1264,6 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
     }
     return undefined;
   }
-  // packages is registry-publication authority, not repository/organization
-  // state: a job whose only write scope is packages belongs to the durable
-  // publication category, so artifact provenance can stay on hosted
-  // infrastructure after the control-plane reasons retire. Any additional
-  // write scope keeps the job in the privileged category.
   if (writable.length === 1 && writable[0] === "packages") {
     return {
       reason: "publication",
@@ -1552,10 +1476,6 @@ function hasStaticallyReadOnlyPermissions(workflow, job) {
   return Object.values(permissions).every((access) => access === "read" || access === "none");
 }
 
-// The one exact spelling a local-routing grant admits for a named secret,
-// mirroring EXACT_GITHUB_TOKEN_EXPRESSIONS and the allowedSecrets contract
-// rule: bracket aliases, case variants, added whitespace, and any transform
-// stay outside every grant.
 const EXACT_NAMED_SECRET_EXPRESSION = /^\$\{\{ secrets\.([A-Za-z_][A-Za-z0-9_]*) \}\}$/;
 
 function grantedSecretName(value, secretNames) {
@@ -1576,10 +1496,6 @@ function localCredentialRequirement(
   if (conditionContainsCredentialReference(jobCondition)) {
     return "a credential expression in a job condition";
   }
-  // A grant admits complete job-level env values under the same exact-
-  // expression rules as step env values (a granted write-token job commonly
-  // exports its token once at job scope); every other job field keeps the
-  // ordinary boundary, and without a grant job-level env stays inside it.
   const { env: jobEnv, ...jobOutsideEnv } = jobWithoutSteps;
   if (
     containsCredentialExpression(grantAllowance === undefined ? jobWithoutSteps : jobOutsideEnv)
@@ -1601,13 +1517,6 @@ function localCredentialRequirement(
       if (
         typeof value === "string" &&
         EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) &&
-        // A grant pins the job's exact effective permission map, so the
-        // GitHub-provided token those permissions describe is admitted even
-        // when the pinned map holds a write scope. admitGitHubToken extends
-        // the same reasoning to the publication category: the packages-only
-        // permission map the exception reviews is exactly the capability the
-        // GitHub-provided token carries, so referencing that token adds no
-        // credential surface beyond the already-categorized permissions.
         (readOnly || grantAllowance !== undefined || admitGitHubToken)
       ) {
         continue;
@@ -1656,10 +1565,6 @@ function localCredentialRequirement(
   return undefined;
 }
 
-// Returns the step's full, unmodified `uses:` value (owner/repo action plus
-// its `@ref`) when that action is a policy-listed credential-minting action,
-// or undefined otherwise. This is the one place that decides whether a step
-// mints credentials.
 function credentialActionUses(step, policy) {
   if (!isMapping(step) || typeof step.uses !== "string") {
     return undefined;
@@ -1678,31 +1583,9 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
     locallyRoutedTarget(target) &&
     reusable.approved &&
     reusable.contract.allowedCallerPermissions !== undefined;
-  // An approved runner-input contract governs the caller's secrets: block the
-  // same way an approved hosted-only contract does: reusableWorkflowStatus
-  // has already rejected any deviation from the reviewed name-to-expression
-  // map, so the generic credential scan omits only that property. This keeps
-  // a statically read-only secret-forwarding caller admissible without a
-  // caller-permission waiver; allowedCallerPermissions remains the only
-  // write-capable waiver.
   const reviewedSecretBoundary = locallyRoutedTarget(target) && reusable.approved;
-  // A local-routing grant admits only a directly declared, genuinely
-  // fleet-routed job: a fixed hosted target keeps the ordinary privileged
-  // rules and exception inventory, mirroring the allowedCallerPermissions
-  // waiver's scope. A reusable-call job never takes the grant path — its
-  // caller permissions flow into an external workflow whose behavior only the
-  // central contract review sees, so
-  // allowedCallerPermissions stays the sole write-capable waiver for callers
-  // and a grant keyed to such a job surfaces as local-routing-grant-drift.
   const grantApplies =
     grant !== undefined && locallyRoutedTarget(target) && typeof job.uses !== "string";
-  // The publication downgrade holds only while packages:write is the job's
-  // entire privileged surface: a deployment environment, credential
-  // expression, or credential-minting action found below still demands the
-  // privileged category, so the weaker requirement is held until every later
-  // check passes rather than returned at the permission check. The one
-  // admission is the exact GitHub-provided token expression, which carries
-  // only the already-categorized packages-only permission map.
   let publicationRequirement;
   if (grantApplies) {
     const permissionError = exactCanonicalMap(
@@ -1731,12 +1614,6 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
     }
   }
 
-  // Exact hosted-only reusable secret mappings are governed by
-  // approvedReusableWorkflowContracts rather than this local-workload
-  // boundary. A pending publication downgrade still scans the caller outside
-  // that reviewed secrets mapping first: a contract allowlists input names,
-  // not values, so a credential expression smuggled through a `with:` value
-  // would otherwise ride the weaker category.
   if (target?.kind === "hosted-reusable") {
     if (publicationRequirement === undefined) {
       return undefined;
@@ -1793,9 +1670,6 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
       if (uses === undefined) {
         continue;
       }
-      // A grant pins the full ref, not the action name: the same action at a
-      // different ref is different credential-minting code, which must not
-      // reach the fleet on a workflow-only change.
       const reference = uses.toLowerCase();
       if (!(grantApplies && (grant.credentialActions ?? []).includes(reference))) {
         return privilegedControlPlane(
@@ -1806,10 +1680,6 @@ function privilegedHostedRequirement(workflow, job, target, policy, localCall, g
     }
   }
 
-  // A named allowance the job never exercises is latent pre-approval: a later
-  // workflow-only change could start consuming the secret or minting action
-  // without any grant-inventory diff. Report it so the admitted job's surface
-  // and the reviewed inventory stay exactly equal.
   if (grantApplies && grantUsage !== undefined) {
     grantUsage.unused = [
       ...(grant.secrets ?? [])
@@ -1860,8 +1730,6 @@ function visibilityScopedReusableContractFindings(
     const denylistedInputs = [...contract.allowedInputs].filter((name) =>
       PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_INPUTS.has(name),
     );
-    // Any listed map a caller may send counts, so a denylisted secret in the
-    // new map of an expand/contract pair is found before callers move to it.
     const denylistedSecrets = new Set();
     for (const [name, expression] of contract.allowedSecrets.flatMap(Object.entries)) {
       if (PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(name)) {
@@ -1905,17 +1773,10 @@ function visibilityScopedReusableContractFindings(
 
 const COMMENT_HEX_TOKENS = /(?<=^|[^0-9a-f])[0-9a-f]{7,40}(?=[^0-9a-f]|$)/giu;
 
-// A hex run reads as a short-SHA claim only when it mixes digits and letters
-// (or is a full 40-character SHA): all-letter runs are ordinary English words
-// ("acceded") and all-digit runs are dates or counters, and flagging either
-// would fail closed on prose.
 function isShaClaim(token) {
   return token.length === 40 || (/[0-9]/u.test(token) && /[a-f]/iu.test(token));
 }
 
-// Extract the pin and trailing comment from parsed workflow `uses` scalar
-// nodes, so YAML properties such as anchors remain supported while examples
-// inside run blocks or comments can never masquerade as executable references.
 function pinnedUsesEntries(source, workflow) {
   const document = parseDocument(source, YAML_PARSE_OPTIONS);
   const lineStarts = [0];
@@ -2031,9 +1892,6 @@ async function repositoryWorkflowIndex(root) {
 }
 
 function resolveRepositoryOwner(config, githubRepository) {
-  // Checked-in repositoryOwner is part of the data being audited. It may
-  // corroborate external identity, but must never grant an owner-scoped
-  // approval when GitHub/caller identity evidence is absent.
   if (githubRepository === undefined) {
     return undefined;
   }
@@ -2154,18 +2012,11 @@ export async function auditRepository({
       const privilegedHosted = routingEnabled
         ? privilegedHostedRequirement(workflow, job, target, policy, localCall, grant, grantUsage)
         : undefined;
-      // A held publication downgrade must not mask the structural container
-      // categories: a containerized packages-only publisher stays in the
-      // job-container/service-container inventory. Privileged requirements
-      // keep their ordinary precedence over structural ones.
       const structuralHosted = structuralHostedRequirement(job);
       const hostedRequirement =
         privilegedHosted?.reason === "publication"
           ? (structuralHosted ?? privilegedHosted)
           : (privilegedHosted ?? structuralHosted);
-      // Must stay the exact complement of grantApplies: a grant that admits a
-      // job but is never marked consumed here fires exception-inventory drift
-      // on the same pull request that admitted it.
       if (
         grant &&
         routingEnabled &&
@@ -2229,13 +2080,6 @@ export async function auditRepository({
       }
 
       for (const runner of runnerStrings) {
-        // The one skip is the label this job routes on, and only for that
-        // exact string. It is conditioned on routingEnabled so a public or
-        // non-enrolled repository still reports the raw pin, and it covers a
-        // `with:` runner value as well as a literal `runs-on` because
-        // rawRunnerStrings reads both: without that, an approved reusable call
-        // whose runner input is the fleet label would report its own admitted
-        // target as a raw pin.
         if (routingEnabled && target.kind === "managed-literal" && runner === target.label) {
           continue;
         }
@@ -2259,9 +2103,6 @@ export async function auditRepository({
         findings.push(finding("runner-target-contract", file, jobId, target.reason));
       }
 
-      // Required inputs govern the cross-repository contract call only. A
-      // repository-local wrapper may accept the named input without
-      // forwarding it to the reviewed external workflow.
       if (requiredCallInputs && reusable.isReusable && !localCall.isLocal) {
         consumedRequiredReusableCallInputs.add(key);
         const { contract } = reusableWorkflowContract(job.uses, policy);
@@ -2314,11 +2155,6 @@ export async function auditRepository({
           }
         }
         if (!HOSTED_TARGET_KINDS.has(target.kind)) {
-          // The suffix is per rule, not shared. A grant never suppresses a
-          // structural requirement (THREAT-MODEL.md), so a job container or
-          // services on the fleet must not read as if writing one would satisfy
-          // it; only the privileged category has a grant as an alternative to an
-          // exception.
           findings.push(
             finding(
               hostedRequirement.rule,
@@ -2374,8 +2210,6 @@ export async function auditRepository({
           continue;
         }
         consumedExceptions.add(key);
-        // The fixed jobs run hosted, so the exception takes the category the
-        // same call would need with a hosted runner input.
         const hostedCall = privilegedHostedRequirement(
           workflow,
           job,
