@@ -151,7 +151,7 @@ if (DIVERSITY === 'model') {
   }
 }
 const vf = passed.verifier && passed.verifier.fanout
-const FANOUT_MODEL_EFFORT =vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
+const FANOUT_MODEL_EFFORT = vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
 
 function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
