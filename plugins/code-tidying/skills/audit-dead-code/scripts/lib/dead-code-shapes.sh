@@ -1,17 +1,6 @@
 # shellcheck shell=bash
 # Shared dead-code candidate shapes and detector plumbing for
 # /code-tidying:audit-dead-code (sourceable; not invoked directly).
-# Shape definitions and default tiers: the skill's SKILL.md "Candidate shapes and default tiers".
-#
-# A CANDIDATE is a symbol or file a detector could not see a reference to. It is
-# not a verdict: the model adjudicates candidates into dead / uncertain / alive
-# against dynamic-usage evidence, and only the first two are ever re-emitted as
-# records. The tier a shape carries here is the candidate's PRIOR, set from the
-# measured precision of the lane that produced it, never from a per-finding guess.
-#
-# Every parser rejects a line it does not recognize rather than coercing it: a
-# detector that changed its output format must surface as drift (T3), because
-# both knip and vulture can print a non-finding on stdout in exact finding shape.
 
 dc_trim_excerpt() {
   local line="$1"
@@ -24,9 +13,6 @@ dc_trim_excerpt() {
   printf '%s' "$line"
 }
 
-# Default tier per shape. T1 = high-confidence candidate, T2 = uncertain
-# candidate, T3 = detector drift (an output line no parser recognized). The `*)`
-# arm and the driver's own `*)` counter arm must agree: anything unmapped is T3.
 dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
@@ -36,10 +22,6 @@ dc_shape_tier() {
   esac
 }
 
-# Directories whose contents are never scanning INPUT. `evals/fixtures` matches
-# the policy this repository's ruff.toml already sets: a detector corpus is not
-# the consumer's code. The reference SEARCH is a separate scope and is not
-# filtered by this — a reference from anywhere still saves a symbol.
 dc_is_excluded_path() {
   case "/$1" in
   */evals/fixtures/* | */node_modules/* | */.venv/* | */venv/* | */.git/* | \
@@ -49,22 +31,8 @@ dc_is_excluded_path() {
   return 1
 }
 
-# Lowercase extensions of source files with no symbol detector. Add one here,
-# space-separated, to classify it.
 DC_NOLANE_EXTS=" rs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
 
-# In-skill fallback glob table. A consumer repo that ships
-# an ecosystem record (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md)
-# has richer globs; this table is the common path
-# because most repos do not. `install-hint` is deliberately not consumed — it
-# names an ecosystem's lint tools, never a dead-code detector.
-#
-# `nolane` is a source file this roster has no symbol detector for: an extension
-# in DC_NOLANE_EXTS (Rust, F#, VB, and the rest), or an extensionless file whose
-# line-1 shebang names an interpreter other than a shell. The grep lane can still
-# report it as `unreferenced-file`. An extensionless file with a shell shebang is
-# `shell`. `other` is not source (docs, manifests, markup, an extensionless file
-# with no shebang) and is outside the coverage total.
 dc_lang_of_path() {
   local base="${1##*/}" line word interp=''
   local -a words
@@ -109,10 +77,6 @@ dc_lang_of_path() {
   esac
 }
 
-# A Python entry point is a script the file's path is how you run it. A module
-# imported as `import pkg.mod` never spells `mod.py`, so ordinary modules are
-# not `unreferenced-file` input. `__main__.py`, a line-1 shebang, and a
-# `__name__ == "__main__"` guard are.
 dc_is_py_entry() {
   local file="$1" base line first=1
   base="${file##*/}"
@@ -132,8 +96,6 @@ dc_is_py_entry() {
   return 1
 }
 
-# Basename / path keys shorter than three characters are noise, matching the
-# symbol extractor's floor. A tab or newline would break the owner record.
 dc_ref_key_ok() {
   local k="$1"
   ((${#k} >= 3)) || return 1
@@ -150,11 +112,6 @@ dc_dir_nonempty() {
   return 1
 }
 
-# Walk start_dir → repo_root and return the first nonempty node_modules.
-# Nested workspace packages commonly have no local install when the package
-# manager hoisted dependencies to an ancestor; requiring node_modules at the
-# package root would mark those restored workspaces degraded before the
-# binary locator's identical walk could find knip.
 dc_find_nonempty_node_modules() {
   local start_dir="$1" repo_root="$2"
   local dir parent
@@ -172,17 +129,6 @@ dc_find_nonempty_node_modules() {
   return 1
 }
 
-# Resolve a repository-local pinned binary without invoking a package runner.
-# npm creates an extensionless POSIX shim in node_modules/.bin alongside its
-# Windows .cmd launcher; uv/venv creates one in .venv/bin. Walk upward from a
-# start directory to the repo root so a monorepo workspace install is visible,
-# follow symlinks with a hop cap, and require the PHYSICAL target to stay inside
-# the repository. That rejects a checked-in or replaced .bin symlink escaping
-# the repository trust boundary. The walk reaches the repo root, not just
-# node_modules, because a .venv shim resolves into .venv/lib.
-#
-# This is a LOCATOR only. Measured: `command -v rust-analyzer` succeeds while
-# invocation fails (a rustup shim), so presence is proven by dc_binary_invocable.
 dc_resolve_local_binary() {
   local name="$1" start_dir="$2" repo_root="$3"
   local root_physical dir dir_physical parent candidate target link target_dir depth sub
@@ -245,12 +191,6 @@ dc_binary_invocable() {
   "$bin" "$@" >/dev/null 2>&1
 }
 
-# vulture emits `<path>:<line>: <kind> <detail> (NN% confidence)` on stdout.
-# The kind gate is the only thing separating a finding from a look-alike:
-# anything outside unused|unreachable|unsatisfiable is drift. (A vulture parse
-# error wears the same `<path>:<line>: <message>` shape but is written to
-# STDERR — see dc_vulture_stderr_is_degraded — so this gate is the second line
-# of defense, after the *.py glob filter.)
 # Returns 0 with `<file><TAB><line><TAB><shape><TAB><excerpt>` in the named
 # variable, 1 when the line is drift.
 dc_parse_vulture_line() {
@@ -267,13 +207,6 @@ dc_parse_vulture_line() {
     "$(dc_trim_excerpt "${BASH_REMATCH[3]} ${BASH_REMATCH[4]}")"
 }
 
-# gopls check emits `<path>:<line>:<col>: <message>` on stdout, where the column
-# field is a RANGE (`6-17`) whenever the diagnostic spans one, so the plain
-# `:<col>:` form alone does not match. Measured capture:
-#   /abs/dead-and-dynamic.go:17:6-17: function "deadHandler" is unused
-# The path is ABSOLUTE and cwd-independent — `gopls check -h` exposes only
-# `-severity`, so there is no flag that would relativize it. The caller
-# relativizes to the repo root itself.
 # Returns 0 = a candidate, 1 = drift (not a diagnostic at all), 2 = a diagnostic
 # this lane does not own (an exported symbol, or any non-unused hint). The
 # unexported-only filter is the lane's DECLARED coverage, not a defect.
@@ -300,19 +233,6 @@ dc_parse_gopls_line() {
     "$(dc_trim_excerpt "$rest")"
 }
 
-# vulture writes TWO distinct things to stderr and they mean opposite things.
-# Measured on vulture 2.16 (vulture/core.py routes a SyntaxError through
-# `_log(..., file=sys.stderr, force=True)`):
-#   - `<path>:<line>: <message>` — ONE input file could not be parsed. Every
-#     other file was still analyzed, so this is an INPUT note, never a degraded
-#     run. Exit is 1 standalone and 3 when real findings coexist.
-#   - anything else (a usage error, a traceback) — the run itself is unsound.
-# Conflating the two would let one stray non-Python file in scope mark the whole
-# Python lane degraded and suppress real findings. Knip's `ERROR:` stderr rule
-# does NOT generalize here.
-
-# The input-parse-error grammar itself, so the degraded gate and the note
-# extractor below cannot drift apart.
 dc_vulture_line_is_input_error() {
   local re='^(.+):([0-9]+):[[:space:]](.*)$'
   [[ $1 =~ $re ]]
@@ -342,9 +262,6 @@ dc_vulture_unparsed_inputs() {
   done <"$err_file"
 }
 
-# A gopls run whose module graph did not resolve prints an import error on
-# stdout, suppresses its hints, and still exits 0 — false NEGATIVES, the
-# opposite of knip's unrestored false positives.
 dc_gopls_stdout_is_degraded() {
   case "${1//$'\r'/}" in
   *"could not import"* | *"no required module provides"* | *"cannot find module"* | \
@@ -358,25 +275,6 @@ dc_gopls_stdout_is_degraded() {
 # `<file><TAB><line><TAB><shape><TAB><name>` rows on stdout; exits 1 when it
 # recognized nothing, which the driver reads as "parsed nothing", never as
 # "clean".
-#
-# Measured shape (knip 6.32.2, this repository and the committed fixture
-# `evals/fixtures/knip-report.json`): `{"issues":[{"file":"…","files":[{"name":
-# "…"}],"exports":[{"name":"…","line":13,"col":17,"pos":533}],"types":[],
-# "enumMembers":[],…}]}` — every issue array holds OBJECTS carrying `name`, and
-# symbol arrays additionally carry `line`.
-#
-# Tolerance rules, because the JSON shape is version-coupled:
-#   - an OBJECT element of any of the four issue arrays is read through its
-#     `name` / `symbol` key and its `line` key when present (the measured form);
-#   - a bare STRING element of `files` is taken as a file path and of
-#     `exports` / `enumMembers` as a symbol name — defensive, for a version that
-#     flattens them;
-#   - a bare STRING element of `types` is IGNORED: a flattened `types` array is
-#     the one place a version could legitimately be listing issue-type labels
-#     rather than symbols, and inventing type findings from category names is
-#     the worse error.
-# Class members are not read: knip 6.32.2 rejects `--include classMembers`
-# outright, so there is nothing to parse.
 dc_parse_knip_json() {
   awk '
   function shape_for(k) {
@@ -452,11 +350,6 @@ dc_parse_knip_json() {
   '
 }
 
-# A knip run is DEGRADED when it wrote an ERROR: line to stderr. Measured: that
-# line goes to stderr, which --reporter json discards, and an unrestored run
-# MANUFACTURES unused-file findings rather than failing. `unresolved` and
-# `unlisted` are NOT a restore signal — measured byte-identical restored vs
-# unrestored — so they are never read here.
 dc_knip_stderr_is_degraded() {
   local err_file="$1" line
   [[ -s "$err_file" ]] || return 1
@@ -470,9 +363,6 @@ dc_knip_stderr_is_degraded() {
   return 1
 }
 
-# knip evaluates a repository-controlled JS/TS config module through jiti. That
-# is a disclosed exception to the never-execute-project-code rule, narrower than
-# a build, and every run that loads one says so in the report.
 dc_knip_config_module() {
   local root="$1" name
   for name in knip.config.ts knip.config.js knip.config.mjs knip.config.cjs knip.ts knip.js; do
@@ -490,12 +380,6 @@ dc_knip_config_module() {
 # JS/TS (with or without `export`), and C# type declarations plus C# members
 # that carry an access modifier. Names under three characters are dropped: at
 # that length the reference search is noise, not evidence.
-#
-# C# is read as text, one line at a time, and nothing is built. A member with no
-# access modifier (private by default), an override, an operator, a constructor,
-# an indexer and a tuple-typed member are not extracted. A `private` declaration
-# (not `private protected`) is cs-unreferenced-private; any other is
-# cs-unreferenced-symbol.
 dc_symbol_defs() {
   local file="$1" lang="$2"
   local line name shape rest head num=0
@@ -530,8 +414,6 @@ dc_symbol_defs() {
       shape='cs-unreferenced-symbol'
       if [[ $line =~ $cs_type ]]; then
         name="${BASH_REMATCH[8]}"
-        # Group 2 wraps the whole modifier run: a repeated group alone keeps
-        # only its last pass, and the attribute text must not be read.
         case " ${BASH_REMATCH[2]}" in
         *[[:space:]]protected[[:space:]]*) ;;
         *[[:space:]]private[[:space:]]*) shape='cs-unreferenced-private' ;;
@@ -540,8 +422,6 @@ dc_symbol_defs() {
       elif [[ $line =~ $cs_member ]]; then
         rest="${BASH_REMATCH[3]}"
         [[ "${BASH_REMATCH[2]}" == private ]] && shape='cs-unreferenced-private'
-        # An override is reached through its base and an operator through its
-        # symbol, so neither name is ever spelled at a call site.
         case " $rest " in
         *[[:space:]]override[[:space:]]* | *[[:space:]]operator[[:space:]]*) rest='' ;;
         *) ;;
@@ -550,9 +430,6 @@ dc_symbol_defs() {
           [[ "${BASH_REMATCH[1]}" == protected ]] && shape='cs-unreferenced-symbol'
           rest="${BASH_REMATCH[2]}"
         done
-        # The declared name is the last word before the parameter list, the
-        # initializer, the terminator or the accessor body. A constructor has no
-        # type word before its name, so it never matches cs_name.
         # shellcheck disable=SC2295  # cs_cut is a glob pattern on purpose
         head="${rest%%$cs_cut}"
         head="${head%"${head##*[![:space:]]}"}"

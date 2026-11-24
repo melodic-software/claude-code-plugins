@@ -248,7 +248,7 @@ test("only the model-free report job writes, the model jobs read contents only, 
   }
   for (const id of MODEL_JOBS) {
     assert.deepEqual(permissionsOf(jobs[id]), { contents: "read" }, id);
-    assert.match(jobs[id], /run-claude-cli@[0-9a-f]{40} /, id);
+    assert.match(jobs[id], /run-claude-cli@main\b/, id);
     assert.match(jobs[id], /\n {10}permission-mode: dontAsk\n/, id);
     assert.doesNotMatch(jobs[id].replace(/^\s*#.*$/gm, ""), /run-covering-tests|execute\.mjs|setup-env\.sh/, `${id} runs no test and no head install`);
   }

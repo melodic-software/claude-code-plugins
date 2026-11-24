@@ -70,7 +70,6 @@ def bash_effect(command: str) -> tuple[str, str, list[str]] | None:
         files = operands(args)
     elif prog == "grep":
         files = operands(args, ("-e", "-f", "-m", "-A", "-B", "-C"))
-        # the first operand is the pattern unless -e, -f or their long or attached forms supplied it
         has_pattern_opt = any(
             a.startswith(("--regexp=", "--file="))
             or (a[:2] in ("-e", "-f") and not a.startswith("--"))
@@ -142,7 +141,7 @@ def analyze(path: str) -> dict:
     rereads: list[str] = []
     scan_reads: list[str] = []
     seen: set[str] = set()
-    scanned: dict[str, tuple[int, str]] = {}  # scan target -> (earliest turn, tool)
+    scanned: dict[str, tuple[int, str]] = {}
     for turn, kind, tool, target in events:
         if kind == "edit":
             seen.discard(target)

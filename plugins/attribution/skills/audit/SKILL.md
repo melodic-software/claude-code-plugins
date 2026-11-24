@@ -333,6 +333,13 @@ budget-exhausted candidate may escalate to `/discovery:research` (if that plugin
 When it is not enabled, the run says so once and takes the ordinary neutral disposition
 instead; it never refuses and never silently skips the escalation.
 
+## Related
+
+- Work through persisted findings in a review relay: /review:fanout fix.
+- Tune carve-outs or stamp config: /attribution:setup.
+- In-repo doc duplication: /docs-hygiene:extract-ssot.
+- AI-writing tells on same corpus: /ai-slop:audit.
+
 ## Gotchas
 
 Real failure history, each with the symptom it presents as, in

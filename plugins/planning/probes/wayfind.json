@@ -46,7 +46,7 @@
       "id": "pos-train-06",
       "split": "train",
       "expect_trigger": true,
-      "request": "Pick up the decision map for the billing overhaul and work the next open question."
+      "request": "Pick up the map for the billing overhaul and work the next open question."
     },
     {
       "id": "pos-val-01",

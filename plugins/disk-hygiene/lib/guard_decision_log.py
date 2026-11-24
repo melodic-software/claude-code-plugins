@@ -55,30 +55,19 @@ LOG_DIRNAME = "guard-decisions"
 LOG_FILENAME = "decisions.jsonl"
 ROTATED_FILENAME = "decisions.previous.jsonl"
 
-# Per generation; two generations are kept, so the bound is about 2 MiB.
 MAX_BYTES = 1_048_576
 MAX_TEXT_CHARS = 400
-# Redaction cost grows faster than linearly on some shapes, so a longer value
-# is scanned only up to here; a secret starting in the kept text and longer
-# than the scan bound less MAX_TEXT_CHARS is not seen.
 MAX_SCAN_CHARS = 4096
 
 FILE_MODE = 0o600
 DIR_MODE = 0o700
 
-# Opt-out, not opt-in: absent means recording. Recognized off values are exact
-# and lowercase-folded, so a stray value leaves the record ON rather than
-# silently disabling the thing the operator is relying on.
 DISABLE_ENV = "DISK_HYGIENE_GUARD_DECISION_LOG"
 _OFF_VALUES = frozenset({"0", "off", "false", "no"})
 
-# Names a decision record can carry. `none` is a guard that ran and adjudicated
-# nothing (it issued no permissionDecision); `not-run` is a guard that never
-# produced a decision at all, which only a separate observer can record.
 DECISION_NONE = "none"
 DECISION_NOT_RUN = "not-run"
 
-# Branches that fire on arbitrary session commands. Persist length, not text.
 OMIT_COMMAND_RULES = frozenset(
     {
         "powershell-no-flagged-spelling",
@@ -88,14 +77,7 @@ OMIT_COMMAND_RULES = frozenset(
 
 REDACTED = "<redacted>"
 
-# Shape-based secret scrubbing. Same family as session-flow's ledger redaction
-# (private keys, cloud tokens, bearer/password assignments, connection strings)
-# plus env-var assignments whose names look like credentials, including
-# PowerShell `$env:AZURE_CLIENT_SECRET='...'`.
 _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
-    # The body stops at the next BEGIN and at 16384 characters, so each
-    # header scans a bounded run; unbounded, a repeated header is
-    # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
     re.compile(
         r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
         r"(?:(?!-----BEGIN).){0,16384}?"
@@ -114,11 +96,7 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,})"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    # The bounded JWT header and URL scheme keep each start position's scan
-    # short; unbounded, a long run with no `.` or `://` is quadratic.
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
-    # A header past the bound: the whole run, dots included, in one match.
-    # After the JWT rule, since a long payload segment also starts `eyJ`.
     re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._+/=-]{8,}"),
     re.compile(
@@ -126,8 +104,6 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
         r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"
     ),
     re.compile(r"\b[a-z][a-z0-9+.-]{0,63}://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
-    # One attempt per name, consumed possessively: two open-ended runs around the
-    # keyword backtrack in cubic time on a name like `KEYKEY...`.
     re.compile(
         r"(?i)(?:\$env:)?(?<![A-Za-z0-9_])[0-9]*+"
         r"(?=[A-Za-z_][A-Za-z0-9_]*?(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL))"
@@ -158,8 +134,6 @@ def _redact_secrets(text: str) -> str:
     return text
 
 
-# A private key or JWT that runs past the scan bound has no end inside the
-# scanned text, so no complete-shape rule above can match it.
 _KEY_RUNNING_TO_CUT = re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*\Z", re.DOTALL)
 _JWT_RUNNING_TO_CUT = re.compile(r"(?:ghs_(?:[0-9]+_)?)?eyJ")
 _TOKEN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.+/=-"
@@ -167,7 +141,6 @@ _TOKEN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.
 
 def _redact_cut_tail(text: str) -> str:
     text = _KEY_RUNNING_TO_CUT.sub(REDACTED, text)
-    # rstrip finds the run of token characters at the cut in linear time.
     run_start = len(text.rstrip(_TOKEN_CHARS))
     jwt = _JWT_RUNNING_TO_CUT.search(text, run_start)
     return text[: jwt.start()] + REDACTED if jwt else text
@@ -178,9 +151,6 @@ def _clip(value: object) -> str | None:
         return None
     text = str(value)
     if len(text) > MAX_SCAN_CHARS:
-        # Scan only a bounded prefix, and narrow the kept window by what
-        # redaction removed, so every kept character comes from the first
-        # MAX_TEXT_CHARS of the input and a secret cut at the bound stays out.
         scanned = _redact_cut_tail(_redact_secrets(text[:MAX_SCAN_CHARS]))
         window = MAX_TEXT_CHARS - max(0, MAX_SCAN_CHARS - len(scanned))
         return scanned[: max(0, window)] + "..."
@@ -285,8 +255,6 @@ def record(data_root: str | None, **fields: Any) -> bool:
         with handle:
             handle.write(line + "\n")
             handle.flush()
-            # Append mode leaves the offset at end-of-file, so the bound is
-            # checked from a number the write already produced: no extra stat.
             size = handle.tell()
         _restrict_mode(path, FILE_MODE)
         _restrict_mode(path.parent, DIR_MODE)

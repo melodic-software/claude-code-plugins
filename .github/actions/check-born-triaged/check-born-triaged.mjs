@@ -1,14 +1,3 @@
-// Intake gate: skip an issue another skill routes, or one that
-// /work-items:decompose published already triaged. A routing label (the
-// tracker binding's container label, or a label starting with its wayfind
-// prefix) skips on its own. The born-triaged rule, when applied, skips only
-// when the issue carries the born-triaged marker, its author is a listed human
-// or the lanes App (matched by numeric id), and it has an Issue Type and a
-// status: a Work status field a trusted account set to anything but
-// needs-triage (read-status.mjs folds it into the labels), or a status label.
-// The agent-ready label alone is no status while the Work status is
-// configured and unset (reason `label-only`).
-// Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
@@ -18,15 +7,13 @@ import { pathToFileURL } from "node:url";
 import { AGENT_READY } from "../../scripts/lib/lane-vocabulary.mjs";
 import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
 import { createGitHub } from "../../scripts/lib/github-client.mjs";
+import { trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
-// The bare labels that name a status; every other status label starts `status:`.
 const STATUS_LABELS = new Set([AGENT_READY, "needs-human", "needs-spec", "admission-deferred"]);
-// Reasons a later read can change: the publisher sets the type and some
-// labels in calls after the issue is created.
 const PENDING = new Set(["no-type", "no-status"]);
 
 const triage = (reason) => ({ skip: "false", reason });
@@ -87,8 +74,6 @@ export const ROUTED_BY = "a container, wayfind or session-owned label, so the sk
 // whether its author's numeric id is a listed human's or the lanes App's;
 // `names` are its label names, by default as read.
 export function notBornTriaged(issue, trusted, names = labelNames(issue)) {
-  // The publisher writes the marker as the body's last line, so a quoted copy
-  // mid-body does not count.
   if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
     return "no-marker";
   }
@@ -139,9 +124,6 @@ export async function run({ fetchIssue, list, lanesAppId, statusOf, routing = RO
     if (statusOf && (result.reason === "born-triaged" || result.reason === "no-status")) {
       const number = Number(issue.number);
       const names = await statusOf(number, labelNames(issue));
-      // The agent-ready label starts no lane run, and admission writes the
-      // Work status, so with the field unset it is no status: intake triages
-      // the issue at once rather than waiting for a status no one will set.
       const labelOnly = names.includes(AGENT_READY) && (await statusOf.unset?.(number));
       result = checkBornTriaged({ issue, list, lanesAppId, names: labelOnly ? names.filter((name) => name !== AGENT_READY) : names });
       if (labelOnly && result.reason === "no-status") {
@@ -186,15 +168,10 @@ async function main() {
   const { GITHUB_API_URL, GITHUB_TOKEN, REPOSITORY, ISSUE_NUMBER, TRUSTED_ACTORS_PATH, LANES_APP_ID, TRACKER_CONFIG, BORN_TRIAGED } = process.env;
   let list = null;
   try {
-    list = JSON.parse(readFileSync(TRUSTED_ACTORS_PATH, "utf8"));
+    list = JSON.parse(readFileSync(trustedListPath(process.env, TRUSTED_ACTORS_PATH), "utf8"));
   } catch {
-    // checkBornTriaged reports list-unreadable.
   }
   const routing = readRouting(TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
-  // Through the rate guard (rate-guard.mjs): a rate-limited answer logs an
-  // error naming the reset and stops the job's later calls to that pool, and
-  // a read while a stop holds is refused without a request. The step still
-  // exits 0, and rate-limited=true stops the callers' API jobs.
   const latch = createRateLimitLatch({ fail: () => {} });
   const send = latch.guard(fetch);
   const issueUrl = `${GITHUB_API_URL}/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}`;

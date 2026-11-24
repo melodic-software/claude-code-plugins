@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for the audit-suppressions entry point: scope (the change, --all,
-# paths, scope.exclude), the correctness list from the team layer, the JSON
-# document, the markdown report and the kept copy. Expected values are read
-# off the fixture repository this file builds.
 # test-scope: lib/suppression-scan.py plugins/code-metrics/scripts/dispatch.sh plugins/code-metrics/scripts/resolve-config.py
 # shellcheck disable=SC2016 # `$(...)` and backticks here are fixture text, never expanded
 set -uo pipefail
@@ -109,11 +105,6 @@ assert_eq "--help prints usage" 0 "$?"
 assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRIPT" --help 2>&1)" \
   'Exit 0 report produced, 2 usage error or a scan that failed.'
 
-# ---- --findings: the review-findings file ------------------------------------
-# Expected rows come from the fixture lines below and the two crosswalk rows in
-# docs/contracts/detector-findings/README.md (rule-no-reason fires on a line
-# with no reason; rule-no-rule-id on a reason with no rule id where the tool can
-# name one; both IMPORTANT, Confidence high).
 assert_not_contains() {
   case "$2" in
     *"$3"*) fail "$1" "expected NOT to contain: [$3], actual: [$2]" ;;
@@ -246,10 +237,6 @@ assert_eq "bare invocation writes no findings file" "$before" "$(find "$F/.work"
 (cd "$F" && bash "$SCRIPT" --findings --json >/dev/null 2>&1)
 assert_eq "--findings with --json is a usage error" 2 "$?"
 
-# The reason slot per tool, for the tools the fixture above does not reach.
-# Each expected slot is the place the scanner reads a reason from for that
-# tool (lib/suppression-scan.py: the text after the rule ids, a further comment
-# on the line, or the attribute's Justification argument).
 S="$TMP/srepo"
 mkdir -p "$S"
 gs() { git -C "$S" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
@@ -296,18 +283,12 @@ assert_eq "an unreadable configuration exits 2" 2 "$?"
 assert_contains "an unreadable configuration is named" "$err" "cannot read the configuration $TMP/bad-config.json"
 assert_eq "an unreadable configuration is not blamed on the merge-base" "" "$(grep -o 'merge-base' <<<"$err")"
 
-# A json.py the repository plants at its root is never imported by the
-# entry point's inline Python (python -I keeps the cwd off sys.path).
 P="$TMP/planted"
 git clone -q "$REPO" "$P"
 printf 'open(%s, "w").write("ran")\n' "'$TMP/planted-ran'" >"$P/json.py"
 (cd "$P" && bash "$SCRIPT" --json --all >/dev/null 2>&1)
 assert_eq "a json.py planted in the cwd is not imported" "absent" "$([[ -e "$TMP/planted-ran" ]] && echo present || echo absent)"
 
-# ---- the frozen count agrees with the report -----------------------------------
-# The report drops scope.exclude matches through the dispatcher; the frozen count
-# is the scanner's --count given the same globs. Three of the six suppressions
-# below sit in excluded paths, so both must read 3 suppressions, 2 unjustified.
 X="$TMP/excluded"
 mkdir -p "$X/docs/conventions" "$X/src/api/generated" "$X/vendor" "$X/gen" "$X/web"
 gx() { git -C "$X" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }

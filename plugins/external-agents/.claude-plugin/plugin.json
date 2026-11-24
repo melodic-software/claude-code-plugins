@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.6.1",
+  "version": "0.6.2",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -17,5 +17,17 @@
   ],
   "metadata": {
     "category": "workflow"
+  },
+  "userConfig": {
+    "antigravity_uses_task_mode": {
+      "type": "string",
+      "title": "Antigravity task mode",
+      "description": "read-only (default): /external-agents:antigravity task runs cannot edit files. write: task runs may write, fenced by agy's terminal sandbox, in every repository. A repository's docs/conventions/external-agents.yaml or .local.yaml antigravity.uses.task.mode wins over this option.",
+      "default": "read-only",
+      "options": [
+        "read-only",
+        "write"
+      ]
+    }
   }
 }

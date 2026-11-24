@@ -1,63 +1,36 @@
-// Trigger gate for CI lanes: proceed only for a same-repository PR whose event
-// actor, PR author and re-runner are all on the trusted-actor list, matched by
-// numeric id. A denied id stops the lane even when it is listed. A
-// workflow_dispatch sent by github-actions[bot] stands in for its sender
-// through a checked dispatcher run, and require-pr false checks the actors
-// without a PR. Every failure ends in proceed=false with a
-// reason; main never throws.
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault, paginate } from "../../scripts/lib/github-client.mjs";
-import { loadTrustedList } from "../../scripts/lib/trusted-actors.mjs";
+import { loadTrustedList, trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 export { loadTrustedList };
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
-// Branch names reach later steps; anything beyond these characters stops the
-// lane rather than travel on.
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const RUN_ATTEMPT = /^[1-9][0-9]{0,4}$/;
-// A numeric id input: lanes-app-id, app-field-id and app-field-option.
 const ENV_ID = /^[1-9][0-9]{0,14}$/;
 // github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
-// A workflow_dispatch dispatcher must come from a listed human; push and
-// schedule name none.
 const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
-// The one event a run-dispatcher-relay upstream runs on.
 const RELAY_EVENT = "pull_request_review_comment";
-// The dispatcher dispatches within seconds of starting; a longer run must not
-// keep its window open.
 const WINDOW_MS = 10 * 60 * 1000;
-// The artifact the dispatcher run uploads after its dispatch loop, named with
-// every run id it dispatched.
 const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
 const RECORD_PREFIX = "pr-unblock-dispatched-";
-// A workflow_run dispatcher sends one dispatch per run and names its record
-// with the upstream run that started it, then the run it dispatched.
 const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{0,14})$/;
-// A pull_request_target dispatcher dispatches this workflow only, and names
-// one record per dispatch with the default-branch commit it ran, then the run
-// it dispatched.
 const TARGET_EVENT = "pull_request_target";
 const TARGET_DISPATCHED = ".github/workflows/pr-refine.yml";
 const TARGET_RECORD_NAME = /^pr-unblock-target-dispatched-([0-9a-f]{40})-([1-9][0-9]{0,14})$/;
-// The record can land after this run's gate starts: re-read every 5 s while
-// the dispatcher run is still going, for at most 2 min (judgment).
 const RECORD_WAIT_MS = 5000;
-// Pages of same-name artifacts read for a reconciler record (judgment).
 const RECORD_MAX_PAGES = 10;
 // Candidate runs read per check: anyone's run can upload a record of the
 // predictable name, so each forged one costs a run read (judgment).
 const RECORD_MAX_CANDIDATES = 20;
 const RECORD_MAX_SLEEPS = 24;
-// The first re-run attempt. The lost-run reconciler re-runs most runs once,
-// on their first attempt, so the attempt it starts is the second.
 const RERUN_ATTEMPT = 2;
 // The highest attempt the reconciler records: it re-runs a passed checks run
 // whose spec changed again after its last recorded re-run (owner decision
@@ -74,10 +47,6 @@ export const rerunRecordName = (runId, attempt, headSha) => `reconcile-rerun-${r
 // and the run's head SHA.
 export const ciStatusRerunRecordName = (runId, attempt, headSha) => `rerun-ci-status-${runId}-${attempt}-${headSha}`;
 
-// Who may record a github-actions[bot] re-run: the run's path, the attempts it
-// starts, its record's name, how its run must have started, and what bounds the
-// window. The reconciler's window runs from its run's start; rerun-ci-status
-// may poll for minutes first, so its window runs from the record's upload.
 const reconcilerRecorder = (workflow) => ({
   workflow,
   attempts: (attempt) => attempt >= RERUN_ATTEMPT && attempt <= RECONCILER_ATTEMPT_CAP,
@@ -139,13 +108,6 @@ export async function isTrustedClose(github, repo, closedIssue, humans, isApp = 
   return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), humans, isApp);
 }
 
-// Whether the lanes App's close of issue `number` is an already-done close
-// whose evidence still holds (owner Q9, 2026-10-29): the App's last close
-// comment names already-done, and doneEvidence re-reads that the pull request
-// or commit it cites is on the default branch with a commit message that
-// closes the issue. A verified-done close counts when parentDone re-reads that
-// every sub-issue is closed as completed by a close this function trusts. A
-// report-delivered close, or any read that fails, counts for nothing.
 async function appDoneClose(github, repo, number, humans, isApp) {
   try {
     const close = await appCloseKind(github, repo, number, isApp);
@@ -198,12 +160,8 @@ export function parseDeniedIds(value = "") {
 
 export const isListed = (ids, user) => Number.isInteger(user?.id) && ids.has(user.id);
 
-// A user listed with kind human, matched by id, and not denied.
 const listedHuman = (list, deniedIds) => (user) => isListed(list.humans, user) && !deniedIds.has(user.id);
 
-// `fault` marks a stop a read GitHub failed to answer caused (isFault): the
-// reason is the one a refusal at that read gives, and with fault-reason on
-// (FAULT_REASON) main writes FAULT_REASON in its place.
 class Stop extends Error {
   constructor(reason, fault = false) {
     super(reason);
@@ -223,7 +181,6 @@ export const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 // matches the branch ref, after each of these waits in turn (60 s in all).
 const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];
 
-// The SHA the PR's head branch points at, or null when it cannot be read.
 async function headRefSha(github, pull) {
   const repository = pull.head?.repo?.full_name ?? "";
   const ref = pull.head?.ref;
@@ -261,8 +218,6 @@ export async function readPull(github, base, prNumber, sleep, confirmable = () =
   }
 }
 
-// A dispatched run's PR, its head confirmed against the branch ref; a fork's
-// is not waited on, since the fork check stops it.
 async function fetchPull(github, repository, number, sleep) {
   const sameRepo = (pull) => pull.head?.repo?.full_name === repository;
   let read;
@@ -339,7 +294,6 @@ export async function readRerunner(github, repository, runId, runAttempt) {
   return own.triggering_actor.id;
 }
 
-// The re-runner must be in pool and not denied.
 async function checkRerunner({ github, repository, runId, runAttempt, pool, deniedIds }) {
   const rerunnerId = await readRerunner(github, repository, runId, runAttempt);
   if (!pool.has(rerunnerId) || deniedIds.has(rerunnerId)) {
@@ -377,17 +331,11 @@ export async function requireBehindTip(github, repository, headSha, tipSha, reas
   }
 }
 
-// The run at headSha ran the default branch's own code: no tag shares the
-// branch's name, and headSha is the branch tip or behind it.
 async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
   const tip = await readDefaultBranchTip(github, repository, defaultBranch, reason);
   await requireBehindTip(github, repository, headSha, tip, reason);
 }
 
-// What a record name says about this run: null when it does not list it,
-// otherwise true, or for a workflow_run or pull_request_target dispatcher's
-// record the upstream run id or the commit it ran. Each kind reads only its
-// own name.
 function readRecordName(name, runId, kind) {
   if (typeof name !== "string") {
     return null;
@@ -401,8 +349,6 @@ function readRecordName(name, runId, kind) {
     : null;
 }
 
-// The dispatcher run's unexpired record of its own that lists this run's id,
-// read by readRecordName, or null. A failed or malformed read refuses.
 async function findRecord(github, runPath, dispatcherRunId, runId, kind) {
   const body = await readOrRefuse(github, `${runPath}/artifacts?per_page=100`);
   if (!Array.isArray(body.artifacts)) {
@@ -424,15 +370,6 @@ async function findRecord(github, runPath, dispatcherRunId, runId, kind) {
   return null;
 }
 
-// The dispatcher run records the ids the dispatch API returned to it, so a
-// dispatch it did not send is never in its record. Each read takes the
-// dispatcher run's status before its artifacts, so an upload landing between
-// the two is not refused. While the run is still going, an absent record is
-// re-read after RECORD_WAIT_MS, at most RECORD_MAX_SLEEPS times. At the first
-// completed status one more read follows the same wait, for any lag between
-// the run and its artifact list, and then the gate refuses. That wait counts
-// toward the cap, so the whole wait stays within 2 min. Returns what the
-// record names (readRecordName).
 async function requireRecorded({ github, repository, dispatcherRunId, runId, kind, sleep }) {
   const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
   for (let sleeps = 0; ; sleeps += 1) {
@@ -521,7 +458,6 @@ async function verifyDispatcher({
   const viaRun = dispatcher.event === "workflow_run";
   const viaTarget = dispatcher.event === TARGET_EVENT;
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
-  // The lanes App or a listed human.
   const vouches = (user) =>
     Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
   // A pull_request_target run reports the PR's branch and head as head_branch
@@ -540,7 +476,6 @@ async function verifyDispatcher({
         entry.head?.repo?.id === repositoryId &&
         entry.head?.ref === dispatcher.head_branch,
     );
-  // Comparisons with NaN are false, so a missing or unparsable time refuses.
   const trusted =
     own.path === dispatchedWorkflow &&
     own.event === "workflow_dispatch" &&
@@ -586,8 +521,6 @@ async function verifyDispatcher({
   }
   if (viaRun) {
     const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
-    // A relayed review comment: only a listed human vouches, never the lanes
-    // App, and the run must name the PR.
     const relayed = runDispatcherRelay !== "" && upstream.path === runDispatcherRelay;
     const startedBy = relayed
       ? upstream.event === RELAY_EVENT &&
@@ -612,13 +545,6 @@ async function verifyDispatcher({
   return own;
 }
 
-// A job after pr-unblock's model job passes the head that job was gated on,
-// and the commit apply-feedback-patch pushed onto it (empty when it pushed
-// none): the review must be of the gated head, and the PR must be at it or
-// at that pushed commit. Any other head refuses, a verified lanes App commit
-// of another job or run included: a signature proves an App token made it,
-// not this run's push job. Without a gated head, the review must be of the
-// PR's current head.
 function upstreamHeadHolds({ upstreamSha, pullSha, expectedUpstreamHead, pushedCommit }) {
   if (expectedUpstreamHead === "") {
     return upstreamSha === pullSha;
@@ -626,8 +552,6 @@ function upstreamHeadHolds({ upstreamSha, pullSha, expectedUpstreamHead, pushedC
   return upstreamSha === expectedUpstreamHead && (pullSha === expectedUpstreamHead || (pushedCommit !== "" && pullSha === pushedCommit));
 }
 
-// The re-runner of a dispatched run, read by id from this run's own record:
-// github-actions[bot] on the first attempt, a listed id on any re-run.
 function checkDispatchedRerunner({ ids }, deniedIds, own) {
   const rerunner = own.triggering_actor;
   const trusted =
@@ -639,27 +563,6 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
-// A re-run github-actions[bot] started names no human, so it is trusted only
-// as the lost-run reconciler's re-run of runId, this run or the upstream run a
-// workflow_run event names: its attempt RERUN_ATTEMPT to
-// RECONCILER_ATTEMPT_CAP, started by github-actions[bot], and an unexpired
-// rerunRecordName artifact naming that attempt, created no later than that attempt started, of a
-// reconcilerWorkflow run in this repository on the default branch, started by
-// its schedule or a listed human's dispatch, any re-run of it by a listed
-// human, its head SHA the default branch tip or behind it, and this attempt
-// started between that run's start and WINDOW_MS after it. A run id names one
-// run, each of its attempts starts once, and the record names the attempt, so
-// a record vouches for one attempt.
-// The reconciler uploads the record before it re-runs; one more read follows
-// RECORD_WAIT_MS for any lag in the artifact list. Every refusal is refuse:
-// untrusted-rerunner for this run, as for an unlisted re-runner, and
-// untrusted-actor for an upstream run, as for an unlisted actor.
-//
-// The same check runs for each recorder whose attempts include runAttempt
-// (reconcilerRecorder, ciStatusRerunRecorder), reading that attempt and that
-// recorder's record name; a rerun-ci-status run must be a workflow_run run,
-// and its record uploaded after it started, no later than the attempt started
-// and at most WINDOW_MS before it.
 async function verifyRecordedRerun({ github, repository, event, list, deniedIds, recorders, runId, runAttempt, sleep, refuse = "untrusted-rerunner" }) {
   const defaultBranch = event.repository?.default_branch;
   const attempt = Number(runAttempt);
@@ -824,10 +727,6 @@ export async function reconcilerRecordVouches({ github, repository, defaultBranc
   }
 }
 
-// The lanes App starts the lane on an issue only by applying app-label, or by
-// setting the field app-field-id to the option app-field-option; that event
-// alone admits the issue. Any other App event stops. The re-runner is the App
-// itself, listed, or a listed human.
 function appTrigger(event, appLabel, appField) {
   if (appLabel !== "" && event.action === "labeled" && event.label?.name === appLabel) {
     return appLabel;
@@ -860,10 +759,6 @@ async function checkAppLabel({ github, repository, event, list, deniedIds, lanes
   return { ...stopped("ok"), proceed: "true" };
 }
 
-// require-pr: false. A workflow_dispatch or issues event checks its sender
-// (on issues, the account that applied the label) and the triggering actor, a
-// push only the triggering actor; no PR is read. require-kind human narrows
-// both to actors listed as human.
 async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, runId, runAttempt }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
@@ -961,8 +856,6 @@ export async function evaluateTrigger({
   ) {
     throw new Stop("no-pr");
   }
-  // Lanes read the list and scripts from the default branch, so only it is a
-  // trusted base; a payload without it cannot prove the base.
   const baseSha = trustedBaseSha(pull, event.repository?.default_branch);
   if (baseSha === "") {
     throw new Stop("untrusted-base");
@@ -998,10 +891,6 @@ export async function evaluateTrigger({
   } else if (expectedUpstreamHead !== "" || pushedCommit !== "") {
     throw new Stop("untrusted-actor");
   } else {
-    // A CI run the reconciler or rerun-ci-status re-ran is started by
-    // github-actions[bot]; that actor is vouched for only by a record of a
-    // recorder whose attempts include it, and every other actor must still be
-    // listed.
     const upstream = eventName === "workflow_run" ? event.workflow_run : undefined;
     const recorders = [reconcilerRecorder(reconcilerWorkflow), ciStatusRerunRecorder(ciStatusRerunWorkflow)].filter(
       (recorder) => recorder.workflow !== "",
@@ -1084,7 +973,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
     let list;
     let deniedIds;
     try {
-      list = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      list = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
       deniedIds = parseDeniedIds(env.DENIED_ACTOR_IDS);
     } catch {
       throw new Stop("list-unreadable");
@@ -1114,7 +1003,6 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
       appLabel: env.APP_LABEL ?? "",
-      // Both ids or neither: a half-set pair keeps every App field event stopped.
       appField:
         ENV_ID.test(env.APP_FIELD_ID ?? "") && ENV_ID.test(env.APP_FIELD_OPTION ?? "")
           ? { id: env.APP_FIELD_ID, option: env.APP_FIELD_OPTION }

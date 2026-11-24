@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for registry-filter.py at its command line.
-
-The filter is a pure function from a document plus registries to a document,
-so every case drives the script through subprocess with a small document on
-stdin (design T13, the one seam per script). The committed fixture
-scripts/fixtures/registry/cluster.txt covers the shape a consuming repository
-ships; these cases cover the rule itself.
-"""
 
 from __future__ import annotations
 

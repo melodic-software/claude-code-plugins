@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the discovery plugin's cross-file statements.
-#
-# The two sibling suites (`check-dispatch-artifact.test.sh`,
-# `check-coverage-complete.test.sh`) grade a script. This one grades the
-# *documents*, because this plugin's observed defect class is not a broken
-# script — it is the same statement made in three files with three different
-# contents, and a harness behavior asserted as settled fact that no current doc
-# page covers.
-#
-# Every assertion below pins a defect that was present at 0.14.0 and is fixed in
-# 0.15.0. Each is a grep over the shipped surface, so a later edit that
-# reintroduces the drift fails here rather than in a reader's session.
-#
-# `CHANGELOG.md` is excluded from every content sweep on purpose: it is the
-# historical record, it quotes the wording it is retiring, and rewriting a
-# shipped entry to satisfy a tripwire is the failure mode this file exists to
-# make expensive.
-#
 # SC2016 is disabled file-wide on purpose. Single-quoted `$ARGUMENTS` strings in
 # assertion labels and grep patterns are literal prose/regex under test.
 # test-scope: plugins/discovery/*.md plugins/discovery/*.json
@@ -29,9 +11,6 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# surface — every shipped instruction file in the plugin, minus the changelog.
-# Content lives in markdown and in the evals JSON; both are read by a model, so
-# both are in scope.
 surface() {
   find "$PLUGIN_ROOT" -type f \( -name '*.md' -o -name '*.json' \) \
     ! -name 'CHANGELOG.md' \
@@ -39,8 +18,6 @@ surface() {
     sort
 }
 
-# assert_absent <label> <extended-regex>
-# Fails listing every hit, because the count is the finding.
 assert_absent() {
   local label="$1" pattern="$2" hits
   hits="$(surface | xargs grep -nEI -- "$pattern" 2>/dev/null)"
@@ -61,8 +38,6 @@ assert_present() {
   fi
 }
 
-# assert_absent_in <label> <file> <extended-regex>
-# The label states the absence, so it is the same text either way.
 assert_absent_in() {
   local label="$1" file="$2" pattern="$3"
   if grep -qE -- "$pattern" "$PLUGIN_ROOT/$file"; then
@@ -74,19 +49,6 @@ assert_absent_in() {
 
 printf '# discovery contract test\n\n'
 
-# ---------------------------------------------------------------------------
-# 1. The $ARGUMENTS-on-preload mechanism is not asserted anywhere (#2270)
-#
-# Neither <https://code.claude.com/docs/en/skills> nor
-# <https://code.claude.com/docs/en/sub-agents> covers argument substitution on
-# the preload path: the skills page scopes `$ARGUMENTS` to "All arguments passed
-# when invoking the skill" and the sub-agents page says only that "The full
-# content of each listed skill is injected into the subagent's context at
-# startup". Silence is not a license to assert the behavior in either
-# direction. The operative rule — scope arrives in the dispatch prompt and the
-# agent refuses to guess — holds whatever the harness does, so it is what the
-# plugin states.
-# ---------------------------------------------------------------------------
 assert_absent 'no file asserts $ARGUMENTS substitutes to the empty string' \
   'substitutes to the (\*\*)?empty string'
 assert_absent 'no file asserts $ARGUMENTS reaches a preloaded body as the empty string' \
@@ -98,21 +60,9 @@ assert_absent 'no file asserts $ARGUMENTS is empty under dispatch' \
 assert_absent 'no evals criterion asserts what does or does not reach a preloaded skill' \
   'reaches a preloaded skill'
 
-# ---------------------------------------------------------------------------
-# 2. Cross-file pointers resolve from an install root, not from this monorepo
-#    (#2269 B-F12)
-# ---------------------------------------------------------------------------
 assert_absent 'no monorepo-path pointer to the agent definitions' \
   '(^|[^/])plugins/discovery/agents/'
 
-# ---------------------------------------------------------------------------
-# 3. The pre-dispatch baseline command is stated once, with both shell forms
-#    (#2269 F9). Three sites carried a POSIX-only `mkdir -p … && touch …`;
-#    `touch` is not a PowerShell command and `-p` is a parameter error there.
-# ---------------------------------------------------------------------------
-#    research/SKILL.md carries a second copy so a research parent can dispatch
-#    without reading the contract (#4233); section 3b holds the two equal.
-# ---------------------------------------------------------------------------
 baseline_files="$(surface | xargs grep -lE 'mkdir -p' 2>/dev/null | sed 's|^'"$PLUGIN_ROOT"'/||' | sort | tr '\n' ' ')"
 if [[ "$baseline_files" == "reference/parent-contract.md skills/research/SKILL.md " ]]; then
   pass 'the pre-dispatch baseline command lives only in the contract and the research hub'
@@ -122,19 +72,6 @@ fi
 assert_present 'the baseline home states a PowerShell form' \
   'reference/parent-contract.md' 'New-Item'
 
-# ---------------------------------------------------------------------------
-# 3b. The research hub's envelope and baseline copies match the contract (#4233)
-#
-# Comments and blank lines are dropped before comparing: the contract's block
-# carries explore and trace-intent notes the research copy has no use for. The
-# hub's one block is the contract's shared block followed by its research block.
-# The
-# contract's `<explore|research|trace-intent>` baseline name is read as
-# `research`.
-# ---------------------------------------------------------------------------
-# fenced_blocks <file> <fence language> <start heading> [<n>]
-# The nth (default first) fenced block of that language between the heading and
-# the next `## ` heading, comments and blank lines dropped.
 fenced_blocks() {
   awk -v lang="$2" -v start="$3" -v want="${4:-1}" '
     $0 == start { inside = 1; next }
@@ -166,15 +103,6 @@ for lang in bash powershell; do
   fi
 done
 
-# ---------------------------------------------------------------------------
-# 4. Truncation and the recovery ladders prescribe ONE outcome (#2272)
-#
-# Three sites said the parent discards the partial slice *rather than* resuming,
-# while both ladders said resume first. Resume-before-discard is the doc-safe
-# ordering: <https://code.claude.com/docs/en/sub-agents> — "Resumed subagents
-# retain their full conversation history … The subagent picks up exactly where
-# it stopped rather than starting fresh."
-# ---------------------------------------------------------------------------
 assert_absent 'no file prescribes discard-instead-of-resume' \
   'discards the partial slice rather than resuming'
 assert_absent 'no file back-references a discard-rather-than-resume rule' \
@@ -182,9 +110,6 @@ assert_absent 'no file back-references a discard-rather-than-resume rule' \
 assert_present 'the ordering is stated once, in the parent contract' \
   'reference/parent-contract.md' 'Resume first'
 
-# ---------------------------------------------------------------------------
-# 5. The pre-dispatch envelope's memory-root field is delivered (#2268 D-F3)
-# ---------------------------------------------------------------------------
 assert_present 'the research parent-obligation table carries a Memory root row' \
   'skills/research/context/dispatch.md' '^\| Memory root \|'
 assert_present 'the parent contract ships a literal envelope template' \
@@ -194,8 +119,6 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
-# A breadth token narrows a small question below caller effort, and Budget: has
-# one vocabulary mapped to Effort rows.
 assert_present 'research argument-hint shows the breadth token' \
   'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
 assert_present 'research SKILL.md states breadth narrows and never widens' \
@@ -209,8 +132,6 @@ done
 assert_present 'the parent contract envelope opens Budget: with the vocabulary' \
   'reference/parent-contract.md' '^Budget: <low\|medium\|full>'
 
-# One topic with many gaps fans out inside Phase 2 when nesting is available;
-# the principle alone never fired (#4151).
 assert_present 'the discipline file carries the per-gap fan-out recipe' \
   'skills/research/context/discipline.md' '^## Per-gap fan-out \(Phase 2\)$'
 assert_present 'research Phase 2 names the per-gap fan-out step' \
@@ -226,30 +147,11 @@ done
 assert_absent 'no fan-out threshold reads 3 or more gaps' \
   '(3|three) or more( numbered( gaps)?)?$|(3|three) or more numbered gaps'
 
-# The deep tier points at the Budget: vocabulary and the verifier instead of restating either.
 assert_present 'the deep tier points Budget: at the parent-contract vocabulary' \
   'skills/research/context/deep-tier.md' 'parent-contract\.md.*"`Budget:` vocabulary"'
 assert_present 'the deep tier names the verifier, its write-back and the cost skip' \
   'skills/research/context/deep-tier.md' 'discovery:research-verifier`.*`verification:` write-back.*`skipped \(cost\)`'
 
-# ---------------------------------------------------------------------------
-# 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
-#
-# Per <https://code.claude.com/docs/en/skills> (fetched 2026-08-14): in a plugin
-# skill, Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in markdown and in Bash
-# rules in allowed-tools. That removes the old "token cannot name these
-# scripts" leg, but a turn-scoped grant still clears before the post-dispatch
-# gate runs, and an interpreter-led Bash(bash …) rule is this repo's
-# permission-rule-hygiene anti-pattern 1. So the plugin still ships no grant
-# and states the un-run case — including that inline is not an escape hatch
-# for it, and that criterion 11 may not be hand-graded.
-# ---------------------------------------------------------------------------
-#
-# setup/SKILL.md is exempt from the first check: its `check` step 6 prints the
-# gate rules an operator pastes into user settings (#4233), and the skill body
-# is where ${CLAUDE_PLUGIN_ROOT} is substituted, so what the operator pastes is
-# the absolute root.
-# ---------------------------------------------------------------------------
 root_rules="$(surface | grep -v '/skills/setup/SKILL.md$' | xargs grep -nEI 'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}' 2>/dev/null)"
 if [[ -z "$root_rules" ]]; then
   pass 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT} outside the setup rule list'
@@ -265,8 +167,6 @@ assert_absent_in 'setup has no step that writes the gate allow rules to user set
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
   'setup apply` (offers|writes) (the )?(gate|allow|permission)|setup apply.{0,40}allow rules'
-# One grant is sanctioned: research's deep-tier launch of this plugin's own
-# workflow by name (never bare Workflow). It grants no gate script.
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |
   grep -vE '/skills/research/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$')"
 if [[ -z "$frontmatter_grants" ]]; then
@@ -296,14 +196,6 @@ assert_present 'a non-bash coverage twin is shipped' \
 assert_present 'parent contract names the Python twin' \
   'reference/parent-contract.md' 'check-coverage-complete.py'
 
-# ---------------------------------------------------------------------------
-# 7. maxTurns has one owner
-#
-# The parent contract's harness-facts record names the value and why it stays: a
-# checkpoint, not a completion budget. No documented floor exists to test
-# adequacy against; the stop-turn reserve below each limit is asserted in the
-# envelope section further down.
-# ---------------------------------------------------------------------------
 turns_of() { grep -m1 -E '^maxTurns:' "$PLUGIN_ROOT/agents/$1.md" | tr -dc '0-9'; }
 contract_turns="$(grep -m1 -oE 'Every producing worker definition here \([^)]*\) sets `maxTurns: [0-9]+`' \
   "$PLUGIN_ROOT/reference/parent-contract.md" | grep -oE 'maxTurns: [0-9]+' | tr -dc '0-9')"
@@ -328,13 +220,6 @@ assert_present 'research-verifier pins the verdict tier: model opus' \
 assert_present 'research-verifier pins the verdict tier: effort high' \
   'agents/research-verifier.md' '^effort: high$'
 
-# ---------------------------------------------------------------------------
-# 8. Progressive disclosure is not inverted (#2271 D-F4)
-#
-# research/SKILL.md is preloaded IN FULL into every dispatched run. A hub larger
-# than the spoke it delegates to pays that cost on every dispatch. This pins the
-# direction, not a byte count.
-# ---------------------------------------------------------------------------
 hub_words="$(wc -w <"$PLUGIN_ROOT/skills/research/SKILL.md" | tr -d ' ')"
 spoke_words="$(wc -w <"$PLUGIN_ROOT/skills/research/context/discipline.md" | tr -d ' ')"
 if [[ "$hub_words" -lt "$spoke_words" ]]; then
@@ -343,13 +228,6 @@ else
   fail "research/SKILL.md ($hub_words words) is NOT smaller than context/discipline.md ($spoke_words words)"
 fi
 
-# 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
-# 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
-# the same phrase is not waiting in the tail. The worker procedure is the spoke.
-# The research slice holds the acceptance and outcome gates, the disciplines they
-# grade, the effort ceiling and the topic slot; the pre-dispatch envelope, the
-# baseline and the inline conditions follow it, since no gate needs them after a
-# dispatch.
 assert_in_slice() {
   local label="$1" file="$2" phrase="$3" bytes slice tail
   bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
@@ -381,7 +259,6 @@ assert_in_slice 'research effort ceiling heading is inside the re-attach slice' 
   'skills/research/SKILL.md' '### Effort, source breadth'
 assert_in_slice 'research effort ceiling sentence is inside the re-attach slice' \
   'skills/research/SKILL.md' 'The Effort row is the ceiling over discipline 8'
-# #12631 asks for 2,000 bytes of headroom, so the whole sentence ends by byte 18,000.
 if [[ "$(head -c 18000 "$PLUGIN_ROOT/skills/research/SKILL.md")" == *'The Effort row is the ceiling over discipline 8: "Effort, source breadth" below.'* ]]; then
   pass 'research effort ceiling sentence keeps 2,000 bytes of headroom'
 else
@@ -395,7 +272,6 @@ if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
 else
   fail 'explore and research worker procedures live in the spokes'
 fi
-# $ARGUMENTS is substituted only in the rendered SKILL.md, never in a spoke read from disk.
 # shellcheck disable=SC2016  # literal $ARGUMENTS
 if grep -qF 'Explore the following: $ARGUMENTS' "$PLUGIN_ROOT/skills/explore/SKILL.md" \
   && ! grep -qF '$ARGUMENTS' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
@@ -404,13 +280,6 @@ else
   fail 'explore scope substitution stays in SKILL.md'
 fi
 
-# ---------------------------------------------------------------------------
-# 9. One research skill carries both depths
-#
-# research-deep folded into research as its deep tier: the description carries
-# the deep triggers, the main context alone selects the tier, and no surface
-# still routes to the retired skill.
-# ---------------------------------------------------------------------------
 assert_present 'the research description carries the deep-research triggers' \
   'skills/research/SKILL.md' "^description:.*'deep research'.*'research these N topics'"
 assert_present 'the research description names the deep tier' \
@@ -424,19 +293,11 @@ assert_present 'the workflow availability gate observes the tool rather than set
 assert_absent 'no surface routes to the retired research-deep skill' \
   'discovery:research-deep|skills/research-deep/'
 
-# ---------------------------------------------------------------------------
-# 10. The write boundary is stated once and pointed at (#2270 F6)
-# ---------------------------------------------------------------------------
 assert_present 'the write boundary names a scratch prefix' \
   'reference/parent-contract.md' 'scratch-'
 assert_present 'the write boundary assigns a cleanup owner' \
   'reference/parent-contract.md' '[Cc]leanup'
 
-# The agents must POINT at that statement rather than restate it. Asserting a
-# bare link to parent-contract.md would pass vacuously — every agent already links
-# it for other rules — so this keys on the restatements being gone.
-# A non-discriminating assertion is the script-layer form of the self-graded
-# gate these skills refuse everywhere else.
 assert_absent 'no agent restates the write boundary as a closed two-destination list' \
   'exactly two permitted destinations'
 assert_absent 'no agent restates the write boundary as a single destination' \
@@ -446,14 +307,6 @@ for agent in explorer researcher intent-tracer; do
     "agents/$agent.md" 'single write boundary'
 done
 
-# ---------------------------------------------------------------------------
-# 11. Matching token is file-identity, not preload proof (#2895)
-#
-# The #2374 fallback Reads SKILL.md, so a recovered agent can echo the same
-# token a preloaded agent would. Embedding the token in the agent definition
-# made that worse: the agent could echo it without seeing the skill at all.
-# Provenance is the structured `preload:` field.
-# ---------------------------------------------------------------------------
 assert_absent_in 'agents/researcher.md does not embed the discipline-liveness token' \
   'agents/researcher.md' 'discovery-research-preload-4c1f9a'
 assert_present 'researcher payload contract carries preload: fired|fallback' \
@@ -478,9 +331,6 @@ assert_present 'explorer early-emission checklist sets preload: beside the token
   'agents/explorer.md' '`preload_token` echoed, `preload:` set'
 assert_present 'explorer never reports a token it Read from disk as fired' \
   'agents/explorer.md' 'Never treat a token you found by'
-# The explore outcome gate's index-pin row reaches a dispatched run only through
-# the explorer's write instructions and the criterion its verifier is briefed
-# with; the verifier never reads artifact-shape.md.
 assert_present 'explorer write instructions require the staleness-check line' \
   'agents/explorer.md' 'whose second is the staleness-check line'
 assert_present 'explorer verifier criterion grades the staleness line and finding abstracts' \
@@ -510,16 +360,6 @@ assert_present 'trace-intent dispatch contract forbids inferring fired from the 
 assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
   'skills/trace-intent/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 
-# ---------------------------------------------------------------------------
-# 12. Joint-inference validity is a verifier-owned gate row
-#
-# Every other gate row grades provenance or process. A claim can pass all of
-# them behind verbatim quotes and still not follow from its sources. Row 12
-# asks whether it does, and a verifier grades it off disk, so the sidecar
-# header carries what each source measures and each claim's inference and
-# qualifiers. Failing claims use the existing vocabulary, a Gap or a Conflicts
-# entry; no new status words.
-# ---------------------------------------------------------------------------
 assert_present 'gate row 7 passes a MEDIUM or LOW claim listed in the Gaps section' \
   'skills/research/SKILL.md' '^\| 7 \|.*listed in the Gaps section.*\| \*\*verifier\*\* \|'
 assert_present 'gate row 12 is owned by the verifier' \
@@ -594,17 +434,6 @@ assert_present 'a non-measuring corroborator is recorded, not counted' \
 assert_absent 'no evals entry counts the gate criteria' \
   'all [0-9]+ binary criteria'
 
-# ---------------------------------------------------------------------------
-# 13. Dispatched agents write early and reserve their last turns
-#
-# A free-text budget bounds no turn count; a named stop turn leaves the agent
-# turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
-# below it, writes an index skeleton marked `Run status: in progress` early, and
-# replaces the marker only in its final write. The envelope carries the stop
-# turn as a second Budget line. Each agent reads a file once, so turns go to
-# gathering rather than re-reading. The research side also names a claim's primary
-# source in the sidecar header and the read-only `gh` forms.
-# ---------------------------------------------------------------------------
 
 line_after() {
   awk -v pat="$2" 'found { print; exit } $0 ~ pat { found = 1 }' "$PLUGIN_ROOT/$1"
@@ -727,23 +556,10 @@ done
 assert_absent 'no file narrates the 40-turn incidents as the Turn budget rationale' \
   'bounded nothing: dispatched runs stopped'
 
-# ---------------------------------------------------------------------------
-# 14. Sources are gated on era and scenario, not only on quote presence
-#
-# A quote can sit at its link word for word and come from a source written for
-# another product line or major, or one that states only the general mechanism.
-# Each source records when it was published and which versions it applies to;
-# a script derives current or historical from those fields (criterion 13), and
-# the verifier's criterion 12 runs era and scenario checks on every cited
-# source. The envelope gains a research-only `Evidence use:` line, so the
-# shared count stays six.
-# ---------------------------------------------------------------------------
 for field in published applies_to standing; do
   assert_present "the sources[] schema carries $field" \
     'skills/research/context/artifact-shape.md' "^ {8}${field}: "
 done
-# An undated living doc is dated by a recorded method, never by a serve-time
-# header, and the verifier grades that recorded method (#6069).
 assert_present 'the sources[] schema carries dated_by' \
   'skills/research/context/artifact-shape.md' '^ {8}dated_by: '
 assert_present 'artifact-shape has the undated-living-doc dating subsection' \
@@ -805,9 +621,6 @@ for file in skills/research/SKILL.md reference/parent-contract.md \
   assert_present "$file names the source-applicability checker" \
     "$file" 'check-source-applicability\.py|source-applicability'
 done
-# The deep tier writes the sidecar header from the sweep result, so its step 5
-# names every field the checker's rules R1-R5 read (the script's docstring),
-# or each workflow-tier artifact fails the gate and falls back to a researcher.
 step5="$(sed -n '/^5\. \*\*Write the artifact/,/^6\. /p' \
   "$PLUGIN_ROOT/skills/research/context/deep-tier.md" | tr '\n' ' ' | tr -s ' ')"
 for field in "claim's \`applies_to:\`" '`role`' '`published`' '`applies_to`' '`standing:`'; do
@@ -825,15 +638,6 @@ else
   fail 'the source-applicability checker ships'
 fi
 
-# ---------------------------------------------------------------------------
-# The credential read boundary is stated once and pointed at
-#
-# A researcher's capability probe ran `git credential fill` and captured a live
-# token. No frontmatter key can block one shell command, so the rule is
-# instruction held in one place, with every agent pointing at it.
-# ---------------------------------------------------------------------------
-# flat <file>: the file's prose on one line, blockquote markers dropped, so a
-# phrase matches wherever the source wraps it.
 flat() { sed 's/^> //' "$PLUGIN_ROOT/$1" | tr '\n' ' ' | tr -s ' '; }
 cred_heading='^## Credentials stay unread, stated once$'
 assert_present 'the parent contract owns the credential read boundary' \
@@ -855,10 +659,6 @@ for agent in explorer researcher intent-tracer; do
     "agents/$agent.md" 'gh auth token'
 done
 
-# The rule reaches every agent that holds a shell, not only the three producers:
-# the per-gap workers Phase 2 dispatches and the general-purpose sibling verifier
-# carry the same Bash pool. The sandbox settings live in the harness-config audit
-# reference, so the section points there instead of restating them.
 cred_section="$(sed -n '/^## Credentials stay unread, stated once$/,/^## Read each file once/p' \
   "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ' | tr -s ' ')"
 for scope in 'per-gap workers' 'sibling verifier'; do
@@ -887,14 +687,6 @@ else
   fail 'agents/research-verifier.md bars a credential file from Read'
 fi
 
-# ---------------------------------------------------------------------------
-# The read-each-file-once rule is stated once and pointed at (#4258)
-#
-# An explorer run spent a quarter of its turns re-reading files already in its
-# context. The rule was pasted into three agents verbatim; it lives in the
-# parent contract now, and the agents point at it. The rule's body text must
-# not come back into any agent, so a copy cannot drift.
-# ---------------------------------------------------------------------------
 readonce_heading='^## Read each file once, stated once$'
 readonce_phrases=(
   'A file you have already read in this run is still in your context'
@@ -936,12 +728,6 @@ for agent in explorer researcher intent-tracer research-verifier; do
   fi
 done
 
-# 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
-#
-# The post-dispatch gate's steps live in the research skill body. A parent that
-# dispatches discovery:researcher without loading that skill never reads them,
-# so the agent points at them and its payload names them in band.
-# ---------------------------------------------------------------------------
 assert_present 'researcher states that whoever dispatched it owes the acceptance gate' \
   'agents/researcher.md' '^## Whoever dispatched you owes the acceptance gate$'
 assert_present 'the researcher payload names the gate it is owed' \
@@ -951,11 +737,6 @@ assert_present 'the parent contract says a direct dispatch owes the gate' \
 assert_present 'the research skill still carries the gate the pointer names' \
   'skills/research/SKILL.md' '^\*\*Post-dispatch acceptance gate\. '
 
-# ---------------------------------------------------------------------------
-# 16. The research verifier is a named, read-only agent the parent dispatches
-#     from a copyable block, and a skip is recorded rather than left pending
-#     (#4231)
-# ---------------------------------------------------------------------------
 verifier='agents/research-verifier.md'
 if [[ -f "$PLUGIN_ROOT/$verifier" ]]; then
   pass 'the research verifier agent ships'
@@ -980,13 +761,6 @@ assert_present 'the researcher writes verification: pending in its first write' 
 assert_present 'the artifact gate prints the verification value' \
   'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
 
-# ---------------------------------------------------------------------------
-# The sibling verifier is specified once and pointed at
-#
-# Every payload asks for a verifier, and no agent, prompt, write-back line or
-# no-verifier fallback was stated anywhere, so a verified index and one whose
-# verifier never ran read the same.
-# ---------------------------------------------------------------------------
 verifier_heading='^## The sibling verifier, stated once$'
 verifier_line='^verification: <pass\|fail\|unverified> \(<worker>, <YYYY-MM-DD>\)$'
 assert_present 'the parent contract owns the sibling verifier' \
@@ -1011,10 +785,6 @@ for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
     "$file" '"The sibling verifier, stated once"'
 done
 
-# One table owns the verification: value set (#4274, #4231). skipped (cost) is
-# the parent choosing not to pay, unverified (none, <date>) is it being unable
-# to dispatch, and the table is the one place that says so. artifact-shape.md
-# keeps a one-line list, which must match the table's first column.
 values_heading='^### The `verification:` values$'
 assert_present 'the parent contract owns the verification: values table' \
   'reference/parent-contract.md' "$values_heading"
@@ -1042,15 +812,11 @@ for value in 'pass (research-verifier, <date>)' \
   fi
 done
 
-# verdict: is the report contract's run outcome (complete | partial | stopped),
-# so the explore and trace-intent verifier's pass or fail line is result:.
 assert_absent 'no file has a verifier return pass or fail on a verdict: line' \
   'verdict: (pass|fail)'
 assert_present 'the explore and trace-intent verifier returns result: pass or result: fail' \
   'reference/parent-contract.md' '^Return: first line `result: pass` or `result: fail`'
 
-# The intro lists what the contract owns without counting it, so adding a
-# statement cannot stale a number.
 intro_flat="$(sed '/^## The pre-dispatch envelope$/q' "$PLUGIN_ROOT/reference/parent-contract.md" | tr '\n' ' ')"
 if grep -qiE '(^|[^[:alpha:]])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|[0-9]+) statements' <<<"$intro_flat"; then
   fail 'the parent contract intro spells out no count before statements'
@@ -1058,9 +824,6 @@ else
   pass 'the parent contract intro spells out no count before statements'
 fi
 
-# ---------------------------------------------------------------------------
-# 17. References follow the content that moved into the spokes
-# ---------------------------------------------------------------------------
 assert_present 'blindspot names the explore workflow spoke' \
   'skills/blindspot/SKILL.md' 'skills/explore/reference/workflow\.md'
 assert_absent_in 'blindspot does not send the moved dimensions to the explore hub' \
@@ -1071,14 +834,6 @@ for file in skills/research/SKILL.md skills/blindspot/SKILL.md; do
   assert_present "$file carries a Next section" "$file" '^## Next$'
 done
 
-# ---------------------------------------------------------------------------
-# 18. Each agent carries one final-message shape
-#
-# `discovery:report` is a second return shape. An agent that preloads it carries
-# that core beside its own `Return exactly this` block, and the parent parses
-# the agent's own block, so the preload adds a contradiction and no contract.
-# A bare `report` entry resolves inside this plugin, so it counts too.
-# ---------------------------------------------------------------------------
 for agent in explorer researcher intent-tracer research-verifier; do
   file="agents/$agent.md"
   if grep -qE "^skills:.*report|^[[:space:]]+-[[:space:]]*[\"']?(discovery:)?report[\"']?[[:space:]]*$" \
@@ -1095,16 +850,6 @@ for agent in explorer researcher intent-tracer research-verifier; do
   fi
 done
 
-# ---------------------------------------------------------------------------
-# 19. A first-party content claim with one possible publisher passes flagged
-#
-# A claim about what a publisher's own page, file, changelog or help text says,
-# whoever the publisher is, has no second publisher to find. Its subject is the
-# artifact, so the single-publisher cap does not apply to it. It passes rows 4 and 7 at `HIGH (single source)`
-# when it states why only one publisher exists; a repost is never a second
-# source, and a behavior claim still needs two corroborators. The flag travels
-# with the claim into the answer and into any record an edit rests on.
-# ---------------------------------------------------------------------------
 single_heading='## Single-source first-party content claims'
 assert_present 'gate row 4 has a single source branch that states why only one publisher exists' \
   'skills/research/SKILL.md' '^\| 4 \|.*flagged `single source`.*why only one publisher exists'
@@ -1169,15 +914,6 @@ else
   fail 'recommendation-basis carries the single source flag into the Basis label'
 fi
 
-# ---------------------------------------------------------------------------
-# 20. The run aims at the acceptance bar, and a single-publisher fact is
-#     labeled, never accepted
-#
-# Criterion 4's corroborator count is a floor; acceptance also needs HIGH
-# (criterion 7). Summaries that stated only the floor under-aimed the run. A
-# fact only its publisher states can never reach independence, so it carries
-# its subject's pool, is worded as an attribution, and is at most MEDIUM.
-# ---------------------------------------------------------------------------
 assert_present 'discipline 5 names criterion 7 beside the floor' \
   'skills/research/SKILL.md' '^5\. \*\*Source-tier ratio per claim\*\*.*criterion 7'
 assert_present 'the Gaps line names claims below criterion 7' \
@@ -1205,13 +941,6 @@ done
 assert_present 'evals grade a single-publisher claim that is not accepted' \
   'skills/research/evals/evals.json' 'single-publisher-claim-is-labeled-not-accepted'
 
-# ---------------------------------------------------------------------------
-# 21. A gate is one plain command, and a fan-out sub-slice is not named git
-#     (#6067)
-#
-# A worktree-isolated session refused compound commands whose words included a
-# slice path ending in `git`, and allowed the same path as one plain command.
-# ---------------------------------------------------------------------------
 assert_present 'how to invoke runs each gate as one plain command per Bash call' \
   'reference/parent-contract.md' 'one plain command, one Bash call per gate'
 assert_present 'how to invoke gives the worktree-isolation reason' \
@@ -1219,14 +948,6 @@ assert_present 'how to invoke gives the worktree-isolation reason' \
 assert_present 'the deep-tier fan-out says a sub-slice is not named git' \
   'skills/research/context/deep-tier.md' 'Do not name a sub-slice `git`'
 
-# ---------------------------------------------------------------------------
-# 22. A run with zero accepted claims says so (#5833)
-#
-# Rows 4, 7 and 12 are quantified over accepted claims, so an artifact whose
-# every claim is a Gap passed all three vacuously and read like an answer.
-# Row 14 makes the count part of the artifact: `accepted:` in the index, and
-# at zero an inconclusive line, which passes rather than fails.
-# ---------------------------------------------------------------------------
 assert_present 'gate row 4 is quantified over accepted claims' \
   'skills/research/SKILL.md' '^\| 4 \| Every accepted claim has ≥`research_corroborators` \(default 2\) INDEPENDENT'
 assert_absent 'no gate row 4 quantified over every claim' \
@@ -1256,14 +977,6 @@ assert_present 'evals cover an artifact whose every claim is a Gap' \
 assert_present 'evals cover a count that includes a Gap claim' \
   'skills/research/evals/evals.json' '"name": "accepted-count-excludes-gap-claims"'
 
-# ---------------------------------------------------------------------------
-# 23. Conflicts and the synthesis both reach row 14 (#5833 review)
-#
-# A rejected claim may be recorded only under Conflicts (row 12's Gap-or-
-# Conflicts route, a refuted engine finding), so a count that excluded only
-# Gaps stayed nonzero when every claim took that route. And a synthesized root
-# index went to its verifier for criterion 12 alone, so row 14 never ran on it.
-# ---------------------------------------------------------------------------
 assert_present 'gate row 14 excludes Gap claims and unresolved Conflicts claims from the count' \
   'skills/research/SKILL.md' '^\| 14 \| The index.s `accepted:` counts the claims neither in Gaps nor unresolved in Conflicts;'
 assert_present 'artifact-shape counts a Conflicts claim only when the entry resolves in its favor' \
@@ -1285,14 +998,6 @@ assert_present 'research evals send the synthesized deep-tier root to rows 4, 7,
 assert_absent 'no synthesis verifier briefed on criterion 12 alone' \
   'verifier for criterion 12'
 
-# ---------------------------------------------------------------------------
-# 23. The verifier grades a truncated primary from a parent-saved snapshot
-#     (#6071)
-#
-# WebFetch cut long pages short before the cited sections, and the verifier
-# holds no Bash to fetch them in full. The parent saves the page and names it
-# on a Snapshots: line; the tools line stays read-only.
-# ---------------------------------------------------------------------------
 assert_present 'the verifier contract documents an optional Snapshots: field' \
   'agents/research-verifier.md' '^- \*\*Snapshots\*\* \(optional\): `<url> -> <path>` lines'
 assert_present 'the verifier Reads a listed snapshot in place of re-fetching the page' \
@@ -1314,15 +1019,6 @@ assert_present 'the dispatch brief re-dispatches the verifier with a Snapshots: 
 assert_present 'the dispatch brief keeps snapshots where the verifier Read reaches them' \
   'skills/research/context/dispatch.md' 'permissions#working-directories'
 
-# ---------------------------------------------------------------------------
-# 24. Restatements cite a claim ID and keep its label (#6070)
-#
-# A fan-out's verifier rounds kept failing on restatements of accepted claims
-# (Summary, Settled, handoff, catalog cells, abstracts) that dropped a flag, an
-# attribution or a qualifier. The rule extends the verbatim-abstract rule, the
-# header gives each claim an id: to cite, and a script reports a line that
-# names a labeled claim without its label.
-# ---------------------------------------------------------------------------
 assert_present 'artifact-shape states the cite-not-restate rule' \
   'skills/research/context/artifact-shape.md' '^\*\*Restatements cite; they do not restate\.\*\* The verbatim rule for abstracts extends'
 assert_present 'artifact-shape gives each claim an id: after claim:' \
@@ -1345,15 +1041,6 @@ else
   fail 'the restatement checker ships'
 fi
 
-# ---------------------------------------------------------------------------
-# 25. Format and calibration rules are checked at write time (#12517)
-#
-# A six-topic fan-out spent about two thirds of each topic's time in verify,
-# rework and re-verify, and no verifier pass converged: the failures were
-# restatement drift (row 12), single-source flag eligibility (row 4) and the
-# tier mix behind HIGH (row 7). Scripts now catch those before hand-back, and
-# verification scales to the evidence use.
-# ---------------------------------------------------------------------------
 assert_present 'artifact-shape makes handoff lines ID pointers with labels only' \
   'skills/research/context/artifact-shape.md' '^So the Summary, the Settled list and the rest of the handoff are ID pointers with their labels'
 assert_present 'artifact-shape bans sweep words on index lines that name a claim ID' \
@@ -1421,9 +1108,6 @@ for script in check-claim-eligibility.py check-claim-eligibility.test.sh; do
     fail "$script ships"
   fi
 done
-# A re-run still failed row 12: the drift moved into sidecar decision bullets,
-# table cells, conflict notes and abstracts, which dropped a condition or turned
-# "prefer" into a rule with no sweep word and no missing label (#12902).
 assert_present 'artifact-shape makes a sidecar line quote the claim it cites' \
   'skills/research/context/artifact-shape.md' '^\*\*A sidecar line that cites a claim quotes it verbatim\.\*\*'
 assert_present 'artifact-shape gives the one quote form' \
@@ -1434,8 +1118,6 @@ assert_present 'the checker fails a sidecar line that cites a claim unquoted' \
   'scripts/check-restatement-labels.py' '<id> cited without its claim quoted verbatim$'
 assert_present 'the researcher quotes claims in sidecar lines' \
   'agents/researcher.md' 'A sidecar line that names a claim.s ID quotes its `claim:` text'
-# A seed abstract that named no ID dropped its claim's exception in both the
-# sidecar and its index copy, and no rule reached it (#13200).
 assert_present 'the checker fails an abstract that quotes none of its claims' \
   'scripts/check-restatement-labels.py' '<sidecar>:<line>: abstract quotes none of its claims$'
 assert_present 'the checker fails an index abstract line that differs from its sidecar' \
@@ -1447,14 +1129,6 @@ assert_present 'the verifier grades ID-less table rows and lead-in scope' \
 assert_absent 'no file exempts sidecar bodies from the restatement check' \
   'Sidecar bodies are where a claim is said in full'
 
-# ---------------------------------------------------------------------------
-# 26. A Direct claim rests on a person's own words (#12517)
-#
-# Trace-intent verification looped on comments under a person's login that
-# agents wrote. The tracer tags each source at write time, a script rejects a
-# Direct claim with only agent relays behind it, and the allow rules keep that
-# script from being denied where nobody can answer a prompt.
-# ---------------------------------------------------------------------------
 assert_present 'the intent header declares author_kind on a source' \
   'skills/trace-intent/context/artifact-shape.md' '^ {8}author_kind: owner-quote +# owner-quote \| agent-relay$'
 assert_present 'artifact-shape says author_kind is who wrote the words' \

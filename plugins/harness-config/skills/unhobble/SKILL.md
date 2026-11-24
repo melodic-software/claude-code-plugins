@@ -444,6 +444,15 @@ remembered: if the `work-items` plugin is enabled, add a recurring item ("re-run
 the repo's own conventions or a calendar reminder serves. This skill never wires a schedule itself:
 scheduling surfaces vary per consumer and are the operator's choice.
 
+## Next
+
+/review:security-review when the experiment is closed and the PR with retired rules is ready to merge.
+
+## Related
+
+- Rewriting rather than verbatim-restoring a defended instruction: /harness-config:audit-instructions.
+- Measure context cost of Claude Code's own switches: /context-budget:audit.
+
 ## Gotchas
 
 - **Do not run the observe phase inside this session.** Instructions already in context defeat the

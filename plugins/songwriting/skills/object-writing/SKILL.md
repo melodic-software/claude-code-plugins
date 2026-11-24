@@ -162,6 +162,6 @@ wearing the vocabulary.
 
 - Rhyme choice and rhyme cliche: /songwriting:rhyme.
 - Daily practice curriculum and numbered exercises: /songwriting:practice.
-- Whole-draft diagnosis: /songwriting:diagnose.
+- Whole-draft diagnosis: /songwriting:revise diagnose.
 - Section placement judgment: /songwriting:song-form.
 - Scansion or stress-map claim: /songwriting:meter-prosody.

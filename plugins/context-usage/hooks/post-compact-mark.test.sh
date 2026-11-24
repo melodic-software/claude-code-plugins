@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for post-compact-mark.sh (PostCompact, side-effect-only).
-#
-# Contract: writes the evidence-degraded marker
-# ~/.claude/context-usage/context/<sid>.compacted with compacted_at (strict
-# ISO-8601 UTC), trigger (manual|auto|unknown), and hook_event_name; fails
-# open (no write, exit 0) on a missing/hostile session id or missing HOME;
-# kill switch honored. Exit 0 always.
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
 
 set -uo pipefail
 
@@ -37,9 +27,7 @@ H="$WORK/home"
 D="$WORK/data"
 MARK="$H/.claude/context-usage/context"
 
-# Stdin from a file, not a pipe: with the kill switch off the hook exits before
-# it reads, and a writer still feeding a pipe would take EPIPE.
-run() { # <payload> [extra env k=v...]
+run() {
   local payload="$1"
   shift
   printf '%s' "$payload" >"$WORK/stdin.json"
@@ -71,7 +59,6 @@ RC=$?
 after=$(find "$MARK" -name '*.compacted' 2>/dev/null | wc -l)
 if [[ $RC -eq 0 && "$before" == "$after" ]]; then ok "missing session id fails open"; else fail "missing sid: rc=$RC"; fi
 
-# 5. Hostile session id → no write outside the contract dir, exit 0.
 run '{"session_id":"../../evil","hook_event_name":"PostCompact","trigger":"auto"}'
 RC=$?
 if [[ $RC -eq 0 && ! -e "$H/.claude/evil.compacted" && ! -e "$H/.claude/context-usage/evil.compacted" ]]; then
@@ -88,16 +75,11 @@ run ''
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "empty stdin fails open"; else fail "empty stdin: rc=$RC"; fi
 
-# 8. Large payload (real PostCompact carries the full compact_summary):
-# marker must still be written. Guards the Win32-pipe single-read timeout
-# regression measured at ~80KB.
 BIG=$(printf 'x%.0s' $(seq 1 150000))
 run "{\"session_id\":\"sbig\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"auto\",\"compact_summary\":\"$BIG\"}"
 RC=$?
 if [[ $RC -eq 0 && -f "$MARK/sbig.compacted" ]]; then ok "marker written for a 150KB payload"; else fail "large payload: rc=$RC marker=$([[ -f "$MARK/sbig.compacted" ]] && echo yes || echo no)"; fi
 
-# 9. Old sibling markers are pruned on write (14-day cutoff, mirroring the
-# snapshot writer's prune) so the shared contract dir cannot grow unboundedly.
 printf '{"compacted_at":"2020-01-01T00:00:00Z","trigger":"auto"}
 ' >"$MARK/sold.compacted"
 if command -v touch >/dev/null 2>&1; then
@@ -110,15 +92,6 @@ else
   fail "stale marker not pruned"
 fi
 
-# 10. Marker persist failure must still exit 0 (SIDE-EFFECT-ONLY: PostCompact
-# has no decision control) but report telemetry status=error rather than "ok" —
-# operators must not be told a marker was recorded when consumers will never
-# see it. Simulated with a directory sitting at the exact contract marker path,
-# a portable idiom: it depends on no
-# permission bits, so it holds on filesystems without enforced POSIX modes
-# (Windows ACL volumes under Git Bash) too. A directory-mode block cannot
-# express this case at all — the hook re-asserts `chmod 700` on its own
-# contract directory every run, so it heals the block before writing.
 BLOCKED="$MARK/sfail.compacted"
 mkdir -p "$BLOCKED"
 TEL="$WORK/tel-fail.json"
@@ -132,23 +105,12 @@ if wait_for_sink "$TEL" && [[ "$(jq -r '.status' "$TEL" 2>/dev/null)" == "error"
 else
   fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
 fi
-# Pins the refusal as a PRE-rename guard: `mv` onto a directory succeeds by
-# moving the temp file inside it, so a post-hoc check would report the error
-# but litter the blocked path with temp files on every compaction.
 if [[ -z "$(ls -A "$BLOCKED" 2>/dev/null)" ]]; then
   ok "no temp file stranded at the blocked contract path"
 else
   fail "temp file stranded at blocked path: $(ls -A "$BLOCKED")"
 fi
 
-# 11. The Bash 3.2 clock fallback. printf's %()T conversion arrived in bash
-# 4.2; on stock macOS 3.2 the builtin fails and binds nothing, and the marker
-# would record an empty compacted_at. Same emulation as context-zone.test.sh:
-# an exported function shadows the builtin for a %()T format under -v and
-# fails as 3.2's printf does, scoped to a subshell so this suite's own printf
-# calls are untouched. The trace must show `date` exactly once, so the case
-# cannot pass on a host where the shim fails to import and the builtin
-# quietly succeeds.
 FB_LOG="$WORK/compact-xtrace-fallback.log"
 (
   # shellcheck disable=SC2329,SC2059 # imported by the child bash, not called here; forwards the caller's format verbatim

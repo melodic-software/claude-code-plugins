@@ -107,6 +107,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   than that floor (Q37). The floor is reported, not gating; a reviewer weighs it (Q49).
 - A grader that fails in every base run cannot show a loss. Fix it before its "no loss" counts
   (Q25).
+- A suite case passes only when its unscored with-arm graders (`arm: with-only`, a Skill call)
+  also pass at the threshold: the score leaves them out to keep `Δ` comparable, so a score alone
+  can pass a run that skipped the skill's own action (`summarize.mjs`).
 
 ## Graders
 

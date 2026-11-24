@@ -139,10 +139,6 @@ def resolve(
     for candidate in candidates:
         if candidate in scope:
             return candidate
-    # Component-wise suffix match, either way round. The longest shared suffix
-    # wins only when it names ONE scoped file: two services vendoring the same
-    # `pkg/a.py` tie, and attributing the artifact to whichever came first
-    # would credit one service with the other's coverage, so a tie is no match.
     matches: dict[str, int] = {}
     for candidate in candidates:
         parts = candidate.split("/")
@@ -172,7 +168,6 @@ def _basename(path: str) -> str:
 
 
 def _unique_longest(matches: dict[str, int]) -> str | None:
-    """The one target with the longest match, or None when absent or tied."""
     if not matches:
         return None
     longest = max(matches.values())
@@ -195,22 +190,6 @@ def _int(value: Any) -> int | None:
 
 
 def _fold_statements(accumulated: dict[str, Any], incoming: dict[str, Any]) -> None:
-    """Merge one statement-weighted section (a Go cover profile) into a file.
-
-    The unit here is the block, not the file: a block says how many statements
-    it holds and how often it ran, and `blocks` keys it by the profile's own
-    `start.col,end.col` identity. Two shards of one test suite each write a
-    profile for the same file and hit different blocks, so the blocks are
-    unioned on that identity, keeping the larger count, and the file's totals
-    are summed AFTER the merge, which is the rule the line table already uses.
-
-    Folding the aggregates instead cannot union anything: two shards each
-    reporting 2 statements with 1 hit over disjoint blocks covered both
-    statements between them, and the largest aggregate says 1 of 2. A section
-    that carries no block table is a parser that reported totals only, and
-    those are still folded by keeping the larger of each, which is the most
-    that shape supports.
-    """
     blocks = incoming.get("blocks")
     if isinstance(blocks, dict):
         union = accumulated.setdefault("blocks", {})
@@ -233,13 +212,6 @@ def _fold_statements(accumulated: dict[str, Any], incoming: dict[str, Any]) -> N
 
 
 def _statement_totals(statements: dict[str, Any] | None) -> dict[str, int] | None:
-    """The file's statement counts, or `None` when no artifact weighed any.
-
-    The merged block table is the source when there is one, so the statements
-    of blocks two profiles both list are counted once and the statements only
-    one of them reached are counted at all. Totals folded from a block-less
-    section are the fallback.
-    """
     if not statements:
         return None
     blocks = statements.get("blocks") or {}
@@ -261,28 +233,12 @@ def merge_artifacts(
     two artifacts keeps the larger hit count per line, so a line is never
     counted twice."""
     merged: dict[str, dict] = {}
-    # Basenames that more than one distinct path claims WITHIN one format,
-    # gathered across every artifact of that format before any is folded. The
-    # coverage skill discovers one artifact per coverage file, so two services
-    # each shipping a `handler.go` arrive as two documents and a count that
-    # stopped at one artifact would not see the collision at all.
-    #
-    # Scoped by format because two paths of the same format naming one basename
-    # are two files, while two formats naming it are the same file measured
-    # twice: a Go profile writes the module path the compiler saw and an lcov
-    # tracefile writes the repository path, so the two spellings of one file
-    # normalize differently and counting them together would refuse a file that
-    # was measured. Distinct normalized paths, so one file listed twice under
-    # two spellings of the same format is not mistaken for two files either.
     paths_by_basename: dict[str, dict[str, set[str]]] = {}
     for artifact in artifacts:
         by_base = paths_by_basename.setdefault(artifact.get("format") or "unknown", {})
         for raw_path in artifact.get("files") or {}:
             candidate = normalize(raw_path)
             by_base.setdefault(_basename(candidate), set()).add(candidate)
-    # Per format, never flattened into one set: a basename two `go_cover` paths
-    # share says nothing about the lone lcov path that carries it, and refusing
-    # that one would drop line coverage the artifact really did measure.
     ambiguous_by_format = {
         fmt_key: {base for base, paths in by_base.items() if len(paths) > 1}
         for fmt_key, by_base in paths_by_basename.items()
@@ -302,17 +258,6 @@ def merge_artifacts(
             )
             if fmt not in entry["formats"]:
                 entry["formats"].append(fmt)
-            # Whether a line-measuring section ever covered this file, recorded
-            # as it is merged rather than inferred later from whether the table
-            # came out non-empty. A section that covered the file and found no
-            # executable line has measured lines and found none, which is a 0;
-            # reading the empty table afterwards cannot tell that apart from a
-            # file only a statement-weighted artifact ever covered, which is a
-            # null. The test is whether the section carries a `statements` key
-            # at all, not whether that key holds anything: a statement-weighted
-            # parser that found no block still writes an empty one, and reading
-            # it as falsy would call that section line-measuring and turn a
-            # legitimate null back into a 0.
             if "statements" not in section:
                 entry["measures_lines"] = True
             for number, hits in _lines(section.get("lines")).items():
@@ -338,32 +283,6 @@ def merge_artifacts(
 def _fold_function(
     functions: list[dict[str, Any]], incoming: dict[str, Any], claimed: set[int]
 ) -> None:
-    """Merge one artifact's record for a function into the accumulated list.
-
-    Two artifacts covering the same function (two suites, two shards) each
-    carry their own record. Appended side by side, `_match_function` would
-    return whichever landed first, so a suite that never entered the function
-    could report it at 0 percent while the merged line table says otherwise,
-    and its CRAP would be the maximum for its complexity. The records are
-    folded the same way the line table is: the hit flag is the larger, the
-    per-line counts are the larger of the two, and a line range missing from
-    one record is taken from the other.
-
-    What identifies a function here is its name plus the artifact it came
-    from, never its start line. Formats disagree about where a function
-    starts: lcov reports the `FN:` declaration line while Cobertura and the
-    coverage.py JSON report take the first body line, so the same function
-    carries two different starts across two artifacts, and one function's
-    declaration line can equal a neighbor's first body line. Folding on the
-    start line therefore merges two different functions, and refusing to fold
-    when the starts differ splits one function in two. `claimed` is what keeps
-    two `render` methods in one file apart instead: an artifact lists each
-    function once, so a record this artifact has already folded into is a
-    different function. Among the records it has not claimed, the name
-    decides; a start-line-only match is accepted only when one of the two
-    records is nameless, and when several candidates remain the one whose
-    start line matches wins.
-    """
     name, start = incoming["name"], incoming["start_line"]
     candidates = []
     for index, existing in enumerate(functions):
@@ -406,29 +325,6 @@ def _coverage(
     statements: dict[str, int] | None = None,
     measures_lines: bool = True,
 ) -> tuple[int | None, int | None, float | None, str | None]:
-    """The percentage, the line counts behind it, and the basis it came from.
-
-    A Go cover profile is the one artifact that weighs statements instead of
-    lines: a block says how many statements it holds over a line range and
-    never which lines hold them, so it contributes no line table. Its ratio is
-    the exact native measure of the file, and is what `go tool cover -func`
-    prints, so it wins the percentage over any line table for the same file
-    and the basis is reported as `statement-ratio`. A line artifact naming that
-    same `.go` file is a second, weaker measure of it, often partial or stale,
-    and letting it take the percentage replaces the tool's own number with an
-    unrelated one.
-
-    `lines_executable` and `lines_hit` are `null` whenever the percentage is a
-    statement ratio, even when a line table exists: those two would then be a
-    ratio of their own, disagreeing with the percentage beside them, and the
-    reader has no way to see which measure the row means. The line table still
-    reaches the report through the function rows, which are line-based.
-
-    `measures_lines` is False when no artifact covering this file measures
-    lines at all. An empty line table then means the artifact counted
-    something else, not that it looked and found nothing executable, so the
-    counts are `null`: a value the collector did not produce is never 0.
-    """
     totals = statements or {}
     total = totals.get("total") or 0
     if total:
@@ -446,12 +342,6 @@ def _tail(name: str | None) -> str:
 
 
 def _anchors(candidate: dict[str, Any]) -> list[int]:
-    """Every line number the artifact placed this coverage record at.
-
-    A record with none of them is unplaced: the artifact named the function
-    and said nothing about where it sits, which is what an lcov `FNDA` with no
-    `FN` declaration produces. No line range can rule such a record in or out.
-    """
     found: set[int] = set()
     for key in ("start_line", "end_line"):
         value = _int(candidate.get(key))
@@ -462,17 +352,6 @@ def _anchors(candidate: dict[str, Any]) -> list[int]:
 
 
 def _in_range(candidate: dict[str, Any], start: int, end: int) -> bool:
-    """Whether the artifact placed this record inside the measured range.
-
-    Any recorded line inside the range, not every one of them: the two sides
-    disagree about where a function begins by a line or two, since lcov
-    reports the `FN:` declaration line while the coverage.py JSON report gives
-    the first body line and a decorator sits above both, so demanding that
-    every recorded line fall inside would reject the right record over a
-    one-line disagreement. A record that belongs to a different function of
-    the same trailing name is placed elsewhere in the file entirely and has no
-    line inside the range at all.
-    """
     return any(start <= number <= end for number in _anchors(candidate))
 
 
@@ -483,41 +362,7 @@ def _match_function(
     end_line: int | None = None,
     rival: bool = False,
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """The artifact record for one measured function, and why there is none.
-
-    Returns the record and `None`, or `None` and the reason the join was
-    refused. A reason means the candidates were ambiguous and the caller must
-    say so in the output; `None, None` means no record belongs to this
-    function and the line-range fallback is the honest measure.
-
-    An exact name wins outright, as before. The trailing-name fallback below
-    it is what a short name in the artifact reaches: `A.run` and `B.run` both
-    end in `run`, so a record named `run` matches each of them by name alone,
-    and binding it to whichever function was measured first hands one of the
-    two the other's coverage with nothing in the report to show for it.
-
-    The line range settles it. The measured side knows where each function
-    begins and ends, the artifact carries line numbers for what it recorded,
-    and the record whose lines fall inside a function's range is that
-    function's record. Where the range test resolves to exactly one candidate,
-    that candidate binds; where it rules every candidate out and the name is
-    contested, this function has no record and the caller falls back to the
-    file's line table over the measured range, which is a real measure of this
-    function rather than another one's number. Where the test cannot separate
-    them, because two records fall inside the range or because the artifact
-    placed none of them anywhere, the join is refused with a reason: a missing
-    number an operator can see beats a wrong number they cannot.
-
-    `rival` is whether another measured function in this file shares the
-    trailing name. Without one there is no ambiguity to resolve, and a lone
-    record whose name ends the same way as the single function that could own
-    it binds as it always has, wherever the artifact placed it.
-    """
     tail = _tail(name)
-    # An exact name is not an identity either: two `render` methods in one file
-    # both carry that name, and the records are kept separate, so taking
-    # the first would hand the second method the first one's hit flag and
-    # region. Disambiguate by the start line the complexity collector reported.
     exact = [candidate for candidate in functions if candidate.get("name") == name]
     if len(exact) == 1:
         return exact[0], None
@@ -558,17 +403,6 @@ def _match_function(
                         "this function's line range"
                     )
                 if len(placed) == len(shared) and (rival or len(shared) > 1):
-                    # Every record ending in this name is placed somewhere else
-                    # in the file, so none of them is this function's.
-                    #
-                    # Only where the name is contested, though. One record and
-                    # one function that could own it is not a tie to break, and
-                    # an artifact built from compiled output numbers its lines
-                    # by the compiled file while the complexity collector reads
-                    # the source, so the two disagree by more than a decorator.
-                    # Refusing that pair on the range alone would drop coverage
-                    # the artifact really did measure, and there is no second
-                    # function for it to be wrong about.
                     return None, None
             if len(shared) == 1 and not rival:
                 return shared[0], None
@@ -612,13 +446,6 @@ def _nested(rows: list[dict[str, Any]], start: int, end: int) -> set[int]:
 
 
 def _measures_lines(entry: dict[str, Any]) -> bool:
-    """Whether any artifact covering this file measured lines at all.
-
-    A line table settles it. With none, a file that carries statement weights
-    was measured by a Go cover profile, which counts statements over line
-    ranges and never lines, so its function rows report `null` line counts
-    rather than the 0 that would claim the artifact measured and found none.
-    """
     if entry.get("measures_lines"):
         return True
     return (
@@ -724,10 +551,6 @@ def join(
         lanes.setdefault(lane_of.get(path, "*"), []).append(path)
 
     measures: list[dict[str, Any]] = []
-    # Per lane, the function rows whose coverage record was ambiguous. They
-    # carry no numbers, so the lane's run row has to say the lane was measured
-    # in part; left `ok`, the document would settle as `complete` over rows
-    # that are null for a reason the reader cannot see.
     unjoined: dict[str, list[dict[str, Any]]] = {}
     for path in scope:
         entry = merged.get(path)
@@ -772,12 +595,6 @@ def join(
     for lane in sorted(lanes):
         files = lanes[lane]
         if lane == "other":
-            # The catch-all lane holds every text file outside the language
-            # lanes (markdown, JSON, YAML, ...). No coverage artifact format
-            # measures those, so the lane has nothing to join and is not
-            # applicable rather than "0 of N present", which would turn every
-            # run over a documented repository partial for a reason that is
-            # not a gap.
             for measure in ("coverage", "crap"):
                 run.append(
                     {
@@ -810,10 +627,6 @@ def join(
                 f"({', '.join(formats)} read){missing_note}"
             )
         elif len(matched) < len(files):
-            # Some of the lane was measured and some was not, which is neither
-            # `ok` nor `unavailable`. Reporting it as `ok` let the assembler
-            # settle the whole document as `complete` while this very row said
-            # only N of M files were present.
             status = "partial"
             reason = (
                 f"partial, {len(matched)} of {len(files)} scope files present "
@@ -870,11 +683,6 @@ def join(
         ):
             crap_status, crap_reason = "not-applicable", NO_END_LINES
         elif collector_failed:
-            # The lane's cyclomatic collector did not resolve, or ran and produced
-            # nothing parseable. That is the number CRAP is missing, so it is the
-            # cause this row names whatever the coverage row says: a partial
-            # coverage count is the normal case, and letting it take precedence
-            # would leave the collector failure with no visible reason.
             crap_status = "unavailable"
             crap_reason = (
                 f"cyclomatic collector {comp_row.get('collector') or 'unresolved'} "
@@ -940,7 +748,6 @@ def _write_jsonl(path: str | None, rows: list[dict[str, Any]]) -> None:
 
 
 def _outer(artifact: dict[str, Any], lines: dict[int, int]) -> dict[str, Any]:
-    """The `outer` row of a one-file join over `lines`, for the self-test."""
     complexity = {
         "measures": [
             {
@@ -970,7 +777,7 @@ def self_test() -> int:
     section: dict[str, Any] = {"functions": None}
     outer = _outer({"format": "lcov", "files": {"src/a.py": section}}, lines)
     assert outer["cov_source"] == "line-range", outer
-    assert outer["values"]["lines_executable"] == 4, outer  # nested 4..6 subtracted
+    assert outer["values"]["lines_executable"] == 4, outer
     assert outer["values"]["lines_hit"] == 1, outer
 
     flag = {"name": "outer", "start_line": 1, "end_line": None, "hit": 0, "lines": None}

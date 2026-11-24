@@ -55,10 +55,10 @@ pinned="$(git show "$pin_rev:$WORKFLOW" 2>/dev/null)" || {
   echo "comment-hygiene: cannot read $WORKFLOW at $pin_rev" >&2
   exit 2
 }
-sha="$(sed -nE 's#.*uses:[[:space:]]*melodic-software/ci-workflows/\.github/actions/check-comment-markers@([0-9a-f]{40}).*#\1#p' <<<"$pinned")"
+sha="$(sed -nE 's#.*uses:[[:space:]]*melodic-software/ci-workflows/\.github/actions/check-comment-markers@([0-9a-f]{40}|main).*#\1#p' <<<"$pinned")"
 sha="${sha%%$'\n'*}"
 [[ -n "$sha" ]] || {
-  echo "comment-hygiene: no check-comment-markers uses line pinned by SHA in $WORKFLOW at $pin_rev" >&2
+  echo "comment-hygiene: no check-comment-markers uses line at main or a SHA in $WORKFLOW at $pin_rev" >&2
   exit 2
 }
 

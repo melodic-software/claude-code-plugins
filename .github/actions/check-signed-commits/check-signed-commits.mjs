@@ -1,7 +1,3 @@
-// Post-model check for CI lanes: every commit the lane added after the
-// recorded head must be GitHub-verified. On any unverified commit it adds the
-// escalation label (only if the repository already has it) and posts one
-// fixed comment listing the SHAs. It never rewrites or force-pushes.
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -111,8 +107,6 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
   const comparison = headConfirmed ? await compareSince(github, base, sinceSha, pull.head.sha) : null;
   const lane = laneCommits(comparison, prCommits, prListComplete);
   const checkable = headConfirmed && lane.checkable;
-  // A commit whose SHA is malformed cannot be named safely, so it counts as
-  // unverified and is reported as `<invalid-sha>`, never echoed.
   const unverified = lane.commits
     .filter((commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true)
     .map((commit) => (SHA.test(commit.sha ?? "") ? commit.sha : "<invalid-sha>"));
@@ -182,8 +176,6 @@ export async function main({ env = process.env, github, log = console.log, sleep
       try {
         await escalate({ ...target, label: env.ESCALATION_LABEL || "needs-human", result });
       } catch (error) {
-        // GitHub refusing the write on commits that could only not be
-        // verified is no finding about the PR, so it warns instead of failing.
         if (result.unverified.length > 0 || error?.name !== "GitHubError") {
           log(`::error::check-signed-commits: escalation failed (${errorDetail(error)})`);
           return 1;

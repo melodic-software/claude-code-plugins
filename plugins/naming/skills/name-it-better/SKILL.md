@@ -261,6 +261,11 @@ degrade to prose guidance when it is absent.
   Abbreviation policy, acronym casing, and casing style route to the
   consuming ecosystem's own style guide, never a baked-in verdict.
 
+## Related
+
+- Settling the underlying domain concept or glossary term: /domain-driven-design:ubiquitous-language.
+- Propagating an already-decided rename across call sites: /docs-hygiene:rename-references.
+
 ## Gotchas
 
 - If the generators are fed the conversation instead of just the brief,

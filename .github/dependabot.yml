@@ -49,12 +49,6 @@ updates:
       github-actions:
         patterns:
           - "*"
-    # Reusable ci-workflows workflows float on `main`. ci-workflows composite
-    # actions stay SHA-pinned (the org requires it) and move only through
-    # reviewed PRs: ungoverned composite-action bumps drifted pin-provenance
-    # comments org-wide (melodic-software/github-iac#89), so they are ignored.
-    ignore:
-      - dependency-name: "melodic-software/ci-workflows/*"
   # Biome and Claude Code are executable CI dependencies locked at the root.
   - package-ecosystem: npm
     directory: /
@@ -270,6 +264,22 @@ updates:
   # The testing ui-defects eval harness (@axe-core/playwright).
   - package-ecosystem: npm
     directory: /plugins/testing/evals/ui-defects/harness
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: npm
+    directory: /lib/cdn-pins
     labels:
       - dependencies
     schedule:

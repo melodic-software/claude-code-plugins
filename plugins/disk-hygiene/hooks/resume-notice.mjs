@@ -75,8 +75,6 @@ async function main(argv) {
   if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
 }
 
-// Node realpaths the main entry, so compare real paths: a launch through a
-// symlinked or junctioned plugin path must still reach main().
 function realPath(p) {
   try {
     return realpathSync(p)

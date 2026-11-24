@@ -277,6 +277,13 @@ passes its effort as `effort`.
 /multi-agent:audit-defaults
 Rechecks a default that looks wrong for the current models.
 
+## Related
+
+- Deciding workflow vs subagent vs single context: /multi-agent:assess.
+- Writing user, team, or local role-map overrides: /multi-agent:setup.
+- Delegating to Codex after vendors lookup: /external-agents:codex.
+- Delegating to Antigravity after vendors lookup: /external-agents:antigravity.
+
 ## Gotchas
 
 - Only aliases are accepted. A full model id in a layer is rejected and the

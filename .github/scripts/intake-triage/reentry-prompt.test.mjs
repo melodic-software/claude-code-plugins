@@ -1,6 +1,3 @@
-// The RE-ENTRY rules of intake-triage.yml's triage prompt: a question a
-// recorded decision settled is never flagged again, while cost and security
-// still flag (owner Q4).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";

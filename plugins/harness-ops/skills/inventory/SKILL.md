@@ -434,6 +434,14 @@ edit in `scripts/inventory.py`, per the verdict table in
 It reads this inventory's invocability, argument-hint, and workflow fields to find where local
 skills duplicate a native surface.
 
+## Related
+
+- Installed and built-in mod posture: /harness-ops:audit-mod-posture.
+- On-disk install tree health: /harness-ops:audit-install-state.
+- Plugin fleet currency and scopes: /harness-ops:plugins-audit.
+- Configured MCP server supply-chain posture: /mcp-tools:audit-posture.
+- Config correctness: /harness-config:audit.
+
 ## Gotchas
 
 - **A name in the build is not always a command.** Strings such as `alias` and `todos` match a

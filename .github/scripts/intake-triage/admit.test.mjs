@@ -63,12 +63,9 @@ const issueOf = (overrides = {}) => ({
   labels: [{ name: READY }],
   ...overrides,
 });
-// Authors and editors as GraphQL answers them, for the trusted-spec criterion.
 const USER = (databaseId) => ({ __typename: "User", databaseId });
 const APP_ACTOR = { __typename: "Bot", databaseId: APP };
-// A body or comment as SPEC_QUERY answers it; by default it carries BODY's task list.
 const written = (author, { body = BODY, editor = null, lastEditedAt = editor ? "2026-10-20T00:00:00Z" : null } = {}) => ({ body, author, editor, lastEditedAt });
-// The issue's text as a listed human wrote it, unedited.
 const humanSpec = (issue, comments = []) => ({ ...written(USER(HUMAN), { body: issue.body }), comments });
 const VERDICT = {
   dimensions: { size: "small", complexity: "low", uncertainty: "known" },
@@ -91,9 +88,6 @@ const facts = (overrides = {}) => ({
 });
 
 describe("decide", () => {
-  // pr-verify judges a lane PR only against text a listed human wrote and
-  // last edited, and the refinement on their issue (resolve-pr.mjs
-  // linkedIssues), so an issue with no such text fails verify at every head.
   describe("trusted-human acceptance criteria", () => {
     const appIssue = issueOf({ user: { id: APP } });
     const NO_SPEC =
@@ -118,7 +112,6 @@ describe("decide", () => {
       for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
         assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "refuse", reasons: [APP_FILED], hold: true, reason: "security" });
       }
-      // A human's comment the App last edited is no longer theirs.
       const edited = decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [written(USER(HUMAN), { editor: APP_ACTOR })] } }));
       assert.deepEqual(edited.reasons, [APP_FILED, NO_SPEC]);
     });
@@ -128,12 +121,10 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ spec: { ...body, comments: [] } })), { verdict: "refuse", reasons: [NO_SPEC] });
       assert.deepEqual(decide(facts({ spec: { ...body, comments: [goAhead] } })), { verdict: "refuse", reasons: [NO_SPEC] });
       assert.deepEqual(decide(facts({ spec: { ...body, comments: [written(USER(HUMAN))] } })), { verdict: "admit", reasons: [] });
-      // No spec read at all fails closed.
       assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
     });
 
     test("a task list only inside a code fence is refused, and one after the fence is admitted", () => {
-      // A shorter fence line inside a longer fence does not close it.
       for (const [open, inner, close] of [
         ["```", [], "```"],
         ["~~~", ["```"], "~~~"],
@@ -297,15 +288,12 @@ describe("decide", () => {
     });
   });
 
-  // Work classes are retired: an old class label on the issue decides nothing.
   test("admits an issue whatever retired work-class label it carries", () => {
     for (const name of ["work-class: structural", "work-class: anything-goes"]) {
       assert.deepEqual(decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name }] }) })), { verdict: "admit", reasons: [] }, name);
     }
   });
 
-  // The hold is a constant of decide, so no rules file loadRules accepts
-  // lifts it, one with a stale `classes` key naming the class included.
   test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
     const dir = tempDir("admit-rules-");
     const widened = [
@@ -325,8 +313,6 @@ describe("decide", () => {
     });
   });
 
-  // flag.mjs can add the label after apply-verdict's last read, so admission's
-  // own fresh read holds on it, whatever the rules list.
   test("security: outside-actor on the fresh read holds for a person, with no refuse-labels", () => {
     const rules = { ...RULES, "refuse-labels": [] };
     const issue = issueOf({ labels: [{ name: READY }, { name: "security: outside-actor" }] });
@@ -334,8 +320,6 @@ describe("decide", () => {
     assert.deepEqual(decide(facts({ rules })), { verdict: "admit", reasons: [] });
   });
 
-  // The work-unblock sweep re-admits a deferred issue on no verdict comment,
-  // so what changed since its newest admission-deferred add refuses.
   describe("a deferred issue re-admitted with no fresh verdict", () => {
     const DEFERRED_AT = "2026-10-20T09:00:00Z";
     const event = (kind, name, id, at) => ({ event: kind, label: { name }, actor: { id }, created_at: at });
@@ -493,7 +477,6 @@ describe("decide", () => {
       const output = validateOutput({ ...SPLIT, split: items }, new Set(), { count: 3, items: items.map((n) => ({ n })) });
       return written(APP_ACTOR, { body: render(output, { body, checks: ["- [ ] a check"], retriage: true }), ...extra });
     };
-    // A partial split parks at status: confirmed (no hold) for refine to split.
     const refused = (spec) => {
       const result = decide(facts({ issue, spec }));
       assert.equal(result.verdict, "refuse");
@@ -563,8 +546,6 @@ describe("decide", () => {
     });
   });
 
-  // Owner Q93 settled Size Large without a person: the split happens at intake,
-  // so the issue parks at status: ready (a wait with no pull request).
   test("Size Large parks the issue for the intake split instead of refusing it", () => {
     const result = decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
@@ -576,8 +557,6 @@ describe("decide", () => {
     assert.deepEqual(result, { verdict: "refuse", reasons: [`Uncertainty bogus is not one of ${RULES.uncertainty.join(", ")}`] });
   });
 
-  // A run's patch over the scan job's cap (scan-refused-patch) splits the
-  // issue whatever Size re-triage or a listed human set (patchCapStopped).
   describe("a scan-refused-patch stop", () => {
     const PATCH_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
     const stopComment = (at, id = APP) => ({
@@ -601,7 +580,6 @@ describe("decide", () => {
       const later = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", HUMAN)];
       assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: later })), { verdict: "admit", reasons: [] });
       assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z", HUMAN)] })), { verdict: "admit", reasons: [] });
-      // The App's own agent-ready add (admission's) does not reset it.
       const own = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", APP)];
       assert.equal(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: own })).verdict, "wait");
     });
@@ -664,7 +642,6 @@ describe("decide", () => {
     assert.ok(!result.reasons.includes(SIZE_SPLIT_PENDING));
   });
 
-  // The run's own patch-protected-path stop takes a change to such a path.
   test("admits an issue whose title or body prose names a path the issue lane cannot push", () => {
     const titled = decide(facts({ issue: issueOf({ title: "fix .github/workflows/x.yml and docs/conventions/pr-pipeline.yaml" }) }));
     assert.deepEqual(titled, { verdict: "admit", reasons: [] });
@@ -704,8 +681,6 @@ describe("decide", () => {
     assert.equal(result.verdict, "admit");
   });
 
-  // /work-items:decompose puts the human-gated label on every spec container,
-  // so on a container parent it marks the container, not a pending decision.
   describe("a Feature under a spec container parent", () => {
     const feature = issueOf({ type: { name: "Feature" } });
     const parent = (labels, state = "open") => ({ state, user: { id: HUMAN }, labels: labels.map((name) => ({ name })) });
@@ -756,8 +731,6 @@ describe("decide", () => {
       assert.throws(() => loadRules(path), /`parent-container-labels` must be a list of strings/);
     });
 
-    // The rules list and the tracker binding name the container label apart;
-    // this keeps them in step.
     test("the rules' parent-container-labels hold the tracker binding's container label", () => {
       const binding = fileURLToPath(new URL(`../../../${TRACKER_BINDING_PATH}`, import.meta.url));
       assert.ok(RULES["parent-container-labels"].includes(readRouting(binding).container), `${readRouting(binding).container} is not in ${RULES["parent-container-labels"]}`);
@@ -777,7 +750,6 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /#12/);
   });
 
-  // The fixture repository's issue; a cross-reference as the REST timeline reports it.
   const ref = (issue) => ({
     event: "cross-referenced",
     source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r", body: "", ...issue } },
@@ -814,8 +786,6 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /#5 is not closed by a listed human or a merge/);
   });
 
-  // A blocker closed as not planned or a duplicate leaves nothing to wait
-  // for; the close still has to be a listed human's or a merge's.
   for (const reason of ["not_planned", "duplicate"]) {
     test(`a blocker closed as ${reason} with a trusted close does not hold it; without one it does`, () => {
       const blocker = { ...completed, state_reason: reason };
@@ -832,9 +802,6 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /blocker o\/other#5 is not closed/);
   });
 
-  // Owner Q9 keeps a lanes App report-delivered close from counting as
-  // completed work; its dependent goes back to intake to be judged against
-  // the report (Q-BLK option a), and its own criteria then decide.
   const report = { stop: "report-delivered", at: "2026-10-28T00:00:00Z", url: "https://github.com/o/r/issues/5#issuecomment-1", reason: "the report" };
   test("a blocker the lanes App closed report-delivered sends the issue back to intake, citing the report", () => {
     const result = decide(facts({ blockers: [completed], reported: new Map([[5, report]]) }));
@@ -880,7 +847,6 @@ describe("decide", () => {
     assert.doesNotMatch(text, /agent-ready/);
   });
 
-  // A recurring item links to its schedule row by its body's marker, never its title.
   describe("a recurring item whose schedule row needs an operator", () => {
     const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
     const recurring = issueOf({
@@ -930,7 +896,6 @@ describe("decide", () => {
         assert.equal(result.verdict, "refuse", String(schedule));
         assert.match(result.reasons.join(), /recurring-schedule\.json could not be read/);
       }
-      // Without the recurring label nothing is read.
       assert.deepEqual(decide(facts({ schedule: null })), { verdict: "admit", reasons: [] });
     });
 
@@ -941,7 +906,6 @@ describe("decide", () => {
     });
   });
 
-  // The charge words, read from their one definition in charge-words.json.
   describe("a charge word in what the issue will do", () => {
     const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
 
@@ -957,14 +921,10 @@ describe("decide", () => {
       }
     });
 
-    // docs/contracts/loop-lane/README.md: model usage under the
-    // Claude subscriptions is not cost; a plan or seat change and a paid
-    // purchase are.
     test("holds only for a charge the owner's cost list names", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
       assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
       assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
-      // A lane's subscription leg or token is its Claude OAuth credential.
       assert.deepEqual(decide(facts({ issue: issueOf({ title: "Give the rater the subscription and fallback legs the other Claude lanes have" }) })), { verdict: "admit", reasons: [] });
       for (const text of [
         "- [ ] The fixed \"subscription token cannot reach the API\" reason is removed.",
@@ -992,8 +952,6 @@ describe("decide", () => {
       }
     });
 
-    // A seat is the billing noun (owner decision 2026-11-15); the singular
-    // verb "seat" followed by its object is not.
     test("reads seat as a charge only as the billing noun", () => {
       for (const [text, words] of [
         ["This needs a plan or seat change.", ["seat"]],
@@ -1020,17 +978,13 @@ describe("decide", () => {
         ["Bill for seats them included.", ["seats"]],
         ["Keep fewer seats this team holds.", ["seats"]],
         ["We purchased seats their staff use.", ["seats"]],
-        // The plural always holds: a false hold costs a question, a missed
-        // charge can bill the owner.
         ["The check seats the guard.", ["seats"]],
         ["- seats the team uses", ["seats"]],
         ["A hook that seats the guard.", ["seats"]],
-        // The singular is a charge unless it is the marked verb on a thing.
         ["Add a GitHub seat that the bot uses.", ["seat"]],
         ["Buy one Enterprise seat that each contractor shares.", ["seat"]],
         ["We need a single seat the bot can use.", ["seat"]],
         ["Add a developer seat their team pays for.", ["seat"]],
-        // Seating a person is the billing action.
         ["Seat the new contractors in Copilot.", ["seat"]],
         ["Seat our interns before the sprint.", ["seat"]],
         ["Then seat them on the org plan.", ["seat"]],
@@ -1053,7 +1007,6 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
     });
 
-    // Code names a job or file, not a charge; prose still refuses.
     test("skips fenced blocks and inline code spans", () => {
       const hits = (body, extra = {}) => CHARGE.exec(decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }), ...extra })).reasons.join("; "))?.[1];
       assert.equal(hits("The `fix-ci-subscription` job fails on main."), undefined);
@@ -1061,14 +1014,11 @@ describe("decide", () => {
       assert.equal(hits("The `fix-ci-subscription` job needs a paid subscription."), "subscription");
       assert.equal(hits("Move the `lint` leg to larger runners.", { public: true }), "larger runners");
       assert.equal(hits("Move the `lint` leg to larger GitHub-hosted runners.", { public: true }), "larger github-hosted runners");
-      // A fence is a whole line: ``` inside a line neither opens nor closes one.
       assert.equal(hits('```yaml\nmessage: "```"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```'), "subscription");
       assert.equal(hits("````\n```\nretention-days: 5\n````\n\n~~~\nretention-days: 5\n~~~~"), undefined);
       // Web-typed bodies end lines in CRLF; a fence line ending in \r still closes.
       assert.equal(hits("```yaml\r\nretention-days: 5\r\n```\r\n\r\n~~~\r\nretention-days: 5\r\n~~~\r\n"), undefined);
       assert.equal(hits('```yaml\r\nmessage: "```"\r\n```\r\n\r\nBuy a paid subscription.\r\n\r\n```yaml\r\nretention-days: 5\r\n```'), "subscription");
-      // A bare identifier still refuses: excluding words joined by - _ / . would
-      // also drop prose such as per-seat billing or data-retention.
       assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
     });
 
@@ -1082,9 +1032,6 @@ describe("decide", () => {
       }
     });
 
-    // Element 4 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): a failed
-    // visibility read is no evidence the repository is private, so it throws
-    // and no verdict is written, instead of tightening the cost checks.
     test("admissionFacts counts a repository public only when its visibility reads public, and a failed read throws", async () => {
       const read = async (answer) => {
         const fake = fakeGitHub();
@@ -1103,8 +1050,6 @@ describe("decide", () => {
       assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
     });
 
-    // Background text and model usage are not what an issue will do; a
-    // body with a task line or a known heading is read only where it states work.
     describe("stays quiet on text that states no work", () => {
       const DONE = "## Done when\n\n- [ ] Line 3 says nineteen.";
       const admitted = (body) => assert.deepEqual(decide(facts({ issue: issueOf({ body }) })), { verdict: "admit", reasons: [] });
@@ -1117,8 +1062,6 @@ describe("decide", () => {
         admitted(`## Problem\n\n1. A recommendation reuses a value (an address, account, subscription, region).\n\n${DONE}`);
       });
 
-      // A measured pass is a model eval run (unrunnable-rules.json `eval`), so
-      // it goes to the host queue, with no charge and no hold.
       test("model usage on a task line", () => {
         for (const body of [
           `## Done when\n\n- [ ] Every change is backed by a valid measured pass on the subscription.`,
@@ -1220,8 +1163,6 @@ describe("decide", () => {
         assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
       });
 
-      // The phrasings the cost-hold review found admitted by a raising-verb
-      // allowlist: a verb outside any list, a noun phrase, a split sentence.
       test("a charge in a clause that does not lower it, whatever its verb", () => {
         assert.equal(word({ issue: issueOf({ title: "chore: set artifact retention to 400 days" }) }), "retention");
         assert.equal(word({ issue: issueOf({ title: "ci: larger runners for e2e" }) }), "larger runners");
@@ -1244,8 +1185,6 @@ describe("decide", () => {
         assert.equal(inBody("- [ ] Add an Azure storage account."), "azure");
       });
 
-      // The phrasings the review found a lowering verb let through: a verb
-      // aimed at a guard on spend, and a move onto a charge.
       test("a lowering verb that removes a spend guard or moves onto a charge", () => {
         assert.equal(word({ issue: issueOf({ title: "chore: remove the Actions spending limit" }) }), "spending limit");
         for (const [item, found] of [
@@ -1368,9 +1307,6 @@ describe("decide", () => {
       });
     });
 
-    // Owner decision 2026-10-31 Q1: the check reads what the issue will do,
-    // not background text, so a charge word counts only where the work
-    // creates, raises, extends or enables something that bills.
     describe("stays quiet on a charge word the work does not take on", () => {
       const admitted = (issue) => assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
 
@@ -1456,7 +1392,6 @@ describe("decide", () => {
       });
 
       test("throws on a read it cannot compare", () => {
-        // A real patch in `diff` is no longer the text this reads.
         assert.throws(() => wraps(WRAPPED, revisionsOf("@@ -1 +1 @@", "@@ -0,0 +1 @@")), /newest revision of the body is not its current text/);
         assert.throws(() => wraps(`${WRAPPED}\n- [ ] Edited between reads.`, revisionsOf(WRAPPED, PROSE)), /newest revision of the body is not its current text/);
         const empty = revisionsOf(WRAPPED, PROSE);
@@ -1612,8 +1547,6 @@ describe("decide", () => {
     assert.equal(result.verdict, "skip");
   });
 
-  // A removal bars admission only until triage or a listed human marks the
-  // issue ready again after it.
   describe("an agent-ready removal and a later status: ready", () => {
     const removed = (at) => ({ event: "unlabeled", label: { name: AGENT_READY }, actor: { id: HUMAN }, created_at: at });
     const marked = (at, id = APP) => ({ event: "labeled", label: { name: READY }, actor: { id }, created_at: at });
@@ -1639,8 +1572,6 @@ describe("decide", () => {
       assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", OUTSIDER)]), "skip");
     });
 
-    // A lane stop removes agent-ready beside a hold; a trusted lift of that
-    // hold later is the re-mark, since no status: ready add follows it.
     const label = (event, name, at, id) => ({ event, label: { name }, actor: { id }, created_at: at });
     const stop = (hold) => [label("labeled", hold, "2026-10-20T00:00:00Z", APP), label("unlabeled", AGENT_READY, "2026-10-20T00:00:01Z", APP)];
     for (const hold of ["needs-human", "needs-owner-decision"]) {
@@ -1669,9 +1600,6 @@ describe("decide", () => {
     assert.equal(result.verdict, "refuse");
   });
 
-  // On an issue a listed human wrote, pr-verify reads intake's newest
-  // refinement comment while the lanes App's text is unedited, so its task
-  // list counts; nothing else the App wrote does.
   describe("criterion 7 and the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
     const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`, extra = {}) => written(APP_ACTOR, { body, ...extra });
@@ -1684,7 +1612,6 @@ describe("decide", () => {
 
     test("a thin issue a listed human filed is admitted on the App's newest unedited refinement comment", () => {
       assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) })), { verdict: "admit", reasons: [] });
-      // The newest one is read: an older one holding the only task list does not count.
       refused(humanSpec(thin, [refinement(), refinement(`${REFINE_MARKER}\nNo criteria here.`)]));
       assert.equal(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(`${REFINE_MARKER}\nNone.`), refinement()]) })).verdict, "admit");
     });
@@ -1711,7 +1638,6 @@ describe("decide", () => {
       for (const author of [{ __typename: "Bot", databaseId: 41898282 }, USER(OUTSIDER), { __typename: "User", databaseId: APP }]) {
         refused(humanSpec(thin, [written(author, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` })]));
       }
-      // Without the App's id nothing it wrote counts.
       const result = decide(facts({ issue: thin, appId: undefined, spec: humanSpec(thin, [refinement()]) }));
       assert.match(result.reasons.join(), NO_SPEC);
     });
@@ -1760,8 +1686,6 @@ describe("decide", () => {
     const ACTIONS = 41898282;
     const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS };
     const TITLE = "Upstream drift: mattpocock/sandcastle";
-    // A body as the filer's write_body builds it for a drifted hex-pin page:
-    // counts in place of upstream paths, and no task list.
     const DRIFT_BODY = [
       "Upstream `mattpocock/sandcastle` changed since the pin on its docs/upstream page.",
       "",
@@ -1892,9 +1816,6 @@ describe("decide", () => {
       assert.deepEqual(run(driftIssue({ labels: [{ name: "needs-human" }] })).verdict, "skip", "needs-human with no status: ready is never admitted");
     });
 
-    // The design-change case of docs/contracts/upstream-drift/README.md: the
-    // template tells the run to stop with design-change, and the issue lane
-    // routes that stop to a person's hold, which carries needs-human.
     test("a design-changing take or adapt stops the run for the owner", () => {
       assert.match(driftSpecText("mattpocock/sandcastle"), /stops with `design-change`/);
       assert.equal(stopRoute(runCode("design-change: the take rewrites a skill's flow")), "hold");
@@ -1902,16 +1823,6 @@ describe("decide", () => {
   });
 });
 
-// A fake GitHub for admit(): the issue, its parent, blockers, timeline,
-// events and comments, recording every call.
-// `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
-// human wrote it); "no-issue" and "no-body" answer an unexpected shape.
-// `closing` is what closedByPullRequestsReferences answers.
-// `elsewhere` answers another repository's issue reads by path; `older` is
-// the count the older-deferred search answers, or "incomplete". `closer` is
-// what the closing-event query answers. Label writes on the issue land in its
-// labels and events, which the issues listing answers; `racers` are other
-// issues it lists, each {number, labels, events}.
 function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn, done = null, racers = [], personHold = null } = {}) {
   const calls = [];
   const labelsNow = new Set((issue.labels ?? []).map((label) => label.name));
@@ -1944,7 +1855,6 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
       return racers.find((item) => String(item.number) === racer[1])?.events ?? [];
     }
     if (method === "POST" && path === "/graphql") {
-      // mergedRefsPulls' batch: `done` is the fixture issue as DONE_QUERY reads it.
       if (body.query.includes("fragment done on Issue")) {
         return { data: { repository: { i7: done } } };
       }
@@ -2000,17 +1910,11 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     if (path.startsWith(`${base}/comments`)) {
       return comments;
     }
-    // admissionFacts' visibility read: a private repository, so the cost
-    // checks apply in full.
     if (path === "/repos/o/r") {
       return { visibility: "private" };
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  // The issue's Work status: write-status.mjs statusWriter's `set` records a
-  // STATUS call and adds the change to its events as read-status.mjs
-  // statusEvents shapes it, by the lanes App. `personHold`, a hold a person set
-  // after admit's read, answers a keepHold write held and writes nothing.
   let state = null;
   const setStatus = async (number, next, { keepHold } = {}) => {
     if (keepHold && personHold) {
@@ -2024,9 +1928,6 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     eventsNow.push(...syntheticFrom({ actorId: APP, actorLogin: "melodic-automation-lanes", actorType: "Bot", at: new Date().toISOString(), from: state, to: next }, STATUS_CONFIG));
     state = next;
   };
-  // admit()'s listing: resolve-config.mjs issuesByStatus over the issue, the
-  // racers (legacy issues, read by their labels) and `older` issues deferred
-  // before it, and each one's status history.
   const olderIssues = Array.from({ length: Number(older) || 0 }, (_, i) => ({ number: 100 + i, created_at: "2026-01-01T00:00:00Z", labels: [READY, DEFERRED], state: null }));
   const listing = {
     issues: async (states) => {
@@ -2067,15 +1968,10 @@ const goArgs = (fake, { status = open } = {}) => ({
 const go = (fake, options) => admit(goArgs(fake, options));
 // The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-// A Work status write as `writes` lists it.
 const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
-// The admission record of issueOf()'s title and body, posted before the agent-ready write.
 const RECORD = `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) })}`;
 
 describe("admit", () => {
-  // Under a cap the issue claims its place with a change of its Work status
-  // to deferred before it takes agent-ready; the field write alone admits it,
-  // with no agent-ready label.
   const CLAIMED = [RECORD, STATUS("deferred"), STATUS(AGENT_READY)];
 
   test("adds agent-ready when every criterion holds and the caps have room", async () => {
@@ -2099,7 +1995,6 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), [RECORD, `HELD #7 "deferred"`]);
   });
 
-  // A manual re-dispatch skips intake-reenter; the agent-ready field write replaces the parked state.
   test("admits beside a legacy parked status: confirmed label with field writes only", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });
     const result = await go(fake);
@@ -2107,8 +2002,6 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), CLAIMED);
   });
 
-  // The real write-status.mjs writer over the base config's field (48484079):
-  // a listed human sets needs-human (option 86380005) right after the claim.
   test("a person's hold that lands between the claim and agent-ready stops the label and the agent-ready write", async () => {
     const fake = fakeGitHub();
     const FIELD = 48484079;
@@ -2134,12 +2027,9 @@ describe("admit", () => {
     const result = await admit({ ...goArgs(fake), github, setStatus: set });
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
     const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);
-    // The record precedes the claim, so it stands; with no agent-ready, it starts nothing.
     assert.deepEqual(posts, [RECORD.replace("POST ", ""), `/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`],"no agent-ready label and no agent-ready field write");
   });
 
-  // Parallel apply-verdict runs for other issues read the same room: only
-  // those that entered admission first, up to that room, take agent-ready.
   describe("parallel admissions under one room", () => {
     const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
     const entered = (number, label, minutes) => ({ number, labels: [label], events: [{ event: "labeled", label: { name: label }, actor: { id: APP }, created_at: ago(minutes) }] });
@@ -2178,17 +2068,12 @@ describe("admit", () => {
       assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
     });
 
-    // A field that already reads deferred is set to ready and back, so the
-    // claim is a new change a racer reads at its new time.
     test("an issue already deferred claims afresh, so a racer reads its new place", async () => {
       const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: DEFERRED }, { name: "work-class: mechanical" }] }), events: [{ event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: ago(120) }] });
       assert.equal((await go(fake, { status: ROOM_ONE })).outcome, "admitted");
       assert.deepEqual(writes(fake.calls), [RECORD, STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY)]);
     });
 
-    // The racer carries no label and no label event: it reads deferred on the
-    // Work status field, and its claim time is the field's newest change to
-    // deferred, as read-status.mjs statusEvents gives it.
     test("admissionsSince lists a field-only claim and reads its time from statusEvents", async () => {
       const since = Date.parse("2026-11-08T10:00:00Z");
       const node = (value, createdAt, previousValue) => ({
@@ -2218,8 +2103,6 @@ describe("admit", () => {
       assert.deepEqual(await admissionsSince(github, "o/r", since, listing), [{ number: 8, at: Date.parse("2026-11-08T10:01:01Z") }]);
     });
 
-    // An issue's place is its newest claim in the window, so one re-claimed
-    // after another run's read sorts after that run, whatever it added earlier.
     test("admissionsSince keys each entry by its newest claim, else its first agent-ready add, in the window", async () => {
       const since = Date.parse("2026-10-30T10:00:00Z");
       const add = (name, at) => ({ event: "labeled", label: { name }, actor: { id: APP }, created_at: at });
@@ -2243,8 +2126,6 @@ describe("admit", () => {
       ]);
     });
 
-    // admit() moves the field from its claim straight to agent-ready, so one
-    // listing of both states leaves no gap an admission can pass through unseen.
     test("admissionsSince lists an issue whose field moved from its claim to agent-ready, keyed by that claim, in one listing read", async () => {
       const since = Date.parse("2026-10-30T10:00:00Z");
       const claim = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-30T10:01:00Z" };
@@ -2261,8 +2142,6 @@ describe("admit", () => {
       assert.equal(listings, 1);
     });
 
-    // issuesByStatus leaves an issue whose Work status is mid-write out and
-    // names it in `held`: it may be a racing admission, so it reads at null.
     test("admissionsSince counts an issue the listing holds mid-write as entered with its add unread", async () => {
       const since = Date.parse("2026-10-30T10:00:00Z");
       const claim = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-30T10:01:00Z" };
@@ -2292,16 +2171,6 @@ describe("admit", () => {
       assert.equal(admissionsAhead([], 7), 0);
     });
 
-    // Promise.all bursts of admit() runs, one per issue numbered from the
-    // fixture's up, against one shared fake GitHub. Label and Work status
-    // writes land in the shared state with event times one second apart, read
-    // back by the issues listing, each issue's status history and the
-    // deferred listing; every other read is fakeGitHub's, as for the fixture
-    // issue. `status` answers the room as check-wip-cap reads it: `room` less
-    // the issues that carry agent-ready now. With `gate`, each run's claim
-    // waits until every run reaches its own, so every run reads the room
-    // before any claim. `random` picks up to three event-loop turns before
-    // each answer, which shuffles the runs.
     function burstGitHub({ runs, room, gate, random }) {
       const numbers = Array.from({ length: runs }, (_, i) => 7 + i);
       const createdAt = (n) => Date.parse("2026-10-20T08:00:00Z") + (n - 7) * 1000;
@@ -2393,7 +2262,6 @@ describe("admit", () => {
       return { numbers, states, run };
     }
 
-    // mulberry32: a seeded generator, so a failing shuffle replays.
     const seeded = (seed) => () => {
       seed = (seed + 0x6d2b79f5) | 0;
       let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -2412,8 +2280,6 @@ describe("admit", () => {
       { runs: 5, room: 3 },
     ];
 
-    // Asserting only "never past the room" passes when every run defers, so
-    // each shuffled burst must also admit.
     for (const { runs, room } of BURSTS) {
       test(`a burst of ${runs} parallel runs with room ${room} never admits past the room, and admits`, async () => {
         for (let seed = 1; seed <= 20; seed += 1) {
@@ -2435,7 +2301,6 @@ describe("admit", () => {
     }
   });
 
-  // refine.mjs starts the size split only from this exact wait comment.
   test("the Size Large wait comment admit() posts is the one refine.mjs splits on", async () => {
     const fake = fakeGitHub();
     const result = await admit({ ...goArgs(fake), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } });
@@ -2490,7 +2355,6 @@ describe("admit", () => {
         admission_reason: "search-incomplete",
       },
     ],
-    // On a failed queued read check-wip-cap leaves admissions open, room null.
     ["check-wip-cap could not read the queued count", { ...open, admission_room: null, admission_basis: "fail-open" }],
   ];
   for (const [name, status] of full) {
@@ -2502,8 +2366,6 @@ describe("admit", () => {
     });
   }
 
-  // With wip.pause-from empty check-wip-cap leaves admissions open with room
-  // null even over the queued cap, so clearing it removes intake's cap.
   test("adds agent-ready over the queued cap when wip.pause-from is empty", async () => {
     const fake = fakeGitHub();
     const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
@@ -2525,8 +2387,6 @@ describe("admit", () => {
     assert.match(done[1], /no trusted-human acceptance criteria/);
   });
 
-  // g-holds-governance-1: a split no person answers (stop reason `none`)
-  // never parks on the owner's needs-decision.
   test("a Windows-host done-when item stays out of the lane: status: confirmed, which refine splits from, and a recommended split, never agent-ready or a person", async () => {
     const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
     const result = await go(fake);
@@ -2549,8 +2409,6 @@ describe("admit", () => {
     assert.equal(done.length, 2);
   });
 
-  // g-holds-governance-1: a hold names its owner reason as the stop-reason
-  // marker, after the refusal, so every reader of the refusal line reads it.
   test("a refusal that needs a person writes the intake-triage stop-reason marker and line", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) });
     const result = await go(fake);
@@ -2570,7 +2428,6 @@ describe("admit", () => {
     assert.equal(parseReason(comment.body.body), null);
   });
 
-  // A person's label under the hold's new name: the field stays theirs to set.
   test("a refusal for a needs-owner-decision label writes no Work status", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "needs-owner-decision" }] }) });
     assert.deepEqual(await go(fake), { outcome: "refused", reasons: ["it carries needs-owner-decision"], status: "needs-owner-decision" });
@@ -2729,8 +2586,6 @@ describe("admit", () => {
     assert.deepEqual([...read.trustedCloses], []);
   });
 
-  // Owner Q95: admission takes the unblocked frontier oldest first, so a new
-  // issue with room still queues behind an older deferred one.
   test("with room, an issue waits behind an older admission-deferred issue, never agent-ready", async () => {
     const fake = fakeGitHub({ older: 1 });
     const result = await go(fake);
@@ -2739,9 +2594,6 @@ describe("admit", () => {
     assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")), "the deferred listing reads the Work status, not a label search");
   });
 
-  // A re-admission anchors at its own record: reusing an older one naming the
-  // same text would freeze the run at the earlier admission and drop every
-  // comment since.
   test("a deferral for room posts a fresh record even when an older App record names the same text", async () => {
     const record = { id: 41, user: { id: APP }, created_at: "2026-10-21T00:00:00Z", body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) };
     const fake = fakeGitHub({ older: 1, comments: [record] });
@@ -2750,8 +2602,6 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
   });
 
-  // work-unblock's sweep counts these blockers as decide() does, so such an
-  // issue defers like any other and the sweep admits it oldest first.
   test("an issue resting on a not planned, duplicate or other repository's blocker defers behind an older one", async () => {
     const here = (reason) => ({ number: 5, state: "closed", state_reason: reason, repository_url: "https://api.github.com/repos/o/r" });
     for (const reason of ["not_planned", "duplicate", "completed"]) {
@@ -2801,8 +2651,6 @@ describe("admit", () => {
   });
 });
 
-// Admission runs on a dispatched intake run, never on the label event that
-// changed the status, so its person holds read the Work status field too.
 describe("admit() with the Work status field", () => {
   const PARENT_HELD = "a Feature needs an open parent issue a listed human filed that awaits no decision";
   const OWNER_HELD = "it carries needs-owner-decision";
@@ -2813,7 +2661,6 @@ describe("admit() with the Work status field", () => {
     return { ...goArgs({ ...fake, github }), github, statusOf: statusReader({ github, repository: "o/r", limit: ADMISSION_STATUS_READS, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }) };
   };
 
-  // A hold label still holds on top of the field's ready.
   test("a field that agrees with the labels admits and refuses as the labels alone do", async () => {
     for (const [issue, parent, fields, outcome] of [
       [issueOf(), null, { 7: { state: "ready" } }, "admitted"],
@@ -2831,7 +2678,6 @@ describe("admit() with the Work status field", () => {
     }
   });
 
-  // The container label is no Work status label, so the field read keeps it.
   test("a spec container parent whose field reads needs-human admits a Feature, and a container awaiting a decision refuses it", async () => {
     const container = parentOf([{ name: "spec-container" }, { name: "needs-human" }]);
     const admitted = await admit(withStatus(fakeGitHub({ issue: feature, parent: container }), { 7: { state: "ready" }, 3: { state: "needs-human" } }));
@@ -2849,8 +2695,6 @@ describe("admit() with the Work status field", () => {
     }
   });
 
-  // The field decides the status: a hold on it beside a stale status: ready
-  // label reads as not ready, so admission leaves the issue alone.
   test("a field hold beside a stale status: ready label and no hold label is no ready issue", async () => {
     const fake = fakeGitHub();
     const result = await admit(withStatus(fake, { 7: { state: "needs-owner-decision" } }));
@@ -2858,16 +2702,12 @@ describe("admit() with the Work status field", () => {
     assert.deepEqual(writes(fake.calls), []);
   });
 
-  // A field-only ready with a hold label, so the issue's read and its
-  // parent's both happen.
   test("the issue's and its parent's field reads both fit in ADMISSION_STATUS_READS", async () => {
     const issue = issueOf({ type: { name: "Feature" }, labels: [{ name: "needs-owner-decision" }] });
     const result = await admit(withStatus(fakeGitHub({ issue, parent: parentOf() }), { 7: { state: "ready" }, 3: { state: "needs-human" } }));
     assert.deepEqual(result.reasons, [PARENT_HELD, OWNER_HELD]);
   });
 
-  // The issue carries no status label: its Work status alone reads deferred,
-  // a ready issue waiting for room.
   test("a capped claim on a field that reads deferred sets it to ready and back, two writes, before agent-ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
     const result = await admit({ ...withStatus(fake, { 7: { state: "deferred" } }), status: async () => ({ ...open, admission_room: 1 }) });
@@ -2917,16 +2757,12 @@ describe("admit() with the Work status field", () => {
     assert.equal((await admit(args)).outcome, "admitted");
   });
 
-  // apply-verdict wrote ready seconds before admission read the field, which
-  // still answered `stale` for the first `missed` reads: no Work status event
-  // listed yet (unset), or the state before the write.
   describe("a field read that missed this run's ready write", () => {
     const UNSET = { state: "ready", nodes: [] };
     const behind = (fake, stale, missed) => {
       const before = withFields(fake.github, { 7: stale });
       const after = withFields(fake.github, { 7: { state: "ready" } });
       let reads = 0;
-      // A field read is its REST value, then its events: both from one read.
       return async (method, path, body, ...rest) => {
         const events = method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "");
         const read = events ? ++reads : reads + 1;
@@ -2974,8 +2810,6 @@ describe("admit() with the Work status field", () => {
 
 
 describe("a merged Refs pull request after the newest decision or refinement", () => {
-  // The fixture issue as DONE_QUERY reads it: opened 10-20, with `comments` and
-  // the pull requests that mention it.
   const node = ({ comments = [], pulls = [] } = {}) => ({
     createdAt: "2026-10-20T08:00:00Z",
     comments: { nodes: comments },
@@ -3255,22 +3089,16 @@ describe("unrunnableCriteria", () => {
     ]) {
       assert.deepEqual(kinds(line), ["a run on a host the lane is not"], line);
     }
-    // An invisible character in the task-list prefix still leaves an item.
     assert.equal(unrunnableCriteria("​- [ ]​ Run it on a Windows 11 host.", "- [ ] ", HOSTS).found.length, 1);
     assert.deepEqual(kinds("The page at https://exa\u200bmple.com/docs shows the new flag."), ["a page on example.com, outside the lane's web hosts"]);
   });
 });
 
-// unrunnable-rules.json: rows tried after the built-in kinds, each routing to
-// the host queue, scored by the 2026-11-03 host-run predictor study.
 describe("unrunnable-rules.json", () => {
   const STUDY = JSON.parse(readFileSync(new URL("./unrunnable-rules.vectors.json", import.meta.url), "utf8")).vectors;
   const first = (line, rules) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", HOSTS, rules).found[0]?.kind ?? null;
   const doneWhen = (line) => issueOf({ body: `## Done when\n\n- [ ] ${line}` });
 
-  // Each study hit the rows or the built-in kinds flag goes to the host
-  // queue; a known miss and a false positive assert today's kind (the note
-  // says why), so a later change to either shows here.
   for (const { issue, set, class: cls, line, kind, note } of STUDY) {
     test(`#${issue} (${cls}, ${set}): ${note ?? "routes to the host queue"}`, () => {
       assert.equal(first(line), kind, line);
@@ -3319,9 +3147,6 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
-  // As the built-in comment kind does, a write that lands on this issue stays
-  // host work even when conditional, and a `by` names the poster only in the
-  // write's own clause or after it.
   for (const line of ["Once the probe runs, its result is recorded on this issue.", "The counts gathered by the audit script are recorded on this issue."]) {
     test(`flags ${line}`, () => {
       assert.equal(first(line), "tracker-output");
@@ -3331,8 +3156,6 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
-  // A before/after eval asked for in any spelling of "before and after" is a
-  // model eval run, so it goes to the host queue.
   for (const line of [
     "A before/after eval of `re-session-noop-steering-line` on Sonnet, at least 12 runs per side, both sides run together, is in the pull request body: after the change `says-no-yardstick` passes in at least 11 of 12 runs and `routes-noop-line` in at least 10 of 12, with the before counts beside them. The other `re-session-*` cases run paired and show no loss.",
     "A before-and-after eval of the skill shows the pass counts.",
@@ -3348,7 +3171,6 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
-  // Before/after wording with no eval run after it stays with the lane.
   for (const line of [
     "Add an eval case for the before/after wording.",
     "validate-cases.py passes on the before/after sample files.",
@@ -3420,10 +3242,6 @@ describe("unrunnable-rules.json", () => {
   });
 });
 
-// Host work goes to the host queue (`host-run`), parked at status: confirmed,
-// never to a person (docs/contracts/loop-lane/README.md, the three labels
-// that take work off the unattended path). Only a mixed issue lacking
-// host-run holds, so refine.mjs splitOf can split it from needs-decision.
 describe("host-run work", () => {
   const HOST_ONLY = "- [ ] Run it on a Windows 11 host.";
   const hostRun = (body, labels = [{ name: READY }]) => issueOf({ body, labels });
@@ -3459,8 +3277,6 @@ describe("host-run work", () => {
     }
   });
 
-  // host-run starts an unattended host run, so it goes only on an issue whose
-  // one obstacle is that no item is left for the lane.
   test("host work with another refusal, a wait or a pending split parks at status: confirmed with no host-run", async () => {
     const issue = hostRun(HOST_ONLY);
     for (const [why, overrides] of [
@@ -3480,8 +3296,6 @@ describe("host-run work", () => {
     assert.equal(writes(fake.calls)[0], STATUS("confirmed"));
   });
 
-  // g-holds-governance-1: a split is no person's question, so a host-run
-  // label, whoever added it, leaves the issue parked, never held.
   test("a host-run label from any account parks a split with no hold", () => {
     for (const events of [addedBy(OUTSIDER), [], addedBy(HUMAN), addedBy(APP)]) {
       const result = decide(facts({ issue: queued(CANARY), events }));
@@ -3490,9 +3304,6 @@ describe("host-run work", () => {
     }
   });
 
-  // Owner direction 2026-11-02: model usage under the subscriptions and the
-  // accounts' promotional API credits is not cost, since a spending limit
-  // stops work and never bills, so an eval run is host work.
   test("an eval-run item goes to the host queue with no hold", () => {
     for (const line of ["- [ ] Run `claude plugin eval` on the suite and the delta is positive.", "- [ ] Run `measure-invocation.sh` on the new probes and paste the output.", "- [ ] Run a paid eval of the skill and record the delta."]) {
       const [found] = unrunnableCriteria(line, "- [ ] ", HOSTS).found;
@@ -3505,15 +3316,10 @@ describe("host-run work", () => {
     }
   });
 
-  // Billing is an owner stop reason (docs/contracts/loop-lane/README.md, when
-  // work stops for the owner), so an eval that names a billing account keeps
-  // the person hold; any other unrunnable kind, an off-allowlist page
-  // included, goes to the host queue.
   test("an eval item naming a billing account keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
     const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
     assert.equal(unrunnableCriteria(PAID, "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
     assert.equal(unrunnableCriteria("- [ ] Run `claude plugin eval` on larger runners and record the delta.", "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
-    // Another provider bills an account the subscriptions and credits do not cover.
     for (const line of [
       "- [ ] Run claude plugin eval on the suite through Amazon Bedrock and record the delta.",
       "- [ ] Run claude plugin eval on the suite with CLAUDE_CODE_USE_VERTEX=1 and record the delta.",
@@ -3549,8 +3355,6 @@ describe("host-run work", () => {
     assert.equal(writes(fake.calls)[0], STATUS("needs-owner-decision"));
   });
 
-  // refine.mjs splits a partial split only in an intake run whose lane comment
-  // it reads, so a sweep's refusal (no verdict written) asks for that run.
   describe("a partial split decided with no triage verdict", () => {
     const BORN = `${CANARY}\n\n<!-- work-items:born-triaged -->`;
     const FRESH = { ...VERDICT, writtenAt: "2026-10-20T09:00:00Z" };
@@ -3594,9 +3398,6 @@ describe("host-run work", () => {
   });
 });
 
-// Admission reads no path an issue names: a run whose change needs a path the
-// issue lane cannot push stops with patch-protected-path, which
-// stop-routes.json routes to host-run.
 describe("admission and the paths the issue lane cannot push", () => {
   const withBody = (lines, labels = [{ name: READY }]) => issueOf({ body: lines.join("\n"), labels });
   const DONE = ["## Done when", "", "- [ ] Line 3 says nineteen."];
@@ -3666,9 +3467,6 @@ describe("admission and the paths the issue lane cannot push", () => {
   });
 });
 
-// An issue whose status history is on the Work status field: a REST
-// agent-ready removal by the App, then a person's field ready and the App's
-// field deferral, which only the field-merged events (statusEvents) show.
 describe("admission's status history from the Work status field", () => {
   const FIELD = String(STATUS_CONFIG["field-id"]);
   const node = (actor, value, createdAt) => ({ __typename: "IssueFieldAddedEvent", createdAt, value, actor, issueField: { fullDatabaseId: FIELD } });
@@ -3690,17 +3488,13 @@ describe("admission's status history from the Work status field", () => {
   test("admissionFacts hands decide's history readers the field's changes beside the REST events", async () => {
     const field = (await factsOf(true)).events;
     const restOnly = (await factsOf(false)).events;
-    // admissionSettled and removalStands: the field ready re-marks the issue after the removal.
     assert.equal(admissionSettled([], field), null);
     assert.equal(admissionSettled([], restOnly), `${AGENT_READY} was removed and ${READY} not added since`);
-    // judgedSince: the person's field ready is the newest judgment.
     assert.equal(judgedSince(field, (actor) => actor?.id === HUMAN), Date.parse(READY_AT));
     assert.equal(judgedSince(restOnly, (actor) => actor?.id === HUMAN), Number.NEGATIVE_INFINITY);
-    // deferralLapsed: a body edited before the field deferral is not stale.
     const lapsed = (events) => deferralLapsed({ labels: [DEFERRED, READY], events, editedAt: "2026-11-08T02:30:00Z", humans, appId: APP }).map(({ kind }) => kind);
     assert.deepEqual(lapsed(field), ["held"]);
     assert.deepEqual(lapsed(restOnly), ["held", "stale"]);
-    // untrustedHold: the REST removal by a stranger still holds in the merged history.
     assert.equal(untrustedHold({ labels: [], events: field, humans, isApp: (actor) => actor?.id === APP }), true);
   });
 
@@ -3759,9 +3553,6 @@ describe("noteUnrunnable", () => {
   });
 });
 
-// Owner Q93 with the coordinator's Q9 extension: a sub-issue a size split
-// filed is the lanes App's verbatim copy of its listed-human parent's lines,
-// so its body counts as that human's text; anything else stays untrusted.
 describe("size split sub-issues", () => {
   const PARENT = 5;
   const PARENT_BODY = ["## Done when", "", "- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty.", "- [ ] Line 5 says twenty-one."].join("\n");
@@ -3772,13 +3563,8 @@ describe("size split sub-issues", () => {
   const NO_SPEC =
     "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
 
-  // The shared cases (split-child.vectors.json), as specOf and admissionFacts
-  // shape them: a trusted child is admitted at its Size, Large included; an
-  // untrusted one is refused at Small and at Large.
   const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
   const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
-  // admissionFacts sets splitParent only for a native parent in this
-  // repository, with the lanes App id it was given (none when null).
   const vectorSpec = ({ child, parent, ...rest }) => {
     const appId = ("app_id" in rest ? rest.app_id : VECTORS.app_id) ?? undefined;
     const here = child.parent !== null && (child.parent.repo ?? "o/r") === "o/r";
@@ -3845,9 +3631,6 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
   });
 
-  // A Size Large parent split by hand whose sub-issues are all closed is split
-  // already: closeSplitParent closes a finished split, so the one it left open
-  // is refused (status: confirmed), never parked as split pending every sweep.
   test("a Size Large issue whose sub-issues are all closed is refused, not parked as split pending; one with none still parks", () => {
     const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
     const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
@@ -3882,8 +3665,6 @@ describe("size split sub-issues", () => {
     assert.equal((await run([child(8), child(9, { state_reason: "not_planned" })])).found, null, "class B: a not_planned sub-issue");
     assert.equal((await run([child(8), child(9, { state: "open", state_reason: null })])).found, null, "an open sub-issue");
     assert.equal((await run([child(8), child(9)], async (number) => number !== 9)).found, null, "an untrusted close");
-    // `trusted` reads a number in this repository, so a sub-issue elsewhere
-    // with the same number never borrows that close.
     const elsewhere = await run([child(8), child(9, { repository_url: "https://api.github.com/repos/o/other" })]);
     assert.equal(elsewhere.found, null, "a sub-issue in another repository");
     assert.equal((await run([child(8), child(9, { repository_url: undefined })])).found, null, "a sub-issue with no repository_url");
@@ -3903,8 +3684,6 @@ describe("size split sub-issues", () => {
     assert.equal(result.hold, true);
   });
 
-  // fakeGitHub answers one issue's text; these reads add the parent's text,
-  // sub-issue lists and other issues by number.
   const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {}, events = {} }) => {
     const github = async (method, path, body) => {
       if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
@@ -3964,7 +3743,6 @@ describe("size split sub-issues", () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
     const blocker = { number: PARENT, body: "- [ ] #31\n- [ ] #32", state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
     const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
-    // A split made by hand: a listed human linked each sub-issue.
     const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
     for (const [comments, expected, links = []] of [
       [[record], "admitted"],
@@ -4012,9 +3790,6 @@ describe("untrustedHold", () => {
   });
 });
 
-// A parent's needs-owner-decision blocks its Features only while a decision
-// is open: a person set the label, or the newest refinement on the parent asks
-// questions no later Decision recorded comment answers.
 describe("a Feature under a parent at needs-owner-decision", () => {
   const PARENT = 9;
   const feature = issueOf({ type: { name: "Feature" } });
@@ -4053,8 +3828,6 @@ describe("a Feature under a parent at needs-owner-decision", () => {
     created_at: "2026-10-22T00:00:00Z",
     body: "**Decision recorded.** Part A first.",
   };
-  // fakeGitHub answers the Feature; this answers the parent's events, comments and
-  // the comment editor read select-trusted-text sends.
   const withParent = ({ labels, events = setBy(APP), comments = [], failOn } = {}) => {
     const fake = fakeGitHub({ issue: feature, parent: parentIssue(labels), failOn });
     const github = async (method, path, body) => {
@@ -4093,8 +3866,6 @@ describe("a Feature under a parent at needs-owner-decision", () => {
     assert.ok(read(fake, "events"), "the parent's events were read");
   });
 
-  // A person's change on the Work status field leaves no REST label event, so
-  // only the field-merged history shows that a person set the decision.
   test("is refused when a person set the parent's needs-decision on the field after the App's label", async () => {
     const appLabel = [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: APP }, created_at: "2026-10-20T00:00:00Z" }];
     const personNode = { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-08T00:00:00Z", value: "needs-owner-decision", actor: { __typename: "User", login: "person", databaseId: HUMAN }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } };
@@ -4161,9 +3932,6 @@ describe("a Feature under a parent at needs-owner-decision", () => {
   });
 });
 
-// Owner decision 2026-10-28: work that needs the owner present carries
-// `attended`, which admission refuses like host-run, parks at status:
-// confirmed (no decision asked), and only a listed human removes.
 describe("attended", () => {
   const thin = issueOf({ body: "Point the docs domain at the new host." });
   const refined = (line) =>
@@ -4223,9 +3991,6 @@ describe("attended", () => {
   });
 });
 
-// Owner Q9 (2026-10-29): a blocker the lanes App closed as already-done counts
-// for its dependents only while the merged pull request it cites still closes
-// it; closedByTrusted passes the App's id through to isTrustedClose.
 test("closedByTrusted counts the lanes App's already-done close only while its evidence holds", async () => {
   const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
   const mergeSha = "4".repeat(40);
@@ -4288,12 +4053,8 @@ test("a child of a parent whose body another account edited, its lines from a li
   assert.deepEqual(decide(facts({ issue: issueOf({ user: { id: APP }, body: childBody }), spec, verdict: large })), { verdict: "admit", reasons: [] });
 });
 
-// An issue deferred for an open pull request or a person's hold waits on that,
-// not on room, so it takes no place ahead of a newer issue.
 describe("deferredAhead", () => {
   const newer = { number: 7, created_at: "2026-10-20T08:00:00Z" };
-  // A legacy issue, judged by its labels, or (with `state`) one whose Work
-  // status a counted account set.
   const item = (number, labels, state = null, created_at = "2026-10-19T00:00:00Z") => ({ number, created_at, labels, state });
   const listed = (items) => ({
     issues: async (states) => {
@@ -4307,8 +4068,6 @@ describe("deferredAhead", () => {
     assert.equal(await deferredAhead(null, "o/r", newer, listed([item(3, [READY, DEFERRED])]), pullsFor({})), true);
   });
 
-  // The issue carries no status label: its Work status reads deferred, which
-  // is a ready issue waiting for room.
   test("an older issue the Work status field alone defers is ahead", async () => {
     assert.equal(await deferredAhead(null, "o/r", newer, listed([item(3, [], "deferred")]), pullsFor({})), true);
     assert.equal(await deferredAhead(null, "o/r", newer, listed([item(3, ["needs-human"], "deferred")]), pullsFor({})), false, "a hold label still holds");
@@ -4345,8 +4104,6 @@ describe("deferredAhead", () => {
     assert.equal(await deferredAhead(null, "o/r", newer, broken, pullsFor({})), true);
   });
 
-  // issuesByStatus leaves an issue whose Work status is mid-write out and
-  // names it in `held`: it could be deferred, so an older one counts as ahead.
   test("an older issue the listing holds mid-write counts as ahead; a newer one or the issue itself does not", async () => {
     const holding = (held) => Object.defineProperty([], "held", { value: held });
     assert.equal(await deferredAhead(null, "o/r", newer, listed(holding([{ number: 3, created_at: "2026-10-19T00:00:00Z" }])), pullsFor({})), true);
@@ -4357,8 +4114,6 @@ describe("deferredAhead", () => {
   });
 });
 
-// On a first triage, intake's refinement may fill in missing criteria, so
-// admission waits for it rather than parking the issue.
 describe("a refine due on a first triage", () => {
   const NO_TASKS = "## Problem\n\nThe README says eighteen skills; it has nineteen.";
   const NO_SPEC =
@@ -4399,8 +4154,6 @@ describe("a refine due on a first triage", () => {
   });
 });
 
-// g-holds-governance-1: every hold names one owner reason, the strongest by
-// HOLD_ORDER, and a split no person answers holds nothing.
 describe("hold reason codes", () => {
   const withBody = (body, labels = [{ name: "status: ready" }]) => issueOf({ body, labels });
   const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
@@ -4468,7 +4221,6 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
   });
   const verdictEnv = { ACTOR_ID: String(ACTIONS_ID), EVENT_NAME: "workflow_dispatch", RUN_ATTEMPT: "1", ISSUE_NUMBER: "7", GITHUB_REPOSITORY: "o/r" };
   const logins = new Map([["melodic-automation-lanes[bot]", APP]]);
-  // The lane's field read finds no Work status change beyond admission's.
   const blockersRun = async (admitGithub) => {
     const github = (method, path, body) =>
       method === "POST" && path === "/graphql" && body.query.includes("ISSUE_FIELD_ADDED_EVENT") ? { data: { repository: { issue: { timelineItems: { nodes: [] } } } } } : admitGithub(method, path, body);

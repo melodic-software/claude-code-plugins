@@ -189,6 +189,12 @@ converge on, either one of the two or a new way that replaces both. A
 paved-path entry is still written only in its own repository, behind the
 ask in "Writing the paved-path entry".
 
+## Related
+
+- Challenge whether the established way is justified: /discipline:reason-dont-recite.
+- Gather evidence for a better alternative: /discipline:do-your-research.
+- Select a tool, library, or dependency: /discipline:pick-for-the-problem.
+
 ## Gotchas
 
 - The tell is **two ways where one would do**, not divergence itself. A

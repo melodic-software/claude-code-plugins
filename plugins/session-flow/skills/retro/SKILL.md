@@ -92,6 +92,10 @@ mistake, or the lessons in recent merged pull requests' review comments, go to
 plugin is enabled. Name that skill and stop; when it is not enabled, say that no enabled
 skill codifies one mistake or mines review comments, and stop.
 
+A retro of a standards or instruction file (which of its rules hold, which have checks) names no
+retro mode: stop and name `/corrections:codify rules <file>` when the `corrections` plugin is
+enabled; when it is not, say that no enabled skill turns a file's rules into checks, and stop.
+
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
 out first. It only gates the user-only built-ins (`/export`, `/insights`): an unattended run neither suggests nor runs them. The bare
 word `unattended` is neither this flag nor a mode: stop and name `--unattended`. A `--pattern '<regex>'` pair is taken out next and
@@ -218,14 +222,14 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 
 ## Next
 
-- /session-flow:audit-sessions trends: the score history session, quick and ci-runs modes write,
-  across sessions and per lane, with delivery metrics.
-- /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
-  session on the machine.
-- /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
+- A finding to turn into a check or an instruction line, a reviewer miss included:
+  /corrections:codify "<the mistake>".
+- Check whether what this retro found recurs across every session on the machine, or see the score
+  history with delivery metrics: /session-flow:audit-sessions sweep, or
+  /session-flow:audit-sessions trends.
+- Every stored session for one work item: /session-flow:audit-sessions ticket --pattern '<regex>'.
   Session mode calls it when given `--pattern` ([context/session.md](context/session.md), "Ticket section").
-- /session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill
-  the session missed.
+- The retro found a skill the session missed: /session-flow:recommend-skills.
 
 ## Related
 

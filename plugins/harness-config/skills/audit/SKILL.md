@@ -429,10 +429,9 @@ resolved). Without a manifest the narrowing stays the model's reading of the gua
 
 Report the secret-file Read denies with their scope, not as protection: a `Read(...)` deny covers the
 built-in file tools and the Bash file commands Claude Code recognizes, but not a subprocess that opens
-the path itself. "Scope of a Read deny" in
-[reference/required-permissions.md](reference/required-permissions.md) carries the covered /
-not-covered split, the ranked remedies, and the platform limit. Carry it into the finding rather than
-implying the file is unreachable.
+the path itself. "Scope of a Read deny" in [reference/required-permissions.md](reference/required-permissions.md)
+carries the covered / not-covered split, the ranked remedies, and the platform limit. Carry it into the
+finding rather than implying the file is unreachable.
 
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
 invariants resolved against their own official pages when a check needs them, rather than asserted
@@ -442,26 +441,24 @@ as fixed patterns here.
 
 Both skills handle `settings.json` files, so a request about settings can mean either.
 
-- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
-  automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
-  the person can both invoke it.
+- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json`
+  for a described change: hooks for automated behaviors, permissions, environment variables, and
+  hook troubleshooting. The model and the person can both invoke it.
 - **This skill (marketplace plugin).** Audits the configuration that exists for correctness,
   security, and drift against current official docs, across settings, MCP, hooks, plugins, and
   permissions. It reports only, unless `--fix` is passed.
 
-**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making
-a settings change the person requested; prefer this skill for auditing what is configured. A
-request such as "allow npm commands" or "add a hook that runs when Claude stops" is a change, not
-an audit.
+**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making a settings
+change the person requested; prefer this skill for auditing what is configured. A request such as "allow
+npm commands" or "add a hook that runs when Claude stops" is a change, not an audit.
 
 **Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
 Phase 5, under `--fix`, one confirmed fix at a time; Phase 5 routes each such settings edit through
 `update-config`, and outside `--fix` this skill never chains into it on its own behalf.
 
-**Availability is never assumed.** Settings, version and host decide whether the surface
-resolves; this section states what to do when the
-surface resolves, never that it is present. The four-part records live in
-[reference/native-update-config.md](reference/native-update-config.md).
+**Availability is never assumed.** Settings, version and host decide whether the surface resolves;
+this section states what to do when the surface resolves, never that it is present. The four-part
+records live in [reference/native-update-config.md](reference/native-update-config.md).
 
 ## Spoke paths
 
@@ -479,6 +476,10 @@ no command depends on a `${…}` token in a file this skill reads at run time.
 - The configuration is correct and the question is now what automation is missing:
   `/harness-config:audit-automation-gaps`.
 - Several audit skills need one reconciled, resumable pass: `/harness-config:audit-pass`.
+
+## Related
+
+- Audit CLAUDE.md, rules, and auto-memory: /harness-memory:audit.
 
 ## Post-Audit
 

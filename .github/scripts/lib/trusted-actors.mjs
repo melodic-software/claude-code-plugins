@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 export const trustedActorsPath = (base) => `${base || ".base"}/${TRUSTED_ACTORS_PATH}`;
 export const SAME_TREE_LIST = new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url);
+export const STANDARDS_LIST_PATH = "components/trusted-actors/trusted-actors.json";
+export const trustedListPath = (env, fallback) => (env.STANDARDS_DIR ? `${env.STANDARDS_DIR}/${STANDARDS_LIST_PATH}` : fallback);
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);

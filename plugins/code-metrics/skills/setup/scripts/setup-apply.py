@@ -535,7 +535,6 @@ def main(argv: list[str]) -> int:
             i += 2
             continue
         if arg in ("-h", "--help"):
-            # __doc__ is None under python -OO; the usage line still prints.
             print((__doc__ or USAGE).strip())
             return 0
         if "=" not in arg or arg.startswith("-"):
@@ -559,8 +558,6 @@ def main(argv: list[str]) -> int:
             return 2
         return copy_old(root or _git_root(), home, user_option, preview)
     if target is None:
-        # No --dir: the repository root when git resolves one, else the cwd,
-        # so the skill needs no command substitution in its allowed command.
         root = _git_root()
         target = os.path.join(root, TEAM_FILE)
     real_root = os.path.realpath(root) if root is not None else ""

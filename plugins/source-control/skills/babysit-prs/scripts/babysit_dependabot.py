@@ -45,7 +45,11 @@ changes only `uses:` lines; the caller makes such a pull request tier
 `review`, for the AI review to judge. A lanes App fix commit is never counted
 as checked: `fix_refusal()` (the pr-unblock lane's `fixRefusal`) requires each
 of its files to be modified in place, in `in_fix_scope()`, a regular file, and
-changed only by a version.
+changed only by a version. The one other lanes App commit the merge gate takes
+is the CDN pins sync: `cdn_sync_refusal()` (the pr-unblock lane's
+`cdnSyncRefusal`) admits only the base pins.json and its targets, each
+modified in place, in a single-parent commit GitHub signed for the lanes App
+whose message is exactly the cdn-pins-sync row's on the pull request's head.
 """
 
 from __future__ import annotations
@@ -1195,6 +1199,124 @@ def is_fix_file(entry: Any) -> bool:
     """Whether a GraphQL tree entry is a regular, non-executable file."""
     item = json_object(entry)
     return item.get("type") == "blob" and item.get("mode") == FIX_MODE
+
+
+CDN_RECORD = "lib/cdn-pins/pins.json"
+_CDN_REFUSED = frozenset(
+    {
+        "lib/cdn-pins/package.json",
+        "lib/cdn-pins/package-lock.json",
+        "lib/cdn-pins/sync.mjs",
+    }
+)
+_CDN_PART = re.compile(r"[A-Za-z0-9_.-]+")
+WEB_FLOW_ID = 19864447
+CDN_SYNC_TRAILER = "Lane-Activity: pr-unblock/review-dependency"
+_REF_SAFE = re.compile(r"(?!.*[~^:?*\[\\])[!-~]+")
+
+
+def cdn_sync_subject(ref: str) -> str:
+    return f"Sync the CDN pins to the bumped manifest on {ref} {SKIP_MARKER}"
+
+
+def cdn_sync_message_refusal(message: Any, head_ref: Any) -> str | None:
+    """Why a commit message is not the cdn-pins-sync row's (patch-rules.json)
+    as apply-patch renders it for pr-unblock.yml's apply-cdn-pins-sync job on
+    `head_ref`:
+    `cdn-sync-message` for another subject, `cdn-sync-trailer` for a body that
+    is not its one trailer line, else None. The twin of
+    `cdnSyncMessageRefusal` in dependency-classify.mjs."""
+    lines = str(message or "").rstrip("\n").split("\n")
+    if (
+        not isinstance(head_ref, str)
+        or not _REF_SAFE.fullmatch(head_ref)
+        or lines[0] != cdn_sync_subject(head_ref)
+    ):
+        return "cdn-sync-message"
+    if lines[1:] == ["", CDN_SYNC_TRAILER]:
+        return None
+    return "cdn-sync-trailer"
+
+
+def cdn_sync_paths(text: str | None) -> frozenset[str] | None:
+    """`CDN_RECORD` and each of its `targets[].path` from the base's pins.json
+    text, or None when it is absent or not a valid registry: the twin of
+    `cdnPaths` in cdn-paths.mjs."""
+    try:
+        record = json.loads(text) if text is not None else None
+    except ValueError:
+        return None
+    targets = record.get("targets") if isinstance(record, dict) else None
+    if not isinstance(targets, list) or not all(isinstance(t, dict) for t in targets):
+        return None
+    found = [t.get("path") for t in targets]
+    if not all(
+        isinstance(path, str)
+        and path not in _CDN_REFUSED
+        and all(
+            _CDN_PART.fullmatch(part) and part not in (".", "..", ".git")
+            for part in path.split("/")
+        )
+        for path in found
+    ):
+        return None
+    paths = [CDN_RECORD, *found]
+    return frozenset(paths) if len(set(paths)) == len(paths) else None
+
+
+def cdn_sync_refusal(
+    detail: Any,
+    lane_identity: str | None,
+    paths: Callable[[], frozenset[str] | None],
+    entry: Callable[[str, str], Any],
+    head_ref: Any,
+) -> str | None:
+    """Why one pull-request commit (a REST commit with its `files`) is not the
+    CDN pins sync pr-unblock pushes, or None. The merge path alone reads it:
+    GitHub signed it for the lanes App (author login `lane_identity`,
+    committer web-flow), one parent, the cdn-pins-sync row's subject on
+    `head_ref` and its trailer (`cdn_sync_message_refusal`), and each
+    file one of `paths()` (`cdn_sync_paths`, read only once the commit's own
+    checks pass; None when that read failed) modified in place, a regular
+    non-executable file on both sides (`entry(side, path)`, side "before" or
+    "after"). The pr-unblock lane's twin is `cdnSyncRefusal` in
+    dependency-classify.mjs."""
+    item = json_object(detail)
+    commit = json_object(item.get("commit"))
+    verification = json_object(commit.get("verification"))
+    login = str(json_object(item.get("author")).get("login") or "")
+    if not (
+        lane_identity
+        and login.casefold() == lane_identity.casefold()
+        and json_object(item.get("committer")).get("id") == WEB_FLOW_ID
+        and verification.get("verified") is True
+        and verification.get("reason") == "valid"
+    ):
+        return "cdn-sync-author"
+    parents = item.get("parents")
+    if not isinstance(parents, list) or len(parents) != 1:
+        return "cdn-sync-parents"
+    message = cdn_sync_message_refusal(commit.get("message"), head_ref)
+    if message:
+        return message
+    files = item.get("files")
+    if not isinstance(files, list) or not files:
+        return "cdn-sync-files"
+    scope = paths()
+    if not scope:
+        return "cdn-sync-base-unreadable"
+    for each in files:
+        file = json_object(each)
+        path = str(file.get("filename") or "")
+        if file.get("status") != "modified" or file.get("previous_filename"):
+            return f"cdn-sync-status:{path}"
+        if path not in scope:
+            return f"cdn-sync-scope:{path}"
+        if not (
+            is_fix_file(entry("before", path)) and is_fix_file(entry("after", path))
+        ):
+            return f"cdn-sync-mode:{path}"
+    return None
 
 
 def is_semver_range(value: Any) -> bool:

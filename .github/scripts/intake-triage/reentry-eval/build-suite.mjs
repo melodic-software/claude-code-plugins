@@ -27,7 +27,6 @@ const CALLER = join(REPO_ROOT, ".github/workflows/intake-triage.yml");
 const RUBRIC = join(REPO_ROOT, ".github/scripts/intake-triage/triage-rubric.txt");
 const WORKDIR = ".intake-triage-eval";
 const REPOSITORY = "melodic-software/claude-code-plugins";
-// Labels the stubbed label listing reports besides the caller's allowed set.
 const REPO_LABELS = [
   "needs-triage",
   "agent-ready",
@@ -157,7 +156,6 @@ export async function compose(script, env, schemaMain, verdictSchema) {
     ]),
   ];
   const github = {
-    // The script meters API budget through request hooks; the stub makes no requests.
     hook: { after: () => {}, error: () => {} },
     rest: { issues: { listLabelsForRepo: "listLabelsForRepo" } },
     paginate: async () => labels.map((name) => ({ name })),
@@ -211,9 +209,6 @@ function loadSchemaMain(source, dir) {
   return main;
 }
 
-// One case's workspace: the issue files the reusable's fetch step writes, in
-// its shape, under WORKDIR, and AGENTS.md at the root the prompt points to.
-// The body is the case's own body.md when it has one, else the shared one.
 function workspace(caseDir, out) {
   const meta = JSON.parse(readFileSync(join(caseDir, "issue.json"), "utf8"));
   const dir = join(out, WORKDIR);
