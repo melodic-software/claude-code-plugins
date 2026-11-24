@@ -2997,6 +2997,7 @@ test("the full pass re-runs a head's stopped reviews only when every other ci-st
   const stop = laneNote(STOPPED_LINE);
   const switchLine = (pull) => laneNote(switchHold(pull, { appId: String(LANE_ID), disabled: "true", repoDisabled: "false" }));
   const floor = [laneNote(FLOOR_COMPANION_LINE), laneNote(FLOOR_LINE)];
+  const floorCall = (call) => `'gh api ${call.replace("REPO", REPO)}' was not sent: GitHub's core API rate limit holds until 2026-10-19T19:00:00Z`;
   const cases = [
     ["an outage note for the other lane is a real failure, so no stopped review is re-run", [stop, laneNote(UPSTREAM_LINE), EXIT_LINE], []],
     ["the review stop alone, beside the exit-code note, re-runs the deferred review", [stop, EXIT_LINE], [201]],
@@ -3004,6 +3005,21 @@ test("the full pass re-runs a head's stopped reviews only when every other ci-st
     ["a lanes App PR's kill-switch note beside the review stop is a gate: the stopped review re-runs, and ci-status waits for it", [switchLine(lanePr(1)), stop, EXIT_LINE], [201], lanePr(1)],
     ["a rate-limit floor note and its companion beside the review stop are gates, so the stopped review still re-runs", [...floor, stop, EXIT_LINE], [201]],
     ["a local 'could not read' failure beside a floor note is a real failure, so no stopped review is re-run", [laneNote(HOLD_CONFIG_LINE), ...floor, stop, EXIT_LINE], []],
+    ...[
+      ["the jobs of run 301", "repos/REPO/actions/runs/301/jobs?filter=latest&per_page=100"],
+      ["run 301", "repos/REPO/actions/runs/301"],
+      ["the annotations of job 9001", "repos/REPO/check-runs/9001/annotations?per_page=100"],
+      [`the pull_request runs on ${sha(1)}`, `repos/REPO/actions/runs?head_sha=${sha(1)}&event=pull_request&per_page=100`],
+      [`the pr-review-security-hosted.yml runs on ${sha(1)}`, `repos/REPO/actions/workflows/pr-review-security-hosted.yml/runs?head_sha=${sha(1)}&event=pull_request&per_page=100`],
+      ["#1", "repos/REPO/pulls/1"],
+      ["the reviews of #1", "repos/REPO/pulls/1/reviews?per_page=100 --paginate"],
+      ["the comments of #1", "repos/REPO/issues/1/comments?per_page=100 --paginate"],
+    ].map(([what, call]) => [
+      `read_api's 'could not read ${what}' beside the floor note for its call is a gate, so the stopped review still re-runs`,
+      [laneNote(`could not read ${what}; re-run this run.`), laneNote(floorCall(call)), stop, EXIT_LINE],
+      [201],
+    ]),
+    ["a 'could not read' naming another run than the floor note's call is a real failure", [laneNote("could not read the jobs of run 302; re-run this run."), laneNote(floorCall("repos/REPO/actions/runs/301/jobs?filter=latest&per_page=100")), stop, EXIT_LINE], []],
     ["the other lane still running beside the review stop re-runs the stopped review", [stop, laneNote(LANE_PENDING_LINE), EXIT_LINE], [201], pr(1), runningLane()],
     ["the other lane with no run yet beside the review stop re-runs the stopped review", [stop, laneNote(LANE_MISSING_LINE), EXIT_LINE], [201], pr(1), null],
   ];

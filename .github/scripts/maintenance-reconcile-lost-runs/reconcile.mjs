@@ -591,9 +591,14 @@ export const floorNoted = (annotations) => {
   const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
   return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
 };
-const namedTargets = (message) => [...message.matchAll(/#([1-9][0-9]*)\b|\b([0-9a-f]{40})\b/g)].map((m) => m[1] ?? m[2]);
-const floorCompanion = (message, floors) =>
-  FLOOR_COMPANION.test(message) && namedTargets(message).some((id) => floors.some((f) => new RegExp(`[/=]${id}(?![0-9a-f])`).test(f)));
+const TARGET_FORMS = [
+  [/#([1-9][0-9]*)\b/g, (id) => `/(?:pulls|issues)/${id}`],
+  [/\brun ([1-9][0-9]*)\b/g, (id) => `/actions/runs/${id}`],
+  [/\bjob ([1-9][0-9]*)\b/g, (id) => `/(?:check-runs|actions/jobs)/${id}`],
+  [/\b([0-9a-f]{40})\b/g, (id) => `[/=]${id}`],
+];
+const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(`${call(m[1])}(?![0-9a-f])`)));
+const floorCompanion = (message, floors) => FLOOR_COMPANION.test(message) && namedCalls(message).some((call) => floors.some((f) => call.test(f)));
 export const reviewStopsAmidGateNotes = (annotations) => {
   const causes = failureCauses(annotations);
   const floors = causes.map((a) => String(a.message ?? "")).filter((m) => FLOOR_NOTE.test(m));
