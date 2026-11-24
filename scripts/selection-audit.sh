@@ -98,7 +98,6 @@ publish() {
   cat "$1"
 }
 
-# reads <log> <root>: the opened paths under <root>, repo-relative, sorted.
 reads() {
   local root
   root="$(cd "$2" && pwd -P)/"
@@ -114,24 +113,12 @@ reads() {
     }' "$1" | sort -u
 }
 
-# gate_workflow: this tree's gate workflow; a tree from before the rename
-# names it ci.yml.
 gate_workflow() { if [[ -f .github/workflows/ci.yml ]]; then echo .github/workflows/ci.yml; else echo .github/workflows/pr-require-checks.yml; fi; }
 
-# planned: this tree's gate workflow takes its test lanes from scripts/plan-test-lanes.sh,
-# whose selection already holds an unmapped file's language corpus.
 planned() { grep -q 'scripts/plan-test-lanes\.sh' "$(gate_workflow)" 2>/dev/null; }
 
-# unmapped_flag: the selector flag that answers for an unmapped file the way
-# this tree's gate workflow does.
 unmapped_flag() { if planned; then echo --unmapped-corpus; else echo --allow-unmapped; fi; }
 
-# fallback_corpus: the suites an older gate workflow's UNMAPPED fallback runs, one per line,
-# read from the commands in that branch of the workflow rather than assumed. Of its
-# runners only run-plugin-tests.sh runs a suite of this corpus (it lists what
-# it discovers); run-outside-node-suites.sh runs Node packages' npm test.
-# Prints nothing when the branch runs no run-plugin-tests.sh; exit 1 when the
-# branch or the list cannot be read.
 fallback_corpus() {
   local block
   planned && return 0
@@ -141,8 +128,6 @@ fallback_corpus() {
   grep -q 'scripts/run-plugin-tests\.sh' <<<"$block" || return 0
   bash scripts/run-plugin-tests.sh --list 2>/dev/null
 }
-
-# --- trace -----------------------------------------------------------------
 
 traceable() {
   grep -E '(\.test\.(sh|mjs)|(^|/)test_[^/]*\.py)$' | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
@@ -168,8 +153,6 @@ cmd_changed() {
   return 0
 }
 
-# trace_one <out> <index:suite>: run one suite under strace and write its read
-# set. Called by xargs from cmd_trace; records "not traced" past the budget.
 trace_one() {
   local out="$1" keyed="$2" key suite rc=0 start runner
   key="${keyed%%:*}"
@@ -194,7 +177,6 @@ trace_one() {
   printf '%s\t%s\t%s\t%s\n' "$suite" "$rc" "$(($(date +%s) - start))" "$(wc -l <"$out/reads/$key")" >"$out/suites/$key"
 }
 
-# select_one <out> <index:file>: the selector's answer for a one-file diff.
 select_one() {
   local out="$1" keyed="$2" key file rc=0
   key="${keyed%%:*}"
@@ -254,8 +236,6 @@ cmd_trace() {
     mapfile -t suites < <(traceable <"$out/tracked" | grep -v '\.test\.mjs$' | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
-  # Slowest first by scripts/suite-seconds.txt, so a long suite starts while the
-  # budget still has room for it to finish and for its reads to be checked.
   if [[ -f scripts/suite-seconds.txt ]]; then
     mapfile -t suites < <(printf '%s\n' "${suites[@]}" |
       awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { print ($0 in s ? s[$0] : 0) "\t" $0 }' scripts/suite-seconds.txt - |
@@ -263,7 +243,6 @@ cmd_trace() {
   fi
 
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"
-  # Resolved once, before any trace, so a venv build is neither traced nor raced.
   AUDIT_PYTHON=python3
   if grep -q '\.py$' < <(printf '%s\n' "${suites[@]}"); then
     AUDIT_PYTHON="$(pytest_python::resolve)"
@@ -362,9 +341,6 @@ cmd_trace() {
   ((gaps == 0)) && ((strict == 0 || not_traced + unchecked == 0))
 }
 
-# --- replay ----------------------------------------------------------------
-
-# replay_rows <suite> <good> <bad> <worktree>: one TSV row per commit.
 replay_rows() {
   local suite="$1" good="$2" bad="$3" wt="$4" c verdict rc fallback flag
   local -a files
@@ -400,10 +376,6 @@ replay_rows() {
   done
 }
 
-# replay_report <suite> <good> <bad> <report>: append one suite's section;
-# return 1 on a selection miss. A commit the selector could not be run on is
-# an error row, neither selected nor not: with no selecting commit, any error
-# makes the range inconclusive rather than a miss.
 replay_report() {
   local suite="$1" good="$2" bad="$3" report="$4" wt rows selected total errors
   wt="$(mktemp -d "${TMPDIR:-/tmp}/selection-replay.XXXXXX")/wt"
@@ -461,8 +433,6 @@ cmd_replay() {
   return "$rc"
 }
 
-# job_logs <repo> <run-id> <dir> [failure]: save each job's log of a run as
-# <dir>/<run-id>.<job-id>.log; with "failure", only the failed jobs'.
 job_logs() {
   local repo="$1" run="$2" dir="$3" want="${4:-}" id conclusion
   gh api --paginate "repos/$repo/actions/runs/$run/jobs?per_page=100" \

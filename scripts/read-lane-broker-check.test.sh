@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml scripts/ci-deps/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
-# Runs the shell of two read-lane check-broker steps, lifted from their YAML,
-# against the cases the contract states
-# (docs/conventions/pr-pipeline/pr-run-activity.md, "The check-broker job"):
-#   - the run job's "Assert the broker allowed this attempt" step passes only
-#     when check-broker allowed this same run attempt;
-#   - request-lane-token's check mode accepts only an https URL whose last path
-#     segment is /token;
-#   - check-broker's issue lease step backs off as already-leased on a live
-#     lease older than its own, and the run job's go step then runs no model;
-#   - exactly one of the read runner's report job and the caller's write runner
-#     report job releases each lease, the write side after the PR opens.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,8 +13,6 @@ DEPS_DIR="$ROOT/scripts/ci-deps"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# lift <yaml-file> <js-path-expression> <out>: writes the run block found at
-# the expression (evaluated on the parsed document `d`) as a bash script.
 lift() {
   node -e '
     const { createRequire } = require("node:module");
@@ -47,7 +34,6 @@ lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
 lift "$ROOT/.github/actions/request-lane-token/action.yml" 'd.runs.steps[0].run' "$ACTION" ||
   fail "request-lane-token has no run block"
 
-# gate_case <label> <expected-rc> <allowed> <allowed-attempt> <run-attempt>
 gate_case() {
   local out rc
   out="$(ALLOWED="$3" ALLOWED_ATTEMPT="$4" RUN_ATTEMPT="$5" bash "$GATE" 2>&1)"
@@ -66,8 +52,6 @@ gate_case "an allow reused from an earlier attempt fails" 1 true 1 2
 gate_case "no allow (the broker was skipped) fails" 1 false 2 2
 gate_case "no check-broker outputs at all fails" 1 "" "" 1
 
-# url_case <label> <url> <must-name> [dispatcher-run-id] [release]: runs check mode with no OIDC
-# grant, so a URL that passes validation stops at the OIDC check instead.
 url_case() {
   local out
   out="$(MODE=check BROKER_URL="$2" AUDIENCE=aud LANE=pr-review ACTIVITY=claude \
@@ -104,8 +88,6 @@ lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
 
 STUB_BIN="$WORK/bin"
 mkdir -p "$STUB_BIN"
-# The lease list this stub returns is $LEASES; a POST returns comment id 2, and
-# `gh api user` is recorded so the test can show the step never needs it.
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 case "$*" in
@@ -124,7 +106,6 @@ lease_body() {
   printf '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"%s","acquired_at":"%s","renewed_at":"%s","ttl_hours":2} -->' "$1" "$now" "$now"
 }
 
-# lease_case <label> <leases-json> <expected-lease> <expected-go-run>
 lease_case() {
   local out rc
   : >"$WORK/output" && : >"$WORK/stub.log"
@@ -289,7 +270,6 @@ who "a check-broker that posted no lease releases nothing" none yes "" true fals
 who "a run the in-slot blocker re-check stopped releases its own lease and reports nothing" read no held true false branch none "" true
 who "a handed-off call that started: both sides release, the second a no-op" both yes held true true none written ""
 
-# The second release of one lease finds it superseded: exit 0, nothing written.
 SUPERSEDED="$(jq -cn --arg b '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"987654","acquired_at":"2026-01-01T00:00:00Z","renewed_at":"2026-01-01T00:00:00Z","ttl_hours":2,"superseded_at":"2026-01-01T00:10:00Z"} -->' '{body:$b, issue:"7"}')"
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash

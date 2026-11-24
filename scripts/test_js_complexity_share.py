@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for js-complexity-share.py, the counter behind the js-complexity-share ratchet.
-
-Each case builds a throwaway git repository, puts a fake `lizard` first on PATH,
-and runs the counter at its command line. The fake records the files it was
-handed and prints one lizard CSV record per `// cc=N` marker in each file, so
-every expected value below comes from the fixture and the scope rules in the
-counter's docstring, not from running the counter.
-"""
 
 from __future__ import annotations
 
@@ -94,12 +86,9 @@ class JsComplexityShareTest(unittest.TestCase):
             "# sanctioned copies\nlib/shared.mjs\n"
             "tools/canon.js -> plugins/*/tools/canon.js\n",
         )
-        # In scope: one production file per extension.
         self.write("src/app.js", "// cc=25\n// cc=3\n")
         self.write("src/view.jsx", "// cc=4\n")
         self.write("src/mod.cjs", "// cc=20\n")
-        # Copies count once: the first path outside plugins/, else the first
-        # path, is the one kept.
         self.write("src/copy-of-app.js", "// cc=25\n// cc=3\n")
         self.write("plugins/a/lib/shared.mjs", "// cc=30\n")
         self.write("plugins/b/lib/shared.mjs", "// cc=30\n// cc=1\n")
@@ -107,9 +96,7 @@ class JsComplexityShareTest(unittest.TestCase):
         self.write("plugins/a/tools/canon.js", "// cc=40\n")
         # A name that reads as a lizard option is still a file.
         self.write("src/-oevil.js", "// cc=22\n")
-        # A plugin named evals holds production code.
         self.write("plugins/evals/lib/prod.mjs", "// cc=5\n")
-        # Out of scope.
         self.write("plugins/a/evals/case.js", "// cc=50\n")
         self.write("src/app.test.mjs", "// cc=50\n")
         self.write("src/app.spec.js", "// cc=50\n")
@@ -137,18 +124,12 @@ class JsComplexityShareTest(unittest.TestCase):
                 "./tools/canon.js",
             ],
         )
-        # Functions: app.js 25 and 3, view.jsx 4, mod.cjs 20, shared.mjs 30,
-        # canon.js 2, -oevil.js 22, prod.mjs 5. Eight functions, four at or
-        # above 20: 50.00 percent.
         self.assertEqual(
             result.stdout.strip(),
             "lizard=9.9.9 files=7 functions=8 over=4 share=50.00",
         )
 
     def test_cluster_member_star_stops_at_a_slash(self) -> None:
-        # The member glob is gitignore-style, as in the code-metrics
-        # registry filter: `*` is one path segment, so a deeper path is not a
-        # sanctioned copy and keeps its own count.
         self.write(
             "registry.txt",
             "tools/canon.js -> plugins/*/tools/canon.js\n",
@@ -165,7 +146,6 @@ class JsComplexityShareTest(unittest.TestCase):
         self.assertEqual(
             handed, ["./plugins/a/deep/tools/canon.js", "./tools/canon.js"]
         )
-        # Functions: canon.js 2, deep canon.js 30. One of two at or above 20.
         self.assertEqual(
             result.stdout.strip(),
             "lizard=9.9.9 files=2 functions=2 over=1 share=50.00",

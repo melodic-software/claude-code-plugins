@@ -21,9 +21,6 @@ check() {
   fi
 }
 
-# The selection stub prints the suites in $SUITES when it selects in the
-# current directory; the runner stub fails a suite whose name holds "red",
-# exiting 3.
 cat >"$work/select" <<'EOF'
 [[ $1 == src.sh && $AFFECTED_TESTS_ROOT == "$PWD" ]] || exit 1
 printf '%s\n' $SUITES

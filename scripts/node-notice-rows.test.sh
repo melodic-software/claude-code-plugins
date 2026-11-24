@@ -53,8 +53,6 @@ if [[ "$row" == 1 ]]; then
 else
   bad "plugin-diagnostics: want one canonical node-notice row under $MATCHER" "found $row"
 fi
-# The node-or-skip polyglot for one node argument list: each argument double-quoted, the same
-# list after both stubs.
 skip_row() {
   local a argv=""
   for a in "$@"; do argv+=" \"$a\""; done
@@ -189,13 +187,12 @@ node_absent_cases() {
     printf 'NOTE: pwsh is not on PATH; the PowerShell cases did not run.\n'
   fi
 
-  # --- the node-or-skip rows, node absent and present ------------------------------
   skip_plugins=()
   for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
     jq -e '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("node-or-skip"))] | length > 0' "$hooks" >/dev/null &&
       skip_plugins+=("$(basename "$(dirname "$(dirname "$hooks")")")")
   done
-  skip_expand() { # <plugin> -> its node-or-skip row with both placeholders substituted
+  skip_expand() {
     local row
     row="$(jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("node-or-skip")) | .command' "$ROOT/plugins/$1/hooks/hooks.json")"
     row="${row//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT/plugins/$1}"
@@ -218,7 +215,6 @@ node_absent_cases() {
     fi
   done
 
-  # node present: a stub node records its argv and stdin, and exits 3.
   NODE_TOOLS="$WORK/node-tools"
   mkdir -p "$NODE_TOOLS"
   cp -P "$TOOLS"/* "$NODE_TOOLS/"

@@ -70,8 +70,6 @@ fi
 
 SENTINEL="sentinel@example.invalid"
 
-# A throwaway caller repo carrying a known LOCAL identity — the thing a leak
-# would overwrite.
 new_caller() {
   local d
   d="$(mktemp -d "$TMP/x.XXXX")"
@@ -85,11 +83,6 @@ caller_email() {
   git -C "$1" config --local --get user.email 2>/dev/null || printf '<unset>'
 }
 
-# assert_isolated <label> <caller-dir> <fixture-dir> <email-before>
-# The two halves are asserted separately on purpose: an unchanged caller alone
-# does not prove isolation, because the fixture can still have been skipped
-# entirely. A real leak shows BOTH — caller rewritten AND fixture left with no
-# .git — so both are checked.
 assert_isolated() {
   local label="$1" caller="$2" fixture="$3" before="$4"
   local after
@@ -106,7 +99,6 @@ assert_isolated() {
   fi
 }
 
-# ---------------------------------------------------------------- scenario A
 scenario_a() {
   local caller fixture before
   caller="$(new_caller)"
@@ -124,7 +116,6 @@ scenario_a() {
   assert_isolated "A absolute GIT_DIR" "$caller" "$fixture" "$before"
 }
 
-# ---------------------------------------------------------------- scenario B
 scenario_b() {
   local caller wt lgd fixture before
   caller="$(new_caller)"
@@ -153,7 +144,6 @@ scenario_b() {
   git -C "$caller" worktree remove --force "$wt" >/dev/null 2>&1 || true
 }
 
-# ---------------------------------------------------------------- scenario C
 scenario_c() {
   local caller fixture before
   caller="$(new_caller)"
@@ -166,16 +156,12 @@ scenario_c() {
     export GIT_WORK_TREE="$caller"
     # shellcheck source=test-git-helpers.sh
     . "$HELPER"
-    # git_init_safe refuses a path inside the CURRENT repository, which it
-    # resolves from the cwd; with the cwd outside any repo it sees none, so
-    # this exercises the raw init+config path a suite would take.
     git_test_config "$fixture" init -q
     git_test_config "$fixture" config user.email nested@example.invalid
   ) >/dev/null 2>&1
   assert_isolated "C nested non-repo dir" "$caller" "$fixture" "$before"
 }
 
-# ---------------------------------------------------------------- scenario D
 # GIT_CONFIG is a SECOND leak path, not another spelling of the first. It does
 # not redirect discovery at all: it replaces the file the `git config`
 # subcommand itself reads and writes, so `git -C <fixture> config user.email X`
@@ -201,7 +187,6 @@ scenario_d() {
   assert_isolated "D exported GIT_CONFIG" "$caller" "$fixture" "$before"
 }
 
-# ---------------------------------------------------------------- scenario E
 # No inherited environment at all: a fixture build that failed unchecked leaves
 # its path variable empty or pointing at a directory with no .git. `git -C ""`
 # keeps the cwd (git(1), -C) and a non-repo directory discovers the enclosing
@@ -235,7 +220,6 @@ scenario_e() {
   fi
 }
 
-# ---------------------------------------------------------------- scenario F
 # TMPDIR inside the caller: a failed build's empty path reaches raw `git -C`
 # calls the helper never sees, so sourcing the harness must stop the suite.
 scenario_f() {

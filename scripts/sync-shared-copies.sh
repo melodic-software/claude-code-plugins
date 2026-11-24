@@ -41,9 +41,9 @@ fi
 registry="scripts/shared-copies.txt"
 self="scripts/sync-shared-copies.sh"
 
-srcs=()                 # canonical paths, first-seen registry order
-declare -A copies_of=() # canonical -> newline-separated copies
-declare -A src_of=()    # copy -> canonical
+srcs=()
+declare -A copies_of=()
+declare -A src_of=()
 
 # inside_root <path>: true when <path> is relative, has no `.` or `..` segment,
 # and no existing component is a symbolic link, so reads and writes stay in the root.
@@ -174,7 +174,6 @@ render() {
   fi
 }
 
-# each_copy <fn>: calls <fn> <canonical> <copy> <rendered-file> per registered copy.
 rendered="$(mktemp)"
 trap 'rm -f "$rendered"' EXIT
 each_copy() {
@@ -219,12 +218,6 @@ check_copy() {
   fi
 }
 
-# fragment_hint: print the one command that writes a patch fragment for every
-# stale fragment-mode carrier, from check_bump's stale_plugins, stale_seen and
-# stale_srcs. --carriers-of names them only when it would write exactly that
-# set: every fragment-mode carrier of the stale canonicals is stale. Otherwise
-# (a carrier already has its fragment, is new since the base, or only a copy
-# changed) the stale plugins are listed by name.
 fragment_hint() {
   local targets="" src copy plugin names="" exact=1
   for src in "${stale_srcs[@]}"; do
@@ -251,9 +244,6 @@ check_bump() {
   local -a stale_plugins=() stale_srcs=()
   local -A stale_seen=() src_seen=()
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
-  # What this change set changed is what differs from the fork point, not from the
-  # tip of the base: a branch behind its base would otherwise count the base's own
-  # later syncs as its changes. $base stays the name the messages print.
   if ! mb="$(git merge-base "$base" HEAD)"; then
     echo "error: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
     exit 2
@@ -262,15 +252,12 @@ check_bump() {
     src_changed=0
     while IFS= read -r copy; do
       [[ -n "$copy" ]] || continue
-      # A copy can change with its canonical untouched: a new header, or a new registry entry.
       git diff --quiet "$mb" -- "$src" "$copy" && continue
       src_changed=1
       rest="${copy#plugins/}"
       plugin="${rest%%/*}"
       rest="${rest#*/}"
       manifest="plugins/$plugin/.claude-plugin/plugin.json"
-      # A plugin absent at the base ref is new in this change set; its initial
-      # release already carries the new canonical content.
       base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")

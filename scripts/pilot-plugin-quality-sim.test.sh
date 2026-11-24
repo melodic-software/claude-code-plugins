@@ -40,8 +40,6 @@ TEST_TMPDIR=""
 fixture_tree::build TEST_TMPDIR --label plugin-quality-sim
 
 pass() { ok "$1"; }
-# Two-argument shape: a label plus the detail that explains the failure. The
-# harness owns the counter and the exit contract.
 bad() { fail "$1${2:+ — detail: $2}"; }
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else bad "$1" "expected [$2], got [$3]"; fi
@@ -62,7 +60,6 @@ assert_file_absent() {
   if [[ ! -e "$2" ]]; then pass "$1"; else bad "$1" "unexpected file: $2"; fi
 }
 assert_files_eq() {
-  # assert_files_eq <label> <expected-file> <actual-file> — byte-for-byte
   if cmp -s "$2" "$3"; then pass "$1"; else bad "$1" "files differ: $2 vs $3"; fi
 }
 
@@ -85,10 +82,6 @@ run_checker() {
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
 
-# --- Fixture: a consumer repo mid-migration -----------------------------------
-# Populated AGENTS.md (real prose, including a backticked path OUTSIDE any
-# region, which must never be read as a pointer), the retired tracked config
-# with known keys, and a pre-existing personal override.
 fixture="$TEST_TMPDIR/consumer"
 mkdir -p "$fixture/.claude"
 
@@ -127,15 +120,11 @@ fi
 
 cp "$fixture/AGENTS.md" "$TEST_TMPDIR/AGENTS.orig"
 
-# --- Case 1: no region anywhere -> resolver exit 1 (ask, never infer) ---------
 run_resolver "$fixture"
 assert_exit "case 1: resolver exits 1 before the region exists" 1 "$RC"
 assert_contains "case 1: routes to asking the operator" "$ERR" "ask the operator"
 assert_eq "case 1: prints no home" "" "$OUT"
 
-# --- Case 2: apply's region write, appended to the populated AGENTS.md --------
-# The script writes the region the way setup's apply would: APPEND the marked
-# region, never touch any other byte, and create the confirmed home + topic doc.
 mkdir -p "$fixture/docs/conventions/plugin-quality"
 cat >"$fixture/docs/conventions/plugin-quality/README.md" <<'EOF'
 # plugin-quality conventions
@@ -169,7 +158,6 @@ region_block >>"$TEST_TMPDIR/AGENTS.expected"
 assert_files_eq "case 2: the whole file is exactly prose + appended region" \
   "$TEST_TMPDIR/AGENTS.expected" "$fixture/AGENTS.md"
 
-# --- Case 3: manifest detection finds both leftovers --------------------------
 run_checker --manifest "$MANIFEST" --root "$fixture"
 assert_exit "case 3: detection exits 1 on active leftovers" 1 "$RC"
 assert_contains "case 3: r001 row (migrate, active) is exact" "$OUT" \
@@ -178,13 +166,11 @@ assert_contains "case 3: r002 row (delete, active) is exact" "$OUT" \
   "plugin-quality-r002${TAB}file${TAB}.claude/plugin-quality.local.md${TAB}delete${TAB}active${TAB}"
 assert_contains "case 3: summary counts two active leftovers" "$ERR" "2 active leftover(s)"
 
-# --- Case 4: the migrate record refuses --clean without --i-migrated ----------
 run_checker --manifest "$MANIFEST" --clean plugin-quality-r001 --root "$fixture"
 assert_exit "case 4: --clean without --i-migrated refuses" 2 "$RC"
 assert_contains "case 4: names the flag it needs" "$ERR" "--i-migrated"
 assert_file_present "case 4: the retired file is untouched" "$fixture/.claude/plugin-quality.md"
 
-# --- Case 5: gated cleans succeed and a re-run is clean -----------------------
 run_checker --manifest "$MANIFEST" --clean plugin-quality-r001 --i-migrated --root "$fixture"
 assert_exit "case 5: r001 cleans with --i-migrated" 0 "$RC"
 assert_file_absent "case 5: the retired tracked file is gone" "$fixture/.claude/plugin-quality.md"
@@ -195,10 +181,9 @@ run_checker --manifest "$MANIFEST" --root "$fixture"
 assert_exit "case 5: re-run detection is clean" 0 "$RC"
 assert_eq "case 5: no rows after cleanup" "" "$OUT"
 
-# --- Case 6: a CRLF-authored AGENTS.md also resolves --------------------------
 crlf="$TEST_TMPDIR/crlf-consumer"
 mkdir -p "$crlf/docs/conventions"
-git init -q "$crlf" >/dev/null 2>&1 # the resolver applies a home only inside a git work tree
+git init -q "$crlf" >/dev/null 2>&1
 {
   printf '# Repo\r\n\r\nCRLF-authored prose.\r\n\r\n'
   printf '<!-- BEGIN GENERATED: convention-home -->\r\n'

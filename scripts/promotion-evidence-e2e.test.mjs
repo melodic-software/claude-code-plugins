@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Drives the real promotion-evidence resolver (source-control) and the real security-binding
-// checker (autonomy) end to end. It lives at repo level because it reads both plugins, which a
-// shipped plugin may not do (docs/plugin-philosophy.md, configuration ownership and scope).
-//
-// Expected states come from the autonomy contract, not from either script: a cell bound promoted
-// stays effective promoted until contrary evidence (post-merge gate failure, human-reverted merge,
-// verification divergence) lands in its ratification epoch, and C3 auto-merge demotes with either
-// prerequisite, C2 auto-merge or C3 AI-review blocking
-// (plugins/autonomy/reference/guardrails/work-classes.md, "Demotion evidence set").
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -26,8 +17,6 @@ const TRANSCRIPT_REF = "probe-transcripts/ci-pool-a-l2.json";
 // The fixture transcript probes $HOME/.netrc, expanded on the probe host to /home/runner/.netrc.
 const CREDENTIAL_ROOTS = "/home/runner";
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
-// Ratified at 2026-06-30, 2026-07-01 and 2026-06-29 in promoted-c2c3.json; every event below
-// lands after all three unless a case says otherwise.
 const IN_EPOCH = "2026-07-10T12:00:00Z";
 
 const base = realpathSync.native(tempDir("promotion-evidence-e2e-"));
@@ -37,8 +26,6 @@ const ops = join(base, "ops");
 mkdirSync(checkout);
 mkdirSync(ops);
 
-// The resolver runs from a copy laid out as a marketplace install, so it reads its user settings
-// from <config>/settings.json the way an installed plugin does.
 const config = join(base, "config");
 const install = join(config, "plugins", "cache", "mkt", "source-control", "9.9.9", "skills", "babysit-loop", "scripts");
 mkdirSync(install, { recursive: true });
@@ -58,8 +45,6 @@ main({ platform: "linux", uid: 1000, access: () => false, stat: () => ({ uid: 0 
 `,
 );
 
-// The resolver also reads the host's managed settings; one that configures these options would
-// decide the result, so the suite skips on such a host.
 const { managedSettingsFiles } = await import(join(RESOLVER_DIR, "operator-options.mjs"));
 const managedConfigures = managedSettingsFiles().some((file) => {
   try {
@@ -79,8 +64,6 @@ function writeJson(value, name = `file-${++written}.json`, dir = ops) {
 const events = (...list) => writeJson(list);
 const EMPTY = join(FIXTURES, "evidence-empty.json");
 
-// An events file (empty by default) with the publisher's sidecar beside it, generated `ageHours`
-// ago: the resolver reads the sidecar under --window-start, where every promoted cell is a re-earn.
 const BOUND = { promotion_evidence_max_age_hours: "24" };
 function published(ageHours = 0, list = []) {
   const dir = join(ops, `published-${++written}`);
@@ -117,7 +100,6 @@ function runResolver({ args = [], env = {}, helper = SEAM } = {}) {
   return JSON.parse(run.stdout);
 }
 
-// Writes the operator's user settings, then runs the resolver.
 function resolveWith(overrides = {}, run = {}) {
   writeFileSync(userSettings, settingsFor(operatorOptions(overrides)));
   return runResolver(run);
@@ -131,9 +113,6 @@ function assertFailClosed(result, reason) {
   assert.deepEqual(effective(result), ALL("unpromoted"));
 }
 
-// The checker's own stderr for the argv the resolver would build, so a fail-closed case can show
-// the checker refused for the reason under test and not for an unrelated one. A null
-// credentialRoots passes no --credential-roots, as the resolver does when the option is unset.
 function checkerStderr(binding, probeRoot, credentialRoots = CREDENTIAL_ROOTS) {
   const argv = [CHECKER, binding, "--evidence", EMPTY, "--probe-evidence-root", probeRoot];
   if (credentialRoots !== null) argv.push("--credential-roots", credentialRoots);
@@ -152,8 +131,6 @@ describe("promoted", () => {
   });
 
   test("without the seam the same configuration fails closed: the lane user owns the checker", cli, () => {
-    // A copy of the checker in the suite's own temp directory, so the user running the suite owns
-    // it whoever owns the checkout.
     const owned = join(ops, "check-security-binding.mjs");
     copyFileSync(CHECKER, owned);
     assertFailClosed(resolveWith({ promotion_evidence_checker: owned }, { helper: RESOLVER }), /^lane-writable:promotion_evidence_checker$/);
@@ -161,8 +138,6 @@ describe("promoted", () => {
 });
 
 describe("demoted", () => {
-  // One contrary event on one cell: that cell demotes, and C3 auto-merge demotes with either
-  // prerequisite. A C3 auto-merge event demotes only itself.
   const expected = {
     "C2-auto-merge": { "C2-auto-merge": "unpromoted", "C3-auto-merge": "unpromoted", "C3-ai-review-blocking": "promoted" },
     "C3-ai-review-blocking": { "C2-auto-merge": "promoted", "C3-auto-merge": "unpromoted", "C3-ai-review-blocking": "unpromoted" },
@@ -189,7 +164,6 @@ describe("demoted", () => {
   });
 
   test("a contrary event before ratified_at is ignored", cli, () => {
-    // evidence-stale.json reverts C2 at 2026-06-15, before its 2026-06-30 ratification.
     const result = resolveWith({ promotion_evidence_source: join(FIXTURES, "evidence-stale.json") });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("promoted"));
@@ -202,7 +176,6 @@ describe("demoted", () => {
     assert.deepEqual(effective(result), ALL("unpromoted"));
   });
 
-  // Every cell ratified after the restart has re-earned its promotion.
   test("--window-start before every ratification leaves the cells re-earned from fresh evidence promoted", cli, () => {
     const result = resolveWith({ ...BOUND, promotion_evidence_source: published().path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
     assert.equal(result.failClosedReason, null);
@@ -219,8 +192,6 @@ describe("demoted", () => {
     assertFailClosed(result, staleReason({ path, generatedAt }));
   });
 
-  // A re-earn counted from the demotion record's creation lifts the resolver's restart failure at
-  // that same instant; one counted from before it does not.
   const reearnEvents = (since) => CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since }));
   const reearned = (since) => published(0, reearnEvents(since)).path;
 
@@ -252,15 +223,12 @@ describe("forged value", () => {
   test("a lane-chosen checker or binding passed as an argument is a usage error", cli, () => {
     const printed = ["Effective promotion state (evaluation mode):", ...CELLS.map((c) => `- ${c}: bound promoted -> effective promoted`)];
     const stub = writeJson(`console.log(${JSON.stringify(printed.join("\n"))});\n`, "stub-checker.mjs");
-    // The operator's own source would demote everything; the stub would promote everything.
     const contrary = events(...CELLS.map((cell) => ({ cell, event: "gate-failure", at: IN_EPOCH })));
     writeFileSync(userSettings, settingsFor(operatorOptions({ promotion_evidence_source: contrary })));
     assertFailClosed(runResolver({ args: ["--checker", stub] }), /^usage: .*checker/);
     assertFailClosed(runResolver({ args: ["--binding", PROMOTED_BINDING] }), /^usage: .*binding/);
   });
 
-  // Each channel alone offers a complete promoting configuration (the same values the promoted
-  // case uses); with no operator settings the resolver must read every option as unset.
   const forged = operatorOptions();
   const channels = {
     "the CLAUDE_PLUGIN_OPTION_* env mirror": () => ({
@@ -297,8 +265,6 @@ describe("forged value", () => {
     });
   }
 
-  // A probe root outside the checkout holding a real copy of the transcript, plus the same
-  // transcript outside that root.
   const probe = join(ops, "probe");
   const outside = join(ops, "outside");
   mkdirSync(join(probe, "probe-transcripts"), { recursive: true });
@@ -355,7 +321,6 @@ describe("missing value", () => {
 
   test("an events file that is not an array fails closed", cli, () => {
     const notArray = writeJson({ cell: "C2-auto-merge", event: "gate-failure", at: IN_EPOCH });
-    // The checker reports the source unavailable; the resolver does not parse that line as a cell.
     assertFailClosed(resolveWith({ promotion_evidence_source: notArray }), /^checker line did not parse: - evidence source .* unavailable/);
     assertFailClosed(resolveWith({ promotion_evidence_source: notArray }, { args: ["--window-start", "2026-10-11T07:00:00Z"] }), /is not a JSON array/);
   });

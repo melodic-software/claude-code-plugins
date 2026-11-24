@@ -215,9 +215,6 @@ fi
 strict_skips=0
 jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
-# The default is 0/1 rather than unset, so an explicit `--shard ""` (an
-# environment variable that expanded to nothing) is rejected instead of
-# silently running every suite on every leg.
 shard_spec="0/1"
 suites_from=""
 budget=""
@@ -277,8 +274,6 @@ if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
   exit 2
 fi
-# require_positive_ints <name:value>...: exit 2 naming the first value that is
-# not a positive integer.
 require_positive_ints() {
   local v
   for v in "$@"; do
@@ -319,7 +314,6 @@ if ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
   exit 2
 fi
-# Resolved BEFORE the cd below, so a relative path means what the caller meant.
 if [[ -n "$suites_from" ]]; then
   if [[ ! -f "$suites_from" ]]; then
     echo "error: --suites-from file not found: $suites_from" >&2
@@ -357,10 +351,6 @@ declare -A discovered=()
 for t in "${tests[@]}"; do
   discovered["$t"]=1
 done
-# read_suite_list <file> <assoc-name>: the serial and advisory lists, one
-# repo-relative suite path per line, `#` comments and blank lines ignored. Read
-# before anything runs so a stale entry fails the run up front rather than
-# after minutes of suites.
 read_suite_list() {
   local file="$1" line entries=()
   local -n into="$2"
@@ -379,8 +369,6 @@ declare -A is_serial=() is_advisory=()
 read_suite_list "$SERIAL_LIST" is_serial
 read_suite_list "$ADVISORY_LIST" is_advisory
 [[ "${PLUGIN_TEST_ADVISORY:-}" == 1 ]] || is_advisory=()
-# The exceptions list: one `<suite> <ceiling-seconds>` row per suite, with the
-# same stale guard.
 declare -A exception_ceiling=()
 if [[ -f "$EXCEPTIONS_LIST" ]]; then
   while read -r path secs extra || [[ -n "$path" ]]; do
@@ -396,10 +384,6 @@ if [[ -f "$EXCEPTIONS_LIST" ]]; then
     exception_ceiling["$path"]="$secs"
   done <"$EXCEPTIONS_LIST"
 fi
-# The supplied selection replaces the discovered corpus HERE: after the stale
-# guard, so the allowlist is still matched against the full discovery, and
-# before the shard, so --suites-from and --shard compose the way --shard alone
-# always did.
 if [[ -n "$suites_from" ]] || ((${#named_suites[@]} > 0)); then
   supplied=()
   if [[ -n "$suites_from" ]]; then
@@ -425,8 +409,6 @@ if [[ -n "$suites_from" ]] || ((${#named_suites[@]} > 0)); then
   fi
   tests=("${supplied[@]}")
 fi
-# The partition, AFTER the stale guard so an allowlist entry that lands on
-# another leg is still matched against the full discovery.
 if ((shard_total > 1)); then
   leg=()
   for ((si = shard_index; si < ${#tests[@]}; si += shard_total)); do
@@ -444,10 +426,6 @@ parallel_suites=()
 suite_keys=()
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
-  # One key per suite, reused by the dispatch below and by the summary loop so
-  # both address the same capture. Assigned BY INDEX rather than appended: the
-  # key has to follow the position in `tests`, and an append would only agree
-  # with that while the array stays dense.
   suite_keys[i]="$(printf '%06d' "$i")"
   if [[ -n "${is_serial[$t]+x}" ]]; then
     serial_suites+=("${suite_keys[$i]}:$t")
@@ -456,16 +434,12 @@ for i in "${!tests[@]}"; do
   fi
 done
 
-# Longest first, as scripts/selection-audit.sh orders its traces. The sort is
-# stable, so unlisted suites (0 s) keep their order. Each entry keeps its key,
-# so the summary still reads in corpus order.
 if ((${#parallel_suites[@]} > 1)) && [[ -s "$SECONDS_LIST" ]]; then
   mapfile -t parallel_suites < <(printf '%s\n' "${parallel_suites[@]}" |
     awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { p = $0; sub(/^[0-9]+:/, "", p); print (p in s ? s[p] : 0) "\t" $0 }' "$SECONDS_LIST" - |
     sort -s -t $'\t' -k1,1nr | cut -f2-)
 fi
 
-# suite_share <suite>: its median times the margin, floored at the default.
 declare -A median=()
 if [[ -n "$budget" && -s "$SECONDS_LIST" ]]; then
   while read -r path secs _; do

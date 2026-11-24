@@ -70,10 +70,6 @@ reset_fixture() {
   write_registry
 }
 
-# write_registry [surface ...] -- the Implementers table the validator reads as
-# the set of plugins owning tracked consumer config. Called with no
-# arguments it still carries one unrelated row, so an empty table is only ever
-# asserted deliberately.
 write_registry() {
   mkdir -p "$TMP/docs/contracts/config-cascade"
   {
@@ -100,8 +96,6 @@ write_registry() {
   } >"$TMP/docs/contracts/config-cascade/README.md"
 }
 
-# make_plugin <name> <user-config-keys> -- an empty string declares no
-# userConfig at all.
 make_plugin() {
   local plugin="$1" keys="$2" user_config='' key first=1
   mkdir -p "$TMP/plugins/$plugin/.claude-plugin"
@@ -116,7 +110,6 @@ make_plugin() {
     "$plugin" "$user_config" >"$TMP/plugins/$plugin/.claude-plugin/plugin.json"
 }
 
-# write_setup_skill <plugin> <argument-hint> [disable-model-invocation value] -- body arrives on stdin.
 write_setup_skill() {
   local plugin="$1" hint="$2" disabled="${3:-true}"
   mkdir -p "$TMP/plugins/$plugin/skills/setup"
@@ -132,8 +125,6 @@ write_setup_skill() {
   } >"$TMP/plugins/$plugin/skills/setup/SKILL.md"
 }
 
-# The conforming carve-out body: check-only, naming the native userConfig
-# surface, exactly as the five shipping carve-out skills word it.
 carve_out_body() {
   cat <<'BODY'
 ## Purpose
@@ -146,8 +137,6 @@ BODY
 
 run_fixture() { (cd "$TMP" && node "$SUT" 2>&1); }
 
-# --- 1. Conforming carve-out: no apply, declares it, userConfig-backed, not a
-#        registered tracked-config owner -> no carve-out failure. ------------
 reset_fixture
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
@@ -160,8 +149,6 @@ else
   ok "a conforming userConfig-only carve-out passes the carve-out assertions"
 fi
 
-# --- 1b. A setup skill must disable model invocation, in any spelling
-#         check-skill.sh accepts; false and an unknown value still fail. --------
 SETUP_NOT_DISABLED='setup skills must set disable-model-invocation: true'
 for spelling in true yes YES on 1 'true # class (ii)'; do
   reset_fixture
@@ -201,9 +188,6 @@ else
   fail "a registered tracked-config owner should not reach the carve-out: $out"
 fi
 
-# --- 2b. The registry names a surface whose owning plugin is listed alongside
-#         it, the shape the shipping "`standards` (`planning`, `review`)" row
-#         takes. Every backticked token in the cell is an owner. -------------
 reset_fixture
 mkdir -p "$TMP/docs/contracts/config-cascade"
 {
@@ -224,10 +208,6 @@ else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
 fi
 
-# --- 2c. The registry moved to docs/contracts/config-cascade/ and left a stub
-#         with no Implementers table at docs/conventions/config-cascade/. The
-#         moved file is read: alpha is a registered owner, and the stub raises
-#         no missing-section failure. ---------------------------------------
 reset_fixture
 write_registry alpha
 mkdir -p "$TMP/docs/contracts"
@@ -244,8 +224,6 @@ else
   fail "the moved registry should be read, not the stub: $out"
 fi
 
-# --- 3. Mentioning apply in prose is not a carve-out declaration:
-#        a carve-out-shaped skill whose body only mentions apply in prose. ---
 reset_fixture
 make_plugin alpha alpha_api_key
 write_setup_skill alpha '[check]' <<'BODY'
@@ -260,7 +238,6 @@ else
   fail "an undeclared carve-out shape should fail the gate: $out"
 fi
 
-# --- 3b. Advertising apply in argument-hint without documenting it. --------
 reset_fixture
 write_registry alpha
 make_plugin alpha alpha_api_key
@@ -277,7 +254,6 @@ else
   fail "an advertised-but-undocumented apply should fail the gate: $out"
 fi
 
-# --- 4. A userConfig-only claim the manifest does not back. -----------------
 reset_fixture
 make_plugin alpha ''
 carve_out_body | write_setup_skill alpha '[check]'
@@ -288,7 +264,6 @@ else
   fail "an unbacked userConfig-only claim should fail the gate: $out"
 fi
 
-# --- 4b. The same gap under the doctrine's own wording, not the one phrase. -
 reset_fixture
 make_plugin alpha ''
 write_setup_skill alpha '[check]' <<'BODY'
@@ -303,7 +278,6 @@ else
   fail "a native-userConfig-surface claim with no userConfig should fail: $out"
 fi
 
-# --- 4c. A check-only skill that names userConfig only to deny it. ----------
 reset_fixture
 make_plugin alpha ''
 write_setup_skill alpha '[check]' <<'BODY'
@@ -318,8 +292,6 @@ else
   ok "a check-only skill that says it has no userConfig is not an unbacked claim"
 fi
 
-# --- 5. Inverse: the narrow-write shape is untouched by the carve-out
-#        assertions, even for a registered tracked-config owner. -------------
 reset_fixture
 write_registry beta
 make_plugin beta ''
@@ -338,8 +310,6 @@ else
   ok "a narrow-write setup skill owning tracked config passes the carve-out assertions"
 fi
 
-# --- 6. The registry is an input, so losing it fails loudly rather than
-#        degrading the carve-out check into a no-op. -------------------------
 reset_fixture
 rm -rf "$TMP/docs"
 make_plugin alpha alpha_api_key
@@ -351,7 +321,6 @@ else
   fail "a missing registry should fail rather than silently skip: $out"
 fi
 
-# --- 7. Present but restructured: the Implementers section is gone. ---------
 reset_fixture
 mkdir -p "$TMP/docs/contracts/config-cascade"
 printf '# Consumer config cascade (fixture)\n\nNo Implementers section here.\n' \
@@ -365,10 +334,7 @@ else
   fail "a restructured registry should fail rather than silently skip: $out"
 fi
 
-# --- 8. Present and structured, but the table names nothing. ----------------
 reset_fixture
-# Drop the one unrelated row's section so the Implementers table is genuinely
-# empty rather than merely narrow.
 mkdir -p "$TMP/docs/contracts/config-cascade"
 {
   echo '# Consumer config cascade (fixture)'
@@ -386,14 +352,6 @@ if has_fail_line "$REGISTRY_EMPTY"; then
 else
   fail "an empty registry table should fail rather than silently skip: $out"
 fi
-
-# ===========================================================================
-# Retired-conventions manifests (plugins/<plugin>/retirements.yaml).
-#
-# Same discipline: each case asserts one specific failure line. The fixture
-# helper at plugins/harness-config/lib/check-retirements.sh is a placeholder;
-# the validator checks only identity with the per-plugin copy, never content.
-# ===========================================================================
 
 R_UNKNOWN_KEY='unknown key "'
 R_BAD_ENUM='"kind" must be one of file, dir, line'
@@ -414,8 +372,6 @@ R_FIELD_CHANGED='changed since HEAD; records are append-only'
 R_BASE_UNRESOLVED='does not resolve to a commit'
 R_SKIPPED='VALIDATE_CONTRACTS_BASE_REF unset; retirements append-only check skipped'
 
-# Every failure line the retirements section can emit, for the "none of them"
-# assertion on the conforming fixture.
 retirement_failure_lines() {
   grep -E "retirements\.yaml: |check-retirements\.sh|retirement record|ships no retirements" <<<"$out" | grep -E '^- ' || true
 }
@@ -426,19 +382,16 @@ write_canonical_helper() {
     >"$TMP/plugins/harness-config/lib/check-retirements.sh"
 }
 
-# sync_helper <plugin> -- the per-plugin byte-identical copy.
 sync_helper() {
   mkdir -p "$TMP/plugins/$1/lib"
   cp "$TMP/plugins/harness-config/lib/check-retirements.sh" "$TMP/plugins/$1/lib/check-retirements.sh"
 }
 
-# write_manifest <plugin> -- manifest body arrives on stdin.
 write_manifest() {
   mkdir -p "$TMP/plugins/$1"
   cat >"$TMP/plugins/$1/retirements.yaml"
 }
 
-# write_evals <plugin> <id ...> -- one eval case naming every id given.
 write_evals() {
   local plugin="$1"
   shift
@@ -492,8 +445,6 @@ status: report-only
 YAML
 }
 
-# The full conforming shape: manifest + synced helper + referencing setup
-# skill + evals naming both ids.
 conforming_retirements_fixture() {
   reset_fixture
   write_canonical_helper
@@ -504,7 +455,6 @@ conforming_retirements_fixture() {
   write_evals alpha alpha-r001 alpha-r002
 }
 
-# --- R1. Conforming manifest raises none of the retirements failures. -------
 conforming_retirements_fixture
 out="$(run_fixture)"
 if [[ -z "$(retirement_failure_lines)" ]] && grep -q "$R_SKIPPED" <<<"$out"; then
@@ -513,7 +463,6 @@ else
   fail "a conforming retirements fixture should raise no retirements failure: $out"
 fi
 
-# --- R2. Malformed manifests, one rule each. --------------------------------
 malformed_case() {
   local title="$1" needle="$2"
   conforming_retirements_fixture
@@ -704,7 +653,6 @@ action: migrate
 note: one line
 YAML
 
-# --- R3. Helper copy missing. -----------------------------------------------
 conforming_retirements_fixture
 rm "$TMP/plugins/alpha/lib/check-retirements.sh"
 out="$(run_fixture)"
@@ -714,7 +662,6 @@ else
   fail "a missing helper copy should fail: $out"
 fi
 
-# --- R3b. Helper copy drifted by one byte. ----------------------------------
 conforming_retirements_fixture
 printf '\n' >>"$TMP/plugins/alpha/lib/check-retirements.sh"
 out="$(run_fixture)"
@@ -724,7 +671,6 @@ else
   fail "a drifted helper copy should fail: $out"
 fi
 
-# --- R3c. The canonical helper itself is gone. ------------------------------
 conforming_retirements_fixture
 rm "$TMP/plugins/harness-config/lib/check-retirements.sh"
 out="$(run_fixture)"
@@ -734,7 +680,6 @@ else
   fail "a missing canonical helper should fail: $out"
 fi
 
-# --- R4. Setup skill does not reference the helper. -------------------------
 conforming_retirements_fixture
 write_setup_skill alpha '[check|apply]' <<'BODY'
 ## Purpose
@@ -748,7 +693,6 @@ else
   fail "a setup skill not referencing the helper should fail: $out"
 fi
 
-# --- R5. Inverse wiring: helper referenced, no manifest. --------------------
 reset_fixture
 write_canonical_helper
 make_plugin beta ''
@@ -760,7 +704,6 @@ else
   fail "a dangling helper reference should fail: $out"
 fi
 
-# --- R5b. Inverse wiring: helper copy carried, no manifest. -----------------
 reset_fixture
 write_canonical_helper
 make_plugin beta ''
@@ -772,8 +715,6 @@ else
   fail "a dangling helper copy should fail: $out"
 fi
 
-# --- R5c. harness-config is the canonical home: its copy and reference stand
-#          without a manifest. -----------------------------------------------
 reset_fixture
 write_canonical_helper
 make_plugin harness-config ''
@@ -785,7 +726,6 @@ else
   ok "harness-config carries the helper and references it without a manifest"
 fi
 
-# --- R6. Evals: one id uncovered; evals.json missing; suite-case coverage. --
 conforming_retirements_fixture
 write_evals alpha alpha-r001
 out="$(run_fixture)"
@@ -814,16 +754,12 @@ else
   fail "ids covered nowhere should fail by id, naming both places: $out"
 fi
 
-# write_suite_case <plugin> <case> -- case.yaml arrives on stdin; prompt.md is
-# the optional third argument.
 write_suite_case() {
   mkdir -p "$TMP/plugins/$1/evals/$2"
   cat >"$TMP/plugins/$1/evals/$2/case.yaml"
   if [[ -n "${3:-}" ]]; then printf '%s\n' "$3" >"$TMP/plugins/$1/evals/$2/prompt.md"; fi
 }
 
-# Suite-only coverage: no evals.json; one id in a prompt.md body, the other in
-# a grader pattern.
 conforming_retirements_fixture
 rm -rf "$TMP/plugins/alpha/skills/setup/evals"
 write_suite_case alpha setup-check-retired-cache \
@@ -843,8 +779,6 @@ else
   fail "a prompt.md body and a grader pattern should cover the ids: $out"
 fi
 
-# An id named only in descriptions (case.yaml, a grader's, prompt.md
-# frontmatter) is not covered: authors list dropped expectations there.
 conforming_retirements_fixture
 rm -rf "$TMP/plugins/alpha/skills/setup/evals"
 write_suite_case alpha setup-check-retired-cache \
@@ -867,9 +801,6 @@ else
   fail "a description-only id should fail, and the prompt.md id should not: $out"
 fi
 
-# Description-stripper shapes. Each fixture has no evals.json, one case
-# covering alpha-r001 in its prompt body, and a probe case whose case.yaml
-# (stdin) is the only place alpha-r002 can be named.
 r002_fixture() {
   conforming_retirements_fixture
   rm -rf "$TMP/plugins/alpha/skills/setup/evals"
@@ -1100,7 +1031,6 @@ printf '\xef\xbb\xbf---\ndescription: "alpha-r002 dropped"\n---\n\nRun /alpha:se
   >"$TMP/plugins/alpha/evals/probe/prompt.md"
 r002_uncovered "a BOM-prefixed prompt.md with the id only in frontmatter is not covered"
 
-# Legacy and suite sources combine: one id per source.
 conforming_retirements_fixture
 write_evals alpha alpha-r001
 write_suite_case alpha setup-migrate-config 'Run /alpha:setup apply; alpha-r002 is planted.' <<'YAML'
@@ -1114,7 +1044,6 @@ else
   fail "coverage split across evals.json and a suite case should pass: $out"
 fi
 
-# Invalid evals.json still fails, and its cases cover nothing.
 conforming_retirements_fixture
 printf '{not json\n' >"$TMP/plugins/alpha/skills/setup/evals/evals.json"
 out="$(run_fixture)"
@@ -1125,12 +1054,7 @@ else
   fail "an invalid evals.json should fail and leave its ids uncovered: $out"
 fi
 
-# --- R7. Append-only against a git base. ------------------------------------
-# The fixture root becomes its own repository: commit the conforming manifest,
-# mutate the working tree, run with the base ref pointed at HEAD.
 run_fixture_with_base() { (cd "$TMP" && VALIDATE_CONTRACTS_BASE_REF="$1" node "$SUT" 2>&1); }
-# The one identity spelling, from the harness this suite already sources
-# through lib/fixture-tree.sh.
 fixture_git() { git_test_config "$TMP" "$@"; }
 commit_fixture() {
   rm -rf "$TMP/.git"
@@ -1139,7 +1063,6 @@ commit_fixture() {
   fixture_git commit -q -m fixture
 }
 
-# A record deleted since base.
 conforming_retirements_fixture
 commit_fixture
 valid_manifest | sed '/^id: alpha-r002$/,$d' | write_manifest alpha
@@ -1150,7 +1073,6 @@ else
   fail "a deleted record should fail append-only: $out"
 fi
 
-# A frozen field rewritten on an existing id.
 conforming_retirements_fixture
 commit_fixture
 valid_manifest | sed 's|^path: \.gitignore$|path: .git-ignore|' | write_manifest alpha
@@ -1161,7 +1083,6 @@ else
   fail "a rewritten frozen field should fail naming it: $out"
 fi
 
-# The legal inverse: status flip plus a note fix, plus a brand-new record.
 conforming_retirements_fixture
 commit_fixture
 {
@@ -1185,7 +1106,6 @@ else
   ok "a status flip, a note fix, and an appended record pass the append-only check"
 fi
 
-# The whole manifest deleted since base.
 conforming_retirements_fixture
 commit_fixture
 rm "$TMP/plugins/alpha/retirements.yaml"
@@ -1196,8 +1116,6 @@ else
   fail "a deleted manifest should fail append-only: $out"
 fi
 
-# A base ref that does not resolve fails rather than skipping. This failure is
-# global, not tied to a file, so its line has no `path: ` prefix.
 conforming_retirements_fixture
 commit_fixture
 out="$(run_fixture_with_base no-such-ref)"
@@ -1208,19 +1126,12 @@ else
 fi
 rm -rf "$TMP/.git"
 
-# --- S. Agent `skills:` preload resolution, and the return-contract copies. --
-#
-# A `skills:` entry that does not resolve is skipped silently by the harness, so
-# neither the run nor its artifact shows the discipline went missing. These
-# fixtures prove the gate goes red on the three ways that happens on disk, and
-# stays green on the two entry forms that resolve.
 SKILLS_UNRESOLVED='resolves to no SKILL.md'
 SKILLS_DISABLED='cannot be preloaded'
 SKILLS_MALFORMED='must be a YAML list of skill names'
 CONTRACT_DRIFT='must remain byte-identical to plugins/discovery/skills/report/SKILL.md'
 CONTRACT_MISSING_COPY='every preloading plugin must ship the return contract'
 
-# write_preloadable_skill <plugin> <skill> <disable-model-invocation-value>
 write_preloadable_skill() {
   local plugin="$1" skill="$2" disabled="$3"
   mkdir -p "$TMP/plugins/$plugin/skills/$skill"
@@ -1235,8 +1146,6 @@ write_preloadable_skill() {
   } >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
-# write_agent <plugin> <agent> -- the frontmatter `skills:` block arrives on
-# stdin, so a case can hand over a malformed shape as easily as a list.
 write_agent() {
   local plugin="$1" agent="$2"
   mkdir -p "$TMP/plugins/$plugin/agents"
@@ -1251,7 +1160,6 @@ write_agent() {
   } >"$TMP/plugins/$plugin/agents/$agent.md"
 }
 
-# write_contract_copy <plugin> <skill-body> -- the return-contract pair.
 write_contract_copy() {
   local plugin="$1" body="$2"
   mkdir -p "$TMP/plugins/$plugin/skills/report/evals"
@@ -1268,7 +1176,6 @@ write_contract_copy() {
     >"$TMP/plugins/$plugin/skills/report/evals/evals.json"
 }
 
-# S1. A `skills:` entry naming a skill that is not on disk.
 reset_fixture
 make_plugin alpha ''
 write_preloadable_skill alpha explore false
@@ -1285,7 +1192,6 @@ else
   fail "an unresolvable skills: entry should fail the gate: $out"
 fi
 
-# S2. The entry resolves, but the target cannot be preloaded at all.
 reset_fixture
 make_plugin alpha ''
 write_preloadable_skill alpha explore true
@@ -1300,7 +1206,6 @@ else
   fail "a disable-model-invocation preload target should fail the gate: $out"
 fi
 
-# S2b. The guard covers every spelling check-skill.sh reads as true, and only those.
 for spelling in yes ON 1 'true # class (i)'; do
   reset_fixture
   make_plugin alpha ''
@@ -1332,9 +1237,6 @@ YAML
   fi
 done
 
-# S3. The namespaced form resolves ACROSS plugins, which is the form in
-#     production. Asserted as the absence of the failure, since a fixture root
-#     always trips the unrelated repo-wide checks.
 reset_fixture
 make_plugin alpha ''
 make_plugin beta ''
@@ -1350,9 +1252,6 @@ else
   ok "the namespaced \`plugin:skill\` form resolves to the named plugin's skill"
 fi
 
-# S3b. A bare entry resolves inside the agent's OWN plugin, not the first plugin
-#      carrying that leaf. beta also ships `thing`, so a resolver reaching for
-#      the wrong root would still pass; alpha's own copy is what must be found.
 reset_fixture
 make_plugin alpha ''
 make_plugin beta ''
@@ -1369,8 +1268,6 @@ else
   ok "a bare \`skills:\` entry resolves against the agent's own plugin"
 fi
 
-# S4. A `skills:` key in a shape the reader does not parse fails rather than
-#     silently checking nothing.
 reset_fixture
 make_plugin alpha ''
 write_preloadable_skill alpha explore false
@@ -1384,7 +1281,6 @@ else
   fail "a malformed skills: key should fail the gate: $out"
 fi
 
-# S5. The three return-contract copies must stay byte-identical.
 reset_fixture
 write_contract_copy discovery 'The canonical contract text.'
 write_contract_copy implementation 'The canonical contract text.'
@@ -1396,7 +1292,6 @@ else
   ok "three byte-identical return-contract copies pass the copy assertions"
 fi
 
-# S5b. One copy drifts by one word.
 reset_fixture
 write_contract_copy discovery 'The canonical contract text.'
 write_contract_copy implementation 'The canonical contract text.'
@@ -1409,7 +1304,6 @@ else
   fail "a drifted return-contract copy should fail the gate: $out"
 fi
 
-# S5c. A plugin that ships no copy at all is a missing copy, not a silent pass.
 reset_fixture
 write_contract_copy discovery 'The canonical contract text.'
 write_contract_copy implementation 'The canonical contract text.'
@@ -1421,20 +1315,11 @@ else
   fail "a missing return-contract copy should fail the gate: $out"
 fi
 
-# ===========================================================================
-# Agent definitions name a model (plugins/<plugin>/agents/*.md).
-#
-# Each case asserts on a failure line that names the one agent file under
-# test, so an unrelated fixture failure can neither satisfy nor mask it.
-# ===========================================================================
-
 A_NO_MODEL='agent definitions must name a model'
 A_BARE_INHERIT='model: inherit needs a trailing'
 A_DUPLICATE='model: appears more than once'
 A_MALFORMED='model: line is malformed'
 
-# make_agent <plugin> <name> <frontmatter-model-line-or-empty> -- an empty
-# third argument writes no model line at all.
 make_agent() {
   local plugin="$1" name="$2" model_line="$3"
   mkdir -p "$TMP/plugins/$plugin/agents"
@@ -1451,12 +1336,10 @@ make_agent() {
   } >"$TMP/plugins/$plugin/agents/$name.md"
 }
 
-# agent_fail_line <name> <needle> -- a failure line for that agent file.
 agent_fail_line() {
   grep -qE "^- .*agents[/\\\\]$1\.md: .*$2" <<<"$out"
 }
 
-# agent_any_fail <name> -- any model failure line for that agent file.
 agent_any_fail() {
   agent_fail_line "$1" "$A_NO_MODEL" || agent_fail_line "$1" "$A_BARE_INHERIT" ||
     agent_fail_line "$1" "$A_DUPLICATE" || agent_fail_line "$1" "$A_MALFORMED"
@@ -1636,8 +1519,6 @@ else
   fail "a # glued to the value should fail as malformed: $out"
 fi
 
-# write_arg_body <plugin> <skill> <hint-or-dash-to-omit> -- body on stdin.
-# Hint "-" omits argument-hint. The frontmatter always carries description.
 write_arg_body() {
   local plugin="$1" skill="$2" hint="$3"
   mkdir -p "$TMP/plugins/$plugin/skills/$skill"
@@ -1774,7 +1655,6 @@ else
   ok "a 100-character argument-hint is inside the budget"
 fi
 
-# shape<TAB>the reason the warning must name.
 while IFS=$'\t' read -r shape reason; do
   hint_case bad "$shape"
   if grep -qF "hintfix/skills/bad/SKILL.md: $HINT_MALFORMED: $reason ($HINT_DOC)" <<<"$out" &&
@@ -1812,7 +1692,6 @@ check|apply	alternatives outside [] or <>
 <path>…	… not closing a shortened set
 SHAPES
 
-# A literal flag named like a placeholder is not a slot name.
 hint_case flag "[--mode <name>] [--options <file>]"
 if grep -q "hintfix/skills/flag/SKILL.md.*placeholder" <<<"$out"; then
   fail "a literal --mode flag is not a placeholder slot: $out"
@@ -1820,7 +1699,6 @@ else
   ok "a literal --mode or --options flag is not a placeholder slot"
 fi
 
-# --- 8e. The setup hint leads with [check or <check. ------------------------
 LEADING_CHECK='must declare check as the leading action'
 for good in '[check]' '[check|apply]' '<check|apply> [remove]' '[check] [verify-api]'; do
   reset_fixture
@@ -1904,8 +1782,6 @@ else
   fail "the line after a closed tilde fence should be checked: $out"
 fi
 
-# The scan starts after the closing frontmatter delimiter, so a frontmatter
-# value ending in a fence marker cannot open a fence in the body.
 reset_fixture
 make_plugin hintfix ""
 mkdir -p "$TMP/plugins/hintfix/skills/fmfence"
@@ -1918,18 +1794,14 @@ else
   fail "frontmatter ending in a fence marker should not hide the Arguments line: $out"
 fi
 
-# --- 8e. Plugin names and option text. --------------------------------------
-# displayName fails; each title and description shape warns on its own line.
 OPT_DOC='docs/contracts/plugin-option-naming/README.md'
 
-# write_plugin_manifest <plugin> <extra-json-members> -- written verbatim after description.
 write_plugin_manifest() {
   mkdir -p "$TMP/plugins/$1/.claude-plugin"
   printf '{"version": "0.1.0",\n"name": "%s",\n"description": "fixture"%s}\n' "$1" "$2" \
     >"$TMP/plugins/$1/.claude-plugin/plugin.json"
 }
 
-# option_case <type> <title> <description> -- one option "opt" on plugin optfix.
 option_case() {
   reset_fixture
   write_plugin_manifest optfix ", \"userConfig\": {\"opt\": {\"type\": \"$1\", \"title\": \"$2\", \"description\": \"$3\"}}"
@@ -1957,7 +1829,6 @@ else
   fail "a displayName in a marketplace entry should fail for that entry only: $out"
 fi
 
-# type<TAB>title<TAB>description: each conforming option draws nothing.
 while IFS=$'\t' read -r type title description; do
   option_case "$type" "$title" "$description"
   if grep -q 'optfix' <<<"$out"; then
@@ -1977,7 +1848,6 @@ boolean	Block-Windows-drive-tmp guard	A proper noun after the first word.
 string	Allow-list	Permits ps-unparsable-* tokens and a bare * alone.
 GOOD
 
-# type<TAB>title<TAB>description<TAB>the problem the warning must name.
 while IFS=$'\t' read -r type title description problem; do
   option_case "$type" "$title" "$description"
   if grep -qF "warning: plugins/optfix/.claude-plugin/plugin.json: userConfig \"opt\" $problem ($OPT_DOC)" <<<"$out" &&
@@ -2005,8 +1875,6 @@ string	Output directory	See [the docs](https://x.test).	description contains a m
 string	Output directory	Where files go — always.	description contains an em dash
 SHAPES
 
-# Opens with the plugin name: the plugin is "opt-fix", so the hyphen and space
-# spellings are compared alike.
 reset_fixture
 mkdir -p "$TMP/plugins/opt-fix/.claude-plugin"
 printf '{"name": "opt-fix", "userConfig": {"opt": {"type": "string", "title": "Opt fix mode"}}}\n' \
@@ -2018,7 +1886,6 @@ else
   fail "a title opening with the plugin name spelled with a space should warn: $out"
 fi
 
-# A boolean word in a non-boolean title is not the boolean rule's business.
 option_case string "Toggle key" "A key."
 if grep -q 'boolean title uses' <<<"$out"; then
   fail "a non-boolean title should not draw the boolean-word warning: $out"
@@ -2040,7 +1907,6 @@ else
   ok "a 300-character description is inside the budget"
 fi
 
-# One key, one title: the same key under two titles warns once, naming both.
 reset_fixture
 write_plugin_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
 write_plugin_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output folder"}}'
@@ -2062,7 +1928,6 @@ else
   ok "a key carrying the same title across plugins is silent"
 fi
 
-# --- 8f. claude.ai marketplace sync limits. ---------------------------------
 reset_fixture
 write_plugin_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
 long="$(printf 'a%.0s' {1..501})"
@@ -2078,10 +1943,6 @@ else
   fail "claude.ai manifest limits should fail as stated: $out"
 fi
 
-# --- 8g. "version" never touches "description". ------------------------------
-# A nested "description" (a userConfig option's) next to "version" is not the
-# manifest's own, so it does not count; neither does a nested manifest (an eval
-# fixture), which is never released.
 reset_fixture
 mkdir -p "$TMP/plugins/adjfix/.claude-plugin" "$TMP/plugins/samefix/.claude-plugin" "$TMP/plugins/nestfix/.claude-plugin" \
   "$TMP/plugins/gapfix/evals/case/.claude-plugin"
@@ -2103,7 +1964,6 @@ else
   fail "touching version and description lines should fail, and only those: $out"
 fi
 
-# write_skill <relative-path> <content>
 write_skill() {
   mkdir -p "$(dirname "$TMP/plugins/skfix/skills/$1")"
   printf '%s' "$2" >"$TMP/plugins/skfix/skills/$1"
@@ -2133,8 +1993,6 @@ else
   fail "skill limits should fail per file: $out"
 fi
 
-# --- Autonomy changelog fragments carry the plugin's fleet-token ban: release
-#     copies them into plugins/autonomy/CHANGELOG.md. ------------------------
 reset_fixture
 cp "$SCRIPT_DIR/org-agnosticism-tokens.txt" "$TMP/scripts/"
 write_plugin_manifest autonomy ''
@@ -2151,10 +2009,7 @@ else
 fi
 rm -rf "$TMP/.changes" "$TMP/scripts/org-agnosticism-tokens.txt"
 
-# --- 8h. A docs-page pointer in a skill or agent file carries a section anchor:
-#     advisory, with a shrink-only baseline. ----------------------------------
 ANCHOR_FIX='link the section the pointer rests on'
-# write_anchor_file <path under plugins/anchorfix> <content>
 write_anchor_file() {
   mkdir -p "$(dirname "$TMP/plugins/anchorfix/$1")"
   printf '%s\n' "$2" >"$TMP/plugins/anchorfix/$1"
@@ -2195,9 +2050,5 @@ else
   fail "the docs-anchor baseline should silence held counts and fail stale or malformed rows: $out"
 fi
 rm -f "$TMP/scripts/docs-anchor-baseline.txt"
-
-# The shipping tree itself, clean and with zero warnings, is the job of
-# scripts/validate-plugins.sh in check-catalog, which runs this validator over
-# the whole tree on every pull request; run here, it read every plugin file.
 
 test_harness::report

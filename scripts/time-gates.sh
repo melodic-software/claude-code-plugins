@@ -103,7 +103,6 @@ now_us() {
 }
 
 : >"$timings_file" || exit 2
-# time_gate <gate> <command...>: runs the command and appends the gate's row.
 time_gate() {
   local gate="$1" rc=0 start us
   shift

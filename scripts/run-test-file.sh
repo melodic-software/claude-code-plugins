@@ -75,8 +75,6 @@ case ${1##*/} in
       dir=${dir%/*}
     done
     cd -- "$dir" || exit 2
-    # A lane checkout installs no plugin package, so install its lockfile
-    # once, with no install scripts, as scripts/setup-env.sh does at the root.
     if [[ ! -d node_modules && -f package-lock.json ]]; then
       npm ci --ignore-scripts --no-audit --no-fund >&2 || exit
     fi
