@@ -848,8 +848,17 @@ SHA_BASE=4444444444444444444444444444444444444444 SHA_UNTAGGED=33333333333333333
 export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
 $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
-5555555555555555555555555555555555555555	refs/tags/v2
 $SHA_UNTAGGED	refs/heads/main"
+vtags="$TMP_ROOT/vendor-tags"
+vgit() { git -C "$vtags" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false -c tag.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+if git init -q "$vtags" && vgit commit -q --allow-empty -m one && vgit tag v1 && vgit tag v1.0.265 &&
+  vgit commit -q --allow-empty -m two && vgit tag -a -m v2 v2 && vgit tag -a -m v1.0.266 v1.0.266 &&
+  vendor_tags="$(git ls-remote --tags "$vtags")" && grep -q $'\trefs/tags/v2\^{}$' <<<"$vendor_tags"; then
+  STUB_TAGS="$STUB_TAGS
+$vendor_tags"
+else
+  fail "could not list the tags of a throwaway repository with git ls-remote"
+fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
 cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
