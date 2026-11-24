@@ -420,6 +420,59 @@ t_moved_short_lines_still_count() {
   rm -f "$sink"
 }
 
+add_function() {
+  local repo="$1" i
+  {
+    printf 'alpha_guard() {\n'
+    for i in $(seq 1 40); do
+      printf '  the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+    printf '}\n'
+  } >>"$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+}
+
+t_function_moved_with_its_definition_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  add_function "$repo"
+  sed -n '/^alpha_guard() {$/,/^}$/p' "$repo/feature.txt" >"$repo/helpers.txt"
+  sed '/^alpha_guard() {$/,/^}$/d' "$repo/feature.txt" >"$repo/feature.txt.tmp"
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: extract the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "a function moved to a new file with its definition line is not a removal (threshold 20)"
+  else
+    fail "a function extraction must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_body_pasted_elsewhere_without_its_definition_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_function "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" >"$repo/helpers.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a function body pasted into another file without its definition line still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
 # drop_fragments <repo> <consume> -- 31 existing plugin changelogs, a recent
 # commit adding ten-line .changes/ fragments for plugin1..30 (300 lines), then
 # a commit deleting every fragment. consume=yes also appends the fragments to
@@ -2645,6 +2698,8 @@ t_cross_file_move_is_not_a_removal
 t_partial_move_counts_only_the_lines_not_re_added
 t_one_copy_discounts_one_deletion
 t_moved_short_lines_still_count
+t_function_moved_with_its_definition_is_not_a_removal
+t_body_pasted_elsewhere_without_its_definition_still_fires
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
 t_fragments_dropped_beside_another_changelog_still_fire

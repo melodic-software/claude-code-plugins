@@ -831,36 +831,84 @@ run_attributing_git() {
 }
 
 discount_moved_lines() {
-  local parent="$1" sha="$2" attributed="$3" added kept
+  local parent="$1" sha="$2" attributed="$3" added kept headers blob file
+  local -a files
   [[ -s "$attributed" ]] || return 0
   added="$(mktemp)" || die "mktemp failed"
   kept="$(mktemp)" || die "mktemp failed"
+  headers="$(mktemp)" || die "mktemp failed"
+  blob="$(mktemp)" || die "mktemp failed"
   run_attributing_git "$added" \
     "git diff failed listing the lines $sha added" \
     -c core.quotePath=false diff --no-ext-diff --no-textconv --unified=0 --no-color \
     --no-prefix --diff-algorithm=myers -M -l0 "$parent" "$sha" -- .
+  awk -F '\t' '!seen[$2]++ { print $2 }' "$attributed" >"$blob" ||
+    die "awk failed listing the files $sha deleted lines from"
+  mapfile -t files <"$blob"
+  for file in "${files[@]}"; do
+    run_attributing_git "$blob" "git cat-file failed reading $file at $parent" \
+      cat-file blob "$parent:$file"
+    LC_ALL=C awk -v f="$file" '
+      /^[[:space:]]*$/ { next }
+      {
+        match($0, /^[ \t]*/)
+        while (depth > 0 && indent[depth] >= RLENGTH) depth--
+        printf "%s\t%d\t%d\n", f, FNR, (depth > 0 ? line[depth] : 0)
+        indent[++depth] = RLENGTH
+        line[depth] = FNR
+      }
+    ' "$blob" >>"$headers" || die "awk failed reading the blocks of $file at $parent"
+  done
   LC_ALL=C awk -v min="$MOVED_LINE_MIN_LEN" '
     function long_enough(line) {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
       return length(line) >= min
     }
+    function moved_to(f, ln, p,   h) {
+      if (!((f, ln) in deleted) || !((deleted[f, ln], p) in added_at)) return 0
+      h = header[f, ln]
+      return h == 0 ? 1 : moved_to(f, h, p)
+    }
     FILENAME == ARGV[1] {
-      if (/^diff --git /) { in_header = 1; path = ""; next }
+      if (/^diff --git /) { in_header = 1; path = ""; old = ""; next }
       if (in_header) {
-        if (/^\+\+\+ /) {
+        if (/^--- /) {
+          old = substr($0, 5)
+          sub(/\t$/, "", old)
+          if (old == "/dev/null" || substr(old, 1, 1) == "\"") old = ""
+        } else if (/^\+\+\+ /) {
           path = substr($0, 5)
           sub(/\t$/, "", path)
           if (path == "/dev/null" || substr(path, 1, 1) == "\"") path = ""
         } else if (/^@@ /) {
           in_header = 0
         }
+        if (!/^@@ /) next
+      }
+      if (/^@@ /) {
+        split($2, a, ",")
+        old_ln = substr(a[1], 2) + 0
+        next
+      }
+      text = substr($0, 2)
+      if (substr($0, 1, 1) == "-") {
+        if (old != "") {
+          deleted[old, old_ln] = text
+          lines_of[old, text, ++line_count[old, text]] = old_ln
+        }
+        old_ln++
         next
       }
       if (path == "" || substr($0, 1, 1) != "+") next
-      text = substr($0, 2)
+      added_at[text, path] = 1
       if (!long_enough(text)) next
       if (!((text, path) in copies)) paths[text, ++path_count[text]] = path
       copies[text, path]++
+      next
+    }
+    FILENAME == ARGV[2] {
+      split($0, h, "\t")
+      header[h[1], h[2] + 0] = h[3] + 0
       next
     }
     {
@@ -869,16 +917,20 @@ discount_moved_lines() {
       text = substr(rest, index(rest, "\t") + 1)
       for (k = 1; k <= path_count[text]; k++) {
         p = paths[text, k]
-        if (p != file && copies[text, p] > 0) {
+        if (p == file || copies[text, p] <= 0) continue
+        for (j = 1; j <= line_count[file, text]; j++) {
+          ln = lines_of[file, text, j]
+          if (((file, ln) in used) || !moved_to(file, ln, p)) continue
+          used[file, ln] = 1
           copies[text, p]--
           next
         }
       }
       print
     }
-  ' "$added" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
+  ' "$added" "$headers" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
   mv -f "$kept" "$attributed" || die "could not replace the attribution of $sha"
-  rm -f "$added"
+  rm -f "$added" "$headers" "$blob"
 }
 
 # ---------------------------------------------------------------------------
