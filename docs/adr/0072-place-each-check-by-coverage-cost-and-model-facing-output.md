@@ -140,3 +140,11 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
   test suites, plus guardrails `reference-verify` and bash-format `lint-full` where the
   repository has them. Both left `pre-push` for it and also run in CI over the whole pull
   request. CI runs the test suites.
+
+## Addendum (2026-11-24): CI times the git hooks
+
+Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
+durations": when a change touches a hook config or a script a hook entry calls, CI runs each
+configured `pre-commit` and `pre-push` entry on a fixed fixture (a 10-file commit, a two-commit
+push), prints each entry's time in seconds and in S, and fails a hook whose total is over its 3 s
+budget (`scripts/check-git-hook-time-budget.sh`). Nothing kills a hook at run time.
