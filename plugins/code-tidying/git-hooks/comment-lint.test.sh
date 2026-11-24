@@ -263,6 +263,52 @@ got="$(check "$REPO")"
 expect "an allow pattern grep -E rejects blocks, naming the setting" "1|yes" \
   "${got%%|*}|$(grep -q 'comment_lint_allow' <<<"${got#*|}" && echo yes)"
 
+skipped() {
+  printf 'code-tidying: comment lint skipped %s (comment_lint_exclude: %s)' "$1" "$2"
+}
+
+new_repo 'comment_lint: block' 'comment_lint_exclude:' '  - "vendor/pinned/**"'
+stage_fixture shape6.sh.txt vendor/pinned/a.sh
+stage_fixture shape6.sh.txt vendor/pinned/deep/b.sh
+stage_fixture shape6.sh.txt vendor/other.sh
+expect "comment_lint_exclude: a file under the glob is skipped and named, a sibling outside it is judged" \
+  "1|$(skipped vendor/pinned/a.sh 'vendor/pinned/**')
+$(skipped vendor/pinned/deep/b.sh 'vendor/pinned/**')
+$(finding vendor/other.sh 3 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block' 'comment_lint_exclude:' '  - "gen/*.sh"' '  - "a?.sh"'
+stage_fixture shape6.sh.txt gen/a.sh
+stage_fixture shape6.sh.txt gen/sub/b.sh
+stage_fixture shape6.sh.txt ab.sh
+stage_fixture shape6.sh.txt abc.sh
+expect "comment_lint_exclude: * and ? match within one path segment, never across /" \
+  "1|$(skipped ab.sh 'a?.sh')
+$(skipped gen/a.sh 'gen/*.sh')
+$(finding abc.sh 3 necessary)
+$(finding gen/sub/b.sh 3 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block' 'comment_lint_exclude:' '  - "**/x.sh"' '  - "p.q.sh"'
+stage_fixture shape6.sh.txt x.sh
+stage_fixture shape6.sh.txt p/q/x.sh
+stage_fixture shape6.sh.txt pzq.sh
+expect "comment_lint_exclude: **/ matches zero or more segments, and . is literal" \
+  "1|$(skipped p/q/x.sh '**/x.sh')
+$(skipped x.sh '**/x.sh')
+$(finding pzq.sh 3 necessary)" "$(check "$REPO")"
+
+for setting in unset 'comment_lint_exclude:'; do
+  new_repo 'comment_lint: block' "${setting#unset}"
+  stage_fixture shape6.sh.txt vendor/pinned/a.sh
+  expect "comment_lint_exclude ${setting/comment_lint_exclude:/empty}: every file is judged" \
+    "1|$(finding vendor/pinned/a.sh 3 necessary)" "$(check "$REPO")"
+done
+
+new_repo 'comment_lint: block'
+printf 'comment_lint_exclude:\n  - "vendor/**"\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
+stage_fixture shape6.sh.txt vendor/a.sh
+expect "comment_lint_exclude in the personal override is not read" \
+  "1|$(finding vendor/a.sh 3 necessary)" "$(check "$REPO")"
+
 new_repo 'comment_lint: block'
 printf 'x=1\n# loose note\n' >"$REPO/loose.sh"
 expect "--worktree judges an untracked file" "1|$(finding loose.sh 2 necessary)" "$(check "$REPO" --worktree)"

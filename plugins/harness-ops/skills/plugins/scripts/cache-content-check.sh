@@ -301,9 +301,6 @@ spool_records_to() {
 INSTALLED_JSON="${CACHE_CONTENT_INSTALLED_JSON:-${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}}"
 MARKETPLACES_JSON="${CACHE_CONTENT_MARKETPLACES_JSON:-${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}}"
 
-# How many differing paths a stale-content record lists. The count is always
-# exact; the list is a sample, because a wholly-stale directory can differ in
-# every file and a report naming all of them is not a report.
 MAX_REPORTED_PATHS=10
 
 # A shape rejection has to be distinguishable from a legitimate jq result, and
@@ -403,8 +400,6 @@ if [[ "$MODE" == "default" ]]; then
   exit 2
 fi
 
-# --ids projects ONE marketplace's stale-content list; --all's envelope has no
-# single block to project. Refused rather than invented.
 if [[ -n "$IDS_MODE" && "$MODE" == "all" ]]; then
   echo "ERROR: --ids cannot be combined with --all" >&2
   echo "  Run --ids once per marketplace with --marketplace <name>." >&2
@@ -430,8 +425,6 @@ SPOOL=$(mktemp 2>/dev/null) || {
   exit 2
 }
 trap 'rm -f -- "$SPOOL"' EXIT
-
-# --- State files ---------------------------------------------------------------
 
 for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON"; do
   if [[ ! -f "$f" ]]; then
@@ -506,9 +499,6 @@ check_marketplace() {
   local records_json=""
   local stale_ids=""
 
-  # Marketplace-wide precondition, resolved ONCE rather than per install: the
-  # worktree test is the same answer for every record. The source map is NOT
-  # marketplace-wide — it is read per recorded sha, below.
   local loc_verdict=""
   if [[ -z "$install_loc_native" || ! -d "$install_loc_native" ]]; then
     loc_verdict="no-install-location"
@@ -564,9 +554,6 @@ check_marketplace() {
     [[ -n "$id" ]] || continue
     [[ "$id" == *"@$mp" ]] || continue
 
-    # A project/local record naming a directory that is not present is skipped
-    # and counted, never verdicted: the cache directory may be perfectly fine
-    # and the repo simply on an unmounted volume.
     if [[ "$scope" != "user" && -n "$project_path" ]]; then
       to_slashes_to project_path_native "$project_path"
       if [[ ! -d "$project_path_native" ]]; then
@@ -649,7 +636,6 @@ check_marketplace() {
     fi
   done
 
-  # --- Pass 3: one ls-tree per DISTINCT sha, every source dir at once ---------
   local -a g_sha=() g_dir=() uniq_shas=()
   local -A g_seen=() uniq_seen=()
   local gkey gi
@@ -744,14 +730,6 @@ check_marketplace() {
         idx=${#tree_rel[@]}
         tree_rel+=("$rel")
         tree_blob+=("$blob")
-        # Keyed by SHA as well as source directory, the way `owner_idx` and
-        # `g_seen` are. Two records can share one source directory at
-        # different shas — the same plugin id at user and project scope, same
-        # version, one installPath — and a map keyed by directory alone would
-        # merge their trees: a file present only at the newer sha would then
-        # read as in-tree for the older record, never reach `extras_idx`, and
-        # a stale cache would verdict `match`. The HEAD gate in Pass 1 leaves
-        # one sha today; the key keeps this join correct if that gate widens.
         tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
         owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
       done
@@ -817,12 +795,6 @@ check_marketplace() {
     spool_records_to cache_full
   fi
 
-  # Each file's path relative to its own install root is derived HERE, once.
-  # The passes below index it rather than re-deriving it: with ten thousand
-  # cache files and three passes over them, the shell's own loop is what a
-  # batched run spends its time on, not the processes it no longer starts.
-  # The sorted walk lists a directory's files together, so the root is found
-  # once per directory and reused for its files.
   local -a cache_rel=()
   local cache_i f walk_dir f_dir last_f_dir=$'\x02' f_root=""
   for ((cache_i = 0; cache_i < ${#cache_full[@]}; cache_i++)); do
@@ -848,16 +820,6 @@ check_marketplace() {
     cache_rel[cache_i]="${f#"$f_root"/}"
   done
 
-  # --- Pass 5: split each install's cache files at the tree boundary ----------
-  #
-  # One walk settles both directions: a file the tree also carries joins the
-  # hash batch, and a file it does not is recorded as this install's extra for
-  # the ignore pass below.
-  #
-  # A cache-only file is deliberately not hashed. Its hash answers no question:
-  # direction 2 needs only its existence, and the ignore pass decides whether it
-  # counts. On a fleet with a vendored `node_modules` that is the difference
-  # between hashing three thousand files and hashing ten thousand.
   local -a b_full=() b_owner=() b_rel=()
   local -a ins_batch_start=() ins_batch_end=()
   local -A cache_hash=() extras_idx=() extra_seen=()
@@ -974,7 +936,6 @@ check_marketplace() {
     done
   fi
 
-  # --- Pass 7: the per-install verdict and its JSON record --------------------
   local verdict n_differ n_missing n_extra ti filtered
   local j_id j_scope j_version j_sha j_path j_verdict
   local paths_json p np jp
@@ -990,8 +951,6 @@ check_marketplace() {
       src_dir="${i_srcdir[k]}"
       gkey="${i_sha[k]}"$'\x1f'"$src_dir"
 
-      # Direction 1: every tree path must exist in the cache with the same
-      # blob id.
       for ti in ${owner_idx[$gkey]:-}; do
         rel="${tree_rel[ti]}"
         src_key="$k"$'\x1f'"$rel"
@@ -1015,9 +974,6 @@ check_marketplace() {
         paths+=("differs: $rel")
       done
 
-      # Direction 2: a file deleted at the sha but still sitting in the cache
-      # is the same defect seen from the other side, and is exactly one of the
-      # shapes the reported incident carried.
       for cache_i in ${extras_idx[$k]:-}; do
         rel="${cache_rel[cache_i]}"
         probe_key="$src_dir/$rel"
@@ -1065,10 +1021,6 @@ check_marketplace() {
     records_json+="{\"id\":$j_id,\"scope\":$j_scope,\"version\":$j_version,\"gitCommitSha\":$j_sha"
     records_json+=",\"installPath\":$j_path,\"verdict\":$j_verdict"
     records_json+=",\"differing\":$n_differ,\"missing_from_cache\":$n_missing,\"extra_in_cache\":$n_extra"
-    # A marketplace that releases from changelog fragments holds a plugin's
-    # unreleased changes under .changes/<plugin>/, with its version not yet
-    # bumped, so a stale-content verdict there is a pending release, not a
-    # cache defect.
     if [[ -n "$install_loc_native" && -d "$install_loc_native/.changes/${i_id[k]%@*}" ]]; then
       records_json+=",\"unreleased_changes\":true"
     else
@@ -1088,8 +1040,6 @@ check_marketplace() {
   printf '{"marketplace":%s,"scope":%s,"checked":%d,"match":%d,"stale_content":%d,"unverifiable":%d,"not_checked":%d,"skipped_absent_project_paths":%d,"installs":[%s]}' \
     "$j_mp" "$j_scope_out" "$checked" "$n_match" "$n_stale" "$n_unverifiable" "$n_not_checked" "$n_skipped" "$records_json"
 }
-
-# --- Dispatch ------------------------------------------------------------------
 
 mp_loc=""
 mp_pairs=""

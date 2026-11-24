@@ -49,14 +49,11 @@ function Remove-JsoncComment {
             } elseif ($ch -eq '/' -and ($i + 1) -lt $length) {
                 $next = $Text[$i + 1]
                 if ($next -eq '/') {
-                    # Line comment - skip to newline (keep the newline for line numbers).
                     $i += 2
                     while ($i -lt $length -and $Text[$i] -ne "`n") { $i++ }
                     continue
                 }
                 if ($next -eq '*') {
-                    # Block comment - skip until closing */. Preserve newlines so
-                    # downstream parse errors report correct line numbers.
                     $i += 2
                     while ($i -lt $length) {
                         if (($i + 1) -lt $length -and $Text[$i] -eq '*' -and $Text[$i + 1] -eq '/') {

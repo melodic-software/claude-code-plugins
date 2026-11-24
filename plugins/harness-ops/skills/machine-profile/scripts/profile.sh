@@ -139,7 +139,7 @@ rec() {
     --arg key "$1" --arg value "$2" --arg verdict "$3" "${@:4}"
 }
 
-unexamined() { # KEY REASON
+unexamined() {
   rec "$1" "" default-unexamined --arg skipped_because "$2" | jq -c 'del(.value)'
 }
 
@@ -151,8 +151,7 @@ expand_home() {
   printf '%s' "$p"
 }
 
-# Facts about a path: absent, present, or (files) read-only.
-dir_fact() { # KEY DIR
+dir_fact() {
   if [[ -d "$2" ]]; then
     rec "$1" present set --arg observed_by "test -d $2" --arg mode observed --arg supplied_by "host filesystem"
   else
@@ -160,7 +159,7 @@ dir_fact() { # KEY DIR
   fi
 }
 
-file_fact() { # KEY FILE
+file_fact() {
   if [[ ! -e "$2" ]]; then
     rec "$1" absent default-verified --arg observed_by "test -e $2" --arg mode observed --arg observation "file not found"
   elif [[ ! -w "$2" ]]; then
@@ -173,7 +172,7 @@ file_fact() { # KEY FILE
 }
 
 # The tree's own .envrc is read as text and never evaluated.
-gh_fact() { # TREE
+gh_fact() {
   local envrc="$1/.envrc" line val
   if [[ "$1" != /* ]]; then
     unexamined gh_config_dir "the tree pattern is not an absolute path"
@@ -194,7 +193,7 @@ gh_fact() { # TREE
   fi
 }
 
-binaries() { # TABLE
+binaries() {
   local tool status mode plugins
   jq -Rrn '[inputs | split("\t") | select(length >= 3 and (.[2] == "present" or .[2] == "missing"))]
     | group_by(.[0])[]

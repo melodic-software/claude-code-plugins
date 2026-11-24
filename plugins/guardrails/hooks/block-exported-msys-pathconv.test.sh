@@ -121,17 +121,10 @@ run_win "prefix on git itself stays allowed" \
   'MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"' 0
 run_win "prefix on gh stays allowed" \
   "MSYS_NO_PATHCONV=1 gh pr view 2878 --json body" 0
-# The real corpus command that a first draft of this matcher wrongly blocked:
-# the `sh` in `show` and the `s` of `settings.json` are not shell command words.
-# Kept as a regression pin because it is exactly the shape a substring matcher
-# gets wrong, and a false positive here is the failure mode that gets a guard
-# switched off.
 run_win "prefix on git show with a path containing 'sh' stays allowed" \
   "cd <repo-root> && MSYS_NO_PATHCONV=1 git show 'origin/main:.claude/settings.json'" 0
 run_win "prefix on a command whose name merely ends in sh stays allowed" \
   "MSYS_NO_PATHCONV=1 refresh --all" 0
-# ...and the matcher must not hang on it. An ERE draft backtracked
-# catastrophically on this exact string; the token walk is linear.
 
 run_win "grep for the variable name (allowed)" \
   'grep -rn "MSYS_NO_PATHCONV" docs/' 0
@@ -164,10 +157,6 @@ run_win_pwsh "PowerShell call operator on a quoted bash.exe path with an export 
   '& "C:\Program Files\Git\bin\bash.exe" -c "export MSYS_NO_PATHCONV=1; git status"' 2
 run_win "prefix at the start of a quoted child command string (blocked)" \
   "bash -c \"MSYS_NO_PATHCONV=1 bash -c 'git worktree add /d/worktrees/x'\"" 2
-# DECLARED RESIDUAL, pinned as deliberate: a heredoc body line is
-# indistinguishable from a plain second command line without real shell
-# parsing, so an export spelling there still blocks (fail-closed). Use the
-# Write tool for documents that must carry the spelling.
 run_win "export spelling in a heredoc body still blocks (residual, deliberate)" \
   $'cat > notes.md <<\'EOF\'\nexport MSYS_NO_PATHCONV=1\nEOF' 2
 run_win "export on the second line of a multi-line command (blocked)" \

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Regression tests for render-index.sh (self-contained — no external test lib).
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
-#
 # shellcheck disable=SC2016 # assertions quote markdown code spans; the backticks
 # are literal table content, never command substitution.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
@@ -233,8 +230,6 @@ printf '@AGENTS.md\n' >"$relroot/CLAUDE.md"
 printf '# Root\n' >"$relroot/AGENTS.md"
 commit_all "$relroot"
 
-# Run these from a neutral empty directory: a --file resolved against the
-# caller's cwd would write into whatever repository the suite was launched from.
 neutral="$(mktemp -d "$TMP/x.XXXX")"
 
 out="$( (cd "$neutral" && run check --file AGENTS.md --root "$relroot") 2>&1)"
@@ -361,8 +356,6 @@ unwired="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
 printf '# Shared\n' >"$unwired/AGENTS.md"
-# One path-scoped rule, so there is something to index: without it `write`
-# declines to write a block and this case would prove nothing.
 mkdir -p "$unwired/.claude/rules"
 printf -- '---\npaths:\n  - "**/*.py"\n---\n# Python\n' >"$unwired/.claude/rules/py.md"
 commit_all "$unwired"
@@ -539,8 +532,6 @@ printf '@AGENTS.md\n' >"$entry/five/h4.md"
 printf '# Five\n' >"$entry/five/AGENTS.md"
 commit_all "$entry"
 out="$(run wiring --root "$entry")"
-# `UNWIRED` contains `WIRED`, so a wired assertion is the pair: the row is
-# present AND it is not the UNWIRED spelling.
 assert_contains "an import from the root CLAUDE.md wires a nested file" "$out" "WIRED	byroot/AGENTS.md"
 assert_not_contains "the root-imported file is not UNWIRED" "$out" "UNWIRED	byroot/AGENTS.md"
 assert_contains "an import from the root .claude/CLAUDE.md wires a nested file" "$out" "WIRED	bydot/AGENTS.md"
@@ -591,8 +582,6 @@ else
 
   out="$(run write --file "$win_target" --root "$win_root")"
   assert_contains "write reports the drive-letter target it wrote" "$out" "WROTE"
-  # The fixture's infra/AGENTS.md is deliberately unshimmed, so write always
-  # warns about that row; only the unreachable-target text is the misreport.
   assert_not_contains "write does not misreport a drive-letter target as unreachable" \
     "$out" "not imported"
 

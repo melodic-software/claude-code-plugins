@@ -50,28 +50,18 @@
 #
 # Cross-platform: Git Bash on Windows, Linux, macOS (bash 5+).
 
-# No -e: failures are checked explicitly via captured $? so a single file's
-# jq/IO error skips that file rather than aborting the whole prune.
 set -uo pipefail
 
 KEEP_DAYS=30
 DRY_RUN=0
 QUIET=0
 HOOK_ROOT_REL=".observability/claude"
-# Skill-usage pruning is INERT unless --skill-usage-scope is passed. That is the
-# rollback story: with the flag absent this script's behavior is byte-for-byte
-# what it was, so reverting the feature is dropping one branch.
 SKILL_USAGE_SCOPE=""
 SKILL_USAGE_DIR=".claude/observability"
 SKILL_USAGE_DATA_ROOT=""
-# Its own window, deliberately far longer than the 30-day hook-events default:
-# the store is the input to a starvation report that WANTS long history, and its
-# rows carry names and branches only, not content.
 KEEP_SKILL_USAGE_DAYS=365
 FAILURES=0
 
-# A flag at the end of the line with no value is an error, not a silent default:
-# a truncated command must not prune under a window the caller never chose.
 need_value() {
   [[ $# -ge 2 ]] || {
     echo "ERROR: $1 needs a value (see --help)" >&2
@@ -207,8 +197,6 @@ log "clean: keeping entries on/after $CUTOFF_ISO (--keep-days $KEEP_DAYS)"
 
 prune_file() {
   local file="$1" ts_field="$2"
-  # Third arg is an optional per-target cutoff. Absent, the caller's global
-  # window applies -- so the hook-events call site is byte-for-byte unchanged.
   local CUTOFF_ISO="${3:-$CUTOFF_ISO}"
   local lock_override="${4:-}"
   local label
@@ -235,8 +223,6 @@ prune_file() {
   local pruned=$((before_lines - kept_count))
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    # A real run skips a file jq cannot read to the end (see run_jq), so the
-    # dry run says so instead of predicting a prune that would not happen.
     if ! jq empty "$file" >/dev/null 2>&1; then
       printf '  %s: %d lines, %d bytes → would skip (a line is not valid JSON)\n' \
         "$label" "$before_lines" "$before_bytes"
@@ -419,11 +405,6 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
   prune_file "$SKILL_USAGE_LOG" "ts" "$SU_CUTOFF_ISO"
 fi
 
-# --- OTEL file store (separate, tighter retention window; Collector-stop-coordinated) ---
-# Delegated to the shared tool — the OTEL store needs Collector-stop coordination the JSONL
-# prune does not. It uses its own CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS env
-# windows (defaults 7 / 2), NOT --keep-days, and only stops the Collector when records
-# actually exceed a window (it dry-checks first).
 PRUNE_OTEL="${SKILL_DIR}/otel/prune-otel-store.sh"
 if [[ -f "$PRUNE_OTEL" ]]; then
   log "clean: OTEL store (CC_OTEL_RETENTION_DAYS=${CC_OTEL_RETENTION_DAYS:-7}, CC_OTEL_BODY_RETENTION_DAYS=${CC_OTEL_BODY_RETENTION_DAYS:-2}; stops Collector only if records exceed a window)"

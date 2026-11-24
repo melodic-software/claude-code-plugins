@@ -43,8 +43,6 @@ function Merge-CatalogOverlay {
         $overlayChecks = @($Overlay.checks)
     }
 
-    # Id-less overlay rows are retained (not dropped) so the orchestrator's
-    # Assert-CatalogEntry loop can emit UNKNOWN findings for them.
     $idLessOverlayEntries = [System.Collections.Generic.List[object]]::new()
     foreach ($patch in $overlayChecks) {
         if ($null -eq $patch) { continue }

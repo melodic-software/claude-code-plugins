@@ -203,8 +203,6 @@ describe("runTranscriptCli envelope consumption", () => {
 
     const output = JSON.parse(captured.stdout.join(""));
     expect(output.entryCount).toBe(3);
-    // The legacy single-entry fields follow the PRIMARY entry at N>1 — never
-    // nulls while transcripts exist on disk.
     expect(output.captionRung).toBe("manual-en");
     expect(output.captionPath).toBe(second);
     expect(output.transcriptPath).toBe(path.join(sliceDir(), "source", "transcript.txt"));

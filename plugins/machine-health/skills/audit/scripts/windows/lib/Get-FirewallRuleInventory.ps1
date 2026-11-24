@@ -36,7 +36,6 @@ Read-only, unelevated.
 #>
 
 $script:PortFallbackMaxCalls = 20
-# One budget for the per-rule port reads and the program probes.
 $script:PortFallbackBudgetMs = 15000
 $script:VersionSegment = '^\d+(\.\d+)+$'
 

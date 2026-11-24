@@ -340,6 +340,28 @@ class PythonVerdicts(unittest.TestCase):
     def test_function_given_to_help_is_code_changed(self):
         self.assert_value_reference_refused("help(_f)", "_f", "help")
 
+    def test_help_keyword_argument_is_not_a_docstring_reader(self):
+        before = (
+            'def _f():\n    """Return one."""\n    return 1\n\n\n'
+            'parser.add_argument("--x", help="Set x.", default=_f())\n'
+        )
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 11, out)
+
+    def test_help_passed_as_a_value_is_code_changed(self):
+        self.assert_value_reference_refused("show = help", "_f", "help")
+
+    def test_docstring_read_through_dunder_dict_is_code_changed(self):
+        before = (
+            'def _f():\n    """Return one."""\n    return 1\n\n\n'
+            "info = vars_table.__dict__\n"
+        )
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn('"at": "__dict__"', out)
+
     def test_function_only_called_is_docstring_only(self):
         before = 'def _f():\n    """Return one."""\n    return 1\n\n\nx = _f() + _f()\n'
         after = before.replace('    """Return one."""\n', "")

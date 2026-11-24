@@ -201,8 +201,6 @@ On benchmarks too and then we moved on.
   });
 
   it("keeps two repeated words when a later cue in the opener's second carries them", () => {
-    // The opener (5.0s) does not carry "Very good" over; a later cue in the
-    // same second (5.4s) overlaps the opener and starts with those words.
     const autoVtt = `WEBVTT
 
 00:00:01.000 --> 00:00:03.000
@@ -442,11 +440,6 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     return { path: vttPath, rung: "manual-en", isAutoCaption: false };
   }
 
-  /**
-   * The caption-less, media-bearing single-entry input every ASR-rung case
-   * starts from. A fresh options object per call — the envelope is frozen, the
-   * options object around it is not.
-   */
   function asrCandidateOptions() {
     return {
       sliceDir,

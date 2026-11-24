@@ -7,8 +7,6 @@ SCRIPT="$SCRIPT_DIR/scope-report.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# An ambient CLAUDE_CONFIG_DIR must never relocate the config root out of the isolated
-# HOME: Case 4 WRITES to the resolved dir. Case 6 sets it deliberately via `env`.
 iso_env() {
   env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_DISABLE_AUTO_MEMORY -u GIT_DIR HOME="$ISO_HOME" "$@"
 }
@@ -39,8 +37,6 @@ assert_contains "env var reported unset when not exported" "$OUT" "unset in OS e
 OUT=$(cd "$REPO" && iso_env env CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 bash "$SCRIPT")
 assert_contains "env var reported set when exported" "$OUT" "set in OS environment"
 
-# --- Case 4: MEMORY.md at the resolved default is counted ---
-# Derive the default dir from the resolver itself (no slug re-derivation in the test).
 
 RESOLVER="$SCRIPT_DIR/../../audit/scripts/resolve-memory-dir.sh"
 MEM_DIR=$(cd "$REPO" && iso_env bash "$RESOLVER" 2>/dev/null | tr -d '\r')
@@ -83,7 +79,6 @@ assert_contains "non-git dir notes the cwd is the project key" "$OUT" "current d
 assert_contains "non-git dir reports the resolved memory dir" "$OUT" "$ISO_HOME/.claude/projects/"
 assert_contains "non-git dir reports MEMORY.md state" "$OUT" "MEMORY.md: absent"
 
-# --- Case 6: CLAUDE_CONFIG_DIR relocates the config root (user scope + memory tree) ---
 
 CFG="$TEST_TMPDIR/cfg"
 mkdir -p "$CFG"

@@ -1,16 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Get-CisaKevCache.ps1.
-
-.DESCRIPTION
-The previous 32-byte size gate failed to detect the checked-in 238-byte seed
-stub, so the cache never refreshed on first run. These tests pin the new
-content-based detection (empty vulnerabilities array triggers refresh) and the
-atomic-rename fetch path, while keeping fetch side-effects isolated via temp
-directories and Pester mocks.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CisaKevCache.ps1' -MockHelpers

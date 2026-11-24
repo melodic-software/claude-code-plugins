@@ -12,7 +12,12 @@
 #       <base-ref>. A Dependabot pull request whose every commit is a verified
 #       Dependabot commit needs no fragment: scripts/dependabot-fragments.sh
 #       writes it after the merge (changelog_fragments::dependabot_only in
-#       scripts/lib/changelog-fragments.sh)
+#       scripts/lib/changelog-fragments.sh). Nor does a standards-sync pull
+#       request whose every commit is a melodic-standards-sync[bot] commit with
+#       a signature GitHub verified
+#       (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification):
+#       its files are managed copies of melodic-software/standards and ride the
+#       plugin's next release (changelog_fragments::standards_sync_only)
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: no file the release changes (a consumed
 #       fragment, a CHANGELOG.md, a plugin.json) has changed on <base-ref> since
@@ -175,9 +180,12 @@ done <"$status_file"
 if [[ "$mode" == --check-required ]]; then
   findings=0
   dependabot=""
+  standards_sync=""
   # shellcheck disable=SC2310  # the non-zero return IS the answer
   if changelog_fragments::dependabot_only "$base"; then
     dependabot=1
+  elif changelog_fragments::standards_sync_only "$base"; then
+    standards_sync=1
   fi
   for path in ${added_fragments[@]+"${added_fragments[@]}"}; do
     if git cat-file -e "$base:$path" 2>/dev/null; then
@@ -200,11 +208,15 @@ if [[ "$mode" == --check-required ]]; then
       echo "Dependabot-only change to $root/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
+    if [[ -n "$standards_sync" ]]; then
+      echo "Standards-sync-only change to $root/: managed copies of melodic-software/standards ride the plugin's next release."
+      continue
+    fi
     echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     findings=$((findings + 1))
     if [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' ]]; then
-      if [[ -n "${CF_DEPENDABOT_BLOCKER:-}" ]]; then
-        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_DEPENDABOT_BLOCKER)." >&2
+      if [[ -n "${CF_BOT_BLOCKER:-}" ]]; then
+        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_BOT_BLOCKER)." >&2
         echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
       else
         echo "  Dependabot opened this pull request, but its commits could not be checked: the git or GitHub API lookup failed." >&2

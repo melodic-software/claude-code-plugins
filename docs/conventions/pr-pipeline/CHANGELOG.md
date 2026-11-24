@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## [12.9.1] - 2026-11-24
+
+### Fixed
+
+- The scheduled `work-unblock` sweep runs every 15 minutes (`:13`, `:28`, `:43`, `:58`) instead of once at `:54`, so one sweep lands within 15 minutes of the GITHUB_TOKEN window reset, whose minute drifts from day to day. The minutes share no hourly schedule with another workflow. Deferred issues re-fire where the start gate's projection lets them start. `publish-lane-level` still decides once an hour, on the `:28` run only.
+
+## [12.9.0] - 2026-11-24
+
+### Added
+
+- pr-verify's verdict records `trusted_actors_blob`, the git blob id of the standards trusted-actor list the run judged with, which the merge gate compares with the live list. The resolver (`specChanged`) and the lost-run reconciler (`prefilterSpec`) count a pass that started before the committer time of the newest standards commit touching that list, at the run's standards SHA, as `spec-changed`, so the head is judged again; a change to any other standards file is not one. That time is one commits API read a run.
+
+### Fixed
+
+- Both activity runners run a script activity at the path `collect-base-activity`'s new `script-path` output names, not a staging layout of their own. The action loads from the base tip at job time while a dispatched run keeps its dispatch-time runner workflow, so a layout change merged mid-run made the runner exec a path the action no longer staged and failed the activity check unretryably.
+
 ## [12.8.4] - 2026-11-24
 
 ### Fixed

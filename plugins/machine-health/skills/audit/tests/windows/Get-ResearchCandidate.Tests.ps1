@@ -1,17 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/Get-ResearchCandidate.ps1, which picks the new findings a
-scheduled audit researches.
-
-.DESCRIPTION
-The rule, from the script help: a candidate is an item whose key is in latest.json's
-new_finding_keys, of kind startup, task, ext, listener, process or detection, a process
-only at WARN or CRIT, one per kind and title, ordered CRIT, WARN, INFO, other, then by
-check order; at most -Max of them. Every other new key is listed in not_researched, in
-latest.json order. The expected lists below are worked out by hand from that rule.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1"

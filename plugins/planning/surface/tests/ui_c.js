@@ -9,9 +9,6 @@ async page => {
   const events = async () => (await state()).responses.events;
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
   const until = async (fn, ms) => { for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(100)) if (await fn()) return true; return false; };
-  // A re-render can collapse the card's group between the check and the click (answered groups
-  // start collapsed), so the group is opened in the same tick it is checked, and the pick retries
-  // until the card holds the selection.
   const pick = async id => {
     const btn = '.rail-list .qbtn[data-q="' + id + '"]';
     const picked = await until(async () => {
@@ -23,15 +20,11 @@ async page => {
   };
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
-  // Runs act, then waits until the server has recorded a new event and the page has finished the
-  // save: after the POST the page still refreshes, then selects the next question and replaces its
-  // "Saving." toast, so a pick made before that lands is undone by the save's own navigation.
   const saved = async act => {
     const n = (await events()).length; await act();
     await until(async () => (await events()).length > n, 10000);
     await page.waitForFunction(() => document.getElementById("toast").textContent !== "Saving.", null, {timeout: 10000}).catch(() => {});
   };
-  // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
   const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
   const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
   const card = (id, re, yes = true) => page.waitForFunction(([q, r, y]) => { const el = document.querySelector('.rail-list .qbtn[data-q="' + q + '"]'); return !!el && new RegExp(r).test(el.textContent) === y; }, [id, re, yes], {timeout: 10000}).then(() => true).catch(() => false);
@@ -39,7 +32,7 @@ async page => {
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
   const Q_MARK = "❓", R_MARK = "➡️";
   const recHead = async () => page.evaluate(() => { const h = [...document.querySelectorAll("#dscroll section.blk > h4")].find(x => /Recommendation/.test(x.textContent)); return h ? h.textContent : ""; });
-  const openAssumptions = s => { // unconfirmed commitments on questions decided by accept or hedged (Q24); an own answer replaces the recommendation
+  const openAssumptions = s => {
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
@@ -67,7 +60,6 @@ async page => {
     await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); }));
     await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
 
-    // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows at once and the pill never reads Live (phase 6 covers a waiting event)
     const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
     ok("AC26: with no watcher and nothing pending the pill reads Idle within 5 s of load", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
     await fresh.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
@@ -82,7 +74,6 @@ async page => {
 
     ok("a question whose only prerequisite is archived is Open, not Locked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked|Locked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
 
-    // R-J: emoji anchors on
     await pick("Q1");
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
     ok("R-J: Recommendation heading leads with the recommendation anchor", (await recHead()).startsWith(R_MARK + " "), await recHead());
@@ -215,7 +206,6 @@ async page => {
     await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(150);
     ok("#8086: Rounds view still lists the archived card, with no archived row", await page.$eval('.rail-list .qbtn[data-q="X1"]', el => el.classList.contains("archived")) && await page.$(".archtoggle") === null);
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
-    // base renders live Q1 Q2 Q3 X2, then the row holding archived X1: j and k follow that order
     await pick("Q3"); await page.keyboard.press("j"); await page.waitForTimeout(200);
     const jCollapsed = await sel();
     ok("#8086: j follows the rail, stepping over the collapsed archived card to the next live one", jCollapsed === "X2" && await page.getAttribute(rowSel, "aria-expanded") === "false", "Q3 -> " + jCollapsed);
@@ -257,7 +247,7 @@ async page => {
     await saved(() => page.click("[data-save]"));
     let se = (await events()).filter(e => e.id === "S1").pop();
     ok("the (was) button records the was alternative", se && se.kind === "alt" && se.alt === "was", JSON.stringify(se));
-    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200); // the save moved on to the next open question
+    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
     await shown(() => !document.getElementById("planban"));
     ok("the banner leaves once the question is answered", await sel() === "S1" && await page.$("#planban") === null, await sel());
     await page.locator("#choices .choice.rec").first().click();
@@ -329,7 +319,6 @@ async page => {
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
     ok("alternatives the server flags as restating the recommendation fold into Accept: Rec is first with class rec, no (a) or (c) choice, (b) stays", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\((a|c)\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)), dup.join(" | "));
     const nEv = (await events()).length;
-    // The page's refresh after this save is held, so the user moves to P2 before the save finishes
     let release; const held = new Promise(f => { release = f; });
     await page.route("**/api/state", async r => { await held; await r.continue().catch(() => {}); });
     await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]");
@@ -366,7 +355,6 @@ async page => {
     ok("Reconfirm sends the note typed over the kept one", /^Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
     await pick("P2");
 
-    // SPEC 5.2: revising while an upstream decision is delivered and unhandled (an accept with a note: the server auto-handles a plain one)
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: "Fine for now"})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await card("P1", "Answer not handled yet");
@@ -388,7 +376,6 @@ async page => {
     const val = async k => page.$eval('.setrow[data-key="' + k + '"]', e => { const c = e.querySelector("select, input"); return c ? c.value : e.querySelector(".val").textContent; });
     ok("AC33: team beats default (undoSeconds 7 from team)", src.undoSeconds === "From team" && await val("undoSeconds") === "7", src.undoSeconds);
     ok("AC33: user beats team (minText 18 from user)",src.minText === "From user" && await val("minText") === "18", src.minText);
-    // settings.json holds theme light: the page reads no theme setting, so it stays on the toggle's System.
     const themed = await page.evaluate(() => ({attr: document.documentElement.getAttribute("data-theme"), pressed: [...document.querySelectorAll("button[data-rv-theme]")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.rvTheme)}));
     ok("a theme setting in a layer is no Settings row and leaves the toggle on System", !("theme" in src) && themed.attr === null && themed.pressed.join() === "system", JSON.stringify({src: src.theme, themed}));
     ok("AC33: default layer (shortcuts)", src.shortcuts === "From default", src.shortcuts);
@@ -401,7 +388,6 @@ async page => {
     ok("Reset returns to the team layer", /^From team/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')));
     await page.click("#flyClose");
 
-    // AC32: visuals by format; svg and html only inside a sandboxed iframe
     await pick("Q2");
     await page.keyboard.press("v"); await page.waitForTimeout(250);
     const frame = async id => { await page.click('[data-vtab="v:' + id + '"]'); await page.waitForTimeout(150); return page.evaluate(() => { const f = document.querySelector("#fbody iframe"), b = document.getElementById("fbody"); return {srcdoc: f ? f.srcdoc : null, sandbox: f ? f.getAttribute("sandbox") : null, svgs: b.querySelectorAll("svg").length, mark: !!document.getElementById("htmlmark"), text: b.innerText}; }); };
@@ -416,7 +402,6 @@ async page => {
       return {built: !!document.getElementById("scriptmark"), parentDom: probe(() => parent.document.title), storage: probe(() => localStorage.length), cookie: probe(() => document.cookie)};
     });
     ok("an html visual's script runs, in an opaque origin that cannot reach the page", hs.built && hs.parentDom === "blocked" && hs.storage === "blocked" && hs.cookie === "blocked", JSON.stringify(hs));
-    // Open in new tab: a one-time link that never carries the token, served as an opaque origin
     const newTab = async sel => { const [p] = await Promise.all([page.context().waitForEvent("page", {timeout: 5000}), page.click(sel)]); await p.waitForURL(/\/api\/visual-open\?/, {timeout: 5000}).catch(() => {}); return p; };
     const pop = await newTab('#fbody [data-vopen="vh"]'), pu = pop.url(), tok = await token();
     await pop.waitForSelector("#scriptmark", {state: "attached", timeout: 3000}).catch(() => {});
@@ -444,7 +429,6 @@ async page => {
     ok("a missing file shows its path and the error", fx.cap === "missing.svg" && /not found/.test(fx.text) && !fx.srcdoc, JSON.stringify(fx).slice(0, 160));
     await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(5200);
     await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText)); await until(() => vxFetches >= 2, 5000);
-    // Settle before counting: "once" is an absence check, so a duplicate re-fetch must have time to land.
     await page.waitForTimeout(600);
     ok("a failed file visual is fetched again, once, on a render after 5 s", vxFetches === 2, "fetches " + vxFetches);
     await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
@@ -511,7 +495,6 @@ async page => {
     await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(300);
     ok("AC36: page never scrolls at 1400 by 860", await page.evaluate(() => document.scrollingElement.scrollHeight <= innerHeight + 1 && document.scrollingElement.scrollWidth <= innerWidth));
 
-    // AC23 setup: open A1 and A2, then leave the Accept all dialog open for the external revise
     await pick("A1"); await pick("A2");
     await page.click("main.detail h3"); await page.keyboard.press("1");
     await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
@@ -521,20 +504,15 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open Accept all dialog", (await events()).length === n3 && await page.evaluate(() => document.getElementById("dlg").open), await armed());
   }
   if (PHASE === 2) {
-    // SSE brings the external revise of A2 and the emoji switch
     await page.waitForFunction(m => { const h = document.querySelector("#dscroll .dhead h3"), c = document.getElementById("conflict"); return !!h && !!c && !h.textContent.includes(m) && !c.hidden; }, Q_MARK, {timeout: 15000}).catch(() => {});
-    // Accept all reports in a toast once its posts and the refresh are done; each run below reads a different one.
     const accepted = async () => { const t0 = await page.textContent("#toast"); await page.click("#dlgOk"); await page.waitForFunction(t => { const x = document.getElementById("toast").textContent; return x !== t && /Accepted|Not accepted/.test(x); }, t0, {timeout: 10000}).catch(() => {}); };
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
-    // A2 was selected with a choice armed when the shell revised its recommendation: the notice is up before any Save
     const early = await page.evaluate(() => { const c = document.getElementById("conflict"); return {hidden: c.hidden, text: c.textContent}; });
     ok("a revision landing on the armed question shows the changed notice before Save", !early.hidden && /A2 just changed: review/.test(early.text) && /Recommendation/.test(early.text), JSON.stringify(early));
     await accepted();
     const ev = await events(), acc =ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
-    // Accept all goes with the revision each question was opened at: A2 was opened in phase 1,
-    // before the shell's revise, so a dialog opened only now still refuses it until A2 is opened again.
     await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
     ok("Accept all opened after the revise still lists A2", await page.evaluate(() => document.getElementById("dlg").open && /A2/.test(document.getElementById("dlgBody").innerText)));
     await accepted();
@@ -545,7 +523,7 @@ async page => {
     await accepted();
     const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
     ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
-    { // the shell revised Q1's commitments after phase 1 ticked one: that tick belongs to the old list
+    {
       const s2 = await state(), q1 = s2.questions.questions.find(q => q.id === "Q1");
       await pick("Q1");
       const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => e.checked));
@@ -562,11 +540,9 @@ async page => {
     ok("toast reads Wrapping up", /Wrapping up/.test(await page.textContent("#dscroll")));
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
     ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Rec/.test(await armed()));
-    // The shell declared Q3 as being revised between phases: the rail card and the detail pane say so, and answering stays possible
     ok("a revising-by-claude mark shows on the rail card and the detail pane", /Claude is revising this: auditing the cache choice/.test(await page.textContent('.qbtn[data-q="Q3"]')) && /Claude is revising this:.*auditing the cache choice.*You can still answer/.test(await page.textContent("#dscroll")), await page.textContent('.qbtn[data-q="Q3"]'));
     await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(500); await page.keyboard.press("Escape");
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
-    // The shell's revise between phases dropped P2's alternative (b), which its kept decision names
     const s2 = await state(), p2 = s2.questions.questions.find(q => q.id === "P2");
     await pick("P2");
     const first = await page.$eval("#choices .choice b", e => e.textContent), dtext = await page.textContent("#dscroll");
@@ -575,10 +551,8 @@ async page => {
   }
   if (PHASE === 3) {
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
-    await page.waitForFunction(() => !document.querySelector("[data-save]").disabled, null, {timeout: 10000}).catch(() => {}); // SSE brings the handle of phase 2's events
+    await page.waitForFunction(() => !document.querySelector("[data-save]").disabled, null, {timeout: 10000}).catch(() => {});
     ok("Save enabled again once phase 2's wrap-up is handled", !(await page.$eval("[data-save]", el => el.disabled)));
-    // A fresh wrapup freezes saves; the shell's background handler lifts the freeze well inside
-    // the 10 s window, which the page must show before that window runs out on its own.
     const w = await (await post({kind: "wrapup", text: ""})).json();
     await page.waitForFunction(() => document.querySelector("[data-save]").disabled, null, {timeout: 5000}).catch(() => {});
     ok("Save disabled by a fresh wrap-up", await page.$eval("[data-save]", el => el.disabled), "seq " + w.seq);
@@ -587,17 +561,14 @@ async page => {
     const handled = (st.questions.handled || []).includes(w.seq) || (st.questions.handledSeq || 0) >= w.seq;
     ok("Save re-enabled by the handle, inside the 10 s freeze", lifted && handled && age < 10, "age " + age.toFixed(1) + " s, handled " + handled);
   }
-  if (PHASE === 4) { // its own server: D1's one event was delivered in 2020 and never handled, and no watcher has polled
+  if (PHASE === 4) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("workLine").textContent}; });
     ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", /type next$/.test(pill.text) && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
     ok("an event waiting with no watcher shows its id in the header", /^Not listening for D1: /.test(pill.text), pill.text);
-    // No watcher has polled this server, as on a first wake held by a permission prompt: the pill names the prompt too.
     ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening for D1: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
-    // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
-    // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
     await page.addInitScript(() => {
       const Real = window.EventSource;
       window.__streams = 0;
@@ -610,7 +581,7 @@ async page => {
     ok("a stream silent past the ping window is dropped for polling and reopened", reopened, "streams " + streams);
     ok("the page stays online through the fallback", await page.evaluate(() => !/Connection lost|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
   }
-  if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
+  if (PHASE === 5) {
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="E1"]', {state: "attached"});
     const lbl = await page.textContent("#roundLbl");
@@ -620,7 +591,7 @@ async page => {
     const e1 = await page.textContent('.qbtn[data-q="E1"]'), d2 = await page.textContent('.qbtn[data-q="D2"]');
     ok("a round-1 question added after round 3 was posted says so; one asked in its own round does not", /Added in round 3/.test(e1) && !/Added in round/.test(d2), e1 + " | " + d2);
   }
-  if (PHASE === 6) { // its own server, no events: an unhandled answer reads as not delivered until a watcher holds the lease, then a handle-only apply clears it without a reload
+  if (PHASE === 6) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"});
@@ -629,40 +600,32 @@ async page => {
     const chip = async () => page.textContent('.qbtn[data-q="D1"]');
     await page.waitForFunction(() => /Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 5000}).catch(() => {});
     ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
-    // The header does not wait out the chips' 30 s grace: with no waiter and no lease it names D1 at once.
     const named = await page.waitForFunction(() => /^Not listening for D1: /.test(document.getElementById("pill").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
     ok("no waiter and no lease: the header names the waiting D1 within 5 s while the chip keeps its grace", named && /Sent to Claude/.test(await chip()), (await page.textContent("#pill")) + " | " + await chip());
     const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
     ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
     const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("workLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
     ok("the receipt line says the same", line, await page.textContent("#workLine"));
-    // The watcher claims the lease; the shell handles the event a few seconds later.
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);
     ok("once a watcher holds the lease the chip goes back to Sent to Claude", r.ok() && back, r.status() + " " + await chip());
-    // Lease held, no waiter (the 1 s wait ended): the header shows the working state, never Live or Not listening.
     const hdr = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000}).then(() => true).catch(() => false);
     const pw = await page.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
     ok("lease held with no waiter: the header reads Claude is working, not Live or Not listening", hdr && /^Claude is working/.test(pw.text) && !/Live|Not listening/.test(pw.text), JSON.stringify(pw));
     const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
-    // A waiter arrives: Live. D1 is handled by now, so the wait holds for its whole timeout instead of
-    // taking D1; the header is checked only once the server itself counts the waiter.
     const listening = async (pred, ms) => until(async () => pred((await state()).listener), ms);
     const live = page.request.get(base + "api/wait?after=handled&timeout=10&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
     const waiting = await listening(l => l.waiters >= 1, 8000);
     const isLive = waiting && await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
     ok("a waiter present: the header reads Live", isLive, (waiting ? "" : "the server counted no waiter in 8 s; ") + await page.textContent("#pill"));
     await live;
-    // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
-    // The server's own state is awaited first: the header read the working state while the lease was held, so a page check made before the release frame lands would pass on that.
     const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
     const released = await listening(l => l.state === "reading" && !l.lease && l.waiters === 0, 20000);
     const reading = released && await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000, polling: 200}).then(() => true).catch(() => false);
     const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
     const st = await state();
     ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
-    // A delivery unhandled for 11 minutes while the lease is still held (refreshed by polls) and no watcher waits: the header and the work line agree it stalled.
     const tab = await page.context().newPage();
     await tab.addInitScript(() => { window.EventSource = undefined; });
     await tab.route(base + "api/state", async route => {
@@ -688,7 +651,7 @@ async page => {
     const ev = (await events()).filter(e => e.id === "D1");
     ok("#9715: the page answers D1 and the meter counts it", ev.length === 1 && ev[0].kind === "accept" && await page.textContent("#meterText") === "1 of 1 answered", JSON.stringify(ev) + " " + await page.textContent("#meterText"));
   }
-  if (PHASE === 8) { // the same server after the shell superseded the answered D1 with D2 and ran export-ledger
+  if (PHASE === 8) {
     const ledger = JSON.parse('__LEDGER__');
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="D2"]', {state: "attached"});

@@ -108,8 +108,6 @@ EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
 UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
-# Appended to the digest-pin failures only: a re-pin rewrites a sha256 literal, so the exact-line
-# pins and the boundary failure have nothing for it to recompute.
 REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>' (or, where no test may run, plugins/planning/scripts/repin-digests.sh with the same arguments)"
 PASS=0
 FAIL=0
@@ -122,8 +120,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# jq is required, never optional: the eval-case half of every assertion below reads
-# evals.json structurally. Skipping it would vacate the coverage this suite exists for.
 if ! command -v jq >/dev/null 2>&1; then
   echo "FAIL: jq is required to grade $EVALS — this suite has no meaningful subset without it" >&2
   exit 1
@@ -141,11 +137,6 @@ if ! jq -e . "$EVALS" >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- helpers ---------------------------------------------------------------
-
-# pin <label> <file> <literal phrase>
-# The phrase must appear at least once, matched literally (grep -F: the rules are full
-# of backticks, asterisks, and slashes that a regex would mangle).
 pin() {
   local label="$1" file="$2" phrase="$3"
   if grep -qF -- "$phrase" "$file"; then
@@ -155,8 +146,6 @@ pin() {
   fi
 }
 
-# pin_once <label> <file> <literal phrase>
-# Exactly one occurrence: a duplicated rule is a second home that can drift.
 pin_once() {
   local label="$1" file="$2" phrase="$3" count
   count="$(grep -cF -- "$phrase" "$file")"
@@ -167,17 +156,6 @@ pin_once() {
   fi
 }
 
-# pin_exact <label> <file> <full line>
-# WHOLE-LINE equality (grep -Fxq). The phrase pins above catch a clause being DELETED or
-# reworded; they cannot catch a clause being NEUTRALIZED IN PLACE — appending "Exception:
-# … the guard is satisfied by recording the residue under `### Captured assumptions`" to
-# the auto-guard leaves every pinned phrase intact and guts the defense. Whole-line
-# equality closes that: any edit to a defense line, additive or otherwise, fails here.
-#
-# The cost is deliberate. A typo fix inside one of these lines fails this suite. That is
-# the contract for a load-bearing behavioral rule with no runner behind it: the failure
-# says re-read the defense, confirm it still holds, then update BOTH the skill body and
-# the pinned copy below in the same change.
 pin_exact() {
   local label="$1" file="$2" line="$3"
   if grep -Fxq -- "$line" "$file"; then
@@ -196,18 +174,6 @@ if ! source "$PLUGIN_DIR/scripts/lib/pin-digests.sh"; then
   exit 1
 fi
 
-# pin_section <label> <file> <open heading> <close heading> <expected sha256>
-# WHOLE-SECTION digest. `pin_exact` closes the same-line neutralize-in-place edit; it is
-# blind to the SAME override delivered one line lower, as a new adjacent paragraph inside
-# the section that owns the rule ("**Applying the two rules above.** In practice a gap
-# counts as \"real\" only when …"). Every pinned line stays byte-identical and both
-# defenses invert. Digesting the whole section closes that: an insertion, deletion, or
-# reordering inside the rule's home fails, provided the region's own boundaries hold —
-# which is why both boundaries are matched whole-line and required to be unique.
-#
-# The failure is deliberately opaque about WHAT changed — `git diff` shows that. What it
-# must convey is the obligation: re-read the section, confirm neither defense was weakened
-# or qualified by the new text, then update the digest in the same change.
 pin_section() {
   local label="$1" file="$2" open="$3" close="$4" want="$5" got n_open n_close
   n_open="$(grep -Fxc -- "$open" "$file" || true)"
@@ -226,14 +192,6 @@ pin_section() {
   fi
 }
 
-# pin_frontmatter <label> <file> <expected sha256>
-# Digest of the WHOLE YAML frontmatter block — everything between the opening `---` on
-# line 1 and the closing `---`. The frontmatter is inside no section, so no `pin_section`
-# reaches it, and it is the always-loaded surface a reader meets before any step. Pinning
-# only `description:` was not enough: a 70-codepoint `metadata.summary` reading "a
-# defensible residue is captured, never halted on" inverts both rules, stays under the
-# cheatsheet's length cap, and no other repo gate rejects it. The whole block is pinned so
-# every key is covered, present and future.
 pin_frontmatter() {
   local label="$1" file="$2" want="$3" got
   got="$(frontmatter_digest "$file")"
@@ -246,12 +204,6 @@ pin_frontmatter() {
   fi
 }
 
-# pin_case_digest <label> <case name> <expected sha256>
-# WHOLE-CASE digest over the eval case's normalized JSON. `graded_mention` proves a
-# criterion is still PRESENT; it cannot see a criterion ADDED that contradicts it
-# ("Recording the residue under `### Captured assumptions` at its recommended value is an
-# equally acceptable outcome"), which neutralizes the case while every pinned substring
-# survives. Digesting the whole case object closes that.
 pin_case_digest() {
   local label="$1" name="$2" want="$3" got
   got="$(case_digest "$EVALS" "$name")"
@@ -264,11 +216,6 @@ pin_case_digest() {
   fi
 }
 
-# pin_file <label> <file> <expected sha256>
-# WHOLE-FILE digest, used for the fixtures. A case's discriminating power lives in its
-# plant: rewriting `lock-stop-on-gap/codebase-survey.md` so the planted gap IS answered by
-# the codebase leaves the case syntactically intact and grading nothing. The fixtures are
-# the case's input; they are pinned like the case itself.
 pin_file() {
   local label="$1" file="$2" want="$3" got
   got="$(file_digest "$file")"
@@ -281,14 +228,6 @@ pin_file() {
   fi
 }
 
-# pin_case_set <label> <expected sha256 of the id:name roster>
-# The two pinned cases can also be neutralized from OUTSIDE themselves: a sibling case added
-# to the same file, saying capturing the assumption is preferred, leaves 15 and 16
-# byte-identical while contradicting them for any grader reading the set. Pinning the whole
-# roster makes ADDING, removing, or renumbering any case in this file a deliberate act that
-# re-confirms the two defenses first. A sibling REWRITTEN in place keeps the roster hash
-# identical, so the three siblings that speak to these same rules are digested separately
-# below.
 pin_case_set() {
   local label="$1" want="$2" got
   got="$(case_set_digest "$EVALS")"
@@ -301,14 +240,10 @@ pin_case_set() {
   fi
 }
 
-# line_of <file> <literal phrase>  -> first matching line number, or empty
 line_of() {
   grep -nF -- "$2" "$1" | head -1 | cut -d: -f1
 }
 
-# within <label> <file> <phrase> <open heading> <close heading>
-# Structural: the rule must live between two headings, so it cannot be relocated out of
-# the step that owns it while still greping green.
 within() {
   local label="$1" file="$2" phrase="$3" open="$4" close="$5"
   local p o c
@@ -322,14 +257,10 @@ within() {
   fi
 }
 
-# case_json <case name>  -> the eval case object, or empty
 case_json() {
   jq -c --arg n "$1" '.evals[] | select(.name == $n)' "$EVALS"
 }
 
-# case_present <arm> <case name> <case json>
-# The case must still be addressable by the name this suite grades it under: a rename
-# resolves the lookup to nothing, and every assertion guarded on it goes vacuously quiet.
 case_present() {
   local arm="$1" name="$2" json="$3"
   if [[ -n "$json" ]]; then
@@ -339,9 +270,6 @@ case_present() {
   fi
 }
 
-# declares_both_fixtures <arm> <case json>
-# The case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
-# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
 declares_both_fixtures() {
   local arm="$1" json="$2" declared
   [[ -n "$json" ]] || return 0
@@ -353,13 +281,6 @@ declares_both_fixtures() {
   fi
 }
 
-# graded_mention <label> <case json> <literal substring>
-# The case must still GRADE the thing it was written to grade, and grade it as a CHECKABLE
-# item: the phrase must appear in the `expectations` ARRAY, not merely in the
-# `expected_output` rubric prose. A defense described in the prose but dropped from the
-# graded list is a case that reads right and grades nothing. Substring match,
-# case-sensitive where the rule's own casing is load-bearing (HALTS, USER-RESERVED,
-# ATTENDED, DISTINCT).
 graded_mention() {
   local label="$1" json="$2" needle="$3" text
   text="$(printf '%s' "$json" | jq -r '(.expectations // []) | join(" ")')"
@@ -368,8 +289,6 @@ graded_mention() {
   *) fail "$label — no graded expectation mentions: \"$needle\"" ;;
   esac
 }
-
-# --- shared: the two cases exist, are addressable, and ship their fixtures --
 
 CASE_A_NAME="lock-halts-on-planted-open-decision"
 CASE_B_NAME="auto-residue-asked-or-user-reserved-never-assumed"
@@ -380,7 +299,6 @@ CASE_B="$(case_json "$CASE_B_NAME")"
 case_present A "$CASE_A_NAME" "$CASE_A"
 case_present B "$CASE_B_NAME" "$CASE_B"
 
-# Fixture reachability: a planted-decision case whose plant is gone grades nothing.
 for fx in \
   "lock-stop-on-gap/task-context.md" \
   "lock-stop-on-gap/codebase-survey.md" \
@@ -594,13 +512,6 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
   "f8873518e28409c2ec4a6c9c42bb3e3494b1f55b70daee2a23a971298b4135a3"
-# loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
-# confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
-# Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
-# second home that can be inverted while the pinned original stands.
-# The twin now reads that the restatement opens with the problem and `lock` confirms the
-# problem with one registered question; it adds a confirmation and keeps STOP-on-gap.
-# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
@@ -659,10 +570,6 @@ pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \
   "### Step 1.5. Auto-detect (default action only)" \
   "### Step 2. Drive the frontier-rounds loop" \
   "30892caae26855fd0f6e1a829c2abccd26fcab5b4f18642662dd8f538a2744bf"
-# The "Problem first" paragraph makes `lock` ask one registered problem question and sends a
-# solution-shaped goal to rethink-or-accept; it adds a question and leaves the STOP line byte-identical.
-# An unattended pre-confirmed item counts as accept for rethink-or-accept, per problem-framing.md "Pre-confirmed"; STOP-on-gap is unchanged.
-# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\` STOP line live here)" \
   "$LOOP" \
   "## Step 1.5. Auto-detect: gap analysis without asking" \
@@ -684,9 +591,6 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "### Gate before locking" \
   "fd049b8e15a5dcc646e5a69e778d17f60b3e3df17353d0f2d5d72d6919a7f0f7"
 
-# Case A's exemption expectation now names `lock`'s one problem question and its invocation
-# confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
-# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
   "127e69330697737f80e82556cfc7e67492203979a16616fac732992c3654f490"
@@ -918,16 +822,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
   "7bd78ae7a7bc7a32988b8a7b526a189373ac3fa961f79f7aa56c826a280d588b"
 
-# The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
-# place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
-# to say a gap with a defensible default is filled at that default — same roster hash,
-# cases 15/16 untouched, suite green. The three narrative cases over these same two rules
-# are therefore digested too. Any other case in this file is free to change; these three
-# are not, because they speak to the defenses this suite exists to hold.
 pin_case_digest "sibling case 2 still forbids folding a user choice into the Brief" \
   "auto-guard-never-folds-user-choice" \
   "73ef5bcb0cef36ff7f5523d93a4f3d8906285e9552f5e38be042b42376b367a7"
-# Case 3 adds the one-line problem question and, for its solution-shaped prompt, rethink-or-accept; its no-fudge expectations stand.
 pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
   "lock-mode-does-not-fudge-gap" \
   "514f6a7c3dff3378cd22d99af4dcca604400338227d2e3b038d02cccc636e866"
@@ -937,10 +834,6 @@ pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
 pin_case_digest "sibling case 13 still requires named blockers instead of assumptions" \
   "unattended-run-emits-named-blockers-not-assumptions" \
   "6633823b6dc62312f3fa505e3959e0f23620da1ea0871e45f01ad41c34064efb"
-# Three more cases rest on the same fact-vs-decision line the auto-guard draws, or on the
-# no-silent-resolution rule. Case 8 was rewritten in place — "where a decision has a
-# defensible conventional default, the skill resolves it on the user's behalf and records
-# it as a captured assumption" — and licensed exactly the silent capture, undetected.
 pin_case_digest "case 8 still asks decisions and only looks up facts" \
   "facts-looked-up-decisions-asked" \
   "bedb9fd8e5923395d229e36cf50479530e58abcd8503a3ae989212162b789c45"
@@ -968,16 +861,10 @@ pin_file "case B fixture: the survey still closes four decisions and not the fif
   "$FIXTURES/auto-guard-residue/codebase-survey.md" \
   "5ea7bfd889b75562e662ed5a951bee32ac16d6f4d7013538daacc595df853f06"
 
-# ===========================================================================
-# CASE A — STOP-on-gap: `lock` halts on a genuinely-open decision
-# ===========================================================================
 echo
 echo "--- Case A: lock STOP-on-gap ---"
 
-# A1. The case still grades the halt itself, not incidental output.
 if [[ -n "$CASE_A" ]]; then
-  # The invocation under test must actually be `lock` — a case that drifted to `me` or
-  # `auto` would grade a different path entirely.
   prompt_a="$(printf '%s' "$CASE_A" | jq -r '.prompt')"
   case "$prompt_a" in
   *"/planning:interview lock"*) ok "case A exercises the \`lock\` action" ;;
@@ -991,7 +878,6 @@ if [[ -n "$CASE_A" ]]; then
   graded_mention "case A separates lock's confirmation exemption from STOP-on-gap" "$CASE_A" "does not license guessing"
 fi
 
-# A2. The Action Router's `lock` row carries the rule, not just the action.
 pin "router \`lock\` row carries STOP-on-gap" "$SKILL" \
   "If a real gap surfaces during synthesis, STOP and surface it (do not fudge)"
 within "router \`lock\` row sits in the Action Router table" "$SKILL" \
@@ -999,7 +885,6 @@ within "router \`lock\` row sits in the Action Router table" "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated"
 
-# A3. Step 1.5's routing line for `lock` repeats the halt at the point of routing.
 pin_once "Step 1.5 routes \`lock\` with the halt attached" "$SKILL" \
   "If a gap surfaces mid-synthesis, STOP and surface; do not fudge."
 within "the Step 1.5 \`lock\` routing line sits inside Step 1.5" "$SKILL" \
@@ -1007,35 +892,22 @@ within "the Step 1.5 \`lock\` routing line sits inside Step 1.5" "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
   "### Step 2. Drive the frontier-rounds loop"
 
-# A4. The negative-space declaration: fudging is named as something the skill does NOT do.
 pin_once "\"does NOT do\" list names the fudge prohibition" "$SKILL" \
   "**Does not fudge gaps in \`lock\` mode**"
 pin "the fudge prohibition names the halt and the fallback, not just the ban" "$SKILL" \
   "STOP and surface it. Fall back to \`auto\` or \`me\` instead of guessing"
 
-# A5. `lock`'s confirmation must not be readable as a STOP-on-gap exemption. It now confirms
-#     the problem with one question and takes its invocation as confirming the rest.
 pin "confirmation-gate exemption preserves STOP-on-gap" "$SKILL" \
   "its invocation confirms the rest (its STOP-on-gap rule still applies)"
 
-# A6. loop.md carries the operative STOP wording the case grades the offer against.
 pin "loop.md carries the STOP-and-surface offer" "$LOOP" \
   "STOP and surface: *\"Found gap: <X>. Want me to ask, or capture as assumption with recheck trigger?\"* Never fudge."
 
-# A7. A gap that goes to the user is a QUESTION, so the register gate keeps applying —
-#     the no-question carve-out must stay scoped to the absence of questions.
 pin "the register carve-out stays scoped to the absence of questions" "$SKILL" \
   "The carve-out is about the absence of questions, never about which action produced it"
 pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
   "a gap surfaced mid-synthesis is registered \`open\` when it goes to the user"
 
-# A7b. The drift check fires on a USER reply, so a round overtaken by non-user output —
-#      a sub-agent return, a background notification, a team report — falls outside it and
-#      goes un-restated. These pins are the out-of-band rule's own defense: the trigger,
-#      relevance vs arrival, the superseded-recommendation outcome, the environment-resolve
-#      outcome, the full restate, the hold-refusal, the floor, the same-turn
-#      queued-output-first order, and the SKILL.md pointer. Drop any one and the rule
-#      reads as advisory.
 pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
   "non-user content reaching the transcript while a round is open"
 pin "loop.md keys the out-of-band check on relevance, not arrival" "$LOOP" \
@@ -1055,11 +927,6 @@ pin "loop.md processes queued out-of-band output before the same-turn reply" "$L
 pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
   "**Out-of-band output gets the same check, keyed on relevance.**"
 
-# A7c. A recommendation can fix decisions the user never saw. These pins hold the rules
-#      that stop an answer from locking more than it names: every part of a bundled
-#      recommendation is its own register row (on the page, its own `commits` entry), and
-#      a hedged reply resolves at most one headline. Each narrows what an answer or an
-#      accept-shorthand resolves; none of them relaxes a defense above.
 pin "SKILL.md lists every part of a bundled recommendation" "$SKILL" \
   "**A recommendation that fixes more than one decision lists every part.**"
 pin "SKILL.md per-question template carries the commitment block" "$SKILL" \
@@ -1103,8 +970,6 @@ pin "loop.md: a hedged reply is never mirrored as accept" "$LOOP" \
 pin "loop.md: the read-only decision table numbers each part" "$LOOP" \
   "The read-only decision table gives each part its own row number"
 
-# A7d. Assumptions the user never saw. Each rule below adds a row, a label, or a question
-#      before the contract locks; none resolves anything on the user's behalf.
 pin "SKILL.md keeps a running constraint ledger" "$SKILL" \
   "**Keep a running constraint ledger.**"
 pin "SKILL.md: a stated constraint is written at once as confirmed" "$SKILL" \
@@ -1115,8 +980,6 @@ pin "SKILL.md: every recommendation names the constraints it was checked against
   "\`Checked against: V1 ships without SSO; no new runtime dependencies\` or \`Checked against: none\`"
 pin "lane-page.md: on the page the citation opens the question's facts field" "$LANE_PAGE" \
   "On the page it opens the question's \`facts\` field, each constraint named in words"
-# The Step 3 procedure-check exception is SKILL.md's (digested there, with every other defect
-# still halting); the page spoke only states that its restatement box offers the ticks.
 pin "lane-page.md: the page is the lane whose restatement box offers commitment ticks" "$LANE_PAGE" \
   "this lane's restatement box offers commitment ticks, so SKILL.md's exception applies here"
 pin "lane-page.md: the page's Brief cross-check adds --surface" "$LANE_PAGE" \
@@ -1229,18 +1092,11 @@ pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense"
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \
   'When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with recheck trigger?"* Never fudge.'
 
-# ===========================================================================
-# CASE B — auto-guard: the residue is asked, or blocked/USER-RESERVED, never assumed
-# ===========================================================================
 echo
 echo "--- Case B: auto-detect auto-guard ---"
 
-# B1. The case still grades the guard, and still accepts BOTH licensed outcomes while
-#     rejecting the silent capture. This is the distinction the defense turns on.
 if [[ -n "$CASE_B" ]]; then
   prompt_b="$(printf '%s' "$CASE_B" | jq -r '.prompt')"
-  # `auto` is the empty/topic-only action: an explicit `me` or `lock` token would route
-  # around Step 1.5 and grade a different path.
   case "$prompt_b" in
   *"/planning:interview lock"* | *"/planning:interview me"*)
     fail "case B prompt forces an explicit action; the auto-guard lives on the \`auto\` path: $prompt_b"
@@ -1262,7 +1118,6 @@ if [[ -n "$CASE_B" ]]; then
   graded_mention "case B rejects over-application (facts must still synthesize)" "$CASE_B" "it does not block synthesis"
 fi
 
-# B2. The guard itself: named, singular, and inside the step that owns it.
 pin_once "auto-guard is declared once, by name" "$SKILL" \
   "**Auto-guard. Never decide an interactive choice for the user.**"
 within "the auto-guard sits inside Step 1.5" "$SKILL" \
@@ -1270,7 +1125,6 @@ within "the auto-guard sits inside Step 1.5" "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
   "### Step 2. Drive the frontier-rounds loop"
 
-# B3. What the guard licenses, and what it forbids.
 pin "the guard licenses only facts and unambiguous conventional defaults" "$SKILL" \
   "applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default"
 pin "the guard forbids folding a user decision into the Brief" "$SKILL" \
@@ -1280,9 +1134,6 @@ pin "the guard names the ask-or-switch remedy" "$SKILL" \
 pin "the guard names the silent capture as the failure it prevents" "$SKILL" \
   "Silently capturing such a choice as an assumption is the failure mode this guard prevents."
 
-# B4. The unattended ladder — the guard's second licensed outcome. All four load-bearing
-#     parts: declared-not-sniffed, the `blocked` row, the USER-RESERVED arbiter tag, and
-#     the refusal to read silence as consent.
 pin "unattended condition is declared by the caller, never sniffed" "$SKILL" \
   "The condition is **declared by the caller, never sniffed**"
 pin "unattended user decisions become a \`blocked\` row + USER-RESERVED deferred question" "$SKILL" \
@@ -1292,12 +1143,9 @@ pin "the unattended path extends the guard rather than excepting it" "$SKILL" \
 pin "silence is never confirmation" "$SKILL" \
   "never read absence of objection as confirmation"
 
-# B5. The guard also holds INSIDE a round — an unanswered question is not consent to the
-#     recommendation. Same defense, different surface.
 pin "the guard holds inside rounds (no silent resolve-to-recommendation)" "$SKILL" \
   "NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too"
 
-# B6. loop.md's copies of both halves.
 pin "loop.md restates the auto-guard's licensed territory" "$LOOP" \
   "A decision genuinely the user's (real tradeoffs, no codebase answer) is never synthesized silently"
 pin "loop.md's unattended ladder never assumes a user decision" "$LOOP" \
@@ -1311,10 +1159,6 @@ pin "loop.md's ladder refuses to read silence as confirmation" "$LOOP" \
 pin "loop.md binds the unattended blocker into the register" "$LOOP" \
   "a genuine user decision reached with nobody to answer is registered \`blocked\`"
 
-# B7. Whole-line pins — the five lines that ARE the auto-guard. Same reason as A8: the
-#     phrase pins cannot see a clause APPENDED to the guard ("**Exception:** … the guard is
-#     satisfied by recording the residue under `### Captured assumptions`"), which leaves
-#     every pinned phrase in place while inverting the rule. Whole-line equality does.
 pin_exact "the auto-guard paragraph is byte-identical to the pinned defense" "$SKILL" \
   '**Auto-guard. Never decide an interactive choice for the user.** Synthesize-directly (and the Mixed path'"'"'s "synthesize the rest") applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default. When a remaining decision is genuinely the user'"'"'s, a design choice with real tradeoffs and no codebase answer, do NOT fold it into the Brief. STOP and either ask it inline (a residue round) or offer to switch: *"This is a real design decision, not mine to pick. Answer it, or want me to run `/planning:interview me` and drive every open branch to a decision?"* Silently capturing such a choice as an assumption is the failure mode this guard prevents.'
 pin_exact "the unattended-path paragraph is byte-identical to the pinned defense" "$SKILL" \

@@ -1,4 +1,3 @@
-// Inline prose rounds in the conversation. Needs no tool, so it is always available.
 export default {
   id: 'terminal',
   reportName: 'terminal',

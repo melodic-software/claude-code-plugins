@@ -1,7 +1,3 @@
-/**
- * Transcript cue normalization shared by the watching entry points.
- */
-
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */

@@ -38,7 +38,6 @@ $PassThru = $false
 $CheckBody = {
     $wrapperResult = Get-WingetPackageUpdate
 
-    # Contract: Get-WingetPackageUpdate always returns @{ upgrades; error }.
     if ($wrapperResult -isnot [System.Collections.IDictionary]) {
         $actualType = if ($null -eq $wrapperResult) { '$null' } else { $wrapperResult.GetType().FullName }
         throw "Get-WingetPackageUpdate returned $actualType; expected hashtable."
@@ -59,23 +58,17 @@ $CheckBody = {
         $nonConformingCount = @($upgrades | Where-Object { $_.id -notmatch '\.' }).Count
 
         $kevMatches = [System.Collections.Generic.List[pscustomobject]]::new()
-        # $kevGap stays set unless correlation ran against a usable KEV list; it is the
-        # reason the check cannot vouch for "no KEV match".
         $kevGap = 'KEV correlation did not run.'
         $kevState = 'unknown'
         $kevAgeDays = $null
         $kevFetchError = $null
         try {
-            # Per-user cache -- never in source control. Falls back to the
-            # stub at catalog/cisa-kev.json only for initial schema seeding.
             $cacheRoot = Join-Path $env:LOCALAPPDATA 'machine-health\cache'
             if (-not (Test-Path -LiteralPath $cacheRoot)) {
                 New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null
             }
             $kevPath = Join-Path $cacheRoot 'cisa-kev.json'
 
-            # Seed from the checked-in stub; Get-CisaKevCache sees its empty
-            # vulnerabilities array and fetches live data to replace it.
             if (-not (Test-Path -LiteralPath $kevPath)) {
                 $seedPath = Join-Path (Resolve-SkillRoot) 'catalog\cisa-kev.json'
                 if (Test-Path -LiteralPath $seedPath) {
@@ -115,8 +108,6 @@ $CheckBody = {
                 foreach ($u in $upgrades) {
                     $upgradeId = "$($u.id)"
                     if ([string]::IsNullOrWhiteSpace($upgradeId)) { continue }
-                    # Exact Id first, then shorter '.'-prefixes, so "Microsoft.WSL.Foo"
-                    # also matches "microsoft.wsl".
                     $segments = $upgradeId.ToLowerInvariant().Split('.')
                     for ($i = $segments.Length; $i -ge 2; $i--) {
                         $candidate = $segments[0..($i - 1)] -join '.'
@@ -145,14 +136,9 @@ $CheckBody = {
             $kevGap = "KEV lookup failed: $($_.Exception.Message)"
         }
 
-        # One upgrade can match several KEV rows, so the upgrade figure counts
-        # distinct Ids and the CVE rows are reported as their own number.
         $kevUpgradeCount = @($kevMatches | ForEach-Object { "$($_.upgrade_id)".ToLowerInvariant() } |
                 Select-Object -Unique).Count
 
-        # A KEV gap with upgrades pending means "no KEV match" is unverified, so the
-        # check reports UNKNOWN instead of a count-only severity. With no
-        # upgrades there is nothing to correlate, and OK stays true without KEV data.
         $kevUnverified = $null -ne $kevGap -and $upgrades.Count -gt 0
         $ranSuccessfully = -not $kevUnverified
         $errorMessage = $null
@@ -165,8 +151,6 @@ $CheckBody = {
                 'CISA KEV correlation could not run, so KEV exposure is unknown.')
             $errorMessage = $kevGap
         } elseif ($kevMatches.Count -gt 0) {
-            # Name-only match, so WARN: see the KEV feed record in
-            # reference/windows/check-catalog.md (winget-upgrades).
             $severity = 'WARN'
             $cveIds = @($kevMatches | ForEach-Object { "$($_.cve_id)" } | Select-Object -Unique)
             $cveList = ($cveIds | Select-Object -First 5) -join ', '
@@ -183,8 +167,6 @@ $CheckBody = {
         if ($null -ne $kevGap -and -not $kevUnverified) {
             $notes = "KEV correlation skipped (no upgrades to correlate): $kevGap"
         } elseif ($kevState -eq 'stale') {
-            # Correlation ran, but on an older list than the run asked for: say so in the
-            # summary too, so the at-a-glance table does not read as a fresh KEV check.
             $ageText = $null -ne $kevAgeDays ? "$kevAgeDays-day-old" : 'previously'
             $notes = ("CISA KEV refresh failed ($kevFetchError); correlated against the " +
                 "$ageText cached list, so KEV entries added since then are not checked.")
