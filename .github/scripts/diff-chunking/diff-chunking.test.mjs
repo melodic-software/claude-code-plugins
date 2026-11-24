@@ -1,4 +1,5 @@
 // test-scope: plugins/source-control/skills/babysit-prs/scripts/diff_risk.py plugins/source-control/.claude-plugin/plugin.json
+// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
