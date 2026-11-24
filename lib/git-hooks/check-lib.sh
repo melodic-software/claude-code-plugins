@@ -420,11 +420,16 @@ checks_files() {
 # attribute from hiding a text file's hunks. LC_ALL=C reads each line byte-wise,
 # so a non-UTF-8 content line (a UTF-16 or ANSI file) draws no multibyte warning.
 checks_added_ranges() {
+  local skip=0
+  if [[ "$1" == --skip-reindent ]]; then
+    skip=1
+    shift
+  fi
   local raw="$1" filter="$2"
   shift 2
   checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
-    LC_ALL=C awk '
-      function bare(s) { s = substr(s, 2); gsub(/[[:space:]]+/, "", s); return s }
+    LC_ALL=C awk -v skip="$skip" '
+      function bare(s) { s = substr(s, 2); sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
       function flush(i, k, lo, hi) {
         for (i = 1; i <= na; i++) {
           k = key[i]
@@ -439,7 +444,7 @@ checks_added_ranges() {
       left > 0 || right > 0 {
         c = substr($0, 1, 1)
         if (c == " ") { left--; right--; line++; next }
-        if (c == "-") { left--; gone[bare($0)]++; next }
+        if (c == "-") { left--; if (skip) gone[bare($0)]++; next }
         if (c == "+") { right--; if (path != "") { na++; at[na] = line; key[na] = bare($0) } line++; next }
         if (c == "\\") next
       }
@@ -555,16 +560,22 @@ checks_merge_own_files() {
 # dropped here, since checks_added_ranges reads every file as text: no caller
 # then sees ranges for it.
 checks_changed_lines() {
-  local out="$CHECKS_TMP/ranges" raw="$CHECKS_TMP/ranges.raw" rc=0 m
+  local -a skip=()
+  if [[ "${1:-}" == --skip-reindent ]]; then
+    skip=(--skip-reindent)
+    shift
+  fi
+  local out="${1:-$CHECKS_TMP/ranges}" rc=0 m
+  local raw="$out.raw"
   : >"$raw"
-  checks_added_ranges "$raw" ACMR || rc=1
+  checks_added_ranges ${skip[@]+"${skip[@]}"} "$raw" ACMR || rc=1
   # A merge being committed adds only the lines no parent holds, its conflict
   # resolution: a line another parent already holds is that branch's content,
   # not this commit's. With T, a file that parent holds as a symlink or a
   # submodule counts every line as added against it.
   while read -r m; do
     : >"$raw.other"
-    checks_added_ranges "$raw.other" ACMRT "$m" || rc=1
+    checks_added_ranges ${skip[@]+"${skip[@]}"} "$raw.other" ACMRT "$m" || rc=1
     checks_intersect_ranges "$raw.other" "$raw" >"$raw.both" || {
       checks_tool_failed awk "$?" 'listing the lines the merge adds'
       rc=1
@@ -715,7 +726,7 @@ checks_has_nul() {
 # failed awk: with no ranges every finding would drop.
 checks_filter_findings() {
   local rc
-  awk -v ranges="$CHECKS_TMP/ranges" '
+  awk -v ranges="${1:-$CHECKS_TMP/ranges}" '
     BEGIN {
       while ((got = (getline l < ranges)) > 0) { split(l, r, "\t"); n++; p[n] = r[1]; s[n] = r[2] + 0; e[n] = r[3] + 0 }
       if (got < 0) exit 2
