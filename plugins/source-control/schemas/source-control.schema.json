@@ -229,12 +229,12 @@
     "trusted_actors_source": {
       "enum": ["repository", "standards"],
       "default": "repository",
-      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list and the Dependabot policy. standards reads components/trusted-actors/trusted-actors.json and components/dependabot-policy/policy.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copies. Any other value, or standards without a valid standards_repository, reads neither, so the lane adopts nothing."
+      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list. standards reads components/trusted-actors/trusted-actors.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copy. Any other value, or standards without a valid standards_repository, reads neither list and no Dependabot policy, so the lane adopts nothing. Setting standards widens which pull requests the babysit lane adopts and merges unattended in that repository: a repository beyond claude-code-plugins and pr-pipeline-sandbox sets it only with an owner-decisions row approving that repository."
     },
     "standards_repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-      "description": "owner/repo of the standards repository trusted_actors_source: standards reads, for the source-control readers above and for the guardrails merge guard and the review loosened-check reader. Required with that value; ignored otherwise. Unset or invalid with standards: the source-control readers adopt nothing, the merge guard runs unchecked with a warning, and the review reader gives no reason."
+      "description": "owner/repo of the standards repository. Set, /source-control:babysit-prs and the pr-merge lane gate read the Dependabot policy (components/dependabot-policy/policy.json) from it, at the one commit its main names when the process first reads it, whatever trusted_actors_source says; unset, the repository's own .github/standards copy. Set but not an owner/repo pair, the policy read fails and the lane merges no Dependabot update. The trusted-actors list comes from it only with trusted_actors_source: standards, for the source-control readers above and for the guardrails merge guard and the review loosened-check reader; that value requires it. Unset or invalid with standards: the source-control readers adopt nothing, the merge guard runs unchecked with a warning, and the review reader gives no reason."
     },
     "org_settings_repo": {
       "type": "string",
