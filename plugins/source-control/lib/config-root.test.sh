@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for config-root.sh: root classification (repo | non-repo | home), the
-# physical path-equality helper, and the CLI entry; and for convention-key.sh,
-# the team-layer reader for the commit and PR convention keys. Every path lives under a
-# fixture tree this suite creates; the real home directory is never read.
 
 set -uo pipefail
 
@@ -16,20 +12,9 @@ source "$SCRIPT_DIR/../scripts/test-helpers.sh"
 # shellcheck source=config-root.sh
 source "$LIB"
 
-# A fixture directory under a TMPDIR that is itself inside a work tree must not
-# classify as a repository.
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 unset CLAUDE_PROJECT_DIR
 
-# Fixture tree:
-#   users/alice        fixture HOME, holds .claude/source-control.md and proj/ (a repo)
-#   users              an ancestor of HOME
-#   users/ali          a string prefix of HOME that is not an ancestor
-#   dotfiles-home      a fixture HOME that is itself a repository
-#   work/repo          a repository, work/repo/sub/dir nested in it
-#   work/plain         a directory outside any repository
-#   team-repo          a repository whose .claude is a symlink to HOME's .claude
-#   own-repo           a repository with its own .claude/source-control.md
 HOME_DIR="$TEST_TMPDIR/users/alice"
 ANCESTOR="$TEST_TMPDIR/users"
 REPO="$TEST_TMPDIR/work/repo"
@@ -118,7 +103,6 @@ fi
 differ "a repo's own team file differs from the user-global file" \
   "$TEST_TMPDIR/own-repo/.claude/source-control.md" "$HOME_DIR/.claude/source-control.md"
 
-# --- Windows native vs MSYS spelling (real only under MINGW/MSYS) ------------
 case "$(uname -s)" in
   MINGW* | MSYS*) windows_shell=1 ;;
   *) windows_shell=0 ;;
@@ -154,9 +138,6 @@ assert_contains "CLI: an unknown subcommand prints usage" "$out" "usage: bash co
 assert_silent "sourcing the library prints nothing and runs no subcommand" \
   "$(bash -c 'source "$1"' _ "$LIB" 2>&1)"
 
-# --- convention key layers (convention-key.sh) -------------------------------
-# The team layer of the commit and PR convention keys is docs/conventions/source-control.yaml;
-# the retired .claude/source-control.md is never read.
 KEYLIB="$SCRIPT_DIR/convention-key.sh"
 # shellcheck source=convention-key.sh
 source "$KEYLIB"

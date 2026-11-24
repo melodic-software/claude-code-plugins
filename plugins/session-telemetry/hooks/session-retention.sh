@@ -47,8 +47,6 @@ root=""
 slog_root_to root "$project"
 [[ -n "$root" && -d "$root/sessions" ]] || exit 0
 
-# 1. Sweep pending directories an earlier run handed to an archiver more than
-#    24 h ago. One find; nothing to do on most runs.
 if [[ -d "$root/prune-pending" ]]; then
   stale=()
   while IFS= read -r d; do
@@ -57,7 +55,6 @@ if [[ -d "$root/prune-pending" ]]; then
   ((${#stale[@]})) && rm -rf -- "${stale[@]}" 2>/dev/null
 fi
 
-# 2. Recency order (newest first) and the age set, one process each.
 shopt -s nullglob
 files=("$root/sessions/"*.jsonl)
 shopt -u nullglob
@@ -79,7 +76,6 @@ for f in "${files[@]}"; do
 done
 ((${#doomed[@]})) || exit 0
 
-# 3. Prune: unlink, or move aside for the archiver and detach it.
 if [[ -z "$pre_prune" ]]; then
   rm -f -- "${doomed[@]}" 2>/dev/null
   exit 0

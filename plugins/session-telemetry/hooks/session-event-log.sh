@@ -106,7 +106,7 @@ while :; do
     quiet=0
     continue
   fi
-  ((rc > 128)) || break # EOF (rc 1) or a read error: what we hold is what there is
+  ((rc > 128)) || break
   if [[ -n "$chunk" ]]; then
     quiet=0
     # A slice that timed out holding data is the late-EOF shape: the payload
@@ -137,14 +137,11 @@ while :; do
 done
 [[ -n "$buf" ]] || exit 0
 
-# --- spine and payload ----------------------------------------------------------
-# First match wins; every spine key is a top-level key that precedes tool_input,
-# so it is found before any user content could carry the same text.
 # shellcheck disable=SC2034  # the payload keys are read through ${!key} below
 session_id="" event="" prompt_id="" tool_use_id="" agent_id="" tool_name=""
 # shellcheck disable=SC2034
 file_path="" reason="" cwd="" category="" root="" ts="" duration_ms="" line=""
-field_to() { # <var> <key> [<haystack var>]: the JSON string body of "<key>": "..." or ""
+field_to() {
   local field__in="$buf"
   (($# > 2)) && field__in="${!3}"
   printf -v "$1" '%s' ""
@@ -168,15 +165,6 @@ field_to file_path file_path
 field_to reason reason
 field_to cwd cwd
 
-# --- top-level metadata and effort ----------------------------------------------
-# The allowlisted keys and `effort` are read only from the payload's top-level
-# members: inside tool_input, tool_calls, background_tasks or an elicitation's
-# content, a key of the same name holds content or another object's value.
-# `top` is the run of scalar members (and the flat effort object) from the
-# opening brace up to the first nested value, plus the run of scalar members
-# after the last one up to the closing brace. A member inside a nested value
-# is in neither run: the nested value's own `}` or `]` breaks both. Each run is
-# one anchored regex, so the 64 KB read cap bounds the work.
 str='"([^"\\]|\\.)*"'
 num='-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?'
 effort_obj='"effort"[[:space:]]*:[[:space:]]*\{[[:space:]]*"level"[[:space:]]*:[[:space:]]*'"$str"'[[:space:]]*\}'
@@ -206,7 +194,6 @@ elif [[ -n "${CLAUDE_EFFORT:-}" && "$levels" == *" $CLAUDE_EFFORT "* ]]; then
   effort="$CLAUDE_EFFORT"
 fi
 
-# scalar_to <var> <key>: the JSON boolean or number of a top-level "<key>", or "".
 scalar_to() {
   printf -v "$1" '%s' ""
   [[ "$top" =~ \"$2\"[[:space:]]*:[[:space:]]*(true|false|-?[0-9]+(\.[0-9]+)?)[[:space:]]*(,|$) ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
@@ -249,7 +236,7 @@ if [[ "$content" == true ]]; then
       cut_char=$'([\xc2-\xdf]|[\xe0-\xef][\x80-\xbf]?|[\xf0-\xf4][\x80-\xbf]{0,2})$'
       [[ "$open_val" =~ $cut_char ]] && open_val="${open_val:0:${#open_val}-${#BASH_REMATCH[1]}}"
     else
-      open_key="" # the string closes: a whole member, read from `top` below
+      open_key=""
     fi
   fi
   for entry in $SLOG_EVENT_LOG_CONTENT; do
@@ -266,7 +253,6 @@ if [[ "$content" == true ]]; then
   ((${#buf} >= 65536)) && meta+=(content_truncated n true)
 fi
 
-# --- root and guard ------------------------------------------------------------
 project="${CLAUDE_PROJECT_DIR:-}"
 [[ -n "$project" ]] || project="$cwd"
 [[ -n "$project" ]] || exit 0
@@ -293,10 +279,6 @@ if [[ -n "$file_path" ]]; then
 fi
 slog_ts_to ts
 slog_duration_ms_to duration_ms "$start"
-# `category` and the ids are drawn from validated vocabularies, so they pass as
-# decoded strings; tool_name, file_path and reason are the payload's own JSON
-# string bodies and pass as bodies (type `b`), which is what keeps this hook
-# from re-deriving an escape it has no jq to check.
 extras=(category s "$category" effort s "$effort")
 for key in prompt_id tool_use_id agent_id; do
   [[ -n "${!key}" ]] && slog_valid_id "${!key}" && extras+=("$key" s "${!key}")
@@ -308,7 +290,6 @@ done
 extras+=(${meta[@]+"${meta[@]}"})
 slog_event_record_to line event-log "$ts" "$session_id" "$event" ok "$duration_ms" "${extras[@]}"
 
-# With content on, every row takes the lock (see slog_append).
 lock=""
 [[ "$content" == true ]] && lock=lock
 slog_append "$root/sessions/$session_id.jsonl" "$line" "$lock"

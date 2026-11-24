@@ -72,8 +72,6 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
-# counts <label-out-vars> — run <cmd...> under strace and report kernel counts.
-# CLONES and EXECS are set; the traced `bash` itself is subtracted from EXECS.
 CLONES=0
 EXECS=0
 trace_counts() {
@@ -87,10 +85,6 @@ trace_counts() {
   rm -f "$log"
 }
 
-# --- 0. Harness self-check ----------------------------------------------------
-# Two snippets that run the SAME program and differ only in where the redirect
-# sits. If the harness cannot see the extra fork the inner redirect causes, it
-# cannot see the thing this suite exists to fence, so skip rather than pass.
 printf 'x\n' >"$WORK/probe.txt"
 trace_counts bash -c "V=\$(cat '$WORK/probe.txt' 2>/dev/null)"
 INNER=$CLONES
@@ -145,8 +139,6 @@ mcp_payload Read '' >"$WORK/p-mcp-other.json"
 mcp_payload mcp__github__create_pull_request "$GOOD_BODY" >"$WORK/p-mcp-allow.json"
 mcp_payload mcp__github__create_pull_request "$BAD_BODY" >"$WORK/p-mcp-block.json"
 
-# A wired telemetry sink is the consuming repo's cost, not the gate's; pin it
-# off so the budget measures the gate.
 export HOOK_TELEMETRY_SINK=""
 export CLAUDE_PROJECT_DIR="$REPO"
 
@@ -200,9 +192,6 @@ budget "mcp gate / unrelated tool" "$MCP_GATE" "$WORK/p-mcp-other.json" 7 2
 budget "mcp gate / compliant body (ALLOW)" "$MCP_GATE" "$WORK/p-mcp-allow.json" 11 4
 budget "mcp gate / failing body (BLOCK)" "$MCP_GATE" "$WORK/p-mcp-block.json" 11 4
 
-# The gates must still DECIDE, or a budget of zero spawns would pass. Cost and
-# verdict are asserted on the same invocation set.
-# verdict <label> <hook> <payload> <expected-rc>
 verdict() {
   local label="$1" h="$2" p="$3" want="$4" rc=0
   bash "$h" <"$p" >/dev/null 2>&1 || rc=$?
@@ -251,8 +240,6 @@ else
   fail "could not build mutant A -- the in-substitution redirect check is vacuous"
 fi
 
-# Mutant B — one batched field split back into its own `printf | jq` pipeline,
-# the per-field shape #3509 replaced. Costs extra clones AND an extra execve.
 awk '
   /^T_OWNER="\$\{HOOK_JQ_FIELDS\[2\]\}"$/ {
     print "T_OWNER=$(printf %s \"$INPUT\" | jq -r \".tool_input.owner // empty\" 2>/dev/null)"
@@ -275,9 +262,6 @@ else
   fail "could not build mutant B -- the batching check is vacuous"
 fi
 
-# Mutant C — the validator's out-variable helpers reverted to stdout, which is
-# the 12-fork shape. Exercised through the Bash gate, whose validated path is
-# where those forks were paid.
 cp "$BASH_GATE" "$MUT/pr-body-linkage-gate.sh"
 awk '
   /^  linkage::chomp_to "\$__plv_dest" "\$out"$/ { print "  printf %s \"$out\"; printf -v \"$__plv_dest\" %s \"$(printf %s \"$out\")\""; next }

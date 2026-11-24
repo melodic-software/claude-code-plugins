@@ -51,13 +51,8 @@
 
 set -uo pipefail
 
-# Pinned for the whole process: see LOCALE above. Set before anything reads a
-# character class, including the shared lib.
 export LC_ALL=C
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
-# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED:-true}" == "true" ]] || exit 0
 # Parameter expansion, not `dirname`: a command substitution forks, which is a
 # process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
@@ -98,7 +93,6 @@ read_fields_singly() {
     v=$(printf '%s' "$INPUT" | jq -r "$f" 2>/dev/null)
     HOOK_JQ_FIELDS+=("$v")
   done
-  # Of these fields, only `.cwd` is CR-stripped on this path.
   HOOK_JQ_FIELDS[1]="${HOOK_JQ_FIELDS[1]//$'\r'/}"
 }
 hook::jq_fields "$INPUT" \
@@ -114,11 +108,6 @@ HAS_BODY="${HOOK_JQ_FIELDS[4]}"
 BODY_HAS_CR="${HOOK_JQ_FIELDS[5]}"
 BODY="${HOOK_JQ_FIELDS[6]}"
 
-# chomp <var> — strip trailing newlines from the named variable, in-shell, as
-# `$(jq -r …)` would have: hook::jq_fields keeps them, and an
-# `"owner": "acme-corp\n"` would otherwise slip past the exact-match guards. The
-# batch's CR strip lets a CR-carrying tool, owner or repo match, which the
-# per-field fallback does not: the stricter direction, so the body is judged.
 chomp() {
   local __v="${!1}"
   while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
@@ -162,12 +151,8 @@ norm="${norm%.git}"
 norm="${norm//:/\/}"
 [[ "${norm,,}" == *"/${T_OWNER,,}/${T_REPO,,}" ]] || exit 0
 
-# An update that carries no body leaves the body CI already validated
-# untouched.
 ((IS_UPDATE)) && [[ "$HAS_BODY" != "true" ]] && exit 0
 
-# Only a body carrying a CR differs from its batched value; re-read it losslessly
-# (see the note on the hook::jq_fields call above).
 if [[ "$BODY_HAS_CR" == "true" ]]; then
   BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
 fi
@@ -179,23 +164,11 @@ fi
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # Byte-identical to `jq -n --arg` for an all-string object, with no spawn.
   local data
   hook::json_str_object_to data outcome "$1" tool "$TOOL"
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "${2:-$1}" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Defer-guard: when the consuming repo tracks its OWN equivalent gate in
-# .claude/settings.json (a PreToolUse hook whose command names
-# pr-linkage-mcp-gate — the marketplace repo does exactly this so its policy
-# survives sessions with no plugin install), both copies would fire and exit 2
-# on every MCP PR call, and the repo-local copy is deliberately
-# kill-switch-free. The plugin side is the right place to yield: the repo's
-# settings.json states the wiring authoritatively, whereas the repo-local
-# script has no sound signal for "plugin enabled" (plugin SOURCE present never
-# implies plugin ACTIVE). A repo could suppress this gate with a no-op script
-# of the same name — acceptable: this is a policy gate, not a security guard,
-# and the required CI check remains the authority.
 if [[ -f "$REPO_ROOT/.claude/settings.json" ]] &&
   jq -e '[.hooks.PreToolUse[]?.hooks[]? | (.command // empty), (.args[]? | strings)]
     | any(contains("pr-linkage-mcp-gate"))' \
@@ -204,11 +177,6 @@ if [[ -f "$REPO_ROOT/.claude/settings.json" ]] &&
   exit 0
 fi
 
-# --- Body validation ----------------------------------------------------------
-# The validator core is shared with the Bash-surface sibling
-# pr-body-linkage-gate.sh; the annotated functions live in
-# pr-linkage-validator.sh, sourced so a drift fix against the upstream
-# ci-workflows validator lands on every surface at once.
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
 # shellcheck disable=SC2310  # the return status IS the verdict

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for session-event-log.sh (session-telemetry plugin). Black-box: the
-# producer reads one hook payload on stdin and appends at most one line to
-# <root>/sessions/<session_id>.jsonl. Nothing here sources the hook.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,11 +11,6 @@ source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 
 ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED=true
 
-# The hook event record schema session-log-lib.sh documents, as one jq -e over
-# every line of a session file. `source: "event-log"` rows describe one event
-# the session saw, never a hook run, so they carry `category` and no `hook`;
-# the retired `event` key must be absent, which is what lets a reader query
-# `.hook_event_name` with no normalization prelude.
 RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
   and (.hook_event_name|type)=="string" and (.status|type)=="string"
   and ((.duration_ms|type)=="number" or .duration_ms==null)
@@ -26,20 +18,17 @@ RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
   and (.effort|type)=="string"
   and (has("event")|not) and (has("hook")|not)'
 
-# assert_record <label> <file> [<extra jq clause>]
 assert_record() {
   jq -e -s "all(.[]; $RECORD_SCHEMA${3:+ and ($3)})" "$2" >/dev/null 2>&1
   assert_exit "$1" 0 "$?"
 }
 
-# payload <session_id> <event> [<extra-json-members>]
 payload() {
   local extra="${3:-}"
   printf '{"session_id":"%s","prompt_id":"p-1","transcript_path":"/x/t.jsonl","cwd":"/x","permission_mode":"default","hook_event_name":"%s"%s}' \
     "$1" "$2" "${extra:+,$extra}"
 }
 
-# project <name> [--no-git] -> a fixture project dir, a git checkout by default
 project() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d"
@@ -61,14 +50,12 @@ run() {
   env -u HOOK_TELEMETRY_SINK -u CLAUDE_EFFORT -u TRACEPARENT CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
-# --- default OFF: nothing is read or written --------------------------------
 P=$(project off)
 OUT=$(run "$P" "$(payload s1 PostToolUse)")
 assert_exit "disabled by default → exit 0" 0 "$?"
 assert_silent "disabled by default → silent" "$OUT"
 assert_file_absent "disabled by default → no root created" "$P/.observability"
 
-# --- enabled, fresh checkout: guard healed, one full-spine line -------------
 P=$(project on)
 OUT=$(run "$P" "$(payload sess-abc PostToolUse '"tool_name":"Write","tool_input":{"file_path":"'"$P"'/docs/a.md","content":"x"},"tool_use_id":"toolu_01"')" "$ON")
 assert_exit "enabled → exit 0" 0 "$?"
@@ -93,14 +80,12 @@ else
   bad "enabled: no line written at $LOG"
 fi
 
-# --- a second event on the same session appends; another session gets its own file
 run "$P" "$(payload sess-abc Stop)" "$ON" >/dev/null
 run "$P" "$(payload sess-xyz SessionStart)" "$ON" >/dev/null
 assert_eq "second event appends to the session file" 2 "$(wc -l <"$LOG" | tr -d ' ')"
 assert_eq "another session gets its own file" 1 "$(wc -l <"$P/.observability/claude/sessions/sess-xyz.jsonl" | tr -d ' ')"
 assert_eq "exactly two session files" 2 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
 
-# --- PostToolBatch: one line per batch, carrying the first call's tool keys ------
 P=$(project batch)
 OUT=$(run "$P" "$(payload sb PostToolBatch '"tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"/x/a.md"},"tool_use_id":"toolu_b1","tool_response":{"content":"a"}},{"tool_name":"Grep","tool_input":{"pattern":"x"},"tool_use_id":"toolu_b2","tool_response":{"content":"b"}}]')" "$ON")
 assert_exit "PostToolBatch → exit 0" 0 "$?"
@@ -111,7 +96,6 @@ assert_eq "PostToolBatch → category tool" "tool" "$(jq -r .category "$BLOG" 2>
 assert_eq "PostToolBatch → first entry's tool_name" "Read" "$(jq -r .tool_name "$BLOG" 2>/dev/null)"
 assert_eq "PostToolBatch → first entry's tool_use_id" "toolu_b1" "$(jq -r .tool_use_id "$BLOG" 2>/dev/null)"
 
-# --- the guard is never overwritten when an operator changed it ---------------
 P=$(project guarded)
 mkdir -p "$P/.observability/claude"
 printf '# mine\nsessions/\n' >"$P/.observability/claude/.gitignore"
@@ -119,11 +103,6 @@ run "$P" "$(payload s1 PostToolUse)" "$ON" >/dev/null
 assert_file_absent "a present-but-different guard refuses the write" "$P/.observability/claude/sessions/s1.jsonl"
 assert_eq "the operator's guard is left alone" "# mine" "$(head -1 "$P/.observability/claude/.gitignore")"
 
-# --- an EMPTY guard file is healed, not refused ---------------------------------
-# Two producers racing on one event: the first opens .gitignore, the second
-# reads it before the first has written its byte. Read as an operator file it
-# refuses the write and a line goes missing (the 33-parallel case below caught
-# 32); read as heal-in-progress both write `*` and nothing is lost.
 P=$(project empty-guard)
 mkdir -p "$P/.observability/claude"
 : >"$P/.observability/claude/.gitignore"
@@ -135,13 +114,11 @@ else
 fi
 assert_eq "an empty guard file is healed to *" "*" "$(head -1 "$P/.observability/claude/.gitignore")"
 
-# --- outside a checkout there is nothing to keep clean: write, no guard -------
 P=$(project nogit --no-git)
 run "$P" "$(payload s2 PostToolUse)" "$ON" >/dev/null
 assert_eq "no checkout → line written" 1 "$(wc -l <"$P/.observability/claude/sessions/s2.jsonl" | tr -d ' ')"
 assert_file_absent "no checkout → no guard file" "$P/.observability/claude/.gitignore"
 
-# --- lines are never written without the spine ---------------------------------
 P=$(project nospine)
 run "$P" '{"cwd":"/x","hook_event_name":"PostToolUse"}' "$ON" >/dev/null
 assert_file_absent "no session_id → nothing written" "$P/.observability"
@@ -152,17 +129,15 @@ assert_file_absent "hostile session_id → nothing written" "$P/.observability"
 run "$P" "$(payload 's4' 'Post Tool')" "$ON" >/dev/null
 assert_file_absent "hostile event name → nothing written" "$P/.observability"
 
-# --- category filter ------------------------------------------------------------
 P=$(project cats)
 run "$P" "$(payload s5 PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES=session,turn >/dev/null
 assert_file_absent "filtered category → nothing written" "$P/.observability/claude/sessions/s5.jsonl"
 run "$P" "$(payload s5 Stop)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES=session,turn >/dev/null
 assert_eq "listed category → written" "turn" "$(jq -r .category "$P/.observability/claude/sessions/s5.jsonl")"
 
-# The inputs category-filter.test.ts runs through register.ts's categoryFilter.
 CATS="session prompt tool permission agent task turn config worktree compaction model mcp display other"
 VAR=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES
-filter_case() { # <label> <expected enabled categories> [<option value>; absent means unset]
+filter_case() {
   local env_arg=(-u "$VAR")
   (($# > 2)) && env_arg=("$VAR=$3")
   # shellcheck disable=SC2016 # the inner bash -c expands $0 and $1
@@ -182,7 +157,6 @@ filter_case "tab separated → both" "tool permission" $'tool\tpermission'
 filter_case "newline separated → both" "tool permission" $'tool\npermission'
 filter_case "carriage return is not a separator → none" "" $'tool\rpermission'
 
-# --- configured root: contained relative only; the project root itself is refused
 P=$(project roots)
 run "$P" "$(payload s6 PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=telemetry/claude >/dev/null
 assert_eq "contained custom root is used" 1 "$(wc -l <"$P/telemetry/claude/sessions/s6.jsonl" | tr -d ' ')"
@@ -194,10 +168,6 @@ assert_file_absent "uncontained roots write nothing (s7 never lands)" "$P/teleme
 assert_file_absent "the project root itself is refused" "$P/sessions"
 assert_file_absent "the project root gets no guard" "$P/.gitignore"
 
-# A lexically contained root whose existing component is a symlink can point
-# anywhere, and retention deletes under the root, so containment is also
-# physical: a link out of the project is refused, a link that stays inside is
-# followed, and a link back to the project root itself is refused like `.`.
 OUTSIDE="$TEST_TMPDIR/outside-target"
 mkdir -p "$OUTSIDE" "$P/inside-target"
 ln -s "$OUTSIDE" "$P/escape"
@@ -212,14 +182,11 @@ run "$P" "$(payload s7l PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_L
 assert_file_absent "a root that resolves to the project itself is refused" "$P/sessions/s7l.jsonl"
 assert_file_absent "and the project root still gets no guard" "$P/.gitignore"
 
-# --- cwd is the project when CLAUDE_PROJECT_DIR is unset -------------------------
 P=$(project bycwd)
 printf '{"session_id":"s8","cwd":"%s","hook_event_name":"PostToolUse"}' "$P" |
   env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK "$ON" bash "$HOOK" >/dev/null 2>&1
 assert_eq "payload cwd resolves the project" 1 "$(wc -l <"$P/.observability/claude/sessions/s8.jsonl" 2>/dev/null | tr -d ' ')"
 
-# --- a linked worktree writes under the main checkout's root ---------------------
-# A real git worktree, so the .git file and commondir are the layout git writes.
 if command -v git >/dev/null 2>&1; then
   MAIN="$TEST_TMPDIR/wt-main"
   WT="$TEST_TMPDIR/wt-linked"
@@ -235,8 +202,6 @@ if command -v git >/dev/null 2>&1; then
       "$(wc -l <"$MAIN/.observability/claude/sessions/swt.jsonl" 2>/dev/null | tr -d ' ')"
     assert_file_absent "worktree session → no root inside the worktree" "$WT/.observability"
     assert_eq "the main checkout's root carries the guard" "*" "$(head -1 "$MAIN/.observability/claude/.gitignore" 2>/dev/null)"
-    # A .git file git did not write cannot move the anchor into another checkout,
-    # where retention would delete: neither a gitdir outside <common>/worktrees...
     P=$(project forged-commondir --no-git)
     mkdir -p "$P/g"
     printf 'gitdir: g\n' >"$P/.git"
@@ -247,7 +212,6 @@ if command -v git >/dev/null 2>&1; then
       "$(wc -l <"$P/.observability/claude/sessions/sfc.jsonl" 2>/dev/null | tr -d ' ')"
     assert_file_absent "a forged commondir → nothing under the other checkout" \
       "$MAIN/.observability/claude/sessions/sfc.jsonl"
-    # ...nor a real worktree's gitdir, whose back-pointer names that worktree.
     P=$(project borrowed-gitdir --no-git)
     printf 'gitdir: %s\n' "$MAIN/.git/worktrees/${WT##*/}" >"$P/.git"
     run "$P" "$(payload sbg PostToolUse)" "$ON" >/dev/null
@@ -270,7 +234,6 @@ if command -v git >/dev/null 2>&1; then
   else
     bad "git worktree add produced no linked worktree at $WT"
   fi
-  # A .git file with no commondir (a submodule's shape) keeps the project as the anchor.
   P=$(project gitfile --no-git)
   mkdir -p "$TEST_TMPDIR/gitfile-modules/x"
   printf 'gitdir: %s\n' "$TEST_TMPDIR/gitfile-modules/x" >"$P/.git"
@@ -281,7 +244,6 @@ else
   bad "git not on PATH: worktree anchoring is untested"
 fi
 
-# --- file paths outside the project are reduced to their last segment ------------
 P=$(project outside)
 run "$P" "$(payload s9 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"/opt/elsewhere/private/notes.md"}')" "$ON" >/dev/null
 assert_eq "outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9.jsonl")"
@@ -295,8 +257,6 @@ WIN_PATH="Q:${BS}scratch${BS}private${BS}notes.md"
 run "$P" "$(payload s9w PostToolUse "\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${WIN_PATH}\"}")" "$ON" >/dev/null
 assert_eq "Windows outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9w.jsonl")"
 
-# A payload body carrying JSON escapes is re-emitted verbatim, never re-escaped:
-# the record formatter takes these three keys as bodies for exactly this reason.
 run "$P" "$(payload s9e PostToolUse '"tool_name":"Edit","reason":"said \"go\" then \\ stopped\tabruptly"')" "$ON" >/dev/null
 assert_record "an escaped payload body still satisfies the record schema" "$P/.observability/claude/sessions/s9e.jsonl"
 assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
@@ -337,9 +297,6 @@ assert_eq "UserPromptSubmit: the prompt text (content) is absent" "false" "$(jq 
 assert_eq "UserPromptSubmit: session_title (content) is absent" "false" "$(jq -r 'has("session_title")' "$(ELOG e5)")"
 assert_eq "no line carries the prompt text anywhere" "0" "$(grep -c 'factorial' "$(ELOG e5)")"
 
-# Hostile: tool_input comes before every top-level key and carries a bare
-# "level":"max" and a nested effort object; only the real top-level level, or
-# unset, may land, never max. The same holds when no top-level effort exists.
 run "$P" '{"tool_input":{"command":"x","level":"max","effort":{"level":"max"},"mode":"secret-mode"},"session_id":"e6","cwd":"/x","hook_event_name":"PermissionRequest","tool_name":"Bash","effort":{"level":"high"}}' "$ON" >/dev/null
 assert_eq "hostile tool_input (PermissionRequest) with a nested effort records unset, never max" "unset" "$(jq -r .effort "$(ELOG e6)")"
 assert_eq "hostile tool_input: a nested allowlisted key (mode) is not copied" "false" "$(jq -r 'has("mode")' "$(ELOG e6)")"
@@ -349,7 +306,6 @@ assert_eq "PostToolUseFailure: is_interrupt after tool_input round-trips as a JS
 assert_eq "PostToolUseFailure: the error text (tool output) is absent" "false" "$(jq -r 'has("error")' "$(ELOG e7)")"
 assert_eq "PostToolUseFailure: duration_ms stays the logger's own, never the payload's" "false" "$(jq -r '.duration_ms == 4187' "$(ELOG e7)")"
 
-# boolean/number round trip, and a payload `source` never displaces the record's.
 run "$P" "$(payload e8 SessionStart '"source":"resume","model":"claude-opus-5","seconds_since_last_response":5400,"context_tokens":182340,"prompt_cache_likely_expired":true,"estimated_cache_write_usd":1.1396')" "$ON" >/dev/null
 assert_eq "boolean/number: numbers and a boolean keep their JSON types and values" \
   "number 5400|number 182340|boolean true|number 1.1396" \
@@ -359,15 +315,12 @@ assert_eq "SessionStart: the payload's source does not displace the record's" "e
 assert_eq "SessionStart records n/a" "n/a" "$(jq -r .effort "$(ELOG e8)")"
 assert_record "metadata rows satisfy the record schema" "$(ELOG e8)"
 
-# The raw absolute cwd, transcript_path and scratchpad_dir (D32).
 run "$P" '{"session_id":"e9","transcript_path":"/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl","cwd":"/home/<user>/proj","scratchpad_dir":"/tmp/claude-1000/-home-dev-proj/e9/scratchpad","permission_mode":"auto","hook_event_name":"PostToolBatch","tool_calls":[]}' "$ON" >/dev/null
 assert_eq "raw absolute cwd round-trips" "/home/<user>/proj" "$(jq -r .cwd "$(ELOG e9)")"
 assert_eq "raw absolute transcript_path round-trips" "/home/<user>/.claude/projects/-home-dev-proj/e9.jsonl" "$(jq -r .transcript_path "$(ELOG e9)")"
 assert_eq "raw absolute scratchpad_dir round-trips" "/tmp/claude-1000/-home-dev-proj/e9/scratchpad" "$(jq -r .scratchpad_dir "$(ELOG e9)")"
 assert_eq "permission_mode round-trips" "auto" "$(jq -r .permission_mode "$(ELOG e9)")"
 
-# Each allowlisted string field round-trips from the top level of a payload
-# that carries them all, `v-<key>` per key; error@StopFailure on StopFailure.
 STRINGS=$(bash -c 'source "$1"; printf "%s" "$SLOG_EVENT_LOG_STRINGS"' _ "$HOOK_DIR/session-log-lib.sh")
 members=""
 for entry in $STRINGS; do members+=",\"${entry%@*}\":\"v-${entry%@*}\""; done
@@ -378,10 +331,6 @@ done
 run "$P" "{\"session_id\":\"e11\",\"hook_event_name\":\"Stop\"$members}" "$ON" >/dev/null
 assert_eq "error@StopFailure is not read on another event" "false" "$(jq -r 'has("error")' "$(ELOG e11)")"
 
-# --- content opt-in (session_event_log_content) -----------------------------------
-# Off unless the option is exactly true; on, the top-level content strings land
-# as the payload's own bodies, and a content string cut by the 64 KB read cap
-# lands as its whole-escape prefix plus `<key>_truncated: true`.
 CONTENT_ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT=true
 P=$(project content)
 CLOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
@@ -404,15 +353,11 @@ assert_eq "opt-in on: a content key inside tool_input is not copied" "false" "$(
 run "$P" "$(payload c6 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"'"$P"'/src/a.sh"}')" "$ON" "$CONTENT_ON" >/dev/null
 assert_eq "opt-in on: file paths are still recorded project-relative" "src/a.sh" "$(jq -r .file_path "$(CLOG c6)")"
 
-# A row near 48 KB: the whole field lands, unmarked.
 FILL48=$(head -c 49152 /dev/zero | tr '\0' 'w')
 run "$P" "$(payload c7 UserPromptSubmit "\"prompt\":\"$FILL48\"")" "$ON" "$CONTENT_ON" >/dev/null
 assert_eq "opt-in on: a 48 KB prompt lands whole" 49152 "$(jq -r '.prompt | length' "$(CLOG c7)" 2>/dev/null)"
 assert_eq "opt-in on: the 48 KB row carries no _truncated marker" "false" "$(jq -r 'has("prompt_truncated")' "$(CLOG c7)" 2>/dev/null)"
 
-# truncated_case <sid> <tail-after-fill> [env...]: a UserPromptSubmit payload
-# whose prompt is `x` filler sized so the 64 KB cap lands just after the first
-# characters of <tail-after-fill>; prints the filler length.
 truncated_case() {
   local sid="$1" tail="$2" head fill n
   shift 2
@@ -436,8 +381,6 @@ iconv -f UTF-8 -t UTF-8 "$(CLOG c10)" >/dev/null 2>&1
 assert_exit "truncated at cap (byte locale): the row is valid UTF-8" 0 "$?"
 assert_eq "truncated at cap: a provable cut also carries content_truncated" "true" "$(jq -r .content_truncated "$(CLOG c8)" 2>/dev/null)"
 
-# A content string cut after a nested value cannot be placed at the top level:
-# it is not recorded, and the row says content was cut.
 FILL70=$(head -c 70000 /dev/zero | tr '\0' 'q')
 NESTED_CUT='{"session_id":"c11","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"npm test"},"error":"'"$FILL70"'"}'
 run "$P" "$NESTED_CUT" "$ON" "$CONTENT_ON" >/dev/null
@@ -447,11 +390,6 @@ assert_eq "under the cap: no content_truncated key" "false" "$(jq -r 'has("conte
 run "$P" "${NESTED_CUT/c11/c12}" "$ON" >/dev/null
 assert_eq "opt-in off over the cap: no content keys and no content_truncated" "false false" "$(jq -r '"\(has("error")) \(has("content_truncated"))"' "$(CLOG c12)" 2>/dev/null)"
 
-# --- a pause after a NESTED `}` does not end the read early ----------------------
-# The writer stops for longer than one slice right after tool_input closes,
-# then sends the rest. Read as "the payload ended", the buffer has no event
-# name and the fire is silently dropped; read as "not yet balanced", the loop
-# waits for the rest and the line lands with every key.
 P=$(project midpause)
 {
   printf '{"session_id":"s9p","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"x.md"}' "$P"
@@ -480,10 +418,6 @@ elapsed_ms=$(
       awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%d", (b - a) * 1000 }'
     }
 )
-# The whole payload (with its `/`-bearing paths) is in the first slice, so the
-# early stop must fire on that slice's timeout: about a quarter of the 1 s idle
-# bound plus startup, never the bound itself. A ceiling at the bound would pass
-# a broken early stop (1.26 s was measured with one), which is why it is 700.
 if ((elapsed_ms < 700)); then
   ok "held-open pipe: returned in ${elapsed_ms} ms (one quarter-bound slice, early stop)"
 else
@@ -491,13 +425,11 @@ else
 fi
 assert_eq "held-open pipe: the line was still written" 1 "$(wc -l <"$P/.observability/claude/sessions/s10.jsonl" | tr -d ' ')"
 
-# --- a 512 KB payload still yields the spine (only the first 64 KB is read) ------
 P=$(project big)
 BIG=$(head -c 524288 /dev/zero | tr '\0' 'x')
 run "$P" "$(payload s11 PostToolUse '"tool_name":"Read","tool_input":{"file_path":"/x/y"},"tool_response":"'"$BIG"'"')" "$ON" >/dev/null
 assert_eq "512 KB payload → spine written" "PostToolUse" "$(jq -r .hook_event_name "$P/.observability/claude/sessions/s11.jsonl")"
 
-# --- 33 parallel fires on one session produce 33 intact lines --------------------
 P=$(project parallel)
 for i in {1..33}; do
   run "$P" "$(payload s12 PostToolUse "\"tool_name\":\"T$i\"")" "$ON" >/dev/null &
@@ -507,7 +439,6 @@ PLOG="$P/.observability/claude/sessions/s12.jsonl"
 assert_eq "33 parallel fires → 33 lines" 33 "$(wc -l <"$PLOG" | tr -d ' ')"
 assert_eq "33 parallel fires → every line parses" 33 "$(jq -c . "$PLOG" 2>/dev/null | wc -l | tr -d ' ')"
 
-# --- 20 parallel rows over 4 KB on one session stay whole (the lock file) ---------
 P=$(project parallel-long)
 FILL8=$(head -c 8192 /dev/zero | tr '\0' 'z')
 for i in {1..20}; do
@@ -519,16 +450,12 @@ assert_eq "20 parallel 8 KB rows → 20 lines" 20 "$(wc -l <"$LLOG" | tr -d ' ')
 assert_eq "20 parallel 8 KB rows → every line parses" 20 "$(jq -c . "$LLOG" 2>/dev/null | wc -l | tr -d ' ')"
 assert_file_absent "20 parallel 8 KB rows → no lock left behind" "$LLOG.lock"
 
-# A stale lock (its token unchanged for 100 polls) never drops a row: it is
-# removed and the row appended.
 : >"$LLOG.lock"
 run "$P" "$(payload s12l UserPromptSubmit "\"prompt\":\"stale$FILL8\"")" "$ON" "$CONTENT_ON" >/dev/null
 assert_exit "stale lock → exit 0" 0 "$?"
 assert_eq "stale lock → the row is still appended" 21 "$(wc -l <"$LLOG" | tr -d ' ')"
 assert_file_absent "stale lock → broken after the wait" "$LLOG.lock"
 
-# Mixed sizes with content on: short rows take the lock too, so none lands
-# between the 4 KB chunks of a long row.
 P=$(project parallel-mixed)
 FILL64=$(head -c 65000 /dev/zero | tr '\0' 'z')
 for i in {1..10}; do
@@ -541,8 +468,6 @@ MLOG="$P/.observability/claude/sessions/s12m.jsonl"
 assert_eq "30 parallel mixed short and 64 KB rows → 30 lines" 30 "$(wc -l <"$MLOG" | tr -d ' ')"
 assert_eq "30 parallel mixed short and 64 KB rows → every line parses" 30 "$(jq -c . "$MLOG" 2>/dev/null | wc -l | tr -d ' ')"
 
-# A live holder keeps the lock past the old 1.5 s give-up (its token changes,
-# so it is not stale): the waiter appends only after the holder releases.
 P=$(project live-holder)
 HLOG="$P/.observability/claude/sessions/s12h.jsonl"
 mkdir -p "$P/.observability/claude/sessions"
@@ -595,7 +520,7 @@ done
 # record, all but ts and duration_ms, which measure the run itself.
 P=$(project parity)
 PLOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
-parity_case() { # <label> <event> <payload-members> <settings-row effort or ""> [env...]
+parity_case() {
   local label="$1" event="$2" members="$3" effort="$4" row mod
   shift 4
   run "$P" "$(payload "row-$event" "$event" "$members")" "$ON" ${effort:+CLAUDE_EFFORT=$effort} "$@" >/dev/null
@@ -623,7 +548,6 @@ if [[ -n "$row" && "$row" == "$mod" ]]; then ok "traced: traceparent is the only
 run "$P" "$(payload mod-host Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
 assert_eq "mod env: no effort object records unset, whatever the host's CLAUDE_EFFORT" "unset" "$(jq -r .effort "$(PLOG mod-host)")"
 
-# --- the producer sources nothing from hook-utils --------------------------------
 assert_eq "no hook-utils.sh source" 0 "$(grep -cE '^[[:space:]]*(source|\.)[[:space:]].*hook-utils' "$HOOK" "$HOOK_DIR/session-log-lib.sh" | awk -F: '{ s += $2 } END { print s + 0 }')"
 assert_eq "kill switch is the first statement after set" 1 \
   "$(awk '/^set -uo pipefail/{f=1;next} f && NF && !/^#/ {print; exit}' "$HOOK" | grep -c 'SESSION_EVENT_LOG_ENABLED')"

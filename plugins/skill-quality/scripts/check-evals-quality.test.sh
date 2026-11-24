@@ -28,8 +28,6 @@ make_evals() {
 
 run() { bash "$SUT" "$@"; }
 
-# A criterion set that satisfies every WARN heuristic: specific phrasing,
-# and one "does NOT" case for the Q9 set-coverage signal.
 CLEAN='{
   "skill_name": "clean",
   "evals": [
@@ -90,8 +88,6 @@ else
   fail "a missing input file should exit 2 (rc=$rc): $out"
 fi
 
-# 4. Unparsable JSON is an environment error (exit 2) pointing at schema
-#    validation — fail closed, never a silent skip.
 f="$(make_evals broken-json '{ not json')"
 out="$(run "$f" 2>&1)"
 rc=$?
@@ -101,7 +97,6 @@ else
   fail "unparsable JSON should exit 2 (rc=$rc): $out"
 fi
 
-# 5. A clean rich-form set passes with zero findings.
 f="$(make_evals clean "$CLEAN")"
 out="$(run "$f" 2>&1)"
 rc=$?
@@ -111,8 +106,6 @@ else
   fail "a clean set should pass with no findings (rc=$rc): $out"
 fi
 
-# 6. Q1: duplicate case ids FAIL (exit 1) — including an int/string collision,
-#    which is still ambiguous to a grader.
 f="$(make_evals dup-id '{
   "skill_name": "dup-id",
   "evals": [
@@ -157,8 +150,6 @@ else
   fail "Q3 should flag empty items (rc=$rc): $out"
 fi
 
-# 8b. Q3: null and empty-container items FAIL; a non-empty object item
-#     passes (item shape is skill-author-defined — upstream compat).
 f="$(make_evals nongradeable-items '{
   "skill_name": "nongradeable-items",
   "evals": [
@@ -175,8 +166,6 @@ else
   fail "Q3 should flag null/empty containers and allow structured items (rc=$rc): $out"
 fi
 
-# 8c. Q3: a whitespace-only sole-criterion expected_output FAILs even when it
-#     clears the Q8 length floor, and does not double-report as Q8.
 f="$(make_evals ws-only-sole '{
   "skill_name": "ws-only-sole",
   "evals": [
@@ -227,9 +216,6 @@ else
   fail "Q4 should flag a missing fixture (rc=$rc): $out"
 fi
 
-# 9b. Q4: traversal and absolute paths are rejected before the existence
-#     test — an escaping entry must never pass by pointing at a real host
-#     file (evals/../.. resolves to a directory that exists).
 f="$(make_evals fixtures-escape '{
   "skill_name": "fixtures-escape",
   "evals": [
@@ -245,8 +231,6 @@ else
   fail "Q4 should reject escaping entries before the -e test (rc=$rc): $out"
 fi
 
-# 9c. Q4: empty files:[] with a path-shaped token only in prose WARNs — the
-#     silent dodge that would otherwise clear the gate with 0 findings.
 f="$(make_evals prose-missing '{
   "skill_name": "prose-missing",
   "evals": [
@@ -264,8 +248,6 @@ else
   fail "Q4 should warn on prose-only unresolved paths with empty files (rc=$rc): $out"
 fi
 
-# 9d. Q4: narration: true opts out — intentional fictional consumer-repo paths
-#     must self-declare so the gap is explicit rather than silent.
 f="$(make_evals prose-narration '{
   "skill_name": "prose-narration",
   "evals": [
@@ -282,8 +264,6 @@ else
   fail "Q4 should stay silent when narration: true (rc=$rc): $out"
 fi
 
-# 9e. Q4: a prose path that resolves under the skill dir stays silent even
-#     with empty files (reachable-as-specified without a files declaration).
 mkdir -p "$TMP/prose-resolves/docs/reference"
 printf 'doc\n' >"$TMP/prose-resolves/docs/reference/exists.md"
 f="$(make_evals prose-resolves '{
@@ -302,9 +282,6 @@ else
   fail "Q4 must not warn when a prose path resolves (rc=$rc): $out"
 fi
 
-# 9f. Q4: branch-like slash tokens and bare filenames are not path-shaped —
-#     they must not WARN (feat/foo, CLAUDE.md, ours/theirs). URLs must not
-#     WARN either (https://example.com/a/b.md is not a fixture claim).
 f="$(make_evals prose-not-path '{
   "skill_name": "prose-not-path",
   "evals": [
@@ -321,9 +298,6 @@ else
   fail "Q4 must not warn on branch names, bare filenames, or URLs (rc=$rc): $out"
 fi
 
-# 9g. Q4: a dotted directory that is not a hostname (v1.2/...) must still WARN
-#     when unresolved — the host skip must not treat every "first.segment"
-#     with a dot as a URL leftover.
 f="$(make_evals prose-dotted-dir '{
   "skill_name": "prose-dotted-dir",
   "evals": [
@@ -531,8 +505,6 @@ else
   fail "Q8 must not flag a thin expected_output with expectations present (rc=$rc): $out"
 fi
 
-# 14. Q9: a set with no refusal/guardrail/anti-pattern language WARNs; the
-#     clean set (which has a does-NOT case) already proved the silent side.
 f="$(make_evals no-negative '{
   "skill_name": "no-negative",
   "evals": [
