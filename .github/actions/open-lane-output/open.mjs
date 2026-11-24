@@ -1,9 +1,3 @@
-// Open a bundle seal-lane-output made, with the recipient's X25519 private
-// key, into files under a directory the caller names. Every record is checked
-// and decrypted in memory before any file is written; a withheld chunk, a
-// length or framing error, an unknown key id, a wrong key, a bad version or a
-// failed GCM tag writes nothing. Plaintext reaches only those files: nothing
-// here prints it, sets it as an output or masks anything derived from it.
 import crypto from "node:crypto";
 import { appendFileSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -64,7 +58,6 @@ export function parseCaps(text) {
 // The chunks back into one base64 text. A chunk the length says is there but
 // that arrived empty is the runner's withheld output, the rotation signal.
 export function joinChunks(lengthText, parts) {
-  // The size cap first, on the untrusted text as it arrived, before any decode.
   const total = parts.reduce((sum, part) => sum + part.length, 0);
   if (parts.some((part) => part.length > CHUNK) || total > MAX_CHUNKS * CHUNK || lengthText.length > 10 || Number(lengthText) > MAX_CHUNKS * CHUNK) {
     throw new OpenError(`too-large: the sealed input is over ${MAX_CHUNKS * CHUNK} characters or ${CHUNK} a chunk; nothing is opened`);
@@ -134,7 +127,6 @@ export function openBundle(recipient, expected, caps, bundle, runId, jobId) {
 }
 
 export function main(env = process.env) {
-  // The key first: an empty or malformed key opens nothing, whatever arrived.
   const recipient = parsePrivateKey(env.PRIVATE_KEY);
   const jobId = env.JOB_ID ?? "";
   const runId = env.GITHUB_RUN_ID ?? "";
@@ -164,7 +156,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     main(env);
   } catch (error) {
     const message = error instanceof OpenError ? error.message : `sealed-mismatch: the sealed payloads could not be opened (${error.name}); nothing is opened`;
-    // One annotation, the refusal on its first line and any rotation line after it.
     process.stdout.write(`::error::${message.replaceAll("\n", "%0A")}\n`);
     process.exit(1);
   }

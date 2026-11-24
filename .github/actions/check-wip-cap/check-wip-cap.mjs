@@ -1,59 +1,4 @@
 #!/usr/bin/env node
-// check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from three
-// serial searches for the lanes App's pull requests in this repository (the
-// open ones, the ones merged in the rolling window, and the ones opened in it),
-// then the open agent-ready issues, oldest first, with hold labels left out:
-// from one Work status listing (listedStatusOf), where the field decides
-// agent-ready and adds a hold the labels lack, or, with models.issue-status
-// unset, the repository issues listing by the agent-ready label, pull requests
-// left out; and one pull request read per open lane PR whose first body line
-// names no issue.
-//
-// The cap is the merged count per hour times wip.target-lead-time-hours,
-// rounded up and at least wip.min-cap (limits.wip-cap when the merged count
-// cannot be read). Only open PRs that are not held count against it. A held PR (label
-// needs-human or do-not-merge in any case, or a body line exactly HOLD_LINE) counts
-// against wip.held-cap instead, and one older than wip.held-alarm-hours
-// raises the alarm. PRs opened in the window may be at most
-// wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
-// the check alerts; over the WIP cap or the held cap, on or after
-// wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
-// work-unblock re-fires none) and logs one `admission paused: reason=...`
-// line. When a read the pause depends on fails (the open listing, the base
-// config) the pause is unknown and the run holds: `capped` is
-// `true`,`pause_basis` is `unknown`, and one `::notice` names the hold. No
-// earlier state decides it; work-unblock's next sweep re-fires the run, which
-// reads again. A base config that cannot be read also closes admissions,
-// whatever wip.pause-from says.
-//
-// Queued work is the agent-ready issues no open lane PR names, on its first
-// body line or else by its lane branch, and no blocker still blocks (at most
-// BLOCKER_READS blocker reads), plus the held lane PRs. At or over the queued cap,
-// max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
-// x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
-// (work-unblock adding agent-ready) pause; runs never pause on it, since a
-// queued issue leaves the count only by running. A search that answers
-// incomplete_results: true closes admissions whatever wip.pause-from says. A
-// failed queued listing leaves admissions open here (`admission_basis`
-// `fail-open`), which admit.mjs and work-unblock treat as no room.
-//
-// With `pauseOnly` (WIP_READS=pause) it makes only the open listing and the
-// merged count, the two reads the run pause depends on, and leaves the
-// admission fields unread (`admission_basis` `not-read`, admissions open, unless
-// a search answered incomplete or the base config could not be read).
-//
-// As the action's step it writes `capped` (the run pause, or a hold on an
-// unknown pause), `admission-open` and `wip` (the status as one flat JSON
-// object), and the status to the step summary and log.
-// Environment:
-//   GITHUB_TOKEN        the job's own token (pull-requests: read, issues: read)
-//   GITHUB_REPOSITORY   owner/repo
-//   GITHUB_API_URL
-//   BASE_PATH           the default-branch checkout whose pr-pipeline.yaml
-//                       sets limits and wip (resolve-config's wipFromBase)
-//   LANES_BOT_LOGIN     the lanes App bot login (default melodic-automation-lanes[bot])
-//   WIP_READS           `pause` for the pause reads alone; anything else reads all
-//   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -71,19 +16,12 @@ import { LANES_APP_LOGIN as DEFAULT_BOT, WIP_CAP_HOLDS } from "../../scripts/lib
 const HOUR_MS = 3_600_000;
 export const HOLD_LABELS = WIP_CAP_HOLDS;
 export const HOLD_LINE = "Hold: a human merges this";
-// Issue labels that keep an issue off the issue lane: those a person decides,
-// and host-run and attended, whose Work status stays agent-ready while a host
-// session or the owner takes the step. An issue carrying one, in any case, is
-// not queued work.
 const ISSUE_HOLDS = new Set(["needs-human", "needs-owner-decision", "needs-reporter-info", "host-run", "attended"]);
 const lowered = (names) => names.filter((name) => typeof name === "string").map((name) => name.toLowerCase());
-// Whether label names (with the Work status field's hold added, read-status.mjs)
-// make a listed issue queued work: agent-ready and no hold.
 const isQueued = (names) => {
   const labels = lowered(names);
   return labels.includes("agent-ready") && !labels.some((name) => ISSUE_HOLDS.has(name));
 };
-// The issue a lane PR's first body line names, as report-outcome writes it.
 const NAMES_ISSUE = /^(?:Closes|Refs:) #([1-9][0-9]*)$/;
 // The search API returns at most 1000 results, 100 per page; the queued
 // listing stops at the same 10 pages.
@@ -126,8 +64,6 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
     } catch (error) {
       throw new StatusReadError(number, error);
     }
-    // A held issue (Work status mid-write) reads as unreadable, never as its
-    // labels: readLaneWip counts that as queued.
     const held = read?.held.get(Number(number));
     if (held) {
       throw new StatusReadError(number, held.reason);
@@ -140,9 +76,6 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
     if (!read) {
       return null;
     }
-    // A held issue (Work status mid-write, left out of the listing) counts as
-    // agent-ready: leaving it out would undercount the cap by one, and
-    // counting it only slows admissions.
     const held = [...read.held.values()].map((issue) => ({ number: issue.number, createdAt: String(issue.created_at ?? ""), names: ["agent-ready"] }));
     return read.found
       .map((issue) => ({ number: issue.number, createdAt: String(issue.created_at ?? ""), names: statusLabels(issue.state, issue.labels, read.config) }))
@@ -205,8 +138,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       return null;
     }
   };
-  // The listed items, and how many more the search counted than it listed
-  // (past MAX_PAGES); null when a read fails.
   const list = async (q, map) => {
     const all = [];
     try {
@@ -268,9 +199,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
           throw new Error("the issues listing answered no list");
         }
         for (const item of items.filter((entry) => !entry?.pull_request && !routed((entry?.labels ?? []).map((label) => label?.name)))) {
-          // The listing names only agent-ready issues, so the label counts as
-          // on each one unless the field says otherwise. An unreadable field
-          // counts as queued, which only slows admissions.
           const names = [...(item?.labels ?? []).map((label) => label?.name), "agent-ready"];
           const queued = await statusOf(Number(item?.number), names).then(isQueued, (error) => {
             if (error instanceof StatusReadError) return true;
@@ -301,12 +229,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       );
     }
   }
-  // An agent-ready issue a blocker still blocks never runs (check-blockers.mjs),
-  // so it is not queued work. One blocker-list read per queued issue no lane PR
-  // names, at most BLOCKER_READS; past that, or on a failed read, the issue
-  // counts as queued. A closed issue blocker, here or in another repository,
-  // counts as done without reading who closed it: an untrusted close the lane
-  // would still wait on is counted as queued, which only slows admissions.
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
   const blocked = [];
   const unnamed = open === null ? [] : (queued?.items ?? []).filter((number) => !named.has(number) && Number.isSafeInteger(number) && number > 0);
@@ -316,7 +238,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
         blocked.push(number);
       }
     } catch {
-      // Counted as queued.
     }
   }
   return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null, blocked, searchIncomplete };
@@ -350,17 +271,12 @@ export function wipStatus(
   const perHour = Math.max(computed ? (admission["admission-factor"] * merged) / window : 0, admission["admission-min-per-hour"]);
   const queuedCap = Number((perHour * window).toFixed(9));
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
-  // Issues past the listing's last page count as queued, and a count cut
-  // short that way never admits.
   const truncated = (queuedUnlisted ?? 0) > 0;
   const waiting = new Set(blocked);
   const queuedIssues =
     queued === null || open === null ? null : queued.filter((number) => !named.has(number) && !waiting.has(number)).length + (queuedUnlisted ?? 0);
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
   const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
-  // Admissions left before the cap; null when nothing gates them. An
-  // unreadable base config or an incomplete search answer leaves none whatever
-  // pause-from says: the caps or the counts are unknown.
   const unknown = configError ? "config-unreadable" : searchIncomplete ? "search-incomplete" : null;
   const room = unknown
     ? 0
@@ -465,7 +381,6 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
   const statusOf = listedStatusOf({ env: { ...env, BASE_PATH: basePath }, github, repository: repo });
-  // A notice, and the same line in the step summary.
   const announce = (title, line) => {
     log(`::notice title=${title}::${escape(line)}`);
     if (env.GITHUB_STEP_SUMMARY) {
@@ -475,9 +390,6 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf, routing: readRouting(join(basePath, "docs/conventions/work-items.yaml"), { who: "check-wip-cap", log }) })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });
-  // What the pause could not read, first one only; none when every read it
-  // depends on succeeded. A merged count that cannot be read is no hold: the
-  // cap is then the configured limits.wip-cap.
   const unread = configError
     ? "the base config could not be read"
     : read.countable_lane_prs === null
