@@ -946,6 +946,14 @@ function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
   return newestAppComment(comments, bot, (c) => bodyLines(c.body).slice(0, 2).includes(marker));
 }
 
+export const supersededBody = (head) =>
+  `Unattended merge: superseded. The pr-merge lane armed native auto-merge at head \`${head}\`, so the unarmed note this comment held no longer stands; its edit history keeps the reasons.`;
+
+export const supersededRefusals = (comments, bot, head) =>
+  (comments ?? [])
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && Number.isInteger(c.databaseId) && bodyLines(c.body).slice(0, 2).includes(REFUSAL_MARKER))
+    .map((c) => ({ commentId: c.databaseId, body: supersededBody(head) }));
+
 export function refusalWrites(pull, comments, { clears, reason, comment, partial = false, answered = false, record = null }, { bot, label, now = Date.now() }) {
   if (typeof comment === "string") {
     const marked = priorRefusal(comments, bot, comment.split("\n", 1)[0]);
@@ -2326,6 +2334,16 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
         continue;
+      }
+      if (action === "arm") {
+        for (const stale of supersededRefusals(detail?.comments?.nodes, slug, pull.headRefOid)) {
+          try {
+            await github("PATCH", `/repos/${repo[0]}/issues/comments/${stale.commentId}`, { body: stale.body });
+            console.log(`enable-auto-merge: #${pull.number} refusal comment ${stale.commentId} marked superseded by the arm at ${pull.headRefOid}`);
+          } catch (error) {
+            console.log(`::warning title=enable-auto-merge::#${pull.number} refusal comment ${stale.commentId} not marked superseded: ${describe(error)}`);
+          }
+        }
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason, partial, answered });
