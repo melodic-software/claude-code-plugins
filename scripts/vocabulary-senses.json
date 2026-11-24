@@ -68,7 +68,7 @@
         {"phrase": "\\bresolution ladder\\b", "reason": "a default of the toolchain resolution ladder, which stays"},
         {"phrase": "\\bmethod[- ]ladder\\b", "reason": "a default of the github method ladder, which stays"},
         {"phrase": "\\bcandidate ladder\\b", "reason": "a default of recommend-skills' candidate ladder, which stays"},
-        {"path": "docs/glossary.md", "reason": "the glossary's Avoid line records the retired word"}
+        {"phrase": "^Avoid: default ladder$", "reason": "the glossary's Avoid line records the retired word"}
       ]
     },
     {

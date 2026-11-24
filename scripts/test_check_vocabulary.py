@@ -319,10 +319,9 @@ ALLOWLIST = [
         r"\bcandidate ladder\b",
         "The candidate ladder's default ladder ranks skills first.",
     ),
-    path(
+    phrase(
         "default-ladder",
-        "docs/glossary.md",
-        "docs/glossary.md",
+        r"^Avoid: default ladder$",
         "Avoid: default ladder",
     ),
     phrase(
