@@ -1,9 +1,8 @@
-// test-scope: .github/scripts/pr-unblock/fixtures/*
+// test-scope: .github/scripts/pr-unblock/fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f/*
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { launcherOutcomes, loadSelect, runs, selectPin, value } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
@@ -20,18 +19,7 @@ const memo = (read) => {
 };
 const parsed = workflowText(TEXT);
 const wf = { ...parsed, step: memo(parsed.step), outputs: memo(parsed.outputs), job: memo(parsed.job) };
-const CONTRACT_FILES = JSON.parse(readFileSync(new URL("./fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f.json", import.meta.url), "utf8"));
-const CI_WORKFLOWS = mkdtempSync(join(tmpdir(), "credential-legs-"));
-let S;
-try {
-  for (const [path, content] of Object.entries(CONTRACT_FILES.files)) {
-    mkdirSync(dirname(join(CI_WORKFLOWS, path)), { recursive: true });
-    writeFileSync(join(CI_WORKFLOWS, path), Buffer.from(content, CONTRACT_FILES.utf8.includes(path) ? "utf8" : "base64"));
-  }
-  S = await loadSelect(selectPin(TEXT), CI_WORKFLOWS);
-} finally {
-  rmSync(CI_WORKFLOWS, { recursive: true, force: true });
-}
+const S = await loadSelect(selectPin(TEXT), fileURLToPath(new URL("./fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f/", import.meta.url)));
 
 const GATE = "check-adjudicator-key-credit";
 const JOB = "adjudicate-feedback";
