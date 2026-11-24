@@ -23,7 +23,8 @@
 // The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
-// each nullable but the number), which the pr-merge
+// each nullable but the number), and, given STANDARDS_DIR, the git blob id of
+// the standards trusted list it judged with, which the pr-merge
 // lane's reader checks. Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
 // reaches a shell. The file's evidence block (buildEvidence) records that no
@@ -37,6 +38,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { deeperLeak, findSecret, firstHit, SECRET_PATTERNS, WARN_ONLY } from "../../../lib/publish-gate.mjs";
+import { listBlob, STANDARDS_LIST_PATH } from "../lib/trusted-actors.mjs";
 import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
@@ -275,13 +277,14 @@ function readParts(text, partBytes) {
   return parts;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], prBody }) {
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], prBody, trustedActorsBlob }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
     !SHA.test(baseSha ?? "") ||
     !RUN_ID.test(String(runId)) ||
-    !REF.test(headRef ?? "")
+    !REF.test(headRef ?? "") ||
+    (trustedActorsBlob !== undefined && !SHA.test(trustedActorsBlob))
   ) {
     throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
   }
@@ -306,6 +309,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     // The title and body it judged, which the gate compares live
     // (babysit_verify_evidence): an edit since refuses the pass.
     ...(own ? { intent_sha256: createHash("sha256").update(String(own.body)).digest("hex") } : {}),
+    ...(trustedActorsBlob === undefined ? {} : { trusted_actors_blob: trustedActorsBlob }),
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
@@ -711,6 +715,7 @@ export function main(env = process.env) {
     linkedIssues,
     specText,
     prBody,
+    trustedActorsBlob: env.STANDARDS_DIR ? listBlob(readFileSync(path.join(env.STANDARDS_DIR, STANDARDS_LIST_PATH))) : undefined,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
