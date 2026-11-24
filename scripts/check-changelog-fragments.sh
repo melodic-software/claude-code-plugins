@@ -175,9 +175,12 @@ done <"$status_file"
 if [[ "$mode" == --check-required ]]; then
   findings=0
   dependabot=""
+  standards_sync=""
   # shellcheck disable=SC2310  # the non-zero return IS the answer
   if changelog_fragments::dependabot_only "$base"; then
     dependabot=1
+  elif changelog_fragments::standards_sync_only "$base"; then
+    standards_sync=1
   fi
   for path in ${added_fragments[@]+"${added_fragments[@]}"}; do
     if git cat-file -e "$base:$path" 2>/dev/null; then
@@ -200,11 +203,15 @@ if [[ "$mode" == --check-required ]]; then
       echo "Dependabot-only change to $root/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
+    if [[ -n "$standards_sync" ]]; then
+      echo "Standards-sync-only change to $root/: managed copies of melodic-software/standards ride the plugin's next release."
+      continue
+    fi
     echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     findings=$((findings + 1))
     if [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' ]]; then
-      if [[ -n "${CF_DEPENDABOT_BLOCKER:-}" ]]; then
-        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_DEPENDABOT_BLOCKER)." >&2
+      if [[ -n "${CF_BOT_BLOCKER:-}" ]]; then
+        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_BOT_BLOCKER)." >&2
         echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
       else
         echo "  Dependabot opened this pull request, but its commits could not be checked: the git or GitHub API lookup failed." >&2
