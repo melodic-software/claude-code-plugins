@@ -350,8 +350,7 @@ reads the file itself, through a script where the key names one below.
   repository's own caller workflows, as
   [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
   [safety.md](../skills/babysit-prs/reference/safety.md) say.
-
-- `trusted_actors_source`: where `/source-control:babysit-prs`, the pr-merge lane gate
+- `trusted_actors_source` and `standards_repository`: where `/source-control:babysit-prs`, the pr-merge lane gate
   (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) and the
   `ready` hold check (`check-ready-holds.sh`) read the trusted-actors list and the Dependabot
   policy. `standards` reads `components/trusted-actors/trusted-actors.json` and
@@ -360,7 +359,10 @@ reads the file itself, through a script where the key names one below.
   reads it. `repository`, or unset, reads the repository's own `.github/standards/` copies. Any
   other value, `standards` with `standards_repository` absent or not an `owner/repo` pair, or a
   YAML the parser rejects, reads neither: the lane adopts nothing and the hold check leaves the
-  label holding. No `userConfig` option; both keys are read from the target repository's tracked
+  label holding. The guardrails merge guard and the review loosened-check reader read the same
+  two keys for the trusted-actors list alone; with `standards` and no valid
+  `standards_repository` they read no list. No `userConfig` option and no default for
+  `standards_repository`; both keys are read from the target repository's tracked
   `docs/conventions/source-control.yaml` at the commit the list would be read at. Basis: the
   standards repository is the consumer's to name
   ([Hardcoded consumer specifics](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#hardcoded-consumer-specifics)).

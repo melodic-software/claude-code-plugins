@@ -14,7 +14,7 @@ execution:
 graders:
   - name: cites-ttl-decision
     type: regex
-    pattern: '(?:(?<![\w.])90(?![\w.])|\bninety\b)[ \t]*(?:-[ \t]*)?(?:s\b|secs?\b|seconds?\b)'
+    pattern: '(?:(?<![\w.])90(?![\d.])|\bninety\b)[ \t]*(?:-[ \t]*)?(?:s\b|secs?\b|seconds?\b)'
     flags: 'i'
     arm: with-only
   - name: routes-recovery-to-keep-going

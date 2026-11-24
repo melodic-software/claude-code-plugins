@@ -234,7 +234,7 @@
     "standards_repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-      "description": "owner/repo of the standards repository trusted_actors_source: standards reads. Required with that value; ignored otherwise."
+      "description": "owner/repo of the standards repository trusted_actors_source: standards reads, for the source-control readers above and for the guardrails merge guard and the review loosened-check reader. Required with that value; ignored otherwise. Unset or invalid with standards: the source-control readers adopt nothing, the merge guard runs unchecked with a warning, and the review reader gives no reason."
     },
     "org_settings_repo": {
       "type": "string",

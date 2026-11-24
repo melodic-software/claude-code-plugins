@@ -234,7 +234,10 @@
 //                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   SETTLED_PATH         plan reads the last pass's settled runs and job reads, then writes
-//                        this pass's there for the upload; unset carries nothing
+//                        this pass's there for the upload, with the reviews it left waiting
+//                        on a running checks run (waiting_reviews); unset carries nothing
+//   FOLLOWUP             `true` makes plan the review-only follow-up of FOLLOWUP_PATH's
+//                        queue (followup.mjs): no other read, and no settled runs written
 //   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-15 there (empty when unused;
 //                        https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/maintenance-reconcile-lost-runs.yml)
@@ -254,6 +257,7 @@ import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
+import { followUp } from "./followup.mjs";
 import {
   AGGREGATE_JOBS,
   FAILED,
@@ -388,10 +392,19 @@ const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
 export const SETTLED_VERSION = 4;
 
 class RateLimited extends Error {}
-const passRateLimit = (error) => {
+export const passRateLimit = (error) => {
   if (error instanceof RateLimited) {
     throw error;
   }
+};
+
+export const upstreamGate = (readStatus) => {
+  let gate;
+  return async () =>
+    (gate ??= checkUpstreamStatus({ fetchStatus: readStatus }).then(
+      (result) => (result.degraded === "true" ? `the upstream gate still reads ${escapeCommand(result.reason)}` : ""),
+      (error) => `the upstream gate could not be read (${escapeCommand(error?.message ?? error)})`,
+    ));
 };
 
 const carriedJobsEntry = (e) =>
@@ -418,6 +431,9 @@ const carriedPassesEntry = (e) =>
   e.runs.length > 0 &&
   e.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && isTime(r.started_at));
 
+const positiveId = (value) => Number.isSafeInteger(value) && value > 0;
+export const waitingReview = (e) => positiveId(e?.checksRunId) && positiveId(e.reviewRunId) && positiveId(e.pr) && SHA.test(e.head ?? "") && GATED_REVIEWS.has(e.path);
+
 export function parseSettled(text, repo) {
   const data = JSON.parse(text);
   if (
@@ -428,7 +444,8 @@ export function parseSettled(text, repo) {
     !Array.isArray(data.jobs) ||
     !data.jobs.every(carriedJobsEntry) ||
     (data.passes !== undefined && (!Array.isArray(data.passes) || !data.passes.every(carriedPassesEntry))) ||
-    (data.held_since !== undefined && !isTime(data.held_since))
+    (data.held_since !== undefined && !isTime(data.held_since)) ||
+    (data.waiting_reviews !== undefined && (!Array.isArray(data.waiting_reviews) || !data.waiting_reviews.every(waitingReview)))
   ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
@@ -436,6 +453,7 @@ export function parseSettled(text, repo) {
     runs: new Map(data.runs.map((r) => [r.id, r.reason])),
     jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])),
     passes: new Map((data.passes ?? []).map((e) => [passesKey(e.pr, e.head), e])),
+    waiting: data.waiting_reviews ?? [],
     ...(data.held_since !== undefined ? { heldSince: Date.parse(data.held_since) } : {}),
   };
 }
@@ -470,7 +488,7 @@ export const actionsStatus = (page) => componentStatus(page, ACTIONS.name);
 
 const newerFirst = (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
 
-function newestByWorkflow(runs) {
+export function newestByWorkflow(runs) {
   const newest = new Map();
   for (const r of runs) {
     const seen = newest.get(r.path);
@@ -527,10 +545,10 @@ const belowCap = (r) => r.run_attempt < RECONCILER_ATTEMPT_CAP;
 const atCap = (pull, checks, why) =>
   `#${pull.number}: run ${checks.id} (${checks.path}) is at attempt ${checks.run_attempt}, the most this workflow records, and ${why}; a person re-runs it`;
 export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
-const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
+export const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
 const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
 const isRunningChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status !== "completed";
-const onlyAggregateFailed = (jobs) =>
+export const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
     ? gateEntries(jobs).find((job) => job.conclusion === "failure" && Number.isSafeInteger(job.id))
     : undefined;
@@ -543,7 +561,7 @@ export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review t
 export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
-const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
@@ -632,6 +650,19 @@ export function classify(runs, since) {
     inFlight: plain.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
 }
+
+export const reconciledPull = (p, repo) => p?.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? "");
+
+export const ciRecoveryFirst = (own, since) => {
+  const { rerun, inFlight } = classify(own, since);
+  return (
+    inFlight ||
+    rerun.length > 0 ||
+    newestByWorkflow(own).some(
+      (r) => CI_WORKFLOWS.has(r.path) && !GATED_REVIEWS.has(r.path) && !RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1,
+    )
+  );
+};
 
 const nextAttempt = (item) => (item.attempt ?? 1) + 1;
 const withRecord = (item) =>
@@ -726,7 +757,7 @@ function laneOrder(lanes, openChecks, drop) {
   return { order: [...owned.filter((l) => l.kind === "fault-held"), ...owned.filter((l) => l.kind !== "fault-held"), ...rest.sort(byAge)], superseded };
 }
 
-const withAnnotations = (call, repo, jobs, wanted = () => true) =>
+export const withAnnotations = (call, repo, jobs, wanted = () => true) =>
   Promise.all(
     jobs.map(async (job) =>
       wanted(job) && !stepsKnown(job) && Number.isSafeInteger(job?.id)
@@ -799,12 +830,62 @@ export const RATE_RESET_GRACE_MS = 60_000;
 // window's reset in epoch seconds (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
 export const DEFER_NOTE = /\bcause=defer reset=([0-9]{9,12})\b/;
 export const DEFER_STEP = "Note the deferral";
-const DEFERRED = "success (deferred)";
+export const DEFERRED = "success (deferred)";
 export const deferReset = async (jobs, notesOf) => {
   const gate = jobs.find((job) => GATE_JOBS.has(job?.name) && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
   const resets = gate ? (await notesOf(gate)).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map(Number) : [];
   return resets.length > 0 ? Math.max(...resets) : undefined;
 };
+
+/**
+ * The review items of one head (`own`, its runs) whose newest hosted review a
+ * kill switch stopped, or a rate limit held, once nothing would stop it
+ * again: its lane's switch is off, it is inside RERUN_WINDOW_DAYS, a defer or
+ * rate-limit reset it names is RATE_RESET_GRACE_MS past, and the upstream gate
+ * (`gateHold`) lets it run. A wait is named through `say` or `waitReset`.
+ */
+export async function stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold }) {
+  const items = [];
+  for (const [path, name] of REVIEW_SWITCHES) {
+    const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
+    if (!isUnreviewed(r)) {
+      continue;
+    }
+    if (env[name]?.toLowerCase() === "true") {
+      say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
+      continue;
+    }
+    if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000) {
+      continue;
+    }
+    const jobs = await readJobs(r);
+    const stopped = reviewStopped(jobs);
+    const notesOf = (job) => job.annotations ?? call("GET", annotationsPath(repo, job.id));
+    const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
+    if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
+      waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
+      continue;
+    }
+    if (!stopped) {
+      const reset = await rateHeld(jobs, notesOf);
+      if (reset === undefined) {
+        continue;
+      }
+      if (now <= reset * 1000 + RATE_RESET_GRACE_MS) {
+        say(`#${pull.number}: review run ${r.id} (${r.path}) held on a GitHub API rate limit; waiting for its reset at ${new Date(reset * 1000).toISOString()}`);
+        continue;
+      }
+    }
+    const hold = await gateHold();
+    if (hold) {
+      say(`#${pull.number}: review run ${r.id} (${r.path}) ${defer !== undefined ? "was deferred on the GITHUB_TOKEN budget" : stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
+      continue;
+    }
+    const conclusion = defer !== undefined ? DEFERRED : stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
+    items.push({ kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) });
+  }
+  return items;
+}
 
 async function holdReason(call, repo, run, { judge, write }, settled, carry = new Map(), keep = new Map()) {
   const key = jobsKey(run.id, 1);
@@ -997,6 +1078,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const settle = [];
   const keepJobs = new Map();
   const keepPasses = [];
+  const waiting = [];
   const prefetchedReads = new Map();
   const batches = { failed: false };
   const send = call;
@@ -1011,7 +1093,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
   };
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
-    .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
+    .filter((p) => reconciledPull(p, repo))
     .sort(byMergeCriticality);
   let failed = 0;
   let waits = 0;
@@ -1027,12 +1109,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const specCandidates = [];
   const tooOld = [];
   let upstream;
-  let gate;
-  const gateHold = async () =>
-    (gate ??= checkUpstreamStatus({ fetchStatus: readStatus }).then(
-      (result) => (result.degraded === "true" ? `the upstream gate still reads ${escapeCommand(result.reason)}` : ""),
-      (error) => `the upstream gate could not be read (${escapeCommand(error?.message ?? error)})`,
-    ));
+  const gateHold = upstreamGate(readStatus);
   const upstreamHold = async () =>
     (upstream ??= (async () => {
       for (const url of [NPM_STATUS_URL, GITHUB_STATUS_URL]) {
@@ -1117,6 +1194,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
             reviewStopped(await readJobs(r))
           ) {
             waits += 1;
+            waiting.push({ checksRunId: checks.id, reviewRunId: r.id, pr: pull.number, head: pull.head.sha, path: r.path });
             say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting for checks run ${checks.id} (${checks.path}) to finish`);
           }
         }
@@ -1173,54 +1251,13 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
-      const stoppedReviews = async () => {
-        const items = [];
-        for (const [path, name] of REVIEW_SWITCHES) {
-          const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
-          if (!isUnreviewed(r)) {
-            continue;
-          }
-          if (env[name]?.toLowerCase() === "true") {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
-            continue;
-          }
-          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000) {
-            continue;
-          }
-          const jobs = await readJobs(r);
-          const stopped = reviewStopped(jobs);
-          const notesOf = (job) => job.annotations ?? call("GET", annotationsPath(repo, job.id));
-          const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
-          if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
-            waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
-            continue;
-          }
-          if (!stopped) {
-            const reset = await rateHeld(jobs, notesOf);
-            if (reset === undefined) {
-              continue;
-            }
-            if (now <= reset * 1000 + RATE_RESET_GRACE_MS) {
-              say(`#${pull.number}: review run ${r.id} (${r.path}) held on a GitHub API rate limit; waiting for its reset at ${new Date(reset * 1000).toISOString()}`);
-              continue;
-            }
-          }
-          const hold = await gateHold();
-          if (hold) {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) ${defer !== undefined ? "was deferred on the GITHUB_TOKEN budget" : stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
-            continue;
-          }
-          const conclusion = defer !== undefined ? DEFERRED : stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
-          items.push({ kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) });
-        }
-        return items;
-      };
+      const headReviews = () => stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold });
       if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
         if (reviewStopNoted(notes) || rateHeldNoted(notes)) {
-          set.push(...(await stoppedReviews()));
+          set.push(...(await headReviews()));
         } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
         } else if (checks.run_attempt >= 2 && switchNoted) {
@@ -1243,7 +1280,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
       }
       if (set.some((item) => item.kind === "floor" || item.kind === "switch")) {
-        set.push(...(await stoppedReviews()));
+        set.push(...(await headReviews()));
       }
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         const earliest = Math.min(...own.filter((r) => RECORDED_UPSTREAMS.has(r.path)).map((r) => Date.parse(r.created_at)));
@@ -1642,7 +1679,17 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, deferred: deferred + waits, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
+  const selected = new Set(ready.flat().map((item) => item.id));
+  return {
+    items,
+    failed,
+    deferred: deferred + waits,
+    settle,
+    heldSince,
+    jobs: [...keepJobs.values()],
+    passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()],
+    waiting: waiting.filter((w) => !selected.has(w.reviewRunId)),
+  };
 }
 
 const RUN_ONLY_KINDS = new Set(["lane", "fault-held", "intake", "verdict"]);
@@ -1807,6 +1854,14 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       write();
       return finish(0);
     }
+    if (env.FOLLOWUP === "true") {
+      result = await followUp({ repo, call, say, now, env, readStatus });
+      if (result.items.some(recorded) && !env.RECORD_PATH) {
+        throw new Error("RECORD_PATH is not set");
+      }
+      write();
+      return finish(0);
+    }
     let judgeSpec;
     let laneApp;
     if (env.TRUSTED_ACTORS_PATH) {
@@ -1837,7 +1892,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, passes, heldSince, deferred, ...planned } = await plan({
+    const { settle, jobs, passes, heldSince, deferred, waiting, ...planned } = await plan({
       repo,
       call,
       say,
@@ -1859,7 +1914,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     clean = result.failed === 0 && deferred === 0;
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString() }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes, held_since: new Date(heldSince).toISOString(), waiting_reviews: waiting }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");

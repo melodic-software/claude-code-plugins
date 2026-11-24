@@ -50,7 +50,8 @@ else
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}' \
-  "BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"; do
+  "BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}" \
+  'STANDARDS_DIR: ${{ steps.standards.outputs.path }}'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 order="$(grep -nE "^  ci-status:$|^      - name: (Fail a pull request carrying the human-gated label|$NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
@@ -159,7 +160,7 @@ JS
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r HUMAN_GATED="${HUMAN_GATED-needs-human}" BASE_SHA="${BASE_SHA-$BASE}" \
-    BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS:-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the trusted-actor list was read through the API"
     return
@@ -369,12 +370,19 @@ unset LANES_APP_ID HEAD_SHA STUB_PREDICATE
 
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
-expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $BASE names no person"
+expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json names no person"
 export STUB_ACTORS='{"actors":[{"id":1,"login":"someone","kind":"human"}]}'
 expect "a person missing from the base list is not trusted" 1 "kyle-sexton removed 'needs-human'"
 export STUB_ACTORS='{not json'
 expect "an unreadable trusted-actor list fails closed" 1 "names no person"
 unset STUB_ACTORS
+mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
+printf '%s\n' "$ACTORS" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
+export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
+STUB_STANDARDS="$TMP_ROOT/standards" expect "the standards checkout's list is read over the hold config's copy" 0 \
+  "kyle-sexton, a person on the trusted-actor list, lifted"
+unset STUB_ACTORS
+STUB_STANDARDS="$TMP_ROOT/no-standards" expect "a standards checkout with no list fails closed" 1 "could not read the trusted-actor list"
 STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the base commit's config at $BASE to check the review-lane hold comments; re-run this run."
 export STUB_EVENTS_FAIL=1
 expect "an unreadable event list fails closed" 1 "::error::could not read the events of #6419; re-run this run."

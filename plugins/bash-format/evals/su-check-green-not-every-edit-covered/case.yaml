@@ -23,7 +23,7 @@ graders:
     focus: 'last_message'
   - name: 'gitignored-caveat'
     type: 'llm'
-    criteria: 'The reply says a file the repository gitignores is also skipped silently unless bash_format_lint_gitignored is true.'
+    criteria: 'The reply says a file the repository gitignores is skipped unless bash_format_lint_gitignored is true.'
     focus: 'last_message'
   - name: 'unset-git-scoped'
     type: 'llm'

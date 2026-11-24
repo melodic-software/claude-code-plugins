@@ -197,6 +197,7 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 `${CLAUDE_SKILL_DIR}/scripts/git-tree-reset.sh`, default `--dry-run`. Detail: [context/git-tree-reset.md](context/git-tree-reset.md). Default-preserve; opt-in `--include-deps` / `--include-secrets`; `--allow-unpushed` when HEAD is ahead of upstream.
 
 **Mandatory gate:** show dry-run output → [confirmation gate](#confirmation-gate) → only then `CLEAN_GUARD_ACK=1 … --apply` (PowerShell: `$env:CLEAN_GUARD_ACK=1; … --apply`; see the session-scoped destructive guard above). Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits. Confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers). Live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
+When `--include-secrets` is in the plan, ask a separate question that confirms deleting the `.env*` and other secret files as unrecoverable, apart from the confirmation of the reset itself.
 
 ### 6.5. Tree batch. Multi-repo (destructive)
 
