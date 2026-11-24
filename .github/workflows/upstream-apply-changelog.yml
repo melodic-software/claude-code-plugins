@@ -89,6 +89,7 @@ jobs:
       next-leg: ${{ steps.credit.outputs.next-leg }}
       next-reason: ${{ steps.credit.outputs.next-reason }}
       credit-marker: ${{ steps.credit.outputs.marker }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -98,6 +99,10 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -135,6 +140,7 @@ jobs:
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           require-pr: "false"
           require-kind: human
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Pick the release
         id: gate
@@ -265,6 +271,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -290,6 +302,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set leaves this step, never its value. An
       # empty key hands the release to apply-changelog-subscription.
@@ -640,6 +653,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -665,6 +684,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set leaves this step, never its value.
       - name: Check the credential
@@ -967,6 +987,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -992,6 +1018,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set leaves this step, never its value.
       - name: Check the credential
@@ -1251,6 +1278,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1274,6 +1307,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
@@ -1483,6 +1517,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1506,6 +1546,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
@@ -1714,6 +1755,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1737,6 +1784,7 @@ jobs:
           activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
@@ -2080,6 +2128,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -2103,6 +2157,7 @@ jobs:
           activity: push-native-baseline-branch
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Request the lane token
         id: lane-token
@@ -2164,6 +2219,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -2187,6 +2248,7 @@ jobs:
           activity: publish-native-baseline-pr
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Request the lane token
         id: lane-token
@@ -2402,6 +2464,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -2425,6 +2493,7 @@ jobs:
           activity: apply-changelog-branches
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Before the mint: the scan job's artifact, by id, and the SHA-256 it
       # recorded for each file. A missing or altered file fails the job, so
@@ -2538,6 +2607,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.select-release.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -2561,6 +2636,7 @@ jobs:
           activity: publish-changelog-intake
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Before the mint: the scan job's artifact, by id, and the SHA-256 it
       # recorded for each file; with no bundle hash there must be no bundle.

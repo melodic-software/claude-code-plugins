@@ -257,6 +257,7 @@ import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
+import { followUp } from "./followup.mjs";
 import {
   AGGREGATE_JOBS,
   FAILED,
@@ -560,7 +561,14 @@ export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review t
 export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
-const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+const failureCauses = (annotations) =>
+  (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
+const stopCause = (a) => reviewStopNoted([a]) || rateHeldNoted([a]);
+export const onlyReviewStopsNoted = (annotations) => {
+  const causes = failureCauses(annotations);
+  return causes.length > 0 && causes.every(stopCause);
+};
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
@@ -582,6 +590,26 @@ const FLOOR_COMPANION = /^could not /;
 export const floorNoted = (annotations) => {
   const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
   return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
+};
+const jqUri = (text) => encodeURIComponent(text).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const TARGET_FORMS = [
+  [/#([1-9][0-9]*)\b/g, (id) => `/(?:pulls|issues)/${id}(?![0-9])`],
+  [/\brun ([1-9][0-9]*)\b/g, (id) => `/actions/runs/${id}(?![0-9])`],
+  [/\bjob ([1-9][0-9]*)\b/g, (id) => `/(?:check-runs|actions/jobs)/${id}(?![0-9])`],
+  [/\b([0-9a-f]{40})\b/g, (id) => `[/=]${id}(?![0-9a-f])`],
+  [/^could not read the push history of (.+); re-run this run\.$/g, (branch) => `[?&]ref=${literal(jqUri(`refs/heads/${branch}`))}(?=[&' ]|$)`],
+];
+const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(call(m[1]))));
+const floorCompanion = (message, floors) => FLOOR_COMPANION.test(message) && namedCalls(message).some((call) => floors.some((f) => call.test(f)));
+export const reviewStopsAmidGateNotes = (annotations) => {
+  const causes = failureCauses(annotations);
+  const floors = causes.map((a) => String(a.message ?? "")).filter((m) => FLOOR_NOTE.test(m));
+  const gateNote = (a) => {
+    const m = String(a.message ?? "");
+    return stopCause(a) || killSwitchNoted([a]) || PENDING_REVIEW_NOTE.test(m) || MISSING_REVIEW_NOTE.test(m) || FLOOR_NOTE.test(m) || floorCompanion(m, floors);
+  };
+  return causes.some(stopCause) && causes.every(gateNote);
 };
 const FLOOR_TIME = /(?:until|before) ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z)( \(fallback)?/g;
 const namedReset = (annotations, counts) => {
@@ -1255,7 +1283,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
-        if (reviewStopNoted(notes) || rateHeldNoted(notes)) {
+        if (reviewStopsAmidGateNotes(notes)) {
           set.push(...(await headReviews()));
         } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
@@ -1854,7 +1882,6 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       return finish(0);
     }
     if (env.FOLLOWUP === "true") {
-      const { followUp } = await import("./followup.mjs");
       result = await followUp({ repo, call, say, now, env, readStatus });
       if (result.items.some(recorded) && !env.RECORD_PATH) {
         throw new Error("RECORD_PATH is not set");

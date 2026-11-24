@@ -8,6 +8,8 @@
 # test-scope: plugins/planning/schemas/planning.schema.json
 # test-scope: plugins/planning/reference/config.md
 # test-scope: plugins/planning/skills/plan/SKILL.md
+# test-scope: plugins/planning/skills/devils-advocate/SKILL.md
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/resolve-convention-home.sh plugins/planning/skills/setup/scripts/parse-concern-value.sh plugins/planning/skills/setup/scripts/yaml-subset.awk
 # test-scope: plugins/planning/evals/fixtures/stress-arm/*
 # test-scope: plugins/planning/evals/st-*/*
 set -uo pipefail
@@ -22,6 +24,13 @@ WORKROOT="$(mktemp -d)"
 trap 'chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"' EXIT
 FAKE_HOME="$WORKROOT/home"
 mkdir -p "$FAKE_HOME"
+
+STUB="$WORKROOT/plugin"
+mkdir -p "$STUB/evals/fixtures" "$STUB/skills/devils-advocate" "$STUB/skills/plan"
+cp -R "$ARM" "$STUB/evals/fixtures/"
+cp "$PLUGIN_DIR/skills/devils-advocate/SKILL.md" "$STUB/skills/devils-advocate/"
+cp "$PLUGIN_DIR/skills/plan/SKILL.md" "$STUB/skills/plan/"
+PREPARE="$STUB/evals/fixtures/stress-arm/prepare-arm.sh"
 
 # shellcheck source=../lib/test-ok-fail.sh
 source "$PLUGIN_DIR/lib/test-ok-fail.sh"
@@ -82,7 +91,7 @@ done
 # every mode that arm's value; the copy's file passes the schema.
 for value in reviewer devils-advocate both auto; do
   dest="$WORKROOT/copy-$value"
-  if ! bash "$ARM/prepare-arm.sh" "$value" "$dest" >/dev/null; then
+  if ! bash "$PREPARE" "$value" "$dest" >/dev/null; then
     fail "prepare-arm $value exits 0"
     continue
   fi
@@ -96,12 +105,12 @@ plan_stress_test:
   check_file "arm $value's file passes the schema" 0 "$got"
 done
 
-if bash "$ARM/prepare-arm.sh" reviewer "$WORKROOT/copy-reviewer" >/dev/null 2>&1; then
+if bash "$PREPARE" reviewer "$WORKROOT/copy-reviewer" >/dev/null 2>&1; then
   fail 'prepare-arm refuses a dest that exists'
 else
   ok 'prepare-arm refuses a dest that exists'
 fi
-if bash "$ARM/prepare-arm.sh" never "$WORKROOT/copy-never" >/dev/null 2>&1; then
+if bash "$PREPARE" never "$WORKROOT/copy-never" >/dev/null 2>&1; then
   fail 'prepare-arm refuses a value outside the list'
 else
   ok 'prepare-arm refuses a value outside the list'
@@ -109,7 +118,7 @@ fi
 
 # The negative control: same frontmatter, no procedure, and the other skills untouched.
 control="$WORKROOT/control"
-bash "$ARM/prepare-arm.sh" devils-advocate "$control" --degrade-devils-advocate >/dev/null
+bash "$PREPARE" devils-advocate "$control" --degrade-devils-advocate >/dev/null
 source_skill="$PLUGIN_DIR/skills/devils-advocate/SKILL.md"
 degraded="$control/skills/devils-advocate/SKILL.md"
 frontmatter() { awk 'NR == 1 || !done { print } NR > 1 && /^---$/ { done = 1 }' "$1"; }

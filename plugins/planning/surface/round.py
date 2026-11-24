@@ -172,15 +172,9 @@ EXIT_REFUSED = 1
 EXIT_MISSING_PREREQUISITE = 2
 EXIT_SERVER_DID_NOT_START = 5
 EXIT_LEDGER_DIFFERS = 6
-# The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
 FINISH_SECONDS = 1
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
-# Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
-# commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
-# basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section). A new or changed short label and a context take the shared question
-# shape's caps.
 TEXT_CAP = 20000
 CONTEXT_CAP = 4000
 SHORT_SHAPE = {
@@ -217,7 +211,6 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 RESTATE_SENTENCES = 3
-# One write superseding this many questions one for one is a re-issue `revise` should do (G6).
 MASS_SUPERSEDE = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
@@ -225,9 +218,7 @@ ASKS_USER = re.compile(
     r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
     re.IGNORECASE,
 )
-# A criterion that opens on a request to the user ("Say add both, add one, or neither.").
 ASKS_USER_LEAD = re.compile(r"^(?:say|choose)\b", re.IGNORECASE)
-# A restated line's bullet or number, checkbox, AC<N> id and EARS tag, ahead of its text.
 CRITERION_LEAD = re.compile(
     r"^(?:[-*+]\s+|[0-9]+[.)]\s+)?(?:\[[ xX]\]\s*)?(?:AC[0-9]+\s*:\s*)?(?:\[[\w-]+\]\s*)?"
 )
@@ -497,9 +488,8 @@ def revise_recommendation(r, doc, q, rec, why):
     the old recommendation, with `why`, for the page."""
     set_aside_answer(r, doc, q, rec)
     if q.get("recommendation") or not q.get("proposed"):
-        # An accepted proposal's first recommendation revises nothing.
         q["previousRecommendation"] = q.get("recommendation", "")
-        q["revised"] = why or True  # the page says "Recommendation revised." itself
+        q["revised"] = why or True
     q["recommendation"] = rec
 
 
@@ -517,7 +507,6 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
     began (default: now), so questions added in one write date against the same round; `earlier`
     is the question ids that existed before it (default: now), which `reconciles` may name.
     Exits before any write."""
-    # Written now, so it answers to every constraint already recorded; only a later one marks it.
     q["checkedAgainst"] = (
         [c["id"] for c in doc.get("constraints") or []]
         if q.get("checkedAgainst") is None
@@ -583,7 +572,6 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
     q.pop("addedInRound", None)
     latest = newest_round(doc) if latest is None else latest
     if latest > q["round"]:
-        # Asked after a later round was posted: the round label alone would misdate it.
         q["addedInRound"] = latest
     if defaulted and doc["questions"]:
         warn(
@@ -642,7 +630,7 @@ def check_depends(d, doc, qs):
     prerequisite added in the same write counts as open."""
     strict = require_depends(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
-    view = json.loads(json.dumps(doc))  # release_user_holds edits the copy it is given
+    view = json.loads(json.dumps(doc))
     release_user_holds(view, r)
     rounds = {x.get("id"): x.get("round") for x in view["questions"]}
     for q in qs:
@@ -687,7 +675,6 @@ def repoint_dependents(doc, new, old, repoint):
             "--repoint moves them"
         ], []
     by_id = {x["id"]: x for x in doc["questions"]}
-    # What `new` already waits on: pointing one of those at `new` would be a cycle.
     below, todo = set(), list(new.get("dependsOn") or [])
     while todo:
         p = todo.pop()
@@ -799,16 +786,12 @@ LOCAL_FILE_REF = re.compile(
 )
 FIELD_LINK = re.compile(r"https?://|\]\(")
 FIELD_INLINE_CONTENT = re.compile(r"^\s*(?:>|[-*+]\s|\d+[.)]\s)", re.MULTILINE)
-# What lets a reader check the claims in facts: a link, a `file:line` (a file name with an
-# extension, then a line number), or the `judgment` label for a claim with no source, which
-# opens a line or follows a sentence break, `(` or ` - `, never a word ("a judgment call").
 FACTS_REFERENCE = re.compile(
     r"https?://|\]\("
     r"|(?<![\w.-])(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.[A-Za-z]\w*:[0-9]+\b"
     r"|(?:^|[.!?;:(\[]|\s-)\s*\**judgment\b",
     re.IGNORECASE | re.MULTILINE,
 )
-# The `Checked against:` line facts opens with cites constraint ids, not the source of a claim.
 CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.MULTILINE)
 
 
@@ -954,12 +937,9 @@ def put_group(doc, g):
             sys.exit(f"unknown group in {g['id']} dependsOn: {ref}")
 
 
-# Ops: each takes (d, doc, a), changes doc in memory, and returns (touched questions, message).
-# The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
 META_KEYS = ("title", "eyebrow", "stages", "next", "repo", "commit")
-# add-round's meta may also carry `kind`, stored on the round: a sweep round reconciles earlier answers.
 ROUND_KINDS = ("sweep",)
 
 
@@ -1149,7 +1129,6 @@ def store_round_restate(doc, qs, restate, kind=None):
     }
     slot = (entry["round"], entry["stage"])
     old = [r for r in doc.get("rounds") or [] if (r.get("round"), r.get("stage")) == slot]
-    # A later write to the same round that names no kind keeps the round's earlier one.
     kind = kind or next((r["kind"] for r in old if r.get("kind")), None)
     if kind:
         entry["kind"] = kind
@@ -1429,7 +1408,6 @@ def checked_depends(doc, qid, deps):
     return deps
 
 
-# A revise history line's words for a changed field whose name is not a word.
 REVISED_WORDS = {"checkedAgainst": "constraints checked"}
 
 
@@ -1562,7 +1540,7 @@ def op_revise(d, doc, a):
             {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
         )
         changed.append(f"group ({regroup})")
-    for line in lines:  # a revision clears the question's upstream-changed mark (server.derive_states)
+    for line in lines:
         line.update(reviewSeq=snapshot.get("seq", 0), rev=doc["rev"] + 1)
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
@@ -1614,9 +1592,7 @@ def op_record_terminal(d, doc, a):
         "rev": doc["rev"] + 1,
     }
     if q.get("setAsideRev") == doc["rev"] + 1:
-        # A user hold earlier in this same write: this answer came after it, so it counts.
         q["setAsideRev"] = doc["rev"]
-    # A terminal record carries no seq, so a stale accepted text could match it by time alone.
     q.pop("asideRecommendation", None)
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
@@ -2025,7 +2001,7 @@ def summarize(doc, logged, asks=False):
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
         revised="revise" in names,
-        waits=bool(names & {"reply", "wait"}),  # a write that also replies or holds leaves the question waiting on the user
+        waits=bool(names & {"reply", "wait"}),
         asks=asks,
         restate=doc["restatement"]["rev"] if "restate" in names else None,
         finished="finish" in names,
@@ -2070,7 +2046,6 @@ def read_input(path, kind, as_json=False, newline=None):
 
 
 def cmd_add(d, a):
-    # The question's text comes only from the file; the flags override ids and placement.
     q = read_input(a.file, "question file", as_json=True)
     if not isinstance(q, dict):
         sys.exit(f"refused: the question file {a.file} holds one question object")
@@ -2104,15 +2079,12 @@ def cmd_add_round(d, a):
         print(f"check passed, nothing written: {msg}")
         return
     if a.sync_ledger:
-        # Every refusal sync-ledger makes on the ledger text itself, before the round is posted.
         exporters.check_ledger(
             read_input(a.sync_ledger, "ledger", newline=""), a.sync_ledger
         )
     write_op(op_add_round_linted, "add-round")(d, a)
     if not a.sync_ledger:
         return
-    # The round stays posted: the register is derived state that sync-ledger rebuilds from the
-    # page. The ledger is re-read, not the pre-check's text, so an edit made since is not lost.
     try:
         notes = write_synced_ledger(d, a.sync_ledger)
     except (SystemExit, OSError) as e:
@@ -2126,8 +2098,6 @@ def cmd_add_round(d, a):
     report_notes(notes, ("conflict",))
 
 
-# Ops that once had their own command taking page text on the command line; `apply` is their one
-# write path, and the command names stay only to refuse with a pointer to it.
 APPLY_ONLY = (
     "group",
     "reply",
@@ -2138,7 +2108,6 @@ APPLY_ONLY = (
     "reconfirm",
 )
 
-# Per-op argument defaults for `apply`: the op file's keys map onto the namespace each op reads.
 OP_ARGS = {
     "reply": (
         op_reply,
@@ -2378,7 +2347,6 @@ def cmd_status(d, a):
             if q.get("archived") or prop == "decline"
             else "proposed"
             if prop == "pending"
-            # before the decision, as export-ledger reads it: a superseded answer counts nowhere
             else "superseded"
             if q.get("supersededBy")
             else "waiting"
@@ -2688,7 +2656,6 @@ def cmd_export(d, a):
             # newline="" both ways, so a CRLF file keeps its endings outside the Brief.
             plan = read_input(a.into, "plan", newline="")
             merged = exporters.merge_brief(plan, text, a.into)
-            # A temp file renamed over PLAN.md, so a failed write never leaves it cut short.
             tmp = Path(f"{a.into}.tmp")
             tmp.write_text(merged, encoding="utf-8", newline="")
             os.replace(tmp, a.into)
@@ -2748,7 +2715,6 @@ def cmd_export_ledger(d, a):
     text = read_input(a.ledger, "ledger") if a.ledger else None
     if a.recap:
         if d is None:
-            # Read alone, a ledger with no register (or two) would give an empty recap.
             exporters.check_ledger(text, a.ledger)
         state = last_recap_path(a.ledger) if a.ledger else None
         since = read_last_recap(state) if a.changed else None
@@ -2779,7 +2745,6 @@ def record_ledger_sync(d, doc, ledger, force=False):
     lines, disagreeing rows, whether doc changed)."""
     notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
     drift = [line for kind, line in notes if kind in ("change", "conflict")]
-    # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
     leads = (re.match(r"Q\d+\b", line) for line in drift)
     rows = list(dict.fromkeys(m.group() if m else "order" for m in leads))
     was = doc["meta"].get("ledgerSync") or {}
@@ -3311,8 +3276,6 @@ def cmd_ensure_running(d, a):
         record_question_pacing(d, None if a.pacing is None else pacing_value(a.pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
-        # The settings layers use --user-settings, else the user file the live server applies. The
-        # session file is data-dir content, so it never supplies the browser opener or the URL.
         user = str(Path(a.user_settings).resolve()) if a.user_settings else None
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
@@ -3321,9 +3284,6 @@ def cmd_ensure_running(d, a):
         resolver.retired_notices(d)
         stale = live and bridge.stale_build(s)
         if stale:
-            # A server started before a plugin update runs the old code: start this build in its
-            # place, on the same port, with the same user file. No finish is posted and none is
-            # cleared, so the interview goes on and open tabs read a restart.
             end_server(d, s, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
             print(
                 f"restarted the page server: {stale}; reload the page and re-arm the watcher",
@@ -3331,8 +3291,6 @@ def cmd_ensure_running(d, a):
             )
             live = False
         if not live:
-            # --port first, then the recorded port (the page's origin), then the resolved setting;
-            # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
             ports = [a.port, bridge.kept_port(d, NAME)]
             if a.port is None:
                 ports.append(settings["port"]["value"])
@@ -3371,7 +3329,7 @@ def clear_finished(d):
         if any(dropped):
             save(d, doc)
     except (SystemExit, OSError, ValueError):
-        pass  # an unreadable file is the server's and the gate's to report, not this start's
+        pass
 
 
 def finish_on_stop(d):
@@ -3387,7 +3345,7 @@ def finish_on_stop(d):
                 }
                 save(d, doc)
         except (SystemExit, OSError, ValueError):
-            pass  # a file the schema refuses must not keep the server running
+            pass
     time.sleep(FINISH_SECONDS)
 
 
@@ -3564,7 +3522,6 @@ def main(argv=None):
     s.add_argument("--seq", type=int, nargs="+", required=True)
     s.set_defaults(fn=write_op(op_handle, "handle"))
 
-    # Former commands that took page text on the command line; each is an apply op now.
     for name in APPLY_ONLY:
         s = sub.add_parser(name, help=f"removed: write a {name} op to an ops file and run apply")
         s.set_defaults(fn=None)
@@ -3893,7 +3850,6 @@ def main(argv=None):
         and not a.diff
         and not (a.dir and Path(a.dir).is_dir())
     ):
-        # The terminal lane has no page data: its recap reads the ledger alone.
         a.fn(None, a)
         return
     if not a.dir:

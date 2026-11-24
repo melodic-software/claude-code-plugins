@@ -1,6 +1,3 @@
-// pr-refine.yml's job gates and limits: the select-passes job decides which passes
-// start, a PR the plan matches to no pass skips every job after it, and every
-// job has a timeout so a hung job cannot strand the run.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -151,7 +148,6 @@ test("a failed head read after a plan records the fix-docs pass, not the plan", 
 test("a held plan starts no pass and no record, and fix-docs-head-held logs the hold", () => {
   const results = simulate(DISPATCH, { "select-passes": { held: "true", "plan-result": "success", "head-result": "skipped" } });
   assert.deepEqual(ran(results), ["select-passes", "fix-docs-head-held"]);
-  // Positive control: a read plan holds nothing.
   const read = simulate(DISPATCH, { "select-passes": { held: "false", passes: "[]", "fix-docs": "", "plan-result": "success" } });
   assert.equal(read["fix-docs-head-held"], "skipped");
 });
@@ -187,8 +183,6 @@ test("every pr-refine job has a timeout: its own, or its reusable workflow's tim
   }
 });
 
-// The plan reads the base config through resolve-config's own loader, the one
-// plan-passes.test.mjs and live-config.test.mjs run, not a yq conversion.
 test("the plan step runs write-pass-plan.mjs on the base checkout, with no yq conversion", () => {
   const plan = jobLines("select-passes");
   assert.ok(plan.includes("          BASE_PATH: .base"));

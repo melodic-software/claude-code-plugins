@@ -1,8 +1,4 @@
 # yaml-language-server: $schema=../../plugins/guardrails/schemas/guardrails.schema.json
-# Team layer for the guardrails plugin's settings.
-# Resolution: plugins/guardrails/hooks/block-fix-request-post.sh (fix_request_post),
-# plugins/guardrails/hooks/block-dangerous-git.sh (unpinned_lease),
-# plugins/guardrails/hooks/abort-boundary.sh (deny_on_crash).
 fix_request_post: allow
 unpinned_lease: block
 deny_on_crash:

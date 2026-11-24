@@ -49,7 +49,6 @@ async function attemptChecks(call, repo, runId, attempt) {
   return failingChecks(jobs, annotations);
 }
 
-// Attempt 1 and the newest attempt of a run, each with its failing checks.
 async function attempts(call, repo, run) {
   const first = await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1`);
   const result = {
@@ -66,7 +65,6 @@ async function attempts(call, repo, run) {
   return result;
 }
 
-// The run once a re-run of it finished, or as it stands when the wait ends.
 async function awaitRerun(call, repo, runId, minutes, sleep) {
   let run = await call("GET", `/repos/${repo}/actions/runs/${runId}`);
   for (let waited = 0; waited < minutes && !(run.run_attempt >= 2 && run.status === "completed"); waited += 1) {
@@ -116,18 +114,14 @@ const newest = (runs) => [...runs].sort((a, b) => b.created_at.localeCompare(a.c
 
 const lastGreen = (runs, sha) => newest(runs.filter((r) => r.conclusion === "success" && r.head_sha !== sha));
 
-// github-actions[bot]'s issues.
 async function botIssues(call, repo) {
   return (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`)).filter(
     (i) => !i.pull_request && i.user?.id === BOT_ID,
   );
 }
 
-// The log is the oldest issue carrying its marker, so a newer one another
-// workflow files can neither take the reports nor reset the cap.
 const logIssue = (issues) => issues.filter((i) => firstLine(i.body) === LOG_MARKER).sort((a, b) => a.number - b.number)[0];
 
-// The log's report markers.
 async function logMarkers(call, repo, log) {
   if (!log) return [];
   const comments = await pages(call, `/repos/${repo}/issues/${log.number}/comments`);
@@ -137,9 +131,6 @@ async function logMarkers(call, repo, log) {
     .filter((m) => m.match);
 }
 
-// Red full runs since the last green one that the log does not report: a
-// report the repository-wide concurrency group cancelled while pending, or
-// one that confirmed nothing or did not run.
 const unreportedReds = (runs, green, runId, markers) =>
   green
     ? runs
@@ -177,7 +168,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   const run = await awaitRerun(call, repo, env.RUN_ID, config["confirm-wait-minutes"], sleep);
   const evidence = await attempts(call, repo, run);
   const verdict = confirm(evidence.first, evidence.latest);
-  // The decision time, read after the wait: it drives the age and cap windows.
   const now = clock();
   const runInfo = { id: run.id, attempt: run.run_attempt, sha: env.RUN_SHA, url: runUrl };
   if (!verdict.confirmed) {
@@ -203,7 +193,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
       message: c.commit?.message ?? "",
       committedAt: c.commit?.committer?.date ?? "",
     }));
-    // At most 25 merges, so their evidence reads fit the call budget.
     range = firstParentRange(base.sha, env.RUN_SHA, commits, 25);
   }
 
@@ -225,9 +214,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
     });
   }
 
-  // github-actions[bot]'s issues: the log issue, the post-merge record for
-  // this run's SHA, and any canary record (a platform-side silent revert) in
-  // the range.
   const issues = await botIssues(call, repo);
   const log = logIssue(issues);
   const record = issues.find((i) => KINDS.some((kind) => firstLine(i.body).startsWith(recordPrefix(kind, env.RUN_SHA))))?.number;
@@ -237,9 +223,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   });
 
   const markers = await logMarkers(call, repo, log);
-  // This report's range starts at the last green run, so it decides over the
-  // unreported reds' merges too; it names them, so no dropped report passes
-  // unseen.
   const unreported = unreportedReds(runs, green, run.id, markers);
   if (markers.some((m) => m.match[1] === String(run.id) && m.match[2] === String(run.run_attempt))) {
     const summary = `#${log.number} already reports ${runUrl}/attempts/${run.run_attempt}.`;
@@ -262,8 +245,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
       labels: (pull?.labels ?? []).map((l) => l.name),
       mergedAt: pull?.merged_at ?? commit.committedAt,
     };
-    // Auto-reverts in the last day and of this culprit: the lanes App's
-    // auto-revert pull requests, and this log's own dry-run decisions.
     const reverts = (await call("GET", `/repos/${repo}/issues?state=all&labels=auto-revert&sort=created&direction=desc&per_page=100`)) ?? [];
     const ownReverts = reverts.filter(
       (i) => i.pull_request && (i.user?.login ?? "").toLowerCase() === agentIdentity.toLowerCase(),
@@ -321,7 +302,7 @@ async function main(env = process.env) {
     call: client(env),
     sleep: (ms) => delay(ms),
     clock: () => new Date().toISOString(),
-    loadConfig: () => redMainFromBase({ BASE_PATH: env.BASE_PATH }),
+    loadConfig: () => redMainFromBase({ BASE_PATH: env.BASE_PATH, STANDARDS_DIR: env.STANDARDS_DIR }),
     revertApplies: revertAppliesWithGit(env.BASE_PATH),
   });
   console.log(result.posted ? `reported on #${result.target}` : result.summary);

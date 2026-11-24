@@ -161,7 +161,7 @@ class TestRefusedShapes(unittest.TestCase):
 
     def test_a_reaction_held_as_one_value_not_a_list(self):
         state = fixture("state-full.json")
-        state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = "thumbs"  # one value, as an earlier build held it
+        state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = "thumbs"
         self.assertIn("kL1mN3pQ5rS7", schema.first_error(state, STATE))
         state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = []
         self.assertIn("needs at least 1 items", schema.first_error(state, STATE))
@@ -183,7 +183,7 @@ class TestRefusedShapes(unittest.TestCase):
         self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "commit": sha}]}, OPS))
         self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "repo": "a/b", "branch": "main"}]}, OPS))
         state = fixture("state-full.json")
-        self.assertNotIn("repo", state["session"])  # a state without the fields stays valid
+        self.assertNotIn("repo", state["session"])
         state["session"].update(repo="octo-org/demo", commit=sha)
         self.assertIsNone(schema.first_error(state, STATE))
         state["session"]["branch"] = "main"
@@ -252,7 +252,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
 
     def test_prototype_tiers_is_an_optional_list_of_the_three_views(self):
         state = fixture("state-full.json")
-        self.assertNotIn("prototypeTiers", state["session"]["settings"])  # a file from before it stays valid
+        self.assertNotIn("prototypeTiers", state["session"]["settings"])
         self.assertIsNone(schema.first_error(state, STATE))
         for ok in ([], ["screenshot"], ["screenshot", "snapshot", "live"]):
             state["session"]["settings"]["prototypeTiers"] = ok
@@ -263,7 +263,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
 
     def test_a_variant_shows_shots_a_snapshot_or_an_earlier_asset_and_a_prototype_may_say_where_to_look(self):
         q = question("Q4")
-        self.assertNotIn("lookAt", q["format"])  # a question from before the look-at line stays valid
+        self.assertNotIn("lookAt", q["format"])
         self.assertIsNone(question_error(q))
         v = {"id": "v-1", "label": "Flow"}
         for ok in ({"shots": ["0123456789abcdef.png"]}, {"shots": ["0123456789abcdef.png"] * 4, "snapshot": "fedcba9876543210.html"},
@@ -281,7 +281,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
 
     def test_lives_is_an_optional_list_of_live_entries(self):
         state = fixture("state-full.json")
-        self.assertNotIn("lives", state)  # a file from before it stays valid
+        self.assertNotIn("lives", state)
         self.assertIsNone(schema.first_error(state, STATE))
         folder, port = {"kind": "folder", "folder": "staging/r1/live"}, {"kind": "port", "port": 5173}
         entry = {"id": "L1", "label": "Checkout app", "target": folder, "at": 1.0, "status": {"kind": "pending"}}
@@ -295,12 +295,12 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         state["lives"] = oks
         self.assertIsNone(schema.first_error(state, STATE))
         bads = [
-            {**entry, "status": {"kind": "running", "approvedAt": 2.0, "startedAt": 3.0}},  # running needs its url
-            {**entry, "status": {"kind": "pending", "url": "https://a.example"}},  # only a running entry holds a url
+            {**entry, "status": {"kind": "running", "approvedAt": 2.0, "startedAt": 3.0}},
+            {**entry, "status": {"kind": "pending", "url": "https://a.example"}},
             {**entry, "status": {"kind": "ended", "endedAt": 4.0, "reason": "stopped", "url": "https://a.example"}},
             {**entry, "status": {"kind": "ended", "endedAt": 4.0, "reason": "crashed"}},
             {**entry, "target": {"kind": "port", "port": 70000}},
-            {**entry, "target": {"kind": "url", "url": "https://hosted.example"}},  # no external links
+            {**entry, "target": {"kind": "url", "url": "https://hosted.example"}},
             {**entry, "url": "https://a.example"},
             {k: v for k, v in entry.items() if k != "target"},
         ]
@@ -336,7 +336,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         state["reports"] = {"F1": {"by": "host", "text": "Send does nothing", "ctx": ctx, "image": "reports/F1.png", "status": "open", "ts": 1.0}}
         state["session"]["seq"]["F"] = 1
         self.assertIsNone(schema.first_error(state, STATE))
-        more = copy.deepcopy(state)  # four pictures sent with it: the first at image, the rest at moreImages
+        more = copy.deepcopy(state)
         more["reports"]["F1"]["moreImages"] = ["reports/F1-p2.png", "reports/F1-p3.jpg", "reports/F1-p4.webp"]
         self.assertIsNone(schema.first_error(more, STATE))
         for bad, want in ((lambda r: r.update(status="closed"), "'closed' is not one of"), (lambda r: r["ctx"].update(answer="x"), "'answer'"),

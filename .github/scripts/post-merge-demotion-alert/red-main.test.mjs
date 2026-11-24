@@ -1,6 +1,3 @@
-// The red-main rule (owner decision 2026-10-20, docs/conventions/pr-pipeline/
-// README.md "Red main"): expected values are the rule's own words, never the
-// functions' output.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -111,7 +108,6 @@ test("a failed job listing no failed step is a check of its own; the full list k
     failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }])], gitleaks),
     [],
   );
-  // A failed step beside the aggregator still charges the job.
   assert.deepEqual(
     failingChecks(
       [
@@ -127,8 +123,6 @@ test("a failed job listing no failed step is a check of its own; the full list k
 });
 
 test("the alert's two modes: a judged run counts a job with unknown steps whole, a baseline leaves it out", () => {
-  // The cases babysit_postmerge.py's Baseline tests hold: lint-repo failing on
-  // the gitleaks gate with its steps empty, cut short, or listed in full.
   const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
   const lint = (steps) => ({ id: 7, name: "Lint Repo", conclusion: "failure", steps });
   const lists = {
@@ -145,11 +139,8 @@ test("the alert's two modes: a judged run counts a job with unknown steps whole,
     assert.deepEqual(failingChecks([lint(lists[label])], gitleaks, alert), judged, label);
     assert.deepEqual(failingChecks([lint(lists[label])], gitleaks, { ...alert, baseline: true }), base, label);
   }
-  // A job failing on a real step is a baseline check too.
   const real = lint([{ name: "Test hygiene result aggregation", conclusion: "failure" }]);
   assert.deepEqual(failingChecks([real], gitleaks, { ...alert, baseline: true }), ["Lint Repo"]);
-  // The alert counts every red conclusion babysit_postmerge.py does, and names
-  // a red run with no failed job; red-main counts only `failure`.
   const cancelled = { id: 9, name: "Test Bash", conclusion: "cancelled", steps: [] };
   assert.deepEqual(failingChecks([cancelled], {}, alert), ["Test Bash"]);
   assert.deepEqual(failingChecks([cancelled], {}), []);
@@ -199,7 +190,7 @@ const [BASE, A, B, H] = ["0", "a", "b", "f"].map(sha);
 test("the range is the first-parent chain from the last green run to the failing head", () => {
   const commits = [
     { sha: A, parent: BASE },
-    { sha: sha("e"), parent: A }, // a merged branch's commit, not on main's first-parent chain
+    { sha: sha("e"), parent: A },
     { sha: B, parent: A },
     { sha: H, parent: B },
   ];

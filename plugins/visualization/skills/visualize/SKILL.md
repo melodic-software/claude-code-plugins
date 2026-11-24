@@ -144,7 +144,7 @@ layers, first hit wins:
    (rendered diagrams, real charts, dashboards).
 
 Whichever layer decides, name it in the output: the resolver's report line, or "shipped
-default" for auto.
+default" for auto. Copy the resolver's `view: ...` report line and each notice into the reply word for word. When the form is a diagram, also resolve `diagram_target` as **Diagram target** below says, on every surface including the terminal, and print its one line and any unavailable line in their exact form.
 
 **Surface gate: the rich page is a capability that can be absent.** A published
 Artifact is gated;

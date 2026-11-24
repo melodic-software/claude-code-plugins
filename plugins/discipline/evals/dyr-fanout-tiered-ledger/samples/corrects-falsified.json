@@ -11,6 +11,10 @@
     },
     {
       "answer": "| 1 | free tier | rate_limits.yaml:4 | corrected: 60 rpm |\n| 4 | token lifetime | auth.py:3 | corrected: 3600 s |\n| 5 | refresh tokens | auth.py:4 | corrected |\n| 6 | free quota | pricing.md:5 | corrected: 10,000 calls |"
+    },
+    {
+      "answer": "| 1 | Free tier is 120 requests/min | Corrected to 60 | rate_limits.yaml:4 |\n| 4 | Tokens last 24h | Corrected to 1h (3600 s) | auth.py:3 |\n| 5 | Refresh tokens are issued | Corrected: none are issued | auth.py:4 |\n| 6 | Free has 100,000 calls | Corrected to 10,000 | pricing.md:5 |",
+      "why": "unit before the corrected 60, in a ledger row"
     }
   ],
   "fail": [

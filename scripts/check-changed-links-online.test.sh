@@ -165,4 +165,16 @@ out="$(run SELF_REPO=other/r STUB_DUMP="$dump" -- --list trunk)"
 [[ $out == "$(LC_ALL=C sort <<<"$dump")" ]]
 check $? "a link to another repository is kept" "out=$out"
 
+run STANDARDS_DIR="$TMP_ROOT/standards" -- --list "$base" >/dev/null
+grep -qx "$TMP_ROOT/standards/lychee.toml" "$TMP_ROOT/dump-args"
+check $? "with no lychee.toml here, the standards checkout's is the ruleset" "$(cat "$TMP_ROOT/dump-args")"
+run STANDARDS_DIR="$TMP_ROOT/standards" LYCHEE_CONFIG=own.toml -- --list "$base" >/dev/null
+grep -qx own.toml "$TMP_ROOT/dump-args" && ! grep -q standards "$TMP_ROOT/dump-args"
+check $? "LYCHEE_CONFIG wins over the standards checkout" "$(cat "$TMP_ROOT/dump-args")"
+: >"$repo/lychee.toml"
+run STANDARDS_DIR="$TMP_ROOT/standards" -- --list "$base" >/dev/null
+grep -qx lychee.toml "$TMP_ROOT/dump-args" && ! grep -q standards "$TMP_ROOT/dump-args"
+check $? "this repository's own lychee.toml wins over the standards checkout" "$(cat "$TMP_ROOT/dump-args")"
+rm "$repo/lychee.toml"
+
 test_harness::report

@@ -1,4 +1,3 @@
-# Team layer for the mutation-testing plugin (keys: plugins/mutation-testing/skills/setup/templates/config-template.md).
 tool: manual
 command: none, the manual protocol applies each mutant by hand
 

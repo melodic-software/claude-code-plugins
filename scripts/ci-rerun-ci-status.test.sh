@@ -59,7 +59,7 @@ fi
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
   'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" "RATE_WAIT_SECONDS: '720'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
-  'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
+  'TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json' \
   'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
   'RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml' \
   'RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs' \
@@ -137,7 +137,7 @@ done
 # each later step runs only on the find step's outputs. The job ends by
 # logging its readings.
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == " Resolve main's tip| Check out the trusted-actors list| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end" ]]; then
+if [[ "$order" == " Resolve main's tip| Check out the trusted-actors list| Download standards| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end" ]]; then
   ok "the job reads the switch, finds, scans, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"

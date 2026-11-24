@@ -13,9 +13,6 @@ const NAME = `pr-verify-42-${FAILED}-fail`;
 
 const verdict = (extra = {}) => ({ verdict: "fail", pr: 42, head_sha: FAILED, summary: "the loop skips the last item", notes: ["src/a.js:3 off by one", "loose note"], ...extra });
 
-// The REST answers the reads walk: the FAIL index for the head, the run's
-// artifacts, the run record and its compare against main (resolve-pr.mjs
-// countedBy), then the verdict zip, which `unzip` here reads as its text.
 function fakeActions({ index, artifacts, run = {}, compare = { status: "ahead" }, file = verdict() } = {}) {
   const reads = [];
   const downloads = [];
@@ -69,7 +66,6 @@ test("the FAILed head's notes come from its verdict artifact, as pr-verify's not
   assert.match(items[0].body, /Summary: the loop skips the last item/);
   assert.match(items[0].body, /src\/a\.js:3 off by one/);
   assert.match(items[0].body, /loose note/);
-  // Only the FAIL verdict is downloaded, never the index.
   assert.deepEqual(fake.downloads, [7]);
 });
 

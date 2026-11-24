@@ -138,13 +138,11 @@ from interview_server import (
     unchecked_constraints,
 )
 
-# The Brief's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 ARBITER_DESIGN = "**arbiter: /planning:design**"
 DESIGN_ROUTE = ARBITER_DESIGN.removeprefix("**arbiter: ").removesuffix("**")
 SEED_NOTE = "Seeded from ledger"
-# The note an accept made by an accept-audit event exports with (schema/event.schema.json).
 PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
 GAP_LINE = re.compile(
@@ -157,16 +155,11 @@ MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
 ROUND_CELL = re.compile(r"^\s*round\s+([0-9]+)", re.IGNORECASE)
 ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
-# Register statuses that leave a question unresolved; superseded-by-plan is a plan's
-# displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
 SETTLED = ("answered", "deferred", "withdrawn", "blocked")
-# The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
 PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
 WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
-# An open row held on research or on the user; a research hold carries the answer it keeps,
-# and an unanswered one the commitments confirmed on it.
 HELD = re.compile(
     r"^(waits on|awaiting user): (.*?)(?:; answer: (.*)|; confirmed: (.*))?$"
 )
@@ -493,7 +486,6 @@ def readable(status, fields, marked):
         parts.append(f"aside: {fields['aside']}")
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
-        # A decision's note is labeled; any other note is the row's own seeded text.
         noted = (
             decided.startswith(("accepted: ", "hedged: "))
             or ALT.match(decided)
@@ -501,10 +493,7 @@ def readable(status, fields, marked):
         )
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
-        # A page deferral; a seeded one's arbiter is in its own text.
         parts.append("arbiter: USER-RESERVED")
-    # An unconfirmed commitment reaches the Brief as a named risk, and only where the decision
-    # carries it (register's "carries").
     confirmed = [c for ok, c in marked if ok]
     if confirmed:
         parts.append("confirmed: " + "; ".join(confirmed))
@@ -520,7 +509,6 @@ def held_terminal(q, answer, note, at):
     elif answer.startswith("free-text: "):
         decision, key, text = "own", None, answer[len("free-text: ") :]
         if note:
-            # A resolved own answer: the answer is the accepted reading, the note the user's words.
             q["resolution"] = {"text": text, "at": at, "decidedAt": at}
             text = note
     elif alt:
@@ -632,7 +620,6 @@ def marked_commits(q, events):
     return [(i in ticked, c) for i, c in enumerate(q.get("commits") or [])]
 
 
-# The decisions that carry a question's commitments.
 CARRIES = ("accept", "hedged")
 
 
@@ -667,22 +654,17 @@ def settle(q, responses, events, seed_rows):
         rec = rec or newest_decision(q, responses, aside=True)
         said = (rec or {}).get("decision")
         if kind == "answer" and rec.get("seeded") and status == "deferred":
-            # A deferral as a ledger seeded it, as below; a blocked one stays a page deferral,
-            # since a held row's status reads open and could not tell it from a deferred one.
             fields.update(answer="deferred", note=rec.get("text") or "")
         elif said:
             fields[kind], note = decision_fields(
                 q, rec, kind == "answer" and status != "superseded-by-plan"
             )
             fields["note"] = note or None
-        # The seeded text of a row still unsettled once the hold clears rides in note, unless
-        # the decision's own note is there.
         if said not in ("accept", "hedged", "alt") and fields.get("note") is None:
             if kind == "aside" or status == "superseded-by-plan":
                 fields["note"] = seed_text(seed)
         return status if status == "superseded-by-plan" else "open", fields, "", False
     if decision == "defer" and rec.get("seeded") and status in ("deferred", "blocked"):
-        # A deferral as a ledger seeded it: its text rides in note, its arbiter in that text.
         text = rec.get("text") or ""
         fields.update(answer="deferred", note=text)
         return status, fields, "", status == "blocked" or "USER-RESERVED" in text
@@ -699,13 +681,10 @@ def settle(q, responses, events, seed_rows):
         return status, fields, clean(text), decision == "defer"
     aside = newest_decision(q, responses, aside=True)
     if status != "superseded-by-plan" and aside and aside_rec(q, aside) is not None:
-        # A revised recommendation set this accept aside: open until the user accepts again,
-        # the accept named as of the text it accepted.
         fields["aside"], note = decision_fields(q, aside)
         fields["note"] = note or None
         return "open", fields, "", False
     fields["note"] = seed_text(seed)
-    # A set-aside decision leaves the plan's proposal waiting on the user again.
     return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
@@ -781,8 +760,6 @@ def register(doc, resp, pos=None, tails=None):
             res = f"{res}; {stale}" if res else stale
         res = lead + res
         decided = latest_decision(q, responses) or {}
-        # An own answer replaces the recommendation, so the Brief and the report drop its
-        # commitments; the ledger row keeps their ticks, so an import restores them.
         briefed = [] if decided.get("decision") == "own" else marked
         shown = readable(status, fields, briefed)
         rows.append(
@@ -798,8 +775,6 @@ def register(doc, resp, pos=None, tails=None):
                 "design": DESIGN_ROUTE in res,
                 "confirmed": [c for ok, c in briefed if ok],
                 "unconfirmed": [c for ok, c in briefed if not ok],
-                # Accept and hedged carry the recommendation's commitments; an own answer or an
-                # alternative withdraws them and a defer's open row covers them.
                 "carries": decided.get("decision") in CARRIES,
                 "decision": decided.get("decision"),
             }
@@ -877,7 +852,6 @@ def merged_register(d, text=None):
             x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x
         ]
         stamps.append((q.get("archived") or {}).get("at"))
-        # A hold counts from the wait op's stamp; an imported hold carries none.
         stamps.append(q.get("waiting") and q.get("waitingSince"))
         return any(s and s > seeded.get("at", "") for s in stamps) or bool(
             q.get("supersededBy")
@@ -1069,8 +1043,6 @@ def carried_section(text, name):
     return [*body, ""]
 
 
-# Longest answer, in characters, a live question's recap line keeps before it is cut; the recap
-# tries each in turn until it fits the caller's cap.
 RECAP_ANSWER_STEPS = (240, 120, 60, 30)
 
 
@@ -1260,7 +1232,6 @@ def goal_block(lines):
 
 
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
-# A restated bullet that says there is nothing to list.
 NONE_BULLET = re.compile(r"^- none\.?$", re.IGNORECASE)
 
 
@@ -1341,7 +1312,6 @@ def replacements(rows):
     return out
 
 
-# A recap line written while the row was open: its Q<N>, then its question and answer.
 OPEN_RECAP = re.compile(r"^(?:[-*+]\s+)?(Q[1-9][0-9]*) open: (.*)\)$")
 
 
@@ -1483,8 +1453,6 @@ def brief_label(r):
     return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
 
 
-# The events whose text is the user's own words, and how the Brief's Intent labels each; an
-# accept, alt or hedged event has text only when the user typed a note on that choice.
 USER_WORDS = {
     "ask": "asked",
     "note": "note",
@@ -1518,7 +1486,6 @@ def user_words(rows, events, intent):
         where = f"{labels.get(qid) or clean(qid)} " if qid else ""
         label = USER_WORDS[kind].format(alt=clean(e.get("alt")))
         line = f"- {where}{label}: {text}"
-        # A Reconfirm posts the kept choice and its note again.
         if kind in CHOICE_WORDS and line in out:
             continue
         out.append(line)
@@ -1563,7 +1530,6 @@ def export_brief(d, text=None):
     risks = named_risks(rows)
     gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
-    # The confirmed scope bullets lead the TLDR, ahead of the bookkeeping.
     out = ["## Brief", "", "### TLDR", "", *bullets(sections.get("tldr"))]
     out.append(
         f"- {len(rows)} question{'' if len(rows) == 1 else 's'}: {count['answered']} answered, {count['deferred']} deferred, "
@@ -1577,7 +1543,6 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    # A row the Brief writes no line for keeps its ticked commitments here.
     out += [
         f"- {brief_label(r)} confirmed so far: {'; '.join(clean(c) for c in r['confirmed'])}"
         for r in rows
@@ -1618,13 +1583,10 @@ def export_brief(d, text=None):
     out += ["", "### Constraints", ""]
     recorded = []
     if not bullets(sections.get("constraints")):
-        # No confirmed restatement supplies constraints: the page's own ledger, then the
-        # ledger file's rows under a C<N> the page has not recorded.
         page = doc.get("constraints") or []
         recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
         seen = {c["id"] for c in page}
         recorded += [b for i, b in ledger_constraints(text) if i not in seen]
-    # An answered row the restatement already carries is said there, once, its `why:` under it.
     carried = carried_rows(sections, answered)
     given = set()
     out += [
@@ -1642,10 +1604,6 @@ def export_brief(d, text=None):
         if criteria
         else ["- none recorded in the interview surface", ""]
     )
-    # A confirmed commitment is part of its decision's line (readable's `confirmed:`), or the
-    # TLDR's `confirmed so far` line, not an assumption to revisit: this section holds the
-    # unconfirmed ones, as risks, and a Notes
-    # question the user left unanswered (the coverage prompt asked on the page).
     out += ["### Captured assumptions", ""]
     lines = [
         f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
@@ -1656,7 +1614,6 @@ def export_brief(d, text=None):
     ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]
-    # A superseded row was replaced, not excluded: Out-of-scope reads as approved scope.
     archived = [r for r in rows if r["status"] == "withdrawn" and r["n"] not in replaced]
     out += [
         *bullets(sections.get("outOfScope")),
@@ -1739,8 +1696,6 @@ def merge_brief(plan, brief, where):
     nl = "\r\n" if "\r\n" in plan else "\n"
     keep = lines[start + 1 : first]
     if any(x.strip() for x in keep):
-        # The export's blank line after `## Brief` gives way to the kept text, which ends on a
-        # blank line before the export's first subheading.
         keep[-1] = keep[-1] if keep[-1].endswith("\n") else keep[-1] + nl
         if keep[-1].strip():
             keep.append(nl)
@@ -1748,7 +1703,6 @@ def merge_brief(plan, brief, where):
         section = section[2:]
     else:
         head = ""
-    # A blank line before the heading that follows; none after the file's last line.
     block = head + nl.join(section) + nl + (nl if stop < len(lines) else "")
     return "".join(lines[:start]) + block + "".join(lines[stop:])
 
@@ -2199,9 +2153,6 @@ def resolve_row(text, qid, how, note, where):
             return "answered", lead + old
         marked, kept = None, note
         if form == "named":
-            # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
-            # when no --note-file replaces it, and its commitments. An earlier reconfirm's proposal and
-            # `was` have no field left to go in, so they are dropped.
             held = parse_named(old, where)
             if held:
                 old, marked = held[0].get("answer", old), held[1]
@@ -2511,7 +2462,6 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
         clash("proposal", "was")
     if hold is not None and status not in UNSETTLED:
         clash("hold", f"status {status}")
-    # Without a hold, only a recommendation revision sets a decision aside: an open row's accept.
     revised_aside = (
         "aside" in fields
         and hold is None
@@ -2544,13 +2494,9 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     }
     if not fits[status]:
         clash("answer", f"status {status}")
-    # A bare `deferred` answer with a note is a deferral as a ledger seeded it; on a held row,
-    # whose status reads open, it is a deferred one.
     seeded_defer = answer == "deferred" and (
         status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
-    # A counted free-text answer's note is the user's words behind its resolution; the note of a
-    # set-aside one, or of a superseded-by-plan row's, is the row's seeded text.
     own_noted = answer is not None and status != "superseded-by-plan"
     noted = decided is not None and (
         decided.startswith(("accepted: ", "hedged: "))
@@ -2559,8 +2505,6 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     )
     if decided is not None and decided.startswith("hedged: ") and not note:
         refuse("a hedged answer with no condition in field 'note'", where)
-    # Any other note on a row still unsettled is the seeded text of a row no decision counts on:
-    # on a held row, one with no counted answer or a superseded-by-plan one.
     residual = (
         status in UNSETTLED
         and "proposal" not in fields
@@ -2670,7 +2614,7 @@ def import_ledger(doc, text, ledger, at):
             continue
         held = HELD.match(res) if status == "open" else None
         commits = held.group(4).split("; ") if held and held.group(4) else None
-        if held:  # the hold itself is restored below, so its text leaves the seeded row
+        if held:
             if held.group(3):
                 status, res = "answered", held.group(3)
             else:
@@ -2686,7 +2630,6 @@ def import_ledger(doc, text, ledger, at):
         proposal = (
             parse_proposal(res, ledger) if status == "superseded-by-plan" else None
         )
-        # An escaped open or answer row settles from its state alone, as a held row does.
         if not (listed and listed.group(1)) and not answer:
             seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         if proposal:
