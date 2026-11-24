@@ -9320,7 +9320,7 @@ class TheResolverAndTheGateAgreeOnTheList(unittest.TestCase):
         self.commit("2026-10-01T00:00:00Z", list_text=json.dumps(LIST_V1), readme="one")
 
     def git(self, *args: str, at: str | None = None) -> str:
-        env = self.env | ({"GIT_AUTHOR_DATE": at, "GIT_COMMITTER_DATE": at} if at else {})
+        env = {**self.env, **({"GIT_AUTHOR_DATE": at, "GIT_COMMITTER_DATE": at} if at else {})}
         return subprocess.run(
             ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t",
              "-c", "commit.gpgsign=false", *args],
