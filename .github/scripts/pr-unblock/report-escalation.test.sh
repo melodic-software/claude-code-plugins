@@ -4,11 +4,7 @@
 # .labels[].name, comment .body and .user.type) and records every call.
 # shellcheck disable=SC2016  # backticks and $STUB are literal text here
 set -euo pipefail
-# On a runner the script would wrap its gh calls and record into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
-# A case that needs this run's jobs sets its own run id; on a runner the
-# inherited one would send status mode reading them.
 unset GITHUB_RUN_ID
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -131,7 +127,6 @@ printf '#!/usr/bin/env bash\necho git >>"$STUB/calls"\nexit 1\n' >"$TMP/bin/git"
 printf '#!/usr/bin/env bash\necho "sleep $1" >>"$STUB/sleeps"\n' >"$TMP/bin/sleep"
 chmod +x "$TMP/bin/gh" "$TMP/bin/git" "$TMP/bin/sleep"
 
-# setup <labels-json-array> <comments-json-array> [tracker-json|none]
 setup() {
   STUB="$(mktemp -d "$TMP/case.XXXXXX")"
   mkdir -p "$STUB/ws/.base/docs/conventions"
@@ -145,8 +140,6 @@ setup() {
     printf 'tracker: %s\n' "$3" >"$STUB/ws/.base/docs/conventions/work-items.yaml"
   fi
 }
-# run <reason> [head-sha]: runs from the workspace root, as the runner does.
-# MODE, when set, is the script's argument; TARGET_URL passes through.
 run() {
   set +e
   (cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t \
@@ -156,9 +149,7 @@ run() {
   set -e
 }
 writes() { grep -cE '^(POST|PATCH)' "$STUB/requests" || true; }
-# comment <body> <login> <type> [id]
 comment() { printf '[{"id":%s,"body":%s,"user":{"login":"%s","type":"%s"}}]' "${4:-1}" "$(jq -Rs . <<<"$1")" "$2" "$3"; }
-# bot_marker <head> [reason]: the lanes App's escalation comment for that head and reason.
 bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-feedback-question-design}"'`' 'melodic-automation-lanes[bot]' Bot; }
 activity_of() {
   case $1 in
@@ -220,7 +211,6 @@ for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}";
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
 done
 
-# Rejected reasons: not a reason name at all.
 for reason in '' 'repeat-cap ' REPEAT-CAP 'bogus;x'; do
   setup '[]' '[]'
   run "$reason"
@@ -228,9 +218,6 @@ for reason in '' 'repeat-cap ' REPEAT-CAP 'bogus;x'; do
   check "rejects reason [$reason]: no gh call" '' "$(cat "$STUB/calls")"
 done
 
-# Fail-safe: a well-formed reason the table does not list (a retired name
-# included) holds for a person, with no activity to dispatch, and posts no
-# commit status.
 for reason in bogus workflow-files dependency-workflow-held; do
   setup '[]' '[]'
   run "$reason"
@@ -248,8 +235,6 @@ for reason in bogus workflow-files dependency-workflow-held; do
   check "$reason, unknown, status mode: no write" 0 "$(writes)"
 done
 
-# Session-builder reasons: the needs-session label, then one lane-stopped
-# comment that names it; never the human-gated label.
 for reason in "${SESSION_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
@@ -272,7 +257,6 @@ setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-weaken-required
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
-# Held reasons: one comment, one label, both on the PR.
 for reason in "${HOLD_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
@@ -292,9 +276,6 @@ for reason in "${HOLD_REASONS[@]}"; do
   check "$reason: the comment run posts no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
 
-# A hold row's owner reason: the comment carries ../lib/stop-reason.mjs's
-# marker, which parseReason reads back, and its visible line; the unlisted
-# reason's fail-safe hold carries neither.
 PARSE='const { parseReason } = await import(process.env.LIB); const b = (await import("node:fs")).readFileSync(0, "utf8"); process.stdout.write(JSON.stringify(parseReason(b)));'
 for reason in "${HOLD_REASONS[@]}"; do
   setup '[]' '[]'
@@ -310,8 +291,6 @@ run bogus
 check "an unlisted reason's hold carries no stop-reason marker" null \
   "$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")"
 
-# Fail-routed reasons: one lanes-stopped comment, no label, no status from
-# the comment run.
 for reason in "${FAIL_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
@@ -330,8 +309,6 @@ for reason in "${FAIL_REASONS[@]}"; do
   check "$reason, fail: no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
 
-# Session-builder reasons: the needs-session label, then one lane-stopped
-# comment that names it; never the human-gated label.
 for reason in "${SESSION_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
@@ -354,8 +331,6 @@ setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-escalated
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
-# A session removed needs-session without a new head, and the lane stops
-# again with the same comment: the label goes back on, the comment is untouched.
 setup '[]' '[]'
 run ci-fix-escalated
 session_body=$(sed '/^=====$/d' "$STUB/bodies")
@@ -367,8 +342,6 @@ setup '[{"name":"needs-session"}]' "$(comment "$session_body" 'melodic-automatio
 run ci-fix-escalated
 check "session, same head, still labeled: no write" 0 "$(writes)"
 
-# The fail comment is one per activity, edited in place: unchanged, nothing
-# is written; on a new head it is edited, never posted again.
 STOP_MARKER='<!-- pr-unblock:lane-stopped activity=fix-ci -->'
 setup '[]' '[]'
 run ci-fix-round-cap
@@ -378,8 +351,6 @@ run ci-fix-round-cap
 check "fail, same head, comment unchanged: exit 0" 0 "$RC"
 check "fail, same head, comment unchanged: no write" 0 "$(writes)"
 
-# A session removed needs-session without a new head, and the lane stops
-# again with the same comment: the label goes back on, the comment is untouched.
 setup '[]' '[]'
 run ci-fix-weaken-required
 session_body=$(sed '/^=====$/d' "$STUB/bodies")
@@ -404,14 +375,11 @@ setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=address-feedback --
 run ci-fix-round-cap
 check "fail: another activity's comment is left alone" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
-# A held reason on a PR that already shows a fail comment still holds.
 setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
 run feedback-question-security
 check "hold beside a fail comment: label then a new comment" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
-# Status mode: a failing commit status on the head for a fail-routed reason,
-# pr-unblock/conflict for resolve-conflicts, pr-unblock/<activity> otherwise.
 setup '[]' '[]'
 MODE=status TARGET_URL=https://example.test/run/1 run unresolved-conflict
 check "status, unresolved-conflict: exit 0" 0 "$RC"
@@ -423,8 +391,6 @@ has "status, unresolved-conflict: description says CI does not run" \
   'description=Conflicts with the base branch; CI does not run until they are resolved' "$STUB/calls"
 has "status, unresolved-conflict: links the run" 'target_url=https://example.test/run/1' "$STUB/calls"
 
-# In a job (RUNNER_TEMP set) the script wraps its own gh calls: the status
-# POST still goes, and its reading lands under github-token.
 setup '[]' '[]'
 mkdir -p "$STUB/runner"
 RUNNER_TEMP="$STUB/runner" MODE=status run unresolved-conflict
@@ -434,8 +400,6 @@ check "status in a job: the POST went with -i" 1 "$(grep -c -- '^api -i -X POST 
 check "status in a job: a reading under github-token" "201 na 4999 na na na" \
   "$(cut -d' ' -f1-6 "$STUB/runner/api-budget/github-token" 2>/dev/null)"
 
-# Re-armed on a new head: the status is the head's, so a later head starts
-# with none and gets its own only if the lane stops there too.
 setup '[]' '[]'
 MODE=status run unresolved-conflict "$HEAD_B"
 check "status on another head: posted on that head" "POST repos/o/r/statuses/$HEAD_B" "$(cat "$STUB/requests")"
@@ -474,12 +438,6 @@ MODE=bogus run unresolved-conflict
 check "unknown mode: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 
-# feedback-publish-failed in status mode: no status when the reply job's lane
-# token was refused in a way a retry takes the head on, the annotation texts
-# request-lane-token prints (refire-refused.mjs REFUSED and TRANSIENT).
-# publish_case <annotation message|-> [job conclusion] [token step conclusion]:
-# run 777's reply job, id 9001, named REPLY_JOB, failed at its token step with
-# that annotation.
 publish_case() {
   setup '[]' '[]'
   printf '{"jobs":[{"id":9000,"name":"Address Feedback Select","conclusion":"success","steps":[]},{"id":9001,"name":"%s","conclusion":"%s","steps":[{"name":"Request the lane token","conclusion":"%s"}]}]}' \
@@ -494,12 +452,9 @@ check "publish-failed, workflow-modified: exit 0" 0 "$RC"
 check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
 check "publish-failed, workflow-modified: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
-# A run started before the rename names the reply job by its ids.
 REPLY_JOB='publish-feedback / run' publish_case "$MODIFIED"
 check "publish-failed, workflow-modified, ids-named reply job: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 check "publish-failed, workflow-modified, ids-named reply job: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
-# A head at the sweep's cap gets no resend, so the status goes on. Rounds
-# another app posted, or another check, do not count.
 ROUND='{"name":"pr-unblock / address-feedback","app":{"id":15368}}'
 ROUNDS="{\"check_runs\":[$ROUND,$ROUND,$ROUND]}" publish_case "$MODIFIED"
 check "publish-failed, workflow-modified at the sweep cap: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
@@ -507,27 +462,21 @@ check "publish-failed, at the sweep cap: no status-withheld output" "" "$(cat "$
 ROUNDS="{\"check_runs\":[$ROUND,$ROUND,{\"name\":\"pr-unblock / address-feedback\",\"app\":{\"id\":1}},{\"name\":\"other\",\"app\":{\"id\":15368}}]}" publish_case "$MODIFIED"
 check "publish-failed, workflow-modified under the cap: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 check "publish-failed, workflow-modified under the cap: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
-# A transient refusal proves no retry: pr-merge's re-fire skips a PR that
-# changes a lane file, a skip branch or one that fails qualifies, so the
-# status goes on.
 publish_case 'broker-unreachable: the lanes token broker gave no response'
 check "publish-failed, broker unreachable: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 check "publish-failed, broker unreachable: no status-withheld output" "" "$(cat "$STUB/github_output")"
 publish_case 'lane-token-denied: the broker answered 503 with reason github-unavailable'
 check "publish-failed, broker 503: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 check "publish-failed, broker 503: no status-withheld output" "" "$(cat "$STUB/github_output")"
-# A 403 other than workflow-modified is no retry, so the status goes on.
 publish_case 'lane-token-denied: the broker answered 403 with reason actor-not-trusted'
 check "publish-failed, other 403: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 check "publish-failed, other 403: no status-withheld output" "" "$(cat "$STUB/github_output")"
-# A reply job that got its token and failed later (a script error) has no retry.
 publish_case "$MODIFIED" failure success
 check "publish-failed, failed after the token step: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 check "publish-failed, failed after the token step: no status-withheld output" "" "$(cat "$STUB/github_output")"
 publish_case -
 check "publish-failed, no annotation: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 check "publish-failed, no annotation: no status-withheld output" "" "$(cat "$STUB/github_output")"
-# A jobs read that fails is no evidence: the status goes on.
 publish_case "$MODIFIED"
 touch "$STUB/fail_jobs"
 : >"$STUB/github_output"
@@ -535,12 +484,10 @@ GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
 check "publish-failed, jobs read fails: exit 0" 0 "$RC"
 check "publish-failed, jobs read fails: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests" | tail -1)"
 check "publish-failed, jobs read fails: no status-withheld output" "" "$(cat "$STUB/github_output")"
-# Another fail-routed reason never reads the jobs.
 setup '[]' '[]'
 GITHUB_RUN_ID=777 MODE=status run feedback-incomplete
 check "status, another reason: no jobs read" "POST repos/o/r/statuses/$HEAD_A" "$(cat "$STUB/requests")"
 
-# The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
 mkdir -p "$STUB/ws/docs/conventions"
 printf 'tracker: {"config":{"role_labels":{"human-gated":"from-head"}}}\n' >"$STUB/ws/docs/conventions/work-items.yaml"
@@ -585,8 +532,6 @@ setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_B")"
 run feedback-question-design
 check "labeled, marker for another head: comment only" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-# Another activity's escalation on the same head is recorded too, so
-# gate-source.mjs reads every reason the label stands for.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A" feedback-disputed)"
 run ci-fix-round-cap
 check "labeled, same head, another reason: comment only" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
@@ -597,9 +542,6 @@ run feedback-question-design
 check "label removed by a human, same head: escalates again" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-# Partial failure: a failed label write posts no comment; a failed comment
-# write, a POST that is not idempotent, is sent once (outage posture element
-# 1); a retry run after the label landed posts exactly one comment.
 LABEL_THEN_COMMENT=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments'
 setup '[]' '[]'
 touch "$STUB/fail_labels"
@@ -614,9 +556,6 @@ check "comment write fails once: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 
 check "comment write fails once: label, then the comment once" "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
 check "comment write fails once: no back-off" '' "$(cat "$STUB/sleeps" 2>/dev/null)"
 
-# exhausted <name>: a run whose comment write fails every attempt (the job
-# fails, the label is on), then the PR as the next run sees it: label on,
-# comment write working, request log cleared.
 exhausted() {
   setup '[]' '[]'
   echo 99 >"$STUB/fail_comments"
@@ -635,7 +574,6 @@ run feedback-question-design
 check "retry after a failed comment: exit 0" 0 "$RC"
 check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-# A label left by a failed comment write is explained by the next run, on a later head too.
 exhausted "label left, later head"
 run feedback-question-design "$HEAD_B"
 check "label left, later head: exit 0" 0 "$RC"
@@ -654,10 +592,6 @@ setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resum
 LBL='other-app[bot]' run feedback-question-design
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
-# feedback-not-converging, a cap: no label; the comment names each open
-# review thread, gives no count of its own (select's count, which also reads
-# model check runs, is on the neutral checks), and names the write-access fix
-# request that grants one more round.
 ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
 setup '[]' "$rounds_json"
@@ -701,8 +635,6 @@ has "not-converging, lanes App PR: do-not-merge also stops the rounds" 'it also 
 check "not-converging, lanes App PR: no retry-on-this-head text" 0 "$(grep -c 'a person resolves the threads or gets the checks green' "$STUB/bodies" || true)"
 check "not-converging, lanes App PR: the round grant is named once" 1 "$(grep -c 'PR-fix lane: please fix this finding' "$STUB/bodies" || true)"
 
-# Every page of review threads is read: on a PR whose first page holds only
-# resolved threads, an open thread on a later page is still named.
 setup '[]' '[]'
 cat >"$STUB/threads.json" <<'EOF'
 [{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
@@ -729,7 +661,6 @@ has "not-converging: names a thread on the 10th page" '- `src/p9.js:1`' "$STUB/b
 check "not-converging: reads nothing past the 10th page" 0 "$(grep -c 'src/p10.js' "$STUB/bodies" || true)"
 has "not-converging: says threads past the first 1,000 were not read" 'past the first 1,000 were not read' "$STUB/bodies"
 
-# At most 20 open threads are listed, then how many more.
 setup '[]' '[]'
 jq -n '[{data: {repository: {pullRequest: {reviewThreads: {
   nodes: [range(25) | {isResolved: false, path: "src/t\(.).js", line: 1, comments: {nodes: [{url: "u\(.)"}]}}],
@@ -762,8 +693,6 @@ has "incomplete: says how many more" '- and 2 more' "$STUB/bodies"
 check "incomplete: a line of another shape is not copied" 0 "$(grep -c 'PRRT_y' "$STUB/bodies" || true)"
 check "incomplete: a marker on another head is not read" 0 "$(grep -c 'PRRT_old' "$STUB/bodies" || true)"
 check "incomplete: a marker another author wrote is not read" 0 "$(grep -c 'PRRT_human' "$STUB/bodies" || true)"
-# feedback-incomplete routes to a failing status: the comment says how the
-# run resumes, and no label goes on.
 has "incomplete: says a new commit starts clean" 'A new commit to the branch starts clean' "$STUB/bodies"
 check "incomplete: one comment, no label" 0 "$(grep -cE '^(POST|PATCH|PUT) [^ ]*/labels' "$STUB/requests" || true)"
 
@@ -777,14 +706,10 @@ run repeat-cap not-a-sha
 check "rejects a malformed head sha" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "malformed head sha: no gh call" '' "$(cat "$STUB/calls")"
 
-# Each stop names its run, so a later stop on the same head edits the comment.
 setup '[]' '[]'
 GITHUB_RUN_ID=555 run ci-fix-round-cap
 has "fail: names the run that stopped" '- Run: https://github.com/o/r/actions/runs/555' "$STUB/bodies"
 
-# clear: a same-head attempt that did not stop posts success over the
-# activity's failing status, and nothing when the newest one is not a failure
-# or is another account's.
 clear_case() {
   setup '[]' '[]'
   printf '%s' "$2" >"$STUB/statuses.json"
@@ -838,8 +763,6 @@ clear_case bogus '[]'
 check "clear: an activity the table does not route fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "clear: an unknown activity makes no gh call" '' "$(cat "$STUB/calls")"
 
-# Never touches the branch: no git, no contents API, no write outside the PR's
-# issue, beside the hold route's GraphQL queue read.
 for reason in feedback-question-design protected-path-conflict workflow-staged; do
   setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=fix-ci -->'$'\nold' 'melodic-automation-lanes[bot]' Bot 9)"
   run "$reason"
@@ -849,10 +772,6 @@ for reason in feedback-question-design protected-path-conflict workflow-staged; 
     "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments(\?per_page=100)?|/labels)?$|^PATCH repos/o/r/issues/comments/9$|^GET graphql$' "$STUB/requests" | grep -c . || true)"
 done
 
-# The hold route's human-gated label on a queued PR takes it out of the merge
-# queue: one queue read per label add, and the dequeue only when it is queued.
-# A refused dequeue warns and the escalation still posts. Expected values are
-# the work item's: queued dequeues, unqueued reads once and writes nothing more.
 NOTICE='::notice title=hold-label-dequeue::pr=42 label=needs-human outcome='
 setup '[]' '[]'
 : >"$STUB/queued"
@@ -877,12 +796,10 @@ has "refused dequeue: warns" "::warning::#42: could not dequeue it" "$STUB/out"
 has "refused dequeue: names the refusal" "${NOTICE}refused:dequeue-failed" "$STUB/out"
 check "refused dequeue: the escalation comment still posts" 1 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
 
-# The label already on (a later reason on the same head): no add, no read.
 setup '["needs-human"]' '[]'
 : >"$STUB/queued"
 run feedback-question-intent
 check "label already on: no queue read" '' "$(cat "$STUB/queue" 2>/dev/null)"
-# A fail route adds no human-gated label, so it reads no queue entry.
 setup '[]' '[]'
 run workflow-staged
 check "fail route: no queue read" '' "$(cat "$STUB/queue" 2>/dev/null)"
