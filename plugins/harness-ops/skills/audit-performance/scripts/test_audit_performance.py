@@ -205,7 +205,6 @@ class TestInvocationShape(unittest.TestCase):
         )
 
     def test_operators_count_without_surrounding_whitespace(self):
-        # Spaces around an operator are the rarer spelling; the common one has none.
         for command in (
             "./a.sh; bash b.sh",
             "./a.sh&&bash b.sh",
@@ -219,7 +218,6 @@ class TestInvocationShape(unittest.TestCase):
                 )
 
     def test_the_legacy_rules_are_blind_to_the_operator_padding(self):
-        # Pinned: the pad is its own token list, so the legacy rules see the old tokens.
         entry = {"command": 'sh -c "x&&bash y"', "args": []}
         self.assertEqual(
             engine.invocation_shape(entry), ["shell-form-hook-names-a-second-shell"]
@@ -559,7 +557,6 @@ class TestFanOutProjection(unittest.TestCase):
     """A registered-row count cannot say what one tool call actually spawns."""
 
     ENTRIES = [
-        # Three gated rows behind one dispatcher: one command, one extension each.
         {
             "event": "PostToolUse",
             "matcher": "Write|Edit|NotebookEdit",
@@ -584,7 +581,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Edit(*.ts)",
             "source": "formatter",
         },
-        # Ungated, and its regex matcher also selects NotebookEdit.
         {
             "event": "PostToolUse",
             "matcher": "Edit.*",
@@ -593,7 +589,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": None,
             "source": "logger",
         },
-        # An `if` the engine cannot classify: counted as firing, and listed.
         {
             "event": "PreToolUse",
             "matcher": "Bash",
@@ -602,7 +597,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Bash(git *)",
             "source": "guardrails",
         },
-        # A per-tool-call event the old set called `other`.
         {
             "event": "PermissionDenied",
             "matcher": None,
@@ -611,7 +605,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": None,
             "source": "audit",
         },
-        # An `if` on a per-turn event never runs at all.
         {
             "event": "Stop",
             "matcher": None,
@@ -620,7 +613,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Edit(*.md)",
             "source": "stopper",
         },
-        # A match-all matcher carrying an extension gate: it reaches Bash, the gate does not.
         {
             "event": "PostToolUse",
             "matcher": "*",
@@ -1296,14 +1288,12 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         now = self.NOW
         records = [
             {"pid": 20, "ppid": 1, "name": "protected.exe", "started_epoch": None},
-            # Verdict candidate past the 24-hour floor: verdict unknown and census unknown.
             {
                 "pid": 21,
                 "ppid": 20,
                 "name": "bash.exe",
                 "started_epoch": now - 2 * 86400,
             },
-            # Verdict name under the floor, and a census-only name: census unknown only.
             {"pid": 22, "ppid": 20, "name": "bash.exe", "started_epoch": now - 60},
             {"pid": 23, "ppid": 20, "name": "tail.exe", "started_epoch": now - 60},
         ]
@@ -1322,7 +1312,6 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         self.assertEqual(result["unknown_sample"], expected)
         self.assertEqual(result["dead_parent_any_age_unknown_count"], 3)
         self.assertEqual(result["dead_parent_any_age"], [])
-        # Off Windows the census is off and the verdict is the unchanged one.
         verdict_only = engine.attribute_orphans(records, now, platform="linux")
         self.assertIsNone(verdict_only["dead_parent_any_age_unknown_count"])
         for key in (
@@ -1462,7 +1451,6 @@ class TestDeadParentByCpu(unittest.TestCase):
     def table(self) -> list[dict]:
         now = self.NOW
         return [
-            # Dead parent, 60,000 s old, 30,000 CPU seconds: cpu_share 0.5.
             {
                 "pid": 40,
                 "ppid": 900,
@@ -1470,7 +1458,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 60_000,
                 "cpu_seconds": 30_000.0,
             },
-            # Dead parent, detached by design, 1 CPU second over 5 days.
             {
                 "pid": 41,
                 "ppid": 901,
@@ -1478,7 +1465,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 5 * 86400,
                 "cpu_seconds": 1.0,
             },
-            # Dead parent, 7,200 s old, 3,600 CPU seconds.
             {
                 "pid": 42,
                 "ppid": 902,
@@ -1486,7 +1472,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 7_200,
                 "cpu_seconds": 3_600.0,
             },
-            # Live parent burning more CPU than anything above.
             {
                 "pid": 43,
                 "ppid": 0,
@@ -2498,8 +2483,6 @@ class TestShellResolution(unittest.TestCase):
             self.assertIn("never executes", result["note"])
 
     def test_the_unset_finding_is_qualified_to_windows(self):
-        # fan_out_layer ships this block on every platform, so the finding cannot state
-        # a Windows-only search order flatly.
         with tempfile.TemporaryDirectory() as tmp:
             result = self.resolve(Path(tmp), {}, {})
             self.assertTrue(result["findings"][0].startswith("On Windows,"))
