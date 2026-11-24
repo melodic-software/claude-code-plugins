@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fix-until-green',
   description: 'Run a test or check command, fix its failures in disjoint file groups, check each round for test weakening, and re-run until it passes or a stop condition holds',
-  whenToUse: 'Run by /testing:diagnose when several tests fail across files; it resolves args: command (required), scope, maxRounds, roles, maxConcurrent, finalVerify. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /testing:diagnose with the failing command.',
+  whenToUse: 'Run by /testing:fix-failing when several tests fail across files; it resolves args: command (required), scope, maxRounds, roles, maxConcurrent, finalVerify. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /testing:fix-failing with the failing command.',
   phases: [
     { title: 'Run', detail: 'one runner runs the command and lists failures' },
     { title: 'Fix', detail: 'one fixer per disjoint file group, in waves' },
@@ -24,7 +24,7 @@ if (!COMMAND) {
   log('no command in args: nothing was dispatched')
   return {
     error: 'missing-command',
-    next: 'Resolve the failing test or check command (/testing:diagnose) and launch again with args.command.',
+    next: 'Resolve the failing test or check command (/testing:fix-failing) and launch again with args.command.',
   }
 }
 
