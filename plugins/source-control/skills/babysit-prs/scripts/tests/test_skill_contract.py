@@ -1,9 +1,4 @@
 # test-scope: plugins/source-control/skills/babysit-prs/SKILL.md plugins/source-control/skills/babysit-loop/SKILL.md
-"""SKILL.md prose contract assertions.
-
-Guards the merge-opt-in mode table, the zero-blocker check-only default, the
-pinned-head merge discipline, and the draft policy against silent prose drift.
-"""
 
 from __future__ import annotations
 
@@ -14,7 +9,6 @@ SKILL = pathlib.Path(__file__).resolve().parents[2] / "SKILL.md"
 
 
 def _reference(name: str) -> str:
-    """Text of a `reference/` spoke sitting beside SKILL.md."""
     return (SKILL.parent / "reference" / name).read_text(encoding="utf-8")
 
 
@@ -25,7 +19,6 @@ def _table_row(skill_text: str, label: str) -> str:
 
 
 def _sections(text: str) -> dict[str, str]:
-    """Split a reference file into its `### ` sections, keyed by heading."""
     sections: dict[str, str] = {}
     heading: str | None = None
     body: list[str] = []
@@ -142,8 +135,6 @@ class SkillContractTests(unittest.TestCase):
         self.assertNotIn("<snapshotted-head-sha>", paragraph)
 
     def test_skill_body_routes_autopilot_detail_to_its_spoke(self) -> None:
-        # The body keeps the tier's identity and points at the spoke; the moment
-        # it re-inlines the per-PR steps, the two copies start drifting.
         paragraph = _paragraph_containing(self.skill_text, "set-aside power-user tier")
         self.assertIn("reference/autopilot.md", paragraph)
         self.assertNotIn('"Every PR" means every PR', self.skill_text)
@@ -292,7 +283,6 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(side="conflict worker", marker=marker):
                 self.assertIn(marker, worker)
 
-        # The negative half: the push lives in exactly one of the two contracts.
         self.assertNotIn("push-branch.sh", worker)
 
         orchestrator = sections["Orchestrator Contract (the push)"]
@@ -311,9 +301,6 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("https://code.claude.com/docs/en/sub-agents", rationale)
 
     def test_conflict_worker_is_bound_by_the_worker_rules(self) -> None:
-        # The two contracts are the only differences from an ordinary worker;
-        # every other worker rule (leases, concurrency cap, check-in) must keep
-        # binding, so the vocabulary cannot quietly create an unowned actor.
         orchestration = _reference("orchestration.md")
 
         self.assertIn("**A conflict worker is a worker.**", orchestration)
@@ -330,8 +317,6 @@ class SkillContractTests(unittest.TestCase):
         loop_skill = SKILL.parent.parent / "babysit-loop" / "SKILL.md"
         loop = " ".join(loop_skill.read_text(encoding="utf-8").split())
 
-        # safety.md's Role Boundaries enumerates orchestrator authority; the one
-        # push it owns has to appear there, not only in the stop-and-ask list.
         self.assertIn("push a dispatched conflict worker's verified resolution", safety)
         self.assertIn("which the conflict worker never does", safety)
         self.assertIn("the dispatched conflict worker never pushes", loop)
@@ -399,7 +384,6 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(header=header):
                 self.assertIn(header, safety)
 
-        # Enabled-path merge command — the four-flag tier layering is the single home.
         self.assertIn(
             "--autopilot-merge-tier --lane-logins <lane-logins> "
             "--approver-bot-logins <approver-bot-logins> "
@@ -408,13 +392,11 @@ class SkillContractTests(unittest.TestCase):
         )
         self.assertIn("*only* autopilot merge path once the tier is enabled", safety)
 
-        # Second-account approve mechanic — distinct approver identity, clean pass only.
         self.assertIn("gh pr review owner/repo#N --approve", safety)
         self.assertIn("GH_TOKEN=<approver-bot-token>", safety)
         self.assertIn("gh auth switch --user <approver-login>", safety)
         self.assertIn("never the PR author or a lane identity", safety)
 
-        # Review-workflow requiredness enabling precondition.
         self.assertIn("required status context", safety)
         self.assertIn("mergeStateStatus == CLEAN", safety)
         self.assertIn("operator enabling precondition", safety)
@@ -465,9 +447,6 @@ class SkillContractTests(unittest.TestCase):
         )
         self.assertIn("classifyAllShell", safety)
 
-        # Classifier denials are an open question the never-retry rule sits
-        # above; the note keeps the reachability restatement from reading as
-        # settled confirmation and keeps the rule itself binding.
         self.assertIn("**Classifier denials are not settled.**", safety)
         self.assertIn(
             "follow the never-retry bullet above for classifier denials too", safety
@@ -489,9 +468,6 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("leave it draft and report why", drafts)
 
     def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
-        # A bare draft flip changes the draft state and nothing else; the ready step
-        # is what merges the base first, so the flip must go through it in both
-        # homes.
         drafts = _paragraph_containing(
             _reference("autopilot.md"), "**Draft PRs** are in scope"
         )
