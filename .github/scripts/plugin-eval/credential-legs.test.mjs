@@ -163,8 +163,10 @@ test("pr-run-plugin-evals.yml: a suite dispatch runs the key first and the subsc
     for (const mode of ["suite", "compare"])
       for (const ref of ["refs/heads/main", "refs/heads/feat/x"])
         for (const disabled of ["false", "true"])
+          for (const filter of [{}, { CASE: "a-case" }, { CASES: "a b" }, { TAGS: "t" }, { CASE: "*" }])
           for (const state of keyStatesList) {
             const dispatch = event === "workflow_dispatch";
+            const filtered = Boolean(filter.CASES || filter.TAGS || (filter.CASE && filter.CASE !== "*"));
             const ctx = {
               "vars.CLAUDE_EVALS_DISABLED": disabled,
               "github.event_name": event,
@@ -176,13 +178,13 @@ test("pr-run-plugin-evals.yml: a suite dispatch runs the key first and the subsc
             const key = gate && runs(wf.jobIf("run-eval"), { ...ctx, "needs.check-key-credit.result": "success" });
             const on = disabled === "false";
             const suite = dispatch && mode === "suite";
-            const where = `${event} ${mode} ${ref} disabled=${disabled} ${state.label}`;
+            const where = `${event} ${mode} ${ref} disabled=${disabled} filter=${JSON.stringify(filter)} ${state.label}`;
             assert.equal(key, on && ((suite && ref === "refs/heads/main") || !dispatch), `${where}: the key leg as before`);
             assert.equal(gate, key, where);
             let keyResult = "success";
             if (key && state.stopped) {
-              const { ok, out } = stop({ EVENT: event, NEXT: state.nextLeg });
-              const moves = dispatch && state.nextLeg === "subscription";
+              const { ok, out } = stop({ EVENT: event, NEXT: state.nextLeg, ...filter });
+              const moves = dispatch && state.nextLeg === "subscription" && filtered;
               assert.equal(ok, !dispatch || moves, `stop: ${where}`);
               if (dispatch && !moves) assert.match(out, ROLE_ERROR, `the stop names the role: ${where}`);
               if (!dispatch) assert.match(out, /^::warning::EVALS_CLAUDE_API_KEY stopped [^\n]*never moves to the subscription token/m, where);
@@ -193,7 +195,7 @@ test("pr-run-plugin-evals.yml: a suite dispatch runs the key first and the subsc
               "needs.run-eval.result": key ? keyResult : "skipped",
               "needs.run-eval.outputs.next-leg": key ? state.nextLeg : "",
             });
-            assert.equal(subscription, key && suite && state.stopped && state.nextLeg === "subscription", `${where}: the token leg follows only a stopped key on a suite dispatch`);
+            assert.equal(subscription, key && suite && state.stopped && state.nextLeg === "subscription" && filtered, `${where}: the token leg follows only a stopped key on a suite dispatch that names its cases`);
             count++;
           }
   assert.ok(count > 128, `${count} states`);

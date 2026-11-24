@@ -92,7 +92,7 @@ export default {
         ['          fallback-reason: ""\n', "          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}\n", 1],
         ["      - name: Stop at the key's stop\n", "      - name: Stop at the token's stop\n", 1],
         [
-          "          REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}\n          EVENT: ${{ github.event_name }}\n          NEXT: ${{ steps.next.outputs.next-leg }}\n",
+          "          REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}\n          EVENT: ${{ github.event_name }}\n          NEXT: ${{ steps.next.outputs.next-leg }}\n          CASE: ${{ inputs.case }}\n          CASES: ${{ inputs.cases }}\n          TAGS: ${{ inputs.tag }}\n",
           "          REASON: ${{ steps.judge.outputs.handoff-reason || 'no-token' }}\n          KEY_REASON: ${{ needs.run-eval.outputs.next-reason }}\n",
           1,
         ],
@@ -100,6 +100,12 @@ export default {
           `          if [ "$EVENT" != workflow_dispatch ]; then
             echo "::warning::EVALS_CLAUDE_API_KEY stopped ($REASON), so no case ran; a pull request run never moves to the subscription token (docs/review/evals.md)"
             exit 0
+          fi
+          read -ra cases <<<"$CASES"
+          read -ra tags <<<"$TAGS"
+          if [ "$NEXT" = subscription ] && [ -z "\${CASE//[*?[:space:]]/}" ] && [ "\${#cases[@]}" -eq 0 ] && [ "\${#tags[@]}" -eq 0 ]; then
+            echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), and the EVALS subscription token runs only a suite that names case, cases or tag, so no case ran; name the cases, or reassign the EVALS key through the account rotation tool (docs/review/evals.md)"
+            exit 1
           fi
           if [ "$NEXT" = subscription ]; then
             echo "::notice::EVALS_CLAUDE_API_KEY stopped ($REASON), so the subscription leg runs the suite"

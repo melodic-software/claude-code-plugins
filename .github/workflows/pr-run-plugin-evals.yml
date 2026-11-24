@@ -1035,10 +1035,19 @@ jobs:
           REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}
           EVENT: ${{ github.event_name }}
           NEXT: ${{ steps.next.outputs.next-leg }}
+          CASE: ${{ inputs.case }}
+          CASES: ${{ inputs.cases }}
+          TAGS: ${{ inputs.tag }}
         run: |
           if [ "$EVENT" != workflow_dispatch ]; then
             echo "::warning::EVALS_CLAUDE_API_KEY stopped ($REASON), so no case ran; a pull request run never moves to the subscription token (docs/review/evals.md)"
             exit 0
+          fi
+          read -ra cases <<<"$CASES"
+          read -ra tags <<<"$TAGS"
+          if [ "$NEXT" = subscription ] && [ -z "${CASE//[*?[:space:]]/}" ] && [ "${#cases[@]}" -eq 0 ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), and the EVALS subscription token runs only a suite that names case, cases or tag, so no case ran; name the cases, or reassign the EVALS key through the account rotation tool (docs/review/evals.md)"
+            exit 1
           fi
           if [ "$NEXT" = subscription ]; then
             echo "::notice::EVALS_CLAUDE_API_KEY stopped ($REASON), so the subscription leg runs the suite"
