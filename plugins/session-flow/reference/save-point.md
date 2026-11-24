@@ -270,7 +270,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   the keys. Same-session `new` refuses to rewrite a hop file that holds amended or retired
   content, so `amend` is the only way to fold a late event in. On a role chain, `fill` and
   `amend` also write the standing-rules file and the retired-entries index
-  (structure.md, "Role chains: the standing-rules file").
+  (structure.md, "Role chains: the standing-rules file" and "The retired-entries index").
 
 The rails on screen are the `emit` output, so the file is validated before the prompt exists on
 screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-path block).

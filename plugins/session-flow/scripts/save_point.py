@@ -2331,9 +2331,10 @@ def _split_index(
     hot: list[str], rel: str, term: str, prior: str | None, header: list[str]
 ) -> tuple[list[str], str | None]:
     """Move each retire pointer line out of Review before you continue into
-    the index's text, the prior index's lines first and each line once,
-    leaving one index line where the first pointer stood. Returns the hot
-    lines unchanged and `prior` when neither holds a pointer."""
+    the index's text: the prior text kept verbatim, then each pointer it does
+    not hold (trailing whitespace ignored) appended once, leaving one index
+    line where the first pointer stood. Returns the hot lines unchanged and
+    `prior` when neither holds a pointer."""
     content = [_line_parts(line)[0] for line in hot]
     span = next(
         (
@@ -2351,22 +2352,25 @@ def _split_index(
         if content[i].startswith(INDEX_PREFIX)
         or (content[i].startswith(POINTER_PREFIX) and _is_pointer(content[i]))
     ]
-    held = list(
-        dict.fromkeys(
-            [
-                *_index_lines(prior or ""),
-                *(content[i] for i in found if not content[i].startswith(INDEX_PREFIX)),
-            ]
-        )
-    )
-    if not held:
+    known = {line.rstrip() for line in _index_lines(prior or "")}
+    added: list[str] = []
+    for i in found:
+        line = content[i].rstrip()
+        if not line.startswith(INDEX_PREFIX) and line not in known:
+            known.add(line)
+            added.append(line)
+    if not known:
         return hot, prior
     out = list(hot)
     for i in reversed(found):
         del out[i]
     at = found[0] if found else _section_end(_content_doc(out), "Review before you continue")
     out.insert(at, f"{INDEX_PREFIX}{rel}{term}")
-    return out, "\n".join([*header, "", *held]) + "\n"
+    if prior is None:
+        return out, "\n".join([*header, "", *added]) + "\n"
+    if not added:
+        return out, prior
+    return out, prior.rstrip("\n") + "\n" + "\n".join(added) + "\n"
 
 
 def _index_split(
@@ -2728,8 +2732,9 @@ def _check_retire_pointers(
     each heading it retired entries under, and the predecessor's pointers carry
     forward verbatim, so every earlier hop's retirements stay reachable. A role
     chain's pointers may sit in its retired-entries index (`index` stands in
-    for it on disk); the predecessor's then include the ones this hop's file
-    copied from it."""
+    for it on disk); when this file or the predecessor names an index, the
+    predecessor's pointers include the ones this hop's file copied from it,
+    compared without trailing whitespace."""
     review = doc.section("Review before you continue") or []
     reach = list(review)
     held = _index_pointer(doc)
@@ -2758,11 +2763,13 @@ def _check_retire_pointers(
     if pred is None or pred.shape not in HOP_FILE_SHAPES:
         return
     carried = _retire_pointers(pred)
-    if held is not None:
+    indexed = held is not None or _index_pointer(pred) is not None
+    if indexed:
         copy = section_of(archived or "", "Review before you continue") or []
         carried = list(dict.fromkeys([*carried, *filter(_is_pointer, copy)]))
+        reach += [line.rstrip() for line in reach]
     for line in carried:
-        if line not in reach:
+        if line not in reach and not (indexed and line.rstrip() in reach):
             report(
                 f"Review before you continue: the predecessor's retire pointer is missing; carry it verbatim: {line[:60]!r}"
             )

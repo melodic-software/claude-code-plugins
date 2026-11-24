@@ -8,12 +8,14 @@ decision leaves only through `retire`, and no earlier retire pointer is lost."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from shape4_chain import SIDS
 from test_save_point import (
     FILL_RE,
     SHAPE3_VALUES,
+    _save_point_module,
     err,
     hop_file,
     make_repo,
@@ -28,17 +30,10 @@ D2 = "- [D2] Ship the small fix first."
 INDEX_PREFIX = "- Retired entries index: "
 
 
-def role_hop(
-    repo: Path,
-    tmp_path: Path,
-    previous: Path | None = None,
-    *,
-    k: int = 1,
-    flag: bool = True,
-    values: dict[str, str] | None = None,
-    retire: list[dict[str, str]] | None = None,
-) -> Path:
-    made = run(
+def role_new(
+    repo: Path, tmp_path: Path, previous: Path | None, *, k: int, flag: bool
+):
+    return run(
         *new_args(
             repo,
             tmp_path,
@@ -49,8 +44,14 @@ def role_hop(
             shape="4",
         )
     )
-    assert made.returncode == 0, err(made)
-    path = Path(out(made).strip())
+
+
+def slots_for(
+    path: Path,
+    tmp_path: Path,
+    values: dict[str, str] | None = None,
+    retire: list[dict[str, str]] | None = None,
+) -> Path:
     held = {name for name, _ in FILL_RE.findall(path.read_text(encoding="utf-8"))}
     merged = {**SHAPE3_VALUES, **(values or {})}
     payload: dict[str, object] = {k: v for k, v in merged.items() if k in held}
@@ -58,9 +59,44 @@ def role_hop(
         payload["retire"] = retire
     slots = tmp_path / f"{path.stem}.slots.json"
     slots.write_text(json.dumps(payload), encoding="utf-8")
+    return slots
+
+
+def role_hop(
+    repo: Path,
+    tmp_path: Path,
+    previous: Path | None = None,
+    *,
+    k: int = 1,
+    flag: bool = True,
+    values: dict[str, str] | None = None,
+    retire: list[dict[str, str]] | None = None,
+) -> Path:
+    made = role_new(repo, tmp_path, previous, k=k, flag=flag)
+    assert made.returncode == 0, err(made)
+    path = Path(out(made).strip())
+    slots = slots_for(path, tmp_path, values, retire)
     filled = run("fill", str(path), "--slots", str(slots))
     assert filled.returncode == 0, err(filled) + out(filled)
     return path
+
+
+def in_process(*argv: str) -> int:
+    module = _save_point_module()
+    args = module.build_parser().parse_args(list(argv))
+    return int(args.func(args))
+
+
+def fail_replace_onto(monkeypatch, target: Path) -> None:
+    """Every `os.replace` onto `target` raises, as a full disk would."""
+    real = os.replace
+
+    def replace(src, dst):
+        if Path(dst) == target:
+            raise OSError("no space left on device")
+        return real(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
 
 
 def index_file(path: Path, root: Path | None = None) -> Path:
@@ -312,3 +348,123 @@ def test_a_chain_without_standing_rules_is_unchanged(tmp_path):
     assert not (archive / "retired-index.md").exists()
     for path in (first, second):
         assert validate(path).returncode == 0, out(validate(path))
+
+
+def test_a_dropped_index_line_fails_validation(tmp_path):
+    _, _, third = three_hops(tmp_path)
+    text = third.read_text(encoding="utf-8")
+    third.write_text(
+        "\n".join(row for row in text.split("\n") if not row.startswith(INDEX_PREFIX)),
+        encoding="utf-8",
+    )
+    result = validate(third)
+    assert result.returncode == 1, out(result)
+    assert any("retire pointer is missing" in line for line in fails(result)), out(
+        result
+    )
+
+
+def test_amend_appends_to_an_existing_index_and_keeps_its_other_lines(tmp_path):
+    first, _, third = three_hops(tmp_path)
+    index = index_file(third, first)
+    note = "Owner note: read h2 first."
+    index.write_text(index.read_text(encoding="utf-8") + note + "\n", encoding="utf-8")
+    before = pointer_lines(index.read_text(encoding="utf-8"))
+    payload = tmp_path / "amend.json"
+    payload.write_text(
+        json.dumps({"retire": [{"ref": "[D2]", "reason": "shipped"}]}),
+        encoding="utf-8",
+    )
+    result = run(
+        "amend", str(third), "--json", str(payload), "--now", "2026-09-03T11:00:00Z"
+    )
+    assert result.returncode == 0, err(result)
+    text = index.read_text(encoding="utf-8")
+    h3 = hop_file(third.parent, first.name, 3, SIDS[2]).name
+    assert pointer_lines(text) == [
+        *before,
+        f"- Retired entries: archive/{first.stem}/{h3} § Retired decisions",
+    ]
+    assert note in text
+    assert pointer_lines(third.read_text(encoding="utf-8")) == []
+    assert validate(third).returncode == 0, out(validate(third))
+
+
+def test_trailing_whitespace_never_duplicates_an_index_line(tmp_path):
+    first, _, third = three_hops(tmp_path)
+    index = index_file(third, first)
+    lines = index.read_text(encoding="utf-8").split("\n")
+    at = next(i for i, line in enumerate(lines) if line.startswith("- Retired"))
+    lines[at] += "  "
+    index.write_text("\n".join(lines), encoding="utf-8")
+    fourth = role_hop(tmp_path / "repo", tmp_path, third, k=4, flag=False)
+    held = pointer_lines(index.read_text(encoding="utf-8"))
+    assert len({line.rstrip() for line in held}) == len(held) == 2
+    assert validate(fourth).returncode == 0, out(validate(fourth))
+
+
+def test_amend_leaves_no_index_when_the_hot_file_write_fails(tmp_path, monkeypatch):
+    path = role_hop(make_repo(tmp_path), tmp_path)
+    index = index_file(path)
+    others = [path, standing_file(path), hop_file(path.parent, path.name, 1, SIDS[0])]
+    before = [p.read_bytes() for p in others]
+    payload = tmp_path / "amend.json"
+    payload.write_text(
+        json.dumps({"retire": [{"ref": "[D1]", "reason": "no longer bears"}]}),
+        encoding="utf-8",
+    )
+    fail_replace_onto(monkeypatch, path)
+    code = in_process(
+        "amend", str(path), "--json", str(payload), "--now", "2026-09-01T11:00:00Z"
+    )
+    assert code == 2
+    assert not index.exists()
+    assert [p.read_bytes() for p in others] == before
+
+
+def test_fill_leaves_no_index_when_the_hot_file_write_fails(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    first = role_hop(repo, tmp_path)
+    made = role_new(repo, tmp_path, first, k=2, flag=False)
+    assert made.returncode == 0, err(made)
+    second = Path(out(made).strip())
+    slots = slots_for(
+        second,
+        tmp_path,
+        {"decisions-new": D2},
+        [{"ref": "[D1]", "reason": "superseded"}],
+    )
+    others = [
+        second,
+        standing_file(second, first),
+        hop_file(second.parent, first.name, 2, SIDS[1]),
+    ]
+    before = [p.read_bytes() for p in others]
+    fail_replace_onto(monkeypatch, second)
+    code = in_process("fill", str(second), "--slots", str(slots))
+    assert code == 2
+    assert not index_file(second, first).exists()
+    assert [p.read_bytes() for p in others] == before
+
+
+def test_new_refuses_a_predecessor_naming_another_chains_index(tmp_path):
+    repo = make_repo(tmp_path)
+    first = role_hop(repo, tmp_path)
+    second = role_hop(
+        repo,
+        tmp_path,
+        first,
+        k=2,
+        flag=False,
+        values={"decisions-new": D2},
+        retire=[{"ref": "[D1]", "reason": "superseded"}],
+    )
+    text = second.read_text(encoding="utf-8")
+    rel = f"archive/{first.stem}/retired-index.md"
+    second.write_text(
+        text.replace(INDEX_PREFIX + rel, INDEX_PREFIX + "archive/other/retired-index.md"),
+        encoding="utf-8",
+    )
+    made = role_new(repo, tmp_path, second, k=3, flag=False)
+    assert made.returncode == 1, err(made)
+    assert "retired-entries index archive/other/retired-index.md" in err(made)
