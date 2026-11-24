@@ -123,7 +123,6 @@ async page => {
   const open = await page.evaluate(() => ({radios: [...document.querySelectorAll("#choices input")].every(r => !r.disabled), hint: document.getElementById("saveHint").textContent}));
   ok("back online, the radios are enabled again", back && open.radios && !/Not connected/.test(open.hint), JSON.stringify(open));
 
-  // a restarted server answers the state poll but rejects this page's token: the controls stay shut
   await page.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.instance = "restarted-" + body.instance; await route.fulfill({response: res, json: body}); });
   await nudgeVisible();
   const restarted = await until(() => /^Server restarted/.test(document.getElementById("pill").textContent), 8000);
@@ -132,7 +131,7 @@ async page => {
   ok("after a server restart, the radios and Save are disabled and the dock says to reload", restarted && gone.radios && gone.save && /^The server restarted\. Reload/.test(gone.hint), JSON.stringify(gone));
   await page.unroute("**/api/state");
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
-  await page.context().setOffline(false); // the suites after this one share the browser context
+  await page.context().setOffline(false);
   const real = errors.filter(e => !/ERR_INTERNET_DISCONNECTED|ERR_CONNECTION_(REFUSED|RESET)/.test(e));
   ok("zero console errors (besides the network lines for the offline step)", real.length === 0, errors.join(" | "));
   return R.join("\n");

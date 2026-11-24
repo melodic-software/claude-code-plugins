@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Contract test: the rendered-views contract names the brainstorm, design and
-# plan views as the planning Artifact exception and keeps the PRD and interview
-# views out of it, and the planning rendered-view reference reports the
-# session-written views as `file`, never as the lane's publishing default.
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
