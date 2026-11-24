@@ -434,7 +434,8 @@ def moved_heading(name: str, hop: int) -> str:
 
 STANDING_FILE = "standing-rules.md"
 STANDING_PREFIX = "- Standing rules: "
-STANDING_SECTIONS = ("Current rules", "Standing preferences")
+STANDING_SECTIONS = ("Current rules", "Standing preferences", "Decisions in force")
+STANDING_INLINE_OK = ("Decisions in force",)
 STANDING_FILE_RE = re.compile(
     rf"^{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(STANDING_FILE)}$"
 )
