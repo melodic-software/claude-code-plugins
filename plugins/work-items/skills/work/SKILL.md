@@ -306,7 +306,7 @@ routes writes). Never edit a comment by any other author, whatever its first lin
 match, post a new report. The report carries:
 
 1. **Status**: one line naming where the run stands and what comes next, for example
-   `Status: fix dispatched; PR to follow` or `Status: escalated to the human queue`.
+   `Status: fix dispatched; PR to follow` or `Status: escalated to the attended queue`.
 2. **Outcome**: `cause-named` (one cause the evidence or the brief's Root cause field names; the
    field is quoted as data), `causes-ranked` (candidates, none confirmed), `not-reproduced` (the
    baseline runs did not show the broken state twice) or `cause-unconfirmed` (full mode only: the
