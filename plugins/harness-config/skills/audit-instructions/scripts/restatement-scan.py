@@ -221,17 +221,12 @@ def recoverable(unit: str, source: str) -> bool:
     unique = utoks - stoks
     if not unique:
         return True
-    # Near-verbatim: one leftover token is still a restatement when almost
-    # every content token is already in the source (the leftover is usually
-    # a synonym or a heading-word like "purpose").
     overlap = utoks & stoks
     return len(utoks) >= 8 and len(unique) == 1 and len(overlap) / len(utoks) >= 0.85
 
 
 def section_wholly_recoverable(section: Section, source: str) -> bool:
     if not section.units:
-        # A heading-only or one-sentence section with no split units: judge
-        # the body as a single unit.
         body = section.body.strip()
         return bool(body) and recoverable(body, source)
     return all(recoverable(text, source) for _, text in section.units)
@@ -245,10 +240,6 @@ def scan_file(path: Path) -> list[str]:
     lines = text.splitlines()
     body_start, fm = extract_frontmatter(lines)
     description = frontmatter_field(fm, "description")
-    # Drop the Use-when / Not-for tail so a section that restates the
-    # capability sentence is not rescued by trigger-phrase tokens, and so a
-    # section that only restates the trigger list is not a finding (those
-    # phrases are the listing, not body ceremony).
     desc_capability = re.split(
         r"(?i)\buse when\b|\bnot for\b", description, maxsplit=1
     )[0]
