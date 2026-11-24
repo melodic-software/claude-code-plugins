@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.13.0] - 2026-11-24
+
+### Added
+
+- `standards_repository` in `docs/conventions/source-control.yaml`: the `<owner>/<repo>` whose `components/trusted-actors/trusted-actors.json` the guardrails merge guard and the review loosened-check reader read when `trusted_actors_source` is `standards`.
+
 ## [13.12.0] - 2026-11-24
 
 ### Added

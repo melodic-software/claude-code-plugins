@@ -3,6 +3,13 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.35] - 2026-11-24
+
+### Changed
+
+- **Bump opencv-python-headless from 5.0.0.93 to 5.1.0.95 in /plugins/animation in the pip-minor-patch group across 1 directory** (#18637).
+  - `opencv-python-headless` 5.0.0.93→5.1.0.95
+
 ## [1.0.34] - 2026-11-21
 
 ### Changed
