@@ -12,7 +12,7 @@ const PINS = "lib/cdn-pins/pins.json";
 const TARGET = "docs/view.md";
 const OTHER = "docs/other.md";
 const record = (version) => `${JSON.stringify({ packages: { x: { version } }, targets: [{ path: TARGET }, { path: OTHER }] })}\n`;
-const REQUEST = { script: "", manifest: "{}", files: { [PINS]: record("1.0.0"), [TARGET]: "x@1.0.0\n", [OTHER]: "y@1.0.0\n" } };
+const REQUEST = { script: "", manifest: "{}", lock: "{}", files: { [PINS]: record("1.0.0"), [TARGET]: "x@1.0.0\n", [OTHER]: "y@1.0.0\n" } };
 
 function run(t, results) {
   const dir = tempDir("cdn-pins-sync-cli-");

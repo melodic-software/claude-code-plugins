@@ -807,9 +807,11 @@ test("select only writes a hashed CDN request for a Dependabot manifest bump wit
   const record = JSON.stringify({ packages: { x: { version: "1.0.0" } }, targets: [{ path: target, packages: ["x"], integrity: true }] });
   const baseScript = "export function sync() {}\n";
   const manifest = '{"dependencies":{"x":"2.0.0"}}\n';
-  const texts = { [manifestPath]: manifest, [pinsPath]: record, [target]: "view\n", [scriptPath]: "throw new Error('head code')\n" };
+  const lockPath = "lib/cdn-pins/package-lock.json";
+  const lockText = '{"lockfileVersion":3,"packages":{"node_modules/x":{"version":"2.0.0"}}}\n';
+  const texts = { [manifestPath]: manifest, [lockPath]: lockText, [pinsPath]: record, [target]: "view\n", [scriptPath]: "throw new Error('head code')\n" };
   const changed = (filename) => ({ filename, status: "modified" });
-  const lock = changed("lib/cdn-pins/package-lock.json");
+  const lock = changed(lockPath);
   for (const { why, files = [changed(manifestPath)], pull, headTexts = texts, omit, written = false } of [
     { why: "manifest only", written: true },
     { why: "lock only, versions already synced", files: [lock], headTexts: { ...texts, [manifestPath]: '{"dependencies":{"x":"1.0.0"}}\n' } },
@@ -825,6 +827,7 @@ test("select only writes a hashed CDN request for a Dependabot manifest bump wit
     { why: "missing base script", omit: scriptPath },
     { why: "different target metadata", headTexts: { ...texts, [pinsPath]: record.replace("true", "false") } },
     { why: "missing head target", headTexts: { ...texts, [target]: null } },
+    { why: "missing head lock", headTexts: { ...texts, [lockPath]: null } },
   ]) {
     const dir = tempDir("cdn-select-");
     mkdirSync(join(dir, "lib/cdn-pins"), { recursive: true });
@@ -854,7 +857,7 @@ test("select only writes a hashed CDN request for a Dependabot manifest bump wit
     assert.equal(existsSync(path), written, why);
     if (written) {
       const request = readFileSync(path, "utf8");
-      assert.deepEqual(JSON.parse(request), { script: baseScript, manifest, files: { [pinsPath]: record, [target]: "view\n" } });
+      assert.deepEqual(JSON.parse(request), { script: baseScript, manifest, lock: lockText, files: { [pinsPath]: record, [target]: "view\n" } });
       const sum = createHash("sha256").update(request).digest("hex");
       assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `cdn-sync-state=written\ncdn-sync-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
     } else if (why.startsWith("lock only") || why.startsWith("a bump of") || why.startsWith("a manifest")) {
