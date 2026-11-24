@@ -110,6 +110,11 @@ on:
         required: false
         type: boolean
         default: false
+      debug-commands:
+        description: Print the Bash command lines (no output) of each eval trace to the PUBLIC job log.
+        required: false
+        type: boolean
+        default: false
       env-scrub:
         description: >-
           Strip credentials from Bash subprocesses in the eval
@@ -919,6 +924,38 @@ jobs:
           done
           echo "::$token::"
 
+      - name: Print Bash commands
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-commands && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          for RESULTS in "$OUT"/*/results.json; do
+            if [ ! -f "$RESULTS" ]; then
+              echo "no results.json, so no traces to read"
+              continue
+            fi
+            jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+              | .value // [] | to_entries[]
+              | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+              | @tsv' "$RESULTS" |
+              while IFS=$'\t' read -r name arm run trace; do
+                echo "== $name, $arm arm, run $run"
+                if [ ! -f "$trace" ]; then
+                  echo "   trace not found"
+                  continue
+                fi
+                jq -nrR '
+                  [inputs | fromjson? | objects | select(.type == "assistant") | .message.content[]? | objects
+                    | select(.type == "tool_use" and .name == "Bash") | (.input.command // "" | tostring)]
+                  | "   \(length) Bash command(s), showing up to 40",
+                    (.[:40][] | "   $ \(.[:300] | tojson)")
+                ' "$trace" || echo "   could not read the trace"
+              done || echo "could not read $RESULTS"
+          done
+          echo "::$token::"
+
       # Only a dispatched run, whose cases merged through review, uploads its
       # results: a pull request's prompts could steer model output into a
       # public artifact.
@@ -1576,6 +1613,38 @@ jobs:
                          out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
                   | "   \(length) Bash error(s), showing up to 20",
                     (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
+                ' "$trace" || echo "   could not read the trace"
+              done || echo "could not read $RESULTS"
+          done
+          echo "::$token::"
+
+      - name: Print Bash commands
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-commands && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
+        env:
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          for RESULTS in "$OUT"/*/results.json; do
+            if [ ! -f "$RESULTS" ]; then
+              echo "no results.json, so no traces to read"
+              continue
+            fi
+            jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+              | .value // [] | to_entries[]
+              | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+              | @tsv' "$RESULTS" |
+              while IFS=$'\t' read -r name arm run trace; do
+                echo "== $name, $arm arm, run $run"
+                if [ ! -f "$trace" ]; then
+                  echo "   trace not found"
+                  continue
+                fi
+                jq -nrR '
+                  [inputs | fromjson? | objects | select(.type == "assistant") | .message.content[]? | objects
+                    | select(.type == "tool_use" and .name == "Bash") | (.input.command // "" | tostring)]
+                  | "   \(length) Bash command(s), showing up to 40",
+                    (.[:40][] | "   $ \(.[:300] | tojson)")
                 ' "$trace" || echo "   could not read the trace"
               done || echo "could not read $RESULTS"
           done
