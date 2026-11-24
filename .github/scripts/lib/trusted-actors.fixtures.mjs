@@ -13,10 +13,14 @@ export function listCommits(date) {
 
 let checkout;
 
+const VOCABULARY = "github-actions-conventions/vocabulary.json";
+
 export function standardsCheckout() {
   if (checkout) return checkout;
   checkout = tempDir("standards-checkout-");
   mkdirSync(join(checkout, "components/trusted-actors"), { recursive: true });
+  mkdirSync(join(checkout, "components/github-actions-conventions"), { recursive: true });
   writeFileSync(join(checkout, STANDARDS_LIST_PATH), readFileSync(SAME_TREE_LIST));
+  writeFileSync(join(checkout, "components", VOCABULARY), readFileSync(new URL(`../../standards/${VOCABULARY}`, import.meta.url)));
   return checkout;
 }

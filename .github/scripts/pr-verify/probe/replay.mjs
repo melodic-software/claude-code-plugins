@@ -762,7 +762,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const pipelineFile = path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml");
   const pipeline = {
-    trustedActorsPath: trustedListPath(process.env, path.join(REPO_ROOT, TRUSTED_ACTORS_PATH)),
+    trustedActorsPath: process.env.STANDARDS_DIR ? trustedListPath(process.env) : path.join(REPO_ROOT, TRUSTED_ACTORS_PATH),
     verifyAuthors: sh("yq", ['.merge."verify-authors" // "lane"', pipelineFile]),
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
     baselineFile: sh("yq", ['.merge."baseline-file" // ""', pipelineFile]),

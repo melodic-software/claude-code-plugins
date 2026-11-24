@@ -18,17 +18,12 @@ inputs:
     description: Path to the event payload file.
     required: false
     default: ${{ github.event_path }}
-  trusted-actors-path:
-    description: >
-      Path to the trusted-actor list, read from the base-SHA checkout so a PR
-      cannot change the list it is judged by.
-    required: false
-    default: .base/.github/standards/trusted-actors/trusted-actors.json
   standards-path:
     description: >
       A melodic-software/standards checkout (download-standards' `path`
-      output), checked out before any head code ran. When set, the list is
-      read from it and trusted-actors-path is ignored.
+      output), checked out before any head code ran. The trusted-actor list
+      is read from it only: unset, or without the list,
+      the action fails closed.
     required: false
     default: ""
   pr-number:
@@ -223,7 +218,6 @@ runs:
       env:
         EVENT_NAME: ${{ inputs.event-name }}
         EVENT_PATH: ${{ inputs.event-path }}
-        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
         STANDARDS_DIR: ${{ inputs.standards-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
