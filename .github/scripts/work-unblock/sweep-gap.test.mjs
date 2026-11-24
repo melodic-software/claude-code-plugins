@@ -1,8 +1,3 @@
-// The sweep gap (sweep-gap.mjs): a sweep a finished work-resolve-issue run
-// starts is skipped when a sweep run uploaded work-unblock-verdicts under
-// limits.sweep-gap-minutes (15) ago, and runs otherwise; a schedule, a close
-// or a dispatch never skips. Times are picked by hand around the 2026-11-10
-// hour of seven full sweeps, 19:55Z to 20:55Z.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,7 +24,6 @@ const runAt = (id, updatedAt, extra = {}) => ({
 });
 const verdicts = (id, expired = false) => ({ id, name: "work-unblock-verdicts", expired });
 
-// A GitHub stand-in: the workflow's run listing, then each run's artifacts.
 const fakeGitHub = (runs, artifactsByRun) => {
   const calls = [];
   const github = async (method, path) => {
@@ -78,8 +72,6 @@ test("a work-resolve-issue run's sweep 5 minutes after a full sweep skips, namin
   assert.equal(calls.length, 2, "one run listing and one artifact listing");
 });
 
-// A skipped sweep ends green with no artifact, so each one since the last full
-// sweep costs an artifact listing before the full sweep is found.
 test("three skipped sweeps ahead of a full one in the gap: the sweep skips, in five calls", async () => {
   const skipped = [42897900003, 42897900002, 42897900001].map((id, i) => runAt(id, `2026-11-10T20:5${4 - i}:00Z`));
   const { github, calls } = fakeGitHub([...skipped, runAt(42897142652, "2026-11-10T20:45:00Z")], { 42897142652: [verdicts(1)] });
@@ -94,7 +86,6 @@ test("the gap is sweep-gap-minutes: a sweep exactly 15 minutes ago skips, one 15
   assert.equal((await run({}, at("2026-11-10T20:30:00Z"))).output, "skip=false\n");
   assert.equal((await run({}, at("2026-11-10T20:45:00Z"), { "sweep-gap-minutes": 5 })).output, "skip=false\n");
   assert.equal((await run({}, at("2026-11-10T20:30:00Z"), { "sweep-gap-minutes": 30 })).output, "skip=true\n");
-  // With no resolved config, the default gap is 15 minutes.
   assert.equal((await run({}, at("2026-11-10T20:41:00Z"), undefined)).output, "skip=true\n");
   assert.equal((await run({}, at("2026-11-10T20:39:00Z"), undefined)).output, "skip=false\n");
 });
@@ -104,7 +95,6 @@ test("a scheduled or red full sweep counts; a newer run with no verdicts artifac
   assert.equal((await run({}, scheduled.github)).output, "skip=true\n", "the hourly sweep");
   const red = fakeGitHub([runAt(42897000003, "2026-11-10T20:50:00Z", { conclusion: "failure" })], { 42897000003: [verdicts(3)] });
   assert.equal((await run({}, red.github)).output, "skip=true\n", "a sweep that ended red still spent its calls");
-  // A held sweep uploads no file: it is not a full sweep, and the older full one decides.
   const held = runAt(42897900000, "2026-11-10T20:52:00Z");
   const old = fakeGitHub([held, runAt(42897000004, "2026-11-10T20:30:00Z")], { 42897000004: [verdicts(4)] });
   assert.equal((await run({}, old.github)).output, "skip=false\n");
@@ -152,8 +142,6 @@ test("a failed read runs the sweep, with a warning", async () => {
   assert.deepEqual(result.lines, ["::warning::the sweep-gap check could not read the last sweep (502 Bad Gateway); the sweep runs"]);
 });
 
-// The workflow wiring: the check runs after the config and before the token
-// request, never fails the job, and a skip stops the mint and so the sweep.
 test("work-unblock.yml gates the lane token on the check, after the config", () => {
   const text = readFileSync(new URL("../../workflows/work-unblock.yml", import.meta.url), "utf8");
   const job = text.split("\n  sync-status:\n")[0];

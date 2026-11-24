@@ -1,8 +1,3 @@
-// pr-unblock-dispatch.yml's limits read through the real resolver: dispatch.mjs
-// and refine-event-dispatch.mjs take `limits` from the base's pr-pipeline.yaml, so a set
-// `limits.limit-stops-per-head` changes which heads it dispatches again, and a
-// config the resolver refuses fails the run before anything is dispatched.
-// Lives here because it needs resolve-config's dependencies.
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -18,8 +13,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const LIVE = readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8");
 const HEAD = "a".repeat(40);
-// A resolve-conflicts run the usage limit stopped six hours ago with no stated
-// reset: past the default five-hour fallback, so it no longer holds the head.
 const STOPPED = {
   name: "pr-unblock / resolve-conflicts",
   status: "completed",
@@ -46,9 +39,7 @@ function baseWith(text) {
   return base;
 }
 
-// The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
 const LANES_APP = 337595936;
-// Lanes App PRs whose head's lanes failed, as fix-ci-dispatch.mjs lists them.
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
@@ -65,8 +56,6 @@ const ciFixPull = (number) => {
   };
 };
 
-// Ready PRs that change Markdown and never had fix-docs, as
-// fix-docs-dispatch.mjs lists them.
 const docsPull = (number) => {
   const head = String(number).padStart(40, "d");
   return {
@@ -100,7 +89,6 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
   listCheckRuns: async ({ checkName }) => [STOPPED].filter((run) => run.name === checkName),
   listWorkflowRuns: async () => [],
   readRequiredRun: async () => ({ run: null, jobs: [] }),
-  // No label event names the lanes App, so a human-gated label holds.
   listTimeline: async () => [],
   dispatchWorkflow: async ({ inputs }) => {
     dispatched.push(inputs["pr-number"]);
@@ -127,7 +115,6 @@ async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   }
 }
 
-// The live config with one more line in its own `limits` block.
 const withLimit = (line) => {
   assert.match(LIVE, /^limits:\n/m, "the live config has a limits block");
   return LIVE.replace(/^limits:\n/m, `limits:\n  ${line}\n`);
@@ -147,7 +134,6 @@ test("the base config's limits.fix-ci-per-run caps the fix-ci dispatches", async
 });
 
 test("the base config's adoption section lets fix-ci adopt an idle owner PR", async () => {
-  // kyle-sexton (trusted-actors.json), 25 hours idle at run()'s clock.
   const idle = "2026-10-16T11:00:00Z";
   const owner = ciFixPull(61);
   owner.author = { databaseId: 153232337 };
@@ -155,12 +141,10 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   owner.commits.nodes[0].commit.committedDate = idle;
   assert.equal(parse(LIVE).adoption["idle-hours"], 2, "the live config adopts a trusted person after 2 hours");
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
-  // Another trusted Bot is adoptable at once (a Bot never waits out idle-hours).
   const bot = ciFixPull(64);
   bot.author = { __typename: "Bot", databaseId: 209825114 };
   bot.updatedAt = "2026-10-17T11:59:00Z";
   assert.deepEqual(await run(LIVE, [bot]), { code: 0, dispatched: ["40", "64"] });
-  // The release and standards-sync Apps' PRs carry generated or synced files a lane commit breaks: never adopted.
   const release = ciFixPull(65);
   release.author = { __typename: "Bot", databaseId: 337859524 };
   release.updatedAt = "2026-10-17T11:59:00Z";
@@ -168,7 +152,6 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   const sync = ciFixPull(68);
   sync.author = { __typename: "Bot", databaseId: 300666570 };
   assert.deepEqual(await run(LIVE, [sync]), { code: 0, dispatched: ["40"] });
-  // Dependabot's red PR is review-dependency's, never fix-ci's.
   const dependabot = ciFixPull(67);
   dependabot.author = { __typename: "Bot", databaseId: 49699333 };
   assert.deepEqual(await run(LIVE, [dependabot]), { code: 0, dispatched: ["40"] });
@@ -180,7 +163,6 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
-  // A section without idle-hours adopts nothing, as in pr-merge.
   const noIdle = LIVE.replace(/^ {2}idle-hours: 2\n/m, "");
   assert.match(noIdle, /^adoption:\n {2}#/m);
   assert.deepEqual(await run(noIdle, [owner, release]), { code: 0, dispatched: ["40"] });
@@ -204,14 +186,11 @@ test("an unreadable base tracker config holds adopted owner PRs only, and no ado
   owner.author = { databaseId: 153232337 };
   owner.updatedAt = idle;
   owner.commits.nodes[0].commit.committedDate = idle;
-  // The lanes App PR proceeds under the default hold labels; the failure still shows.
   assert.deepEqual(await run(LIVE, [ciFixPull(63), owner], [], "{not json"), { code: 1, dispatched: ["40", "63"] });
   const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
   assert.deepEqual(await run(without, [ciFixPull(63)], [], "{not json"), { code: 0, dispatched: ["40", "63"] });
 });
 
-// refine-event-dispatch.mjs's main for one PR's own event, sent by the lanes
-// App on its first attempt, through the real resolver over `text`.
 async function runEvent(text, pull) {
   const base = baseWith(text);
   const dispatched = [];
@@ -236,9 +215,6 @@ async function runEvent(text, pull) {
 }
 
 test("the base config's limits.fix-docs-per-run turns a PR event's fix-docs on or off, a work-resolve-issue PR is skipped, and the dispatcher's tick starts none", async () => {
-  // The lanes App's PRs on a lane branch: one within the live tidy cutoffs
-  // (resolve-issue's max-lines 300), tidied in its own run and skipped, and
-  // one a line over them, dispatched.
   const lanePull = (number, lines) => ({
     ...docsPull(number),
     author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP },

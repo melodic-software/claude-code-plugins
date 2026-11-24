@@ -1958,12 +1958,18 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json', 'scripts/ci-deps/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'scripts/ci-deps/package-lock.json') }}
+      - name: Check out the run's standards commit
+        id: standards
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
       - name: Install pinned runner-policy and workflow-check dependencies
         timeout-minutes: 4
         if: needs.select-tests.outputs.run_workflows == 'true'
+        env:
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
-          npm ci --prefix .github/standards/runner-policy
+          npm ci --prefix "$STANDARDS_DIR/components/runner-policy"
           npm ci --prefix scripts/ci-deps
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
@@ -1977,8 +1983,9 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
-        run: node .github/standards/runner-policy/runner-policy.mjs --root .
+        run: node "$STANDARDS_DIR/components/runner-policy/runner-policy.mjs" --root .
 
       - name: Check no run reaching the read workflow references the App key
         id: read_caller_keys
@@ -3765,22 +3772,7 @@ jobs:
           color: 'false'
       - name: Install pinned Go and goimports for the go-format remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        env:
-          GO_VERSION: 1.27.4
-          GO_SHA256: 7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840
-          GOIMPORTS_VERSION: v0.52.0
-        run: |
-          mkdir -p "$RUNNER_TEMP/go-dist" "$HOME/.cache/ci-tools"
-          cached="$HOME/.cache/ci-tools/go$GO_VERSION.linux-amd64.tar.gz"
-          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
-            "https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz"
-          cp "$cached" "$RUNNER_TEMP/go-dist/go.tar.gz"
-          echo "$GO_SHA256  $RUNNER_TEMP/go-dist/go.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/go-dist/go.tar.gz" -C "$RUNNER_TEMP"
-          test "$("$RUNNER_TEMP/go/bin/go" env GOVERSION)" = "go$GO_VERSION"
-          GOBIN="$RUNNER_TEMP/gobin" GOTOOLCHAIN=local "$RUNNER_TEMP/go/bin/go" install "golang.org/x/tools/cmd/goimports@$GOIMPORTS_VERSION"
-          echo "$RUNNER_TEMP/gobin" >> "$GITHUB_PATH"
-          echo "$RUNNER_TEMP/go/bin" >> "$GITHUB_PATH"
+        run: bash .github/scripts/lib/install-pinned-goimports.sh "$RUNNER_TEMP/gobin" "$HOME/.cache/ci-tools"
       # The guardrails remote's end-to-end suite runs real lefthook against a
       # stand-in remote; a broken lefthook-remote.yml would block every
       # consumer's commits, so it fails here instead of skipping

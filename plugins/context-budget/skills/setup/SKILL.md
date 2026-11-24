@@ -48,7 +48,8 @@ No argument or `check` runs the check. Non-interactive; never prompts.
 
 What this plugin requires is owned by
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header
-of `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`. Read it first, and do not copy it
+of `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`. Open both with the Read tool,
+the section and the top of `measure.mjs`. Read it first, and do not copy it
 into the report as a second inventory. Then read the pre-computed rows, run the remaining probes,
 and report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing; install
 nothing.

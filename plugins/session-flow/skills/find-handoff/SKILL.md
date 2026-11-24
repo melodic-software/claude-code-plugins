@@ -162,7 +162,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    captured `/loop` re-arm notes with it, all of them, on both modes, whenever any were found**,
    and say plainly that each re-arm is its own follow-up message sent after the continuation is
    under way. Dropping one here loses that loop just as surely as never recovering the prompt. Ask
-   for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
+   for an explicit yes/no and **stop**.
+   A waiver in the request itself ("just resume it", "no need to check with me") is not that
+   yes: the operator has not yet seen the candidate.
+   Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
 

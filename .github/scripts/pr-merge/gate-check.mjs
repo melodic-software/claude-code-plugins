@@ -56,12 +56,9 @@ export const CHECK_NAME = "pr-merge / gate";
 const ACTIONS_APP_ID = 15368;
 const EXTERNAL_ID = "pr-merge-gate";
 const CHUNK = 50;
-// The Actions app's check suites at one head, one per workflow run there
-// (judgment: a head with more is read as cut short).
 const SUITES = 50;
 // Room for a reason and its detail (judgment); GitHub documents no limit.
 const TITLE_CHARS = 200;
-// As the step summary trims them (pr-merge.yml).
 const BLOCKER_CHARS = 300;
 const BLOCKERS = 20;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -73,7 +70,6 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 // code span the title sits in, where a link or image would render.
 const flat = (text, chars) => Array.from(String(text).replaceAll(/[\r\n`]/g, " ").trim()).slice(0, chars).join("");
 
-// The check run a summary row should show, or null for a row with none.
 export function render(row) {
   if (!Number.isSafeInteger(row?.pr) || row.pr < 1 || !SHA.test(String(row?.head)) || Object.hasOwn(row, "carried")) {
     return null;
@@ -101,7 +97,6 @@ export function render(row) {
   return { conclusion, title, summary };
 }
 
-// Each candidate's head and its pull request's current head, read together.
 export const READ_QUERY = (candidates) =>
   "query($o:String!,$r:String!,$n:String!){repository(owner:$o,name:$r){" +
   candidates
@@ -126,8 +121,6 @@ export function checkErrors(errors) {
   }
 }
 
-// The newest `CHECK_NAME` check run at each head, null for none, and
-// undefined when the listing may be cut short.
 export function existing(node) {
   const suites = node?.checkSuites;
   const nodes = Array.isArray(suites?.nodes) ? suites.nodes : [];
@@ -153,7 +146,6 @@ export async function main({ env = process.env, github, fetchImpl, now = () => n
     } catch {
       rows = [];
     }
-    // One check per head; a head listed twice keeps its first row.
     const wanted = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
       const check = render(row);

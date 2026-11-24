@@ -17,7 +17,7 @@ graders:
     arm: with-only
   - name: scope-stated
     type: regex
-    pattern: '^(?=[\s\S]*(?:\bthis worktree\b|\brepository(?:''s)?\s+(?:other\s+)?worktrees\b|\b(?:every|all)\s+projects?\b|\bscope(?:\s+level)?(?:\s+reached)?\s*[:=]?\s*`?(?:worktree|repo|all)\b))(?=[\s\S]*(?:\b(?:[0-9]+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:\w+\s+)?(?:director(?:y|ies)|transcripts?|sessions?|files?)|\bno\s+(?:\w+\s+)?director(?:y|ies))\b)(?=[\s\S]*\bterms?\b[^\n]*\b(?:invoice|export|timeout))'
+    pattern: '^(?=[\s\S]*(?:\bthis worktree\b|\brepository(?:''s)?\s+(?:other\s+)?worktrees\b|\b(?:every|all)\s+projects?\b|\bscope(?:\s+level)?(?:\s+reached)?\s*[:=]?\s*`?(?:worktree|repo|all)\b))(?=[\s\S]*(?:\b(?:[0-9]+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:\w+\s+)?(?:director(?:y|ies)|transcripts?|sessions?|files?)|\bno\s+(?:\w+\s+)?director(?:y|ies)|\bdirector(?:y|ies)\s+listing\b[^\n]{0,30}\bempty)\b)(?=[\s\S]*\bterms?\b[^\n]*\b(?:invoice|export|timeout))'
     flags: 'i'
     arm: both
   - name: dirs-listed

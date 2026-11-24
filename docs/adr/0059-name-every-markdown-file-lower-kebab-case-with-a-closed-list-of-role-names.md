@@ -4,6 +4,9 @@
   see the amendment below)
 - Date: 2026-10-10
 - Extends: [ADR 0034](0034-name-docs-files-lower-kebab-case-with-conventional-exceptions.md)
+- Superseded in part by [ADR 0064](0064-home-plugin-customization-in-docs-conventions-yaml.md):
+  the configuration file `.claude/docs-naming.json` is now `docs/conventions/docs-naming.yaml`
+  (`scripts/check-docs-naming.sh`). The naming rules stand.
 
 ## Context
 

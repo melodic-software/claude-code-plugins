@@ -7,7 +7,6 @@ import { after, test } from "node:test";
 import { check, laneClient, levelVariableWriter, listVariables, run, snapshot } from "./publish-lane-level.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
-// 2026-11-10T23:47:00Z.
 const NOW_S = 1794354420;
 const NOW = NOW_S * 1000;
 const dir = mkdtempSync(join(tmpdir(), "publish-lane-level-"));
@@ -21,9 +20,6 @@ function resolved(laneLevel) {
 
 const QUIET = JSON.stringify({ at: NOW_S, pools: { "lanes-app": { used: 400, limit: 5000 } }, signals: [] });
 
-// The job token's reads: the issue lane's runs in progress, and the
-// lane-level-state artifact of the last scheduled sweep (run 70), which holds
-// `state` when it is not null.
 function fakeActions({ active = 5, state = null } = {}) {
   const calls = [];
   const actions = async (method, path) => {
@@ -133,10 +129,8 @@ test("an expired, malformed or too-far published value is no previous level: dec
 });
 
 test("demand: every unfinished status counts; past the applied level they wait for a slot, and none waiting with fewer running than L is no demand", async () => {
-  // 1 in progress + 1 queued = 2 unfinished, under the applied 3.
   const idle = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 1 });
   assert.equal(idle.decision.reason, "no-demand");
-  // 2 in progress + 1 queued = 3: every slot running, which is demand.
   const full = await decideWith({ state: { level: 3, streak: 1, holdUntil: 0 }, active: 2 });
   assert.equal(full.decision.reason, "step-up");
   const counted = idle.calls.filter((call) => call.includes("work-resolve-issue.yml/runs?status=")).map((call) => /status=([a-z_]+)/.exec(call)[1]);

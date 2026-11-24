@@ -131,7 +131,6 @@ export function carrySteps(env) {
   if (env.BABYSIT_RUN_CACHE) {
     steps.push(
       { script: "carry-run-cache.mjs", args: ["read"], env: { ...shared, API_BUDGET_SCRIPT: "carry-run-cache", CARRY_TO: carriedFile } },
-      // No requests. Its outputs are for pr-merge's steps, not the dispatch step's.
       { script: "carry-run-cache.mjs", args: [], env: { CARRY_FROM: carriedFile, CARRY_TO: env.BABYSIT_RUN_CACHE, GITHUB_OUTPUT: "" } },
     );
   }
@@ -141,8 +140,6 @@ export function carrySteps(env) {
   return steps;
 }
 
-// Each carry script warns and writes nothing on its own failures, so the
-// reader then asks GitHub for that part alone; a child that dies is named.
 async function fetchCarry(env) {
   const failed = [];
   for (const step of carrySteps(env)) {
@@ -173,12 +170,8 @@ export function deadlineWarning(number, answer) {
 
 const oneLine = (text, max = 300) => String(text ?? "").replaceAll(/[\r\n%]/g, " ").trim().slice(0, max);
 
-// Why a child that did not exit 0 failed: its spawn error, else its last
-// stderr line, else its exit status.
 const failureOf = (done) => oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`;
 
-// One line for a read's stderr: its line count, then the listing-miss lines,
-// else the last line; null when it wrote nothing.
 function stderrSummary(stderr) {
   const lines = String(stderr ?? "")
     .split("\n")
@@ -232,8 +225,6 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
         .catch((error) => log(`::warning::pr-merge's carried reads were not all fetched (${oneLine(error?.message ?? error)}); the reader asks GitHub for the rest`));
       await carried;
     }
-    // The reader requires the base: its config names the lanes App, without
-    // which every lanes App spec reads untrusted.
     if (!SHA.test(String(base ?? ""))) {
       log(`::warning::#${number}: no base commit to read the verifier at (${oneLine(String(base))}); the round runs under its own caps`);
       return unread();
@@ -258,7 +249,6 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
       }
     } catch (error) {
       log(`::warning::#${number}: the verifier reader did not read its FAIL cap (${oneLine(error.message)}); the round runs under its own caps`);
-      // readFailed: no answer at all, which is not "no earlier FAIL".
       return unread();
     }
     const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true, earlierFailHeads: [] });

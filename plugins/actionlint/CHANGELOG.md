@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.5] - 2026-11-24
+
+### Fixed
+
+- `setup check` reads `git-hooks/lint.sh` and `git-hooks/adapters.sh` with the Read tool before probing, also when lint resolves nothing.
+
 ## [2.2.4] - 2026-11-24
 
 ### Changed

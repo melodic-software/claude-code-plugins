@@ -3,6 +3,16 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-24
+
+### Added
+
+- `/testing:fix-failing diagnose` runs only the investigate phase and stops with the cause at file:line, its classification and the command that reproduces it, changing no code, the same meaning `diagnose` has in `/debugging:debug`.
+
+### Changed
+
+- The failing-test skill is invoked as `/testing:fix-failing`, with no alias: its name now says it fixes.
+
 ## [5.14.2] - 2026-11-24
 
 ### Changed

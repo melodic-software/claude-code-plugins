@@ -30,7 +30,6 @@ runs:
         # archive.ubuntu.com in seconds; every apt-get and dpkg call and backoff
         # shares one 540 s budget, so the install ends within it plus a 2 s kill grace.
         deadline=$((SECONDS + ${BUDGET_SECONDS:-540}))
-        # Seconds left in the budget, capped at $1.
         left() {
           local remaining=$((deadline - SECONDS))
           echo $((remaining < $1 ? remaining : $1))

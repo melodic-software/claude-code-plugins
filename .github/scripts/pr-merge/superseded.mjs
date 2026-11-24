@@ -76,23 +76,17 @@ const jobNamed = (jobs, job) => jobs.find((j) => j?.name === NAMES[job]) ?? jobs
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
 
-// The run's actor and its triggering actor (who last re-ran it) are each a
-// listed human, by id.
 const startedByHuman = ({ humans }, run) =>
   [run.actor?.id, run.triggering_actor?.id].every((id) => Number.isInteger(id) && humans.has(id));
 
 const NUMBER = /^[1-9][0-9]{0,15}$/;
 
-// A PR-scoped dispatch's pull request as its run name gives it, or null for
-// a run that is not one (an unreadable number reads as no pull request).
 const scopeOf = (run) => {
   if (run?.event !== "workflow_dispatch") return null;
   const found = WAKE_TITLE.exec(String(run.display_title ?? ""));
   return found === null ? null : NUMBER.test(found[1]) ? found[1] : "";
 };
 
-// The pending runs whose job, if still waiting, does all this run's job does.
-// `scope`: this run's pull request when it is PR-scoped, else null.
 export function eligible(runs, { runId, event, trusted, ranks, scope = null }) {
   return runs.filter((run) => {
     if (
@@ -101,9 +95,7 @@ export function eligible(runs, { runId, event, trusted, ranks, scope = null }) {
         String(run.id) !== runId &&
         Object.hasOwn(ranks, run.event) &&
         ranks[run.event] >= ranks[event] &&
-        // An event run reads only its own pull request (pr-merge.yml EVENT_PR).
         run.event !== "pull_request_target" &&
-        // A dispatch on another branch runs that branch's copy of the workflow.
         run.head_branch === "main"
       )
     ) {
@@ -111,7 +103,6 @@ export function eligible(runs, { runId, event, trusted, ranks, scope = null }) {
     }
     const other = scopeOf(run);
     if (other !== null) {
-      // A PR-scoped dispatch does only a PR-scoped run's work for its own pull request.
       const wake = run.actor?.id === Number(GITHUB_ACTIONS_BOT_ID) && run.triggering_actor?.id === run.actor.id && run.run_attempt === 1;
       return scope !== null && other !== "" && other === scope && (wake || startedByHuman(trusted, run));
     }
@@ -142,8 +133,6 @@ export async function main({ env = process.env, actions } = {}) {
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error("the pending run listing has an unexpected shape");
     }
-    // A PR-scoped run whose input is no pull request number does nothing, so
-    // nothing does its work either.
     const scope = event === "workflow_dispatch" && env.DISPATCH_PR ? (NUMBER.test(env.DISPATCH_PR) ? env.DISPATCH_PR : "") : null;
     const runs = eligible(listing.workflow_runs, { runId: String(env.GITHUB_RUN_ID), event, trusted, ranks, scope });
     for (const run of runs.slice(0, MAX_JOB_READS)) {

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/disk-hygiene/skills/clean/SKILL.md plugins/disk-hygiene/skills/clean/reference/*.json plugins/disk-hygiene/hooks/*
+# test-scope: plugins/disk-hygiene/skills/clean/reference/*.md
+# test-scope: plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

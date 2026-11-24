@@ -72,9 +72,6 @@ test("a row that refuses no path rule gets no rules", () => {
   assert.deepEqual(denyRules(["symlink", "gitlink"], DIRS), []);
 });
 
-// The lane must never lose an edit apply-patch would push: no tracked file it
-// accepts, and none of these, matches a rule. The paths it refuses that the
-// lane hits most match one.
 test("the rules match only paths apply-patch refuses, plugins/ settings files included, and cover the common ones", () => {
   const dirs = execFileSync("git", ["-C", REPO_ROOT, "ls-tree", "-d", "--name-only", "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
   const rules = denyRules(ISSUE_REFUSE, dirs);

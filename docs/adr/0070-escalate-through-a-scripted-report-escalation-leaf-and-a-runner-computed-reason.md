@@ -2,6 +2,10 @@
 
 - Status: accepted
 - Date: 2026-10-12
+- Superseded in part by `.github/scripts/pr-unblock/report-escalation.sh` and its
+  `escalation-routes.json`: Decision 2's four-value `escalation-reason` enum (the routing table
+  lists many more reasons), and Decision 3's label on every escalation and three comment tries (a
+  `fail` route adds no human-gated label, and the comment goes out once).
 
 ## Context
 
