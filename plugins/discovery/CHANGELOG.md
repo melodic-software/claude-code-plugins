@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.18] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [2.2.17] - 2026-11-24
 
 ### Fixed

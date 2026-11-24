@@ -7,6 +7,7 @@ import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
+import { settingsPaths } from "../lib/settings-io.mjs";
 import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
@@ -278,6 +279,23 @@ const launchJson = (w, args, extra = {}) => {
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 };
+
+test("in the home folder the project settings file is the user file, so settingsPaths gives no project level", () => {
+  const w = world();
+  assert.equal(settingsPaths({ configDir: join(w.home, ".claude"), projectDir: w.home, home: w.home }).project, null);
+  assert.equal(settingsPaths({ configDir: join(w.home, ".claude"), projectDir: w.project, home: w.home }).project, join(w.project, ".claude", "settings.json"));
+});
+
+test("a launch from the home folder switches the user file's plugins to the profile, not reading that file twice as user and project", () => {
+  const w = world();
+  writeTree(w.home, {
+    ".claude/settings.json": { enabledPlugins: { [`songwriting@${M}`]: false, [`review@${M}`]: true } },
+    ".claude/plugin-profiles/pick.yaml": `plugins: [songwriting@${M}]\n`,
+  });
+  const session = JSON.parse(readFileSync(launchJson(w, ["pick", "--folder", w.home]).file, "utf8"));
+  assert.equal(session.enabledPlugins[`songwriting@${M}`], true);
+  assert.equal(session.enabledPlugins[`review@${M}`], false);
+});
 
 test("launch writes one file per folder and profile, asks nothing, changes no settings file, and prints a command that clears an inherited marker", () => {
   const w = world();

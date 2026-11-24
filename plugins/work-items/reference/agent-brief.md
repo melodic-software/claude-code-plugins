@@ -57,7 +57,7 @@ The brief can be the issue body itself or a comment; a comment starts with the `
 ### The Root cause field
 
 Bugs only; a feature or task omits it. `unknown` means reproducing the failure has not named its
-cause, so `/work-items:work` runs diagnosis (`/debugging:debug`, or `/testing:diagnose` for a failing
+cause, so `/work-items:work` runs diagnosis (`/debugging:debug`, or `/testing:fix-failing diagnose` for a failing
 test) before implementing. `known: <cause>` means the report or reproduction names the cause, and
 the item goes straight to the fix. A brief without the field is treated as `known`.
 

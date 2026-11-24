@@ -58,13 +58,13 @@ class CompareRefusedTest(unittest.TestCase):
         res = _run_select(self.repo)
         self.assertEqual(0, res.returncode, res.stderr)
         line = _parse_blocks(res.stdout)["plugins/alpha"]["compare-refused"]
-        self.assertIn("plugins/alpha/README.md: outside skills/, agents/ and evals/", line)
+        self.assertIn("plugins/alpha/README.md: outside skills/, agents/, context/ and evals/", line)
         self.assertIn("suite run on the default branch after merge", line)
         self.assertNotIn("SKILL.md", line)
 
         data = json.loads(_run_select(self.repo, as_json=True).stdout)
         self.assertEqual(
-            ["plugins/alpha/README.md: outside skills/, agents/ and evals/"],
+            ["plugins/alpha/README.md: outside skills/, agents/, context/ and evals/"],
             data["plugins/alpha"]["compare-refused"],
         )
 

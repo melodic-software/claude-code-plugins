@@ -4,6 +4,11 @@
 - Date: 2026-10-04
 - Amended by [ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md): point 1, for
   callers that pass `trusted-base: default-tip`
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml` and
+  `pr-run-activity-read.yml` (contract: `docs/conventions/pr-pipeline/pr-run-activity.md`): one
+  workflow no longer runs every activity. The write workflow runs scripts only and fails a skill
+  (`skill-in-write-runner`) and a `read` effect; skills and other `read` activities run in the
+  read workflow.
 
 ## Context
 
@@ -37,7 +42,7 @@ lane in two jobs. Its contract is
 2. **The `report` job** holds `checks: write` plus the two reads and has no model step. It posts one
    check run named `<lane> / <activity>` through the Checks API and refuses either name part
    `ci-status`
-   ([`decide.mjs:47-56`](../../.github/actions/report-check-run/decide.mjs)).
+   ([`decide.mjs:44-53`](../../.github/actions/report-check-run/decide.mjs)).
 3. **The report job trusts only what the runner computed.** Lane and activity come from its own
    `workflow_call` inputs. From the run job it trusts `needs.run.result` and the outputs `base-sha`,
    `head-sha`, `pr-number`, `gate-reason`, `can-commit` and `act-outcome`. Each is a step outcome or

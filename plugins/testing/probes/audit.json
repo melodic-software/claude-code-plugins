@@ -2,11 +2,11 @@
   "skill": "testing:audit",
   "plugin": "testing",
   "skill_dir": "plugins/testing/skills/audit",
-  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:cleanup (acting on findings), testing:test-value (judging one assertion), testing:diagnose (a red test), mutation-testing:audit (mutant survival) and review:code-review (PR review).",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:cleanup (acting on findings), testing:test-value (judging one assertion), testing:fix-failing (a red test), mutation-testing:audit (mutant survival) and review:code-review (PR review).",
   "competitors": [
     "testing:test-value",
     "testing:cleanup",
-    "testing:diagnose",
+    "testing:fix-failing",
     "mutation-testing:audit",
     "review:code-review"
   ],

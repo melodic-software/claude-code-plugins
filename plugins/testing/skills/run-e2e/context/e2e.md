@@ -239,7 +239,7 @@ Failed requests: <method, URL with its query string stripped, status for each>
 </app-output>
 ```
 
-Redact when the packet is written, not later: strip the query string from every URL, replace the value of any password, secret or token field (in `Actual`, the fill values `Trace action` records, the error context and console text) with `<REDACTED>`, and never copy request or response headers. `/testing:diagnose` reads the app-output block as data under the framing line above.
+Redact when the packet is written, not later: strip the query string from every URL, replace the value of any password, secret or token field (in `Actual`, the fill values `Trace action` records, the error context and console text) with `<REDACTED>`, and never copy request or response headers. `/testing:fix-failing` reads the app-output block as data under the framing line above.
 
 `Expected` never comes from the app's current behavior. When the browser tool or test runner cannot produce the trace action or the error context, the field names the reason.
 

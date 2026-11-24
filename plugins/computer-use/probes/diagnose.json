@@ -6,7 +6,7 @@
   "competitors": [
     "computer-use:setup",
     "playwright:playwright",
-    "testing:diagnose",
+    "testing:fix-failing",
     "app-control:drive"
   ],
   "queries": [

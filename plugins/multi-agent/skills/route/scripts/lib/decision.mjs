@@ -196,6 +196,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     skippedSilentVendors,
     unavailableInUseVendors,
     needsTools: opts.needsTools,
+    use: opts.use,
     contextTokens: opts.context,
     notes,
   })

@@ -26,7 +26,7 @@ contract"): one path:line: finding per caller on stderr, each passing caller's
 estimate and headroom on stdout. Exit 0 clean, 1 any finding, 2 usage or
 environment (no node, no yaml package, an unreadable config, or a call to a
 missing file, a call cycle or a workflow that does not parse). The yaml package
-comes from npm ci --prefix .github/standards/runner-policy.
+comes from npm ci --prefix scripts/ci-deps.
 EOF
 }
 

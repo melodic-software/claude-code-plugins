@@ -5,7 +5,7 @@
 # base SHA an older PR keeps (docs/adr/0069). The read runner takes the same
 # trusted-base input as the write runner and hands it to check-trusted-base.
 # The action's own modes are check-trusted-base's suite; this asserts wiring.
-# test-scope: .github/workflows/pr-unblock.yml .github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-unblock.yml .github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,7 +16,7 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
@@ -43,7 +43,7 @@ for (const [name, job] of callers) {
 EOF
 )
 if [[ -z "$results" ]]; then
-  fail "the structure check printed nothing; is .github/standards/runner-policy installed?"
+  fail "the structure check printed nothing; is scripts/ci-deps installed?"
 fi
 while IFS=$'\t' read -r verdict text; do
   [[ -n $verdict ]] || continue

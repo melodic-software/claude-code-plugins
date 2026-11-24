@@ -35,6 +35,8 @@ interview-first pipeline answers.
 The state where the people on a task agree on the problem, its constraints and what done means,
 confirmed in their own words before the deliverable is built.
 
+Avoid: design concept
+
 **context load**
 
 What a surface costs an agent that reads it: the tokens, charged on every session for always-loaded
@@ -174,6 +176,8 @@ A work item cut through every layer is a **vertical slice**.
 
 A work item cut as a narrow but complete path through every layer, verifiable on its own and small
 enough to finish in one fresh context window.
+
+Avoid: slice (bare **slice** is the topic folder)
 
 **canonical role**
 
@@ -395,11 +399,6 @@ blocks routing work to that vendor.
 
 The plus-or-minus a benchmark states beside a score. A lead smaller than it is a tie.
 
-**trial mode**
-
-Vendor routing with the trials switch on, so a model, version and effort not yet proven on the
-machine can receive work under a **trial**.
-
 **trial**
 
 Routing work to one model, version and effort not yet proven on a machine, with Claude reviewing
@@ -411,16 +410,6 @@ States: running, then proven or failed.
 
 The state of a model, version and effort whose trial succeeded on a machine: routing sends it work
 there without a new trial, until the user sends it back to trial.
-
-**trial notes**
-
-The per-machine record of one running trial's reviewed results, deleted when the trial ends; only
-its outcome is kept.
-
-**auto-delegation**
-
-Claude handing a task to the vendor routing names without asking first, then reviewing the result.
-With it off, routing only recommends the vendor.
 
 ### Upstream records
 

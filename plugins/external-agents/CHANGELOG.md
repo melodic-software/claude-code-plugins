@@ -3,6 +3,29 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-24
+
+### Fixed
+
+- `external-agents models <product>` now prints `read_only_tools`, the tools that still work under
+  `--mode read-only`, from a new `harness.read_only_tools` list in each provider record (Codex:
+  `file`, `shell`, `web`, `mcp`; Antigravity: `file`). A record with no list reports `tools`
+  there. Before this, `tools` was the only view, so a router could send a read-only research brief
+  to Antigravity, whose read-only runs refuse shell, web and MCP calls.
+
+## [0.7.0] - 2026-11-24
+
+### Added
+
+- add the `antigravity_uses_task_mode` userConfig option, so one per-user setting turns on
+  Antigravity task writes in every repository and worktree
+
+  It defaults to `read-only`, so nothing changes for a user who sets nothing. The command reads
+  `pluginConfigs` from the user and managed settings itself and feeds the value to the config
+  cascade's userConfig layer, which a repository's team or personal file still overrides. An
+  unreadable settings file or managed-settings directory leaves the layer empty and prints a
+  notice. The option's `options` picker needs Claude Code v2.1.271 or later.
+
 ## [0.6.2] - 2026-11-24
 
 ### Fixed

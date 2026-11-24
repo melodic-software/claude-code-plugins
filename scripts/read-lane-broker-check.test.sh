@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml scripts/ci-deps/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
 # Runs the shell of two read-lane check-broker steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The check-broker job"):
@@ -12,12 +12,11 @@
 #     lease older than its own, and the run job's go step then runs no model;
 #   - exactly one of the read runner's report job and the caller's write runner
 #     report job releases each lease, the write side after the PR opens.
-# Needs node and the yaml package (npm ci --prefix .github/standards/runner-policy).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
-POLICY_DIR="$ROOT/.github/standards/runner-policy"
+DEPS_DIR="$ROOT/scripts/ci-deps"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
@@ -37,7 +36,7 @@ lift() {
     const run = eval(process.argv[3]);
     if (typeof run !== "string") process.exit(1);
     fs.writeFileSync(process.argv[4], "#!/usr/bin/env bash\n" + run);
-  ' "$POLICY_DIR" "$1" "$2" "$3"
+  ' "$DEPS_DIR" "$1" "$2" "$3"
 }
 
 GATE="$WORK/gate.sh"
@@ -178,7 +177,7 @@ holds() {
     const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
     const d = yaml.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
     process.exit(eval(process.argv[3]) === true ? 0 : 1);
-  ' "$POLICY_DIR" "$2" "$3" 2>/dev/null; then
+  ' "$DEPS_DIR" "$2" "$3" 2>/dev/null; then
     ok "$1"
   else
     fail "$1"
@@ -274,7 +273,7 @@ who() {
     });
     const writes = (applyRuns && writeReleases(apply, "apply-issue-patch", skip)) || (reportRuns && writeReleases(report, "report-outcome", ""));
     console.log(`${readReleases && writes ? "both" : readReleases ? "read" : writes ? "write" : "none"} ${reportRuns ? "yes" : "no"}`);
-  ' "$POLICY_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$CALLER_YML" "${@:4}")"
+  ' "$DEPS_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$CALLER_YML" "${@:4}")"
   if [[ $got == "$2 $3" ]]; then ok "$1"; else fail "$1: got '$got', expected '$2 $3'"; fi
 }
 export WORK
@@ -318,5 +317,23 @@ holds "the read release step validates the handle, warns and stays green on fail
   'const r = Object.values(d.jobs).flatMap((j) => j.steps ?? []).find((s) => s.name === "Release the lane lease"); r?.["continue-on-error"] === true && /::warning::.*TTL/.test(r.run) && /\^\[1-9\]\[0-9\]\*\$/.test(r.run)'
 holds "the write release step warns and stays green on failure" "$ROOT/.github/workflows/pr-run-activity-write.yml" \
   'const r = Object.values(d.jobs).flatMap((j) => j.steps ?? []).find((s) => s.name === "Release the lane lease"); r?.["continue-on-error"] === true && /::warning::.*TTL/.test(r.run) && /\^\[1-9\]\[0-9\]\*\$/.test(r.run)'
+
+COPY_STEP="$WORK/copy-setup.sh"
+lift "$READ_YML" 'd.jobs.run.steps.find((s) => s.id === "setup-env")?.run' "$COPY_STEP" ||
+  fail "the run job has no setup-env copy step"
+base="$WORK/copy/.base"
+mkdir -p "$base/scripts/ci-deps" "$base/.github"
+for f in scripts/setup-env.sh .python-version .github/requirements-ci.txt package.json package-lock.json \
+  scripts/ci-deps/package.json scripts/ci-deps/package-lock.json; do
+  echo "$f" >"$base/$f"
+done
+out="$(cd "$WORK/copy" && DEST="$WORK/copy-dest" GITHUB_OUTPUT="$WORK/copy-output" bash "$COPY_STEP" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && -f "$WORK/copy-dest/.github/requirements-ci.txt" && -f "$WORK/copy-dest/scripts/ci-deps/package-lock.json" ]] &&
+  grep -q 'ready=true' "$WORK/copy-output"; then
+  ok "the setup-env copy step copies every file setup-env.sh installs from"
+else
+  fail "the setup-env copy step: rc=$rc out=$out"
+fi
 
 test_harness::report

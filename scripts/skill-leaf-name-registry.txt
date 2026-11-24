@@ -168,17 +168,6 @@ delta instruction-placement,overengineering
 # supplies the object in each.
 design evals,planning,user-interface
 
-# D19, kept on merit. testing diagnoses a failing suite and computer-use
-# diagnoses a screen-control session (a failed capture, a blocked input, an
-# unreadable screenshot) -- unrelated domains, and the namespace disambiguates.
-# For computer-use, the alternative
-# considered and rejected was repeating the tool name as firecrawl and playwright
-# do -- but that exception covers a wrapper you INVOKE the tool through, and this
-# skill drives nothing: the computer-use MCP tools are called directly and the
-# skill only explains their behavior. Default imperative grammar therefore
-# applies, and this entry is the ordinary cost of it.
-diagnose computer-use,testing
-
 # Kept on merit. ai-briefing:generate produces the briefing artifact;
 # wizard:generate authors an interactive setup-wizard script a human runs.
 # Unrelated artifacts; the namespace supplies the object in both, and wizard's

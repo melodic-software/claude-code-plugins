@@ -29,6 +29,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=test-git-helpers.sh
+. "$ROOT/scripts/test-git-helpers.sh"
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
 export RUNNER_TEMP="$TMP_ROOT"
@@ -849,6 +851,16 @@ export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
 $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
 $SHA_UNTAGGED	refs/heads/main"
+vtags="$TMP_ROOT/vendor-tags"
+vgit() { git_test_config "$vtags" -c core.hooksPath=/dev/null "$@"; }
+if mkdir -p "$vtags" && git_init_test_repo "$vtags" && vgit commit -q --allow-empty -m one && vgit tag v1 && vgit tag v1.0.265 &&
+  vgit commit -q --allow-empty -m two && vgit tag -a -m v2 v2 && vgit tag -a -m v1.0.266 v1.0.266 &&
+  vendor_tags="$(git ls-remote --tags "$vtags")" && grep -q $'\trefs/tags/v2\^{}$' <<<"$vendor_tags"; then
+  STUB_TAGS="$STUB_TAGS
+$vendor_tags"
+else
+  fail "could not list the tags of a throwaway repository with git ls-remote"
+fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
 cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
@@ -877,12 +889,12 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "melodic-software/ci-wor
   BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists melodic-software, so a ci-workflows composite-action bump skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap "Anthropics/claude-code-base-action@$SHA_OLD" "Anthropics/claude-code-base-action@$SHA_BASE # v2.0.0")")" \
   dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
-STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \
+STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap evilcorp/checkout@v4 evilcorp/checkout@v5)")" \
   dep "a mixed bump across files (a listed owner and another) stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "-      - uses: $CCA_OLD
--      - uses: actions/checkout@v4
+-      - uses: evilcorp/checkout@v4
 +      - uses: $CCA_NEW
-+      - uses: actions/checkout@v5")" \
++      - uses: evilcorp/checkout@v5")" \
   dep "a mixed bump in one block stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")
 -          node-version: 20
@@ -897,7 +909,32 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/o
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" anthropics/claude-code-action@main)")" \
   dep "a swap to a branch name stays held by the ref shape, not the tag read" 1 "$HELD" "No tag of the action's repository"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" 'anthropics/claude-code-action@v1.0.266 # v1.0.266')")" \
-  dep "a swap to a tag name stays held by the ref shape (only SHA pins pass)" 1 "$HELD" "No tag of the action's repository"
+  dep "a swap from a SHA to a tag name stays held by the ref shape" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap anthropics/claude-code-action@v1.0.265 anthropics/claude-code-action@v1.0.266)")" \
+  dep "a vendor tag-to-tag bump of a listed owner skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a major-tag bump of actions/checkout skips the hold under the repository's own owner list" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap Azure/login@v1 'Azure/login@v2 # v2')")" \
+  BASE_CONFIG="$ROOT" dep "a vendor owner matches in any letter case, with a version comment" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2)")" \
+  dep "a vendor tag bump of an unlisted owner waits for a merge verdict" 1 \
+  "::error::#77 by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: $WF, and merge.dependabot.trusted-action-owners does not list the owner of: actions/checkout."
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v9)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag bump to a tag the repository lacks stays held" 1 "No tag of the action's repository points to, or its tag list could not be read for: actions/checkout@v9"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap melodic-software/ci-workflows/.github/actions/run-claude-cli@v1 melodic-software/ci-workflows/.github/actions/run-claude-cli@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a first-party tag swap stays held, though its owner is listed" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap evilcorp/setup-tool@v1 evilcorp/setup-tool@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a third-party tag swap stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@main)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a branch stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2-beta)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a non-version tag stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/setup-node@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swap that changes the action path stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "actions/checkout@$SHA_OLD # v1" actions/checkout@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor SHA swapped to a tag stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 "actions/checkout@$SHA_NEW # v2")")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a SHA stays held" 1 "$HELD" "No tag of the action's repository"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/claude-code-action@$SHA_UNTAGGED # v1.0.266")")" \
   dep "a swap to a SHA no tag points to stays held" 1 "No tag of the action's repository points to, or its tag list could not be read for: anthropics/claude-code-action@$SHA_UNTAGGED"
 STUB_LSREMOTE_FAIL=1 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
