@@ -509,7 +509,8 @@ jobs:
           steps.stage.outputs.go == 'true' &&
           (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
           contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
-          contains(steps.plugins.outputs.list, 'plugins/bash-format'))
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
@@ -1221,7 +1222,8 @@ jobs:
           steps.stage.outputs.go == 'true' &&
           (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
           contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
-          contains(steps.plugins.outputs.list, 'plugins/bash-format'))
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
