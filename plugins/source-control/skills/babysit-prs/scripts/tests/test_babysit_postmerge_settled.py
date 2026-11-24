@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/*.json
 """The settled marker of the post-merge check (`babysit_postmerge`).
 
 Expected values come from the marker contract the module documents: a merge

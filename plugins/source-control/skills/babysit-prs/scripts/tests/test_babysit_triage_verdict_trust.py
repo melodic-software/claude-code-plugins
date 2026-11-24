@@ -10,6 +10,7 @@
 # test-scope: .github/scripts/pr-merge/merge-holds.mjs
 # test-scope: .github/scripts/work-resolve-issue/known-names.json .github/scripts/work-resolve-issue/limits.mjs
 # test-scope: .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/stop-routes.json .github/scripts/work-resolve-issue/stop-routes.mjs .github/scripts/recurring-schedule/file-due.mjs
+# test-scope: .github/actions/check-trusted-trigger/close-trust.mjs
 """The gate's triage-verdict brief (`babysit_verify_evidence.triage_briefed`,
 through `briefed_issue`): the owner's standing rule read as intake-triage's
 own verdict (#18107; architecture PR 167). The lanes App's verdict that held

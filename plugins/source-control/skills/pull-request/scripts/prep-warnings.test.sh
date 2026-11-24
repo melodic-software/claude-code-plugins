@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 
 set -uo pipefail
 

@@ -1,4 +1,5 @@
 # test-scope: plugins/source-control/*.md
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 
 import argparse
 import contextlib
