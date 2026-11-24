@@ -7,7 +7,8 @@ import { CONTRACT_FILES, contractFiles, loadContract } from "../plugin-eval/eval
 
 const REMOTE = "https://github.com/melodic-software/ci-workflows.git";
 const CACHE = join(tmpdir(), "ci-workflows-at-pin");
-const ATTEMPTS = 3;
+const DELAYS = [2000, 5000];
+const TRANSIENT = /returned error: (?:403|429|5\d\d)\b|\bHTTP (?:403|429|5\d\d)\b|Could not resolve host|Connection reset|timed out/i;
 const PIN = /^[0-9a-f]{40}$/;
 let mainTip;
 
@@ -23,19 +24,28 @@ const git = (dir, ...args) =>
   });
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const detail = (error) => String(error.stderr || error.message).trim();
+
+function retried(what, run) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return run();
+    } catch (error) {
+      if (attempt === DELAYS.length || !TRANSIENT.test(detail(error))) throw new Error(`${what} failed: ${detail(error)}`);
+      pause(DELAYS[attempt]);
+    }
+  }
+}
 
 function commitOf(ref) {
   if (PIN.test(ref)) return ref;
   if (ref !== "main") throw new Error(`ci-workflows ref is neither main nor a full commit sha: ${ref}`);
-  for (let attempt = 1; !mainTip; attempt += 1) {
-    try {
-      const sha = execFileSync("git", ["ls-remote", REMOTE, "refs/heads/main"], { encoding: "utf8", env: ENV, stdio: ["ignore", "pipe", "pipe"] }).split("\t")[0];
-      if (!PIN.test(sha)) throw new Error(`no main tip in: ${sha}`);
-      mainTip = sha;
-    } catch (error) {
-      if (attempt === ATTEMPTS) throw new Error(`git ls-remote of ci-workflows main failed: ${String(error.stderr || error.message).trim()}`);
-      pause(2000 * attempt);
-    }
+  if (!mainTip) {
+    const sha = retried("git ls-remote of ci-workflows main", () =>
+      execFileSync("git", ["ls-remote", REMOTE, "refs/heads/main"], { encoding: "utf8", env: ENV, stdio: ["ignore", "pipe", "pipe"] }),
+    ).split("\t")[0];
+    if (!PIN.test(sha)) throw new Error(`git ls-remote of ci-workflows main failed: no main tip in: ${sha}`);
+    mainTip = sha;
   }
   return mainTip;
 }
@@ -48,15 +58,7 @@ function pinned(pin) {
   const work = mkdtempSync(join(CACHE, `${pin}-`));
   try {
     git(work, "init", "-q");
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        git(work, "fetch", "-q", "--depth", "1", "--no-tags", REMOTE, pin);
-        break;
-      } catch (error) {
-        if (attempt === ATTEMPTS) throw new Error(`git fetch of ci-workflows ${pin} failed: ${String(error.stderr || error.message).trim()}`);
-        pause(2000 * attempt);
-      }
-    }
+    retried(`git fetch of ci-workflows ${pin}`, () => git(work, "fetch", "-q", "--depth", "1", "--no-tags", REMOTE, pin));
     writeFileSync(join(work, "ready"), "");
     try {
       renameSync(work, dir);

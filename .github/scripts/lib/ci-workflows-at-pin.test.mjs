@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { test } from "node:test";
+import { promisify } from "node:util";
+import { describe, test } from "node:test";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -55,4 +56,48 @@ test("main is resolved to its tip's full sha before anything is cached, for the 
 test("a ref that is neither main nor a full commit sha is refused before any fetch", async () => {
   const { fetchAtPin } = await import(MODULE);
   await assert.rejects(fetchAtPin("v1", "README.md"), /neither main nor a full commit sha/);
+});
+
+const STUB_BIN = fileURLToPath(new URL("./fixtures/stub-git", import.meta.url));
+const REAL_GIT = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+const GITHUB_403 = "fatal: unable to access 'https://github.com/melodic-software/ci-workflows.git/': The requested URL returned error: 403";
+
+async function fetchThroughStub(fails, error) {
+  const dir = mkdtempSync(join(tmpdir(), "ci-workflows-at-pin-test-"));
+  try {
+    const count = join(dir, "count");
+    const env = { ...process.env, PATH: `${STUB_BIN}:${process.env.PATH}`, TMPDIR: dir, STUB_GIT_REAL: REAL_GIT, STUB_GIT_FAILS: String(fails), STUB_GIT_ERROR: error, STUB_GIT_COUNT: count };
+    const script = "const m = await import(process.argv[1]); process.stdout.write(await m.fetchAtPin(process.argv[2], 'README.md'));";
+    const started = Date.now();
+    const outcome = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script, MODULE, "a".repeat(40)], { encoding: "utf8", env }).then(
+      ({ stdout }) => ({ stdout }),
+      (failure) => ({ stderr: failure.stderr }),
+    );
+    return { ...outcome, fetches: Number(readFileSync(count, "utf8")), seconds: (Date.now() - started) / 1000 };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("a fetch that fails", { concurrency: true }, () => {
+  test("twice on an HTTP 403 is run again after 2 s and 5 s and its file is read", async () => {
+    const { stdout, fetches, seconds } = await fetchThroughStub(2, "error: RPC failed; HTTP 403 curl 22 The requested URL returned error: 403");
+    assert.equal(stdout, "stub file\n");
+    assert.equal(fetches, 3);
+    assert.ok(seconds >= 7, `${seconds} s`);
+  });
+
+  test("on an error no outage explains throws at once", async () => {
+    const { stdout, stderr, fetches } = await fetchThroughStub(9, "fatal: remote error: upload-pack: not our ref aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    assert.equal(stdout, undefined);
+    assert.match(stderr, /git fetch of ci-workflows a{40} failed: fatal: remote error: upload-pack: not our ref/);
+    assert.equal(fetches, 1);
+  });
+
+  test("three times on GitHub's 403 throws that 403", async () => {
+    const { stdout, stderr, fetches } = await fetchThroughStub(9, GITHUB_403);
+    assert.equal(stdout, undefined);
+    assert.match(stderr, /git fetch of ci-workflows a{40} failed: .*The requested URL returned error: 403/);
+    assert.equal(fetches, 3);
+  });
 });

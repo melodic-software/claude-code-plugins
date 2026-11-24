@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# git for ci-workflows-at-pin.test.mjs: a fetch fails with $STUB_GIT_ERROR for
+# the first $STUB_GIT_FAILS calls, counted in $STUB_GIT_COUNT, then succeeds;
+# show prints a stub file; anything else runs $STUB_GIT_REAL.
+case " $* " in
+  *" fetch "*)
+    n=$(($(cat "${STUB_GIT_COUNT:?}" 2>/dev/null || echo 0) + 1))
+    echo "${n}" >"${STUB_GIT_COUNT}"
+    if [[ "${n}" -le "${STUB_GIT_FAILS:?}" ]]; then
+      echo "${STUB_GIT_ERROR:?}" >&2
+      exit 128
+    fi
+    ;;
+  *" show "*)
+    echo "stub file"
+    ;;
+  *)
+    exec "${STUB_GIT_REAL:?}" "$@"
+    ;;
+esac
