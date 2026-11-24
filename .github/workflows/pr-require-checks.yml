@@ -7522,18 +7522,6 @@ jobs:
                 echo "$approver, a person on the trusted-actor list, approved $HEAD_SHA, which clears the trust-gate hold on #$PR_NUMBER; the review lanes are not required."
                 exit 0
               fi
-              # Owner decision Q-ANTHROPIC-DEPS narrows Q24: a Dependabot PR
-              # whose every change block swaps the 40-hex ref of one `uses:`
-              # line of an action owner the base lists in
-              # merge.dependabot.trusted-action-owners (one action, same
-              # line, a new 40-hex ref and an optional `# <version>` comment)
-              # skips the hold, once each new SHA is one a tag of that action's
-              # repository points to (`git ls-remote --tags`, unauthenticated,
-              # as hold_ref reads the tip), so a branch name or a commit no tag
-              # names (a fork's imposter commit) does not pass. Only the
-              # broker step's file pages count; any other file, status, line or
-              # ref, a patch GitHub left out or cut short, or an unread tag
-              # list keeps it.
               # merge_verdict: whether the lanes App's newest review-dependency
               # round marker names this head with verdict=merge.
               merge_verdict() {
@@ -7558,6 +7546,18 @@ jobs:
                 echo "::error::#$PR_NUMBER by Dependabot changes only the CDN pins record on trust-gate paths:${held//%/%25}. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head."
                 exit 1
               fi
+              # Owner decision Q-ANTHROPIC-DEPS narrows Q24: a Dependabot PR
+              # whose every change block swaps the 40-hex ref of one `uses:`
+              # line of an action owner the base lists in
+              # merge.dependabot.trusted-action-owners (one action, same
+              # line, a new 40-hex ref and an optional `# <version>` comment)
+              # skips the hold, once each new SHA is one a tag of that action's
+              # repository points to (`git ls-remote --tags`, unauthenticated,
+              # as hold_ref reads the tip), so a branch name or a commit no tag
+              # names (a fork's imposter commit) does not pass. Only the
+              # broker step's file pages count; any other file, status, line or
+              # ref, a patch GitHub left out or cut short, or an unread tag
+              # list keeps it.
               if [ "$AUTHOR_ID" = 49699333 ]; then
                 conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
                 owners='[]'
