@@ -591,13 +591,16 @@ export const floorNoted = (annotations) => {
   const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
   return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
 };
+const jqUri = (text) => encodeURIComponent(text).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const TARGET_FORMS = [
-  [/#([1-9][0-9]*)\b/g, (id) => `/(?:pulls|issues)/${id}`],
-  [/\brun ([1-9][0-9]*)\b/g, (id) => `/actions/runs/${id}`],
-  [/\bjob ([1-9][0-9]*)\b/g, (id) => `/(?:check-runs|actions/jobs)/${id}`],
-  [/\b([0-9a-f]{40})\b/g, (id) => `[/=]${id}`],
+  [/#([1-9][0-9]*)\b/g, (id) => `/(?:pulls|issues)/${id}(?![0-9])`],
+  [/\brun ([1-9][0-9]*)\b/g, (id) => `/actions/runs/${id}(?![0-9])`],
+  [/\bjob ([1-9][0-9]*)\b/g, (id) => `/(?:check-runs|actions/jobs)/${id}(?![0-9])`],
+  [/\b([0-9a-f]{40})\b/g, (id) => `[/=]${id}(?![0-9a-f])`],
+  [/^could not read the push history of (.+); re-run this run\.$/g, (branch) => `[?&]ref=${literal(jqUri(`refs/heads/${branch}`))}(?=[&' ]|$)`],
 ];
-const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(`${call(m[1])}(?![0-9a-f])`)));
+const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(call(m[1]))));
 const floorCompanion = (message, floors) => FLOOR_COMPANION.test(message) && namedCalls(message).some((call) => floors.some((f) => call.test(f)));
 export const reviewStopsAmidGateNotes = (annotations) => {
   const causes = failureCauses(annotations);
