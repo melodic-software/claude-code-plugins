@@ -2984,12 +2984,24 @@ test("a follow-up tick re-runs a deferred review only when every ci-status failu
   assert.deepEqual((await tick([laneNote(STOPPED_LINE), EXIT_LINE])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
 });
 
-test("the full pass re-runs a head's stopped reviews only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
+test("the full pass re-runs a head's stopped reviews only when every other ci-status failure is a gate note, past GitHub's exit-code note", async (t) => {
   t.mock.method(console, "log", () => {});
   const pass = (notes) => reconcile({ pulls: [pr(1)], runs: [statusNoted(notes), deferredRun(201, sha(1)), otherLaneFailed()], carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
-  assert.deepEqual((await pass([laneNote(STOPPED_LINE), laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "an outage note for the other lane is a real failure, so no stopped review is re-run");
-  assert.deepEqual((await pass([laneNote(STOPPED_LINE), EXIT_LINE])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
-  assert.deepEqual((await pass([laneNote(UPSTREAM_LINE), EXIT_LINE])).reruns, [], "the real failure alone re-runs nothing, as before");
+  const switchLine = laneNote(`#1: ${KILL_SWITCH_NOTE} (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')`);
+  const floorLines = [
+    laneNote("could not read the files of #1; re-run this run."),
+    laneNote(`'gh api repos/${REPO}/pulls/1/files?per_page=100 --paginate' was not sent: GitHub's core API rate limit holds until 2026-10-19T19:00:00Z`),
+  ];
+  const cases = [
+    ["an outage note for the other lane is a real failure, so no stopped review is re-run", [laneNote(STOPPED_LINE), laneNote(UPSTREAM_LINE), EXIT_LINE], []],
+    ["the review stop alone, beside the exit-code note, re-runs the deferred review", [laneNote(STOPPED_LINE), EXIT_LINE], [201]],
+    ["the real failure alone re-runs nothing", [laneNote(UPSTREAM_LINE), EXIT_LINE], []],
+    ["a kill-switch note beside the review stop is a gate, so the stopped review still re-runs", [switchLine, laneNote(STOPPED_LINE), EXIT_LINE], [201]],
+    ["a rate-limit floor note beside the review stop is a gate, so the stopped review still re-runs", [...floorLines, laneNote(STOPPED_LINE), EXIT_LINE], [201]],
+  ];
+  for (const [name, notes, reruns] of cases) {
+    await t.test(name, async () => assert.deepEqual((await pass(notes)).reruns, reruns));
+  }
 });
 
 test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {

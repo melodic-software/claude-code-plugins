@@ -562,9 +562,17 @@ export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
 export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+const failureCauses = (annotations) =>
+  (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
+const stopCause = (a) => reviewStopNoted([a]) || rateHeldNoted([a]);
 export const onlyReviewStopsNoted = (annotations) => {
-  const causes = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
-  return causes.length > 0 && causes.every((a) => reviewStopNoted([a]) || rateHeldNoted([a]));
+  const causes = failureCauses(annotations);
+  return causes.length > 0 && causes.every(stopCause);
+};
+export const reviewStopsAmidGateNotes = (annotations) => {
+  const causes = failureCauses(annotations);
+  const rest = causes.filter((a) => !stopCause(a) && !killSwitchNoted([a]));
+  return causes.some(stopCause) && (rest.length === 0 || floorNoted(rest));
 };
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
@@ -1260,7 +1268,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
         const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
-        if (onlyReviewStopsNoted(notes)) {
+        if (reviewStopsAmidGateNotes(notes)) {
           set.push(...(await headReviews()));
         } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
