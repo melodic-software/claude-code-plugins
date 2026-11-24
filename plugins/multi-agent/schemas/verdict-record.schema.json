@@ -33,16 +33,19 @@
       "pattern": "^[a-z0-9][a-z0-9-]*$"
     },
     "model": {
-      "description": "Candidate model id evaluated on the board, or null when abstaining or unread.",
-      "type": ["string", "null"]
+      "description": "One of the candidate vendor's current model ids copied verbatim, or null when abstaining or unread.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
     },
     "version": {
-      "description": "Model version string if reported on the page, else null.",
-      "type": ["string", "null"]
+      "description": "Version identifier printed on the page for that model (never a display name), or null.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
     },
     "effort": {
-      "description": "Effort or reasoning level reported on the page, else null.",
-      "type": ["string", "null"]
+      "description": "Effort or reasoning level token printed on the page (never a display name), or null.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
     },
     "verdict": {
       "description": "Relative standing of this vendor on the board for this workload.",

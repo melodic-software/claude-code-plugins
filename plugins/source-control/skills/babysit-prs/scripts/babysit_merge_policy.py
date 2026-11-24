@@ -5038,19 +5038,37 @@ def trusted_actors(
     return _TRUSTED_IDS[key]
 
 
-_READS_STANDARDS: dict[tuple[str, str, str], str | None] = {}
+_READS_STANDARDS: dict[tuple[str, str, str, str], str | None] = {}
 _STANDARDS_SHA: dict[str, str] = {}
 _STANDARDS_TEXT: dict[tuple[str, str], str | None] = {}
 
 
 def opts_in_to_standards(text: str | None) -> str | None:
     """The `standards_repository` a team YAML names when it sets
-    `trusted_actors_source: standards`, else None. Raises `PolicyReadError`
-    when the shared reader rejects it, the source is not one of
-    `STANDARDS_SOURCES`, or an opted-in YAML names no owner/repo pair, so
-    nothing is read from either source."""
+    `trusted_actors_source: standards`, else None: where the trusted list is
+    read. Raises `PolicyReadError` when the shared reader rejects it, the
+    source is not one of `STANDARDS_SOURCES`, or an opted-in YAML names no
+    owner/repo pair, so nothing is read from either source."""
+    source, repo = _standards_keys(text)
+    return _standards_repo(repo) if source == "standards" else None
+
+
+def names_standards(text: str | None) -> str | None:
+    """The `standards_repository` a team YAML names, whatever its
+    `trusted_actors_source`, else None: where the Dependabot policy is read.
+    Raises `PolicyReadError` as `opts_in_to_standards` does, and when the
+    repository it names is not an owner/repo pair."""
+    source, repo = _standards_keys(text)
+    return _standards_repo(repo) if repo or source == "standards" else None
+
+
+def _standards_keys(text: str | None) -> tuple[str | None, str]:
+    """A team YAML's `trusted_actors_source` and `standards_repository`
+    (None and "" when absent). Raises `PolicyReadError` when the shared
+    reader rejects it, either is not a scalar, or the source is not one of
+    `STANDARDS_SOURCES`."""
     if text is None:
-        return None
+        return None, ""
     keys = (STANDARDS_SOURCE_KEY, STANDARDS_REPO_KEY)
     values = _concern_values(text, [(k, False) for k in keys])
     if values is None:
@@ -5071,9 +5089,11 @@ def opts_in_to_standards(text: str | None) -> str | None:
             f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} "
             f"{found[0]!r} is not one of {STANDARDS_SOURCES}"
         )
-    if found[:1] != ["standards"]:
-        return None
-    repo = (values[STANDARDS_REPO_KEY] or [""])[0]
+    return (found[0] if found else None), (values[STANDARDS_REPO_KEY] or [""])[0]
+
+
+def _standards_repo(repo: str) -> str:
+    """`repo` when it is an owner/repo pair; raises `PolicyReadError`."""
     try:
         _split_repo(repo)
     except PolicyReadError as exc:
@@ -5093,12 +5113,18 @@ def team_yaml_at(owner: str, name: str, ref: str) -> str | None:
     return _file_at(owner, name, repo_config.YAML_CONFIG_PATH, ref, probe=False)
 
 
-def reads_standards(owner: str, name: str, ref: str) -> str | None:
-    """The standards repository the repository's team YAML at `ref` opts in
-    to (`opts_in_to_standards`), read once a process per ref."""
-    key = (owner, name, ref)
+def reads_standards(
+    owner: str,
+    name: str,
+    ref: str,
+    choose: Callable[[str | None], str | None] = opts_in_to_standards,
+) -> str | None:
+    """The standards repository `choose` (`opts_in_to_standards` or
+    `names_standards`) finds in the repository's team YAML at `ref`, read
+    once a process per ref and chooser."""
+    key = (owner, name, ref, choose.__name__)
     if key not in _READS_STANDARDS:
-        _READS_STANDARDS[key] = opts_in_to_standards(team_yaml_at(owner, name, ref))
+        _READS_STANDARDS[key] = choose(team_yaml_at(owner, name, ref))
     return _READS_STANDARDS[key]
 
 
@@ -5125,12 +5151,16 @@ def standards_file(repo: str, path: str) -> str | None:
 
 
 def synced_file(
-    owner: str, name: str, copy: str, component: str, ref: str
+    owner: str,
+    name: str,
+    copy: str,
+    component: str,
+    ref: str,
+    choose: Callable[[str | None], str | None] = opts_in_to_standards,
 ) -> str | None:
-    """A standards-synced file: `component` in the standards repository the
-    repository opts in to at `ref` (`reads_standards`), else its copy at
-    `ref`."""
-    standards = reads_standards(owner, name, ref)
+    """A standards-synced file: `component` in the standards repository
+    `choose` finds at `ref` (`reads_standards`), else its copy at `ref`."""
+    standards = reads_standards(owner, name, ref, choose)
     if standards:
         return standards_file(standards, component)
     return _file_at(owner, name, copy, ref)
@@ -5877,11 +5907,17 @@ def _cdn_paths(owner: str, name: str, base_sha: str) -> frozenset[str] | None:
 
 
 def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
-    """The standards Dependabot policy (`synced_file`) at `sha` as parsed
-    JSON, or None when it is absent or not JSON (`review_only` then reports it
-    unreadable). Raises `PolicyReadError` on a read failure."""
+    """The standards Dependabot policy (`synced_file`, from the repository
+    `names_standards` finds) at `sha` as parsed JSON, or None when it is
+    absent or not JSON (`review_only` then reports it unreadable). Raises
+    `PolicyReadError` on a read failure."""
     text = synced_file(
-        owner, name, dependabot.POLICY_PATH, dependabot.STANDARDS_POLICY, sha
+        owner,
+        name,
+        dependabot.POLICY_PATH,
+        dependabot.STANDARDS_POLICY,
+        sha,
+        names_standards,
     )
     try:
         return json.loads(text) if text is not None else None

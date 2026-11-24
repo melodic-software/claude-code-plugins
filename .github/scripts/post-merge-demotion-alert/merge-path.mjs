@@ -65,7 +65,6 @@ export function resolvePaths(paths) {
   return out;
 }
 
-// A queue actor's login as the alert keys it: lowercased, a Bot's with [bot].
 const actorKey = (actor) =>
   !actor?.login
     ? ""

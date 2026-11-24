@@ -1,9 +1,3 @@
-// execute.mjs applies only a mutant that edits one exact span of a tracked file
-// inside `mutate`, maps the covering harness's exit to a state (0 survived,
-// 1 killed, 2 no-coverage, timeout, else invalid; harness contract in
-// scripts/run-covering-tests.sh's header), restores every file, and ends
-// restore-failed when the tree differs. assemble.mjs keeps every state the
-// executor wrote and takes only dispositions from triage.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -28,8 +22,6 @@ test("the config's mutate globs and timeout are read, and a negated glob wins wh
   assert.equal(inScope("README.md", globs), false);
 });
 
-// The repository's own config: a source under a dot directory is in scope the
-// way the trigger's paths filter puts it in scope, and the excluded trees stay out.
 test("the repository's mutate globs take sources under dot directories and leave out its excluded trees", () => {
   const { globs } = readConfig(readFileSync(new URL("../../../docs/conventions/mutation-testing.yaml", import.meta.url), "utf8"));
   for (const path of [".github/scripts/post-merge-test-mutation/execute.mjs", ".github/actions/check-kill-switch/check-kill-switch.mjs", "scripts/run-covering-tests.sh", "lib/test-tmp.mjs", "plugins/a/scripts/x.py"]) {
@@ -86,7 +78,6 @@ function repo() {
 test("each mutant runs once on its file after one baseline, and every file is restored", () => {
   const root = repo();
   const calls = [];
-  // A harness stand-in: a.sh's mutant is killed, b.sh's survives, c.sh has no covering suite.
   const run = (harness, path, ms) => {
     const text = readFileSync(join(root, path), "utf8");
     calls.push(`${path}:${text.includes("MUT") ? "mutant" : "baseline"}`);
@@ -116,13 +107,11 @@ test("a red baseline leaves its mutants not-run, and a tree left dirty ends the 
   const m = (path) => ({ path, line: 1, operator: "SBR", old_string: `echo ${path[0]}`, new_string: ":" });
   const red = execute({ outcome: "generated", detail: "", mutants: [m("b.sh")] }, { root, harness: "h", config: CONFIG, run: () => ({ status: 1, ms: 1 }) });
   assert.deepEqual(red.mutants.map((x) => x.state), ["not-run"]);
-  // A mutant run that writes another tracked file.
   const dirty = execute({ outcome: "generated", detail: "", mutants: [m("b.sh"), m("c.sh")] }, {
     root,
     harness: "h",
     config: CONFIG,
     run: (h, path, ms) => {
-      // The baseline runs under the 600 s bound and leaves the tree as it was.
       if (ms === 600000) return { status: 0, ms: 1 };
       writeFileSync(join(root, "a.sh"), "changed\n");
       return { status: 0, ms: 1 };

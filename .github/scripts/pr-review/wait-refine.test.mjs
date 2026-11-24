@@ -49,10 +49,6 @@ const dispatcherRun = (extra = {}) => ({
 const refineRun = (extra = {}) => ({ id: REFINE_ID, path: ".github/workflows/pr-refine.yml", event: "workflow_dispatch", head_branch: "main", display_title: "PR Refine fix-docs #7", status: "completed", conclusion: "success", ...extra });
 const record = (id = REFINE_ID) => ({ artifacts: [{ name: `pr-unblock-target-dispatched-${COMMIT}-${id}` }] });
 
-// Each route answers a value, or a list it steps through one read at a time
-// (holding its last), or throws when the value is an Error. A world that
-// names no ref route answers the ref read 404, so each test that does not
-// name one shows the pull request read deciding at every poll.
 function world(routes) {
   routes = { [PROBE]: NOT_FOUND, ...routes };
   const reads = [];
@@ -320,9 +316,6 @@ test("a ref with no commit warns once, and a ref naming another head does not wa
   assert.ok(!other.reads.some((line) => line.includes("the head ref read failed")));
 });
 
-// The workflows pass the base ref and head repository from the
-// pull_request event, so the start needs no pull request read; the finish
-// read still decides whether the head moved or the pull request closed.
 const EVENT = { ...INPUT, baseRef: "main", headRepository: REPO };
 
 test("with the event's base ref and head repository, no pull request read comes before the dispatcher listing; the finish read still comes", async () => {
@@ -542,12 +535,6 @@ test("main writes proceed and reason to GITHUB_OUTPUT", async () => {
   assert.equal(readFileSync(output, "utf8"), "proceed=false\nreason=head-moved\n");
 });
 
-// refine-event-dispatch.mjs starts fix-docs and every refine-dispatch activity
-// only on an event whose sender is the lanes App or a listed human, and
-// fix-docs-dispatch.mjs never starts fix-docs for a PR an excluded account
-// opened, from any event. So an event an excluded account sent, on a PR one
-// opened, has no refine run due on its head. Ids from trusted-actors.json
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-unblock/refine-event-dispatch.mjs).
 const RELEASE_BOT = 337859524;
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
@@ -627,10 +614,6 @@ test("the no-refine accounts are fix-docs's excluded authors, none a listed huma
     assert.ok(!humans.has(id), `${id} is a listed human`);
     assert.notEqual(id, lanesApp, `${id} is the lanes App`);
   }
-  // An activity starts on a listed human's later event on the same head,
-  // which an excluded author does not rule out: the skip holds only while
-  // the list is empty, which absent means
-  // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-pipeline.schema.json).
   const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
   assert.doesNotMatch(config, /^["']?refine-dispatch["']?\s*:/m);
 });
