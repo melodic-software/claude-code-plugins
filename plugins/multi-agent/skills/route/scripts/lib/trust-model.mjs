@@ -25,6 +25,20 @@ export function isWithinSixMonths(pageDateStr, nowDate) {
   return dt >= cutoff && dt <= maxAllowed
 }
 
+export function matchCurrentModel(vInfo, model, effort) {
+  if (!model || !vInfo) return null
+  const key = model.toLowerCase()
+  if (vInfo.idSet.has(key)) return vInfo.idCanonical.get(key)
+  const prefix = `${key}-`
+  const variants = vInfo.ids.filter((id) => {
+    const suffix = id.toLowerCase().startsWith(prefix) ? id.slice(prefix.length) : ''
+    return suffix.length > 0 && !suffix.includes('-')
+  })
+  if (variants.length === 0) return null
+  const wanted = effort ? `${prefix}${String(effort).toLowerCase()}` : null
+  return variants.find((id) => id.toLowerCase() === wanted) || variants[0]
+}
+
 export function clusterSources(leadingSources, notes) {
   const n = leadingSources.length
   const parent = Array.from({ length: n }, (_, i) => i)
@@ -151,11 +165,14 @@ export function evaluateSources({
         r.verdict = 'abstain'
         continue
       }
-      if (!r.model || !vInfo.idSet.has(r.model.toLowerCase())) {
+      const currentId = matchCurrentModel(vInfo, r.model, r.effort)
+      if (!currentId) {
         notes.push(
           `${row.id}: abstains for ${r.vendor} (model '${r.model ?? 'none'}' is not in current models)`,
         )
         r.verdict = 'abstain'
+      } else if (!vInfo.idSet.has(r.model.toLowerCase())) {
+        r.model = currentId
       }
     }
 

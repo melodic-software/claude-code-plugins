@@ -133,7 +133,9 @@ Without the external-agents plugin, route covers only Claude, so the step runs h
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
 [`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)). Every
 page is fetched through `fetch-boards` (wrapping the shared docs cache; default freshness window
-one day, overridable per row via `freshness_seconds`), read in isolation by the Read-only
+one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
+unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is
+rendered through the Firecrawl CLI, as the registry fetcher does), read in isolation by the Read-only
 `multi-agent:board-reader` agent into closed-schema `VerdictRecord` entries
 ([`../schemas/verdict-record.schema.json`](../schemas/verdict-record.schema.json)), and counted by
 `vendor-decide`, which stamps `source_id`, `page_date` and `read` state from the fetch manifest.
@@ -148,7 +150,9 @@ Trust-model rules enforced by `vendor-decide`:
 - **Error range**: a lead counts only outside the board's stated error range; a score with no
   error range is support-only.
 - **Current models**: a board that does not test a vendor's current model ids abstains for that
-  vendor.
+  vendor. A board model named without the one-token suffix a vendor's ids carry (`<model>` for
+  `<model>-high`) matches them, and counts as `<model>-<record effort>` when that id exists, else
+  as the first such id in the vendor's listed order.
 - **Provider-own results**: a provider's own published results (`provider_own: true`) are
   support-only and support only that provider's own models.
 - **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column

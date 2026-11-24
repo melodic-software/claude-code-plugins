@@ -90,7 +90,8 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    `mcp__rate-limits__status` completely when `vendors.tiebreak` does not name `most-usage-left`.
 4. Fetch enabled benchmark pages for `<work_type>` in one call into a temporary directory
    (appending `<repo>/docs/conventions/multi-agent/benchmarks.json` when present, and honoring
-   `vendors.sources.<id>.enabled`):
+   `vendors.sources.<id>.enabled`). Each row is checked for its `expect` marker and, when the
+   docs-cache `renderer` is `firecrawl`, a blocked or script-drawn page is rendered:
 
    ```bash
    ${CLAUDE_SKILL_DIR}/scripts/fetch-boards --out <tmp-dir>/pages --manifest <tmp-dir>/manifest.json --settings <tmp-dir>/settings.json --task-type <work_type>

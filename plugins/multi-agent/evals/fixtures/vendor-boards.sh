@@ -19,11 +19,11 @@ if [[ "$mode" == all-read ]]; then
 
 Updated: ${today}
 
-| Model | Harness | Effort | Score | Error Range | Avg Tokens |
-|---|---|---|---|---|---|
-| kestrel-1 | claude-code | high | 81.2% | +/- 1.1% | 125000 tokens/task |
-| sparrow-1 | codex | high | 80.9% | +/- 1.1% | 118000 tokens/task |
-| finch-1 | agy | high | 77.4% | +/- 1.2% | 132000 tokens/task |
+| Rank | Model | Harness | Effort | Score | Error Range | Avg Tokens |
+|---|---|---|---|---|---|---|
+| 1 | kestrel-1 | claude-code | high | 81.2% | +/- 1.1% | 125000 tokens/task |
+| 2 | sparrow-1 | codex | high | 80.9% | +/- 1.1% | 118000 tokens/task |
+| 3 | finch-1 | agy | high | 77.4% | +/- 1.2% | 132000 tokens/task |
 EOF
 
   mkdir -p eval-fixtures/boards/cursor-com
@@ -57,10 +57,10 @@ else
 
 Updated: ${today}
 
-| Model | Harness | Effort | Score | Error Range |
-|---|---|---|---|---|
-| sparrow-1 | codex | high | 84.5% | +/- 1.0% |
-| kestrel-1 | claude-code | high | 79.0% | +/- 1.0% |
-| finch-1 | agy | high | 76.2% | +/- 1.2% |
+| Rank | Model | Harness | Effort | Score | Error Range |
+|---|---|---|---|---|---|
+| 1 | sparrow-1 | codex | high | 84.5% | +/- 1.0% |
+| 2 | kestrel-1 | claude-code | high | 79.0% | +/- 1.0% |
+| 3 | finch-1 | agy | high | 76.2% | +/- 1.2% |
 EOF
 fi
