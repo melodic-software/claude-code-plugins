@@ -332,25 +332,37 @@ t_rename_is_not_a_removal() {
   fi
 }
 
-extract_block() {
-  local repo="$1" tag="$2" copied="$3"
-  grep "$copied" "$repo/feature.txt" >"$repo/helpers.txt" || true
-  grep -v "the $tag guard rejects" "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
-  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
-  git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "refactor: extract the $tag guard (#99)"
+py_function() {
+  local name="$1" i
+  printf 'def %s():\n' "$name"
+  for i in $(seq 1 "$2"); do
+    printf '    the %s guard rejects a relocation outside the session root, case %s\n' "${3:-$name}" "$i"
+  done
+}
+
+move_py_function() {
+  local repo="$1" name="$2" dest="$3"
+  awk -v d="def $name():" '$0 == d { on = 1; print; next } on && /^    / { print; next } { on = 0 }' \
+    "$repo/feature.py" >>"$repo/$dest"
+}
+
+drop_py_functions() {
+  awk '/^def / { on = 1; next } on && /^    / { next } { on = 0; print }' "$1/feature.py" >"$1/feature.py.tmp"
+  mv "$1/feature.py.tmp" "$1/feature.py"
 }
 
 t_cross_file_move_is_not_a_removal() {
   local repo sink
   mk_repo repo
-  printf '\n' >>"$repo/feature.txt"
-  add_block "$repo" feature.txt 40 alpha
-  extract_block "$repo" alpha 'the alpha guard rejects'
+  { printf 'import os\n\n'; py_function alpha_guard 40; } >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  move_py_function "$repo" alpha_guard helpers.py
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: extract the alpha guard (#99)"
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
-    ok "moving a whole 40-line top-level run into a new file in the same commit is not a removal (threshold 20)"
+    ok "moving a 41-line function into a new file in the same commit is not a removal (threshold 20)"
   else
     fail "a cross-file move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
@@ -738,49 +750,175 @@ t_string_body_moved_out_of_a_deleted_function_still_fires() {
     "a column-0 heredoc body moved to a new file while its function is deleted still fires on all 48 lines"
 }
 
+t_function_pasted_inside_another_function_still_fires() {
+  local repo culprit
+  mk_repo repo
+  py_function alpha_guard 40 >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf 'def beta():\n    beta_setup_step_one_that_stays = 1\n'
+    py_function alpha_guard 40
+    printf '    beta_setup_step_two_that_stays = 2\n'
+  } >"$repo/helpers.py"
+  printf 'import os\n' >"$repo/feature.py"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 41 "a function pasted into another function's body in a new file still fires on all 41 lines"
+}
+
+t_function_moved_into_a_disabled_heredoc_still_fires() {
+  local repo culprit
+  mk_repo repo
+  add_function "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf "existing() { :; }\n: <<'DISABLED'\n"
+    sed -n '/^alpha_guard() {$/,/^}$/p' "$repo/feature.txt"
+    printf 'DISABLED\n'
+  } >"$repo/lib.sh"
+  sed '/^alpha_guard() {$/,/^}$/d' "$repo/feature.txt" >"$repo/feature.txt.tmp"
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 "a function moved into a disabled heredoc in a new file still fires on all 42 lines"
+}
+
+t_markdown_section_moved_into_a_wrapper_still_fires() {
+  local repo culprit wrapper
+  for wrapper in '<!--|-->' '```markdown|```'; do
+    mk_repo repo
+    add_md_section "$repo"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    {
+      printf '# Archive\n\n%s\n' "${wrapper%|*}"
+      sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md"
+      printf '%s\n' "${wrapper#*|}"
+    } >"$repo/archive.md"
+    sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+    mv "$repo/doc.md.tmp" "$repo/doc.md"
+    commit_all "$repo" "docs: archive the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 42 \
+      "a Markdown section moved inside a '${wrapper%|*}' wrapper in a new file still fires on all 42 lines"
+  done
+}
+
+t_function_moved_into_a_changelog_shaped_path_still_fires() {
+  local repo culprit name
+  for name in docs/changelog.md HISTORY.md CHANGELOG.MD docs/.changes/foo/notes.md plugins/foo/CHANGES.md; do
+    mk_repo repo
+    py_function alpha_guard 40 >"$repo/feature.py"
+    commit_all "$repo" "feat: add the alpha guard"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    mkdir -p "$repo/$(dirname "$name")"
+    move_py_function "$repo" alpha_guard "$name"
+    printf 'import os\n' >"$repo/feature.py"
+    commit_all "$repo" "chore: record the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 41 "a function moved into a new $name still fires on all 41 lines"
+  done
+}
+
+t_flat_paragraphs_moved_to_new_files_still_fire() {
+  local repo culprit
+  mk_repo repo
+  { printf '\n'; guard_lines '' | head -n 39 | awk '{ print } NR % 3 == 0 { print "" }'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" | awk -v r="$repo" '{ print > (r "/part" int((NR - 1) / 3) ".txt") }'
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: scatter the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 39 "39 lines of three-line paragraphs moved whole into new files still fire, since flat blocks never move"
+}
+
+t_go_raw_string_body_moved_out_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf 'package main\n\nfunc render() string {\n\treturn `\nfirst template paragraph line long enough\n\n'
+    guard_lines ''
+    printf '\n`\n}\n'
+  } >"$repo/main.go"
+  commit_all "$repo" "feat: add the template"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  guard_lines '' >"$repo/template.txt"
+  printf 'package main\n' >"$repo/main.go"
+  commit_all "$repo" "refactor: tidy the template (#99)"
+  expect_finding "$repo" "$culprit" 48 "a Go raw-string body moved to a new file while its function is deleted still fires on all 48 lines"
+}
+
+t_markdown_tail_after_an_html_block_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '## Usage\n\nan intro line under usage that stays where it is\n\n<!--\n\n# reviewer note: keep this example current\n-->\n\n'
+    guard_lines ''
+  } >"$repo/doc.md"
+  commit_all "$repo" "docs: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n '/^# reviewer note/,$p' "$repo/doc.md" >"$repo/moved.md"
+  sed '/^# reviewer note/,$d' "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  commit_all "$repo" "docs: split the usage (#99)"
+  expect_finding "$repo" "$culprit" 43 \
+    "Markdown moved from a heading inside an HTML comment to a new file still fires on all 43 lines"
+}
+
+t_heredoc_body_moved_out_of_a_kept_function_still_fires() {
+  local repo culprit
+  mk_repo repo
+  { printf '\nemit_alpha_template() {\n  cat <<'"'"'EOF'"'"'\n\n'; guard_lines ''; printf '\nEOF\n}\n'; } >>"$repo/feature.sh"
+  commit_all "$repo" "feat: add the alpha template"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  guard_lines '' >"$repo/template.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.sh" >"$repo/feature.sh.tmp" || true
+  mv "$repo/feature.sh.tmp" "$repo/feature.sh"
+  commit_all "$repo" "refactor: tidy the alpha template (#99)"
+  expect_finding "$repo" "$culprit" 40 "a column-0 heredoc body moved to a new file out of a function that stays still fires on all 40 lines"
+}
+
 t_unmoved_duplicate_cannot_borrow_a_moved_block() {
   local repo culprit sink
   mk_repo repo
-  { printf '\n'; tag_lines dup 20; } >>"$repo/feature.txt"
+  py_function dup_guard 20 >"$repo/feature.py"
   commit_all "$repo" "feat: add the old copy"
   filler "$repo" 5
-  { tag_lines dup 20; tag_lines uniq 20; printf '\n'; cat "$repo/feature.txt"; } >"$repo/feature.txt.tmp"
-  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  {
+    py_function dup_guard 20
+    py_function uniq_guard 20 | tail -n +2
+    printf '\n'
+    cat "$repo/feature.py"
+  } >"$repo/feature.py.tmp"
+  mv "$repo/feature.py.tmp" "$repo/feature.py"
   commit_all "$repo" "feat: add the recent copy"
   culprit="$(git -C "$repo" rev-parse HEAD)"
-  tag_lines dup 20 >"$repo/helpers.txt"
-  grep -v 'guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
-  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  py_function dup_guard 20 >"$repo/helpers.py"
+  drop_py_functions "$repo"
   commit_all "$repo" "refactor: tidy the guards (#99)"
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=25 SILENT_REVERT_WINDOW=3 run_canary "$repo" --commit HEAD
-  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 40" ]]; then
-    ok "the old copy's move does not discount the recent copy's identical lines (40 lines, threshold 25, window 3)"
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 41" ]]; then
+    ok "the old copy's move does not discount the recent copy's identical lines (41 lines, threshold 25, window 3)"
   else
-    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+    fail "want one 41-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
   rm -f "$sink"
 }
 
 t_partial_move_counts_only_the_lines_not_re_added() {
-  local repo sink culprit i
+  local repo sink culprit
   mk_repo repo
-  for i in $(seq 1 40); do
-    ((i == 1 || i == 10)) && printf '\n' >>"$repo/feature.txt"
-    printf 'the alpha guard rejects a relocation outside the session root, case %s\n' \
-      "$i" >>"$repo/feature.txt"
-  done
-  git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+  { py_function alpha_one 9 alpha; printf '\n'; py_function alpha_two 31 alpha; } >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
   culprit="$(git -C "$repo" rev-parse HEAD)"
-  extract_block "$repo" alpha 'the alpha guard rejects .*, case [0-9]$'
+  move_py_function "$repo" alpha_one helpers.py
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: extract the alpha guard (#99)"
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
-    [[ "$(cat "$sink")" == "$culprit 31" ]]; then
-    ok "a commit re-adding 9 of 40 deleted lines elsewhere still fires on the other 31"
+    [[ "$(cat "$sink")" == "$culprit 33" ]]; then
+    ok "re-adding one of two deleted functions elsewhere still fires on the other 32 lines and the short header"
   else
-    fail "want one 31-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+    fail "want one 33-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
   rm -f "$sink"
 }
@@ -788,22 +926,23 @@ t_partial_move_counts_only_the_lines_not_re_added() {
 t_one_copy_discounts_one_deletion() {
   local repo sink culprit
   mk_repo repo
-  printf '\nthe alpha guard rejects a relocation outside the session root\nthe alpha guard also rejects a symlink that leaves the root\nthe alpha guard logs every rejection it makes\n%.0s' \
-    $(seq 1 10) >>"$repo/feature.txt"
-  git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+  local i
+  mk_repo repo
+  for i in $(seq 1 10); do
+    py_function alpha_guard 2
+    printf '\n'
+  done >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
   culprit="$(git -C "$repo" rev-parse HEAD)"
-  sed -n 7,9p "$repo/feature.txt" >"$repo/helpers.txt"
-  grep -v 'the alpha guard' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
-  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
-  git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "refactor: keep one copy of the guard (#99)"
+  py_function alpha_guard 2 >"$repo/helpers.py"
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: keep one copy of the guard (#99)"
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
-  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 27" ]]; then
-    ok "one re-added copy of a 3-line block deleted 10 times discounts one block, not all 10"
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 28" ]]; then
+    ok "one re-added copy of a function deleted 10 times discounts one function's body, not all 10"
   else
-    fail "want one 27-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+    fail "want one 28-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
   rm -f "$sink"
 }
@@ -1106,9 +1245,11 @@ t_counts_are_immune_to_ambient_git_config() {
 
   local move
   mk_repo move
-  printf '\n' >>"$move/feature.txt"
-  add_block "$move" feature.txt 40 alpha
-  extract_block "$move" alpha 'the alpha guard rejects'
+  { printf 'import os\n\n'; py_function alpha_guard 40; } >"$move/feature.py"
+  commit_all "$move" "feat: add the alpha guard"
+  move_py_function "$move" alpha_guard helpers.py
+  drop_py_functions "$move"
+  commit_all "$move" "refactor: extract the alpha guard (#99)"
   : >"$clean_sink"
   : >"$hostile_sink"
   FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=20 run_canary "$move" --commit HEAD
@@ -3144,6 +3285,14 @@ t_markdown_after_a_nested_fence_still_fires
 t_single_lines_scattered_to_new_files_still_fire
 t_string_body_moved_out_of_a_deleted_function_still_fires
 t_unmoved_duplicate_cannot_borrow_a_moved_block
+t_function_pasted_inside_another_function_still_fires
+t_function_moved_into_a_disabled_heredoc_still_fires
+t_markdown_section_moved_into_a_wrapper_still_fires
+t_function_moved_into_a_changelog_shaped_path_still_fires
+t_flat_paragraphs_moved_to_new_files_still_fire
+t_go_raw_string_body_moved_out_still_fires
+t_markdown_tail_after_an_html_block_still_fires
+t_heredoc_body_moved_out_of_a_kept_function_still_fires
 t_partial_move_counts_only_the_lines_not_re_added
 t_one_copy_discounts_one_deletion
 t_moved_short_lines_still_count

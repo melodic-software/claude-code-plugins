@@ -850,7 +850,9 @@ discount_moved_lines() {
   run_attributing_git "$fresh" "git diff failed listing the paths $sha added" \
     -c core.quotePath=false diff --no-relative --name-only --diff-filter=A -M -l0 "$parent" "$sha"
   awk 'NR == FNR { touched[$0] = 1; next }
-    !($0 in touched) && $0 !~ /^\.changes\// && $0 !~ /(^|\/)CHANGELOG\.md$/' \
+    { base = tolower($0); sub(/.*\//, "", base) }
+    !($0 in touched) && ("/" $0 "/") !~ /\/\.changes\// &&
+      base !~ /^(changelog|history|changes|news|release-notes)/' \
     "$blob" "$fresh" >"$kept" || die "awk failed listing the new paths $sha added"
   mv -f "$kept" "$fresh" || die "could not record the new paths $sha added"
   awk -F '\t' '!seen[$2]++ { print $2 }' "$attributed" >"$blob" ||
@@ -869,11 +871,13 @@ discount_moved_lines() {
         lines[++n] = FNR
         match($0, /^[ \t]*/)
         ind = RLENGTH
-        flat_line[FNR] = ind == 0
         while (depth > 0 && indent[depth] >= ind) depth--
         h = depth > 0 ? line[depth] : 0
+        if (h) has_child[h] = 1
         lvl = 0
         if (md) {
+          if (/^</) lt = 1
+          lt_at[FNR] = lt
           match($0, /^ ? ? ?/)
           rest = substr($0, RLENGTH + 1)
           mark = ""
@@ -890,11 +894,8 @@ discount_moved_lines() {
           if (h == 0)
             for (k = (lvl ? lvl - 1 : 6); k > 0; k--) if (at[k] > h) h = at[k]
           if (lvl) at[lvl] = FNR
-        } else {
-          hdr_at[FNR] = hdr
-          if (/^[ \t]*(def|class|function|async def)[ \t]/ || /^[ \t]*[A-Za-z_][A-Za-z0-9_:.-]*[ \t]*\(\)[ \t]*\{/)
-            hdr = FNR
         }
+        heading[FNR] = lvl > 0
         up[FNR] = h
         atx[FNR] = lvl > 0 || (h && atx[h])
         bad[FNR] = md && (poison || !atx[FNR])
@@ -906,9 +907,8 @@ discount_moved_lines() {
           for (a = lines[k]; a; a = up[a]) last[a] = lines[k]
         for (k = 1; k <= n; k++) {
           ln = lines[k]
-          if (ln > reach) { unit = ln; flat[unit] = 1 }
+          if (ln > reach) unit = ln
           unit_of[ln] = unit
-          if (!flat_line[ln]) flat[unit] = 0
           hi = run_end[run_of[ln]]
           if (last[ln] > hi) hi = last[ln]
           if (hi > reach) reach = hi
@@ -916,18 +916,67 @@ discount_moved_lines() {
         for (k = 1; k <= n; k++) {
           ln = lines[k]
           unit = unit_of[ln]
-          printf "%s\t%d\t%d\t%d\t%d\n", f, ln, unit, bad[ln], (flat[unit] ? hdr_at[unit] + 0 : 0)
+          printf "%s\t%d\t%d\t%d\t%d\n", f, ln, unit, bad[ln],
+            (md ? heading[unit] && !lt_at[unit] : has_child[unit] + 0)
         }
       }
     ' "$blob" >>"$headers" || die "awk failed reading the blocks of $file at $parent"
   done
-  LC_ALL=C awk -v min="$MOVED_LINE_MIN_LEN" '
+  LC_ALL=C awk -v min="$MOVED_LINE_MIN_LEN" -v triple="'''" -v heredoc_re="<<-?[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*" '
     function long_enough(line) {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
       return length(line) >= min
     }
     function blank(line) { return line ~ /^[[:space:]]*$/ }
-    function placed(p, pos, f, u,   k, i) {
+    function indent_of(line) { match(line, /^[ \t]*/); return RLENGTH }
+    function count(s, x,   n, k) {
+      while ((k = index(s, x)) > 0) { n++; s = substr(s, k + length(x)) }
+      return n + 0
+    }
+    function last_at(s, x,   at, k, off) {
+      while ((k = index(substr(s, off + 1), x)) > 0) { at = off + k; off = at }
+      return at + 0
+    }
+    function still_open(was, s, opener, closer,   o, c) {
+      o = last_at(s, opener)
+      c = last_at(s, closer)
+      return o > c ? 1 : c > o ? 0 : was
+    }
+    function scan(p,   i, t, l, low, word, dq, sq, comment, block, pre, fence, heredoc) {
+      scanned[p] = 1
+      low = 1e9
+      heredoc = ""
+      for (i = 1; i <= last_ln[p]; i++) {
+        t = new_text[p, i]
+        l = tolower(t)
+        if (heredoc != "") {
+          word = t
+          gsub(/^[ \t]+|[ \t\r]+$/, "", word)
+          if (word == heredoc) heredoc = ""
+        } else if (fence) {
+          if (t ~ /^[ \t]*(```|~~~)/) fence = 0
+        } else {
+          if (t ~ /^[ \t]*(```|~~~)/) fence = 1
+          dq = (dq + count(t, "\"\"\"")) % 2
+          sq = (sq + count(t, triple)) % 2
+          comment = still_open(comment, l, "<!--", "-->")
+          block = still_open(block, t, "/*", "*/")
+          pre = still_open(pre, l, "<pre", "</pre")
+          if (match(t, heredoc_re)) {
+            heredoc = substr(t, RSTART, RLENGTH)
+            sub(/^<<-?[ \t]*/, "", heredoc)
+            gsub(/[^A-Za-z0-9_]/, "", heredoc)
+          } else if (index(t, "<<")) heredoc = "\001"
+        }
+        if (t ~ /[:{][ \t\r]*$/ && indent_of(t) < low) low = indent_of(t)
+        wrapped_by[p, i] = dq || sq || comment || block || pre || fence || heredoc != ""
+        lowest_opener[p, i] = low
+      }
+    }
+    function placed(p, pos, f, u,   k, i, ind) {
+      ind = indent_of(deleted[f, member[f, u, 1]])
+      if (!(p in scanned)) scan(p)
+      if (pos > 1 && (wrapped_by[p, pos - 1] || (p !~ /\.md$/ && lowest_opener[p, pos - 1] < ind))) return 0
       i = pos
       for (k = 1; k <= size[f, u]; k++) {
         while (i <= last_ln[p] && blank(new_text[p, i])) i++
@@ -935,12 +984,14 @@ discount_moved_lines() {
           new_text[p, i] != deleted[f, member[f, u, k]]) return 0
         slot[k] = i++
       }
+      while (i <= last_ln[p] && blank(new_text[p, i])) i++
+      if (p !~ /\.md$/ && i <= last_ln[p] && indent_of(new_text[p, i]) > ind) return 0
       for (k = 1; k <= size[f, u]; k++) taken[p, slot[k]] = 1
       return 1
     }
     function unit_moved(f, u,   k, first, q, p, j) {
       if ((f, u) in moved) return moved[f, u]
-      if (size[f, u] < 3 || (((f, u) in opener) && ((f, opener[f, u]) in deleted))) return moved[f, u] = 0
+      if (size[f, u] < 3 || !((f, u) in headed)) return moved[f, u] = 0
       for (k = 1; k <= size[f, u]; k++)
         if (!((f, member[f, u, k]) in deleted)) return moved[f, u] = 0
       first = deleted[f, member[f, u, 1]]
@@ -1002,7 +1053,7 @@ discount_moved_lines() {
       unit_of[h[1], h[2] + 0] = u
       member[h[1], u, ++size[h[1], u]] = h[2] + 0
       if (h[4] + 0) bad[h[1], h[2] + 0] = 1
-      if (h[5] + 0) opener[h[1], u] = h[5] + 0
+      if (h[5] + 0) headed[h[1], u] = 1
       next
     }
     FILENAME == ARGV[3] { fresh[$0] = 1; next }
