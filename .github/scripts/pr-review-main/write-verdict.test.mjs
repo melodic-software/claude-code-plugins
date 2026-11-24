@@ -1,4 +1,4 @@
-// test-scope: plugins/source-control/.claude-plugin/plugin.json
+// test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 // The main-run review verdict: the counts the merge gate reads
 // (babysit_review_evidence `_main_review_counted`), from the model's checked
 // output and the job's own reads, and nothing written on doubt.
