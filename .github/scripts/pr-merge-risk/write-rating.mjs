@@ -33,7 +33,7 @@ const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
 // Tools the blind checker's agent file declares (review:brief-reviewer) that
 // the cage withholds: a denial of one reached nothing. A denial of any other
 // tool, a Read outside the data directory above all, refuses the rating.
-export const WITHHELD = Object.freeze(["Bash", "Glob", "Grep"]);
+export const WITHHELD =Object.freeze(["Bash", "Glob", "Grep"]);
 
 export function buildRating({ output, messages, pr, head, rubric, cliVersion, startedAt, endedAt }) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
@@ -72,7 +72,6 @@ export function main(env = process.env, clock = Date.now) {
     console.log(`write-rating: pr=${pr} head=${rating.head} max=${rating.max} demote=${rating.demote} rater=${rating.rater} checker=${rating.checker}`);
     return 0;
   } catch (error) {
-    // The message names a field, never the result's text.
     console.log(`::warning title=merge-risk::no rating for this head: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return 1;
   }

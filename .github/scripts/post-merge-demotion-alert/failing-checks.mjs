@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ALERT_FAILED, failingChecks } from "./red-main.mjs";
 
 // `gh api` with a filter that prints one JSON value per line.
-const ghLines = (args) =>
+const ghLines =(args) =>
   execFileSync("gh", ["api", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] })
     .split("\n")
     .filter((line) => line.trim() !== "")

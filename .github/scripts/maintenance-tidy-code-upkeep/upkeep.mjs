@@ -47,15 +47,13 @@ export function areaOf(path) {
 }
 
 // The <slug> tidy's ad hoc branch carries: the glob's literal directory prefix in kebab case.
-export const slugOf = (area) => area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+export const slugOf =(area) => area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export function detectAreas(paths) {
   const names = paths.map((path) => areaOf(path)?.area).filter(Boolean);
   return [...new Set(names)].sort();
 }
 
-// pulls: { headRefName, createdAt, state, mergeCommit }. Slug to the newest sweep's time,
-// the slugs with one open, and each sweep's own merge commit, which is not churn.
 function sweepsOf(pulls) {
   const last = new Map();
   const open = new Set();
@@ -195,7 +193,6 @@ function downloadRecord(root, artifact) {
 }
 
 function gate(root, now) {
-  // Every pull request links this issue as its spec; without one, pr-verify fails them all.
   const specIssue = setting(root, "upkeep_spec_issue");
   if (!specIssue.value) throw new Error(`upkeep_spec_issue is not set (${specIssue.source}); every upkeep pull request links it as its spec, so the batch opens none`);
   const cadence = setting(root, "upkeep_cadence");

@@ -114,7 +114,6 @@ function originRecord(key, value, repo, branch) {
   );
 }
 
-// A run record with each repository kept as its name.
 function slimRecord(value) {
   const out = { ...value };
   for (const k of ["repository", "head_repository"]) out[k] = { full_name: value[k].full_name };
@@ -160,10 +159,9 @@ function laneRun(key, value, repo) {
 }
 
 // The sections of `data` kept for the next run, each entry as saved.
-export function carry(data, { repo, branch, now }) {
+export function carry(data,{ repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
   if (!isObject(data)) return out;
-  // Each section is kept from what this run carried in, then from its own reads.
   const take = (section, keep, { shape = (value) => value, days = RETENTION_DAYS } = {}) => {
     const to = `carried-${section}`;
     for (const from of [to, section]) {
@@ -233,8 +231,6 @@ export async function read({ env = process.env, actions: client, download } = {}
       console.log(`${name} of run ${id}`);
       return text;
     };
-    // A trust failure stops the read; a file that does not read counts as absent,
-    // and the other file is still carried.
     const mergeId = await find(CARRY_ARTIFACT);
     let kept;
     if (mergeId !== undefined) {

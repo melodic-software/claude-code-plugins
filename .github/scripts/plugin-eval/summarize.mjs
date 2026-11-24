@@ -45,7 +45,6 @@ const list = (value) => (Array.isArray(value) ? value : []);
 const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 const fixed = (value) => (num(value) === null ? "–" : value.toFixed(2));
 const signed = (value) => (num(value) === null ? "–" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}`);
-// Table cells and health lines carry case names and errors from the result.
 const cell = (text) => String(text).replaceAll(/[\r\n]+/g, " ").replaceAll("|", "\\|").replaceAll("@", "@​");
 
 const readTrace = (path) => {
@@ -69,7 +68,7 @@ const ownSkill = (plugin) => (name) => typeof name === "string" && (plugin ? nam
 
 // The plugin skill a case prompt opens with as a slash command, such as
 // improvement:find, else null. A slash-invoked skill makes no Skill tool call.
-export const slashSkill = (prompt) => (typeof prompt === "string" ? (/^\s*\/([A-Za-z0-9][\w.-]*:[A-Za-z0-9][\w.-]*)/.exec(prompt)?.[1] ?? null) : null);
+export const slashSkill =(prompt) => (typeof prompt === "string" ? (/^\s*\/([A-Za-z0-9][\w.-]*:[A-Za-z0-9][\w.-]*)/.exec(prompt)?.[1] ?? null) : null);
 
 // {kept, loaded, fired} over a case's with-arm runs: kept counts the traces
 // read, loaded is true, false, or null when no kept trace lists skills. A run
@@ -105,9 +104,6 @@ export function health(runs, { plugin, base, invoked = null }) {
   return { kept, loaded, fired };
 }
 
-// A case.yaml context key in block or flow form, read without a YAML parser
-// the way run-validity.py's context_value reads it; any other shape, or an
-// empty value continued on the next line, gives null.
 const CONTEXT_BLOCK = /^context:\s*(?:#.*)?$/;
 const CONTEXT_FLOW = /^context:\s*\{(.*)\}\s*(?:#.*)?$/;
 const scalar = (text) => {
@@ -153,7 +149,7 @@ export function contextValue(text, key) {
 
 // A reader of <suite.root>/<dir>/case.yaml, a relative root read against base
 // (the result file's directory): the text, or null when it cannot be read.
-export const caseYamlReader = (result, base) => (dir) => {
+export const caseYamlReader =(result, base) => (dir) => {
   const root = result?.suite?.root;
   if (typeof root !== "string" || !root || typeof dir !== "string" || !dir || (!isAbsolute(root) && !base)) {
     return null;

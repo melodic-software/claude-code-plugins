@@ -12,7 +12,6 @@
 # Only github-actions[bot]'s own open issues and its own comments on them count:
 # an issue body or anyone else's comment holding that text does nothing.
 
-# A check name a fix issue may carry: the issue's text is fixed but for it.
 fix_charset='^[A-Za-z0-9][- A-Za-z0-9._:,/()]{0,99}$'
 fix_name_ok() {
   [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
@@ -99,9 +98,6 @@ fix_work() {
   local check="$1" sha="$2" signal="$3" on_record="$4" merges="$5" run_link="$6" fix_marker="$7" note="$8"
   local found fix_number fix_state fix_reason fix_body job old
   fix_missed='' fix_missed_issue='' fix_open='' fix_handled=''
-  # An issue filed on a commit tested before the job rename names the check by
-  # its job id (`Test Bash (3)` was `test-bash (3)`); it is read only when no
-  # issue names the check as it is now.
   job="${check%% (*}" old="${job// /-}"
   old="<!-- post-merge-fix check=${old,,}${check:${#job}} -->"
   found="$(awk -F'\t' -v m="$fix_marker" -v o="$old" '$4 == m && any == "" { any = $0 }
@@ -138,9 +134,6 @@ Fix the check on main. Closing this issue changes nothing on $on_record."
     if fix_number="$(file_issue Bug -f title="Fix $check on main, failing since ${sha:0:12}" -f body="$fix_body")" &&
       [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
       echo "filed fix issue #$fix_number for $check"
-      # Intake sets Size, Complexity and Uncertainty: apply-verdict.mjs holds an
-      # issue whose dimensions this token set. Its Work status stands in for the
-      # floor label until intake's verdict replaces it.
       set_fields "$fix_number" needs-triage critical ||
         echo "::warning::could not set the field values of #$fix_number"
       own_records+=$'\n'"$fix_number"$'\topen\tnone\t'"$fix_marker"

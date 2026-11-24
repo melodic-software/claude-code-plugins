@@ -1,12 +1,8 @@
-// The red-main rule as pure functions: when a red full run on main counts as
-// confirmed, which merge in the failing range is the culprit, whether the bot
-// may revert it, and the report. docs/conventions/pr-pipeline/README.md,
-// "Red main", states the rule; report.mjs reads GitHub and calls these.
 import { AGGREGATE_JOBS, GATE_ALIAS, GATE_CHECK } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 // The `red-main` leaf of pr-pipeline.yaml (pr-pipeline.schema.json); the one
 // copy of its defaults.
-export const RED_MAIN_DEFAULTS = Object.freeze({
+export const RED_MAIN_DEFAULTS =Object.freeze({
   "dry-run": true,
   "daily-cap": 3,
   "max-culprit-age-hours": 24,
@@ -23,19 +19,18 @@ const VALID = {
 };
 
 // Every leaf, each valid set value over its default.
-export const resolveRedMain = (leaf) =>
+export const resolveRedMain =(leaf) =>
   Object.fromEntries(
     Object.entries(RED_MAIN_DEFAULTS).map(([key, value]) => [key, VALID[key](leaf?.[key]) ? leaf[key] : value]),
   );
 
 const AGGREGATOR_STEP = "Aggregate hygiene results";
-// The all-branches secret scan fails on any branch, so it counts against no merge.
 const BRANCH_WIDE_GATES = new Set(["gitleaks failed"]);
 
 // pr-require-checks.yml's job ids, as a run on a commit tested before the
 // rename names its jobs, each to its display name, so checks compare across
 // that rename. A matrix job keeps its ` (N)` suffix.
-export const RENAMED_JOBS = Object.freeze({
+export const RENAMED_JOBS =Object.freeze({
   "mark-lanes": "Mark Lanes",
   "select-tests": "Select Tests",
   "lint-repo": "Lint Repo",
@@ -57,7 +52,7 @@ export const checkName = (name) => {
 
 // babysit_postmerge.py's FAILED_CONCLUSIONS: the job conclusions the
 // demotion alert counts, as the judge it hands its checks to does.
-export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
+export const ALERT_FAILED =Object.freeze(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
 
 // The checks a run attempt failed: a job (by checkName), or `job: gate` for each gate the
 // hygiene aggregator titles in a failure annotation. `annotations` maps a job
@@ -73,7 +68,6 @@ export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", 
 // unknown steps prove no failure to excuse.
 export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["failure"], baseline = false, noFailedJobs = false } = {}) {
   const listed = jobs.filter((job) => conclusions.includes(job.conclusion));
-  // The ci-status alias repeats CI Status's conclusion: the two are one check, CI Status.
   const failed = listed.some((job) => job.name === GATE_CHECK) ? listed.filter((job) => job.name !== GATE_ALIAS) : listed;
   const checks = noFailedJobs && failed.length === 0 ? ["pr-require-checks.yml: no failed jobs"] : [];
   for (const job of failed) {
@@ -206,7 +200,7 @@ export const MARKER_PATTERN =
 
 // A note on the log for a run that posts no report. MARKER_PATTERN does not
 // match its marker, so a note counts as neither a report nor a cap decision.
-export const noteMarker = ({ runId, attempt }) => `<!-- red-main-unreported-note run=${runId} attempt=${attempt} -->`;
+export const noteMarker =({ runId, attempt }) => `<!-- red-main-unreported-note run=${runId} attempt=${attempt} -->`;
 const unreportedList = (unreported) => unreported.map((r) => `${r.url} at \`${r.sha.slice(0, 12)}\``).join(", ");
 export const renderUnreportedNote = ({ run, unreported }) =>
   [
@@ -215,8 +209,6 @@ export const renderUnreportedNote = ({ run, unreported }) =>
     `${run.url}/attempts/${run.attempt} posts no report, so this note names the red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. The next confirmed report names them again and decides over their merges.`,
   ].join("\n");
 
-// Text from commits and pull requests reaches the report only as inert lines
-// inside a text fence.
 const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
 
 const SUBJECT_PR = /\s*\(#(\d+)\)$/;

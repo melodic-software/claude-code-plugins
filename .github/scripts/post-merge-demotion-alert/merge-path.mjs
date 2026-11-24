@@ -48,7 +48,7 @@ const CLAUDE_TRAILER = /^co-authored-by:[ \t]*claude\b/im;
 
 // The agent-authored rule: the body carries a session marker or the Claude
 // Code footer, and a commit carries a Co-Authored-By: Claude trailer.
-export const isAgentAuthored = ({ body, commitMessages }) =>
+export const isAgentAuthored =({ body, commitMessages }) =>
   (SESSION_MARKER.test(body ?? "") || (body ?? "").includes(GENERATED)) &&
   (commitMessages ?? []).some((message) => CLAUDE_TRAILER.test(message ?? ""));
 
@@ -65,7 +65,6 @@ export function resolvePaths(paths) {
   return out;
 }
 
-// A queue actor's login as the alert keys it: lowercased, a Bot's with [bot].
 const actorKey = (actor) =>
   !actor?.login
     ? ""
@@ -125,7 +124,7 @@ const labelsFromEvents = (nodes) => {
 // One pullRequest node as { number, body, labels, commitMessages, queue }. With the
 // rollup's label events read, `labels` also holds a label the pull request still had
 // when the label itself was deleted.
-export const toPr = (node) => ({
+export const toPr =(node) => ({
   number: node.number,
   title: node.title ?? "",
   body: node.body ?? "",

@@ -57,8 +57,6 @@ blob() { printf '%b' "$1" | git hash-object --stdin; }
 line() { printf '%s %s %s\t%s' "$1" "$2" "$3" "$4"; }
 
 echo '# many-paths'
-# The base adds 600 files, deletes one, renames one and edits three the PR also
-# edits: auto.txt merges cleanly from both sides, c.txt and r.txt conflict.
 new_repo
 put auto.txt '1\n2\n3\n4\n5\n'
 put c.txt 'base c\n'
@@ -143,15 +141,12 @@ expected=$(
   line 160000 "$SUB" - sub
 )
 check 'untracked-dir: only staged entries; a mode change and a gitlink upload nothing' "$expected" "$OUT"
-# The entries describe the tree given, not whatever the index holds when
-# they are listed.
 TREE=$(tg write-tree)
 tg add keep.txt .claude-pr
 run_entries "" "" "$TREE"
 check 'untracked-dir: changes staged after the tree was written stay out' "$expected" "$OUT"
 
 echo '# unmerged entries and unsafe paths'
-# conflict_with <main-only path>: c.txt conflicts; main also adds the path.
 conflict_with() {
   new_repo
   put c.txt 'base\n'
