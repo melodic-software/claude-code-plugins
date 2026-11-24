@@ -29,6 +29,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=test-git-helpers.sh
+. "$ROOT/scripts/test-git-helpers.sh"
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
 export RUNNER_TEMP="$TMP_ROOT"
@@ -850,8 +852,8 @@ $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
 $SHA_UNTAGGED	refs/heads/main"
 vtags="$TMP_ROOT/vendor-tags"
-vgit() { git -C "$vtags" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false -c tag.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
-if git init -q "$vtags" && vgit commit -q --allow-empty -m one && vgit tag v1 && vgit tag v1.0.265 &&
+vgit() { git_test_config "$vtags" -c core.hooksPath=/dev/null "$@"; }
+if mkdir -p "$vtags" && git_init_test_repo "$vtags" && vgit commit -q --allow-empty -m one && vgit tag v1 && vgit tag v1.0.265 &&
   vgit commit -q --allow-empty -m two && vgit tag -a -m v2 v2 && vgit tag -a -m v1.0.266 v1.0.266 &&
   vendor_tags="$(git ls-remote --tags "$vtags")" && grep -q $'\trefs/tags/v2\^{}$' <<<"$vendor_tags"; then
   STUB_TAGS="$STUB_TAGS
