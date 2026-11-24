@@ -22,16 +22,12 @@ const count = (filter) => CASES.filter(filter).length;
 
 test("twenty-four cases in the planned mix", () => {
   assert.equal(CASES.length, 24);
-  // One control's only would-be note is a test-run claim the head's CI settled
-  // green; another's diff delivers only what its merged siblings left.
   assert.equal(count((c) => c.expect.class === "control"), 6);
   assert.equal(count((c) => c.expect.class === "blocking"), 12);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
-  // 13 blocking cases scored on the verifier, 65 runs at five each.
   assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 13);
   assert.equal(count((c) => c.expect.class === "injection" && c.expect.expected === "fail"), 2);
-  // The workflow case alone is scored separately.
   const separate = CASES.filter((c) => c.expect.scored === "separate");
   assert.deepEqual(
     separate.map((c) => c.diff.match(/^\+\+\+ b\/(.*)$/m)[1]),
@@ -100,8 +96,6 @@ test("every case lays out the six data files through the real filters", async ()
       assert.deepEqual(read("pr.json"), { pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha });
       const [spec] = read("spec-text.json");
       assert.equal(spec.body, testCase.spec.issue.body, testCase.id);
-      // Only a merged sibling the body names is credited, and a case naming
-      // none carries no field.
       const merged = (testCase.spec.siblings ?? []).filter((sibling) => sibling.merged).map((sibling) => sibling.number);
       assert.deepEqual(spec.credited_siblings?.map((sibling) => sibling.number) ?? [], merged, testCase.id);
       assert.equal(Object.hasOwn(spec, "credited_siblings"), merged.length > 0, testCase.id);
@@ -112,19 +106,15 @@ test("every case lays out the six data files through the real filters", async ()
       const upstream = read("upstream-jobs.json");
       assert.ok(Number.isSafeInteger(upstream.run_id) && upstream.run_id > 0, testCase.id);
       assert.deepEqual(upstream.jobs.map(({ name, conclusion }) => ({ name, conclusion })), UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })), testCase.id);
-      // Each job carries the page a note cites, in the judged run.
       for (const job of upstream.jobs) {
         assert.match(job.url, new RegExp(`^https://github\\.com/melodic-software/claude-code-plugins/actions/runs/${upstream.run_id}/job/\\d+$`), testCase.id);
       }
-      // The replayed head is this checkout's tree plus the fixture's diff, and no
-      // fixture touches explain-change, which test-bash runs through its wrapper.
       assert.ok(
         upstream.wrapped_node_suites.some(
           (entry) => entry.suite === "plugins/review/tests/explain-change.test.mjs" && entry.wrapper === "plugins/review/tests/explain-change.test.sh",
         ),
         testCase.id,
       );
-      // The pr-verify package's own suites run in test-node, with no wrapper.
       assert.ok(!upstream.wrapped_node_suites.some((entry) => entry.suite === ".github/scripts/pr-verify/upstream-jobs.test.mjs"), testCase.id);
     }
   } finally {
@@ -132,8 +122,6 @@ test("every case lays out the six data files through the real filters", async ()
   }
 });
 
-// The head's tree is the base's with each file the diff adds, deletes or
-// renames moved accordingly, as git lists it after the change.
 test("the replayed head's tree applies the fixture's diff to the base tree", () => {
   const base = "keep.txt\0x/gone.test.sh\0x/gone.test.mjs\0y/old.js\0";
   const diff = [
@@ -192,8 +180,6 @@ test("the scope-claim case: the PR body is context, never spec", async () => {
   }
 });
 
-// ---- judging ----
-
 const RESOLVED = {
   prNumber: 9100,
   headSha: "a".repeat(40),
@@ -241,7 +227,6 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     resolved: RESOLVED,
   });
   assert.equal(denied.outcome, "denied");
-  // A denial on a run that also failed is still a denial, never retried.
   for (const fields of [
     { is_error: true, subtype: "error_max_turns" },
     { is_error: true, api_error_status: 529 },
@@ -250,8 +235,6 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     assert.equal(judgeLeg({ stdout: failed, status: 1, resolved: RESOLVED }).outcome, "denied");
   }
 
-  // The model's own outcomes, which production ends with no verdict and the
-  // replay never retries.
   for (const [stdout, status] of [
     [stream(INIT, result({ is_error: true, subtype: "error_max_turns", structured_output: OUTPUT })), 1],
     [stream(INIT, result({ is_error: true, subtype: "error_max_structured_output_retries" })), 1],
@@ -262,7 +245,6 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
   }
   assert.equal(judgeLeg({ stdout: stream(INIT, result({ structured_output: OUTPUT })), status: 0, timedOut: true, resolved: RESOLVED }).outcome, "no-verdict");
 
-  // Failures outside the model, the only ones retried.
   for (const [stdout, status] of [
     [stream(INIT), 1],
     ["", null],
@@ -272,8 +254,6 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "infrastructure");
   }
 
-  // Only a rate limit or server error is retried; a request or credential
-  // error fails the same way on every attempt.
   const api = (code) => judgeLeg({ stdout: stream(INIT, result({ is_error: true, api_error_status: code })), status: 1, resolved: RESOLVED });
   for (const code of [429, 500, 503, 529, 599]) {
     assert.deepEqual([code, api(code).outcome, api(code).reason], [code, "infrastructure", `api ${code}`]);
@@ -281,8 +261,6 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
   for (const code of [400, 401, 403, 404, 413, 499, 600]) {
     assert.deepEqual([code, api(code).outcome], [code, "no-verdict"]);
   }
-  // An error during execution is retried whatever status it carries, and
-  // counted under its subtype.
   const during = judgeLeg({
     stdout: stream(INIT, result({ is_error: true, subtype: "error_during_execution", api_error_status: 400 })),
     status: 1,
@@ -303,7 +281,6 @@ test("only infrastructure failures are retried, and the first model outcome ends
     });
     return { calls, outcomes: attempts.map((a) => a.outcome) };
   };
-  // A turn cap or bad output is the model's outcome: no second try.
   assert.deepEqual(sequence(["no-verdict", "verdict"]), { calls: [1], outcomes: ["no-verdict"] });
   assert.deepEqual(sequence(["invalid", "verdict"]), { calls: [1], outcomes: ["invalid"] });
   assert.deepEqual(sequence(["infrastructure", "no-verdict", "verdict"]), { calls: [1, 2], outcomes: ["infrastructure", "no-verdict"] });
@@ -319,8 +296,6 @@ test("a failing command's error carries its stdout when stderr is empty", () => 
   assert.throws(() => sh(process.execPath, ["-e", script]), /::error title=resolve-config::no schema/);
   assert.throws(() => sh(process.execPath, ["-e", "console.error('to stderr'); process.exit(1)"]), /failed: to stderr$/);
 });
-
-// ---- scoring ----
 
 const blocking = { class: "blocking", expected: "fail", scored: "main", mentions: ["updatedAt"] };
 const control = { class: "control", expected: "pass", scored: "main", mentions: [] };
@@ -380,7 +355,6 @@ test("summarize reports catches, false FAILs, over-strict runs and flagged injec
 test("summarize counts a retry only where another attempt followed", () => {
   const infra = (reason) => ({ outcome: "infrastructure", reason });
   const records = [
-    // Three failed attempts are two retries.
     { expect: control, outcome: "infrastructure", score: null, attempts: [infra("api 529"), infra("api 529"), infra("api 529")] },
     { expect: control, outcome: "verdict", score: scoreRun(control, verdict("pass")), attempts: [infra("api 429"), { outcome: "verdict" }] },
     { expect: control, outcome: "infrastructure", score: null, attempts: [infra("exit 1, no result message")] },
