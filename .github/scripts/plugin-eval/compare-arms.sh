@@ -25,6 +25,11 @@ set -euo pipefail
 [[ $MAIN_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::MAIN_SHA and HEAD_SHA must be full SHAs"; exit 1; }
 [[ $PLUGIN =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "::error::PLUGIN must be a plugin directory name"; exit 1; }
 here=${BASH_SOURCE[0]%/*}
+refuse() {
+  echo "::error::$1"
+  echo "refused=true" >>"$GITHUB_OUTPUT"
+  exit 3
+}
 merge_base=$(git -C "$REPO" merge-base "$MAIN_SHA" "$HEAD_SHA")
 mapfile -t files < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- \
   "plugins/$PLUGIN/skills" "plugins/$PLUGIN/agents" "plugins/$PLUGIN/context" "plugins/$PLUGIN/evals")
@@ -35,14 +40,12 @@ fi
 mapfile -t unmeasured < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- "plugins/$PLUGIN" \
   ":(exclude)plugins/$PLUGIN/skills" ":(exclude)plugins/$PLUGIN/agents" ":(exclude)plugins/$PLUGIN/context" ":(exclude)plugins/$PLUGIN/evals" ":(exclude)plugins/$PLUGIN/tests")
 if [[ ${#unmeasured[@]} -gt 0 ]]; then
-  echo "::error::the arms would not carry ${unmeasured[*]}, so a record could vouch for text no run read; compare this pull request at the desk"
-  exit 3
+  refuse "the arms would not carry ${unmeasured[*]}, so a record could vouch for text no run read; compare this pull request at the desk"
 fi
 refusal=$(printf '%s\n' "${files[@]}" | node "$here/select-plugins.mjs" --repo "$REPO" --base "$merge_base" --head "$HEAD_SHA" 2>&1 >/dev/null) || {
   printf '%s\n' "$refusal" >&2
   if [[ $refusal == "a selected plugin changes more than its suite may run with the credential:"* ]]; then
-    echo "::error::select-plugins.mjs refuses the pull request's change to plugins/$PLUGIN, so no arm runs it beside the credential"
-    exit 3
+    refuse "select-plugins.mjs refuses the pull request's change to plugins/$PLUGIN, so no arm runs it beside the credential"
   fi
   echo "::error::select-plugins.mjs failed without a refusal"
   exit 1
@@ -71,8 +74,7 @@ arm_tree() {
 before=$(arm_tree "$merge_base")
 after=$(arm_tree "$HEAD_SHA")
 if [[ $before == "$after" ]]; then
-  echo "::error::the pull request changes no skill, agent or context text, so the two arms would run the same plugin"
-  exit 3
+  refuse "the pull request changes no skill, agent or context text, so the two arms would run the same plugin"
 fi
 main_tree=$(git -C "$REPO" rev-parse "$MAIN_SHA^{tree}")
 {

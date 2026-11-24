@@ -83,9 +83,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   dispatcher, input and head checks and then finds `CLAUDE_EVALS_DISABLED` not `false`
   (`evals-disabled`) or `compare-arms.sh` refusing the PR (`compare-refused`) runs no arm and
   succeeds its `Compare Cannot Start: <cause>` job. pr-merge's release step lifts the eval hold when
-  the newest compare run at the current head since the label was last added is such a run, read back under the same checks as a compare record,
-  and comments `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`; a
-  missing record alone keeps the hold
+  the newest compare run at the current head since the label was last added is such a run, read
+  back under the same checks as a compare record, and comments
+  `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`. A missing record
+  alone keeps the hold, and so does an older run at that head since the label that failed its
+  `Compare Verdict` (a LOSS or VOID), is still going, or was re-run
   ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
@@ -155,7 +157,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The org variable `CLAUDE_EVALS_DISABLED` stops every eval path; an eval job runs only while it
   reads exactly `false` (Q52). A compare run's `Compare Prepare` job, which holds no model
-  credential, still runs its checks to record `evals-disabled`.
+  credential, still runs its checks to record `evals-disabled`, the cause that lets an eval-held PR
+  merge first while the key is off (owner decision,
+  [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400)).
 - It stays `false`: every eval workflow is started deliberately (dispatch or the `eval: run`
   label), none runs on a schedule. `true` is the owner's emergency kill switch; sessions never
   change it (owner decision 2026-11-24, replacing the reset to `true` after a run). Scoping is

@@ -96,17 +96,20 @@ test("a change select-plugins refuses or a change to cases only is refused (exit
   for (const change of [{ "plugins/p/skills/s/run.sh": "echo hi\n" }, { [CASE]: 'plugins: ["../.."]\nname: c1\ndescription: more\n' }]) {
     const r = run(fixture(change));
     assert.equal(r.status, 3, r.stdout);
-    assert.deepEqual(r.values, {}, "a refusal writes no arm output");
+    assert.deepEqual(r.values, { refused: "true" }, "a refusal writes only its marker");
   }
 });
 
 test("no change under the plugin is a wrong target (exit 1), not a refusal", () => {
-  assert.equal(run(fixture({ "plugins/p/tests/x.sh": "echo new\n" })).status, 1);
+  const wrong = run(fixture({ "plugins/p/tests/x.sh": "echo new\n" }));
+  assert.equal(wrong.status, 1);
+  assert.deepEqual(wrong.values, {}, "a wrong target writes no refusal marker");
 });
 
 test("a change to plugin text the arms do not carry, such as a reference file, is refused and builds nothing", () => {
   const r = run(fixture({ [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n", "plugins/p/reference/x.md": "cut\n" }));
   assert.equal(r.status, 3);
+  assert.deepEqual(r.values, { refused: "true" });
   assert.match(r.stdout, /plugins\/p\/reference\/x\.md/);
 });
 
@@ -126,6 +129,7 @@ test("a context/ file that is not markdown, plugin.json or probes/ builds nothin
   const skill = { [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n" };
   const script = run(fixture({ ...skill, "plugins/p/context/lookup.sh": "echo hi\n" }));
   assert.equal(script.status, 3);
+  assert.deepEqual(script.values, { refused: "true" });
   assert.match(script.stdout, /select-plugins\.mjs refuses/);
   assert.match(script.stdout, /plugins\/p\/context\/lookup\.sh: /, "the refusal's reasons still reach the log");
   for (const path of ["plugins/p/.claude-plugin/plugin.json", "plugins/p/probes/p.md"]) {

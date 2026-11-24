@@ -1913,7 +1913,7 @@ jobs:
         run: |
           status=0
           bash .base/.github/scripts/plugin-eval/compare-arms.sh || status=$?
-          if [ "$status" = 3 ]; then
+          if [ "$status" = 3 ] && grep -qx 'refused=true' "$GITHUB_OUTPUT"; then
             echo "::notice::cannot-start=compare-refused: compare mode refuses this pull request, so no arm runs"
             echo "cannot-start=compare-refused" >>"$GITHUB_OUTPUT"
             exit 0

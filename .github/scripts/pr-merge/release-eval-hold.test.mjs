@@ -24,6 +24,8 @@ import {
   onDefaultBranch,
   ownLines,
   RELEASES_PER_RUN,
+  VERDICT_JOB,
+  verdictFailed,
   runVouches,
 } from "./release-eval-hold.mjs";
 
@@ -763,4 +765,50 @@ test("a compare run list cut off before the hold's start releases nothing", asyn
   assert.equal(calls.filter((call) => call.path.includes(COMPARE_RUNS_LIST)).length, COMPARE_RUN_PAGES);
   assert.ok(lines.includes(`release-eval-hold: #7 the compare runs since ${LABELED_AT} run past ${COMPARE_RUN_PAGES} pages; no cannot-start run counts`));
   assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+});
+
+const LOSS_RUN_ID = 44900000003;
+const lossJobs = () => ({
+  ...CAPTURED_JOBS,
+  jobs: CAPTURED_JOBS.jobs.map((job) =>
+    job.name === "Compare Prepare" ? { ...job, conclusion: "success" } : job.name === VERDICT_JOB ? { ...job, conclusion: "failure" } : job,
+  ),
+});
+const lossRun = (overrides = {}) => listedRun({ id: LOSS_RUN_ID, created_at: "2026-11-06T10:20:00Z", conclusion: "failure", ...overrides });
+
+test("verdictFailed reads a failed Compare Verdict, and counts an unreadable or partial answer", () => {
+  assert.equal(verdictFailed(lossJobs()), true);
+  assert.equal(verdictFailed({ ...lossJobs(), total_count: 101 }), true);
+  assert.equal(verdictFailed({}), true);
+  assert.equal(verdictFailed(CAPTURED_JOBS), false, "a run whose arms never started measured nothing");
+  assert.equal(verdictFailed(RAN), false);
+});
+
+test("an older run at the head that measured a loss keeps the hold a newer cannot-start run would lift", async () => {
+  const cases = {
+    "an older run whose Compare Verdict failed": { listed: [listedRun(), lossRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: lossJobs() } },
+    "an older run still going": { listed: [listedRun(), lossRun({ status: "in_progress", conclusion: null })] },
+    "an older run re-run": { listed: [listedRun(), lossRun({ conclusion: "success", run_attempt: 2 })] },
+    "an older failed run whose jobs answer is unreadable": { listed: [listedRun(), lossRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: {} } },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { jobs: { [CANNOT_RUN_ID]: cannotStartJobs() }, ...options });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+    assert.ok(lines.some((line) => line.startsWith(`release-eval-hold: run ${CANNOT_RUN_ID} cannot start, but run ${LOSS_RUN_ID} `)), name);
+  }
+});
+
+test("an older run at the head whose arms never started, or one from before the hold, does not keep the hold", async () => {
+  for (const [name, older] of Object.entries({
+    "failed before its arms": lossRun(),
+    "measured a loss before the label": lossRun({ created_at: "2026-11-06T09:00:00Z" }),
+  })) {
+    const jobs = { [CANNOT_RUN_ID]: cannotStartJobs(), [LOSS_RUN_ID]: name === "failed before its arms" ? CAPTURED_JOBS : lossJobs() };
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()] } }, { listed: [listedRun(), older], jobs });
+    await quietMain(github);
+    assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"], name);
+  }
 });

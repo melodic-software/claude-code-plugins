@@ -203,6 +203,11 @@ test("the record job's name is the one the release requires to have succeeded", 
   assert.match(job("compare-record"), new RegExp(`^ {2}compare-record:\\n {4}name: ${RECORD_JOB}\\n`));
 });
 
+test("the verdict job's name is the one whose failure keeps a cannot-start release back", async () => {
+  const { VERDICT_JOB } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.match(job("compare-verdict"), new RegExp(`^ {2}compare-verdict:\\n {4}name: ${VERDICT_JOB}\\n`));
+});
+
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
   assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
   assert.match(job("compare-prepare"), /if: >-\n {6}github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n {6}&& github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)\n/);
@@ -248,14 +253,15 @@ test("a compare run records why it cannot start, after its dispatcher, input and
     }
     const arms = stepNamed("compare-prepare", "Build the arm patches");
     mkdirSync(join(work, ".base/.github/scripts/plugin-eval"), { recursive: true });
-    for (const [code, status, output] of [
-      [0, 0, ""],
-      [3, 0, "cannot-start=compare-refused\n"],
-      [1, 1, ""],
-      [2, 2, ""],
+    for (const [body, status, output] of [
+      ["exit 0", 0, ""],
+      ['echo refused=true >>"$GITHUB_OUTPUT"; exit 3', 0, "refused=true\ncannot-start=compare-refused\n"],
+      ["exit 3", 3, ""],
+      ["exit 1", 1, ""],
+      ["exit 2", 2, ""],
     ]) {
-      writeFileSync(join(work, ".base/.github/scripts/plugin-eval/compare-arms.sh"), `exit ${code}\n`);
-      assert.deepEqual(runIn(script(arms), {}), { status, output }, `compare-arms.sh exit ${code}`);
+      writeFileSync(join(work, ".base/.github/scripts/plugin-eval/compare-arms.sh"), `${body}\n`);
+      assert.deepEqual(runIn(script(arms), {}), { status, output }, `compare-arms.sh: ${body}`);
     }
   } finally {
     rmSync(work, { recursive: true, force: true });

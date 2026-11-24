@@ -515,15 +515,62 @@ async function readCannotStart(github, repo, named, vouched, since, head, defaul
   if (!/^[0-9a-f]{40}$/.test(String(head)) || typeof defaultBranch !== "string") {
     return null;
   }
-  const newest = named
+  const [newest, ...older] = named
     .filter((run) => COMPARE_TITLE.exec(String(run.display_title))?.[2] === head && createdAt(run) >= since)
-    .sort((a, b) => createdAt(b).localeCompare(createdAt(a)))[0];
+    .sort((a, b) => createdAt(b).localeCompare(createdAt(a)));
   if (newest === undefined || vouched.has(String(newest.id)) || !/^[1-9][0-9]{0,19}$/.test(String(newest.id))) {
     return null;
   }
   const tip = await readTip(github, repo, defaultBranch);
   const vouch = tip === null ? null : await readBack(github, repo, newest, defaultBranch, tip, cannotStartCause, `recorded no cause it cannot start`);
-  return vouch === null || vouch.head !== head ? null : { head, cause: vouch.verdict, run: { id: String(newest.id), html_url: newest.html_url } };
+  if (vouch === null || vouch.head !== head) {
+    return null;
+  }
+  const loss = await olderLoss(github, repo, older);
+  if (loss !== null) {
+    console.log(`release-eval-hold: run ${newest.id} cannot start, but ${loss}`);
+    return null;
+  }
+  return { head, cause: vouch.verdict, run: { id: String(newest.id), html_url: newest.html_url } };
+}
+
+export const VERDICT_JOB = "Compare Verdict";
+export const LOSS_READS = 5;
+
+/**
+ * Whether one complete page of GET actions/runs/{id}/jobs shows VERDICT_JOB
+ * ending other than success or skipped: compare-verdict.mjs fails it on a
+ * LOSS or VOID and posts no record. An unreadable or partial answer counts.
+ */
+export function verdictFailed(answer) {
+  const jobs = Array.isArray(answer?.jobs) ? answer.jobs : null;
+  if (jobs === null || !Number.isSafeInteger(answer.total_count) || answer.total_count > jobs.length) {
+    return true;
+  }
+  return jobs.some((job) => job?.name === VERDICT_JOB && job.conclusion !== "success" && job.conclusion !== "skipped");
+}
+
+async function olderLoss(github, repo, older) {
+  const unsettled = older.find((run) => run.status !== "completed" || run.run_attempt !== 1);
+  if (unsettled !== undefined) {
+    return `run ${unsettled.id} at the same head is still going or was re-run`;
+  }
+  const failed = older.filter((run) => run.conclusion !== "success");
+  if (failed.length > LOSS_READS) {
+    return `${failed.length} runs at the same head failed, past ${LOSS_READS} to read`;
+  }
+  for (const run of failed) {
+    let jobs;
+    try {
+      jobs = await github("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=${JOBS_PER_RUN}`);
+    } catch (error) {
+      return `run ${run.id}'s jobs did not read: ${escapeCommand(error?.message ?? error)}`;
+    }
+    if (verdictFailed(jobs)) {
+      return `run ${run.id} at the same head failed its ${VERDICT_JOB}`;
+    }
+  }
+  return null;
 }
 
 async function stands(github, repo, number, head) {
