@@ -3,6 +3,13 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6] - 2026-11-24
+
+### Changed
+
+- `/developer-experience:audit-tools` and `/developer-experience:build-cli` gain a `## Related`
+  section for links that apply only in some runs.
+
 ## [0.6.5] - 2026-11-18
 
 ### Changed
