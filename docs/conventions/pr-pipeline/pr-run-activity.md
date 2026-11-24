@@ -2044,7 +2044,7 @@ broker sees neither its branch nor the draft flag, so `hill-climb-publish.mjs` h
 `chore/hill-climb-*` and a draft pull request. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
 and `intake-triage.yml`, sends `issue_number` (the `issue-number` input) instead, and neither of the
 other two. From `work-resolve-issue.yml` its actor, the labeler, must be a listed human, or the
-lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
+lanes App; from the other two a listed human. `work-unblock.yml` (also on its `schedule`, every 15 minutes)
 and `intake-triage.yml` (also on a `workflow_dispatch` that sends `issue_number`) run their minting
 job in the caller file itself, get an issues-write grant only, and a re-run must be started by a
 listed human. The one exception is `work-unblock.yml`'s `publish-lane-level` (owner decision Q113
@@ -2247,7 +2247,7 @@ run's commit still differ from main's, that the issue is open with `agent-ready`
 posts work-unblock's re-fire record and removes and re-adds `agent-ready` as the App. It stops
 after `limits.limit-stops-per-issue` such records since a listed human last added
 `agent-ready` or a run last reported, so a main that moves faster than the slots drain backs off
-to work-unblock's hourly sweep, which finds the stop step in the job listing (a refused report
+to work-unblock's sweep, which finds the stop step in the job listing (a refused report
 mint included) and re-fires the issue once per version of the two files. A stale stop is no
 outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or

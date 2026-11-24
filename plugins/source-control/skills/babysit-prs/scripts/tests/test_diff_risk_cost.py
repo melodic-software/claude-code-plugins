@@ -1,12 +1,3 @@
-"""The `cost-review-required` hold: a change that could start a real charge
-(billed infrastructure or billed runner minutes) waits for the owner unless
-the caller verified an owner decision. Cost means only what can bill: a
-model flag, and a schedule, raised timeout or raised retention on a public
-repository, report nothing; a pipeline spend line is the reported,
-non-holding `cost-finding`. A secret reference or model leg is a person's
-security hold. Expected codes come from those rules, never from running the
-scorer."""
-
 from __future__ import annotations
 
 import pathlib
@@ -44,7 +35,6 @@ def _patch(*lines: str) -> str:
 
 
 def _cost(files, **kw):
-    # The floor off: the cost hold must stand without it.
     return score(_input(files=tuple(files), high_floor=False, **kw))
 
 
@@ -345,7 +335,6 @@ class ModelSpendDetections(_Finding):
 
 
 def _runner(value: str, public: bool | None = True) -> list[str]:
-    """Codes for a workflow whose head text gains `runs-on: <value>`."""
     head = f"jobs:\n  build:\n    runs-on: {value}\n    steps: []\n"
     wf = _file(WORKFLOW, patch=_patch(f"+    runs-on: {value}"), contents=("", head))
     return list(_codes(_cost([wf], public=public)))
@@ -553,8 +542,6 @@ class SecurityAndCostHolds(_Finding):
         self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_the_multi_agent_role_defaults_are_no_charge(self):
-        # Owner ruling 2026-10-24: only a real charge holds; the review lanes
-        # judge a model or effort default.
         defaults = _file(
             "plugins/multi-agent/reference/defaults.yaml",
             patch=_patch("+  model: fable", "-  model: opus"),
@@ -591,7 +578,6 @@ class SecurityAndCostHolds(_Finding):
 
 
 def _jobs(a: str, b: str = "300", steps: str = "") -> str:
-    """Two jobs, `a` with a model leg, at the timeouts given ("" for none)."""
     a_line = f"    timeout-minutes: {a}\n" if a else ""
     b_line = f"    timeout-minutes: {b}\n" if b else ""
     return (
@@ -613,7 +599,6 @@ class LowRatedShapes(_Finding):
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
 
     def test_one_jobs_raise_is_not_hidden_by_another_jobs_value(self):
-        # 30 to 200 on `a`, with `b`'s unchanged 300 removed and re-added.
         patch = _patch(
             "-    timeout-minutes: 30",
             "+    timeout-minutes: 200",
@@ -712,17 +697,12 @@ class LowRatedShapes(_Finding):
         checkout = "      - uses: actions/checkout@v4\n        with:\n          x: 0\n"
         local = "jobs:\n  a:\n{line}    steps:\n      - uses: ./.github/actions/setup\n"
         for base, head, line in (
-            # A whole leg step removed beside steps that remain.
             (_jobs("30", steps=checkout + leg("10") + leg("20")),
              _jobs("30", steps=checkout + leg("20")), "-          leg-timeout-minutes: 10"),
-            # A leg step removed from the front, a step with `with:` shifting
-            # into its index.
             (_jobs("30", steps=leg("10") + checkout), _jobs("30", steps=checkout),
              "-          leg-timeout-minutes: 10"),
-            # A timeout added below the default on a local-call workflow.
             (local.format(line=""), local.format(line="    timeout-minutes: 15\n"),
              "+    timeout-minutes: 15"),
-            # A commented-out timeout.
             (_jobs("30"), _jobs("30"), "+    # timeout-minutes: 600"),
         ):  # fmt: skip
             with self.subTest(line=line):
@@ -730,7 +710,6 @@ class LowRatedShapes(_Finding):
                 self.assertNotIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_a_timeout_added_at_or_below_the_highest_at_its_path_does_not_count(self):
-        # A local call, and a model leg, whose line pass once held every number.
         for uses in (
             "./.github/actions/judge",
             "$/.github/actions/judge",
@@ -750,16 +729,13 @@ class LowRatedShapes(_Finding):
                 )
 
             for base, head, line in (
-                # A step timeout added at or below an existing step's.
                 (wf(step("10")), wf(step("10"), step("5")), "+        timeout-minutes: 5"),
                 (wf(step("10")), wf(step("10"), step("10")), "+        timeout-minutes: 10"),
-                # A leg timeout set where the base had none: a cap, not a raise.
                 (wf(step()), wf(step(leg="10")), "+          leg-timeout-minutes: 10"),
             ):  # fmt: skip
                 with self.subTest(head=head):
                     f = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
                     self.assertNotIn(COST_CODE, _codes(_cost([f], public=False)))
-            # Above the highest one at its path still counts.
             raised = _file(
                 WORKFLOW,
                 patch=_patch("+        timeout-minutes: 20"),
@@ -790,12 +766,9 @@ class LowRatedShapes(_Finding):
         cap = "          leg-timeout-minutes: 10\n"
         checkout = "      - uses: actions/checkout@v4\n"
         for before, after in (
-            # Renamed in place.
             (leg.format(name="Review", timeout=cap), leg.format(name="Review PR", timeout="")),
-            # Renamed, with a step deleted before it.
             (checkout + leg.format(name="Review", timeout=cap),
              leg.format(name="Review PR", timeout="")),
-            # Moved behind a step it used to precede, then renamed.
             (leg.format(name="Review", timeout=cap) + checkout,
              checkout + leg.format(name="Review PR", timeout="")),
         ):  # fmt: skip
@@ -893,14 +866,11 @@ class LowRatedShapes(_Finding):
             ("+  ALL: ${{ toJSON(secrets.*) }}",),
             # A `}}` inside a string literal does not end the expression.
             ("+    if: ${{ '}}' || contains(secrets, 'LANE_TOKEN') }}",),
-            # However many lines pad a split reference.
             ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
-            # An expression still open at the end of the added lines.
             ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
             # A quote a comment leaves open does not hide a later expression.
             ("+# ${{ '", "+  K: ${{ secrets }}'"),
             ("+  # ${{ '", "+  K: ${{ format('{0}{1}', secrets, 'a') }}"),
-            # Nor does it move where a split expression is joined.
             (
                 "+# ${{ '",
                 "+  K: >-",
@@ -952,8 +922,6 @@ class LowRatedShapes(_Finding):
                 self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
 
     def test_a_secret_reference_moved_within_one_file_passes(self):
-        # Accepted: `_net_added` counts only what the patch gains over what it
-        # removes, so a move is net zero.
         moved = (
             "@@ -1,2 +1,1 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
             "@@ -40,1 +39,2 @@\n context\n+      K: ${{ secrets.LANE_TOKEN }}"
@@ -973,9 +941,6 @@ class LowRatedShapes(_Finding):
                 self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
                 self.assertNotIn(COST_CODE, codes)
 
-    # A job renamed from `admit`: an `if:` block's first line changes while
-    # its closing line is context, and a later hunk renames the id in a
-    # comment with an apostrophe.
     RENAMED_IF = (
         "@@ -764,7 +764,7 @@\n"
         "   # leaving it to work-unblock's hourly sweep.\n"
@@ -1017,7 +982,6 @@ class LowRatedShapes(_Finding):
                 )
 
     def test_a_secret_split_around_a_context_line_holds(self):
-        # The middle line is context: only the hunk read whole joins it.
         for lines in (
             (
                 "+  K: ${{ format('{0}{1}',",
@@ -1145,7 +1109,6 @@ class LowRatedShapes(_Finding):
 
 
 def _workflow(perms: str, job_perms: str = "", on: str = "on: push\n") -> str:
-    """Workflow text: `perms` at the top level, `job_perms` on its one job."""
     return f"{on}{perms}jobs:\n  build:\n{job_perms}    runs-on: ubuntu-24.04\n"
 
 
@@ -1153,7 +1116,6 @@ READ_ONLY = _workflow("permissions:\n  contents: read\n")
 
 
 def _broker_job(job_id: str, steps: str = "") -> str:
-    """One job under `job_id` that holds `id-token: write`."""
     return (
         f"  {job_id}:\n    name: Broker Check\n    runs-on: ubuntu-24.04\n"
         f"    permissions:\n      contents: read\n      id-token: write\n{steps}"

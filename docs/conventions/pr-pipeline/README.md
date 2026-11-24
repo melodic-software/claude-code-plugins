@@ -198,7 +198,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
+| `work-unblock` | an issue closing, by a listed human, and a sweep every 15 minutes ([the work-unblock sweep](#the-work-unblock-sweep)) of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -387,6 +387,70 @@ any text holds a line a gate reads or the body's gate-read lines would change. I
 those sections and its `## Follow-ups` entries. `fix-ci` rewrites no body section; an attended
 session does ([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md)
 §3.3.2 step 5).
+
+### The work-unblock sweep
+
+`work-unblock.yml` sweeps on its schedule every 15 minutes, at minutes 13, 28, 43 and 58, from
+`main` only; its `publish-lane-level` job runs only after the minute-28 sweep, so it still decides
+once an hour. A sweep applies the close path's rules to every issue a listed human or a merge (a
+merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
+An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no close run, since the broker
+would refuse that mint; the sweep covers it. Two other events start the same sweep:
+
+- **A finished issue lane run.** Each `work-resolve-issue` run that finishes, unless it ran no job,
+  starts it at once through `workflow_run`, so a freed slot admits the next deferred issue then,
+  unless a full sweep finished under `limits.sweep-gap-minutes` ago. That run executes `main`'s
+  code only, for a same-repository run, and reads no artifact of the triggering run; it reads only
+  the `work-unblock-verdicts` artifact of `main`'s own last successful sweep (`verdict-carry.mjs`,
+  `sweepRun`).
+- **A hand start.** A `workflow_dispatch` runs exactly as the schedule's sweep: after an outage
+  ends it re-fires the runs the upstream-status stop skipped without waiting for the next scheduled
+  sweep. It mints only where the token broker lists `workflow_dispatch` among `work-unblock.yml`'s
+  events, and then only for a listed human.
+
+After an outage or a kill switch, the next of these sweeps is the probe: nothing re-arms it.
+
+Basis for the two sweep limits. A full sweep spends about 800 lanes App calls, and on 2026-11-10
+seven sweeps in one hour reached the App's 5,200 calls an hour (run 42898100951).
+`limits.sweep-gap-minutes` (15) skips a sweep a finished issue run starts within that many minutes
+of a full sweep; it was set when the schedule ran hourly, to hold those extra sweeps to about three
+an hour. `limits.restarts-per-run` (10) was sized, also on an hourly schedule, to cover about two
+hours of slot capacity, since the `SLOTS` queues in `work-resolve-issue.yml` run three issue runs at
+once: lower leaves slots idle between sweeps, far higher lets queued runs go stale on a lane
+workflow change. Both were sized before the 15-minute schedule and are due for re-deriving from
+run data.
+
+Each sweep also does the following, with at most `limits.restarts-per-run` restarts, re-fires and
+relabels a run in all:
+
+- **Restarts** an issue the usage limit stopped: once the limit has reset, the lanes App removes
+  and re-adds `agent-ready`. After `limits.limit-stops-per-issue` limit or funding stops since a
+  person added `agent-ready`, it stops restarting the issue, removes `agent-ready` and adds no
+  label.
+- **Re-fires** the same way an issue whose `work-resolve-issue` run did no work and left no report:
+  a crash; a rerun the token broker refused as `workflow-modified` (a rerun keeps its first event's
+  workflow files); a run that waited in its slot past a lane workflow change and stopped at
+  `Stop on stale workflow files` (its own report-outcome re-fires it at once, until its mint is
+  refused or `limits.limit-stops-per-issue` re-fires; then the sweep does); or a run cancelled after
+  `check-admission` and before `resolve-issue` started (`pick-slot`'s timeout). A run a newer
+  `agent-ready` run replaced is not re-fired. It re-fires once per issue per version of the lane's
+  two workflow files on `main`, recorded in a comment, and after that on a backoff (its cause's
+  `limits.stranded-backoff-hours`, doubling each time, at most 24), recorded in one comment it
+  edits; it never adds `needs-human` for it. An open pull request of a listed human's for the issue
+  counts as work running on it.
+- **Relabels** a red-main fix issue `post-merge-file-demotion-issues.yml` reopened on a repeat
+  failure: that reopen keeps `agent-ready` but, made with the workflow's `GITHUB_TOKEN`, starts no
+  run. Matched by the issue's `<!-- post-merge-fix check=... -->` first line and the workflow's
+  recurrence comment, the App removes and re-adds `agent-ready` once per such comment, unless the
+  issue is held, has an open lane PR or a lane run in flight.
+- **Hands back** an `agent-ready` issue whose lanes App PR merged with `Refs:` or was closed
+  unmerged: after a comment, the App sets its Work status to `needs-triage` and takes `agent-ready`
+  off, so the hourly triage sweep sends it back to intake triage. A `Refs:` PR merging or closing
+  unmerged also lifts a `needs-human` refs-hold already on the issue for it; report-outcome does not
+  set that hold, so only an existing one is lifted.
+
+The queued cap paces the sweep's new `agent-ready` labels and never its restarts, re-fires or
+relabels ([WIP cap](#wip-cap)).
 
 ### Outage posture
 
@@ -1446,7 +1510,7 @@ the rules that only tighten in
   whose fix issue was closed reopens that issue with a comment naming the new range, keeping
   `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
   agents (a first failure still waits for the owner's ratification). That reopen starts no run, so
-  work-unblock's hourly sweep removes and re-adds `agent-ready` with the lanes App token, once per
+  work-unblock's sweep removes and re-adds `agent-ready` with the lanes App token, once per
   recurrence comment, unless the issue is held or has an open lane PR or a lane run in flight; one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
@@ -3928,7 +3992,7 @@ and `attended` labels, and a retry adds them to a part it reuses.
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`size-split.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+for what the parent blocks. It checks the rule when a sub-issue closes, and on each sweep for
 up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
 number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
 still closes. A sub-issue closed as not planned, as a duplicate or with no reason
@@ -4053,7 +4117,7 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch `refine` run sends for its PR's event; 0 to 20. Each event offers one PR, so 0 turns CI fix-docs off and any other value turns it on. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the header's limit: `plan` by what the window has used; `read-floor`, `writer-pause`, `breaker` and `stop-floor` by the header's remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `classify`) reads `read-floor`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 11, the p90 of 418 hosted review runs of 2 minutes or more, 10.4 minutes, read 2026-11-21): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the header's limit: `plan` by what the window has used; `read-floor`, `writer-pause`, `breaker` and `stop-floor` by the header's remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `classify`) reads `read-floor`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 8, under the 10.4-minute p90 of 418 hosted review runs of 2 minutes or more read 2026-11-21, by a replay of the busiest windows of 2026-11-22 to 2026-11-24 that left none newly at or under `stop-floor`): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
 | `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's header limit, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
@@ -4160,7 +4224,7 @@ after the read. A page that fails or is not a list leaves the queued count unrea
 one more issue as queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
-ready issue `admission-deferred` instead, and each hourly sweep revisits the open
+ready issue `admission-deferred` instead, and each sweep revisits the open
 `admission-deferred` issues oldest first, before the issues closed in its window. Only an issue
 whose newest `admission-deferred` was added by the lanes App or a listed human (by id) is
 revisited; any other is left as is with a warning annotation, since re-admitting it adds the App's
@@ -4199,7 +4263,7 @@ finds them.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,
-or a close run beside the hourly sweep, cannot each admit the full room. The next sweep does a
+or a close run beside a scheduled sweep, cannot each admit the full room. The next sweep does a
 replaced run's work: it reads the whole state, and its closed-issue window repeats a close run's. An `agent-ready` label added moments before may still be missing from
 the issues listing, so a run right after another may read the room as one admission too wide.
 

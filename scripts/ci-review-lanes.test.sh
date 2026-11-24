@@ -353,7 +353,7 @@ expect() {
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" BASE_SHA="${BASE_SHA-fedcba9876543210fedcba9876543210fedcba98}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
-    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -792,11 +792,9 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
   AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
-# A person on the base commit's trusted-actor list approving the head in their
-# newest review clears an exempt author's trust-gate hold.
-mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors"
-printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' \
-  >"$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json"
+mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/standards/components/trusted-actors"
+printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' |
+  tee "$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
 # review <user id> <state> [commit]
 review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" \
   '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha}'; }
@@ -826,7 +824,8 @@ STUB_REVIEWS_FAIL=
 STUB_REVIEWS='{"message":"not a list"}'
 AUTHOR_ID=49699333 expect "a review answer that is not a list keeps the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
-BASE_CONFIG="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_STANDARDS="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_STANDARDS='' AUTHOR_ID=49699333 expect "with no standards checkout the hold config's copy is never read, and the hold stays" 1 "A person merges it; $CLEAR" "approved $HEAD"
 STUB_REVIEWS='[]'
 AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; $CLEAR"
 # Owner decision Q-ANTHROPIC-DEPS: a Dependabot PR whose every change block

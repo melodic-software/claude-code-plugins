@@ -39,9 +39,6 @@ trap cleanup EXIT
 
 CTX_REL=".claude/context-usage/context"
 
-# write_snapshot <home> <sid> <used_percentage-json> [<captured_at>] [<current_usage-json>]
-# used_percentage-json / current_usage-json are raw JSON fragments (numbers,
-# null) so tests can express null and absurd values directly.
 write_snapshot() {
   local home="$1" sid="$2" used="$3" ts="${4:-}" cu="${5:-{\"input_tokens\":100\}}"
   [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -50,19 +47,17 @@ write_snapshot() {
     "$ts" "$sid" "$used" "$cu" >"$home/$CTX_REL/$sid.json"
 }
 
-old_ts() { # ISO timestamp N minutes in the past
+old_ts() {
   # portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
   date -u -d "$1 minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
     date -u -v "-$1M" '+%Y-%m-%dT%H:%M:%SZ'
 }
 
-# resolve <home> <sid> → stdout word (stderr passed through to the test's own)
 resolve() {
   local home="$1" sid="$2"
   HOME="$home" bash "$ZONE" "$sid"
 }
 
-# expect <label> <want-word> <home> <sid>
 expect() {
   local label="$1" want="$2" home="$3" sid="$4"
   local got rc
@@ -75,7 +70,6 @@ expect() {
   fi
 }
 
-# --- Shipped default band edges ----------------------------------------------
 H="$WORK/h-bands"
 write_snapshot "$H" s0 0 && expect "used=0" light "$H" s0
 write_snapshot "$H" s50 50 && expect "used=50 (light upper edge, inclusive)" light "$H" s50
@@ -84,7 +78,6 @@ write_snapshot "$H" s75 75 && expect "used=75 (moderate upper edge, inclusive)" 
 write_snapshot "$H" s75x 75.1 && expect "used=75.1" heavy "$H" s75x
 write_snapshot "$H" s100 100 && expect "used=100" heavy "$H" s100
 
-# --- Fail-open: absurd / null / missing used_percentage ----------------------
 write_snapshot "$H" sneg -1 && expect "used=-1 (absurd)" unknown "$H" sneg
 write_snapshot "$H" sbig 101 && expect "used=101 (absurd)" unknown "$H" sbig
 write_snapshot "$H" snull null && expect "used=null (early-session)" unknown "$H" snull
@@ -94,13 +87,11 @@ printf '{"captured_at":"%s","session_id":"snoused","context_window":{"remaining_
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$H/$CTX_REL/snoused.json"
 expect "used_percentage missing" unknown "$H" snoused
 
-# --- Fail-open: null / missing current_usage (post-/compact state) -----------
 write_snapshot "$H" scu 40 "" null && expect "current_usage=null (post-compact)" unknown "$H" scu
 printf '{"captured_at":"%s","session_id":"snocu","context_window":{"used_percentage":40}}\n' \
   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$H/$CTX_REL/snocu.json"
 expect "current_usage missing" unknown "$H" snocu
 
-# --- Fail-open: absent / stale / unparsable snapshot -------------------------
 expect "snapshot absent" unknown "$H" nosuchsession
 write_snapshot "$H" sold 40 "$(old_ts 20)" && expect "snapshot stale (20 min > 10-min window)" unknown "$H" sold
 write_snapshot "$H" sfresh 40 "$(old_ts 5)" && expect "snapshot 5 min old (inside window)" light "$H" sfresh
@@ -109,7 +100,6 @@ expect "snapshot unparsable" unknown "$H" storn
 printf '{"session_id":"snots","context_window":{"used_percentage":40,"current_usage":{"input_tokens":1}}}\n' >"$H/$CTX_REL/snots.json"
 expect "captured_at missing (staleness unverifiable)" unknown "$H" snots
 
-# --- Hostile session id → unknown, no path traversal -------------------------
 expect "hostile session id (../zones)" unknown "$H" "../zones"
 expect "empty session id" unknown "$H" ""
 
@@ -119,14 +109,12 @@ for TS in now yesterday "1 second ago"; do
   expect "captured_at '$TS' (non-ISO) rejected" unknown "$H" sforged
 done
 
-# --- Snapshot session_id must match the requested id -------------------------
 write_snapshot "$H" simposter 40
 sed 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" \
   >"$H/$CTX_REL/simposter.json.tmp" &&
   mv "$H/$CTX_REL/simposter.json.tmp" "$H/$CTX_REL/simposter.json"
 expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simposter
 
-# --- zones.json override -----------------------------------------------------
 HO="$WORK/h-override"
 mkdir -p "$HO/.claude/context-usage"
 printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HO/.claude/context-usage/zones.json"
@@ -134,14 +122,12 @@ write_snapshot "$HO" o40 40 && expect "override 30/60: used=40" moderate "$HO" o
 write_snapshot "$HO" o25 25 && expect "override 30/60: used=25" light "$HO" o25
 write_snapshot "$HO" o61 61 && expect "override 30/60: used=61" heavy "$HO" o61
 
-# --- zones.json preserves unrecognized keys' file (read-only resolver) -------
 if [[ "$(<"$HO/.claude/context-usage/zones.json")" == '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}' ]]; then
   ok "resolver never rewrites zones.json"
 else
   fail "resolver mutated zones.json"
 fi
 
-# --- Malformed zones.json → shipped defaults + visible stderr notice ---------
 HM="$WORK/h-malformed"
 mkdir -p "$HM/.claude/context-usage"
 printf 'not json' >"$HM/.claude/context-usage/zones.json"
@@ -150,21 +136,15 @@ GOT="$(resolve "$HM" m40 2>"$WORK/m-stderr")"
 if [[ "$GOT" == "light" ]]; then ok "malformed zones.json → shipped defaults applied"; else fail "malformed zones.json: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m-stderr"; then ok "malformed zones.json → visible stderr notice"; else fail "malformed zones.json: silent fallback"; fi
 
-# Ordering violation (light_max >= moderate_max) is malformed too
 printf '{"light_max_used_percentage":80,"moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
 GOT="$(resolve "$HM" m40 2>"$WORK/m2-stderr")"
 if [[ "$GOT" == "light" ]]; then ok "inverted bands → shipped defaults applied"; else fail "inverted bands: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m2-stderr"; then ok "inverted bands → visible stderr notice"; else fail "inverted bands: silent fallback"; fi
 
-# Wrong types are malformed
 printf '{"light_max_used_percentage":"low","moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
 GOT="$(resolve "$HM" m40 2>/dev/null)"
 if [[ "$GOT" == "light" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
 
-# --- Token shape: version gate, window-class bands, combination, plausibility -
-# write_snapshot_tok <home> <sid> <used-json> <ti-json> <to-json> <cws-json> [<captured_at>] [<cli_version-json>]
-# cli_version defaults to a version at or above the current-occupancy floor;
-# pass the literal `omit` to write a snapshot with no cli_version at all.
 write_snapshot_tok() {
   local home="$1" sid="$2" used="$3" ti="$4" to="$5" cws="$6" ts="${7:-}" ver="${8:-\"2.1.218\"}"
   [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -176,22 +156,17 @@ write_snapshot_tok() {
 }
 
 HT="$WORK/h-token"
-# Token shape stands alone when used_percentage is null but tokens are valid.
 write_snapshot_tok "$HT" t1 null 110000 10000 1000000 && expect "tokens alone: occ=120k on 1M" light "$HT" t1
 write_snapshot_tok "$HT" t2 null 180000 20000 1000000 && expect "tokens alone: occ=200k on 1M" moderate "$HT" t2
 write_snapshot_tok "$HT" t26 null 260000 0 1000000 && expect "tokens alone: occ=260000 (26%, #6644) on 1M" moderate "$HT" t26
 write_snapshot_tok "$HT" t3 null 490000 10001 1000000 && expect "tokens alone: occ=500001 on 1M" heavy "$HT" t3
-# Shipped 200k-class edges, uppers inclusive.
 write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (light edge)" light "$HT" t4
 write_snapshot_tok "$HT" t5 null 140000 10000 200000 && expect "200k class: occ=150000 (moderate edge)" moderate "$HT" t5
 write_snapshot_tok "$HT" t6 null 140001 10000 200000 && expect "200k class: occ=150001" heavy "$HT" t6
-# Combination rule: the worse of the two computable shapes wins.
 write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct light + tokens heavy → heavy" heavy "$HT" c1
 write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct heavy + tokens light → heavy" heavy "$HT" c2
 write_snapshot_tok "$HT" c3 40 40000 10000 200000 && expect "pct light + tokens light → light" light "$HT" c3
 write_snapshot_tok "$HT" c4 60 40000 10000 200000 && expect "pct moderate + tokens light → moderate" moderate "$HT" c4
-# Plausibility guard: occupancy above the window size is impossible as current
-# occupancy (corrupt or forged data); the percentage shape stands alone.
 write_snapshot_tok "$HT" p1 40 450000 50000 200000 && expect "implausible occ=500k>200k: pct stands alone" light "$HT" p1
 write_snapshot_tok "$HT" p2 null 450000 50000 200000 && expect "implausible occ + null pct → unknown" unknown "$HT" p2
 
@@ -219,11 +194,9 @@ write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
   expect "non-numeric version string: token shape dropped" unknown "$HT" g8
 write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&
   expect "cli_version not a string: token shape dropped" unknown "$HT" g9
-# Window smaller than every configured class: token shape not computable.
 write_snapshot_tok "$HT" w1 null 40000 10000 100000 && expect "window below all classes + null pct → unknown" unknown "$HT" w1
 write_snapshot_tok "$HT" w2 40 40000 10000 100000 && expect "window below all classes: pct stands alone" light "$HT" w2
 
-# token_bands override honored.
 HTB="$WORK/h-tokenbands"
 mkdir -p "$HTB/.claude/context-usage"
 printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":50000,"moderate_max_tokens":80000}}}\n' \
@@ -231,8 +204,6 @@ printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token
 write_snapshot_tok "$HTB" b1 null 60000 10000 200000 && expect "override token bands 50k/80k: occ=70k" moderate "$HTB" b1
 write_snapshot_tok "$HTB" b2 null 40000 5000 200000 && expect "override token bands 50k/80k: occ=45k" light "$HTB" b2
 
-# Malformed token_bands → shipped token defaults + visible stderr notice;
-# valid percentage keys in the same file still apply.
 HTM="$WORK/h-tokenmal"
 mkdir -p "$HTM/.claude/context-usage"
 printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":300000,"moderate_max_tokens":400000}}}\n' \
@@ -242,8 +213,6 @@ GOT="$(resolve "$HTM" tm1 2>"$WORK/tb-stderr")"
 if [[ "$GOT" == "heavy" ]]; then ok "malformed token_bands (moderate>class) → shipped token defaults"; else fail "malformed token_bands: got '$GOT'"; fi
 if grep -qi 'token_bands' "$WORK/tb-stderr"; then ok "malformed token_bands → visible stderr notice"; else fail "malformed token_bands: silent fallback"; fi
 
-# v1 percentage-only zones.json: token_bands absent is zero-config (shipped
-# token defaults apply, silently).
 HTV="$WORK/h-tokenv1"
 mkdir -p "$HTV/.claude/context-usage"
 printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HTV/.claude/context-usage/zones.json"
@@ -252,8 +221,6 @@ GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
 if [[ "$GOT" == "heavy" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
 if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
 
-# A zones.json with no edge keys that holds only known keys is a valid file
-# whose absent keys mean the defaults: right zone, no stderr.
 HQ="$WORK/h-quiet"
 mkdir -p "$HQ/.claude/context-usage"
 write_snapshot "$HQ" q60 60
@@ -268,9 +235,6 @@ for QCASE in \
   if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
 done
 
-# Still malformed: not an object, an unknown key with no edge keys (text is
-# read only inside actions.<zone>, so a top-level one is unknown), one edge
-# key alone, and a known key beside a wrongly typed edge.
 for QCASE in \
   '[]' \
   '{"bogus":1}' \
@@ -283,7 +247,6 @@ for QCASE in \
   if grep -q 'zones.json malformed' "$WORK/q-stderr"; then ok "malformed $QCASE → notice"; else fail "malformed $QCASE: silent fallback"; fi
 done
 
-# --- Exactly one word on stdout, always --------------------------------------
 for sid in s0 s75x snull nosuchsession storn; do
   OUT="$(resolve "$H" "$sid" 2>/dev/null)"
   WORDS=$(printf '%s' "$OUT" | wc -w | tr -d ' \r')
@@ -299,7 +262,6 @@ for sid in s0 s75x snull nosuchsession storn; do
   esac
 done
 
-# --- jq absent → unknown (fail-open, no crash) -------------------------------
 FAKEBIN="$WORK/fakebin"
 mkdir -p "$FAKEBIN"
 for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env; do
@@ -352,7 +314,6 @@ if [[ "$T_GONE" == "0" ]]; then
 else
   fail "trace: $T_GONE date/awk process(es) returned: $T_DETAIL"
 fi
-# With an override present the file is read in ONE pass, not one per shape.
 printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' \
   >"$TRACE_H/.claude/context-usage/zones.json"
 TRACE_LOG2="$WORK/zone-xtrace-zones.log"
@@ -411,15 +372,6 @@ else
   fail "fallback: stale snapshot want unknown without %()T, got '$FB_OLD'"
 fi
 
-# --- Shared fixture: every case of context-zone.fixtures.mjs through this copy -
-# The same cases run through the mod's TypeScript resolver in its plugin tests,
-# so the two resolvers give the same word and the same notices. node lays out
-# each case's home (snapshot and zones.json, captured_at relative to FX_NOW)
-# and prints one record per case; the resolver then runs on each with its clock
-# pinned to FX_NOW too. A live clock let the seconds spent resolving earlier
-# cases carry the @now+62 and @now-598 cases across their 60 s and 600 s edges.
-# FX_NOW is long past, so a pin that stopped reaching the resolver fails every
-# fresh case instead of passing on the wall clock.
 FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
 FX="$WORK/fixture"
 FX_NOW=1791050400 # 2026-10-03T18:00:00Z, the NOW of hooks/zone.test.ts
@@ -495,8 +447,6 @@ else
   fi
 fi
 
-# Migration: a session still running the plugin under its earlier name writes the directory
-# below. Remove these cases with the resolver's fallback line.
 EARLIER_REL=".claude/context-guard/context"
 HE="$WORK/h-earlier"
 mkdir -p "$HE/$EARLIER_REL"

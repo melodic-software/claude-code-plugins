@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for reassess-limits.sh, black-box with a stubbed `gh` on PATH
 # and a real git repository for the worktree claims.
-# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
+# test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 
 set -uo pipefail
 
@@ -19,8 +19,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 F="$TEST_TMPDIR/forge"
 mkdir -p "$STUB_DIR" "$F"
-# Each read answers from a raw API-shaped file under $F, through any --jq the
-# script passed, so the script's own filters run; a missing file fails the read.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 file=""
@@ -55,7 +53,6 @@ STATE="$TEST_TMPDIR/state"
 mkdir -p "$STATE/active-workers"
 LEASE="$STATE/active-workers/acme__app__pr-7.json"
 
-# pr [state] [body] [labels-json] [cross]
 pr() {
   jq -n --arg s "${1:-OPEN}" --arg b "${2:-}" --argjson l "${3:-[]}" --argjson c "${4:-false}" \
     '{state: $s, body: $b, labels: $l, isCrossRepository: $c, headRefName: "feat/x", headRefOid: "abc",
@@ -264,7 +261,6 @@ out=$(run)
 assert_contains "an unparsable lease reads as unread" "$out" "unread: the babysit worker lease"
 
 if command -v python3 >/dev/null 2>&1; then
-  # The patterns and the lease path are babysit-prs'; these fail when either moves.
   gate() {
     python3 -I -c 'import sys
 sys.path.insert(0, sys.argv[1])

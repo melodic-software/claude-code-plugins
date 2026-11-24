@@ -1,6 +1,4 @@
 async page => {
-  // A manifest outside controls.schema.json (a target that is no CSS variable or data-control
-  // attribute) is refused whole: the Controls tab says why and keeps only the page's data controls.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + JSON.stringify(detail) + "]" : ""));
   try {
     await page.goto("http://127.0.0.1:__PORT__/");

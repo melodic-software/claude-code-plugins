@@ -32,7 +32,7 @@ INK = (17, 20, 28)
 RIPPLE = 0.3
 
 
-def ease_cubic(u):   # the curve record.mjs moves the real mouse with
+def ease_cubic(u):
     u = min(max(u, 0.0), 1.0)
     return 4 * u ** 3 if u < 0.5 else 1 - (-2 * u + 2) ** 3 / 2
 
@@ -109,7 +109,7 @@ class Renderer:
 
     def capture_index(self, st):
         i = max(0, bisect.bisect_right(self.ftimes, st) - 1)
-        for a0, a1 in self.forbidden:   # a capture from a navigation or loading window: the first after it
+        for a0, a1 in self.forbidden:
             if a0 < self.ftimes[i] < a1:
                 i = min(bisect.bisect_left(self.ftimes, a1), len(self.frames) - 1)
         return i
@@ -168,7 +168,7 @@ class Renderer:
         alpha = int(230 * (1 - u) ** 0.8)
         S = 3
         w, h = int(ox1 - ox0) + 2, int(oy1 - oy0) + 2
-        ox0, oy0 = int(ox0), int(oy0)   # the paste offset, so the ring lands at its exact position
+        ox0, oy0 = int(ox0), int(oy0)
         layer = Image.new('RGBA', (w * S, h * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
         rad = (min(box[3], box[2]) / 2 + min(g.gaps)) * S
@@ -246,7 +246,7 @@ class Renderer:
                     if oc is None or not (0 <= t_out - oc <= RIPPLE):
                         continue
                     if used and self.digests[self.capture_index(c['t'])] != self.digests[self.capture_index(st)]:
-                        continue   # the ripple belongs to the clicked page state
+                        continue
                     b = c['box']
                     drawn = self.ripple(img, ((b[0] - rect[0]) * z, (b[1] - rect[1]) * z, b[2] * z, b[3] * z), t_out - oc, z)
                     if drawn:

@@ -22,9 +22,6 @@ if [[ "${1:-}" == --end-of-turn ]]; then
   source "$HOOK_DIR/hook-utils.sh"
   hook::git_untrusted_env || exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/lint.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # A missing linter is a host problem: the SessionStart probe reports it, and
-  # blocking every turn end on it would not help the model. Only those lines
-  # are dropped; any finding printed beside them is still handed back.
   report=""
   while IFS= read -r line; do
     case "$line" in

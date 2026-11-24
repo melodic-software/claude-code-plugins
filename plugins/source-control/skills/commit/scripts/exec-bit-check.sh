@@ -151,8 +151,6 @@ if [[ -n "$repo_top" ]]; then
   cd -- "$repo_top" 2>/dev/null || die 3 "cannot enter repository root '$repo_top'"
 fi
 
-# --fix mutates index entries, and the whole staged set can hold another
-# session's work, so it refuses an unscoped run; --all is the explicit opt-in.
 if [[ "$mode" == "fix" ]] && [[ "$all" -eq 0 ]] && [[ "${#paths[@]}" -eq 0 ]]; then
   echo "$PROG: --fix needs an explicit scope: pass '-- <path>...' for this commit's paths," >&2
   echo "       or --all to deliberately sweep the whole staged set." >&2

@@ -176,7 +176,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate, retryServerErrors } from "../lib/github-client.mjs";
-import { loadTrustedList, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
+import { loadTrustedList, trustedListPath } from "../lib/trusted-actors.mjs";
 import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom, isVerifierRoot } from "../pr-unblock/address-feedback.mjs";
 import {
@@ -1708,9 +1708,9 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber, truste
   return failed;
 }
 
-function trustedIds(path) {
+function trustedIds(env) {
   try {
-    return new Set(loadTrustedList(path).humans);
+    return new Set(loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH)).humans);
   } catch (error) {
     console.log(`clear-escalations: no stop clears on a trusted move: ${escapeCommand(error?.message ?? error)}`);
     return null;
@@ -1743,7 +1743,7 @@ export async function main({ env = process.env, github, checks, verify, reader, 
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
     reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? client(env.BABYSIT_VERIFY_GH_TOKEN)) : null;
-    const trusted = trustedIds(trustedListPath(env, env.TRUSTED_ACTORS_PATH || trustedActorsPath()));
+    const trusted = trustedIds(env);
     // MAIN_TIP_SHA is the step's git ls-remote of refs/heads/main.
     const tip = SHA.test(env.MAIN_TIP_SHA ?? "") ? null : await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip === null ? env.MAIN_TIP_SHA : tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
