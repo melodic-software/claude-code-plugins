@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for resolve-version-bump-conflict.sh against throwaway git
-# fixtures: one plugin at 1.2.0, a `pr` branch and `main` that each bump it and
-# add a changelog entry, then a merge (or rebase) that stops on the conflict.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +17,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 P=plugins/demo
 
-# write_plugin <repo> <version> <description> <changelog-body>
 write_plugin() {
   mkdir -p "$1/$P/.claude-plugin"
   printf '{\n  "name": "demo",\n  "version": "%s",\n  "description": "%s"\n}\n' "$2" "$3" >"$1/$P/.claude-plugin/plugin.json"
@@ -34,9 +30,6 @@ entry 1.2.0 1 'Base release.' && BASE=$E
 entry 1.1.0 0 'Older release.' && BASE+=$E && OLDER=$E
 entry 1.2.0 1 'Rewritten.' && REWRITTEN=$E$OLDER
 
-# mkfixture <pr-version> <pr-description> <pr-old-entries> <main-version>
-# Echoes the repo path. <pr-old-entries> replaces the base entries on the PR
-# side (empty keeps them).
 mkfixture() {
   local r
   r="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
@@ -65,9 +58,6 @@ run() { (cd "$1" && "$RESOLVER") 2>&1; }
 headings() { grep '^## ' "$1/$P/CHANGELOG.md" | tr '\n' '|'; }
 ORDER='## [1.2.2] - 2026-09-25|## [1.2.1] - 2026-09-24|## [1.2.0] - 2026-09-21|## [1.1.0] - 2026-09-20|'
 
-# 1. Same-number collision: both sides patch-bump to 1.2.1. plugin.json merges
-#    cleanly, only CHANGELOG conflicts; the manifest must still move to 1.2.2
-#    and be staged.
 r=$(mkfixture 1.2.1 desc '' 1.2.1)
 git -C "$r" merge -q main >/dev/null 2>&1
 out=$(run "$r")
@@ -81,9 +71,6 @@ assert_not_contains "no markers" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
 GIT_EDITOR=true git -C "$r" merge --continue >/dev/null 2>&1
 assert_exit "merge concludes" 0 "$?"
 
-# 2. PR minor-bumps (1.3.0), main patch-bumps (1.2.1): main's version plus one
-#    minor, 1.3.0, skipping nothing. The PR's unrelated description edit
-#    survives the merge.
 r=$(mkfixture 1.3.0 'new desc' '' 1.2.1)
 git -C "$r" merge -q main >/dev/null 2>&1
 out=$(run "$r")
@@ -92,21 +79,18 @@ assert_eq "main's version plus the PR's level" 1.3.0 "$(jq -r .version "$r/$P/.c
 assert_eq "PR's other manifest edit kept" "new desc" "$(jq -r .description "$r/$P/.claude-plugin/plugin.json")"
 assert_eq "no unmerged paths left" "" "$(git -C "$r" diff --name-only --diff-filter=U)"
 
-# 3. Rebase orientation: the PR commit replayed onto main (sides inverted).
 r=$(mkfixture 1.2.1 desc '' 1.2.1)
 git -C "$r" rebase -q main >/dev/null 2>&1
 out=$(run "$r")
 assert_exit "rebase exits 0" 0 "$?"
 assert_eq "rebase: PR entry on top at 1.2.2" "$ORDER" "$(headings "$r")"
 
-# 4. The PR also rewrote an old entry main left alone: merged in.
 r=$(mkfixture 1.2.1 desc "$REWRITTEN" 1.2.1)
 git -C "$r" merge -q main >/dev/null 2>&1
 out=$(run "$r")
 assert_exit "PR-only old-entry edit still resolves" 0 "$?"
 assert_contains "PR's old-entry rewrite kept" "$(cat "$r/$P/CHANGELOG.md")" "Rewritten."
 
-# 5. Main rewrote that same entry differently: left for manual resolution.
 r=$(mkfixture 1.2.1 desc "$REWRITTEN" 1.2.1)
 entry 1.2.1 4 'Main change.' && m=$E
 entry 1.2.0 1 'Main rewrote this.' && m+=$E$OLDER
@@ -122,7 +106,6 @@ assert_exit "both sides rewrote an old entry: exit 1" 1 "$?"
 assert_contains "names the plugin" "$out" "left for manual resolution: $P"
 assert_contains "markers untouched" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
 
-# 6. The PR merged INTO the default branch: sides unknown, left untouched.
 r=$(mkfixture 1.3.0 desc '' 1.2.1)
 { git -C "$r" checkout -q main && git -C "$r" merge -q pr; } >/dev/null 2>&1
 out=$(run "$r")
@@ -130,7 +113,6 @@ assert_exit "merge onto the default branch: exit 1" 1 "$?"
 assert_contains "names the plugin" "$out" "left for manual resolution: $P"
 assert_contains "markers untouched" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
 
-# 7. A conflicted revert is not a supported operation: exit 1, not 0.
 r=$(mkfixture 1.2.1 desc '' 1.2.1)
 entry 1.2.2 6 'Later change.'
 {
@@ -146,9 +128,6 @@ else
   assert_eq "revert fixture conflicts" conflicted clean
 fi
 
-# 8. Main lists the plugin in scripts/fragment-plugins.txt: fragment mode, so
-#    no new version is computed and the pair is left for the fragment move. A
-#    list that names another plugin changes nothing.
 for listed in demo other; do
   r=$(mkfixture 1.2.1 desc '' 1.2.1)
   {
@@ -171,8 +150,6 @@ for listed in demo other; do
   fi
 done
 
-# 9. A symlink at either path: refused, and nothing written through the link.
-#    The target exists, is missing, or is a directory.
 for file in CHANGELOG.md .claude-plugin/plugin.json; do
   r=$(mkfixture 1.2.1 desc '' 1.2.1)
   git -C "$r" merge -q main >/dev/null 2>&1

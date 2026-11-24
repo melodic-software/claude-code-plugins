@@ -7,7 +7,6 @@ floor, and the single subprocess core every script funnels through. Splitting
 these tiny concerns into separate modules would cost more coupling than it buys
 cohesion.
 """
-
 from __future__ import annotations
 
 import math
@@ -22,14 +21,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, TypeGuard, overload
 
-# Minimum accepted hex-prefix length for --expected-head-sha pins. Lives here --
-# not in the state module -- so the guarded mutation CLIs can validate pins
-# without importing any snapshot/state machinery.
 MIN_HEAD_SHA_PREFIX_LENGTH = 12
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 60.0
 
-# The clock value a read phase must not start a command past, or None outside
-# one (`read_deadline`).
 _clock = time.monotonic
 _read_deadline: float | None = None
 

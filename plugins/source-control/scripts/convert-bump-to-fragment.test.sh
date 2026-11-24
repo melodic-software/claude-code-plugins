@@ -34,22 +34,17 @@ path=".changes/$1/${branch//\//-}-$(printf %08x $((RANDOM * 32768 + RANDOM))).md
 mkdir -p ".changes/$1" && printf -- "---\nbump: %s\n---\n\n" "$2" >"$path" && echo "$path"
 '
 
-# write_plugin <repo> <name> <version> <description> <changelog-body>
 write_plugin() {
   mkdir -p "$1/plugins/$2/.claude-plugin"
   printf '{\n  "name": "%s",\n  "version": "%s",\n  "description": "%s"\n}\n' "$2" "$3" "$4" >"$1/plugins/$2/.claude-plugin/plugin.json"
   printf '# Changelog\n\nIntro.\n\n%s' "$5" >"$1/plugins/$2/CHANGELOG.md"
 }
 
-# entry <version> <day> <body> -- one changelog section into $E.
 entry() { printf -v E '## [%s] - 2026-09-2%s\n\n%s\n\n' "$1" "$2" "$3"; }
 entry 1.2.0 1 '### Added
 
 - Base release.' && BASE=$E
 
-# mkfixture [list] -- a repo on branch `pr` forked from `main`, both plugins at
-# 1.2.0; [list] (default demo) is written to scripts/fragment-plugins.txt, and
-# "none" writes no list. Echoes the repo path.
 mkfixture() {
   local r list=${1:-demo}
   r="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
@@ -72,7 +67,6 @@ mkfixture() {
   printf '%s' "$r"
 }
 
-# bump <repo> <plugin> <version> <description> <entry-body> -- commit on the branch.
 bump() {
   entry "$3" 5 "$5"
   write_plugin "$1" "$2" "$3" "$4" "$E$BASE"
@@ -82,9 +76,6 @@ bump() {
 run() { (cd "$1" && "$2" "${@:3}") 2>&1; }
 fragment() { git -C "$1" diff --cached --name-only -- ".changes/$2/"; }
 
-# 1. A minor bump with an Added entry and an unrelated description edit: the
-#    version and CHANGELOG return to the base, the description edit stays, and
-#    a staged minor fragment carries the entry body.
 r=$(mkfixture)
 bump "$r" demo 1.3.0 'new desc' '### Added
 
@@ -103,12 +94,10 @@ assert_contains "entry body moved" "$(cat "$r/$f")" "### Added
 assert_not_contains "no version heading in the fragment" "$(cat "$r/$f")" "## ["
 assert_eq "manifest staged" 1.2.0 "$(git -C "$r" show ":$P/.claude-plugin/plugin.json" | jq -r .version)"
 
-# 2. Running again finds nothing to convert.
 out=$(run "$r" "$CONVERT" main)
 assert_exit "second run exits 0" 0 "$?"
 assert_eq "no second fragment" 1 "$(git -C "$r" diff --cached --name-only -- .changes/demo/ | wc -l | tr -d ' ')"
 
-# 3. A patch bump whose entry has no ### section goes under Changed.
 r=$(mkfixture)
 bump "$r" demo 1.2.1 desc '- Plain bullet.'
 out=$(run "$r" "$CONVERT" main)
@@ -119,7 +108,6 @@ assert_contains "wrapped under Changed" "$(cat "$r/$f")" "### Changed
 
 - Plain bullet."
 
-# 4. A plugin the list does not name keeps its bump.
 r=$(mkfixture)
 bump "$r" other 1.3.0 desc '- Other change.'
 out=$(run "$r" "$CONVERT" main)
@@ -127,14 +115,12 @@ assert_exit "unlisted plugin: exit 0" 0 "$?"
 assert_eq "unlisted plugin keeps its bump" 1.3.0 "$(jq -r .version "$r/plugins/other/.claude-plugin/plugin.json")"
 assert_eq "no fragment for it" "" "$(fragment "$r" other)"
 
-# 5. A repository with no fragment list: nothing to do.
 r=$(mkfixture none)
 bump "$r" demo 1.3.0 desc '- Change.'
 out=$(run "$r" "$CONVERT" main)
 assert_exit "no list: exit 0" 0 "$?"
 assert_eq "no list: bump kept" 1.3.0 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
 
-# 6. A version moved with no new CHANGELOG heading is left for manual work.
 r=$(mkfixture)
 write_plugin "$r" demo 1.2.1 desc "$BASE"
 git -C "$r" commit -qam 'bump only' >/dev/null 2>&1
@@ -143,7 +129,6 @@ assert_exit "no heading: exit 1" 1 "$?"
 assert_contains "names the plugin" "$out" "left for manual conversion: plugins/demo"
 assert_eq "left untouched" 1.2.1 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
 
-# 7. A major bump whose entry has two ### sections keeps both.
 r=$(mkfixture)
 bump "$r" demo 2.0.0 desc '### Removed
 
@@ -164,9 +149,6 @@ assert_contains "both sections kept" "$(cat "$r/$f")" "### Removed
 
 - A crash."
 
-# 8. A branch that bumped twice: both new entries go into one fragment at the
-#    level of the whole delta, and a plain-bullet second entry gets its own
-#    Changed section instead of joining the first entry's last one.
 r=$(mkfixture)
 entry 1.3.0 6 '- Second change.' && E2=$E
 entry 1.2.1 5 '### Fixed
@@ -188,14 +170,12 @@ assert_contains "both entries, each sectioned" "$(cat "$r/$f")" "### Changed
 - First fix."
 assert_eq "CHANGELOG back to base" "$(git -C "$r" show "main:$P/CHANGELOG.md")" "$(cat "$r/$P/CHANGELOG.md")"
 
-# 9. A version that went down is left for manual work.
 r=$(mkfixture)
 bump "$r" demo 1.1.9 desc '- Odd.'
 out=$(run "$r" "$CONVERT" main)
 assert_exit "downgrade: exit 1" 1 "$?"
 assert_contains "names the downgrade" "$out" "version went from 1.2.0 to 1.1.9"
 
-# 10. A section name the fragment format does not know converts, and is named.
 r=$(mkfixture)
 bump "$r" demo 1.2.1 desc '### Notes
 
@@ -205,8 +185,6 @@ assert_exit "unknown section: exit 1" 1 "$?"
 assert_contains "names the section" "$out" 'unknown section "### Notes"'
 assert_contains "still converted" "$(cat "$r/$(fragment "$r" demo)")" "### Notes"
 
-# 11. Mid-merge of main with no conflict: the merge tip is the base, and the
-#     merge concludes after the conversion.
 r=$(mkfixture)
 bump "$r" demo 1.3.0 desc '### Added
 
@@ -225,7 +203,6 @@ assert_eq "main's change to other kept" 1.2.1 "$(jq -r .version "$r/plugins/othe
 GIT_EDITOR=true git -C "$r" merge --continue >/dev/null 2>&1
 assert_exit "merge concludes" 0 "$?"
 
-# 12. Mid-merge with the version files still conflicted: left for manual work.
 r=$(mkfixture)
 bump "$r" demo 1.3.0 a '- PR change.'
 {
@@ -240,7 +217,6 @@ out=$(run "$r" "$CONVERT")
 assert_exit "conflicted: exit 1" 1 "$?"
 assert_contains "names the conflict" "$out" "still conflicted"
 
-# 13. A rebase stopped on a conflict is refused.
 {
   git -C "$r" merge --abort
   git -C "$r" rebase -q main
@@ -248,9 +224,6 @@ assert_contains "names the conflict" "$out" "still conflicted"
 out=$(run "$r" "$CONVERT" main)
 assert_exit "rebase in progress: exit 2" 2 "$?"
 
-# 14. Against the repository's real fragment scripts: the fragment passes
-#     check-changelog-fragments.sh --check and --check-required, and
-#     check-changelog-parity.sh --check-bump passes for the plugin.
 if [[ -f $REPO_SCRIPTS/check-changelog-fragments.sh && -f $REPO_SCRIPTS/check-changelog-parity.sh ]]; then
   r=$(mkfixture)
   {
@@ -278,8 +251,6 @@ else
   skip_case "real fragment scripts not found at $REPO_SCRIPTS"
 fi
 
-# 15. Mid-merge after both sides bumped: main's 1.2.1 is the base, so the
-#     version lands on it, main's entry stays, and only the PR's entry moves.
 r=$(mkfixture)
 bump "$r" demo 1.3.0 desc '### Added
 
@@ -309,8 +280,6 @@ assert_contains "PR text in the fragment" "$(cat "$r/$f")" "- PR feature."
 assert_not_contains "main's text not in the fragment" "$(cat "$r/$f")" "Main fix."
 assert_contains "level against main's version" "$(cat "$r/$f")" "bump: minor"
 
-# 16. A CHANGELOG heading added with no version change fails the parity gate,
-#     so it is named, not passed.
 r=$(mkfixture)
 entry 1.2.1 5 '- Heading only.'
 write_plugin "$r" demo 1.2.0 desc "$E$BASE"
@@ -319,8 +288,6 @@ out=$(run "$r" "$CONVERT" main)
 assert_exit "heading without bump: exit 1" 1 "$?"
 assert_contains "names it" "$out" "CHANGELOG.md gained a version heading but plugin.json stayed at 1.2.0"
 
-# 17. A code fence holding # and ## lines: the ## line does not cut the entry
-#     short, and the fragment the validator rejects is named.
 r=$(mkfixture)
 bump "$r" demo 1.2.1 desc '### Changed
 
@@ -339,8 +306,6 @@ f=$(fragment "$r" demo)
 assert_contains "entry not cut at the fence" "$(cat "$r/$f")" "- After the fence."
 assert_eq "CHANGELOG back to base" "$(git -C "$r" show "main:$P/CHANGELOG.md")" "$(cat "$r/$P/CHANGELOG.md")"
 
-# 18. Staging fails (the index is locked): the bump and its entry are put back
-#     and no fragment is left, so a re-run converts it.
 r=$(mkfixture)
 bump "$r" demo 1.3.0 desc '- Locked change.'
 : >"$(git -C "$r" rev-parse --absolute-git-dir)/index.lock"

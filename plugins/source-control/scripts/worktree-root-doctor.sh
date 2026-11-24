@@ -91,9 +91,6 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   -h | --help)
-    # The whole header (everything after the shebang up to the first
-    # non-comment line), markers stripped. Derived rather than a hardcoded
-    # line range: such a range silently truncates as the header grows.
     awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
       "${BASH_SOURCE[0]}"
     exit 0
@@ -118,7 +115,6 @@ err() {
   FINDINGS=$((FINDINGS + 1))
 }
 
-# expand_tilde <path> — a leading ~/ against $HOME, best-effort.
 expand_tilde() {
   local p="$1"
   # SC2088: matching the literal unexpanded tilde is the point — config values
@@ -259,10 +255,6 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   esac
 done
 
-# --- Resolution: which rule supplied the worktree root ------------------------
-# Shared resolver picks worktreeroot.path (and rewrites a retired alias when
-# one is still present). Origin attribution then loops that key so empty-last
-# fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
 root_expanded=""
@@ -311,9 +303,6 @@ else
     if ((losing_include && !win_from_include)); then
       warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
     elif ((win_from_include)); then
-      # The recommended layout: a plain machine default parsed first, the
-      # include's more-specific answer after it. Say so — the absence of a
-      # confirmation is indistinguishable from an unchecked class.
       note "several values are set ($nvals); last parsed wins, and the winner comes from an include — the layering is working"
     fi
   fi
@@ -325,20 +314,12 @@ else
     note "a scoped read ('git config --global --get $winning_key', includes OFF by default when a scope flag is given) returns '${scoped_val:-<nothing>}' here, not '$win_val' — consumers must never pass a scope flag without --includes"
   fi
 
-  # The root must satisfy the invariant the key exists for.
   root_expanded="$(expand_tilde "$win_val")"
   if [[ -e "$root_expanded" ]] && git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
     warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
 
-# --- Worktrees nested in another repository ------------------------------------
-# For each registered worktree, walk up from its path. An ancestor that is the
-# work tree of a repository with a different git common dir means the worktree
-# sits inside another repository's tree (a worktree of B created under A's
-# .work/). The walk stops at the first ancestor that is missing or unreadable.
-
-# common_of <dir> — canonical absolute git common dir of the repository at <dir>.
 common_of() {
   local c
   c=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null | tr -d '\r') || return 1
@@ -370,8 +351,6 @@ if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain 
     while [[ -d "$ancestor" && -r "$ancestor" && -x "$ancestor" ]]; do
       if [[ -e "$ancestor/.git" ]]; then
         ancestor_common="$(common_of "$ancestor")" || ancestor_common=""
-        # Reaching the worktree's own repository means it sits in its own tree;
-        # anything above that is the main checkout's placement, not the worktree's.
         [[ "$ancestor_common" == "$own_common" ]] && break
         if [[ -n "$ancestor_common" ]]; then
           err "worktree $wt_path of repository $owner_main sits inside the work tree of a different repository ($ancestor). Remove it: git -C $owner_main worktree remove $wt_path"
@@ -403,7 +382,6 @@ for idx in ${inc_resolved[@]+"${!inc_resolved[@]}"}; do
   fi
 done
 
-# --- Standing notes: classes no script can probe from here ---------------------
 note "not machine-checked here: NTFS junction-anchored gitdir patterns match nothing in either direction (anchor at canonical targets), and --show-scope collapses include-supplied values to 'global' (use --show-origin, as this doctor does)"
 
 ((FINDINGS == 0)) || exit 1

@@ -23,7 +23,6 @@ setting, with a note on stderr.
 
     babysit_merge_settings.py show   # print the resolved settings as JSON
 """
-
 from __future__ import annotations
 
 import argparse
@@ -221,7 +220,6 @@ def read_operator_options(
 
 
 def _entries(value: Any) -> list[str]:
-    """A list key's entries: a list as stored, or one value per line."""
     items = value if isinstance(value, list) else str(value).splitlines()
     return [item.strip() for item in items if item.strip()]
 
