@@ -12,6 +12,7 @@ start. A named tunnel (`hostname` and `tokenFile`, the planning plugin's `tunnel
 runs a remotely-managed tunnel the owner set up, so its address is `https://<hostname>` on every
 start. Switching between them, or between two hostnames, keeps the old tunnel running as `retired`
 for RETIRE_SECONDS, so a page still open on the old address can learn the new one (server.py).
+Its 600 s is by judgment, not an outside limit: long enough for open pages to move after a switch.
 
 How a quick tunnel starts and where it prints its address, as of 2026-10-16:
 https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/

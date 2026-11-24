@@ -1,8 +1,9 @@
 (function (root) {
   "use strict";
 
-  // The documented prefixes only; the prompt always goes through encodeURIComponent. A link longer than its
-  // surface takes is not offered (the copy path still works).
+  /** The documented prefixes only; the prompt always goes through encodeURIComponent. A link longer than its
+   *  surface takes is not offered (the copy path still works).
+   *  Upstream link formats: plugins/planning/shared/README.md "Connect your Claude". */
   const SCHEMES = {
     code: { prefix: "claude-cli://open?q=", max: 5000 }, // Claude Code (terminal)
     desktopCode: { prefix: "claude://code/new?q=", max: 14000 }, // Claude Desktop, Code tab
@@ -21,6 +22,7 @@
   };
   const KIND = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
 
+  /** A random marker per request, so quoted session text cannot guess it and close the data block early. */
   function nonce() {
     const b = new Uint8Array(8);
     globalThis.crypto.getRandomValues(b);
