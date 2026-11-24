@@ -40,7 +40,6 @@ LEAD = f"Upstream `{ID}` changed since the pin on its docs/upstream page."
 BODY = f"{LEAD}\n\nRun: 2026-11-09\n\n- `changed` `src/Ignore this.ts` (page line 12)\n"
 PAGE = "docs/upstream/mattpocock-sandcastle.md"
 OTHER_PAGE = "docs/upstream/emilkowalski-skills.md"
-# The pages at main's tip, each with its git pin marker.
 PAGES = {
     PAGE: f"# Sandcastle\n\n**Last audited upstream state:** `{ID}@{'0' * 40}` (2026-11-01)\n",
     OTHER_PAGE: f"# Skills\n\n**Last audited upstream state:** `emilkowalski/skills@{'0' * 40}`\n",
@@ -202,7 +201,6 @@ class FakeGitHub:
 
 
 def linked(author: dict[str, Any], number: int = ISSUE) -> dict[str, Any]:
-    """The issue as a verdict's `linked_issues` records it."""
     return {
         "number": number,
         "author_login": author["login"],

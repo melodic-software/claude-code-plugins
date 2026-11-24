@@ -42,7 +42,6 @@ function dataStrings(html) {
   try {
     walk(JSON.parse(block?.[1] ?? "null"));
   } catch {
-    // validateView already refused a page whose data block does not parse.
   }
   return out;
 }
@@ -60,7 +59,6 @@ const readSidecar = (path) => {
   }
 };
 
-/** Written through a rename, so a stop mid-write never leaves the sidecar half-written. */
 function writeSidecar(path, current, stale) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temp = `${path}.tmp`;
@@ -106,7 +104,6 @@ export function publishHosted({ page, host, repo, pr, dataDir }) {
   if (!ID.test(id ?? "") || !VISIBILITIES.includes(landed) || !/^https:\/\/\S+$/.test(url ?? "")) {
     return failed("pages-publish printed an unexpected result");
   }
-  // The old copy is recorded as stale before its delete runs, so a failed or interrupted delete is retried next time.
   const current = { id, visibility: landed, url };
   const stale = (old?.stale ?? []).filter((e) => e.id !== id);
   if (old && old.id !== id) stale.push(entry(old));

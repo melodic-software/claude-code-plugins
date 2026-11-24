@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [12.10.0] - 2026-11-24
+
+### Changed
+
+- The hosted review callers' defer horizon, `defer-run-minutes-review`, is 8 minutes instead of 11, so a first-attempt review defers only while the GITHUB_TOKEN window is projected to run short within 8 minutes. Replayed over the 48 busiest windows of 2026-11-22 to 2026-11-24, it defers fewer reviews and leaves no window newly at or under `stop-floor`. pr-merge and check-intent keep their horizons.
+
+### Fixed
+
+- The lane readers of the trusted-actor list fail closed when the standards list is unavailable, and never fall back to the synced `.github/standards/trusted-actors` copy, which goes stale once standards stops syncing it. `trustedListPath` reads the standards checkout (`STANDARDS_DIR`), else a path the workflow passes under it, else throws; `read-status`'s `loadTrustedActors` no longer reads the `BASE_PATH` copy; `resolve-config` without a standards checkout loads no trusted-actor list (the vocabulary still falls back); ci-status's `trusted_list` no longer reads the hold config's copy. `check-born-triaged`, `check-trusted-trigger` and `select-trusted-text` drop their `trusted-actors-path` input, whose default was the `.base` copy.
+
 ## [12.9.2] - 2026-11-24
 
 ### Fixed
