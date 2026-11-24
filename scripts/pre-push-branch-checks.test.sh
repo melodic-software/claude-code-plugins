@@ -19,6 +19,8 @@ HOOK="$SELF_DIR/pre-push-branch-checks.sh"
 
 ZERO=0000000000000000000000000000000000000000
 BUDGET_SECONDS=3
+REF_NODE_STARTS=38
+REF_HOST_MS=1723
 REAL_HEAD="$(git -C "$REPO_ROOT" rev-parse HEAD)" || exit 2
 OBJECTS="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)/objects" || exit 2
 f=""
@@ -57,6 +59,7 @@ first_plugin() {
     p="${p%%/*}"
     fragment_mode "$p" && {
       printf '%s\n' "$path"
+      cat >/dev/null
       return 0
     }
   done
@@ -261,9 +264,29 @@ for ((i = 0; i < fragments; i++)); do
   fragment "$p" "$(printf '%08x' "$((i + 4096))")"
 done
 commit "$f" budget
+reference() {
+  git -C "$f" status --porcelain --untracked-files=all >/dev/null
+  git -C "$f" ls-files -z 'plugins/*/.claude-plugin/plugin.json' | (cd "$f" && node -e '
+    const fs = require("fs");
+    let n = 0;
+    for (const p of fs.readFileSync(0, "utf8").split("\0").filter(Boolean)) n += Object.keys(JSON.parse(fs.readFileSync(p, "utf8"))).length;
+    for (const e of fs.readdirSync("plugins", { recursive: true, withFileTypes: true })) if (e.isFile()) n += fs.readFileSync(e.parentPath + "/" + e.name).length;
+    process.stdout.write(String(n));
+  ') >/dev/null
+  local i
+  for ((i = 0; i < REF_NODE_STARTS; i++)); do node -e 0; done
+}
+ref_runs=()
+for _ in 1 2 3; do
+  start=$(date +%s%N)
+  reference
+  ref_runs+=("$((($(date +%s%N) - start) / 1000000))")
+done
+ref_ms="$(printf '%s\n' "${ref_runs[@]}" | sort -n | sed -n 2p)"
 start=$(date +%s%N)
 run_hook
 ms=$((($(date +%s%N) - start) / 1000000))
+limit=$((BUDGET_SECONDS * 1000 * ref_ms / REF_HOST_MS))
 if [[ "$out" != *"left to CI"* ]]; then
   ok "the budget push ran all seven checks"
 else
@@ -272,11 +295,11 @@ fi
 tracer="$(awk '/^TracerPid:/ {print $2}' /proc/$$/status 2>/dev/null)"
 scale="$total plugins (live $live_plugins, x1.25) and $fragments fragments (live $live_fragments)"
 if [[ -n "$tracer" && "$tracer" != 0 ]]; then
-  ok "budget not judged: a tracer (pid $tracer) slows every syscall; ${ms} ms at $scale"
-elif ((ms <= BUDGET_SECONDS * 1000)); then
-  ok "the hook ran in ${ms} ms at $scale, within the ${BUDGET_SECONDS} s pre-push budget"
+  ok "budget not judged: a tracer (pid $tracer) slows every syscall; hook ${ms} ms, reference ${ref_ms} ms at $scale"
+elif ((ms <= limit)); then
+  ok "the hook ran in ${ms} ms at $scale, within ${limit} ms: the ${BUDGET_SECONDS} s budget scaled by this host's reference ${ref_ms} ms over ${REF_HOST_MS} ms"
 else
-  fail "the hook took ${ms} ms at $scale, over the ${BUDGET_SECONDS} s pre-push budget"
+  fail "the hook took ${ms} ms at $scale, over ${limit} ms: the ${BUDGET_SECONDS} s budget scaled by this host's reference ${ref_ms} ms over ${REF_HOST_MS} ms"
 fi
 
 test_harness::report
