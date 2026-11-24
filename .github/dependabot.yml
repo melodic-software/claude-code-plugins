@@ -36,8 +36,9 @@ updates:
     commit-message:
       prefix: build
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
-    # updates bypass cooldown and still surface immediately. claude-code-action is excluded so it
-    # lands as soon as it is released.
+    # updates bypass cooldown and still surface immediately. claude-code-action is excluded from
+    # the cooldown, so its release lands at the next weekly check with no soak:
+    # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-
     cooldown:
       default-days: 3
       exclude:
