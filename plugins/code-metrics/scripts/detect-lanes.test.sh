@@ -4,8 +4,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/detect-lanes.sh"
-# pathglob.py is the matcher behind --globs; naming it here keeps this suite
-# in its affected-tests selection.
 : "$SCRIPT_DIR/pathglob.py"
 
 FAILED=0
@@ -47,9 +45,6 @@ assert_eq "no files is an empty result with exit 0" "0:" "$rc:$out"
 bash "$SCRIPT" --globs nonsense a.py >/dev/null 2>&1
 assert_eq "malformed --globs is a usage error" "2" "$?"
 
-# A glob the matcher cannot compile must stop the run. Declaring globs turns
-# off this lane's extension fallback, so treating the refusal as "matched
-# nothing" would drop the lane's files with no sign anything went wrong.
 out="$(bash "$SCRIPT" --globs 'python=[z-a]' a.py 2>/dev/null)"
 rc=$?
 assert_eq "an uncompilable glob exits 2 rather than measuring nothing" "2:" "$rc:$out"
