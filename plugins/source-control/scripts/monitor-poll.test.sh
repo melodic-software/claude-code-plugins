@@ -365,8 +365,19 @@ FXV=$(verdict_fx fxv-terminal)
 echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
 echo "$H2" >"$FXV/head.4"
 outv="$(run_poll "$FXV")"
-assert_eq "a verdict recorded for the head: its reads stop" "" "$(awk '$1 == 3 && /actions\/artifacts/' "$FXV/calls")"
+assert_eq "a pass recorded for the head: its reads stop" "" "$(awk '$1 == 3 && /actions\/artifacts/' "$FXV/calls")"
 assert_contains "a new head: the verdict reads start again" "$(awk '$1 == 4' "$FXV/calls")" "pr-verify-7-$H2-pass"
+
+FXV=$(verdict_fx fxv-fail-then-pass)
+echo 6 >"$FXV/merged_at"
+echo 2 >"$FXV/art/pr-verify-index-pr-7"
+echo 2 >"$FXV/art/pr-verify-index-sha-$H1"
+echo 4 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_contains "a fail recorded for the head: its reads go on" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "a fail then a pass at one head: the fail is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+assert_eq "a fail then a pass at one head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+assert_eq "a fail then a pass at one head: reads stop after the pass" "" "$(awk '$1 == 5 && /actions\/artifacts/' "$FXV/calls")"
 
 FXV=$(verdict_fx fxv-rearm)
 echo 1 >"$FXV/art/pr-verify-7-$H1-pass"

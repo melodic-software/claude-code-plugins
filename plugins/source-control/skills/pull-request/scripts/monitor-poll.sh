@@ -217,7 +217,7 @@ verdict_read() {
 }
 pv_wanted() {
   [[ "$checks_ok" -eq 1 ]] && ! grep -q ': pending$' <<<"$run_rows" &&
-    ! grep -q " $head_sha\$" <<<"$pv_seen"
+    ! grep -qE "^PR-VERIFY pass(-notes)? $head_sha\$" <<<"$pv_seen"
 }
 pv_print() {
   if [[ "$1" == "PR-VERIFY fail "* ]]; then
