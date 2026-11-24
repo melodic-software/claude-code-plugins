@@ -33,7 +33,8 @@ emission is `/songwriting:co-write`'s, and its input gate travels with the lines
 checked here. *(Plugin-authored, not Pat Pattison's.)*
 
 The `diagnose`, `demo` and `audit` actions report and change nothing: they name problems and
-stop. Only `variations` and `rewrite` produce changed lines.
+stop. Only `variations` and `rewrite` produce changed lines. Reporting only never skips the
+rubric's countable passes: `audit` still runs them as commands.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
