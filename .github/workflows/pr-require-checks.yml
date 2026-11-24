@@ -6895,10 +6895,14 @@ jobs:
           # here and the trust hold's link rule. This step runs on every pull
           # request and in the queue, so a mismatch turns ci-status red.
           if [ ! -d "${BASE_CONFIG:-}" ] ||
-            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml"); then
+            echo "::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+            exit 1
+          fi
+          if ! list=$(trusted_list) ||
             ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
-              | if length == 1 then .[0] else error("not one entry") end' "$(trusted_list)"); then
-            echo "::error::cannot read merge.agent-identity's trusted-actor id from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              | if length == 1 then .[0] else error("not one entry") end' "$list"); then
+            echo "::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
             exit 1
           fi
           if [ "$want" != "$LANES_APP_ID" ]; then
@@ -6958,7 +6962,7 @@ jobs:
                     elif $authors == "lane-or-owner" then $lane or $owner
                     elif $authors == "lane" then $lane
                     else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
-                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors and the trusted-actor list in the hold config; re-run this run."
+                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors in the hold config and the standards checkout's trusted-actor list; re-run this run."
                 exit 1
               fi
             fi

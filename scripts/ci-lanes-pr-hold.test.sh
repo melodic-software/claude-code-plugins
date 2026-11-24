@@ -816,10 +816,12 @@ expect "an approval by a person off the trusted-actor list does not lift it" 1 3
 STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
 expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 3 "lifts its hold path"
 STUB_PULL="$(pull 'Closes #1')"
+NO_IDENTITY="::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+NO_IDENTITY_ID="::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
 export STUB_NO_ACTORS=1
-expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable trusted-actor list fails closed" 1 0 "$NO_IDENTITY_ID"
 unset STUB_NO_ACTORS
-STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "$NO_IDENTITY_ID"
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
 expect "a config with no denied paths holds no path" 0 3 "no hold path"
@@ -840,7 +842,7 @@ STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_CONFIG=1
-expect "an unreadable config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable config fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_NO_CONFIG
 
 # verifier runs: run <id> [path] [event] [branch] [status] [conclusion]
@@ -1217,12 +1219,12 @@ expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request 
 STUB_PULL="$(pull 'Closes #1')"
 unset STUB_APP_ID
 export STUB_BASE_CONFIG=''
-expect "an unreadable base config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "an unreadable base config fails closed" 1 0 "$NO_IDENTITY"
 export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
 mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
 printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
 cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
-expect "a base config with no merge.agent-identity fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "a base config with no merge.agent-identity fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_BASE_CONFIG
 
 test_harness::report
