@@ -5,7 +5,7 @@
     {"answer": "One existing violation to rename first: docs/Release_Notes.md.\n", "why": "violation before the path"}
   ],
   "fail": [
-    {"answer": "Emitted scripts/check-file-names.sh and its suite. The suite passed.\n", "why": "the checker verdict is missing"},
+    {"answer": "Emitted tools/check-file-names.sh and its suite. The suite passed.\n", "why": "the checker verdict is missing"},
     {"answer": "The docs tree has getting-started.md, api-reference.md and Release_Notes.md.\n", "why": "a listing, not a finding"},
     {"answer": "", "why": "empty"}
   ]
