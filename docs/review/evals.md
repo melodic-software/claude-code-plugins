@@ -60,15 +60,17 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   compare run before merge, whose PASS releases the eval hold (Q7).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
-- Three kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
+- Four kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
   cases with deterministic graders only and changes no skill text, because compare mode refuses
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
-  judge (Q45); and one that adds or edits a script or a case scaffold and cuts no existing skill
+  judge (Q45); one that adds or edits a script or a case scaffold and cuts no existing skill
   text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
-  decision, melodic-software/architecture#208). A cut keeps its compare run before merge: split it
-  from the script change. One suite run on the default branch, scoped to the affected cases,
-  follows. For a judged case, the dispatching session posts the record by hand under
-  [Graders](#graders).
+  decision, melodic-software/architecture#208); and a skill rename, since compare mode refuses its
+  manifest and probe edits and a renamed skill has no comparable base arm (owner decision,
+  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380)).
+  Any other cut keeps its compare run before merge: split it from the script change. One suite run
+  on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`. For
+  a judged case, the dispatching session posts the record by hand under [Graders](#graders).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
   follow-up does (Q57).
