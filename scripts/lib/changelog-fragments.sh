@@ -51,9 +51,16 @@
 #                                                 adds a fragment for it whose bump
 #                                                 is not none; 1 otherwise; 2 when
 #                                                 git fails
-#   changelog_fragments::dependabot_only <base>   0 when the change set against
-#                                                 <base> is Dependabot's alone and
-#                                                 needs no fragment (see below)
+#   changelog_fragments::bot_only <base> <login> <email>
+#                                                 0 when the change set against
+#                                                 <base> is <login>'s alone, every
+#                                                 commit's signature verified by GitHub
+#                                                 (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+#   changelog_fragments::dependabot_only <base>   bot_only for dependabot[bot]: its
+#                                                 change set needs no fragment
+#   changelog_fragments::standards_sync_only <base>
+#                                                 bot_only for melodic-standards-sync[bot]:
+#                                                 managed copies need no fragment
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/changelog-fragments.sh is sourced-only\n' >&2
@@ -283,9 +290,10 @@ changelog_fragments::standards_sync_only() {
   changelog_fragments::bot_only "$1" 'melodic-standards-sync[bot]' '300666570+melodic-standards-sync[bot]@users.noreply.github.com'
 }
 
-# 0 when the change set is Dependabot's alone: CHANGELOG_PR_AUTHOR (CI sets it
-# from the pull request) is dependabot[bot], and every commit in it is authored
-# by Dependabot, committed by GitHub, and carries a signature GitHub verified. A
+# 0 when the change set is <login>'s alone: CHANGELOG_PR_AUTHOR (CI sets it
+# from the pull request) is <login>, and every commit in it is authored by
+# <login> <email>, committed by GitHub, and carries a signature GitHub verified
+# (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification). A
 # commit anyone else pushes to the branch fails the last two: git lets a pusher
 # write any author and committer, but not GitHub's signature. The signature is
 # read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.

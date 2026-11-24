@@ -12,7 +12,12 @@
 #       <base-ref>. A Dependabot pull request whose every commit is a verified
 #       Dependabot commit needs no fragment: scripts/dependabot-fragments.sh
 #       writes it after the merge (changelog_fragments::dependabot_only in
-#       scripts/lib/changelog-fragments.sh)
+#       scripts/lib/changelog-fragments.sh). Nor does a standards-sync pull
+#       request whose every commit is a melodic-standards-sync[bot] commit with
+#       a signature GitHub verified
+#       (https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification):
+#       its files are managed copies of melodic-software/standards and ride the
+#       plugin's next release (changelog_fragments::standards_sync_only)
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: no file the release changes (a consumed
 #       fragment, a CHANGELOG.md, a plugin.json) has changed on <base-ref> since
