@@ -14,7 +14,7 @@ AWK="$SCRIPT_DIR/yaml-subset.awk"
 
 FAILED=0
 CASE_NUM=0
-check() { # check <label> <expected stdout> <expected exit> <input> [awk -v args]
+check() {
   local label="$1" want="$2" want_rc="$3" input="$4" out rc
   shift 4
   out="$(printf '%b' "$input" | awk "$@" -f "$AWK")"
@@ -29,8 +29,6 @@ check() { # check <label> <expected stdout> <expected exit> <input> [awk -v args
 }
 
 T=$'\t'
-# A key repeated in one mapping is a parse error at the second occurrence,
-# with or without -v STRICT=1.
 DUP_A="a${T}1"$'\n'"b${T}2"$'\n'"error${T}3${T}duplicate key \`a\` (first at line 1)"
 check 'a repeated key fails at the second line' "$DUP_A" 1 'a: 1\nb: 2\na: 3\n'
 check 'a repeated key fails the same way under STRICT' "$DUP_A" 1 'a: 1\nb: 2\na: 3\n' -v STRICT=1
@@ -55,8 +53,6 @@ check 'a single-quoted `: ` reads without its quotes' "key${T}a: b" 0 "key: 'a: 
 check 'a colon with no space after it stays legal' "key${T}http://x" 0 'key: http://x\n'
 check 'a trailing colon stays legal' "key${T}a:" 0 'key: a:\n'
 check 'a `: ` inside a comment is not part of the value' "key${T}a" 0 'key: a  # note: b\n'
-# Flow mappings and document markers are outside the subset, as in
-# lib/yaml-subset.mjs, whose messages these are.
 FLOW="flow mapping ({...}) is outside the subset; use block style"
 MARK="document markers are outside the subset"
 check 'a flow-mapping value is a parse error' "a${T}1"$'\n'"error${T}2${T}${FLOW}" 1 'a: 1\nm: {k: 1}\n'
@@ -69,8 +65,6 @@ check 'a leading `---` marker is a parse error' "error${T}1${T}${MARK}" 1 '---\n
 check 'a `...` marker is a parse error' "a${T}1"$'\n'"error${T}2${T}${MARK}" 1 'a: 1\n...\n'
 check 'a `---` marker inside a BLOCK=1 fence is a parse error' "block${T}1"$'\n'"error${T}3${T}${MARK}" 1 '---\n```yaml config\n---\na: 1\n```\n' -v BLOCK=1
 check 'a nested map item still reads' "l.0.x${T}y" 0 'l:\n  - x: y\n'
-# Escapes, nested flow sequences, directives and item columns, also as in
-# lib/yaml-subset.mjs.
 check 'the known escapes read' "k${T}\"\\/${T}"$'\n'"j${T}a\\nb" 0 'k: "\\"\\\\\\/\\t"\nj: "a\\nb"\n'
 check 'an unknown escape in a value is a parse error' "error${T}1${T}unsupported escape \\q in double-quoted string" 1 'k: "a\\qb"\n'
 check 'an unknown escape in a key is a parse error' "error${T}1${T}unsupported escape \\q in double-quoted string" 1 '"a\\qb": 1\n'
@@ -88,8 +82,6 @@ check 'a sequence-item map continues two columns past the dash' "l.0.k${T}1"$'\n
 check 'a sequence-item map indented past dash column + 2 is a parse error' "l.0.k${T}1"$'\n'"error${T}3${T}unexpected indentation" 1 'l:\n  -   k: 1\n      j: 2\n'
 check 'a nested value under a wide sequence-item key still reads' "l.0.k.x${T}1" 0 'l:\n  -   k:\n        x: 1\n'
 
-# Long blank runs: a plain value keeps its inner blanks, a flow item likewise,
-# and blanks before `#` start a comment. All three lines read within 1 s.
 SP="$(printf '%*s' 200000 '')"
 want="k${T}a${SP}x"$'\n'"l.0${T}b${SP}c"$'\n'"m${T}d"
 start=$(date +%s%N)
