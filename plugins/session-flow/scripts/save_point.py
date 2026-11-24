@@ -398,7 +398,6 @@ COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 
 
 def relaunch_line(start_command: str) -> str:
-    """The line above COPY_LINE when the next session starts in another plugin profile."""
     return f"The next phase runs in another plugin profile: exit this session, start the next one with `{start_command}`, then in it:"
 
 
@@ -587,12 +586,6 @@ class Doc:
 
 
 def legacy_chain(pred: Doc, limit: int = 1000) -> list[str]:
-    """The chain a shape-1 predecessor implies, oldest first and ending with
-    it: its `previous_handoff` pointers walked back to the first file with
-    none, or to a shape-2 ancestor whose own `chain:` is taken whole. The walk
-    stays in the predecessor's directory, as every pointer must, and stops at a
-    pointer it cannot follow or a cycle, so an old chain yields what it can
-    rather than refusing the successor."""
     walked = [pred.basename]
     cursor = pred
     here = os.path.normcase(os.path.realpath(pred.path.parent))
@@ -647,10 +640,6 @@ def _trim_blank(lines: list[str]) -> list[str]:
 
 
 def _ends_opening_ask(line: str) -> bool:
-    """True when `line` resumes Original-goal content below an `Opening ask:`
-    line. A verbatim ask may run several paragraphs, so prose does not end it,
-    but the ask carries no bullets: a bullet below the ask is an amendment, and
-    a `**` line is the next structural marker."""
     return line.startswith("**") or bool(BULLET_RE.match(line))
 
 
@@ -690,9 +679,6 @@ class Entry:
 
 
 def parse_entries(body: list[str]) -> list[Entry]:
-    """Entries are top-level bullets (with indented continuation lines) or
-    paragraphs. A `Superseded:` marker line flips every later entry to
-    superseded; the marker itself is not an entry."""
     entries: list[Entry] = []
     current: Entry | None = None
     superseded = False
@@ -820,10 +806,6 @@ def _resolve_transcript(session_id: str, projects_root: Path) -> str:
 
 
 def _directive_paths(directive: str) -> tuple[str | None, str]:
-    """The standing-rules path a `Read @` directive loads first (None when it
-    loads none) and the hot-file path, both as stored. A role chain's directive
-    reads `Read @<standing-rules file> then @<hot file>, <tail>`; neither joint
-    holds a comma, so the text before the first comma names both paths."""
     head = directive[len("Read @") :].split(",", 1)[0].strip()
     if STANDING_THEN not in head:
         return None, head
@@ -832,8 +814,6 @@ def _directive_paths(directive: str) -> tuple[str | None, str]:
 
 
 def _check_standing_directive(doc: Doc, f: Findings, standing: str | None) -> None:
-    """A role chain's directive loads the file its `standing_rules` key names,
-    and only a role chain's directive loads one."""
     held = doc.frontmatter.get("standing_rules")
     if held and standing is None:
         f.fail(
@@ -1151,10 +1131,6 @@ def validate_doc(
     hop_text: str | None = None,
     standing: str | None = None,
 ) -> tuple[Findings, int]:
-    """Return findings plus the exit code (0/1/3). `shallow` skips the
-    predecessor walk (used when a successor validates its own predecessor);
-    `hop_text` and `standing` stand in for this hop's file and the chain's
-    standing-rules file on disk (`amend` validates before it writes)."""
     f = Findings()
     fm = doc.frontmatter
     shape = doc.shape
@@ -1319,10 +1295,6 @@ def validate_doc(
 
 
 def _shrunk_copy(doc: Doc, previous: str) -> str | None:
-    """This hop's file, relative to the handoffs dir, when a finished-chain
-    shrink can explain a missing predecessor: this file is the chain's newest
-    (no handoff names it as previous), reads `Next: none (closed)`, and its hop
-    file was written from `previous`, holding its sections. None otherwise."""
     if doc.shape not in HOP_FILE_SHAPES or _successor(doc.path) is not None:
         return None
     span = _next_span(doc)
@@ -1355,8 +1327,6 @@ def _validate_shape2(
     pred: Doc | None,
     projects_root: Path | None,
 ) -> None:
-    """The shape-2 checks: `chain:`, the 17 sections, cumulative carry-forward,
-    the Prior sessions prefix and the line-count WARN."""
     pred_soft = False
     if not doc.chain:
         f.fail("frontmatter: chain is missing or empty")
@@ -1475,10 +1445,6 @@ def _check_headings(doc: Doc, f: Findings, expected: tuple[str, ...]) -> None:
 def _moved_lines(
     doc: Doc, title: str, start: int, end: int, hop_text: str | None
 ) -> tuple[list[str], int, int, str] | None:
-    """When `title`'s body is only a move pointer, the pointed file's lines
-    (`hop_text` for this hop's own file when given), the pointed body's first
-    and end indices, and the file named for a FAIL; None otherwise or when
-    the pointed body is not there."""
     held = [line for line in doc.lines[start + 1 : end] if line.strip()]
     pointer = MovePointer.parse(held[0]) if len(held) == 1 else None
     if pointer is None or not pointer.moves(title):
@@ -1516,15 +1482,6 @@ def _check_unverified(
     unread: bool = False,
     hop_text: str | None = None,
 ) -> None:
-    """Every UNVERIFIED mark in a section the session wrote, a moved section's
-    body in this hop's file included, is followed on its
-    line by the command or source that settles it. The mark `new` puts on an
-    entry carried past a failed predecessor is settled once for its section,
-    by the CARRY_SETTLE line, so the entry's text stays what older validators
-    match. That covers only a carried entry: one tagged before this file's hop
-    whose whole text the predecessor holds. With no predecessor read nothing
-    was carried, except under `unread` (a shallow check that skipped reading
-    it), where the tag alone decides."""
     hop = (_fm_int(doc, "hop") or 0) if doc.shape in HOP_FILE_SHAPES else len(doc.chain)
     for title, start, end in doc.sections:
         if title in carried:
@@ -1577,9 +1534,6 @@ def _check_unverified(
 
 
 def _downgrading_fail(findings: Findings, checks: int) -> Finding | None:
-    """The predecessor FAIL that downgrades its successor's carry checks: any
-    FAIL for a successor stamped below `CONTENT_ONLY_DOWNGRADE_FROM`, a
-    content-kind FAIL otherwise."""
     return next(
         (
             x
@@ -1626,10 +1580,6 @@ def _readable(path: Path) -> bool:
 
 
 def _starts_afresh(doc: Doc, previous: str) -> bool:
-    """Whether a file whose predecessor is beside it still has the position
-    `new` gives a successor of a missing or unreadable predecessor: a shape-3 or
-    shape-4 file that roots its own chain at hop 1. A shape-2 file's chain list
-    reads the same either way, so it never qualifies."""
     return (
         doc.shape in HOP_FILE_SHAPES
         and doc.frontmatter.get("chain_root") == doc.basename
@@ -1640,9 +1590,6 @@ def _starts_afresh(doc: Doc, previous: str) -> bool:
 
 
 def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
-    """`(chain_root, hop, archive_from)` for a shape-3 file named `name` that
-    follows `pred`. Hops count from the chain root, shape-1 and shape-2 hops
-    included; the first shape-3 hop is where hop files start."""
     if pred is None:
         return name, 1, 1
     if pred.shape in HOP_FILE_SHAPES:
@@ -1668,8 +1615,6 @@ def _id_entries(doc: Doc, spec: IdSpec) -> list[tuple[int | None, Entry, str]]:
 
 
 def _retired_ids(archived: str, spec: IdSpec) -> dict[int, str]:
-    """Id to reason, from the hop file's `spec.retired_heading` section only: an
-    entry followed by its `Retired:` line, or one line `- [<prefix><n>] <reason>`."""
     found: dict[int, str] = {}
     for lines, reason in retired_listings(archived, spec.retired_heading):
         n, rest = id_of(spec.prefix, BULLET_RE.sub("", lines[0].strip(), count=1))
@@ -1679,11 +1624,6 @@ def _retired_ids(archived: str, spec: IdSpec) -> dict[int, str]:
 
 
 def _next_id(pred: Doc | None, spec: IdSpec) -> int:
-    """The first `spec` id this hop may assign. Monotonic along the chain: the
-    predecessor's floor, so an id retired from the hot file is never offered
-    again, and one past every id the predecessor holds. With no floor yet, a
-    question or decision floor starts above every `Q<n>` / `D<n>` the
-    predecessor's text names; rule floors predate that seeding."""
     if pred is None:
         return 1
     floor, ids = None, []
@@ -1699,10 +1639,6 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
 def _amendment_spans(
     lines: list[str],
 ) -> tuple[list[tuple[int, int]], list[str]]:
-    """An Original goal body split into its amendment units, as `(start, end)`
-    line ranges, and its other non-blank lines. A unit is a `**Amended…:**` (or
-    `- **Amended…:**`) line plus the lines after it up to a blank line, the next
-    marker, `Opening ask:` or another `**` line."""
     spans: list[list[int]] = []
     plain: list[str] = []
     inside = False
@@ -1720,9 +1656,6 @@ def _amendment_spans(
 
 
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
-    """The retirable units of an id-less retirable section and its other
-    non-blank lines: amendment units for Original goal, one unit per line for
-    Direction changes, a whole move followed to its hop file."""
     lines = follow(doc.section(title) or [], title, doc.path.parent) or []
     if title == "Original goal":
         spans, plain = _amendment_spans(lines)
@@ -1733,17 +1666,12 @@ def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]
 
 
 def _folds(line: str, hop: int) -> bool:
-    """A Direction changes line whose newest tagged hop is DIRECTION_HOPS_KEPT
-    or more hops before `hop`; an untagged line never folds."""
     m = TRAIL_TAG_RE.match(line)
     newest = int(re.findall(r"\d+", m.group(1))[-1]) if m else None
     return newest is not None and hop - newest >= DIRECTION_HOPS_KEPT
 
 
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:
-    """`new` copies `spec`'s question or decision section off disk: the
-    predecessor is shape 3, carries the id floor and holds entries there, each
-    with an id (an id-less legacy entry is rewritten through the full slot)."""
     if spec is RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
     entries = _id_entries(pred, spec)
@@ -1755,8 +1683,6 @@ def _carries(pred: Doc | None, spec: IdSpec) -> bool:
 
 
 def _chain_hop_paths(pred: Doc, start: int):
-    """`(doc, hop file path)` for every shape-3 file on `pred`'s
-    `previous_handoff` path from `archive_from` on, newest first."""
     cursor: Doc | None = pred
     seen: set[str] = set()
     while (
@@ -1780,8 +1706,6 @@ def _chain_hop_paths(pred: Doc, start: int):
 
 
 def _retire_reasons(archived: str) -> list[str]:
-    """Every non-empty `Retired:` reason under a retire heading other than
-    `## Retired rules`."""
     return [
         reason
         for heading in POINTED_HEADINGS
@@ -1799,10 +1723,6 @@ def _check_retired_entries(
     archived: str | None,
     report,
 ) -> None:
-    """Original goal and Direction changes lose nothing: each predecessor goal
-    line stays in order byte for byte, and each amendment unit or trail line
-    stays in order or is listed verbatim, with a reason, in this hop's file. A
-    trail line old enough to fold may leave behind the fold pointer."""
     text = archived or ""
     hop = _fm_int(doc, "hop") or 0
 
@@ -1890,8 +1810,6 @@ def _squash(text: str) -> str:
 
 
 def _section_lines(doc: Doc, title: str) -> list[str]:
-    """A section body as raw line content (terminators aside, nothing else
-    stripped), blank edge lines trimmed."""
     return _trim_blank(doc.section(title) or [])
 
 
@@ -1905,14 +1823,11 @@ def _section_bytes(doc: Doc, titles: tuple[str, ...]) -> int:
 
 
 def _cap_state(doc: Doc) -> tuple[int, int]:
-    """The hot file's size on disk and the bytes its core sections hold."""
     size = len(doc.path.read_bytes()) if doc.size is None else doc.size
     return size, _section_bytes(doc, SHAPES.get(doc.shape, S3).binding)
 
 
 def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
-    """Size, core, carried (frontmatter and the sections `new` writes) and
-    written non-core bytes."""
     size, core = _cap_state(doc)
     fence = sum(
         len(line.encode("utf-8")) + 1
@@ -1934,9 +1849,6 @@ CORE_NEVER_MOVES = (
 
 
 def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
-    """The shape-4 size verdict, never UNVALIDATED: ('OVER-CAP', message) when
-    the binding and carried bytes alone pass the cap, naming the largest
-    binding section; ('FAIL', message) when movable content does; else None."""
     size, core, carried, written = _size_parts(doc)
     cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
     if core + carried > cap:
@@ -1957,7 +1869,6 @@ def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
 
 
 def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
-    """The size verdict: ('FAIL'|'UNVALIDATED', message), or None under the cap."""
     if doc.shape == 4:
         return _size_finding_4(doc, rel)
     size, core, carried, written = _size_parts(doc)
@@ -1991,7 +1902,6 @@ def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
 
 
 def _sibling(directory: Path, name: str) -> Doc | None:
-    """A handoff file beside `directory`'s files, parsed, or None."""
     if not HANDOFF_NAME_RE.match(name):
         return None
     path = directory / name
@@ -2006,8 +1916,6 @@ def _sibling(directory: Path, name: str) -> Doc | None:
 
 
 def _verbatim_ask(root: Doc) -> list[str] | None:
-    """The root file's `Opening ask:` block, or None when it holds only a
-    pointer or nothing."""
     body = root.section("Original goal") or []
     at = next(
         (i for i, line in enumerate(body) if line.startswith("Opening ask:")), None
@@ -2030,9 +1938,6 @@ ASK_POINTER = "Opening ask: see "
 
 
 def _dereferenced_goal(pred: Doc, root: str) -> list[str]:
-    """A shape-2 (or shape-1) predecessor's Original goal for the first shape-3
-    hop: the drift-check line dropped, and the `Opening ask: see <root>` pointer
-    replaced by the root's verbatim ask when the root is on disk and has one."""
     lines = [
         line
         for line in _section_lines(pred, "Original goal")
@@ -2056,8 +1961,6 @@ def _dereferenced_goal(pred: Doc, root: str) -> list[str]:
 
 
 def _check_decision_fields(doc: Doc, f: Findings) -> None:
-    """A `[security]` or `[design]` decision names a value for each of
-    `buys:`, `surface:` and `cost:`; an untagged decision needs none."""
     spec = S3.id_spec("D")
     for n, entry, title in _id_entries(doc, spec):
         rest = id_of(spec.prefix, entry.text)[1]
@@ -2081,8 +1984,6 @@ def _check_decision_fields(doc: Doc, f: Findings) -> None:
 
 
 def _standing_pointed(doc: Doc) -> dict[str, tuple[str, str]]:
-    """Each standing section of `doc` whose body is only a standing-rules
-    pointer, to the `(file, heading)` it names."""
     found: dict[str, tuple[str, str]] = {}
     for title, start, end in doc.sections:
         if title not in STANDING_SECTIONS:
@@ -2094,9 +1995,6 @@ def _standing_pointed(doc: Doc) -> dict[str, tuple[str, str]]:
 
 
 def _standing_doc(doc: Doc, text: str) -> Doc | None:
-    """`doc` with each standing-rules pointer replaced by the section of the
-    same name in `text` (the standing-rules file, or a hop file's verbatim copy
-    of the hot file it follows); None when `text` lacks a pointed section."""
     pointed = _standing_pointed(doc)
     if not pointed:
         return doc
@@ -2112,10 +2010,6 @@ def _standing_doc(doc: Doc, text: str) -> Doc | None:
 
 
 def _standing_text(doc: Doc) -> tuple[str | None, str]:
-    """The text a hot file's standing-rules pointers read, and where it lives.
-    Once a successor exists its `fill` has rewritten the shared file, so the
-    successor's hop file, which holds this file's sections verbatim, is read
-    instead."""
     handoffs = doc.path.parent
     successor = _successor(doc.path)
     nxt = None
@@ -2155,9 +2049,6 @@ def _standing_header(doc: Doc) -> list[str]:
 def _split_standing(
     hot: list[str], rel: str, term: str, header: list[str]
 ) -> tuple[list[str], str]:
-    """Move the standing sections out of the hot file's lines into the
-    standing-rules file's text, each leaving a pointer to its heading there.
-    Hot lines keep their terminators; the file's text is LF."""
     content = [_line_parts(line)[0] for line in hot]
     out = list(hot)
     held: dict[str, list[str]] = {}
@@ -2173,8 +2064,6 @@ def _split_standing(
 
 
 def _join_standing(hot: list[str], text: str, term: str) -> list[str] | None:
-    """The hot file's lines with each standing-rules pointer replaced by its
-    section from `text`; None when `text` lacks one."""
     content = [_line_parts(line)[0] for line in hot]
     out = list(hot)
     for title, at, end in sorted(section_spans(content, 0), key=lambda s: -s[1]):
@@ -2221,11 +2110,6 @@ def _page_standing(hot: list[str], held: int) -> list[str]:
 
 
 def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> Doc:
-    """A role chain's checks: its `standing_rules` key names the chain's
-    standing-rules file, each standing section is only a pointer to its own
-    heading there, and the pointed text exists. Returns `doc` with the
-    standing sections read from that text (`standing` when given, as `amend`
-    gives it before writing), for the content checks."""
     held = doc.frontmatter.get("standing_rules")
     pointed = _standing_pointed(doc)
     if not held and not pointed:
@@ -2269,11 +2153,6 @@ def _validate_shape3(
     hop_text: str | None = None,
     standing: str | None = None,
 ) -> Doc:
-    """The shape-3 checks: chain position, the fixed section order, the raw goal
-    prefix, rule ids, the hop files on the chain path, nothing dropped between
-    the hot file and this hop's file, the last Prior-sessions rows, the byte
-    cap, and the GitHub state WARN. Returns the file with a role chain's
-    standing rules read in, for the checks that follow."""
     fm = doc.frontmatter
     for key in ("chain_root", "hop", "archive", "archive_from", "repo"):
         if not fm.get(key):
@@ -2431,8 +2310,6 @@ def _validate_shape3(
 
 
 def _check_slot_sizes(doc: Doc, f: Findings) -> int:
-    """FAIL each size-classed slot over its budget, on a file stamped
-    SLOT_SIZE_FROM or higher; returns how many failed."""
     if (_fm_int(doc, "checks") or 0) < SLOT_SIZE_FROM:
         return 0
     held = handoff_fit.written_slot_bytes(
@@ -2449,9 +2326,6 @@ def _check_slot_sizes(doc: Doc, f: Findings) -> int:
 
 
 def _check_moves(doc: Doc, f: Findings, spec) -> None:
-    """Shape 4: a binding section never moves, and every move or history
-    pointer (`archive/<chain>/h<k>-<sid8>.md#<heading>`) names a hop file and a
-    heading on disk."""
     base = doc.path.parent
     for title, start, end in doc.sections:
         if title in spec.carried:
@@ -2475,8 +2349,6 @@ def _check_moves(doc: Doc, f: Findings, spec) -> None:
 def _check_id_reuse(
     doc: Doc, f: Findings, pred: Doc | None, archived: str | None
 ) -> None:
-    """No id retired at this hop or any earlier one names a different entry
-    here: once retired, an id stays spent."""
     retired = read_chain(pred.path, strict=True).retired_ids() if pred else {}
     for prefix, ids in retired_in(archived or "", S3).items():
         for n, text in ids.items():
@@ -2502,8 +2374,6 @@ def _check_carry_3(
     archived: str | None,
     report,
 ) -> None:
-    """Nothing the predecessor held is dropped: it stays in this file or is in
-    this hop's file."""
     arch = _squash(archived or "")
     if pred.shape in HOP_FILE_SHAPES:
         _check_retired_entries(doc, f, pred, start, rel, archived, report)
@@ -2574,8 +2444,6 @@ def _check_carry_3(
 
 
 def _retire_pointers(doc: Doc) -> list[str]:
-    """The Review before you continue lines naming a hop file and a retire
-    heading."""
     return [
         line
         for line in doc.section("Review before you continue") or []
@@ -2586,9 +2454,6 @@ def _retire_pointers(doc: Doc) -> list[str]:
 def _check_retire_pointers(
     doc: Doc, f: Findings, pred: Doc | None, rel: str, archived: str | None, report
 ) -> None:
-    """A reader reaches every retired entry: this hop's file is pointed at for
-    each heading it retired entries under, and the predecessor's pointers carry
-    forward verbatim, so every earlier hop's retirements stay reachable."""
     review = doc.section("Review before you continue") or []
     name = rel.rsplit("/", 1)[-1]
     for heading in POINTED_HEADINGS:
@@ -2608,8 +2473,6 @@ def _check_retire_pointers(
 
 
 def _check_hop_path(f: Findings, pred: Doc, start: int) -> None:
-    """Every shape-3 predecessor on this file's `previous_handoff` path, from
-    `archive_from` on, has its own hop file."""
     for cursor, path in _chain_hop_paths(pred, start):
         if not path.is_file():
             f.fail(
@@ -2668,7 +2531,6 @@ def _check_prior_rows_3(
 
 
 def _check_github_claims(doc: Doc, f: Findings) -> None:
-    """WARN on a GitHub state claim outside `Original goal` (the owner's words)."""
     goal = next(
         ((s, e) for name, s, e in doc.sections if name == "Original goal"), (0, 0)
     )
@@ -2684,9 +2546,6 @@ def _check_github_claims(doc: Doc, f: Findings) -> None:
 
 
 def _open_handoff(file: str) -> tuple[Doc | None, int]:
-    """The shared `validate`/`emit` preamble: a readable file carrying
-    `type: handoff` frontmatter. `None` plus the exit code when it is not, the
-    refusal already printed to stderr."""
     path = Path(file)
     if not path.is_file():
         return None, _die(2, f"not a file: {path}")
@@ -2729,7 +2588,6 @@ def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
 
 
 def _readable_link(file: str):
-    """The file as a `Link`, or None plus the exit code, the refusal printed."""
     path = Path(file)
     if not path.is_file():
         return None, _die(2, f"not a file: {path}")
@@ -2878,7 +2736,6 @@ def cmd_emit(args: argparse.Namespace) -> int:
 
 
 def _markdown_prompt(lines: list[str]) -> list[str]:
-    """Each rail pair as a fenced text block, each copy line in its markdown wording."""
     swap = {COPY_LINE: MD_COPY_LINE, GOAL_COPY_LINE: MD_GOAL_COPY_LINE}
     out: list[str] = []
     i = 0
@@ -2903,10 +2760,6 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
 def _locate_ref(
     doc: Doc, m: re.Match[str], moved: dict[str, str] | None = None
 ) -> tuple[str, int, int] | str | None:
-    """`(retire heading, start, end)` of the `doc.lines` a retire ref names,
-    None when `doc` lacks it, or why the ref is ambiguous. `moved` maps a
-    section to the heading its body moved to in `doc`, the only place then
-    searched for it."""
     if moved is not None:
         doc = _aliased(doc, moved)
     if m["prefix"]:
@@ -2950,8 +2803,6 @@ def _locate_ref(
 
 
 def _aliased(doc: Doc, moved: dict[str, str]) -> Doc:
-    """`doc` with each moved heading read under its section's name and no
-    other section kept."""
     names = {heading: title for title, heading in moved.items()}
     return replace(
         doc,
@@ -2964,8 +2815,6 @@ def _aliased(doc: Doc, moved: dict[str, str]) -> Doc:
 
 
 def _moved_here(hot: Doc, rel: str) -> dict[str, str]:
-    """Each section of `hot` whose body is only a move pointer into the hop
-    file `rel`, to the heading it moved to."""
     found: dict[str, str] = {}
     for title, start, end in hot.sections:
         held = [line for line in hot.lines[start + 1 : end] if line.strip()]
@@ -2976,8 +2825,6 @@ def _moved_here(hot: Doc, rel: str) -> dict[str, str]:
 
 
 def _resolved(hot: list[str], hop: list[str], rel: str) -> Doc:
-    """The hot file's content with each section moved into the hop file `rel`
-    read from its moved body there."""
     doc = _content_doc(hot)
     moved = _moved_here(doc, rel)
     if not moved:
@@ -2995,7 +2842,6 @@ def _content_doc(raw: list[str]) -> Doc:
 
 
 def _section_end(doc: Doc, title: str) -> int:
-    """One past the last non-blank line of `title`'s section, or -1."""
     for name, start, end in doc.sections:
         if name == title:
             while end > start + 1 and not doc.lines[end - 1].strip():
@@ -3007,14 +2853,6 @@ def _section_end(doc: Doc, title: str) -> int:
 def _apply_retire(
     hot: list[str], hop: list[str], refs: list[tuple[str, str]], rel: str
 ) -> tuple[list[str], list[str]] | str:
-    """Retire each `(ref, reason)`: copy the bytes the ref names into the hop
-    file `rel` under its retire heading, the entry verbatim then `Retired:
-    <reason>`, drop them from the hot file, and point Review before you continue
-    at each heading used. Both files are lists of lines with their own
-    terminators; returns the new lists, or why nothing can be written. A ref in
-    a section moved to the hop file is dropped from its moved body there; a ref
-    the hot file no longer holds is copied from the predecessor's section in the
-    hop file."""
     hot_doc, hop_doc = _content_doc(hot), _content_doc(hop)
     moved = _moved_here(hot_doc, rel)
     removals: list[tuple[int, int]] = []
@@ -3094,7 +2932,6 @@ def _retire_shape_ok(retire: object) -> bool:
 
 
 def _american(value: str, path: Path, where: str) -> str:
-    """`value` in American spelling, each change named on stderr."""
     fixed, applied = dialect.americanize(value, path.parent)
     for typo, correction in applied:
         print(f"NOTE: {where}: {typo!r} written as {correction!r} (American spelling)", file=sys.stderr)
@@ -3102,9 +2939,6 @@ def _american(value: str, path: Path, where: str) -> str:
 
 
 def _write_atomic(path: Path, payload: bytes) -> OSError | None:
-    """Write `payload` through a temporary file in `path`'s own directory, so an
-    interrupted write leaves the file whole; `find-handoff` globs only `*.md`,
-    so a `.fill-*.tmp` left by a crash is never read as a handoff."""
     tmp = None
     try:
         handle, tmp = tempfile.mkstemp(dir=path.parent, prefix=".fill-", suffix=".tmp")
@@ -3418,19 +3252,16 @@ _DIGITS_RE = re.compile(r"(\[[RQD]\d+\])|\d+")
 
 
 def _fail_key(message: str) -> str:
-    """A FAIL as its check kind and stable key."""
     return _DIGITS_RE.sub(lambda m: m.group(1) or "", _SNIPPET_RE.sub("", message))
 
 
 def _fail_keys(findings: Findings) -> Counter[str]:
-    """Every FAIL's key; a size-kind FAIL never counts."""
     return Counter(
         _fail_key(x.text) for x in findings.fails if x.kind not in SIZE_KINDS
     )
 
 
 def _previous_of(path: Path) -> str | None:
-    """`previous_handoff` from a file's frontmatter, reading no further."""
     try:
         with path.open(encoding="utf-8", errors="replace") as fh:
             if fh.readline().strip() != "---":
@@ -3446,7 +3277,6 @@ def _previous_of(path: Path) -> str | None:
 
 
 def _successor(path: Path) -> Path | None:
-    """A handoff beside `path` naming it in `previous_handoff`, or None."""
     for candidate in sorted(path.parent.glob("*.md")):
         if (
             candidate.name != path.name
@@ -3458,9 +3288,6 @@ def _successor(path: Path) -> Path | None:
 
 
 def _fork_sibling(path: Path, doc: Doc) -> Path | None:
-    """Another session's handoff beside `path` that follows `doc`'s
-    predecessor: a fork, which a role chain's one standing-rules file cannot
-    serve. A retry by the same session is not a fork."""
     previous = doc.frontmatter.get("previous_handoff")
     if not previous:
         return None
@@ -3524,9 +3351,6 @@ def _next_span(doc: Doc) -> tuple[int, int] | None:
 
 
 def _held_heading(doc: Doc) -> str | None:
-    """The first `## Amended …`, retire or hop-tagged moved-section heading in
-    a hop file with content under it: what `amend`, `retire` and a shape-4
-    `fill` wrote, which a rewrite would erase."""
     hop = _fm_int(doc, "hop")
     moved = (
         {moved_heading(name, hop) for name in handoff_fit.MOVE_ORDER} if hop else set()
@@ -3542,7 +3366,6 @@ def _held_heading(doc: Doc) -> str | None:
 
 
 def _amend_payload(raw: dict) -> str | None:
-    """Why the `--json` object is malformed, or None."""
     unknown = sorted(key for key in raw if key not in AMEND_KEYS)
     if unknown:
         return f"key {unknown[0]!r} is not one of {', '.join(AMEND_KEYS)}"
@@ -3961,8 +3784,6 @@ def _unstage(staged: list[tuple[Path, str]]) -> None:
 
 
 def _git_stdout(directory: Path, *args: str) -> str | None:
-    """`git -C <directory> <args>`'s stripped stdout, or None when git is
-    missing, fails, or prints nothing."""
     try:
         result = subprocess.run(
             ["git", "-C", str(directory), *args],
@@ -4042,11 +3863,6 @@ def _settle_validate(pred: Doc) -> str:
 def _tag_carried(
     body: list[str], default_hop: int, unverified: bool, settle: str
 ) -> list[str]:
-    """Carry a predecessor's cumulative section forward verbatim, tagging
-    untagged entries `[h<default_hop>]` and, for a predecessor that failed
-    validation, marking every entry UNVERIFIED. A section holding such a mark
-    starts with one CARRY_SETTLE line naming `settle`; the entries' own text
-    is left as older validators match it."""
     lines = _trim_blank(body)
     marked = False
     for entry in parse_entries(body):
@@ -4074,10 +3890,6 @@ def _tag_carried(
 
 
 def _splice_new_slot(carried: list[str], slot: str) -> list[str]:
-    """Place the `-new` FILL slot where a filled entry belongs: above a
-    top-level `Superseded:` marker when the carried body ends with one, since
-    `parse_entries` reads everything below that marker as superseded. With no
-    marker the slot appends, which is the same position."""
     marker = next(
         (
             i
@@ -4108,7 +3920,6 @@ def _first_line(body: list[str] | None) -> str:
 
 
 def _pred_row(pred: Doc, pred_transcript: str) -> str:
-    """The Prior-sessions row describing the predecessor."""
     if pred.shape in (None, 1):
         did_left = f"UNVERIFIED (shape-1 predecessor; brief: {_first_line(pred.section('Resumption brief'))}) (settle: read {pred.basename} § Resumption brief)"
     else:
@@ -4125,7 +3936,6 @@ def _pred_row(pred: Doc, pred_transcript: str) -> str:
 
 
 def _gone_row(name: str, status: str) -> str:
-    """The Prior-sessions row naming a predecessor `new` could not read."""
     return (
         f"| unknown | unknown | unresolved (predecessor {status}) "
         f"| UNVERIFIED (predecessor {status} when this file was written) "
@@ -4134,7 +3944,6 @@ def _gone_row(name: str, status: str) -> str:
 
 
 def _this_session_lines() -> list[str]:
-    """The `## This session` skeleton lines, shape 2 and shape 3 alike."""
     return [
         "did: "
         + _fill("did", "what landed this session, past tense, no '|'")
@@ -4157,8 +3966,6 @@ def _resume_prompt(
     start_command: str | None = None,
     standing: Path | None = None,
 ) -> list[str]:
-    """The `## Resume prompt` skeleton lines, shape 2 and shape 3 alike; a role
-    chain's directive loads its standing-rules file `standing` first."""
     read_path = _posix(target)
     if standing is not None:
         read_path = f"{_posix(standing)}{STANDING_THEN}{read_path}"
@@ -4377,10 +4184,6 @@ def build_skeleton(
 def hop_file_text(
     *, chain_root: str, hop: int, session_id: str, pred: Doc | None
 ) -> str:
-    """The archive file hop N writes: every predecessor section the hot file
-    does not carry forward, verbatim and in the predecessor's order (its
-    `Original goal` too when the predecessor is shape 1 or 2, since the first
-    shape-3 hop re-forms it). Rewritten only by a retry of the same session."""
     lines = [
         "---",
         f"type: {ARCHIVE_TYPE}",
@@ -4568,9 +4371,6 @@ def build_skeleton_3(
     )
 
     def id_body(title: str, name: str, instruction: str) -> list[str]:
-        """A slot, or for a question or decision section `new` carries
-        (`_carries`), the predecessor's entries copied off disk above an
-        optional slot for new ones."""
         spec = next(
             (s for s in S3.id_specs if s is not RULES and title in s.sections), None
         )
@@ -4985,8 +4785,6 @@ def cmd_new(args: argparse.Namespace) -> int:
 
 
 def _budget_line(skeleton: str) -> str:
-    """The bytes left for the slots under the shape-4 cap, and each
-    size-classed slot's budget."""
     cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
     fixed = len(FILL_SLOT_RE.sub("", skeleton).encode("utf-8"))
     slots = ", ".join(
