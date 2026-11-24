@@ -321,7 +321,7 @@ async function main(env = process.env) {
     call: client(env),
     sleep: (ms) => delay(ms),
     clock: () => new Date().toISOString(),
-    loadConfig: () => redMainFromBase({ BASE_PATH: env.BASE_PATH }),
+    loadConfig: () => redMainFromBase({ BASE_PATH: env.BASE_PATH, STANDARDS_DIR: env.STANDARDS_DIR }),
     revertApplies: revertAppliesWithGit(env.BASE_PATH),
   });
   console.log(result.posted ? `reported on #${result.target}` : result.summary);

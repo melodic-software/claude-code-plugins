@@ -23,6 +23,14 @@ inputs:
     description: The default-branch checkout that holds this action and the config.
     required: false
     default: .base
+  standards-path:
+    description: >
+      A melodic-software/standards checkout (download-standards' `path`
+      output), checked out before any head code ran: the vocabulary and the
+      trusted-actor list are read from under it instead of base-path. Empty
+      reads both under base-path.
+    required: false
+    default: ""
   reads:
     description: >-
       `full` (the default) makes every read. `pause` makes only the two
@@ -72,6 +80,7 @@ runs:
       shell: bash
       env:
         BASE_PATH: ${{ inputs.base-path }}
+        STANDARDS_DIR: ${{ inputs.standards-path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         WIP_READS: ${{ inputs.reads }}
       run: |

@@ -215,6 +215,17 @@ test("build refuses a deleted verdict and writes no patch: a stop with test-scop
   }
 });
 
+test("build reads test-scope.apply with the standards checkout STANDARDS_DIR names", async (t) => {
+  const head = repo(t, { "t/a.test.sh": "# A.\n", "lib/x.sh": "x\n" });
+  const trace = traceDir(t, { gaps: "t/a.test.sh\tlib/x.sh\tdeleted\n", suites: "t/a.test.sh\t1\t2\t1\n" });
+  const out = scratch(t);
+  const env = { GITHUB_OUTPUT: join(out, "output"), GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: head.head, TRACE_DIR: trace, HEAD_DIR: head.dir, BASE_DIR: head.dir, STANDARDS_DIR: "/standards", PATCH_OUT: join(out, "patch.diff") };
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  const reads = [];
+  await main(["build"], env, { call: async () => [], log: () => {}, loadTestScope: async (...args) => (reads.push(args), { apply: true }) });
+  assert.deepEqual(reads, [[head.dir, "/standards"]]);
+});
+
 const HEAD = "a".repeat(40);
 const TRACED_RUN = { id: 9, run_attempt: 2, path: ".github/workflows/pr-require-checks.yml", status: "completed", conclusion: "failure", created_at: "2026-11-23T00:00:00Z", head_repository: { full_name: "o/r" } };
 const TRACED_JOBS = [job("Test Selection", "failure", [...SETUP, ["Trace the changed suites", "failure"]])];
