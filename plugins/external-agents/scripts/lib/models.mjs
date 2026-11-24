@@ -85,6 +85,7 @@ export async function models(opts) {
       doc.efforts_source = `${command(args)} (${record.effort_flag})`;
     }
     doc.tools = [...(record.harness?.tools ?? [])];
+    doc.read_only_tools = [...(record.harness?.read_only_tools ?? doc.tools)];
     doc.image = record.harness?.image ?? false;
     doc.breaker = breakerStatus(ctx.dataDir, record.product, ctx.now());
     doc.docs_index = record.docs_index;

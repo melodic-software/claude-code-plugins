@@ -53,10 +53,10 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
    same signals by hand and take each key's value from
    `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
 2. **Identify the stack and research what you do not know.** Name the styling mechanism from the
-   files themselves, never from a framework's name alone. For what you are not sure of: when
-   `/context7:lookup` is enabled, invoke it with the Skill tool for the library's current docs;
-   when `/discovery:research` is enabled, invoke it for a question across sources; when
-   `/discovery:explore` is enabled, invoke it for how this codebase already styles things.
+   files themselves, never from a framework's name alone. For what you are not sure of,
+   invoke `/context7:lookup` (if enabled) with the Skill tool for the library's current docs,
+   `/discovery:research` (if enabled) for a question across sources, and
+   `/discovery:explore` (if enabled) for how this codebase already styles things.
    Without them, read the official docs with WebFetch. With no route at all, follow the patterns
    already in the repo.
 3. **Answer the stack checklist** in stack-discovery.md: where styles live, how they are scoped,

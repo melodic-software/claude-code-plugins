@@ -38,9 +38,7 @@ import {
 const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.json", import.meta.url));
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
-// The labels a repository may still hold from before work classes retired.
 const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "provenance: untrusted"];
-// The reusable's wording around a proposed class.
 const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
 const OUTSIDER = 4242;
@@ -51,7 +49,6 @@ const logins = new Map([
   ["claude[bot]", 209825114],
 ]);
 
-// The live models.issue-dimensions leaf's fields.
 const DIMS = {
   fields: {
     size: {
@@ -302,7 +299,6 @@ describe("planWrites", () => {
     );
   });
 
-  // Admission criteria 1 (intent), 5 (very-high security) and 6 (cost) rest on these.
   for (const flag of ["intent", "security", "cost"]) {
     test(`a ${flag} flag sends it to needs-decision but still writes the fields`, () => {
       const result = plan(
@@ -323,8 +319,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.fieldWrites, []);
   });
 
-  // The field-first names drop a queue label the Work status field hides, so
-  // the issue's own labels decide which stale status labels come off.
   test("a held verdict removes stale status: ready and status: confirmed labels the field hides", () => {
     const verdict = parseVerdict(ESCALATED_BODY, DIMS);
     const shown = ["needs-human", "needs-triage"];
@@ -357,7 +351,6 @@ describe("planWrites", () => {
         assert.deepEqual(result.remove, []);
         assert.ok(!result.add.includes(READY));
         assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
-        // Carried forward, so the next clean verdict still reads the flag.
         assert.ok(result.reasons.includes("flagged: security (an earlier verdict)"), result.reasons.join("; "));
       });
     }
@@ -420,8 +413,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, []);
   });
 
-  // An earlier verdict's flag still needs a person: refusing the only hold
-  // would drop it, so the hold stays and the flag is carried.
   for (const flag of ["intent", "security"]) {
     test(`needs-human this run's triage applied after an earlier ${flag} flag stays and carries the flag`, () => {
       const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"], earlierFlags: [flag] });
@@ -452,8 +443,6 @@ describe("planWrites", () => {
     });
   }
 
-  // Only an otherwise ready plan reaches admission, which routes the capability
-  // limit; a plan held for another reason keeps needs-human and says so.
   test("needs-human this run's triage applied with no flag holds when another hold keeps the plan from ready", () => {
     const result = plan(laneBody(), { labels: ["needs-human", "needs-reporter-info"], triageLabels: ["needs-human"] });
     assert.equal(result.ready, false);
@@ -485,9 +474,6 @@ describe("planWrites", () => {
     });
   }
 
-  // A kept trust control (loop-lane "When work stops for the owner"): text
-  // addressed to the triage run escalates, and the needs-human this run's
-  // triage applied for it stays, though the escalated verdict carries no flag.
   test("needs-human on an escalated run holds even when this run's triage applied it", () => {
     const result = plan(ESCALATED_BODY, { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, false);
@@ -497,8 +483,6 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  // The same hold when the escalated verdict also reads Flags: none with every
-  // dimension: only the escalation guard keeps this needs-human from being refused.
   test("needs-human on an escalated run with Flags: none and readable dimensions is not refused", () => {
     const body = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\nSize: Small\nComplexity: Low\nUncertainty: Known\nFlags: none\n\n${OLD_FOOTER}`;
     const verdict = parseVerdict(body, DIMS);
@@ -543,8 +527,6 @@ describe("planWrites", () => {
     });
   }
 
-  // The COST rule pairs a Cost line with the cost flag; a Cost line beside
-  // `Flags: none` still names a charge an owner decides.
   test("a needs-human this run's triage applied stays when the comment carries a Cost line, even with Flags: none", () => {
     const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost: a paid plan upgrade; no owner decision"] });
     const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
@@ -553,8 +535,6 @@ describe("planWrites", () => {
     assert.ok(!result.remove.includes("needs-human"));
   });
 
-  // The COST rule writes a charge a person's recorded decision covers as
-  // `Cost decided: `, which needs no owner.
   test("a Cost decided line beside Flags: none still refuses a needs-human this run's triage applied", () => {
     const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost decided: a paid plan upgrade; the owner's recorded decision"] });
     const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
@@ -569,9 +549,6 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
   });
 
-  // The strict Cost parse: a canonical `Cost: ` line holds, a no-charge or
-  // `Cost decided: ` one or quoted issue text refuses, and any other cost label
-  // is a problem that holds unless it reads no charge.
   const COST_CASES = [
     ["Cost: x", "hold"],
     ["**Cost:** x", "hold"],
@@ -623,8 +600,6 @@ describe("planWrites", () => {
     });
   }
 
-  // On a verdict with no triage hold, a non-canonical cost line that names a
-  // charge still stops it; a no-charge one or a `Cost-` compound does not.
   for (const [line, ready] of [
     ["Costs: none", true],
     ["Cost (est.): none", true],
@@ -642,7 +617,6 @@ describe("planWrites", () => {
     });
   }
 
-  // Only a person lifts the outside-actor flag: a clean verdict neither removes it nor reaches ready.
   test("security: outside-actor the lanes App set stays on a clean verdict and holds", () => {
     const label = "security: outside-actor";
     const result = plan(laneBody(), { labels: [label], holdSetters: { [label]: LANES_APP } });
@@ -671,8 +645,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, ["flagged: intent"]);
   });
 
-  // Work classes are retired: a proposed class is never applied, and an old
-  // class label on the issue is neither read nor taken off.
   for (const cls of ["none", "work-class: scoped", "work-class: structural", "work-class: anything-goes"]) {
     test(`a verdict proposing ${cls} adds no class label and reaches ready`, () => {
       const result = plan(laneBody({ cls }));
@@ -1002,8 +974,6 @@ describe("checkRun", () => {
   });
 });
 
-// A fake GitHub: the issue, its comments and field values, recording every call.
-// A field-value write naming a value `refuse` matches is answered `refuseStatus`.
 function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {}, refuse = () => false, refuseStatus = 422 } = {}) {
   const calls = [];
   const github = async (method, path, body, headers, options) => {
@@ -1018,7 +988,6 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
       }
       return blockers[other[1]];
     }
-    // Work classes are retired, so no run reads the repository's labels.
     if (method === "GET" && path.startsWith("/repos/o/r/labels")) {
       throw new Error(`the repository's labels were read (${path})`);
     }
@@ -1061,19 +1030,16 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
     if (method === "DELETE") {
       throw new GitHubError(404, "DELETE");
     }
-    // select-trusted-text's last-editor read: every comment unedited.
     if (method === "POST" && path === "/graphql") {
       return { data: { nodes: (body?.variables?.ids ?? []).map((id) => ({ id, lastEditedAt: null })) } };
     }
     return null;
   };
-  // write-status.mjs statusWriter's `set`, recorded among the calls in order.
   const setStatus = async (number, state, options) => {
     calls.push({ method: "STATUS", path: `#${number}`, body: state, fields: options?.fields });
   };
   return { github, calls, setStatus };
 }
-// The Work status writes among `calls`.
 const states = (calls) => calls.filter(({ method }) => method === "STATUS").map(({ body }) => body);
 const laneComment = (body = laneBody(), overrides = {}) => ({
   id: 99,
@@ -1101,7 +1067,6 @@ const go = (fake, env = ENV) =>
     log: () => {},
   });
 const writes = (calls) => calls.filter((call) => call.method !== "GET");
-// The lanes App's earlier verdict comment, listing no flag.
 const unflagged = (text = "The latest triage verdict holds nothing: admission did not finish, so the issue's status is not settled.") => ({
   id: 51,
   body: `${VERDICT_MARKER}\n${text}`,
@@ -1192,8 +1157,6 @@ describe("run", () => {
     assert.equal(writes(fake.calls)[1].body, "needs-owner-decision");
   });
 
-  // A manual dispatch skips intake-reenter, so a parked issue reaches a held
-  // verdict still at status: confirmed; the field write replaces it.
   test("a held verdict replaces a parked status: confirmed with the field alone", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "status: confirmed" }] }, comments: [laneComment(ESCALATED_BODY)] });
     assert.equal((await go(fake)).outcome, "needs-decision");
@@ -1326,7 +1289,6 @@ describe("run", () => {
         },
       ],
     });
-    // The kept class does not hold the issue.
     assert.equal((await go(fake)).outcome, "ready");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
@@ -1504,7 +1466,6 @@ describe("run", () => {
     });
     assert.equal(result.outcome, "ready");
     assert.equal(seen.length, 1);
-    // Admission refuses a body edited after the lane comment it read.
     assert.equal(seen[0].writtenAt, laneComment().updated_at);
   });
 
@@ -1662,9 +1623,6 @@ describe("run", () => {
     assert.match(posted.body.body, /`needs-human` came off: this run's triage applied it with no intent, security or cost flag/);
   });
 
-  // The refused needs-human comes off before a ready verdict's comment posts,
-  // so a failed post leaves the removal with no comment: the run fails red
-  // (the entry point exits 1 on reasonsError) and the summary keeps the record.
   test("a failed reasons comment after a refused needs-human came off fails the run and keeps the record in the summary", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -1706,8 +1664,6 @@ describe("run", () => {
     assert.deepEqual(states(fake.calls), ["needs-human"], "the late hold keeps needs-human, which the field reads");
   });
 
-  // security-outside-actor/flag.mjs adds needs-human as github-actions[bot] on
-  // GITHUB_TOKEN, so its label can land inside this run's window.
   test("the outside-actor flag's needs-human, landing after this run started, keeps the hold", async () => {
     const at = "2026-10-22T12:04:00Z";
     const fake = fakeGitHub({
@@ -1761,7 +1717,6 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
-  // Only github-actions[bot] adds after STARTED_AT count as this run's triage.
   test("a needs-human a person takes off and puts back after the bot applied it in this run keeps the hold", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -1789,8 +1744,6 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
-  // The lanes App writes the triage run's labels into the Work status field,
-  // so on a re-run its field event after `since` is the triage's own add.
   test("a needs-human the lanes App wrote into the field after this run started counts as the triage run's", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -1858,8 +1811,6 @@ describe("run", () => {
     assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
   });
 
-  // flag.mjs can add the outside-actor label and needs-human after the first
-  // read; admission never reads outside-actor, so needs-human must stay.
   for (const late of ["security: outside-actor", "provenance: untrusted"]) {
     test(`${late} landing after the first read keeps a refused needs-human`, async () => {
       const fake = fakeGitHub({
@@ -1947,14 +1898,12 @@ describe("run", () => {
     assert.equal((await go(fake)).outcome, "ready");
   });
 
-  // Issues the App held before verdict comments existed have none to read.
   test("a needs-decision the lanes App set with no verdict comment stays on two clean verdicts in a row", async () => {
     const first = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()], events: APP_HOLD });
     assert.equal((await go(first)).outcome, "needs-decision");
     assert.ok(!writes(first.calls).some(({ method }) => method === "DELETE"));
     const posted = writes(first.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
     assert.ok(posted?.body.body.includes(`- ${UNRECORDED}`), posted?.body.body);
-    // The second run reads the comment the first posted, which must not read as unflagged.
     const second = fakeGitHub({
       issue: { labels: [{ name: NEEDS_DECISION }] },
       comments: [laneComment(), { id: 52, body: posted.body.body, user: { id: LANES_APP, type: "Bot" } }],
@@ -1964,8 +1913,6 @@ describe("run", () => {
     assert.ok(!writes(second.calls).some(({ method }) => method === "DELETE"));
   });
 
-  // The record goes before the hold: a hold never lands without the comment
-  // that says whether it was flagged.
   for (const [name, comments, failing] of [
     ["no earlier verdict comment and a failed post", [], "POST /repos/o/r/issues/7/comments"],
     ["an earlier unflagged verdict comment and a failed edit", [unflagged("The triage verdict left this issue at `needs-owner-decision`:\n\n- no `Size:` line")], "PATCH /repos/o/r/issues/comments/51"],
@@ -1988,7 +1935,6 @@ describe("run", () => {
     });
   }
 
-  // Moving the Work status off ready adds no hold, so it needs no record and never waits on one.
   for (const [name, comments, failing] of [
     ["a failed post", [], "POST /repos/o/r/issues/7/comments"],
     ["a failed edit", [unflagged()], "PATCH /repos/o/r/issues/comments/51"],
@@ -2096,9 +2042,6 @@ describe("run", () => {
     });
   });
 
-  // Admission's own comment already says why it parked the issue at
-  // status: confirmed, which is no hold, so a verdict comment saying only
-  // that adds nothing a reader or a later run reads.
   test("a mechanical admission refusal to status: confirmed posts no verdict comment beside admission's", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
     const result = await run({
@@ -2137,8 +2080,6 @@ describe("run", () => {
     assert.ok(!done.some((line) => line.startsWith("DELETE /repos/o/r/issues/7/labels/")), done.join("\n"));
   });
 
-  // The triage run's own hold labels (the reusable's) stay on the issue and
-  // reach the field as their state, the strongest first (models.issue-status order).
   for (const [labels, state] of [
     [["needs-human"], "needs-human"],
     [["needs-reporter-info"], "needs-reporter-info"],
@@ -2156,8 +2097,6 @@ describe("run", () => {
 
   test("a hold that exists only on the Work status field blocks a ready verdict", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
-    // A real time on the field event, an hour before this run started, so
-    // labelSetters replays it in order as an earlier person's hold.
     const node = { __typename: "IssueFieldAddedEvent", createdAt: "2026-10-22T11:00:00Z", value: "needs-owner-decision", actor: { __typename: "User", login: "kyle-sexton", databaseId: HUMAN }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } };
     const github = withFields(fake.github, { 7: { state: "needs-owner-decision", setter: HUMAN, nodes: [node] } });
     const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
@@ -2201,9 +2140,6 @@ describe("run", () => {
     }
   });
 
-  // A born-triaged issue filed with the agent-ready label and no Work status:
-  // the label starts no run, so the ready verdict writes ready and admission
-  // decides it. An issue whose field already holds agent-ready gets no write.
   const labelOnly = (fields) => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "agent-ready" }] }, comments: [laneComment()] });
     const github = withFields(fake.github, fields);
@@ -2225,16 +2161,12 @@ describe("run", () => {
     assert.deepEqual(states(fake.calls), []);
   });
 
-  // Admission reads the issue fresh after that write (admit.mjs
-  // admissionFacts), so the agent-ready label left on it no longer settles it.
   test("once ready is written, admission does not read the leftover agent-ready label as already agent-ready", () => {
     const anyone = () => true;
     assert.equal(admissionSettled(["agent-ready"], [], anyone, null), "already agent-ready");
     assert.equal(admissionSettled(statusLabels("ready", ["agent-ready"], STATUS_CONFIG), [], anyone, "ready"), null);
   });
 
-  // A Work status read that fails could hide a person's hold, so the App's
-  // own hold is not lifted and nothing is written.
   test("a failed Work status read lifts no App hold and writes nothing", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()] });
     const github = withFields(fake.github, { 7: new Error("HTTP 502") });
@@ -2522,9 +2454,6 @@ describe("run", () => {
     });
   }
 
-  // A verdict that is not ready: with every edge missed, work-unblock sees none
-  // of the blockers; with an edge written and its rollback failed, it sees
-  // that partial set, so the warning keeps the partial-set clause.
   test("a not-ready verdict's warning says work-unblock sees no blocker only when no edge stayed written", () => {
     assert.deepEqual(missedAnnotation([{ number: 13, status: 502 }], [], false), {
       fail: false,
@@ -2586,7 +2515,6 @@ describe("run", () => {
   });
 });
 
-// checkRun reads the issue, so every --check step must pass its number and a token.
 describe("the workflow's --check steps", () => {
   const steps = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
     .split(/\n {6}- name: /)
@@ -2611,7 +2539,6 @@ const PROMPT = ["../../workflows/intake-triage.yml", "./triage-rubric.txt"]
   .map((line) => line.trim())
   .join(" ");
 
-// Owner's standing direction §2: a choice of implementation means is never a person stop.
 describe("the triage prompt", () => {
   test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
     assert.doesNotMatch(PROMPT, /lists options and picks none/);
@@ -2637,9 +2564,6 @@ describe("the triage prompt", () => {
     assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
   });
 
-  // Work classes are retired. Run 41807993284: a model told of classes with
-  // no meanings grepped outside the checkout, dontAsk denied it, and the clean
-  // triage deferred, so the rubric names no work class at all.
   test("the rubric names no work class", () => {
     assert.doesNotMatch(PROMPT, /work class/i);
     for (const name of [...CLASSES, "work-class: read-only"]) {
@@ -2658,8 +2582,6 @@ describe("the triage prompt", () => {
   // triage to record as an edge, never in reverse of an existing one.
   test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
     assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
-    // The name is the issue lane's own stop code, routed to intake, so a
-    // rename there fails here instead of leaving the rubric silently stale.
     const routes = JSON.parse(readFileSync(new URL("../work-resolve-issue/stop-routes.json", import.meta.url), "utf8"));
     assert.equal(routes["blocked-by-issue"]?.route, "intake");
   });
@@ -2670,8 +2592,6 @@ describe("the triage prompt", () => {
   });
 });
 
-// g-holds-governance-1 (a): a held verdict names one owner reason, the
-// strongest of its causes, as the stop-reason marker and line.
 describe("held verdict reason codes", () => {
   const plan = (body, options = {}) =>
     planWrites(parseVerdict(body, DIMS), { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans, earlierFlags: [], ...options });
@@ -2714,9 +2634,6 @@ describe("held verdict reason codes", () => {
   });
 });
 
-// g-holds-governance-1 (b): a listed human's recorded decision, newer than the
-// lanes App's verdict comment, answers its carried intent flag; a security or
-// cost flag still holds (owner Q4).
 describe("re-entry after a recorded decision", () => {
   const VERDICT_AT = "2026-10-22T10:00:00Z";
   const appVerdict = (lines) => ({
@@ -2752,8 +2669,6 @@ describe("re-entry after a recorded decision", () => {
     assert.deepEqual(flagsAfterDecision(["intent"], undefined, kept(decision()), humans), ["intent"], "no App verdict comment to answer");
   });
 
-  // An identical body is never re-written, so updated_at can predate a raise
-  // made after the decision; the recorded raise time decides instead.
   test("an intent flag raised again after a decision still holds a later clean verdict", async () => {
     const reraised = appVerdict(`- flagged: intent\n${raisedLine(["intent"], "2026-10-22T12:00:00Z", undefined)[0]}`);
     assert.equal(raisedAt(reraised.body), "2026-10-22T12:00:00Z");

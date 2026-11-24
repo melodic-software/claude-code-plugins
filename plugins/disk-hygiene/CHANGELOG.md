@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [1.1.2] - 2026-11-23
 
 ### Changed

@@ -3,6 +3,20 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [0.17.1] - 2026-11-24
+
+### Changed
+
+- `/codebase-health:audit` gains a `## Related` section naming the skills that cover other kinds
+  of drift: session assumptions, upstream docs, attribution, harness config and cross-repository
+  copies.
+
 ## [0.17.0] - 2026-11-23
 
 ### Added

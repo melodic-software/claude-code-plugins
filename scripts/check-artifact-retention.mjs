@@ -24,13 +24,13 @@ let yaml;
 let Ajv2020;
 try {
   const requireFrom = createRequire(
-    path.join(root, ".github/standards/runner-policy/package.json"),
+    path.join(root, "scripts/ci-deps/package.json"),
   );
   yaml = await import(pathToFileURL(requireFrom.resolve("yaml")).href);
   Ajv2020 = requireFrom("ajv/dist/2020").default;
 } catch {
   environmentError(
-    "the yaml and ajv packages are not installed; run npm ci --prefix .github/standards/runner-policy",
+    "the yaml and ajv packages are not installed; run npm ci --prefix scripts/ci-deps",
   );
 }
 

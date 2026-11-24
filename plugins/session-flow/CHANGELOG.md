@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [9.22.8] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+- The enforcement ladder copy (3.4.1) says a check runs locally, at the stage the check-placement contract assigns, and in CI, in place of the undefined "edit time".
+
+## [9.22.7] - 2026-11-24
+
+### Changed
+
+- `/session-flow:retro` routes a retro of a standards or instruction file to `/corrections:codify rules <file>` and stops.
+
+- Adds an eval case for the retro route of a standards file to `/corrections:codify rules`.
+
 ## [9.22.6] - 2026-11-23
 
 ### Changed

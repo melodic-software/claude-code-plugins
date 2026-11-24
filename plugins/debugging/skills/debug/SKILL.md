@@ -87,7 +87,7 @@ for this bug, quickly, the same way each time, with no person needed to run it.
 ### Surface pass
 
 Before building the loop, find where the app shows what it does. When the `app-control` plugin is
-enabled and the project has a control skill, run `/app-control:drive ready` (with `--unattended`
+enabled and the project has a control skill, run `/app-control:drive ready` (if enabled) (with `--unattended`
 when this run has it): it reports each surface's URL, port, logs and telemetry, lists what the
 app does not expose, and gives each environment's data sources with their read levels and the
 kinds it lacks. Read a source only through the way it names and only at its read level: `never`
@@ -96,8 +96,7 @@ is never read, and `attended` only with the user present. When an environment ha
 Otherwise, or when drive reports no control skill, read the surfaces from the
 project's manifests and launch config. Stack specifics, such as where a framework writes its log or
 how it chooses a port, come from the repository's own config, rules and instructions; where those
-are silent, research them at run time with `/discovery:research` when the `discovery` plugin is
-enabled.
+are silent, research them at run time with `/discovery:research` (if enabled).
 
 Every log, console or network capture, queue or dead-letter record, drive report, deployment or
 workflow-run record, conversation transcript, chat or call note, and ticket or issue this skill
@@ -170,7 +169,7 @@ below; each failing one has its own remedies.
 | One verdict | the same code gives the same verdict on every run; a loop that flips between runs tells you almost nothing | stub the network, give each run a fresh directory, seed the random generator, freeze the clock |
 | Precision | it goes red on the reported symptom and on nothing else | assert on the 502 from the upload call itself, not on "the script exited non-zero" |
 
-The rule: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in. How this stack fakes a clock, seeds randomness or blocks the network comes from the repository's own test setup and rules; where those are silent, research it at run time with `/discovery:research` when the `discovery` plugin is enabled.
+The rule: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in. How this stack fakes a clock, seeds randomness or blocks the network comes from the repository's own test setup and rules; where those are silent, research it at run time with `/discovery:research` (if enabled).
 
 ### Intermittent failures
 
@@ -212,8 +211,8 @@ Run the loop and see it fail. Then check three things before going on:
    show the fix changed that symptom and not some other one. When the reproduction drives the app
    through `/app-control:drive` (if enabled), keep that run's `report.json` path and the commit it
    ran on (`git rev-parse HEAD`). Only when that commit is the PR's base commit does the fix
-   hand-off name it as the `--before` evidence for `/source-control:pull-request evidence` (if
-   enabled); on any other commit, such as a feature branch with earlier changes, the report names
+   hand-off name it as the `--before` evidence for `/source-control:pull-request evidence` (if enabled);
+   on any other commit, such as a feature branch with earlier changes, the report names
    it as pre-fix evidence of that commit, never as the base.
 
 ### Minimize
@@ -275,7 +274,7 @@ thing**, so any change in the verdict has one explanation.
 | Timer, benchmark, profiler or query plan | the report is "thumbnails got slow", not a wrong result | the first number is the baseline; bisect commits, inputs or code paths against it, and edit code only once the slow one is found |
 | Log everything, then search the output | never | the volume hides the line you need |
 
-Write each probe through the logger the code already uses, never an output API the project bans, and give it the session marker. Which logger, which APIs are banned, and which timing tools (benchmark harness, query-plan reader, profiler) fit this stack come from the repository's own rules, analyzers, config and existing code; where those are silent, research the stack at run time with `/discovery:research` when the `discovery` plugin is enabled.
+Write each probe through the logger the code already uses, never an output API the project bans, and give it the session marker. Which logger, which APIs are banned, and which timing tools (benchmark harness, query-plan reader, profiler) fit this stack come from the repository's own rules, analyzers, config and existing code; where those are silent, research the stack at run time with `/discovery:research` (if enabled).
 
 **A probe that writes a profile.** When an instrument step produces a CPU profile, heap snapshot or trace, read it with `/debugging:analyze-profile` and test its file:line finding against the Phase 3 prediction it was meant to check.
 
@@ -355,8 +354,7 @@ The run is not done until every line below holds. They fall into three groups.
   docs said, a sign-in step the loop needed), or say there were none. Every report this skill
   gives carries this list: a fix, a diagnose stop, and a stop with no loop. This skill writes
   none of them into a control skill:
-  `/app-control:map` is the one writer of a control skill's Gotchas, so when the `app-control`
-  plugin is enabled, give each lesson as a `/app-control:map refresh "<lesson>"` line for it to place.
+  `/app-control:map` (if enabled) is the one writer of a control skill's Gotchas, so give each lesson as a `/app-control:map refresh "<lesson>"` (if enabled) line for it to place.
 - Propose one cheap, always-on signal (a log line, a metric or an assertion) that would have shown
   the deciding fact (the value or state that settled the Phase 3 table) at first look. A deep dig
   means the failure did not show that fact, and a signal left on shows it the next time without
@@ -365,7 +363,7 @@ The run is not done until every line below holds. They fall into three groups.
   out of the fix commit, because a signal left on in production needs its own review for cost and
   noise; a Phase 4 probe kept as that signal loses its tag and goes through the same review.
   Design guidance for observability by default, built in as code is written, is owned by
-  `/implementation:implement` when the `implementation` plugin is enabled.
+  `/implementation:implement` (if enabled).
   Whether to propose is the `always_on_signal` key of `<home>/debugging.yaml` under the git toplevel. Run
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and follow its exit code; never
   parse the instruction file yourself. Exit 0 prints `<home>`; exit 1 (no pointer) means
@@ -390,7 +388,7 @@ reach the bug), write a recommendation:
 - File it with your issue tracker as an architectural finding
 - If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 
-If the answer is a check (a lint or analyzer rule, a test, a hook) that would have caught the mistake deterministically, name its owner instead of leaving it as a note. A repo or policy mistake (a banned API, a wrong file location, a review-standard violation) goes to `/corrections:codify "<the mistake>"` when the `corrections` plugin is enabled, which counts the mistake and proposes a check proven against the old code. A mistake in how the agent worked during the session goes to `/session-flow:retro` when the `session-flow` plugin is enabled, which decides when a check is worth proposing. Otherwise, file it with your issue tracker as its own prevention finding. Propose the check; do not build it here.
+If the answer is a check (a lint or analyzer rule, a test, a hook) that would have caught the mistake deterministically, name its owner instead of leaving it as a note. A repo or policy mistake (a banned API, a wrong file location, a review-standard violation) goes to `/corrections:codify "<the mistake>"` (if enabled), which counts the mistake and proposes a check proven against the old code. A mistake in how the agent worked during the session goes to `/session-flow:retro` (if enabled), which decides when a check is worth proposing. When neither route applies or its plugin is not enabled, file it with your issue tracker as its own prevention finding. Propose the check; do not build it here.
 
 **Optional view.** After the post-mortem is written, offer an interactive view of it (the hypotheses with their verdicts and evidence, a tick for each the reader would re-open, a copy-out of the challenge). The page is never written beside the post-mortem, which stays the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the medium resolver decides the destination, with this plugin's `medium` option `${user_config.medium}` as its `--option`, or `""` when that reads empty or as an unsubstituted placeholder (read the value from this text; never put a `${user_config.*}` string in a shell command), and its report and notice lines are printed as they stand. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
@@ -432,12 +430,17 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`; when Phase 2 kept a drive report whose recorded commit is the PR's base commit, name its `report.json` path as the `--before` evidence (from any other commit, name it as pre-fix evidence of that commit).
-- The report's lessons about driving the app: `/app-control:map refresh "<lesson>"`, one per lesson.
 - A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
+
+## Related
+
+- Codify recurring defect check: /corrections:codify.
+- Record app-driving lessons in control skill: /app-control:map refresh "<lesson>", one per lesson.
+- Already a failing test: /testing:fix-failing.
 
 ## When to escalate
 
@@ -447,5 +450,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Go back to Phase 1 and hold the loop to the exit check again
-- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` when the `planning` plugin is enabled (it hands off to `/planning:plan`), or your environment's own planning capability otherwise
+- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` (if enabled) (it hands off to `/planning:plan` (if enabled)), or your environment's own planning capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

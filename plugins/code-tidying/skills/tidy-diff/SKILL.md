@@ -78,10 +78,10 @@ markdown runs only the markdown passes.
    already triaged every comment in the listed lines, and this pass edits none.
 4. **Apply the docs-hygiene writing rules to the markdown lines.** For markdown an agent loads
    (a `SKILL.md`, an agent, a rule, `CLAUDE.md`, `AGENTS.md`, a reference file a skill reads) invoke
-   `/docs-hygiene:write-for-agents <file>`; for other markdown invoke
-   `/docs-hygiene:write-for-humans <file>`. Apply what it asks only to the listed lines: cut
+   `/docs-hygiene:write-for-agents <file>` (if enabled); for other markdown invoke
+   `/docs-hygiene:write-for-humans <file>` (if enabled). Apply what it asks only to the listed lines: cut
    restatement, filler and hedging, and keep every fact, link and constraint.
-5. **Fix AI prose patterns in the markdown lines.** Invoke `/ai-slop:audit fix <file>` per
+5. **Fix AI prose patterns in the markdown lines.** Invoke `/ai-slop:audit fix <file>` (if enabled) per
    markdown file. Keep its fixes inside the listed lines and undo any outside them.
 
 A pass whose skill does not resolve in this session, or that the session's permissions refuse, is

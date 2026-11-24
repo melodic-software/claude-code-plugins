@@ -17,14 +17,10 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 export const UNIT = /^[acd][1-8]$/;
-// What each leg may hand on with: run-claude-cli's handoff-reason, and for
-// the key leg an empty key as well.
 export const REASONS = {
   key: ["credit-stop", "auth", "no-key"],
   subscription: ["limit-stop", "credit-stop", "auth", "no-key"],
 };
-// The artifact and file name each leg's marker uploads under, before the
-// unit; the route job downloads by it.
 export const PREFIX = { key: "judge-handoff-", subscription: "judge-subscription-handoff-" };
 
 const legOf = (leg) => {
@@ -38,8 +34,6 @@ export function marker(leg, unit, reason) {
   return { unit, reason };
 }
 
-// run-claude-cli's log, one object per leg, counts the leg's denials. A leg
-// that reached past its rules gets no second attempt on another credential.
 export function denials(logText) {
   return logText
     .split("\n")
@@ -49,8 +43,6 @@ export function denials(logText) {
 
 export const markerName = (leg, unit) => `${PREFIX[legOf(leg)]}${unit}.json`;
 
-// The next leg's matrix from the downloaded markers, one file each. A file
-// that is not a marker, or names another unit than its own, fails the route.
 export function route(leg, dir) {
   const prefix = PREFIX[legOf(leg)];
   const include = [];
@@ -63,8 +55,6 @@ export function route(leg, dir) {
   return { include };
 }
 
-// Every collected unit, handed on with reason credit-stop: the credit gate
-// skipped the key leg, so no marker exists.
 export function routeSkipped(units) {
   if (!Array.isArray(units)) throw new Error("the units are not a list");
   return { include: units.map((unit) => marker("key", unit, "credit-stop")) };
@@ -97,7 +87,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       }
       case "route": {
         const matrix = route(env.LEG, env.HANDOFF_DIR);
-        // A key leg's credit stop writes the credit gate's marker.
         const creditStop = env.LEG === "key" && matrix.include.some((entry) => entry.reason === "credit-stop");
         writeMatrix(matrix, env.LEG === "key" ? `credit-stop=${creditStop}\n` : "");
         console.log(`handoff: ${matrix.include.length} unit(s) for the next leg`);

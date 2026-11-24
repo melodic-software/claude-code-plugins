@@ -126,11 +126,11 @@ presence answer on the finding.
 
 | Movement | Composition (presence-gated) | Inline fallback when absent |
 |---|---|---|
-| **Interview**: intent, constraints, what done means | `/planning:interview` | Ask the same questions inline as one small numbered set, recommendation first |
-| **Explore**: what the mechanism touches, where it is wired, what depends on it | `/discovery:explore` | Read the artifact, its registration surface and call sites, and list the blast radius before proposing anything |
-| **Research**: is the replacement the rediscovery names real and current | `/discovery:research` | Check its current official documentation and record the check with its date (§5) |
-| **Plan**: rung, exact edit, reversal, observation window | `/planning:plan` | Write goal, rung, blast radius and reversal in the response; get it approved before any edit |
-| **Implement** | `/implementation:implement` | Make the change against the approved plan, one rung at a time, stopping at the same gates |
+| **Interview**: intent, constraints, what done means | `/planning:interview` (if enabled) | Ask the same questions inline as one small numbered set, recommendation first |
+| **Explore**: what the mechanism touches, where it is wired, what depends on it | `/discovery:explore` (if enabled) | Read the artifact, its registration surface and call sites, and list the blast radius before proposing anything |
+| **Research**: is the replacement the rediscovery names real and current | `/discovery:research` (if enabled) | Check its current official documentation and record the check with its date (§5) |
+| **Plan**: rung, exact edit, reversal, observation window | `/planning:plan` (if enabled) | Write goal, rung, blast radius and reversal in the response; get it approved before any edit |
+| **Implement** | `/implementation:implement` (if enabled) | Make the change against the approved plan, one rung at a time, stopping at the same gates |
 
 Run only the movements the finding needs: a one-key config disable with a settled intent needs no
 research pass. Record a skipped one with its reason ("Skipped research: the rediscovery names a

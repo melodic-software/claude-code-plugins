@@ -42,7 +42,7 @@ for the technique entries this skill applies.
 
 ## Who writes the ceiling
 
-Check whether `/toolchain:ratchet` is among the available skills in this session.
+Check whether `/toolchain:ratchet` (if enabled) is available in this session.
 
 - **It is available:** hand it the counter's name, command, field and goal (with its Correlation
   value), and skip §2-§4 here. It picks the ceilings file the repository's CI already checks, or
@@ -198,12 +198,12 @@ must keep true:
 - **A handoff between two implementations:** no input that passes through the switch may be lost or
   reordered.
 
-For each case that applies, when `/corrections:codify` is among the available skills, hand it the
+For each case that applies, hand `/corrections:codify` (if enabled) the
 choice of mechanism; it picks the strongest rung of the enforcement ladder that can decide the rule
-and proves the check. Call it as `/corrections:codify "<what must not drift>"`. Otherwise, propose
+and proves the check. Call it as `/corrections:codify "<what must not drift>"` (if enabled). When the `corrections` plugin is not enabled, propose
 the strongest mechanism that can decide the rule: a change that makes the mistake impossible first,
 then a check that blocks it, then a test, and an instruction only when nothing a machine runs can
-decide it. Say that `/corrections:codify` was not available, so the proposal is unproven.
+decide it. Say that the `corrections` plugin is not enabled, so the proposal is unproven.
 
 When codify stops with no proposal, as it does below its recurrence threshold, propose the same
 way and say that it stopped, in place of saying it was not available.

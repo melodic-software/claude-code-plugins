@@ -65,8 +65,8 @@ When the selection is load-bearing, the field survey and the maintenance /
 security / license / adoption judgment must come from current research, not
 training-data recall: a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
-from memory: invoke `/discovery:research` via the Skill tool, or
-`/discovery:research deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
+from memory: invoke `/discovery:research` (if enabled) via the Skill tool, or
+`/discovery:research deep` (if enabled) for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
 sources yourself and cite them) when that capability is not enabled, never a bare recalled verdict.
 State the chosen option with a `Basis:`: `verified` with the source URLs or tool output it rests
 on, or `judgment` only where the call is not consequential (consequential means cross-repo,
@@ -116,6 +116,12 @@ which carves tool/dependency selection out to this skill.
   re-derive, not to switch for its own sake.
 - **Does not audit a whole repository's dependency graph.** The audit covers the
   selection in flight; a repo-wide coupling-risk inventory is out of scope.
+
+## Related
+
+- Load-bearing field survey and vendor evaluation: /discovery:research.
+- Challenge inherited precedent generally: /discipline:reason-dont-recite.
+- Idiom or structure consistency without dependency choice: /discipline:reuse-or-replace.
 
 ## Gotchas
 

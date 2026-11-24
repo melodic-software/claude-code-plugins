@@ -1,5 +1,20 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.2] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [4.4.1] - 2026-11-24
+
+### Changed
+
+- Every docs-hygiene skill except `setup` now carries a `## Related` section that lists the skills
+  to reach for in nearby situations, one condition per line. In `/docs-hygiene:audit-derivability`
+  it replaces the old `## Next` section, whose links were alternatives for different situations,
+  not one skill that comes next.
+
 ## [4.4.0] - 2026-11-23
 
 ### Changed

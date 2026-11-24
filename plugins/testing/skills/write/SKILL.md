@@ -1,5 +1,5 @@
 ---
-description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection (including property, characterization and old-versus-new tests), project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code, new code included ('test this', 'write a unit test', 'add X with unit tests'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
+description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection (including property, characterization and old-versus-new tests), project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code, new code included ('test this', 'write a unit test', 'add X with unit tests'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:fix-failing, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task]"
 user-invocable: true
 disable-model-invocation: false
@@ -22,7 +22,7 @@ Unless this section says otherwise, treat a failure (not a repository, git unava
 ## Purpose
 
 Authoring discipline for tests: what to test, how to name it, which test type fits, and where it
-lives. `/implementation:implement` calls this skill during its TDD cadence; `/toolchain:check` owns
+lives. `/implementation:implement` (if enabled) calls this skill during its TDD cadence; `/toolchain:check` (if enabled) owns
 test invocation (the actual commands, SSOT). Test structure (frameworks, project locations, naming,
 fixtures) belongs to the consuming project: read its testing conventions (its `CLAUDE.md`, rules,
 test-structure docs) before writing tests, and infer from existing test projects when nothing is
@@ -82,34 +82,40 @@ conventions for per-ecosystem naming, locations, and fixtures.
 - **Branch correct?** Don't write code on the default branch in a PR-based workflow
 - **Test frameworks available?** Identify the frameworks the project already uses (existing test projects, package manifests)
 - **Tests exist for the area?** Check for test projects covering the changed area. If none exist and code has testable behavior, flag it
-- **Domain language read?** Before naming any test, type or method, read the project's glossary. When `/domain-driven-design:ubiquitous-language` is among the available skills, invoke it via the Skill tool with `lookup` and the area under test. Otherwise find it yourself: Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder; a walk up from the code misses a sibling `docs/`) and Read the match that covers the code; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped. Print one plain line (no bullet), `Glossary: <path | none>`, before writing the first test, and repeat it verbatim in the final summary; prose naming the glossary does not replace it. Name tests and new code with its canonical terms and never a word on an `Avoid:` line, nor a verb in the parentheses of an entity's `Actions:` line for that operation on that entity, even when the request uses it; say which request words you replaced
+- **Domain language read?** Before naming any test, type or method, read the project's glossary. Invoke `/domain-driven-design:ubiquitous-language` (if enabled) via the Skill tool with `lookup` and the area under test. Otherwise find it yourself: Glob the repository for `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` (the root, any `docs/` folder and the module's own folder; a walk up from the code misses a sibling `docs/`) and Read the match that covers the code; a path the project's instructions declare, or a `glossary_file` set in `docs/conventions/domain-driven-design.yaml`, wins, and a tool's own reference glossary under a plugin or package `reference/` or `context/` folder is skipped. Print one plain line (no bullet), `Glossary: <path | none>`, before writing the first test, and repeat it verbatim in the final summary; prose naming the glossary does not replace it. Name tests and new code with its canonical terms and never a word on an `Avoid:` line, nor a verb in the parentheses of an entity's `Actions:` line for that operation on that entity, even when the request uses it; say which request words you replaced
 
 ## Cross-cutting principles
 
 - **Test behavior, not implementation**. Assert on what the user sees or what the API returns, not internal state (Kent C. Dodds: "The more your tests resemble the way your software is used, the more confidence they can give you")
-- **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Resistance to refactoring is non-negotiable and maintainability stays high; protection and fast feedback trade off, so no test maxes the first three at once (`/tdd:principles`)
+- **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Resistance to refactoring is non-negotiable and maintainability stays high; protection and fast feedback trade off, so no test maxes the first three at once (`/tdd:principles` (if enabled))
 - **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another)
-- When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative Beck/Khorikov guidance
+- When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (if enabled) for authoritative Beck/Khorikov guidance
 - Where each expected value comes from and which tests earn their keep: `testing:test-value` (if enabled)
 - Whether the new tests catch realistic hand-written bugs, beyond the hollow-out run: `/mutation-testing:seed-faults` (if enabled)
 
 ## Handoff
 
-- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is not enabled), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is enabled
+- Run the new tests by invoking `/toolchain:check` (if enabled) via the Skill tool (or the project's own test command when the `toolchain` plugin is not enabled), then continue implementation. Invoke `/implementation:implement` (if enabled) via the Skill tool
 - **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session) as a checkpoint before commit. An author testing their own code is the producer verifying its own work; this cross-model critique is the independent check that catches false-green or brittle tests before slow CI runs. Skip for trivial test additions. The verification level governs this checkpoint: resolve it with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin testing --skill write --file docs/conventions/testing.yaml` and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `standard` keeps the rule above and `strict` runs it for every suite, trivial additions included. Under `light`, and `off`, which acts as `light` here, call no advisor and never critique the suite inline in its place: report `verification: skipped (<level>)`. For non-deterministic dependencies, build in the determinism controls in context/write.md first. For unattended or HIGH-risk work with written acceptance criteria, recommend the blind test author mode (context/blind-author.md), which moves the independence earlier: the acceptance tests come from an agent that never read the code
 - After an `organize` decision: proceed to authoring for the new test project
-- Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool
+- Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:fix-failing` via the Skill tool
 
 ## What this skill does not do
 
-- **Does not run test commands**. `/toolchain:check` is SSOT for CLI invocation
-- **Does not diagnose failures**. `/testing:diagnose`
+- **Does not run test commands**. `/toolchain:check` (if enabled) is SSOT for CLI invocation
+- **Does not diagnose failures**. `/testing:fix-failing`
 - **Does not replace the project's testing conventions**: the consuming project's rules are the source of truth for frameworks, naming, organization; this skill defers to them
 
 ## Next
 
 - New tests, their quality unchecked: /testing:audit.
 - Tests written for survivors a mutation run handed over: /mutation-testing:audit on that file, to confirm each kill.
+
+## Related
+
+- Run the new tests across ecosystems: /toolchain:check.
+- Test-design WHY guidance: /tdd:principles.
+- Seed realistic faults to test suite strength: /mutation-testing:seed-faults.
 
 ## Gotchas
 

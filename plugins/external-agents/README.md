@@ -51,6 +51,7 @@ any change a consumer could notice bumps `schema`.
 | `models_source` | The command the list came from. |
 | `efforts`, `efforts_source` | The effort levels the CLI's help lists for its effort flag, and that help command; absent when the CLI reports effort per model instead. A help whose effort line lists no choices this plugin can read makes the result `failed`, never `ok` without levels. |
 | `tools` | List of tool names the harness offers (from the provider record when the CLI does not list them itself). |
+| `read_only_tools` | The subset of `tools` that still works under `--mode read-only` (an `investigate` run or a review), from the provider record; equal to `tools` when the record names no such list. |
 | `image` | Boolean: whether the harness can generate images headless. |
 | `breaker` | `{ open, reason, reset_at }` read from the product's breaker file (`open: false` and `null` fields when closed or absent). |
 | `docs_index` | The vendor's docs index, for facts no command reports. |
@@ -107,6 +108,26 @@ precedence are in the
 [config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset model, effort or
 profile leaves the CLI's own configuration in charge.
 
+One key also has a per-user setting, the plugin's `userConfig` option `antigravity_uses_task_mode`
+(`read-only` by default, or `write`), which sets `antigravity.uses.task.mode` in every repository
+and worktree for that user. Set it in `pluginConfigs` in your user
+`settings.json`:
+
+```json
+{
+  "pluginConfigs": {
+    "external-agents@melodic-software": {
+      "options": { "antigravity_uses_task_mode": "write" }
+    }
+  }
+}
+```
+
+The command reads it from your user and managed settings itself, since a command run through the
+Bash tool gets no `CLAUDE_PLUGIN_OPTION_*` variables. A repository's team or personal file still
+wins over it. The option's `options` picker needs Claude Code v2.1.271 or later; an earlier release
+cannot load the plugin.
+
 ## Job files
 
 Job files, logs, the breaker state and the CLI-facts cache (`cli-facts/<product>/<version>/`, the
@@ -123,3 +144,38 @@ set to a directory whose name starts with `external-agents-`; any other value is
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install external-agents@melodic-software
 ```
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `antigravity_uses_task_mode` | string | `"read-only"` | read-only (default): /external-agents:antigravity task runs cannot edit files. write: task runs may write, fenced by agy's terminal sandbox, in every repository. A repository's docs/conventions/external-agents.yaml or .local.yaml antigravity.uses.task.mode wins over this option. |
+
+### How to set these
+
+Set the options above for `external-agents@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->

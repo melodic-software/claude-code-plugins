@@ -53,8 +53,7 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
   section. `size --check` is a gate for one repository's hook or CI step, so it takes no target
   form.
 - Present the markdown report as printed. Keep the `--json` document when the numbers feed a
-  comparison: `/verification:measure metrics` consumes it when the `verification` plugin is
-  enabled (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
+  comparison: `/verification:measure metrics` (if enabled) consumes it (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
   notes and compare by hand.
 - A `null` value is a number the collector did not produce, never zero.
 - Nothing is installed; a missing collector is a row in the run table with its install hint.

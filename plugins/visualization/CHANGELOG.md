@@ -3,6 +3,19 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.5] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [1.4.4] - 2026-11-24
+
+### Changed
+
+- `/visualization:present` and `/visualization:visualize` gain a `## Related` section for links
+  that apply only in some runs.
+
 ## [1.4.3] - 2026-11-23
 
 ### Fixed

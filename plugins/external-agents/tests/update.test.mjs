@@ -300,6 +300,7 @@ describe("models", () => {
       efforts: ["low", "medium", "high"],
       efforts_source: "agy --help (--effort)",
       tools: ["file", "shell", "web", "mcp", "invoke_subagent", "define_subagent", "manage_subagents", "send_message", "run_workflow", "generate_image"],
+      read_only_tools: ["file"],
       image: true,
       breaker: { open: false, reason: null, reset_at: null },
       docs_index: "https://antigravity.google/docs/cli",
@@ -357,8 +358,21 @@ describe("models", () => {
     assert.equal(doc.cli.version, "0.168.0");
     assert.ok(!("efforts" in doc));
     assert.deepEqual(doc.tools, ["file", "shell", "web", "mcp", "image_generation"]);
+    assert.deepEqual(doc.read_only_tools, ["file", "shell", "web", "mcp"]);
     assert.equal(doc.image, true);
     assert.deepEqual(doc.breaker, { open: false, reason: null, reset_at: null });
+  });
+
+  test("a record with no read_only_tools reports read_only_tools equal to tools", async () => {
+    const root = join(scratch, "no-read-only-tools-record");
+    mkdirSync(join(root, "providers"), { recursive: true });
+    const text = readFileSync(join(here, "..", "providers", "codex.yaml"), "utf8");
+    const stripped = text.replace(/^ {2}read_only_tools: .*\n/m, "");
+    assert.notEqual(stripped, text, "fixture setup: the codex record carries a read_only_tools line to remove");
+    writeFileSync(join(root, "providers", "codex.yaml"), stripped);
+    const doc = JSON.parse((await models({ ...world().opts, providersRoot: root })).stdout);
+    assert.equal(doc.status, "ok");
+    assert.deepEqual(doc.read_only_tools, ["file", "shell", "web", "mcp", "image_generation"]);
   });
 
   test("an open breaker is reported in models output, and an expired breaker reports closed", async () => {

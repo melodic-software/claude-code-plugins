@@ -106,7 +106,7 @@ merged PR (`merged-remote-branch`) are out of scope and are rejected if they app
 
 - Re-run fleet discovery or GitHub evidence collection. That is `/repo-fleet-hygiene:audit`.
 - Add execution flags to `audit-fleet.sh`.
-- Batch-delete via `/repo-hygiene:clean git` (that skill refuses to batch branch deletion).
+- Batch-delete via `/repo-hygiene:clean git` (if enabled) (that skill refuses to batch branch deletion).
 - Remove stranded/dirty/locked worktrees, or act on tip-drift / manual-review findings.
 - Change GitHub `delete_branch_on_merge`.
 - Delete a remote branch without `--remote-branches`, without its own per-branch confirmation, or

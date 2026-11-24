@@ -26,8 +26,8 @@ already lands, just answer.
    re-read this turn. A recalled paraphrase does not count.
 
    For a subsystem of the current codebase, when the discovery skills are available, invoke
-   `/discovery:explore --output explain <subsystem>` for what the code does and
-   `/discovery:trace-intent <subsystem>` for why it was built that way, and explain from what they
+   `/discovery:explore --output explain <subsystem>` (if enabled) for what the code does and
+   `/discovery:trace-intent <subsystem>` (if enabled) for why it was built that way, and explain from what they
    return. Keep trace-intent's confidence wording: a reason it marked inferred stays hedged
    ("appears to", "likely"), and one it could not find stays "not found", in plain words. Without those skills,
    read the files yourself and cite them; state a reason for a design choice only when a file you
@@ -138,6 +138,11 @@ Close every explanation with this single line; only the starting-rung report fol
 
 - The reader wants to keep learning the topic across sessions: `/education:teach`.
 - The reader wants a diagram instead of prose: `/education:illustrate`.
+
+## Related
+
+- Faithful restructure keeping original precision: /adhd:clarify.
+- Re-pitch a missed message in Simplified Technical English: /discipline:wait-what.
 
 ## Gotchas
 

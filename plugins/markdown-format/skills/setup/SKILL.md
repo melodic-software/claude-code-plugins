@@ -45,9 +45,9 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Markdown formatting and linting are two concerns. The hooks run only
 the plugin's shipped markdownlint-cli2 adapter, where a markdownlint config governs the file, and
 otherwise nothing; they never run a command from the repository's markdown record
-(`docs/conventions/ecosystems/markdown.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+(`docs/conventions/ecosystems/markdown.yaml`), which `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
-(`apply install-git-hooks`); the record is written by `/toolchain:setup apply markdown`, never
+(`apply install-git-hooks`); the record is written by `/toolchain:setup apply markdown` (if enabled), never
 here. Rules come from the repository's own markdownlint config, and the tunables are the native
 `userConfig` options (the on/off toggle, the gitignored-file switch and the end-of-turn check).
 `apply` is otherwise guidance-and-verify, with one more write path: the explicitly invoked
@@ -140,15 +140,15 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    - found `no`: FAIL; the remediation is item 4's.
    - `none`: INFO "unresolved": item 5 says why.
    A detail saying a markdown record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 7. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
    plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
    adapter. Find the repository's own formatter and linter by the steps in
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats and `lint-cmd`
    only reports, with findings as `<path>:<line>` lines. Hand the draft to
-   `/toolchain:setup apply markdown`, the one writer of those keys, so `/toolchain:lint` and
-   `/toolchain:check` can run them on request.
+   `/toolchain:setup apply markdown` (if enabled), the one writer of those keys, so `/toolchain:lint` (if enabled) and
+   `/toolchain:check` (if enabled) can run them on request.
 8. **Path scope, the repository's `.gitignore`.** INFO: the batch hook leaves a gitignored
    file alone, because a path the repository excludes is not part of the reviewable artifact.
    (The pre-commit entries only see files git stages, so they need no such rule.) List the
@@ -293,7 +293,7 @@ install command's exit code alone. For everything else `apply` only points:
   The plugin imposes no rules of its own, and which rules a repository adopts is its own
   decision, never this skill's.
 - a concern the repository wants run by another tool: `check` step 7's draft, for
-  `/toolchain:setup apply markdown`.
+  `/toolchain:setup apply markdown` (if enabled).
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
@@ -309,7 +309,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   `git commit` exercises the installed pre-commit entries. The only
   execution `check` performs is the `--help` liveness probe of the resolved linter; it never
   lints, fixes, touches repository content, or loads a repository config or module.
-- Write the markdown record: `/toolchain:setup apply markdown` does.
+- Write the markdown record: `/toolchain:setup apply markdown` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Download anything during `check`; network use happens only in an explicitly
   requested `apply install-lint` inside the consumer repository.

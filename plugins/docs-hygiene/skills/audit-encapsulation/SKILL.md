@@ -228,6 +228,11 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 | `/docs-hygiene:extract-ssot` | The hit is really duplication rather than a boundary breach. |
 | `/docs-hygiene:rename-references` | A remediation renamed a heading, and every citing form still needs sweeping. |
 
+## Related
+
+- Verify or execute a Path A promote-out extraction: /docs-hygiene:extract-ssot.
+- Sweep citations after a heading or path move: /docs-hygiene:rename-references.
+
 ## Recheck triggers
 
 | Condition | Action |

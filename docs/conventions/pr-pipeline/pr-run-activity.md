@@ -351,7 +351,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `sudo -n true` still succeeds or the socket is still open to the runner user.
 11. For a skill (the read file only), copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
     files it installs from (`.python-version`, `.github/requirements-ci.txt`, the root and
-    `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
+    `scripts/ci-deps` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
     history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`

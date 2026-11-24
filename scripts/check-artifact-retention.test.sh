@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/standards/runner-policy/package.json
+# test-scope: scripts/ci-deps/package.json
 # test-scope: .github/artifact-retention.json .github/artifact-retention.schema.json
 # test-scope: .github/workflows/* .github/actions/*
 # Black-box contract test for check-artifact-retention.sh.
@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-artifact-retention.sh"
 SUT_MJS="$SCRIPT_DIR/check-artifact-retention.mjs"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-POLICY_DIR="$REPO_ROOT/.github/standards/runner-policy"
+DEPS_DIR="$REPO_ROOT/scripts/ci-deps"
 SCHEMA="$REPO_ROOT/.github/artifact-retention.schema.json"
 
 # shellcheck source=lib/test-harness.sh
@@ -35,9 +35,9 @@ mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label artifact-retention || return 1
   dir="${!1}"
-  mkdir -p "$dir/.github/workflows" "$dir/.github/actions/pack" "$dir/.github/standards/runner-policy"
-  cp "$POLICY_DIR/package.json" "$dir/.github/standards/runner-policy/"
-  ln -s "$POLICY_DIR/node_modules" "$dir/.github/standards/runner-policy/node_modules"
+  mkdir -p "$dir/.github/workflows" "$dir/.github/actions/pack" "$dir/scripts/ci-deps"
+  cp "$DEPS_DIR/package.json" "$dir/scripts/ci-deps/"
+  ln -s "$DEPS_DIR/node_modules" "$dir/scripts/ci-deps/node_modules"
   cp "$SCHEMA" "$dir/.github/"
   cat >"$dir/$TABLE" <<'EOF'
 {
@@ -347,10 +347,10 @@ fi
 # The yaml package missing is environment, not findings.
 tree=""
 if mk_tree tree; then
-  rm "$tree/.github/standards/runner-policy/node_modules"
+  rm "$tree/scripts/ci-deps/node_modules"
   out="$(bash "$tree/scripts/check-artifact-retention.sh" --check 2>&1 >/dev/null)"
   rc=$?
-  if [[ $rc -eq 2 && $out == *"npm ci --prefix .github/standards/runner-policy"* ]]; then
+  if [[ $rc -eq 2 && $out == *"npm ci --prefix scripts/ci-deps"* ]]; then
     ok "a missing yaml package exits 2 and names the install"
   else
     fail "a missing yaml package should exit 2 naming the install (rc=$rc): $out"

@@ -10725,6 +10725,43 @@ class DependabotEligibility(unittest.TestCase):
         }
         self.assert_sync_refused(self.cdn_sync(detail=message), "cdn-sync-message")
 
+    def test_a_cdn_pins_sync_commit_carries_the_sync_rows_subject_and_trailer(
+        self,
+    ) -> None:
+        ref = "dependabot/npm_and_yarn/x-1.3.0"
+        trailer = "\n\nLane-Activity: pr-unblock/review-dependency\n"
+        for label, text, reason in (
+            (
+                "another row's subject",
+                f"Fix the dependency update on {ref} [dependabot skip]{trailer}",
+                "cdn-sync-message",
+            ),
+            (
+                "another branch",
+                "Sync the CDN pins to the bumped manifest on main "
+                f"[dependabot skip]{trailer}",
+                "cdn-sync-message",
+            ),
+            (
+                "no trailer",
+                self.SYNC_MESSAGE.split("\n", 1)[0],
+                "cdn-sync-trailer",
+            ),
+            (
+                "another activity",
+                self.SYNC_MESSAGE.replace("review-dependency", "fix-ci-context"),
+                "cdn-sync-trailer",
+            ),
+        ):
+            with self.subTest(label):
+                detail = {
+                    "commit": {
+                        "message": text,
+                        "verification": {"verified": True, "reason": "valid"},
+                    }
+                }
+                self.assert_sync_refused(self.cdn_sync(detail=detail), reason)
+
     def test_a_cdn_pins_sync_commit_is_the_lanes_apps_with_one_parent(
         self,
     ) -> None:

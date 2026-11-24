@@ -339,8 +339,9 @@ a plan asks for it. Both reviews run in a fresh-context subagent, never in the a
 hand it the pull request's diff
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-diff)) and
 the acceptance criteria, not the author's reasoning. Each bullet names its `pre_ready` step; skip
-a step the list disabled or `--skip` removed, after any built-in skip it has. The commit and the
-verify record after the bullets are not steps: they run every time.
+a step the list disabled or `--skip` removed, after any built-in skip it has. The criteria proof,
+the commit and the verify record after the bullets are not steps: `pre_ready` and `--skip` never
+turn them off.
 
 Before the reviews, read the review venue again ([review-venue.md](review-venue.md)); a lane can
 fail between prep and the flip. A review whose lane reads `ci` is skipped as a built-in condition:
@@ -357,7 +358,7 @@ even though it is prose, so a diff touching any of these is not docs-only: `AGEN
 `plugins/*/agents/**`). The list is this marketplace's layout plus the `.claude/` directories a
 project keeps agent instructions in; a consuming project adds its own skill and agent directories
 to it. A code file is never docs-only, whatever its path. This is the one definition; other files
-cite it rather than restate the list. It decides the two reviews below. It does not change the
+cite it rather than restate the list. It decides the two reviews and the criteria proof below. It does not change the
 added-suppressions check in [prep.md](prep.md) §1.2.1: that scan reads code, so the row keeps its
 file-type reading, owed when a changed file is code and not owed for prose alone, an instruction
 surface included. Prep's own review steps (1.2 to 1.4) also stay keyed on the `code` class, so the
@@ -400,6 +401,13 @@ The bullets below are the steps.
   runs inside the record command below, so the result comes from its exit status. When CI's test
   lanes already passed on the head, the suites are skipped as a built-in condition (**CI's test
   lanes**, below); `ready --verify-local` runs them anyway.
+
+**Criteria proof (advisory).** When the pull request body has an `## Acceptance criteria` section
+and the diff is not docs-only, run `/verification:confirm` (if enabled) on the PR worktree's HEAD
+after the commit below and before the **CI's test lanes** read and the gate, so each criterion's
+row names the test or check that proves it. For a row whose test-or-check cell reads `none ran`,
+add the test, commit it and run confirm again on the new head, or name the criterion in the 2.5.7
+report with why it cannot be tested. It never holds the flip.
 
 **Commit, then record the verify result.** Both run in every repository and every run, whatever
 `pre_ready` or `--skip` says. First commit whatever the reviews changed, so the gate and the record
@@ -662,8 +670,9 @@ HEAD, the head 2.5.4 flipped. The measure verdict line is the `/verification:mea
 recorded for that head on the improvement claim it judged, `CANNOT QUANTIFY` when no baseline was
 captured before the change; a head with no measure verdict prints no measure line. Print both with
 the command below and report its output as written: the confirm verdict (`CONFIRMED`, `NEEDS WORK`
-or `NOT VERIFIED`) with each `MISSING` or `PARTIAL` item, or that no verdict is recorded for this
-head, then any measure verdict with its `CLAIM`. A verdict recorded for an earlier head does not
+or `NOT VERIFIED`) with each `MISSING` or `PARTIAL` item and each criterion the criteria proof
+(2.5.3) left at `none ran`, with why it cannot be tested, or that no verdict is recorded
+for this head, then any measure verdict with its `CLAIM`. A verdict recorded for an earlier head does not
 count. Both lines are advisory: read after the flip, no verdict, present or missing, ever holds the
 PR in draft, and the `verify` gate's record for the head is a separate file this command never
 reads or writes.

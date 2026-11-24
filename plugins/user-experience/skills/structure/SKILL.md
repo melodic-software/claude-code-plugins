@@ -11,7 +11,7 @@ metadata:
 # Structure flows and information architecture
 
 Structure `$ARGUMENTS`, or the flow or navigation the conversation is about. This skill owns what a
-flow does and how content is organized; how a screen looks is `/user-interface:design`'s.
+flow does and how content is organized; how a screen looks belongs to `/user-interface:design` (if enabled).
 
 ## Context
 

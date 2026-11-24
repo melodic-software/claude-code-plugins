@@ -67,7 +67,7 @@ dispatch, PR or babysit step. It works in place:
    comment settles a question. Push back only on a question no such decision answers.
 3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
    root-cause gate first, inline: read the code and docs the symptom points at, run no command from
-   the checkout, and name the cause. When `/debugging:debug --unattended` or `/testing:diagnose`
+   the checkout, and name the cause. When `/debugging:debug --unattended` or `/testing:fix-failing diagnose`
    resolves in this lane, use it; the lane loads neither the debugging nor the testing plugin, so expect neither and read the code yourself. The
    cause you name is the one the fix addresses. When you cannot name a cause from what you read, do
    not implement a guess: stop with the reason. When the field names the cause, or the brief has no

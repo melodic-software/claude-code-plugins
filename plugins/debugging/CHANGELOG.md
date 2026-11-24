@@ -3,6 +3,20 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.2] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [2.3.1] - 2026-11-24
+
+### Changed
+
+- `/debugging:debug` and `/debugging:analyze-profile` gain a `## Related` section for links that
+  apply only in some runs. Debug's link for recording app-driving lessons moves from `## Next` to
+  `## Related`.
+
 ## [2.3.0] - 2026-11-23
 
 ### Changed

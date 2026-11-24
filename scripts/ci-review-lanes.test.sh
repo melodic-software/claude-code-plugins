@@ -29,6 +29,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=test-git-helpers.sh
+. "$ROOT/scripts/test-git-helpers.sh"
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
 export RUNNER_TEMP="$TMP_ROOT"
@@ -849,6 +851,16 @@ export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
 $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
 $SHA_UNTAGGED	refs/heads/main"
+vtags="$TMP_ROOT/vendor-tags"
+vgit() { git_test_config "$vtags" -c core.hooksPath=/dev/null "$@"; }
+if mkdir -p "$vtags" && git_init_test_repo "$vtags" && vgit commit -q --allow-empty -m one && vgit tag v1 && vgit tag v1.0.265 &&
+  vgit commit -q --allow-empty -m two && vgit tag -a -m v2 v2 && vgit tag -a -m v1.0.266 v1.0.266 &&
+  vendor_tags="$(git ls-remote --tags "$vtags")" && grep -q $'\trefs/tags/v2\^{}$' <<<"$vendor_tags"; then
+  STUB_TAGS="$STUB_TAGS
+$vendor_tags"
+else
+  fail "could not list the tags of a throwaway repository with git ls-remote"
+fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
 cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
@@ -877,12 +889,12 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "melodic-software/ci-wor
   BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists melodic-software, so a ci-workflows composite-action bump skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap "Anthropics/claude-code-base-action@$SHA_OLD" "Anthropics/claude-code-base-action@$SHA_BASE # v2.0.0")")" \
   dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
-STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \
+STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap evilcorp/checkout@v4 evilcorp/checkout@v5)")" \
   dep "a mixed bump across files (a listed owner and another) stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "-      - uses: $CCA_OLD
--      - uses: actions/checkout@v4
+-      - uses: evilcorp/checkout@v4
 +      - uses: $CCA_NEW
-+      - uses: actions/checkout@v5")" \
++      - uses: evilcorp/checkout@v5")" \
   dep "a mixed bump in one block stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")
 -          node-version: 20
@@ -897,7 +909,32 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/o
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" anthropics/claude-code-action@main)")" \
   dep "a swap to a branch name stays held by the ref shape, not the tag read" 1 "$HELD" "No tag of the action's repository"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" 'anthropics/claude-code-action@v1.0.266 # v1.0.266')")" \
-  dep "a swap to a tag name stays held by the ref shape (only SHA pins pass)" 1 "$HELD" "No tag of the action's repository"
+  dep "a swap from a SHA to a tag name stays held by the ref shape" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap anthropics/claude-code-action@v1.0.265 anthropics/claude-code-action@v1.0.266)")" \
+  dep "a vendor tag-to-tag bump of a listed owner skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a major-tag bump of actions/checkout skips the hold under the repository's own owner list" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap Azure/login@v1 'Azure/login@v2 # v2')")" \
+  BASE_CONFIG="$ROOT" dep "a vendor owner matches in any letter case, with a version comment" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2)")" \
+  dep "a vendor tag bump of an unlisted owner waits for a merge verdict" 1 \
+  "::error::#77 by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths: $WF, and merge.dependabot.trusted-action-owners does not list the owner of: actions/checkout."
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v9)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag bump to a tag the repository lacks stays held" 1 "No tag of the action's repository points to, or its tag list could not be read for: actions/checkout@v9"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap melodic-software/ci-workflows/.github/actions/run-claude-cli@v1 melodic-software/ci-workflows/.github/actions/run-claude-cli@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a first-party tag swap stays held, though its owner is listed" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap evilcorp/setup-tool@v1 evilcorp/setup-tool@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a third-party tag swap stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@main)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a branch stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/checkout@v2-beta)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a non-version tag stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 actions/setup-node@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swap that changes the action path stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "actions/checkout@$SHA_OLD # v1" actions/checkout@v2)")" \
+  BASE_CONFIG="$ROOT" dep "a vendor SHA swapped to a tag stays held" 1 "$HELD" "No tag of the action's repository"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap actions/checkout@v1 "actions/checkout@$SHA_NEW # v2")")" \
+  BASE_CONFIG="$ROOT" dep "a vendor tag swapped to a SHA stays held" 1 "$HELD" "No tag of the action's repository"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/claude-code-action@$SHA_UNTAGGED # v1.0.266")")" \
   dep "a swap to a SHA no tag points to stays held" 1 "No tag of the action's repository points to, or its tag list could not be read for: anthropics/claude-code-action@$SHA_UNTAGGED"
 STUB_LSREMOTE_FAIL=1 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
@@ -1010,6 +1047,34 @@ STUB_COMMENTS='[]' V_CHANGED=2 V_FILES="$EVIL_FILES$(patch_file .github/workflow
 STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
 V_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" vdep "a listed owner's bump clears by the owner list, reading no comments" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 if grep -q '/comments' "$TMP_ROOT/log"; then fail "a listed owner's bump read the comments"; else ok "a listed owner's bump reads no comments"; fi
+PINS=lib/cdn-pins/pins.json
+pins_files() { jq -cn --arg st "${1:-modified}" '[{filename: "lib/cdn-pins/pins.json", status: $st},
+  {filename: "lib/cdn-pins/package.json", status: "modified"}, {filename: "lib/cdn-pins/package-lock.json", status: "modified"}]'; }
+PINS_HELD="::error::#77 by Dependabot changes only the CDN pins record on trust-gate paths: $PINS. The lanes App's review-dependency verdict=merge at this head clears it"
+PINS_CLEARED="names $HEAD with verdict=merge, which clears the trust-gate hold (owner decision Q154 A)"
+pdep() { LANES_APP_ID="${LANES_APP_ID-$LANE_APP}" STUB_CHANGED="${P_CHANGED:-3}" SHARED_FILES="${P_FILES-$(pins_files)}" dep "$@"; }
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
+pdep "a CDN-pin bump whose only trust-gate path is the pins record clears on the merge verdict at the head" 0 "$PINS_CLEARED" "::error::"
+P_CHANGED=4 P_FILES="$(pins_files)$(files CODEOWNERS)" \
+  pdep "a merge verdict does not clear a CDN-pin bump that also changes another trust-gate path" 1 "A person merges it" "$PINS_CLEARED"
+P_FILES="$(pins_files | jq -c 'map(if .filename == "lib/cdn-pins/pins.json" then .status = "renamed" | .previous_filename = "lib/cdn-pins/old.json" else . end)')" \
+  pdep "a merge verdict does not clear a pins record renamed into place" 1 "A person merges it" "$PINS_CLEARED"
+P_FILES='' STUB_FILES="$(pins_files)" BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="$TMP_ROOT/dep-config" LANES_APP_ID=$LANE_APP STUB_CHANGED=3 \
+  expect "a merge verdict does not clear a pins record with no broker file pages" 1 "A person merges it" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "${HEAD//0/f}" merge 1)")"
+pdep "a merge verdict for another head does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" fix 1)")"
+pdep "a fix verdict at the head does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)" "$(round "$LANE_APP" Bot "$HEAD" escalate 2)")"
+pdep "a newer escalate marker keeps the pins record held" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" User "$HEAD" merge 1)")"
+pdep "a merge marker by a user account with the lanes App's id does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round 777 Bot "$HEAD" merge 1)")"
+pdep "a merge marker by another bot does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")" STUB_COMMENTS_FAIL=1
+pdep "unreadable round markers keep the pins record held" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS_FAIL=
+LANES_APP_ID='' pdep "with no lanes App id a merge marker does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
 STUB_COMMENTS='[]'
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"

@@ -3,6 +3,19 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.2] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [0.58.1] - 2026-11-24
+
+### Changed
+
+- `/code-tidying:remove-comments` gains a `## Related` section pointing at
+  `/code-metrics:audit-suppressions` for lint or type suppressions in scope.
+
 ## [0.58.0] - 2026-11-23
 
 ### Added

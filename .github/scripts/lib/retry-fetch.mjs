@@ -51,7 +51,6 @@ export async function rateLimitWait(response, now = Date.now) {
   try {
     text = typeof response.clone === "function" ? await response.clone().text() : "";
   } catch {
-    // A body already read names no limit.
   }
   return /secondary rate limit/i.test(text) ? SECONDARY_WAIT_MS : null;
 }
@@ -89,7 +88,6 @@ export function recordFailure({ method, url, status, dir = process.env.RUNNER_TE
     mkdirSync(join(dir, "lane-run-report"), { recursive: true });
     appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
   } catch {
-    // A report row is never worth failing the call.
   }
 }
 

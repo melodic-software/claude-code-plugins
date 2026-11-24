@@ -149,6 +149,15 @@ describe("provider record", () => {
     assert.match(validateProvider(record).join("\n"), /modes\.write/);
   });
 
+  test("read_only_tools validates only as a subset of harness.tools", () => {
+    const subset = valid();
+    subset.harness = { tools: ["file", "shell"], read_only_tools: ["file"] };
+    assert.deepEqual(validateProvider(subset), []);
+    const stray = valid();
+    stray.harness = { tools: ["file"], read_only_tools: ["file", "web"] };
+    assert.match(validateProvider(stray).join("\n"), /harness\.read_only_tools/);
+  });
+
   test("malformed harness and usage declarations are named", () => {
     const record = valid();
     record.harness = { tools: [123], image: "yes", extra: true };

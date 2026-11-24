@@ -1,6 +1,3 @@
-// The lane sweep's finding rules, shared by the judge's writer and the filer:
-// shape checks, the claim check against main, the dedup fingerprint, and
-// the digest issue's body and plan. No model, no network.
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
@@ -11,7 +8,6 @@ const TEXT_FIELDS = ["title", "problem", "root_cause", "proposed_fix", "workflow
 
 const squash = (text) => String(text).replace(/\s+/g, " ").trim();
 
-// Field names that fail, empty when the finding is well formed.
 export function validateFinding(finding) {
   const bad = [];
   if (!SLICES.has(finding?.slice)) bad.push("slice");
@@ -30,8 +26,6 @@ export function validateFinding(finding) {
   return [...new Set(bad)];
 }
 
-// A claim holds when its path is a regular file under base (no symlink, no
-// escape) and its quote, whitespace squashed, is on that 1-based line.
 export function checkClaim(base, { path, line, quote }) {
   if (
     !/^[A-Za-z0-9._@+-][A-Za-z0-9._@+/-]*$/.test(path) ||
@@ -78,8 +72,6 @@ const fenced = (text) => {
   return `${fence}text\n${body}\n${fence}`;
 };
 
-// The entry title, which renders outside any fence: one line, no mention,
-// link, autolink, reference or HTML.
 export const inertTitle = (text) =>
   squash(text)
     .replace(/</g, "&lt;")
@@ -97,10 +89,7 @@ const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: 
 // the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
 export const DIGEST_TITLE = "Review the open findings from the lane sweep";
-// slice and wf ride on the marker so a tracked or cut entry keeps them; a
-// marker without them is an older entry, read from its Where block.
 const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))?(?: slice=([ACD]))?(?: wf=(\S+))? -->$/;
-// The workflow is model text for slice C, so only a plain workflow path is kept.
 const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
 const workflowPath = (path) => (typeof path === "string" && WORKFLOW_PATH.test(path) ? path : null);
 const entryMarker = ({ fingerprint: fp, tracked, slice, workflow }) =>
@@ -117,8 +106,6 @@ const clip = (text) => {
   return chars.length > MAX_FIELD ? `${chars.slice(0, MAX_FIELD).join("")} [cut at ${MAX_FIELD} characters]` : String(text);
 };
 
-// One entry's section, model text inside fences. A finding an earlier sweep
-// filed an open issue for points at that issue instead of repeating it.
 export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
   const marker = entryMarker({ fingerprint: fp, tracked, slice: finding.slice, workflow: finding.workflow });
   const head = [marker, `### ${inertTitle(finding.title)}`, ""];
@@ -150,9 +137,6 @@ export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
 const shortEntry = (entry) =>
   `${entry.text.split("\n", 2).join("\n")}\n\nFingerprint \`${entry.fingerprint}\`; details left out to fit the issue body limit.`;
 
-// The entry set and which issue tracks each entry. An entry's details are not
-// in it, so a reworded problem or a shifted quote writes nothing; a tracking
-// issue opening or closing rewrites the body.
 const entryKey = (e) => `${e.fingerprint}:${e.tracked ?? ""}`;
 export const digestFingerprint = (entries) =>
   createHash("sha256")
@@ -168,8 +152,6 @@ export function renderDigest(entries, runUrl) {
     entries.length === 0 ? "No open finding." : `${entries.length} open finding${entries.length === 1 ? "" : "s"}.`,
   ].join("\n");
   const tail = `\n\n${END}\n<!-- lane-sweep:fp=${digestFingerprint(entries)} -->`;
-  // Room is kept for every later entry's short form, so the body stays under
-  // the limit whichever entries are cut.
   const short = entries.map((e) => `\n\n${shortEntry(e)}`);
   let rest = short.reduce((n, s) => n + s.length, 0);
   let body = head;
@@ -184,9 +166,6 @@ export function renderDigest(entries, runUrl) {
 const FENCE = /^(`{3,})text$/;
 const SLICE_LINE = /^Slice ([ACD]), fingerprint `[0-9a-f]{16}`/;
 
-// The slice and workflow an entry's text names, each null when absent: a
-// tracked or cut entry has no Where block. Fences are tracked so a
-// "**Where**" line inside model text is never read as the heading.
 function entryWhere(lines) {
   const slice = SLICE_LINE.exec(lines[3] ?? "")?.[1] ?? null;
   let fence = null;
@@ -210,8 +189,6 @@ function entryWhere(lines) {
   return { slice, workflow };
 }
 
-// The entries a digest body holds, each with its rendered text, title, and
-// the slice and workflow it names.
 export function readEntries(body) {
   const entries = [];
   let current = null;
@@ -264,16 +241,8 @@ export function renderDigestComment({ added, dropped, retracked = [] }, runUrl) 
 
 const lastLineFp = (body) => MARKER.exec(String(body ?? "").trimEnd().split("\n").at(-1))?.[1] ?? null;
 
-// The fingerprint from the body's last line, for the per-finding issues
-// earlier sweeps filed; the digest is not one of them.
 export const readFingerprint = (body) => (isDigest(body) ? null : lastLineFp(body));
 
-// items: [{fingerprint, finding}]; existing: sweep issues of any state, with
-// no time window, with body; openNumbers: open issue and PR numbers; complete:
-// every unit's findings were read, so an entry not seen in this sweep is gone
-// rather than unread. When not complete, carry(entry) names why an earlier
-// entry this sweep did not see may still hold, or returns null to drop it;
-// with no carry, every such entry carries.
 export function planDigest({ items, existing, openNumbers, complete = true, carry = () => "unread" }) {
   const byFp = new Map();
   let digest = null;
@@ -282,7 +251,6 @@ export function planDigest({ items, existing, openNumbers, complete = true, carr
       if (!digest || issue.number > digest.number) digest = issue;
       continue;
     }
-    // A fingerprint maps to its last open issue, else its first.
     const fp = readFingerprint(issue.body);
     if (fp && (!byFp.has(fp) || issue.state === "open")) byFp.set(fp, issue);
   }
@@ -300,7 +268,6 @@ export function planDigest({ items, existing, openNumbers, complete = true, carr
       skip.push({ fingerprint: fp, reason: "muted" });
       continue;
     }
-    // The digest never covers its own entries.
     if (finding.covered_by !== null && finding.covered_by !== digest?.number && openNumbers.has(finding.covered_by)) {
       skip.push({ fingerprint: fp, reason: "covered" });
       continue;
@@ -314,7 +281,6 @@ export function planDigest({ items, existing, openNumbers, complete = true, carr
     for (const entry of before.filter((e) => !seen.has(e.fingerprint))) {
       const reason = carry(entry);
       if (!reason) continue;
-      // An older entry's marker gains the slice and workflow its Where block named.
       const [, ...rest] = entry.text.split("\n");
       entries.push({ ...entry, text: [entryMarker(entry), ...rest].join("\n") });
       seen.add(entry.fingerprint);

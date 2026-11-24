@@ -234,7 +234,7 @@ no-argument skill is not in that gate. `argument-hint` spelling is a different c
 
 The last reply of a run that creates or changes a skill has three parts, in this order:
 
-- **Checks**: `/skill-quality:check`, the evals, and any other check, each with its result; a check
+- **Checks**: `/skill-quality:check` (if enabled), the evals, and any other check, each with its result; a check
   that did not run is listed as not run.
 - **Choices**: the category, the split between `SKILL.md`, reference files and scripts, and the
   description's trigger phrases, each with the reason it was chosen.

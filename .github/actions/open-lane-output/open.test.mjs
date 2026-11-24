@@ -15,7 +15,6 @@ const ACTION = readFileSync(path.join(HERE, "action.yml"), "utf8");
 const CHUNK = 98304;
 const CAPS = "reply.txt=16384\nact-turns.json=32768\npatch.diff=262144";
 
-// The decode step's env, from action.yml: each `NAME: ${{ inputs.x }}` takes input x.
 function stepEnv(inputs) {
   const env = {};
   for (const [, name, input] of ACTION.matchAll(/^ {8}([A-Z_0-9]+): \$\{\{ inputs\.([\w-]+) \}\}$/gm)) env[name] = inputs[input] ?? "";
@@ -34,7 +33,6 @@ function sealedInputs(recipient, payloads, { runId = "42", jobId = "run", bundle
   return inputs;
 }
 
-// Runs open.mjs as the composite step does; returns its exit, log, output and env files, and the files it wrote.
 function runOpen(t, inputs, { runId = "42", runAttempt = "1" } = {}) {
   const dir = tempDir("open-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -131,11 +129,9 @@ test("a record from another run, another producing job or under another payload 
   const open = (inputs, options) => runOpen(t, { ...inputs, "private-key": privateText, "expected-key-ids": keyId }, options);
   assertClosed(open(sealedInputs(recipient, [["reply.txt", REPLY]], { runId: "41" })), "another run id");
   assertClosed(open(sealedInputs(recipient, [["reply.txt", REPLY]], { jobId: "scan" })), "another job id");
-  // The reply's record relabelled as the patch: the name is in the AAD and the key.
   const bundle = sealBundle(recipient, [["reply.txt", REPLY]], "42", "run");
   const swapped = Buffer.concat([Buffer.from([10]), Buffer.from("patch.diff"), bundle.subarray(1 + 9)]);
   assertClosed(open(sealedInputs(null, null, { bundle: swapped })), "a swapped payload name");
-  // Two records traded between names.
   const pair = sealBundle(recipient, [["reply.txt", Buffer.from("aa")], ["patch.diff", Buffer.from("bb")]], "42", "run");
   const recordAt = (at) => pair.subarray(at + 1 + pair[at] + 4, at + 1 + pair[at] + 4 + pair.readUInt32BE(at + 1 + pair[at]));
   const second = 1 + 9 + 4 + recordAt(0).length;
@@ -205,7 +201,6 @@ test("oversize ciphertext is refused on its size alone, after the key check and 
     "a chunk over 98304 characters": { "sealed-length": "98305", "sealed-1": "A".repeat(98305) },
     "a length over six chunks": { "sealed-length": String(6 * CHUNK + 4), "sealed-1": "A".repeat(CHUNK) },
     "a length of eleven digits": { "sealed-length": "99999999999", "sealed-1": "AAAA" },
-    // Not base64 at all: a decode first would refuse it as a mismatch instead.
     "an oversize chunk that is not base64": { "sealed-length": "100000", "sealed-1": "!".repeat(CHUNK + 1) },
   };
   for (const [name, inputs] of Object.entries(cases)) {
@@ -224,7 +219,6 @@ test("after the size cap, the GCM tag and then the AAD are checked: each fails c
   const tag = Buffer.from(bundle);
   tag[tag.length - 1] ^= 1;
   assertClosed(open(tag), "a tampered tag");
-  // An intact tag over another AAD: the run id the opener binds differs.
   assertClosed(open(bundle, "43"), "another AAD");
 });
 
@@ -248,7 +242,6 @@ test("keygen writes the private key only to the named descriptor and prints the 
   assert.equal(status, 0, stderr);
   assert.match(stdout, /^x25519 [0-9a-f]{16} [A-Za-z0-9+/]{43}=\n$/);
   assert.ok(!stdout.includes(privateText) && !stderr.includes(privateText));
-  // The pair matches: what seals to the printed line opens with the piped key.
   const { openBundle, parsePrivateKey } = await import("./open.mjs");
   const recipient = parsePublicKey(stdout);
   const opened = openBundle(parsePrivateKey(privateText), [recipient.keyId], new Map([["a.txt", 10]]), sealBundle(recipient, [["a.txt", Buffer.from("x")]], "1", "run"), "1", "run");

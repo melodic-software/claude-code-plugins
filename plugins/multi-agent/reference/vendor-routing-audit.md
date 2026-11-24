@@ -266,7 +266,7 @@ by the skill's own design.
 | session-flow:workflow | `plugins/session-flow/skills/workflow/context/pre-pr.md:15`: pre-PR review of the diff | coding | route | brief carries the diff and conventions |
 | session-flow:workflow | `plugins/session-flow/skills/workflow/context/steps.md:210`: outcome verification against intent | coding | route | brief carries the Brief and the diff |
 | songwriting:co-write | `plugins/songwriting/skills/co-write/SKILL.md:99`: refuting candidate lyric lines | knowledge work | route | brief carries the candidates, map, rubric and filter |
-| songwriting:diagnose | `plugins/songwriting/skills/diagnose/SKILL.md:63`: refuting rewrite candidates | knowledge work | route | brief carries the candidates, map, rubric and filter |
+| songwriting:revise | `plugins/songwriting/skills/revise/SKILL.md:64`: refuting rewrite candidates | knowledge work | route | brief carries the candidates, map, rubric and filter |
 | songwriting:object-writing | `plugins/songwriting/skills/object-writing/SKILL.md:54`: timed object-writing dives | knowledge work | route | brief carries the seed, timer, category and output path |
 | source-control:babysit-loop | `plugins/source-control/skills/babysit-loop/reference/pre-escalation-dispatch.md:14`: resolving a blocker before escalation | coding | route | brief carries the blocker and the PR |
 | source-control:babysit-prs | `plugins/source-control/skills/babysit-prs/SKILL.md:242`: per-PR fix and triage worker | coding | route | prompt carries the PR, reasons, worktree and fenced fields |
@@ -283,7 +283,7 @@ by the skill's own design.
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:96`: cleanup scan per repository | coding | route | brief carries the repository root and scanner command |
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:213`: classifying deletion candidates | coding | route | brief file carries the tests and candidates |
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:319`: skeptic per test file | coding | route | brief file carries the test file and candidates |
-| testing:diagnose | `plugins/testing/skills/diagnose/context/fix-until-green.md:30`: fix-until-green workflow | coding | route | args carry the command, scope and rounds |
+| testing:fix-failing | `plugins/testing/skills/fix-failing/context/fix-until-green.md:30`: fix-until-green workflow | coding | route | args carry the command, scope and rounds |
 | testing:run-e2e | `plugins/testing/skills/run-e2e/SKILL.md:178`: launching and driving the app | web UI | keep | Claude must do it: the subagent drives through a skill on the Skill tool |
 | testing:run-e2e | `plugins/testing/skills/run-e2e/context/map.md:72`: driving each feature-map entry | web UI | keep | Claude must do it: each subagent drives through a skill on the Skill tool |
 | testing:write | `plugins/testing/skills/write/context/blind-author.md:21`: acceptance tests from the spec | coding | route | brief carries the criteria, interface and conventions |

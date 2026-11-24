@@ -93,6 +93,22 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  - package-ecosystem: npm
+    directory: /scripts/ci-deps
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The miro plugin ships a Node MCP server; its runtime + build dependencies are
   # pinned by plugins/miro/server/package-lock.json, from which the server installs its
   # runtime dependencies on first launch, so a bump reaches users as a reviewed lockfile
@@ -264,6 +280,22 @@ updates:
   # The testing ui-defects eval harness (@axe-core/playwright).
   - package-ecosystem: npm
     directory: /plugins/testing/evals/ui-defects/harness
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: npm
+    directory: /lib/cdn-pins
     labels:
       - dependencies
     schedule:

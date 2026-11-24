@@ -10,7 +10,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-cd-prefix PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 hook::buffer_stdin_to INPUT || exit 0
 
@@ -43,7 +43,6 @@ cdp::norm_to() {
   printf -v "$1" '%s' "$__p"
 }
 
-# cdp::relative_target <op> <target>: true when the redirect writes a relative path.
 # shellcheck disable=SC2329  # invoked by the parse callback below
 cdp::relative_target() {
   case "$2" in
@@ -57,8 +56,6 @@ cdp::relative_target() {
 CDP_SEG=0
 CDP_DIR=""
 CDP_HIT=""
-# The parse callback: segment 1 must be exactly `cd <path>`; each later one is
-# checked for a git command word and a relative write.
 # shellcheck disable=SC2329  # invoked by hook::bash_parse_segments
 cdp::segment() {
   CDP_SEG=$((CDP_SEG + 1))
@@ -98,8 +95,6 @@ if [[ -n "$CDP_CWD" ]]; then
   [[ "$CDP_DIR_N" == "$CDP_CWD_N" ]] && exit 0
 fi
 
-# The reason follows the hit: a relative write in a command with no git segment
-# gets no git rewrite, which would not apply to it.
 # shellcheck disable=SC2016  # the backticks are literal text in the reasons
 if [[ "$CDP_HIT" == git ]]; then
   echo 'BLOCKED: Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a multi-line commit message, Write the message to a file and use `git commit -F <file>`.' >&2

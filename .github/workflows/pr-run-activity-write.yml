@@ -533,6 +533,11 @@ jobs:
             .github/workflows/pr-review-security-hosted.yml
           # Or a listed human's review comment, relayed (ADR 0088).
           run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml
+          reconciler-workflow: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            && github.event.sender.login == 'github-actions[bot]'
+            && inputs.dispatcher-run-id != ''
+            && '.github/workflows/maintenance-reconcile-lost-runs.yml' || '' }}
           # A job after the model job: the review was of the head that job
           # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}

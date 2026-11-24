@@ -112,16 +112,10 @@ import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, loadTrustedActors, 
 export { LANES_APP_LOGIN, NEEDS_DECISION, READY };
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
-// The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
 const HOLDS = new Set([NEEDS_HUMAN, ...INFO_LABELS, ...DECISION_LABELS, OUTSIDE_ACTOR_LABEL]);
-// Holds a lanes App hold-lift never takes off; needs-human comes off only as
-// a refused triage label (planWrites).
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
-// Holds this run's triage may apply only beside a flag (planWrites refuses one without).
 const TRIAGE_REFUSABLE = [NEEDS_HUMAN, ...DECISION_LABELS];
-// Labels that stop admission for a person; a refusal is dropped when one
-// lands after the first read.
 const LATE_HOLDS = [OUTSIDE_ACTOR_LABEL, ...UNTRUSTED_LABELS];
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
@@ -145,12 +139,9 @@ const inReadingOrder = (key, names) => {
   };
   return names.toSorted((a, b) => rank(a) - rank(b));
 };
-// The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
-// for security, and is not a flag an owner reason or a later verdict reads.
 const UNTRUSTED_FLAG = "untrusted";
 const LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const QUOTED = /^\s*(?:(?:[-*+]|\d+[.)])\s*)?>/;
-// The two canonical shapes, bare or in `**Label:**` bold.
 const COST_CANONICAL = /^(\*\*)?cost( decided)?:\1 (.+)$/i;
 const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
 const COST_LABEL = /^\W*costs?(?!-(?:benefit|effective)\b)\s*[:\u2014\u2013(-]/i;
@@ -265,7 +256,6 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
       problems.push(`${found.length === 0 ? "no" : "more than one"} \`${prefix}:\` line`);
       return null;
     }
-    // Model text: only letters, digits and plain punctuation reach a reason.
     shown[prefix] = found[0].slice(0, 40).replaceAll(/[^A-Za-z0-9 ,.:-]/g, "?");
     return found[0];
   };
@@ -285,9 +275,6 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
   }
 
   let flags = null;
-  // Any Flags line naming it counts, so an unreadable or repeated line still
-  // marks the issue untrusted.
-  // The hold reads the verdict itself, so a missing label cannot drop it.
   const untrusted = lines.some(
     (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
   );
@@ -305,19 +292,7 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
   }
   const flagsUnreadable = flags === null && lines.some((line) => line.startsWith("Flags: "));
   const flagProblems = flagsUnreadable ? problems.slice(beforeFlags) : [];
-  // An unreadable line names no blocker and holds nothing: an unnamed edge is
-  // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
-  // A verdict line, any case, past one list marker and with `*`, `_` and
-  // backticks dropped: `Cost: <text>` names a charge an owner decides, whatever
-  // Flags reads, unless <text> is only none, n/a, no charge or no cost
-  // (any other text after it holds); `Cost decided: <text>` names one a recorded
-  // decision covers and holds nothing. Only bare or `**Cost:**` dress counts as
-  // that form: any other cost label (`**Cost**:`, `_Cost:_`, `Costs:`, `Cost —`,
-  // `Cost (estimate):`) is a problem, which holds, unless its text is only a
-  // no-charge phrase. A `>` quote, alone or after a list marker, is issue text;
-  // `Costing:`, `Cost-benefit:`, `Cost-effective:` or `Estimated cost:` is not a
-  // label; any other `Cost-<word>:` is.
   let cost = false;
   let costProblem = false;
   for (const line of lines) {
@@ -364,16 +339,10 @@ export function planWrites(
 ) {
   const had = (name) => labels.includes(name) || rawLabels.includes(name);
   const reasons = [...verdict.problems];
-  // The owner reason each hold cause is for (../lib/stop-reason.mjs); the
-  // strongest (admit.mjs HOLD_ORDER) names a held verdict's stop. A cause no
-  // owner reason names (an unreadable line, a field's setter, a person's
-  // hold label, an unrecorded earlier flag) fails closed as intent.
   const codes = new Set(verdict.problems.map((problem) => (problem === COST_PROBLEM ? "cost" : "intent")));
   const add = [];
   const remove = [];
   if (verdict.escalated) {
-    // The reusable escalates only on text addressed to the run or a HIGH or
-    // CRITICAL security report (intake-triage.yml ESCALATION).
     reasons.push("the triage run escalated");
     codes.add("security");
   }
@@ -386,7 +355,6 @@ export function planWrites(
   }
 
   const fieldWrites = [];
-  // The values admission reads: the verdict's, or a listed human's kept one.
   const dimensions = verdict.dimensions === null ? null : { ...verdict.dimensions };
   if (verdict.dimensions !== null) {
     for (const key of Object.keys(DIMENSIONS)) {
@@ -403,8 +371,6 @@ export function planWrites(
         reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than a listed human or the lanes App`);
         codes.add("intent");
       } else if (current && !isApp(current.setter, appId) && !humans.has(Number(current.setter))) {
-        // The value matches, but the work lanes count it only when a listed
-        // human or the lanes App set it (resolve-config dimensions.mjs).
         reasons.push(`${DIMENSIONS[key]} holds the verdict's value, but from a setter the work lanes do not count`);
         codes.add("intent");
       } else if (!current || String(current.option) !== optionId) {
@@ -421,16 +387,9 @@ export function planWrites(
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
     verdict.flags.forEach((flag) => codes.add(flag));
   }
-  // A `Cost: ` line names a charge an owner decides, whatever Flags reads.
   if (verdict.cost) {
     codes.add("cost");
   }
-  // A status hold the lanes App set on an earlier run gives way to this
-  // verdict only when the App's earlier verdict comment lists no flag
-  // (earlierFlags []); a listed flag or no readable comment (null) holds, as
-  // does one the triage run (github-actions[bot]), a person, or an unread
-  // setter set. needs-human and the outside-actor flag never give way here;
-  // needs-human comes off only as a refused triage label, below.
   const holdReasons = (holds) => {
     const appHolds =
       earlierFlags === null || earlierFlags.length > 0
@@ -439,8 +398,6 @@ export function planWrites(
     const kept = holds.filter((label) => !appHolds.includes(label));
     const found = kept.map((label) => `held by ${label}`);
     const holdCodes = kept.map((label) => (label === OUTSIDE_ACTOR_LABEL ? "security" : "intent"));
-    // Carried into the comment, so a later clean verdict still reads the flag,
-    // or still reads that no record says.
     const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
     if (carried.length > 0) {
       found.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
@@ -453,13 +410,6 @@ export function planWrites(
     return { appHolds, found, holdCodes };
   };
   const isReady = (found) => reasons.length + found.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
-  // needs-human or needs-owner-decision this run's triage applied on a
-  // verdict whose Flags line reads none is refused when the rest of the plan
-  // is ready: only a flag names a person reason, so admission routes the
-  // capability limit or the agent decides the means. An unreadable Flags line,
-  // a `Cost: ` line (not `Cost decided: `), an earlier verdict's flag, an outside-actor or
-  // untrusted-provenance hold (flag.mjs adds needs-human as the same
-  // github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
   const candidates =
     !verdict.escalated &&
@@ -499,8 +449,6 @@ export function planWrites(
       add.push(NEEDS_DECISION);
     }
   }
-  // The verdict is the triage, so the floor label goes after it, and a held
-  // verdict's hold replaces a parked status: confirmed: one status stands.
   const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter(had);
   const reason = ready ? null : (strongestReason(codes) ?? "intent");
   return { add, remove: [...remove, ...after], fieldWrites, ready, reasons, reason, dimensions, refused };
@@ -527,8 +475,6 @@ export function flagsAfterDecision(flags, own, kept, humans) {
   return decided && flags !== null ? flags.filter((flag) => flag !== "intent") : flags;
 }
 
-// The hidden line recording when a verdict last raised the intent flag, and
-// its reader: the ISO time, or null when the body has none.
 const RAISED = "<!-- intake-triage intent-raised-at ";
 export function raisedAt(body) {
   const line = String(body ?? "").split("\n").find((l) => l.startsWith(RAISED) && l.endsWith(" -->"));
@@ -542,15 +488,6 @@ export function raisedLine(verdictFlags, writtenAt, earlierBody) {
   return Number.isFinite(Date.parse(at)) ? [`${RAISED}${at} -->`] : [];
 }
 
-// {setters, triage}: setters maps each hold label on the issue
-// to who added it last, from `events()`, the issue's status history
-// (read-status.mjs statusEvents, where a Work status change reads as label
-// events; none when no event names it); triage lists the ones this run's
-// triage applied: absent at `since`, replaying labeled and unlabeled events
-// by time and id (an add with an unreadable time counts as before it, a
-// removal with one removes nothing), and added at or after it only by
-// github-actions[bot] or the lanes App, which writes the triage's labels into
-// the field.
 async function labelSetters(labels, since, events, appId) {
   const held = new Set(labels.filter((label) => HOLDS.has(label)));
   const setters = {};
@@ -575,8 +512,6 @@ async function labelSetters(labels, since, events, appId) {
     const readable = Number.isFinite(Date.parse(event.created_at));
     const after = readable && Date.parse(event.created_at) >= since;
     if (event.event === "unlabeled") {
-      // An unreadable removal takes nothing off: the hold it may have
-      // lifted still counts as there before this run.
       if (readable && !after) {
         before.delete(name);
       }
@@ -594,7 +529,6 @@ async function labelSetters(labels, since, events, appId) {
   return { setters, triage: [...bot].filter((name) => !before.has(name) && !other.has(name)) };
 }
 
-// {fieldId: {option, setter}} from the REST values and the GraphQL setters.
 async function readFields(github, repository, number, fieldSetters) {
   const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
   if (!Array.isArray(rows)) {
@@ -624,11 +558,7 @@ export async function verdictStatus(labels, config) {
   return state === "agent-ready" ? null : state;
 }
 
-// The labels that are a Work status state: the field takes their place.
 const STATUS_ADDS = new Set([READY, NEEDS_DECISION]);
-// The queue-state labels the field hides once it is set (read-status.mjs
-// statusLabels), so the field write replaces taking them off. A hold label
-// still holds on top of the field, so a refused or given-way one comes off.
 const QUEUE_LABELS = new Set([READY, NEEDS_TRIAGE, CONFIRMED]);
 
 // `setStatus(number, state, {fields})` (write-status.mjs statusWriter's
@@ -683,14 +613,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
 
   const verdict = parseVerdict(comment.body, dimensionsConfig, env.VERDICT);
   const issueLabels = labelNames(issue);
-  // A hold only the Work status field holds counts as its label.
   const labels = statusOf ? await statusOf(number, issueLabels) : issueLabels;
   const fields = await readFields(github, repository, number, fieldSetters);
   const events = statusOf ? () => statusOf.events(number) : () => paginate(github, `${base}/events`);
   const { setters, triage } = await labelSetters(labels, startedAt, events, appId);
-  // A carried flag holds only beside a hold label, and a decision answers only
-  // an intent flag, so the trusted comments are read only then. A failed read
-  // answers nothing: the earlier flags hold.
   let flagsBefore = earlierFlags(comments, appId);
   const own = ownVerdict(comments, appId);
   if (own && labels.some((label) => HOLDS.has(label)) && flagsBefore?.includes("intent")) {
@@ -729,8 +655,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);
     if (wrong.length > 0) {
-      // Config drift, not the issue's: the run fails and the issue keeps
-      // its labels.
       throw new Error(
         `GitHub kept other options than models.issue-dimensions maps for ${wrong.map(({ key }) => DIMENSIONS[key]).join(", ")}; fix models.issue-dimensions and triage again`,
       );
@@ -752,10 +676,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   if (named.dropped > 0) {
     log(`::warning title=apply-verdict::#${number}'s body names ${named.dropped} blocker(s) past the first ${MAX_TEXT_BLOCKERS}; no edge is written for them`);
   }
-  // The outside-actor check (flag.mjs) can add its label and needs-human after
-  // the first read, and admission never reads outside-actor, so a refusal
-  // reads the labels once more, right before the label writes, and is
-  // dropped when a late hold landed.
   let lateHolds = [];
   if (plan.refused.length > 0) {
     const now = labelNames(await github("GET", base));
@@ -768,13 +688,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
   const remove = waits ? [...plan.remove, READY] : plan.remove;
-  // A held verdict's reasons comment goes before its labels, so a hold never
-  // lands without the record of whether it was flagged (earlierFlags): when
-  // the comment write fails, no hold or floor label changes and the
-  // caller fails the job; the Work status still leaves ready, since that adds
-  // no hold.
-  // A ready verdict's comment names admission's outcome, so it goes after; a
-  // failed one does not stop the summary.
   let reasonsError = null;
   const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
@@ -791,12 +704,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
   const labeled = reasonsError === null;
   const unready = remove.filter((name) => name === READY);
-  // The Work status the labels this run leaves give, a late hold included,
-  // stands in for the status label adds; the field value read above skips a
-  // match when a counted account set it.
   const off = new Set(labeled ? remove : unready);
-  // An agent-ready label with the Work status unset starts no lane run, so it
-  // keeps no ready verdict from writing ready for admission to decide.
   if (statusConfig && labels.includes("agent-ready") && (await statusOf?.unset?.(number))) {
     off.add("agent-ready");
   }
@@ -804,8 +712,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const field = String(statusConfig?.["field-id"]);
   const bots = statusConfig ? (await import("../../actions/resolve-config/issue-status.mjs")).statusBotSetters(loadTrustedActors(env), statusConfig) : [];
   const counted = (setter) => humans.has(setter) || isApp(setter, appId) || bots.some((entry) => entry.id === setter);
-  // A state that is no hold keeps a hold a person set since the first read
-  // (write-status.mjs keepHold), and the issue then goes to no admission.
   const writeState = async () =>
     state ? setStatus(number, state, { fields: counted(fields[field]?.setter) ? { [field]: fields[field] } : {}, ...(HOLD_STATES.includes(state) ? {} : { keepHold: true }) }) : null;
   const labelAdds = add.filter((name) => !STATUS_ADDS.has(name));
@@ -823,8 +729,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     const why = `a person's Work status ${stateWrite.state} holds it`;
     return report({ outcome: "held", reasons: [why], status: stateWrite.state }, `apply-verdict: #${number} left as is (${why}); no admission`);
   }
-  // An admission error stops neither the reasons comment nor the summary; the caller
-  // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
     try {
@@ -834,8 +738,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       admission = admissionError(error);
     }
   }
-  // A held issue never reaches admission, so its split note, when a done-when
-  // item is one the lane cannot perform, is written here.
   if (!plan.ready && labeled && noteSplit) {
     try {
       admission = await noteSplit(issue);
@@ -985,16 +887,12 @@ export function finish({ lines, code, held }, { outputPath, log = console.log } 
   return code;
 }
 
-// Why a ready verdict took a triage hold off, for the comment and the summary.
 const refusedNote = (refused) =>
   `${refused.map((label) => `\`${label}\``).join(", ")} came off: this run's triage applied ${refused.length > 1 ? "them" : "it"} with no intent, security or cost flag, and only a flag stops for a person: admission routes a capability limit (a host run, a paid eval), and the issue lane decides a choice of means.`;
 
-// Admission's stand-in outcome when a blocked-by edge was missed.
 const EDGE_MISSING = "waits for a blocked-by edge";
 const WAITS = "none: admission waits for intake to run again, since a blocked-by edge is missing";
 
-// Where a ready verdict leaves the issue after admission, when admission
-// moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
   admission?.outcome === "refused" || admission?.outcome === "held"
     ? (admission.status ?? NEEDS_DECISION)
@@ -1098,13 +996,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       const { set: setStatus } = await statusWriter({ env, github, repository });
       const statusConfig = issueStatusFromBase(env);
       const trustedActors = loadTrustedActors(env);
-      // Admission's listing of deferred issues and their status history.
       const listing = {
         issues: (states, options) => issuesByStatus(github, repository, states, { ...options, config: statusConfig, trustedActors }),
         events: (number) => statusEvents({ github, repository, number, config: statusConfig }),
       };
-      // Read only when admitting or noting a split, so a malformed rules
-      // file stops those and not the verdict.
       const rules = () => loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`);
       const admitIssue = (verdict, { wrote } = {}) =>
         admit({

@@ -407,7 +407,7 @@ read as a scheme-level decision.
 
 ## Related actions
 
-- `/songwriting:diagnose diagnose <section>`: runs this worksheet.
+- `/songwriting:revise diagnose <section>`: runs this worksheet.
 - `/songwriting:meter-prosody stability`: runs the
   [stable / unstable](stable-unstable-meta.md) meta-question on top of
   the five-row check.

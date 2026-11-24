@@ -3,6 +3,26 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-11-24
+
+### Added
+
+- add the `antigravity_uses_task_mode` userConfig option, so one per-user setting turns on
+  Antigravity task writes in every repository and worktree
+
+  It defaults to `read-only`, so nothing changes for a user who sets nothing. The command reads
+  `pluginConfigs` from the user and managed settings itself and feeds the value to the config
+  cascade's userConfig layer, which a repository's team or personal file still overrides. An
+  unreadable settings file or managed-settings directory leaves the layer empty and prints a
+  notice. The option's `options` picker needs Claude Code v2.1.271 or later.
+
+## [0.6.2] - 2026-11-24
+
+### Fixed
+
+- When a CLI fact command fails, `external-agents update <product>` and `external-agents models <product>` add the start of what the CLI printed (stderr first, else stdout) to the reason, as in `models: models exited 1: <excerpt>`: one line, clipped to 200 characters, with email addresses replaced by `<email>`. A failed command that printed nothing keeps the old reason.
+- The `antigravity` skill's update reference says what to do when `models.txt` is absent: relay the `models:` reason, and neither confirm nor reject a configured model slug.
+
 ## [0.6.1] - 2026-11-23
 
 ### Fixed

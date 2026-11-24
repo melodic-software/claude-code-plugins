@@ -8,7 +8,7 @@ export function usage() {
       '                     --manifest <file> --records <[source_id=]file> [--records ...]',
       '                     --models <file> [--usage <file>] [--registry <file>] [--defaults <file>]',
       '                     [--state-dir <dir>] [--task-class <everyday|heavy>]',
-      '                     [--needs-tools <tools>] [--context <tokens>]',
+      '                     [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>]',
       '                     [--tiebreak <steps>] [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
     ].join('\n'),
@@ -28,6 +28,7 @@ export function parseArgs(argv, pluginRoot) {
     registry: path.join(pluginRoot, 'reference', 'benchmarks.json'),
     defaults: path.join(pluginRoot, 'reference', 'defaults.yaml'),
     needsTools: [],
+    use: 'task',
     context: null,
     tiebreak: [],
     tiebreakSet: false,
@@ -72,6 +73,12 @@ export function parseArgs(argv, pluginRoot) {
           : []
         break
       }
+      case '--use':
+        opts.use = needVal()
+        if (opts.use !== 'investigate' && opts.use !== 'task') {
+          die(`--use must be investigate or task, got '${opts.use}'`)
+        }
+        break
       case '--context': {
         const raw = needVal()
         const parsed = Number(raw)

@@ -3409,7 +3409,11 @@ them on every `pull_request` run, contract-only runs included:
   organizations, owner decision 2026-11-23), read from the diff in the broker step's file pages. Both refs
   must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
-  a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
+  a commit no tag names or a SHA swapped for a tag keeps the hold. An official vendor's action
+  (`actions`, `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case;
+  owner decision D3, architecture `docs/owner-decisions.md` L351) may instead move from one
+  version tag (`vN`, `vN.N`, `vN.N.N`) to another that exists in its repository; any other tag
+  swap keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
   owner list fails closed. The same shape and tag check for an owner the list leaves out
   (owner decision 2026-11-23, dependency review verdict for any owner) clears the hold once the
@@ -3418,7 +3422,10 @@ them on every `pull_request` run, contract-only runs included:
   each to a tagged commit, on trust-gate paths`, which review-dependency reviews instead of
   skipping, and the pr-unblock dispatcher re-runs ci-status after the verdict. A marker by any
   other account, for another head, a newer non-merge marker, or unreadable comments keep the
-  hold. The same holds a same-repository PR that changes a trust-gate
+  hold. A Dependabot PR whose one trust-gate path is `lib/cdn-pins/pins.json`, modified in place
+  as the lanes App's CDN pins sync commit leaves it, clears on that same marker (owner decision
+  Q154 A); until then ci-status fails with `#<n> by Dependabot changes only the CDN pins record on
+  trust-gate paths`, which review-dependency reviews too. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the

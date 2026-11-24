@@ -52,6 +52,7 @@ import { parseArgs } from "node:util";
 
 import { loadTrustedList } from "../../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { buildTrustedContext } from "../../../actions/select-trusted-text/select-trusted-text.mjs";
+import { TRUSTED_ACTORS_PATH, trustedListPath } from "../../lib/trusted-actors.mjs";
 import { renderPrompt } from "../render-prompt.mjs";
 import { resolvePull } from "../resolve-pr.mjs";
 import { jobsFile, upstreamJobs } from "../upstream-jobs.mjs";
@@ -630,6 +631,7 @@ export function resolveModels(root = REPO_ROOT) {
         PATH: process.env.PATH,
         MODEL_ROUTE: JUDGE.modelRoute,
         BASE_PATH: root,
+        ...(process.env.STANDARDS_DIR ? { STANDARDS_DIR: process.env.STANDARDS_DIR } : {}),
         OUTPUT_PATH: outputPath,
         GITHUB_OUTPUT: path.join(work, "out"),
       },
@@ -760,7 +762,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const pipelineFile = path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml");
   const pipeline = {
-    trustedActorsPath: path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
+    trustedActorsPath: trustedListPath(process.env, path.join(REPO_ROOT, TRUSTED_ACTORS_PATH)),
     verifyAuthors: sh("yq", ['.merge."verify-authors" // "lane"', pipelineFile]),
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
     baselineFile: sh("yq", ['.merge."baseline-file" // ""', pipelineFile]),

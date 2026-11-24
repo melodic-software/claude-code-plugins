@@ -699,6 +699,7 @@ lib/plugin-options.mjs plugins/toolchain/hooks/plugin-options.mjs
 lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/external-agents/lib/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
