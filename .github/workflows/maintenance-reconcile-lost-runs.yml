@@ -206,6 +206,7 @@ jobs:
           CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/reconcile-record" "$RUNNER_TEMP/reconcile-settled"
           # pr-verify.yml's resolver inputs, for the spec-changed re-runs.

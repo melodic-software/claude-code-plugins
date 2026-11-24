@@ -96,9 +96,6 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
-# Above this length the command is not parsed — a pathologically long command is
-# assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
-# commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
 SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
@@ -118,15 +115,10 @@ for _hm in "${_hm_list[@]}"; do
   _hm="${_hm,,}"
   [[ -n "$_hm" ]] && HM_ALT="${HM_ALT:+$HM_ALT|}$_hm"
 done
-[[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
+[[ -n "$HM_ALT" ]] || HM_ALT="lefthook"
 
-# Set by the PowerShell lane when the command assigns a hook-manager variable
-# (same HM_ALT list) to 0/false; check_segment blocks on it beside a commit/push.
 PS_HM_ENV_DISABLED=0
 
-# Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
-# on the high-res start stamp and the opt-in sink, so the unwired default path
-# spawns no telemetry-only subprocess.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -135,7 +127,6 @@ emit_tel() {
   hook::emit_telemetry "block-no-verify" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# block <form> [<line>...]: print each line, then deny.
 block() {
   local form="$1"
   shift
@@ -144,7 +135,6 @@ block() {
   exit 2
 }
 
-# The fix for every hook-bypass form.
 BYPASS_FIX="Fix what the hook reports instead."
 
 # Same-command git aliases: `git config alias.NAME VALUE` records the definition
@@ -223,7 +213,6 @@ hookspath_write_check() {
   ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
   if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
     top="$(hook::git_untrusted rev-parse --show-toplevel 2>/dev/null)" || top=""
-    # A symlinked directory or hook file could carry a marker from outside the clone.
     if [[ -n "$top" && -d "$top/.githooks" && ! -L "$top/.githooks" ]]; then
       for f in "$top"/.githooks/{pre-commit,pre-push,commit-msg}; do
         [[ -f "$f" && ! -L "$f" ]] && grep -qs '^# checks-dispatcher v1$' "$f" && return 0
@@ -320,17 +309,12 @@ check_segment() {
     ;;
   esac
 
-  # core.hooksPath is checked only on git config arguments (collected by the
-  # subcommand walk from -c/--config/--config-env), never commit messages or
-  # pathspecs.
   for cv in ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"}; do
     lc="${cv,,}"
     [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
       "BLOCKED: a core.hooksPath override disables every git hook. $BYPASS_FIX"
   done
 
-  # Form 2: hook-manager env-var prefix (commit OR push) — only leading env
-  # assignments before the git executable (not commit messages or pathspecs).
   for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
     [[ "$lc" =~ ^(${HM_ALT})[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
@@ -485,8 +469,6 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
-    # Same placement as block-dangerous-git: the flag, inside the loop, because
-    # a later blanking round can acquire a commented opener. No token for it.
     if ((PS_REDUCTION_UNTRUSTED)); then
       PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
       ps::print_unparsable_block_message "$COMMAND"
@@ -501,8 +483,6 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! sink_allowed "$sink_allow"; then
       ps::print_unparsable_block_message "$COMMAND"
-      # The trigger rides along in the form token: five distinct shapes reach this
-      # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
       exit 2
     fi

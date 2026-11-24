@@ -21,7 +21,7 @@ fixture() {
   mkdir -p "$T/$1/repo" "$T/$1/home"
   git -C "$T/$1/repo" init -q
 }
-run() { # run <case> <action> <args...>
+run() {
   local c="$1" a="$2"
   shift 2
   "$SUT" "$a" --root "$T/$c/repo" --home "$T/$c/home" "$@" 2>"$T/$c.err"
@@ -80,7 +80,6 @@ for bad in verification=Standard verification=lite verification_skills.x=bad; do
   assert_eq "$bad leaves the team file unchanged" "$before" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")"
 done
 
-# A bound convention home moves the team YAML apply writes.
 fixture bound
 mkdir -p "$T/bound/repo/team-docs"
 printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
@@ -92,7 +91,6 @@ assert_eq "bound home: nothing is written under docs/conventions" absent "$state
 out="$(run bound check session=opus)"
 assert_contains "bound home: the written YAML is the team layer" "$out" '"layer":"team","path":"'"$T/bound/repo/team-docs/multi-agent.yaml"'","state":"read"'
 
-# The legacy docs block seeds the YAML and is left as it was.
 fixture docs
 mkdir -p "$T/docs/repo/docs/conventions"
 printf '# Ours\n\nProse.\n\n```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n\nTrailer.\n' \
@@ -143,7 +141,6 @@ assert_eq "a symlinked team file is refused" 2 "$?"
 assert_eq "the symlink target is untouched" outside "$(cat "$T/symlink/victim")"
 assert_contains "the refusal names the symlink" "$(cat "$T/symlink.err")" 'is a symlink'
 
-# A symlinked legacy file is not read as a seed.
 fixture seedlink
 mkdir -p "$T/seedlink/repo/.claude"
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/seedlink/victim"
@@ -163,8 +160,6 @@ assert_lacks "the symlinked docs seed is not in the preview" "$out" 'effort: low
 out="$(run mdlink check session=opus)"
 assert_contains "check names the symlinked docs file apply refuses" "$out" "WARN team: apply --layer team refuses $T/mdlink/repo/docs/conventions/multi-agent.md while $T/mdlink/repo/docs/conventions/multi-agent.yaml is absent, since $T/mdlink/repo/docs/conventions/multi-agent.md is a symlink; replace or delete the symlink"
 
-# A symlinked docs file beside a regular .claude file: apply refuses the docs
-# file, block or no block, so check must not promise a seed from the .claude file.
 fixture mdbeside
 mkdir -p "$T/mdbeside/repo/docs/conventions" "$T/mdbeside/repo/.claude"
 printf '# Prose only\n' >"$T/mdbeside/victim"
@@ -177,7 +172,6 @@ assert_contains "check names the symlinked docs file beside a .claude file" "$ou
 assert_lacks "check promises no seed apply would refuse" "$out" 'the first apply --layer team copies'
 assert_contains "the .claude file gets the migration row" "$out" "WARN team: $T/mdbeside/repo/.claude/multi-agent.yaml is no longer read; apply --migrate moves its keys into $T/mdbeside/repo/docs/conventions/multi-agent.yaml and deletes it"
 
-# A regular .claude file in a symlinked .claude directory: apply refuses it.
 fixture claudedir
 mkdir -p "$T/claudedir/outside"
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/claudedir/outside/multi-agent.yaml"

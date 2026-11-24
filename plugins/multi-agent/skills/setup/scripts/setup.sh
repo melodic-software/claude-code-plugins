@@ -146,19 +146,13 @@ old_rows() {
   fi
 }
 
-# One WARN row per retired team file the resolver no longer reads.
 retired_rows() {
   local md="$ROOT/docs/conventions/multi-agent.md" yaml="$ROOT/.claude/multi-agent.yaml"
   local target seeds=0 manual link
   target="$ROOT/$(convention_home)/multi-agent.yaml"
-  # apply seeds the new YAML from one retired file only, the one it picks,
-  # and refuses a retired file it looks at when that file, or a directory
-  # above it, is a symlink (refuse_symlink); these rows apply the same test.
   [[ -f "$target" ]] || seeds=1
   manual="copy any key still wanted into $target, then delete it"
   if [[ -f "$md" ]] && link="$(symlink_in "$md")"; then
-    # Not read through the symlink. apply refuses it, block or no block,
-    # only while the new YAML is absent.
     if ((seeds)); then
       printf 'WARN team: apply --layer team refuses %s while %s is absent, since %s is a symlink; replace or delete the symlink\n' "$md" "$target" "$link"
       seeds=0
@@ -185,7 +179,6 @@ retired_rows() {
   fi
 }
 
-# Render sorted `dotted.key<TAB>value` records as the YAML subset.
 render() {
   LC_ALL=C sort -t $'\t' -k1,1 | awk -F '\t' '
     BEGIN { print "schema: 1"; prev_depth = 0 }
@@ -200,7 +193,6 @@ render() {
     }'
 }
 
-# The convention home the repository binds, else docs/conventions.
 convention_home() {
   local out
   out="$(bash "$PLUGIN_DIR/lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && printf '%s' "$out" ||
@@ -273,8 +265,6 @@ apply() {
         die "$OLD_LOCAL is the old personal file; run apply --migrate first, so the local layer has one home"
     else
       target="$ROOT/$(convention_home)/multi-agent.yaml"
-      # Until the YAML exists, the retired team file seeds it, so the first
-      # write carries those keys over.
       if [[ ! -f "$target" ]]; then
         if [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md" &&
           [[ "$(awk -v BLOCK=1 -f "$PARSER" "$legacy_md")" == block$'\t'* ]]; then
@@ -315,7 +305,6 @@ apply() {
     [[ "$value" != *[$'\t\n\r#']* ]] || die "invalid value for $key"
     if [[ "$key" =~ ^verification(_skills\.[^.]+)?$ ]]; then
       [[ "$LAYER" == team ]] || die "$key is read from the team layer only"
-      # resolve-roles.sh does not read these keys, so its validation below never sees them.
       [[ -z "$value" || "$value" =~ ^(off|light|standard|strict)$ ]] ||
         die "$key: '$value' is not off, light, standard or strict"
     elif [[ "$key" =~ ^verification ]]; then

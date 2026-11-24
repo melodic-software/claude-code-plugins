@@ -197,7 +197,7 @@ rdt_ar 'prefix: a glob in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-
 rdt_ar 'prefix: a .. in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/../wt/.tmp-*"
 rdt_ar 'prefix: a plain entry is not a prefix' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-"
 rdt_ar 'prefix: a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_PX' rm -rf '$RDT_PP/.tmp-6527'"
-rdt_arp_pfx() { # <label> <want> <command>
+rdt_arp_pfx() {
   expect_both "allowed roots: PS prefix: $1" "$2" --tool PowerShell --cwd / --command "$3" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_PX"
 }
 rdt_arp_pfx 'Remove-Item on a matching child allowed' 0 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527'"
@@ -370,7 +370,7 @@ RDT_CB="$TEST_TMPDIR/claude-rdt"
 RDT_OWN="$RDT_CB/-proj/sess-a/scratchpad"
 RDT_OTH="$RDT_CB/-proj/sess-b/scratchpad"
 mkdir -p "$RDT_OWN/x" "$RDT_OTH/x" "$RDT_CB/-proj/sess-b/tasks"
-rdt_sp() { # <label> <want> <command>: from the checkout, with this session's scratchpad
+rdt_sp() {
   expect_both "protected: scratchpads: $1" "$2" --payload "$(rdt_pl "$3" "$RDT_TOP" "$RDT_OWN")"
 }
 rdt_sp "another session's scratchpad blocks" 2 "rm -rf '$RDT_OTH'"
@@ -405,7 +405,7 @@ expect_both 'protected: scratchpads: a sibling under that temp root allowed' 0 "
 
 RDT_HF="$TEST_TMPDIR/rdt-home"
 mkdir -p "$RDT_HF/.claude/projects" "$RDT_HF/other"
-rdt_hc() { # <label> <want> <command>
+rdt_hc() {
   expect_both "protected: ~/.claude: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- "HOME=$RDT_HF"
 }
 rdt_hc 'the directory blocks' 2 "rm -rf '$RDT_HF/.claude'"
@@ -418,7 +418,7 @@ rdt_hc 'a plain glob over HOME skips the dot name, allowed' 0 "rm -rf '$RDT_HF/'
 RDT_PK=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES
 RDT_KP="$TEST_TMPDIR/rdt-keep"
 mkdir -p "$RDT_KP/data/x" "$RDT_KP/scratch"
-rdt_pt() { # <label> <want> <command> [trees]
+rdt_pt() {
   local -a env=()
   [[ -z "${4:-}" ]] || env+=("$RDT_PK=$4")
   expect_both "protected: listed trees: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- ${env[@]+"${env[@]}"}
@@ -461,7 +461,7 @@ RDT_FIND_FORMS=(
   'find TGT -okdir unlink {} \;'
   'find TGT -depth -type d -empty -exec rmdir {} +'
 )
-rdt_find() { # <label> <want> <start point> [guard_invoke option ...]: every form
+rdt_find() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_FIND_FORMS[@]}"; do
@@ -567,7 +567,7 @@ RDT_PIPE_FORMS=(
   'find TGT | parallel rm -rf'
   "find TGT | parallel -j 4 'rm -rf {}'"
 )
-rdt_pipe() { # <label> <want> <start point> [guard_invoke option ...]: every form
+rdt_pipe() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_PIPE_FORMS[@]}"; do
@@ -691,7 +691,7 @@ RDT_RSYNC_FORMS=(
   'rsync -a --remove-source-files TGT build/rdt-out'
   'rsync -a --remove-source-files build/rdt-x TGT/ build/rdt-out'
 )
-rdt_rsync() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_rsync() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_RSYNC_FORMS[@]}"; do
@@ -777,7 +777,7 @@ RDT_ROBOCOPY_FORMS=(
   'robocopy TGT build/rdt-out /MOVE'
   'robocopy TGT build/rdt-out /E /MOV'
 )
-rdt_robocopy() { # <label> <want> <target> [guard_invoke option ...]: every form, both tools
+rdt_robocopy() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_ROBOCOPY_FORMS[@]}"; do
@@ -906,7 +906,7 @@ RDT_GWT_FORMS=(
   'git worktree remove --forc -- TGT'
   'git -c core.x=1 --no-pager worktree remove -ff TGT'
 )
-rdt_gwt() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_gwt() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_GWT_FORMS[@]}"; do
@@ -974,7 +974,7 @@ printf '%s\n' "$RDT_GW/n1/.git" >"$RDT_GW/main/.git/worktrees/n1/gitdir"
 printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n1" >"$RDT_GW/n1/.git"
 printf '%s\n' "$RDT_GW/main/n2/.git" >"$RDT_GW/main/.git/worktrees/n2/gitdir"
 printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n2" >"$RDT_GW/main/n2/.git"
-rdt_gw() { # <label> <want> <command> [roots]: from the fixture's main worktree
+rdt_gw() {
   local -a env=("PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$RDT_GW/main" "HOME=$RDT_AH")
   [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
   expect_both "git worktree: $1" "$2" --cwd "$RDT_GW/main" --command "$3" -- "${env[@]}"

@@ -185,9 +185,6 @@ HOOK_REFUSE_COMMAND="$COMMAND"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 
-# Above this length the command is not parsed — a pathologically long command is
-# assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
-# commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
@@ -291,9 +288,6 @@ unpinned_lease_blocked() {
   return 1
 }
 
-# The force-push fix, for every force-push block: the one form that passes
-# whatever unpinned_lease says, so naming it costs the block path no read of
-# the team file.
 PUSH_FORCE_FIX="--force-with-lease=<ref>:<full-sha>"
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -497,7 +491,7 @@ temp_root_persists() {
   local p="${1%/}/" t
   case "$p" in
   /var/tmp/* | /private/var/tmp/*) ;;
-  *) return 1 ;; # not under /var/tmp
+  *) return 1 ;;
   esac
   for t in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}"; do
     [[ -n "$t" && "$p" == "${t%/}"/* ]] && return 1
@@ -828,8 +822,6 @@ check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry forced excl pos opseen
   local if_includes lease_tracking lease_movable lease_width_unknown lease_empty lease_seen lease_ref lease_expect
-  # Read by lease_expect_is_immutable further down the call chain; per-frame, so
-  # a recursive re-check of an alias expansion collects its own.
   local -a git_locating_opts=()
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
@@ -1474,10 +1466,6 @@ check_segment() {
   return 0
 }
 
-# Fail-closed by construction for length / --config-env: those paths never
-# consult the allow-list — an unparsable command cannot prove which forms it
-# carries, so no destructive-form token can honestly allow them. Only the kill
-# switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   echo "BLOCKED: command over $MAX_COMMAND_LEN chars is too long to check. Split it into shorter commands." >&2
   emit_tel "blocked" "too-long"
@@ -1559,13 +1547,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! allowed "$sink_allow"; then
       ps::print_unparsable_git_block_message
-      # The trigger rides along in the form token: five distinct shapes reach this
-      # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
       exit 2
     fi
-    # Sink shape allowed — blank its opaque region(s) and re-classify the
-    # remainder so independently parseable siblings still reach check_segment.
     ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
     COMMAND="$PS_SAFE_COMMAND"
     if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
@@ -1600,7 +1584,6 @@ HOOK_GIT_INHERITED_LOCATING_OPTS=()
 
 hook::bash_parse_segments "$COMMAND" check_segment
 
-# The whole command was read and nothing in it denies: ask, if any segment asked.
 hook::refuse_flush
 emit_tel "ok" ""
 exit 0

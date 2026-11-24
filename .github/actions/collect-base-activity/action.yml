@@ -98,6 +98,12 @@ inputs:
     default: claude-code-action
 
 outputs:
+  script-path:
+    description: >
+      A script's staged entry path, which the runner executes. The runner's
+      workflow can be older than this action, which loads from the base tip at
+      job time, so the staging layout is named here and never in the runner.
+    value: ${{ steps.script.outputs.script-path }}
   plugins:
     description: >
       The plugins to install for a skill, one `<plugin>@<marketplace>` per
@@ -129,6 +135,7 @@ runs:
   using: composite
   steps:
     - name: Copy the script's base directory
+      id: script
       if: inputs.kind == 'script'
       shell: bash
       env:
@@ -151,6 +158,7 @@ runs:
         # at its repository path.
         mkdir -p "$SCRIPT_DIR"
         node "$GITHUB_ACTION_PATH/stage-closure.mjs" "$BASE_PATH" "$SCRIPT" "$SCRIPT_DIR"
+        echo "script-path=$SCRIPT_DIR/$SCRIPT" >>"$GITHUB_OUTPUT"
 
     - name: Stage the base marketplace and the skill prompt
       id: skill

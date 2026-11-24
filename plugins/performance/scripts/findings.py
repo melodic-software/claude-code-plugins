@@ -323,8 +323,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
-# Report order (Brief Q23, Q28). Elapsed and wait time are both wall-clock milliseconds, so they
-# share the headline band; every other unit keeps a band of its own and is never converted.
 OTHER_UNITS = tuple(u for u in UNITS if u not in ("elapsed-ms", "wait-ms"))
 
 
@@ -513,7 +511,6 @@ def cmd_lock(args: argparse.Namespace) -> int:
     t = now()
     held: dict | None = read_json(path)
     if held is None and path.exists():
-        # An unreadable lock cannot be live, so it reads stale.
         held = {"session_id": "unknown"}
     try:
         age = t - float(held["heartbeat"]) if held else None
@@ -735,8 +732,6 @@ def cmd_compare(args: argparse.Namespace) -> int:
         c for c in CONDITION_FIELDS if not after.get(c) or before.get(c) != after.get(c)
     ]
     if differs:
-        # The new conditions become the baseline, so the next run under them can compare;
-        # a measurement with an unrecorded condition cannot anchor anything and is not kept.
         complete = all(after.get(c) for c in CONDITION_FIELDS)
         if complete:
             current["recorded_at"] = iso(now())
@@ -969,7 +964,7 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
     runs: dict[str, dict] = {}
     tools: dict[str, dict[str, int]] = {}
     waits: dict[str, list[tuple[float, float]]] = {}
-    commands: dict[str, dict] = {}  # full command text -> runs and timed spans
+    commands: dict[str, dict] = {}
     for agent in tr.iter_workflow_agents(path):
         records = list(tr.iter_records(agent.path))
         stamps = [s for r in records if (s := parse_ts(r.get("timestamp"))) is not None]
@@ -981,7 +976,6 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
         run["agents"] += 1
         run["stamps"] += [min(stamps), max(stamps)] if stamps else []
         for call in agent_calls(records):
-            # As in the main session, a call made after the invocation belongs to the sweep.
             if cut_at is not None and call["at"] is not None and call["at"] >= cut_at:
                 continue
             name, command = call["name"], call["args"].get("command")
@@ -999,7 +993,6 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
         return None
     for name, spans in waits.items():
         tools[name]["wait_ms"] = round(union_seconds(spans) * 1000)
-    # Repeats are keyed by full text, then shown; repeats that show alike add up, as merged() does.
     shown_repeats: dict[str, dict] = {}
     for command, entry in commands.items():
         if entry["runs"] > 1:
@@ -1046,7 +1039,7 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
 
 def load_transcript_reader() -> ModuleType:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
-    sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+    sys.dont_write_bytecode = True
     import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
 
     return tr
@@ -1056,12 +1049,9 @@ def transcript_counts(path: Path) -> dict:
     tr = load_transcript_reader()
     stats: dict[str, int] = {}
     records = list(tr.iter_records(path, stats))
-    # The latest go-faster invocation, slash or model-invoked, cuts the transcript: what comes
-    # before it is the session's own work, what follows is the sweep's setup. cut_record is the
-    # invoking record, cut_call the number of tool calls made before it.
     cut_record: int | None = None
     cut_call: int | None = None
-    calls: dict[str, dict] = {}  # tool_use id -> the call, in first-seen order
+    calls: dict[str, dict] = {}
     for i, record in enumerate(records):
         stamp = parse_ts(record.get("timestamp"))
         if record.get("type") == "user" and INVOKED in (tr.user_text(record) or ""):
@@ -1094,7 +1084,7 @@ def transcript_counts(path: Path) -> dict:
     prior_calls = list(calls.values())[:cut_call]
     prior = records[:cut_record]
     tools: dict[str, dict[str, int]] = {}
-    reads: dict[str, list[str | None]] = {}  # read key -> each call's result digest
+    reads: dict[str, list[str | None]] = {}
     commands: dict[str, list[str | None]] = {}
     skills: dict[str, int] = {}
     waits: dict[str, list[tuple[float, float]]] = {}
@@ -1177,7 +1167,6 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
 
 
 STOP_SUMMARY = "stop_hook_summary"
-# A percentile p is expressible only from n >= 1/(1-p) samples (summarize.py's floor).
 P50_FLOOR, P95_FLOOR = 2, 20
 # Notification hooks carry their secret in the URL path (webhook ids, topics), so a hook label
 # keeps only the host. The cap bounds redaction time; labels are cut far shorter anyway.
@@ -1203,7 +1192,6 @@ def stop_hook_timing(path: Path) -> dict:
     records = 0
     timed: dict[str, list[float]] = {}
     untimed: dict[str, int] = {}
-    # Keyed by the raw command, so two hooks that redact alike stay apart; labeled on output.
     for record in tr.iter_records(path):
         if record.get("subtype") != STOP_SUMMARY:
             continue
@@ -1232,7 +1220,6 @@ def stop_hook_timing(path: Path) -> dict:
             }
         )
     slowest_first(hooks)
-    # A hook with any recorded duration is ranked, never also reported as background.
     shown_untimed: dict[str, int] = {}
     for hook, n in untimed.items():
         if hook not in timed:
@@ -1473,7 +1460,6 @@ def workflow_timing(
     for run in listed:
         outcome = inert(str(run.get("conclusion") or "unknown"))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
-    # A run with no parseable createdAt cannot be ordered, so it is never timed.
     succeeded = [r for r in listed if r.get("conclusion") == "success"]
     dated = [(t, r) for r in succeeded if (t := parse_ts(r.get("createdAt"))) is not None]
     dated.sort(key=lambda tr: tr[0], reverse=True)
@@ -1490,7 +1476,6 @@ def workflow_timing(
         job_lines.append(line)
         starts = [parse_ts(j.get("started_at")) for j in jobs]
         ends = [parse_ts(j.get("completed_at")) for j in jobs]
-        # One ran job with an unknown start or end makes the whole run's length unknown.
         unknown = any(
             None in (s, e)
             for j, s, e in zip(jobs, starts, ends)
@@ -1696,7 +1681,6 @@ def main() -> int:
     p.set_defaults(fn=cmd_run_start)
     p = sub.add_parser("add")
     p.add_argument("--run", required=True)
-    # An argument, so a sweeper under worktree isolation needs no heredoc to pass findings.
     p.add_argument("--json")
     p.set_defaults(fn=cmd_add)
     p = sub.add_parser("finish")
