@@ -4,6 +4,10 @@
   covers, see the amendment below)
 - Date: 2026-10-03
 - Supersedes: [ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md)
+- Superseded in part by `scripts/test-plugin-mods.sh`, run from `scripts/validate-plugins.sh`:
+  "No CI check or other enforcement for mods" no longer holds. And by
+  `plugins/context-usage/README.md` ("No part of the plugin denies a tool call."): the Consequences
+  line that context-usage's zone gate moved into its mod.
 
 This record was to stay Proposed until a probe on a machine with a Team or Enterprise sign-in
 passed. The owner ruled that machine out of scope on 2026-10-03, so the record is Accepted without
@@ -197,12 +201,14 @@ amendment. The decision stands: no policy narrowing of what a mod may do.
   Bedrock, Google Cloud's Agent Platform, or Microsoft Foundry, gets the guard only on a machine
   that has managed settings. A session that runs on a long-lived `CLAUDE_CODE_OAUTH_TOKEN` doesn't
   count as that login either, even when a Team or Enterprise login is stored on the machine."
-  Besides the owner's Max machines, that covers every CI lane that writes no managed settings: the
-  claude-code-action lanes (`maintenance-audit-lane-runs.yml:227`, `intake-triage.yml:755`,
-  `pr-run-activity-write.yml:1417`) and `eval-browser-dispatch.yml:203`. Lanes that run through
-  ci-workflows' `run-claude-cli` first write root-owned `/etc/claude-code/managed-settings.json`
-  (`pr-verify.yml:216`, `pr-run-activity-read.yml:1062`, `pr-unblock.yml:938`, and the review and
-  intake reusables), and the launcher refuses to start without it, so the guard loads there.
+  That covers the owner's Max machines. No CI lane here falls in that gap: every workflow that
+  starts Claude first writes root-owned `/etc/claude-code/managed-settings.json`, so the guard
+  loads there. Lanes on ci-workflows' `run-claude-cli` run `apply-claude-managed-settings` before
+  the launcher (`pr-verify.yml:461` before `:510`, `intake-triage.yml:841` before `:863`,
+  `pr-run-activity-read.yml:1226`, `pr-unblock.yml:2314`, and the review and intake reusables),
+  and the launcher refuses to start without it (`intake-triage.yml:837`). The plugin-eval lanes,
+  which call `claude` directly, install their own policy there (`pr-run-plugin-evals.yml:464`,
+  `maintenance-measure-skill-edit-pass.yml:300`).
 - **Without the guard, a mod gets past `ask` rules and `PreToolUse` hooks as well as `deny`.**
   [overview: what a mod can reach](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach):
   "Without either, a mod can approve a call that an `ask` rule would prompt for, or that your

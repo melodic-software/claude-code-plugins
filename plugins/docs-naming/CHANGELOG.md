@@ -3,6 +3,19 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5] - 2026-11-24
+
+### Fixed
+
+- `realign-file-names` presents an already-accepted finding in full before applying it.
+- `realign-file-names` declines a request to hand-edit a frozen-tier or `review` site the apply skipped, and still applies the accepted finding.
+
+## [0.9.4] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [0.9.3] - 2026-11-24
 
 ### Changed

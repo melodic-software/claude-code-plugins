@@ -49,7 +49,6 @@ test("the fragment is named as new-changelog-fragment.sh names one, and the same
   const branch = branchOf("testing", "write", "7");
   const one = fragmentOf("testing", "write", branch, Buffer.from("diff one\n"));
   assert.match(one.path, /^\.changes\/testing\/chore-hill-climb-testing-write-7-[0-9a-f]{8}\.md$/);
-  // check-changelog-fragments.sh's name rule (scripts/lib/changelog-fragments.sh).
   assert.match(one.path.split("/").pop(), /^[a-z0-9][a-z0-9._-]*-[0-9a-f]{8}\.md$/);
   assert.deepEqual(fragmentOf("testing", "write", branch, Buffer.from("diff one\n")), one);
   assert.notEqual(fragmentOf("testing", "write", branch, Buffer.from("diff two\n")).path, one.path);
@@ -176,7 +175,6 @@ test("a single token past the cap is cut hard, never inside a surrogate pair", (
   assert.ok(kept === "a".repeat(23999), `the emoji straddling the cap is dropped whole; it ends ${JSON.stringify(kept.slice(-4))}`);
 });
 
-// A recording stand-in for upstream-apply-changelog.mjs's api().
 function fake(routes) {
   const calls = [];
   const read = async (path, options = {}) => {

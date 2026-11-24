@@ -1,7 +1,3 @@
-// The filer's rules from docs/conventions/pr-pipeline/README.md, "The lane
-// sweep": a claim must match main at its path and line, the fingerprint
-// ignores run numbers, SHAs and times, model text cannot plant a marker, and
-// one digest issue holds the open findings, rewritten only when they change.
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -77,7 +73,6 @@ test("a finding needs every field, an allowed slice and 1 to 5 claims", () => {
   assert.ok(validateFinding({ ...finding(), problem: undefined }).includes("problem"));
 });
 
-// Outside fenced blocks, only the filer's own text and the inert title remain.
 const outsideFences = (body) => body.replace(/^(`{3,})text\n[\s\S]*?\n\1$/gm, "");
 const RUN = "https://github.com/o/r/actions/runs/1";
 const entry = (fp, over = {}) => ({ fingerprint: fp, title: "t", text: renderEntry({ fingerprint: fp, finding: finding(over) }) });
@@ -249,7 +244,6 @@ test("the tracking issue survives an entry cut to its short form", () => {
   );
 });
 
-// An entry as a digest written before markers carried slice and wf.
 const oldForm = (e) => {
   const [marker, ...rest] = e.text.split("\n");
   return { ...e, text: [marker.replace(/ slice=\S+| wf=\S+/g, ""), ...rest].join("\n") };

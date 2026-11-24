@@ -3,6 +3,45 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.14.0] - 2026-11-24
+
+### Added
+
+- `trusted_actors_source: standards` in a repository's `docs/conventions/source-control.yaml` makes the babysit merge gate, the pr-verify evidence reader, the skip-unchanged key and the `ready` hold check read the trusted-actors list and the Dependabot policy from the `owner/repo` that `standards_repository` names, at one commit per process, instead of the repository's `.github/standards/` copies. Unset or `repository` reads the copies as before; any other value, or `standards` without a valid `standards_repository`, reads neither, so the lane adopts nothing and the hold check leaves the label holding.
+
+## [13.13.0] - 2026-11-24
+
+### Added
+
+- `standards_repository` in `docs/conventions/source-control.yaml`: the `<owner>/<repo>` whose `components/trusted-actors/trusted-actors.json` the guardrails merge guard and the review loosened-check reader read when `trusted_actors_source` is `standards`.
+
+## [13.12.0] - 2026-11-24
+
+### Added
+
+- The babysit merge policy reads the trusted-actor list and the Dependabot policy from `melodic-software/standards` (`components/trusted-actors/trusted-actors.json` and `components/dependabot-policy/policy.json`) when the repository's `docs/conventions/source-control.yaml` at the same ref sets `trusted_actors_source: standards`. It resolves the commit `main` names once per process and reads each file once. Without the key, or with `repository`, both lists are read from the repository's own copies at that ref, as before. Any other value, or a value that is not a scalar, reads neither list, so the lane adopts nothing.
+
+## [13.11.0] - 2026-11-24
+
+### Added
+
+- `pull-request ready` runs `/verification:confirm` (if enabled) on the head when the body lists acceptance criteria and the diff is not docs-only, so each criterion names the test or check that proves it. A criterion confirm leaves at `none ran` gets a test or is reported with why it cannot be tested; the check never holds the flip.
+- `pull-request prep` lists each test or assertion the diff deletes, skips or widens; each is restored or named with its reason under a `## Loosened checks` section, which `create` adds to the pull request body. Advisory only.
+
+## [13.10.5] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+### Fixed
+
+- babysit-prs: a Dependabot CDN-pin bump carrying the lanes App's pins sync commit no longer waits for a person. When its one trust-gate path is `lib/cdn-pins/pins.json`, modified in place, `CI Status` clears the hold once the lanes App's newest review-dependency round marker names the head with `verdict=merge` (owner decision Q154 A). Until then it fails with `#<n> by Dependabot changes only the CDN pins record on trust-gate paths`, which review-dependency reviews rather than skipping as `gate-hold`. Any other trust-gate path, a rename, a marker for another head or by another account, or an unreadable read keeps the hold.
+
+- babysit-prs: the unattended CDN pins sync no longer trusts whatever jsDelivr serves. For each bumped package it now requires `lib/cdn-pins/package-lock.json` to lock that version at its canonical `registry.npmjs.org` tarball with a sha512 integrity, fetches the tarball, checks the sha512, and records the SRI hash only when jsDelivr's file equals `package/<file>` inside the tarball byte for byte. Any mismatch, missing entry or unreadable tarball exits 1 and writes nothing, as a jsDelivr 404 does.
+
+- babysit-prs: the pr-merge lane's Dependabot gate takes a CDN pins sync commit only when its message is exactly the `cdn-pins-sync` row's: the subject `Sync the CDN pins to the bumped manifest on <head ref> [dependabot skip]` on the pull request's own head ref, then the one trailer `Lane-Activity: pr-unblock/review-dependency`. A `[dependabot skip]` commit with another row's subject, another branch, or a missing or different trailer now refuses (`cdn-sync-message`, `cdn-sync-trailer`).
+
 ## [13.10.4] - 2026-11-24
 
 ### Fixed

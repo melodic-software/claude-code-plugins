@@ -24,7 +24,7 @@ about it, and a coverage report will call that file healthy.
   in a tracked config file so runs are deterministic.
 - **Cross-plugin refs degrade gracefully.** Test authoring defers to `/testing:write` when the
   `testing` plugin is installed and hands the survivor list back otherwise; failing-suite diagnosis
-  routes to `/testing:diagnose` when installed and to the project's own test command otherwise;
+  routes to `/testing:fix-failing` when installed and to the project's own test command otherwise;
   test-design questions route to `/tdd:principles` when installed and to the project's own guidance
   otherwise. No step blocks on a missing plugin.
 - **Self-contained.** Operator catalogs, metric formulas, the scaling protocol, and the manual

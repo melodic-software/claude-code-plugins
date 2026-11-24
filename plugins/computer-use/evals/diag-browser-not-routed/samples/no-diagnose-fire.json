@@ -9,7 +9,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "testing:diagnose"
+            "skill": "testing:fix-failing"
           }
         }
       ],

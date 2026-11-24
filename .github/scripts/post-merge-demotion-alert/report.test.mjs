@@ -1,5 +1,3 @@
-// report() against a fake GitHub: hand-built runs, merges and issues, with
-// the expected decision taken from the red-main rule (README.md, "Red main").
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -23,8 +21,6 @@ const ENV = {
 
 const failedJob = (id, name) => ({ id, name, conclusion: "failure", steps: [{ name: "Run tests", conclusion: "failure" }] });
 
-// A fake world: `merges` oldest first ({ sha, number, by, run }), where `run`
-// is that merge's own full run ({ id, conclusion, attempts: [[jobs]...] }).
 function world({ merges, head = { attempts: [[failedJob(1, "Test Node")], [failedJob(2, "Test Node")]] }, issues = [], comments = [], autoReverts = [], startAttempt }) {
   const writes = [];
   const runs = {
@@ -88,7 +84,6 @@ function world({ merges, head = { attempts: [[failedJob(1, "Test Node")], [faile
       return { number: Number(m[1]), labels: [], merged_at: "2026-10-20T09:00:00Z" };
     }
     if (path.includes("labels=auto-revert")) return autoReverts;
-    // `comments` is one list for every issue, or lists keyed by issue number.
     if ((m = /\/issues\/(\d+)\/comments/.exec(path))) return Array.isArray(comments) ? comments : (comments[m[1]] ?? []);
     if (path.includes("/issues?state=all&creator=")) return issues;
     throw new Error(`unexpected GET ${path}`);
@@ -177,8 +172,6 @@ test("a range with no evidence run at its oldest merge pins no culprit and opens
   assert.doesNotMatch(result.body, /The revert it would open/);
 });
 
-// A world whose re-run of run 500 passed. The fake's run reads `failure`; the
-// re-run attempt's conclusion is what decides.
 function unconfirmedWorld(options) {
   const w = world({ ...options, head: { attempts: [[failedJob(1, "Test Node")], []] } });
   const inner = w.call;
@@ -292,7 +285,6 @@ test("a revert of a revert is never auto-reverted", async () => {
 });
 
 test("the culprit's age is read after the wait for the re-run, not before it", async () => {
-  // Merged 23 h 40 min before the job starts; the re-run finishes 30 minutes later.
   let minutes = 0;
   const start = Date.parse("2026-10-20T12:00:00Z");
   const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }], startAttempt: 1 });
@@ -315,7 +307,6 @@ test("a newer issue carrying the log marker is not the log, so its decisions nei
   const decoy = { number: 99, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\ndecoy" };
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
-    // Newest first, as the issues list returns them.
     issues: [decoy, LOG],
     comments: {
       99: [
@@ -366,8 +357,6 @@ test("a red full run the log already reports is not named again", async () => {
   assert.doesNotMatch((await run(ENV, w)).body, /no report on this log/);
 });
 
-// An early return posts no report, so it notes the dropped reds on the log
-// rather than leaving them unnamed until the next confirmed red.
 const noteOn = (write) => {
   assert.equal(write.method, "POST");
   assert.match(write.path, /\/issues\/77\/comments$/);

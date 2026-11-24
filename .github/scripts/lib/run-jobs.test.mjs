@@ -1,13 +1,3 @@
-/**
- * The run-jobs readers. Expected values come from recorded answers where
- * GitHub answered the same runs through GraphQL and REST
- * (fixtures/jobs-graphql-parity.json: pr-verify and pr-review-main runs read
- * through RUN_JOBS and through REST attempts/1/jobs plus each job's
- * annotations; fixtures/recorded-annotations.json and the inline pr-merge run
- * 43092202279 below, read through RUN_CHECK_RUNS and CHECK_RUN_ANNOTATIONS),
- * so a served answer must equal REST's on every field the rules read, and
- * from readNodes' stated contract for the batching cases.
- */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -123,7 +113,6 @@ test("a GraphQL answer that is cut short, holds a null, is another run's or a re
   }
 });
 
-/** A graphql(query, variables) that records each query's ids and answers through `answer(ids)`. */
 const fakeGraphql = (answer) => {
   const sent = [];
   const graphql = async (query, variables) => {

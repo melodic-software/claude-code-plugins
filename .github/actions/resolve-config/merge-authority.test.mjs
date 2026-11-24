@@ -49,9 +49,6 @@ const rejectedFor = (config, pattern) =>
     },
   );
 
-// The merge section valid.yaml resolves to: no merge section, so rung off,
-// manual landing, lane pull requests on native auto-merge, and no denied
-// path.
 const VALID_MERGE = {
   rung: "off",
   "diff-check": { "denied-paths": [] },
@@ -118,8 +115,6 @@ test("rung C2 with a valid diff-check and no authority still validates (absent a
   );
 });
 
-// Merge-criterion plan, Design 3: the enabled pr-merge lane reads no class,
-// so the verifier verdict must be required.
 const LANE = {
   rung: "C2",
   "agent-identity": IDENTITY,
@@ -145,8 +140,6 @@ test("an enabled pr-merge lane with a required verdict, or at rung off, validate
   );
 });
 
-// Owner decision Q624: the pr-merge lane needs no denied path or size cap;
-// each check is a diff-check setting.
 test("a pr-merge rung C2 with no diff-check, or an empty one, validates", () => {
   assert.doesNotThrow(() => run(withMerge({ rung: "C2" })));
   assert.doesNotThrow(() =>
@@ -197,8 +190,6 @@ test("rung C2 with authority local-babysit fails on both the missing diff-check 
   );
 });
 
-// Each rung above off has a name and a code kept as its alias; both spellings
-// carry the same conditional requirements.
 for (const rung of ["merge", "merge-reviewed", "C2", "C3"]) {
   test(`rung ${rung} validates and carries the requirements of a rung above off`, () => {
     assert.doesNotThrow(() => run(withMerge({ rung })));

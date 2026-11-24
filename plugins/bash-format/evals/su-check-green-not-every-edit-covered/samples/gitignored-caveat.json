@@ -2,6 +2,10 @@
   "pass": [
     {
       "answer": "A gitignored file is skipped silently too, unless `bash_format_lint_gitignored` is `true`."
+    },
+    {
+      "answer": "Gitignored script: skipped, unless `bash_format_lint_gitignored` is `true`; formatting is skipped too.",
+      "why": "skipped without the word silently, per expected_outcome"
     }
   ],
   "fail": [

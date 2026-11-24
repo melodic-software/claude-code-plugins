@@ -81,14 +81,11 @@ export function summarize({
       readyUnmerged += 1;
       continue;
     }
-    // A live gate leaves a row ready only when the enqueue call failed.
     const key = result.ready
       ? "enqueue failed"
       : normalizeReason(result.reason);
     refusals.set(key, (refusals.get(key) ?? 0) + 1);
   }
-  // `candidates` is the gated count; the skip step took the carried rows'
-  // candidates out of candidates.json, so the listed count adds them back.
   const skipped = results.filter((result) => "carried" in result).length;
   const reached = results.length - held.length - skipped;
   const stopped =

@@ -1,6 +1,7 @@
 {
   "pass": [
-    {"answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| jq | PASS | /usr/bin/jq |\n| Ruff binary | PASS | .venv/bin/ruff |\n| Ruff config | PASS | src/ruff.toml for src/pkg/mod.py |\n| python_format_enabled | INFO | default true |\n| Node.js | PASS | /usr/bin/node |\n| Git pre-commit entry | FAIL | missing |", "why": "every row"}
+    {"answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| jq | PASS | /usr/bin/jq |\n| Ruff binary | PASS | .venv/bin/ruff |\n| Ruff config | PASS | src/ruff.toml for src/pkg/mod.py |\n| python_format_enabled | INFO | default true |\n| Node.js | PASS | /usr/bin/node |\n| Git pre-commit entry | FAIL | missing |", "why": "every row"},
+    {"answer": "| # | Check | Result |\n|---|---|---|\n| 2 | `jq` | PASS (`/usr/bin/jq`) |\n| 3 | format concern | PASS: `adapter:ruff`, found yes |\n| 5 | `python_format_enabled` | INFO: defaults apply |\n| 7 | Node.js | PASS (/usr/bin/node) |\n| 8 | Git pre-commit entries | FAIL: both missing |", "why": "step 3 named as the format concern row"}
   ],
   "fail": [
     {"answer": "jq, ruff, node and the config all pass; the pre-commit entry is missing.", "why": "prose, no table"},

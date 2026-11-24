@@ -21,7 +21,7 @@ else
   }
 fi
 if [ -z "$selected" ]; then
-  echo "::notice::the pull request changes no plugin's skills, agents or evals; no eval runs."
+  echo "::notice::the pull request changes no plugin's skills, agents, context or evals; no eval runs."
   echo "go=false" >>"$GITHUB_OUTPUT"
   exit 0
 fi

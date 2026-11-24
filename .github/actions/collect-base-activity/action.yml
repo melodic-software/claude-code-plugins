@@ -1,8 +1,9 @@
 name: Collect Base Activity
 description: >
   Copy what an activity runs out of the base checkout before the PR head
-  replaces it: a script's whole directory to $RUNNER_TEMP/base-script, with
-  the base .github/scripts/lib/ to $RUNNER_TEMP/lib for its ../lib/ imports, or for
+  replaces it: the files in a script's own directory and every file it
+  loads, transitively, to $RUNNER_TEMP/base-script at their repository
+  paths, or for
   a skill the base plugins/ and .claude-plugin/ to
   $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
@@ -146,20 +147,10 @@ runs:
             exit 1
             ;;
         esac
+        # The script runs as $SCRIPT_DIR/$SCRIPT, beside everything it loads
+        # at its repository path.
         mkdir -p "$SCRIPT_DIR"
-        cp -R "$BASE_PATH/$(dirname "$SCRIPT")/." "$SCRIPT_DIR/"
-        # The lanes' shared modules, which a script imports as ../lib/.
-        if [[ -d $BASE_PATH/.github/scripts/lib ]]; then
-          mkdir -p "$RUNNER_TEMP/lib"
-          cp -R "$BASE_PATH/.github/scripts/lib/." "$RUNNER_TEMP/lib/"
-        fi
-        # The branch activity reader, which address-feedback.mjs listActivity
-        # loads as ../pr-merge/merge-holds.mjs, and report-outcome.mjs imports
-        # for the outside-actor hold label.
-        if [[ -f $BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs ]]; then
-          mkdir -p "$RUNNER_TEMP/pr-merge"
-          cp "$BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs" "$RUNNER_TEMP/pr-merge/"
-        fi
+        node "$GITHUB_ACTION_PATH/stage-closure.mjs" "$BASE_PATH" "$SCRIPT" "$SCRIPT_DIR"
 
     - name: Stage the base marketplace and the skill prompt
       id: skill

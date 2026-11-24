@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/p/plugins/testing/skills/fix-failing/context/investigate.md" } }],
+      "why": "the investigate phase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/w/tests/test_cart.py" } }],
+      "why": "no phase file read"
+    }
+  ]
+}

@@ -13,9 +13,9 @@ import { planPasses } from "./plan-passes.mjs";
 const LANE = "pr-refine";
 
 // CODEOWNERS_FILE: the base's .github/CODEOWNERS, as resolve-config reads it.
-const { BASE_PATH, PATHS_FILE, CODEOWNERS_FILE, TRUNCATED, GITHUB_OUTPUT } = process.env;
+const { BASE_PATH, STANDARDS_DIR, PATHS_FILE, CODEOWNERS_FILE, TRUNCATED, GITHUB_OUTPUT } = process.env;
 const truncated = TRUNCATED === "true";
-const doc = configFromBase({ BASE_PATH });
+const doc = configFromBase({ BASE_PATH, STANDARDS_DIR });
 const changedPaths = readFileSync(PATHS_FILE, "utf8").split("\n").filter(Boolean);
 const codeowners = existsSync(CODEOWNERS_FILE ?? "") ? readFileSync(CODEOWNERS_FILE, "utf8") : undefined;
 const targetsOf = (slot, paths) => ((slot.activity.inputs ?? []).includes("changed-paths") ? slotTargets(slot, paths, codeowners) : null);

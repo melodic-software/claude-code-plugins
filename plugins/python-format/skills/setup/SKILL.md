@@ -63,9 +63,12 @@ The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/python-format.sh`), the entries an
 they share are the single source of truth for what the plugin requires and how it resolves
 things; step 3 asks the resolver itself.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
+**Read it first.** Open `${CLAUDE_PLUGIN_ROOT}/hooks/python-format.sh` with the Read tool before
+any probe. Probe what it actually does, don't recite this file. Then read the
 pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
+Run every numbered step below and give each one that applies its own row in that table, also when
+the request adds questions of its own; answer those beside the table.
 Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 An installed plugin runs from a deeply nested cache path, and a search passed that path can fail
@@ -90,7 +93,9 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    column then names the config that governs that file and the binary that would run, or why
    nothing resolved. An adapter's own rules (which config opts a file in, where its binary comes
    from) are in `${CLAUDE_PLUGIN_ROOT}/git-hooks/adapters.sh`: read them to explain why a row
-   names that config. Report one line per concern from the rows, never from this text:
+   names that config. That explanation reads the candidate files on the walk and names each one
+   passed over with why it did not count, and the table or section that opted the governing file in.
+   Report one line per concern from the rows, never from this text:
    - `adapter:<name>` with found `yes`: PASS, naming the adapter's tool and that its config opted in.
    - found `no`: FAIL; the remediation is the adapter tool's
      `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` install hints (Read that path).

@@ -158,9 +158,6 @@ export async function previousState({ repo, runId, actions, download }) {
   }
 }
 
-// The resolved limits decide() reads: lane-level, and api as set, which
-// decide() fills from rate-limits.json. {} when the file cannot be read, so
-// the defaults apply.
 function resolvedLimits(path) {
   try {
     const limits = JSON.parse(readFileSync(path, "utf8"))?.limits;
@@ -193,9 +190,6 @@ export async function run({ env = process.env, now = Date.now(), actions, github
   }
 
   const kept = await previousState({ repo, runId: env.GITHUB_RUN_ID, actions, download });
-  // With no kept state, a published value still in force is the previous
-  // level, as the readers see it once live; an expired or malformed one is
-  // none, so decide() starts from the default.
   const live = effectiveLevel({ value, settings: { ...settings, shadow: false }, now });
   const previous = kept ?? (live.reason === "published" ? { level: live.published } : null);
   const demand = await demandOf({ actions, repo, applied: applied.level });
@@ -272,9 +266,6 @@ export function variableChanges(before, after, allowed) {
   return changes.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-// The one name a change is allowed to: the configured level variable, and only
-// when it is a *_LANE_LEVEL name, so a misconfigured kill switch name never
-// passes.
 const allowedVariable = (env) => {
   const name = configuredSettings(env).variable;
   return LEVEL_VARIABLE.test(name ?? "") ? name : null;

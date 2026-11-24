@@ -198,6 +198,19 @@ function readJsonRetry(filePath) {
   return null
 }
 
+// A concurrent record can recreate dir and write a trial into it while it is being removed, so the
+// removal walks a unique name no writer opens rather than the live path.
+function removeTrialDir(dir) {
+  const tombstone = `${dir}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.removing`
+  try {
+    fs.renameSync(dir, tombstone)
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return
+    throw err
+  }
+  fs.rmSync(tombstone, { recursive: true, force: true })
+}
+
 function parseFlags(argv, allowed) {
   const opts = {}
   for (let i = 0; i < argv.length; i++) {
@@ -278,14 +291,14 @@ function cmdRecord(argv) {
     writeExclusiveJson(trialPath, trialDoc)
   } catch (err) {
     if (err && err.code === 'ENOENT' && fs.existsSync(outcomePath)) {
-      fs.rmSync(keyTrialDir, { recursive: true, force: true })
+      removeTrialDir(keyTrialDir)
       die(`outcome already exists for ${opts.key}`, 3)
     }
     throw err
   }
 
   if (fs.existsSync(outcomePath)) {
-    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    removeTrialDir(keyTrialDir)
     die(`outcome already exists for ${opts.key}`, 3)
   }
 
@@ -294,7 +307,7 @@ function cmdRecord(argv) {
     files = fs.readdirSync(keyTrialDir).filter((f) => f.endsWith('.json'))
   } catch (err) {
     if (err && err.code === 'ENOENT' && fs.existsSync(outcomePath)) {
-      fs.rmSync(keyTrialDir, { recursive: true, force: true })
+      removeTrialDir(keyTrialDir)
       const existing = readJsonRetry(outcomePath)
       process.stdout.write(
         `${JSON.stringify({ recorded: true, outcome_created: false, outcome: existing }, null, 2)}\n`,
@@ -336,7 +349,7 @@ function cmdRecord(argv) {
     }
     fs.mkdirSync(paths.outcomesDir, { recursive: true })
     const created = writeExclusiveJson(outcomePath, outcomeDoc)
-    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    removeTrialDir(keyTrialDir)
     const finalOutcome = created ? outcomeDoc : readJsonRetry(outcomePath)
     process.stdout.write(
       `${JSON.stringify({ recorded: true, outcome_created: created, outcome: finalOutcome }, null, 2)}\n`,
@@ -345,7 +358,7 @@ function cmdRecord(argv) {
   }
 
   if (fs.existsSync(outcomePath)) {
-    fs.rmSync(keyTrialDir, { recursive: true, force: true })
+    removeTrialDir(keyTrialDir)
     const existing = readJsonRetry(outcomePath)
     process.stdout.write(
       `${JSON.stringify({ recorded: true, outcome_created: false, outcome: existing }, null, 2)}\n`,

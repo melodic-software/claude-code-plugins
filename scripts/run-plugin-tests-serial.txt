@@ -46,11 +46,11 @@ plugins/skill-quality/scripts/check-listing-budget.test.sh
 
 # Deadline-based cases: a suite that fails when a bounded operation overruns is
 # measuring the box once other suites are competing for it.
-# 2,000 ms spawnSync deadline on the ReDoS-shaped title case (measure.test.sh:471-478).
+# 2,000 ms spawnSync deadline on the ReDoS-shaped title case (measure.test.sh:633-656).
 plugins/context-budget/skills/audit/scripts/measure.test.sh
 # Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
 
-# Part c of the shared page's browser suites holds ui_snappy's millisecond limits and
+# Part d of the shared page's browser suites holds ui_snappy's millisecond limits and
 # ui_telemetry's one-second dead-tap wait, which other suites' browsers slow past their windows.
-plugins/planning/shared/tests/ui-c.test.sh
+plugins/planning/shared/tests/ui-d.test.sh

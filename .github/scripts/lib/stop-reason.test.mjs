@@ -1,5 +1,3 @@
-// Expected values come from the owner's rule: a person only for an intent,
-// design, security or cost reason, and `none` never to a person.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

@@ -18,8 +18,6 @@ const FILES = ["plugins/x/a.py", "plugins/x/b.md"];
 const verdictText = (extra = {}) =>
   JSON.stringify({ verdict: "fail", pr: 42, head_sha: HEAD, summary: "Spec item 2 is unmet.", notes: ["`plugins/x/a.py:12` returns early.", "No test covers it."], ...extra });
 
-// Each write lands in `created` (review comments) or `writes` (the PR's own
-// comments and labels), so a test sees every change a run makes.
 function fakeApi({ pull = {}, reviewComments = [], threads = [], issueComments = [], labels = [], queued = false, dequeue } = {}) {
   const created = [];
   const writes = [];
@@ -88,7 +86,6 @@ const words = (n) => Array(n).fill("word").join(" ");
 const quoted = (body) => body.slice(body.indexOf("```text\n") + 8, body.lastIndexOf("\n```"));
 
 test("a long note wraps at spaces within 100 columns", () => {
-  // "- " and 19 four-letter words take 96 columns; a 20th would take 101.
   const body = failComment({ head: HEAD, summary: "s", notes: [words(200)] });
   assert.equal(quoted(body), ["Summary: s", `- ${words(19)}`, ...Array(9).fill(`  ${words(19)}`), `  ${words(10)}`].join("\n"));
 });
@@ -145,7 +142,6 @@ test("a name that carries issue numbers must carry the ones the verdict records"
     [`${NAME}-i7`, issues(8)],
     [`${NAME}-i7`, issues(7, 8)],
     [`${NAME}-i7.8`, issues(7)],
-    // One verdict has one name: issues ascending, each once.
     [`${NAME}-i12.7`, issues(7, 12)],
     [`${NAME}-i7.7`, issues(7)],
     [`${NAME}-i7`, issues()],
@@ -229,7 +225,6 @@ test("a failed hold step leaves the other steps, the fail comment and the notes 
       throw new Error(`${method} refused`);
     },
   });
-  // A lanes App pull request: each hold step refused in turn, notes posted.
   for (const [method, left] of [
     ["addLabels", ["comment", "dequeue"]],
     ["createIssueComment", ["label", "dequeue"]],
@@ -240,12 +235,10 @@ test("a failed hold step leaves the other steps, the fail comment and the notes 
     assert.deepEqual(ops(api), left, method);
     assert.equal(api.created.length, 1, `${method} leaves the notes`);
   }
-  // A person's pull request: its fail comment and label still land.
   const person = fakeApi({ pull: { user: { id: 7 } } });
   await assert.rejects(postNotes({ api: person, verdict: WITHHELD, appId: APP, humanGatedLabel: () => assert.fail("the config is unreadable"), log: () => {} }));
   assert.deepEqual(ops(person), ["comment", "comment", "label"]);
   assert.deepEqual(person.writes[2].names, ["pr-verify-failed"]);
-  // Both failing: the hold's error is the one thrown, and the other is logged.
   const lines = [];
   const both = refused(refused(fakeApi(), "addLabels"), "createReviewComment");
   await assert.rejects(postNotes({ api: both, verdict: WITHHELD, appId: APP, log: (line) => lines.push(line) }), /addLabels refused/);
@@ -260,7 +253,6 @@ test("the notes are posted as file comments on the judged head, once", async () 
     api.created.map(({ pr, path, commit_id, subject_type }) => ({ pr, path, commit_id, subject_type })),
     [{ pr: 42, path: "plugins/x/a.py", commit_id: HEAD, subject_type: "file" }],
   );
-  // A re-run finds its own note at that head and posts nothing.
   const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: HEAD, path: api.created[0].path, body: api.created[0].body }] });
   assert.equal(await postNotes({ api: again, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(again.created, []);
@@ -287,7 +279,6 @@ test("a retry after a partial post posts only the comments still missing", async
     full.created.map((c) => c.path),
     FILES,
   );
-  // The second POST failed: only the first file's comment is on the PR.
   const [first] = full.created;
   const retry = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: HEAD, path: first.path, body: first.body }] });
   assert.equal(await postNotes({ api: retry, verdict, appId: APP, log: () => {} }), true);
@@ -297,11 +288,6 @@ test("a retry after a partial post posts only the comments still missing", async
   );
 });
 
-// A pass that superseded a FAIL at this head resolved that FAIL's notes
-// (publish-feedback.mjs, superseded_head). A later FAIL at the same head must
-// open a thread again, or its round finds nothing open and the PR stalls on
-// the gate's verify:fail with no lane stop. A note in an open thread still
-// counts as posted.
 test("a later fail at the head posts again on a path whose note there sits in a resolved thread", async () => {
   const verdict = readVerdict(NAME, verdictText({ notes: ["plugins/x/a.py: one", "plugins/x/b.md: two"] }));
   const first = fakeApi();
@@ -450,10 +436,8 @@ test("main names the PR and head only once the notes are on the PR", async () =>
   writeFileSync(env.GITHUB_OUTPUT, "");
   await main(env, { api: fakeApi({ pull: { state: "closed" } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
-  // A person's PR starts no round: the label holds it.
   await main(env, { api: fakeApi({ pull: { user: { id: PERSON } } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
-  // A tracker config no one can read stops only the label a withheld fail needs.
   const broken = join(dir, "tracker.json");
   writeFileSync(broken, "{");
   const malformed = { ...env, TRACKER_CONFIG: broken };
@@ -466,8 +450,6 @@ test("main names the PR and head only once the notes are on the PR", async () =>
   assert.equal(api.created.length, 1, "the notes still post");
 });
 
-// A review thread as address-feedback.mjs listThreads reads it: `root` is its
-// first comment's author, body and original commit.
 const OLD = "b".repeat(40);
 const noteBody = (head) => noteComments({ head, summary: "s", notes: [], files: FILES })[0].body;
 const thread = (id, { resolved = false, author = ACTIONS_BOT, body = noteBody(OLD), commit = OLD } = {}) => ({
@@ -516,9 +498,6 @@ test("a stale fail-note thread is an open verifier note from another head, and n
   );
 });
 
-// A pass that superseded the FAIL at its own head (babysit_verify_evidence.py
-// `supersededAtHead`) leaves that FAIL's notes stale too; naming any other
-// head adds none.
 test("a fail-note thread at the head is stale only when the FAIL there was superseded", () => {
   const threads = [thread("PRRT_old"), thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD }), thread("PRRT_same_done", { body: noteBody(HEAD), commit: HEAD, resolved: true })];
   assert.deepEqual(staleVerifyNotes(threads, HEAD, { supersededHead: HEAD }), ["PRRT_old", "PRRT_same"]);
@@ -540,8 +519,6 @@ test("a pass names its head only when the PR is open at it and holds an open fai
   };
   assert.equal(await run(), `pass-head-sha=${HEAD}\n`);
   assert.equal(await run({ name: `${PASS}-notes`, text: passText({ verdict: "pass-notes" }) }), `pass-head-sha=${HEAD}\n`);
-  // A note on the passing head starts the round too: the dispatcher's
-  // verifier read decides whether the FAIL there was superseded.
   assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD })] }), `pass-head-sha=${HEAD}\n`, "a note on the passing head");
   assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD, resolved: true })] }), "", "a resolved note on the passing head");
   assert.equal(await run({ threads: [thread("PRRT_other", { author: 209825114 }), thread("PRRT_plain", { body: "x" })] }), "", "not a verifier note");
@@ -568,9 +545,6 @@ test("a pass on a person's PR at its head removes pr-verify-failed and names no 
   assert.deepEqual(await run({ pull: { state: "closed" } }), [], "a closed PR");
 });
 
-// The pull request read already carries its labels and its review comment
-// count, so the label check and the thread listing cost no call of their own
-// when they are there.
 test("a pass reads the labels and review comment count from the pull request read, not with calls of its own", async () => {
   const run = async (pull) => {
     const dir = tempDir("verify-notes-");

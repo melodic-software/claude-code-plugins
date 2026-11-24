@@ -1,6 +1,4 @@
 # yaml-language-server: $schema=../../plugins/source-control/schemas/source-control.schema.json
-# Team layer for the source-control plugin's YAML settings.
-# Resolution: plugins/source-control/reference/config-resolution.md.
 pr_open_state: ready
 review_venue: auto
 sync_stale_base: true
@@ -17,7 +15,8 @@ babysit_loop_grace_window_minutes: 30
 dossier_branch_prefix: dossier/
 linkage_gate_uses_pattern: '\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
 runner_policy_paths:
-  - .github/standards/runner-policy/policy.json
   - docs/ci-runner-routing.md
+trusted_actors_source: standards
+standards_repository: melodic-software/standards
 org_settings_repo: melodic-software/github-iac
 review_lane_producer_repo: melodic-software/ci-workflows

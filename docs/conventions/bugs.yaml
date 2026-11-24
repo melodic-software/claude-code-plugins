@@ -1,6 +1,4 @@
 # yaml-language-server: $schema=../../plugins/bugs/schemas/bugs.schema.json
-# Team layer for the bugs plugin's settings; why each value: bugs.md beside this file.
-# Resolution: plugins/bugs/reference/config.md (read by /bugs:scan, written by /bugs:setup apply).
 lanes:
   - name: entrypoints
     globs:

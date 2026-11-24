@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": [
-        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/investigate.md" } }
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/fix-failing/context/investigate.md" } }
       ],
       "why": "routed to investigate"
     }
@@ -10,13 +10,13 @@
   "fail": [
     {
       "answer": [
-        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/loop.md" } }
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/fix-failing/context/loop.md" } }
       ],
       "why": "routed to the loop"
     },
     {
       "answer": [
-        { "tool": "Grep", "input": { "pattern": "investigate", "path": "/p/testing/skills/diagnose/context/investigate.md" } }
+        { "tool": "Grep", "input": { "pattern": "investigate", "path": "/p/testing/skills/fix-failing/context/investigate.md" } }
       ],
       "why": "searched the file, never read it"
     }

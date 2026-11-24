@@ -140,6 +140,7 @@ jobs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
       pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -162,6 +163,10 @@ jobs:
             /plugins/work-items/scripts/charge-words.json
             /.node-version
           sparse-checkout-cone-mode: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -241,6 +246,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
           VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
 
       # The reconciler's re-run of a verdict the kill switch deferred sends no
@@ -379,6 +385,13 @@ jobs:
             /.node-version
             /.python-version
           sparse-checkout-cone-mode: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.post-verify-notes.outputs.standards-sha }}
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -446,11 +459,12 @@ jobs:
           # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-dispatch-feedback-record.json
           FEEDBACK_LANE_RECORDS_PATH: ${{ runner.temp }}/feedback-lane-records.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           export REVIEWER_IDS
@@ -768,6 +782,12 @@ jobs:
             /.node-version
           sparse-checkout-cone-mode: false
 
+      - name: Download standards
+        id: standards
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -803,7 +823,7 @@ jobs:
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml
           RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs
         run: bash .base/.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh

@@ -2,6 +2,10 @@
 
 - Status: accepted
 - Date: 2026-09-29
+- Superseded in part by
+  [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md):
+  the `work-items` repo-root binding (ADR 0075 supersedes ADR 0015; the tracker binds in
+  `<home>/work-items.yaml`) and the canonical overlay spelling (fix 8: `<home>/**/*.local.*`).
 
 ## Context
 
@@ -46,8 +50,7 @@ declined.
 
 The canonical overlay spelling is the recursive `.claude/**/*.local.*` line, applied when each
 surface next touches its setup, with no separate migration. The exceptions
-[ADR 0040](0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md)
-and the config-cascade README name stay: the in-directory `.gitignore` under `<standards_dir>/`
+the config-cascade README names stay: the in-directory `.gitignore` under `<standards_dir>/`
 and the `work-items` repo-root overlay line.
 
 The ruling rests on each placement being locally justified, not on the `.claude/` write guard.

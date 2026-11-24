@@ -1,5 +1,21 @@
 # Changelog: discovery plugin
 
+## [2.2.19] - 2026-11-24
+
+### Changed
+
+- `/discovery:research` reads two pages through the shared docs cache instead of WebFetch
+
+  With no docs MCP server connected, the docs site is read through
+  `scripts/fetch-docs.sh --cache`. The recency gate reads a raw `CHANGELOG.md` URL through
+  `scripts/fetch-docs.sh --cache --profile generic`.
+
+## [2.2.18] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [2.2.17] - 2026-11-24
 
 ### Fixed

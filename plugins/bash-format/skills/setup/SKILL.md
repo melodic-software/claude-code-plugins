@@ -278,6 +278,7 @@ predates the remediation, so never re-read it) and report its actual result. Nev
 the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
+That reply states the words "already configured" as written here, beside any summary of the check.
 
 ## Next
 

@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.15.4] - 2026-11-24
+
+### Changed
+
+- The pre-confirmed marker and problem-framing rules name where the trusted-actor list comes from when a repository's `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`: `components/trusted-actors/trusted-actors.json` in the repository its `standards_repository` names, at that repository's main commit.
+
+## [5.15.3] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [5.15.2] - 2026-11-24
 
 ### Changed

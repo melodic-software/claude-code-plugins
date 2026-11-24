@@ -31,7 +31,6 @@ test("buildRating refuses a run with a permission denial, a bad rubric or a resu
   const base = { output: result(), messages: messages(), pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };
   assert.throws(() => buildRating({ ...base, messages: messages({ permission_denials: [{ tool_name: "Read" }] }) }), /denial/);
   assert.throws(() => buildRating({ ...base, messages: messages({ permission_denials: [{ tool_name: "Grep" }, { tool_name: "WebFetch" }] }) }), /1 permission denial/);
-  // A checker reaching for a tool its agent file declares but the cage withholds reached nothing.
   assert.equal(buildRating({ ...base, messages: messages({ permission_denials: [{ tool_name: "Bash" }, { tool_name: "Grep" }] }) }).max, "HIGH");
   assert.throws(() => buildRating({ ...base, rubric: "eight" }), /rubric/);
   assert.throws(() => buildRating({ ...base, output: result({ head: "b".repeat(40) }) }), /head/);

@@ -2,6 +2,7 @@
 # Tests for lib/media-render (ADR 0103). The pure modules always run; the ffmpeg-backed ones skip without ffmpeg and
 # ffprobe, and the capture test without Playwright for Python, unless MEDIA_RENDER_REQUIRE_DEPS=1, which fails them.
 # test-scope: lib/media-render/* lib/media-render/media_templates/* lib/redact.py
+# test-scope: plugins/session-flow/vendor/gitleaks/gitleaks-rules.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

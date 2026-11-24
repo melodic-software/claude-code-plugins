@@ -66,7 +66,6 @@ on:
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
-      - .github/zizmor.yml
       - .gitleaks.toml
       - .golangci.yml
       - .lefthook/base.yml
@@ -93,7 +92,6 @@ on:
       - docs/standards/source-authority-tiers.md
       - eng/dotnet-analysis/Directory.Build.props
       - eng/dotnet-analysis/dotnet.globalconfig
-      - lychee.toml
       - plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 
 permissions:

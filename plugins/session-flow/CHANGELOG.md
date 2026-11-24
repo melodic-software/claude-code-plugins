@@ -1,5 +1,37 @@
 # Changelog: session-flow plugin
 
+## [9.22.11] - 2026-11-24
+
+### Fixed
+
+- `continue-in-background`, `find-handoff` and `orient` read a handoff's Observations section, or each `- Moved:` pointer's hop file, before reporting that a handoff says nothing on the topic asked.
+
+## [9.22.10] - 2026-11-24
+
+### Fixed
+
+- `continue-in-background` reads an earlier handoff's section by name, following a section moved to the hop file.
+- `orient` resolves the handoffs directory from the save-point memory root, never Claude Code's auto-memory directory.
+- `find-handoff` treats a waiver in the request as no confirmation and still stops for the operator's yes.
+
+## [9.22.9] - 2026-11-24
+
+### Changed
+
+- the workflow continuation step reads its docs pointers through the shared docs cache
+
+  When the `discovery` plugin is not enabled, each Remote Control and cloud-session pointer is
+  fetched with `scripts/fetch-docs.sh --cache` per `reference/docs-lookup-procedure.md`, not
+  WebFetch.
+
+## [9.22.8] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+- The enforcement ladder copy (3.4.1) says a check runs locally, at the stage the check-placement contract assigns, and in CI, in place of the undefined "edit time".
+
 ## [9.22.7] - 2026-11-24
 
 ### Changed

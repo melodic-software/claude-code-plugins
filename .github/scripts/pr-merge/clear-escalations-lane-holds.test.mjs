@@ -1,8 +1,3 @@
-// filterLaneHolds, which ci-status's human-gated and hold-lift steps run on
-// the pull request's issue comments: a github-actions[bot] hold comment ending
-// in a lane footer keeps the footer only when the run its binding names
-// recorded it (lib/lane-binding.mjs); a legacy one keeps it while the cutoff
-// is unset.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

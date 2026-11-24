@@ -1,13 +1,3 @@
-// The lanes token broker (azure-iac src/lanes-token-broker) loads resolve.mjs
-// from this repository's main tip, whichever repository calls: its
-// resolve-config-loader.mjs walks the sibling modules resolve.mjs imports with
-// the `relative_import` pattern, imports them beside a node_modules holding only
-// its own `packages`, and calls only loadConfig and resolveGrant on the
-// trust-root files binding.mjs reads from the caller's main tip (TRUST_FILES); its tests read the `test_files` list instead. A module the
-// pattern misses, a file read beside a module, a package the broker does not
-// provide, or a file loadConfig needs that TRUST_FILES lacks fails every
-// broker request. fixtures/broker-vendored-lists.json copies those lists from
-// the commit it names; the azure-iac pull request that changes them updates it.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -19,9 +9,6 @@ const here = (relative) => new URL(relative, import.meta.url);
 const read = (relative) => readFileSync(here(relative), "utf8");
 const LISTS = JSON.parse(read("./fixtures/broker-vendored-lists.json"));
 
-// Relative modules a module imports, and files it reads beside itself through
-// new URL(..., import.meta.url), as paths relative to this directory; bare
-// specifiers, which resolve through package.json.
 function references(name) {
   const text = read(`./${name}`);
   const specifiers = [
@@ -37,7 +24,6 @@ function references(name) {
   };
 }
 
-// Every file resolve.mjs loads, itself included, and the packages they import.
 function closure() {
   const files = new Set();
   const packages = new Set();
@@ -65,7 +51,6 @@ function closure() {
 const ROOT = "../../../";
 const fileAt = (path) => (path.endsWith(".json") ? JSON.parse(read(`${ROOT}${path}`)) : read(`${ROOT}${path}`));
 
-// What the broker passes: the config and each TRUST_FILES entry, read from this tree.
 const brokerFiles = () => ({
   config: read(`${ROOT}${LISTS.binding.config}`),
   ...Object.fromEntries(Object.entries(LISTS.binding.trust_files).map(([key, path]) => [key, fileAt(path)])),
@@ -80,7 +65,6 @@ test("the copied lists name the azure-iac files and the commit they were read fr
   assert.deepEqual(LISTS.calls.exports, ["loadConfig", "resolveGrant"]);
 });
 
-// The modules the broker's loader reaches from resolve.mjs with its pattern.
 function loaderClosure() {
   const pattern = new RegExp(LISTS.loader.relative_import, "g");
   const seen = new Set();
@@ -115,8 +99,6 @@ test("the broker's calls resolve this tree's config from the TRUST_FILES it read
   assert.ok(Object.keys(doc.lanes).length > 0);
 });
 
-// Every file a lane run hands resolve.mjs (resolve-config.mjs filesUnderBase),
-// as read from this tree, whatever the fixture lists.
 const TREE_FILES = Object.freeze({
   schema: "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
   vocabulary: ".github/standards/github-actions-conventions/vocabulary.json",
@@ -129,7 +111,6 @@ const TREE_FILES = Object.freeze({
   patchRulesSchema: ".github/actions/resolve-config/patch-rules.schema.json",
 });
 
-// Each key loadConfig cannot do without, found by leaving it out of the full set.
 const neededKeys = () => {
   const all = {
     config: read(`${ROOT}${LISTS.binding.config}`),
@@ -147,8 +128,6 @@ const neededKeys = () => {
   });
 };
 
-// What the broker would lack: each needed key its TRUST_FILES does not list,
-// and each needed file its tests are not served.
 function brokerGaps(needed, { trust_files: trustFiles, test_data: testData }, testFiles) {
   return needed
     .filter((key) => key !== "config")

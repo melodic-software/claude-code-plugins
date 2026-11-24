@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { GitHubError } from "../lib/github-client.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
-// A latch that lets every request through and records its URL.
 const openLatch = (seen = []) => ({ guard: (fetchImpl) => async (url, init) => (seen.push(url), fetchImpl(url, init)) });
 const reader = (fetchImpl, latch = openLatch()) => createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch });
 

@@ -14,7 +14,8 @@
     "mode": "file-lines",
     "file_lines": 1000,
     "function_lines_pct": 5,
-    "check": "report"
+    "check": "report",
+    "copies_manifest": null
   },
   "duplication": {
     "min_tokens": 50,

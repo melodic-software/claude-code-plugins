@@ -22,8 +22,6 @@ test("a shell-failed success record keeps shellFailed", () => {
   assert.equal(validRecord({ ...BASE, outcome: "success", shellFailed: "yes" }), null);
 });
 
-// docs/lane-outcome.md, Compatibility: a reader ignores class values it does
-// not know, since a later v1 may add one.
 test("an unknown class in the enum's kebab shape is kept as written, with the record", () => {
   const record = validRecord({ ...BASE, class: "later-class", turns: 3 });
   assert.equal(record.class, "later-class");
@@ -31,8 +29,6 @@ test("an unknown class in the enum's kebab shape is kept as written, with the re
   assert.equal(readRecord(`x lane-outcome ${JSON.stringify({ ...BASE, class: "later-class" })} tail`).class, "later-class");
 });
 
-// report-check-run posts validRecord's result, which limit-stop.mjs reads back
-// through validRecord: a record must survive the second read unchanged.
 test("a validated record reads back unchanged", () => {
   for (const fields of [{ class: "later-class" }, { class: "review-unposted" }, { outcome: "success", shellFailed: true }, { class: "max-turns", jobId: "check-intent-2" }]) {
     const once = validRecord({ ...BASE, ...fields, unknownKey: 1 });

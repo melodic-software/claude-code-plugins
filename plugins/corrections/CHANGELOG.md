@@ -3,6 +3,21 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.4] - 2026-11-24
+
+### Fixed
+
+- `codify` names the three outside-source kinds and makes the one recount offer in every report on a person's invocation, an unproven check's included.
+- `codify preferences` gives each contributing `project` value in full and quotes each excerpt.
+
+## [1.10.3] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+- The enforcement ladder copy (3.4.1) says a check runs locally, at the stage the check-placement contract assigns, and in CI, in place of the undefined "edit time".
+
 ## [1.10.2] - 2026-11-24
 
 ### Fixed

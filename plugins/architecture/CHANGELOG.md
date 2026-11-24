@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.9] - 2026-11-24
+
+### Changed
+
+- The deepening report's page spec points at `lib/cdn-pins/pins.json` and its sync script, which keep the Mermaid and Tailwind pins current with Dependabot, in place of dated version notes and a by-hand recheck trigger.
+
+## [6.0.8] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+- The enforcement ladder copy (3.4.1) says a check runs locally, at the stage the check-placement contract assigns, and in CI, in place of the undefined "edit time".
+
 ## [6.0.7] - 2026-11-23
 
 ### Changed

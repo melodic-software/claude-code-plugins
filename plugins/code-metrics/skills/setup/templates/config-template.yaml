@@ -27,6 +27,7 @@ size:
   file_lines: 1000         # the plugin's own number, not ISO-backed; 500 is the operator-list figure
   function_lines_pct: 5    # ISO/IEC 5055:2021 §8.2.115, used when mode is iso-8.2.115
   check: report
+  copies_manifest: null
 
 duplication:
   min_tokens: 50

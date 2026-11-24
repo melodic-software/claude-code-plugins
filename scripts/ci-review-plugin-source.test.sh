@@ -6,7 +6,7 @@
 # binder (babysit_review_evidence.py) does not list plugins/review/ as lane
 # source. A caller that loaded the plugin from its checkout would let a pull
 # request change its own review, and this test fails first.
-# test-scope: .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py scripts/ci-deps/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,7 +17,7 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const require = createRequire(`${process.cwd()}/scripts/ci-deps/package.json`);
 const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
