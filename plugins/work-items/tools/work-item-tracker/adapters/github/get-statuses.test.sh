@@ -39,11 +39,11 @@ printf '%s\n' "$args" >>"$GH_STUB_LOG"
 [[ -z "${GH_STUB_ERR:-}" ]] || { printf '%s\n' "$GH_STUB_ERR" >&2; exit 1; }
 case "$*" in
 *melodic-software/standards/commits/main*)
-  [[ -n "${GH_STUB_STD_SHA:-}" ]] || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
-  printf '%s\n' "$GH_STUB_STD_SHA"
+  [[ -n "${GH_STUB_STD_COMMIT:-}" ]] || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
+  jq -r .sha "$GH_STUB_STD_COMMIT"
   exit 0
   ;;
-*melodic-software/standards/contents/std/actors.json\?ref=*) src="$GH_STUB_ACTORS" ;;
+*melodic-software/standards/contents/components/trusted-actors/trusted-actors.json\?ref=*) src="$GH_STUB_ACTORS" ;;
 *contents/trust/actors.json*) src="$GH_STUB_ACTORS" ;;
 *contents/trust/model.yaml*) src="$GH_STUB_MODEL" ;;
 *) src="$GH_STUB_ANSWER" ;;
@@ -267,18 +267,30 @@ unmapped="$TMP_ROOT/unmapped.json"
 answer "$unmapped" "i1=$(issue confirmed "$(ev add 100 confirmed)")"
 ANSWER="$unmapped" trust_fails 1 "a counted state the model does not map"
 
-STD_SHA=0123456789abcdef0123456789abcdef01234567
-STD_BINDING="$(trust_binding '{"trusted_actors":"standards:std/actors.json","model":"trust/model.yaml","lanes_app":"lanes-app[bot]"}')"
-GH_STUB_STD_SHA="$STD_SHA" BINDING="$STD_BINDING" ANSWER="$TRUSTED" run --field "Work status" "${ids[@]}" "github:p/q#1"
+STD_FIX="$(dirname "$S")/fixtures"
+STD_COMMIT="$STD_FIX/standards-commits-main.json"
+STD_LIST="$STD_FIX/standards-trusted-actors.json"
+STD_SHA="$(jq -r .sha "$STD_COMMIT")"
+STD_HUMAN="$(jq -r '[.actors[] | select(.kind == "human")][0].id' "$STD_LIST")"
+STD_OUTSIDER="$(jq -r '[.actors[].id] | max + 1' "$STD_LIST")"
+STD_PATH=components/trusted-actors/trusted-actors.json
+STD_BINDING="$(trust_binding "{\"trusted_actors\":\"standards:$STD_PATH\",\"model\":\"trust/model.yaml\",\"lanes_app\":\"lanes-app[bot]\"}")"
+STD_ANSWER="$TMP_ROOT/std-answer.json"
+answer "$STD_ANSWER" \
+  "i1=$(issue ready "$(ev add "$STD_HUMAN" needs-human)" "$(ev change "$STD_OUTSIDER" ready)")" \
+  "i3=$(issue ready "$(ev add "$STD_HUMAN" needs-human)" "$(ev change "$STD_HUMAN" ready)")"
+GH_STUB_STD_COMMIT="$STD_COMMIT" ACTORS_FILE="$STD_LIST" BINDING="$STD_BINDING" ANSWER="$STD_ANSWER" run --field "Work status" "${ids[@]}" "github:p/q#1"
 assert_eq "a standards list → exit 0" "0" "$RC"
 assert_eq "a standards list decides as the repository's would" "ready|needs-human" "$(st 3)|$(st 1)"
 assert_eq "standards main is resolved once for every repository" "1" "$(grep -c 'melodic-software/standards/commits/main' "$LOG")"
-assert_eq "the standards list is read once, at that commit" "1" "$(grep -c "melodic-software/standards/contents/std/actors.json?ref=$STD_SHA" "$LOG")"
+assert_eq "the standards list is read once, at that commit" "1" "$(grep -c "melodic-software/standards/contents/$STD_PATH?ref=$STD_SHA" "$LOG")"
 assert_eq "the item repository's list is not read" "0" "$(grep -c 'contents/trust/actors.json' "$LOG")"
 assert_contains "the model is still read from the item repository" "$(cat "$LOG")" "repos/o/r/contents/trust/model.yaml"
-BINDING="$STD_BINDING" trust_fails 5 "standards main unread"
-GH_STUB_STD_SHA=not-a-sha BINDING="$STD_BINDING" trust_fails 3 "standards main that is not a commit"
-GH_STUB_STD_SHA="$STD_SHA" ACTORS_FILE=404 BINDING="$STD_BINDING" trust_fails 3 "a standards list that is absent"
+NOT_A_SHA="$TMP_ROOT/not-a-sha.json"
+jq '.sha = "not-a-sha"' "$STD_COMMIT" >"$NOT_A_SHA"
+ANSWER="$STD_ANSWER" BINDING="$STD_BINDING" trust_fails 5 "standards main unread"
+GH_STUB_STD_COMMIT="$NOT_A_SHA" ACTORS_FILE="$STD_LIST" BINDING="$STD_BINDING" trust_fails 3 "standards main that is not a commit"
+GH_STUB_STD_COMMIT="$STD_COMMIT" ACTORS_FILE=404 BINDING="$STD_BINDING" trust_fails 3 "a standards list that is absent"
 BINDING="$(trust_binding '{"trusted_actors":"standards:../actors.json","model":"trust/model.yaml","lanes_app":"a[bot]"}')" \
   trust_fails 3 "a standards path that leaves the repository"
 

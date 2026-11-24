@@ -1,0 +1,4 @@
+captured 2026-11-23 from the public melodic-software/standards repository:
+  gh api repos/melodic-software/standards/commits/main | jq 'del(.files)' > standards-commits-main.json
+  gh api -H 'Accept: application/vnd.github.raw' 'repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=<sha from the first file>' > standards-trusted-actors.json
+the commit's files array is dropped: no reader consumes it

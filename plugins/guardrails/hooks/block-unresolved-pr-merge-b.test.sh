@@ -141,13 +141,17 @@ touch "$FIX/contents_error"
 run "pr-verify: a scope read that fails with an error other than 404 fails open" 'gh pr merge 42 --auto' 0
 assert_contains "failed scope read -> runs unchecked" "$OUT" "for its pr-verify verdict"
 
-STD_SHA=0123456789abcdef0123456789abcdef01234567
+STD_FIX="$(dirname "${BASH_SOURCE[0]}")/fixtures"
+STD_SHA="$(jq -r .sha "$STD_FIX/standards-commits-main.json")"
+STD_HUMAN="$(jq -r '[.actors[] | select(.kind == "human")][0].id' "$STD_FIX/standards-trusted-actors.json")"
 pv_std() {
   pv_scenario
-  jq --arg s "$1" '.data.repository.s = {text: $s} | .data.repository.t.text = "{\"actors\":[{\"id\":5}]}"' \
+  jq --argjson u "$STD_HUMAN" '.user.id = $u' "$FIX/pr.json" >"$FIX/pr.next" && mv "$FIX/pr.next" "$FIX/pr.json"
+  jq --arg s "$1" --arg t "$(jq -c --argjson u "$STD_HUMAN" '.actors |= map(select(.id != $u))' "$STD_FIX/standards-trusted-actors.json")" \
+    '.data.repository.s = {text: $s} | .data.repository.t.text = $t' \
     "$FIX/graphql_scope.json" >"$FIX/scope.next" && mv "$FIX/scope.next" "$FIX/graphql_scope.json"
-  printf '{"sha":"%s"}\n' "$STD_SHA" >"$FIX/commits_main.json"
-  echo '{"actors":[{"id":9}]}' >"$FIX/contents_trusted-actors.json"
+  cp "$STD_FIX/standards-commits-main.json" "$FIX/commits_main.json"
+  cp "$STD_FIX/standards-trusted-actors.json" "$FIX/contents_trusted-actors.json"
 }
 pv_std $'pr_open_state: ready\ntrusted_actors_source: standards # opt in\n'
 run "pr-verify: opted in, the standards list judges the author" 'gh pr merge 42 --auto' 2
