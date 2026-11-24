@@ -199,6 +199,9 @@ class FakeGitHub:
             for a in args
         ):
             return subprocess.CompletedProcess(args, 0, json.dumps(self.actors), "")
+        team = f"repos/{REPO}/contents/{ve.merge_policy.repo_config.YAML_CONFIG_PATH}?"
+        if any(a.startswith(team) for a in args):
+            return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
         raise AssertionError(f"unexpected gh call: {args}")
 
 

@@ -27,6 +27,9 @@ fi
 base=$1
 lychee=${LYCHEE:-lychee}
 config=${LYCHEE_CONFIG:-lychee.toml}
+if [[ -z ${LYCHEE_CONFIG:-} && ! -f $config && -n ${STANDARDS_DIR:-} ]]; then
+  config=$STANDARDS_DIR/lychee.toml
+fi
 if ! command -v "$lychee" >/dev/null 2>&1; then
   echo "$me: lychee not found ($lychee)" >&2
   exit 2

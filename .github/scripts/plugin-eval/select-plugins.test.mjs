@@ -418,7 +418,6 @@ test("a case loading a plugin outside its own, or a stub directory the pull requ
   ]);
 });
 
-// The two attack paths from the security review, end to end through git.
 test("the command refuses a stub plugin with a SessionStart hook added under evals/", () => {
   const { repo, blob, entry, commit } = linkRepo();
   try {

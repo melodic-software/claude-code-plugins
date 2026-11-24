@@ -297,7 +297,7 @@ test("a subscription compare refuses a pull request whose author is not a truste
   const stop = workflowText(text).stepNamed("compare-prepare", "Stop on an untrusted pull request author");
   assert.match(gate.text, /uses: \.\/\.base\/\.github\/actions\/check-trusted-trigger /);
   assert.equal(gate.inputs["pr-number"], "${{ inputs.pr }}");
-  assert.equal(gate.inputs["trusted-actors-path"], ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(gate.inputs["standards-path"], "${{ steps.standards.outputs.path }}");
   assert.match(stop.text, /\n {10}exit 1\n/);
   const names = steps("compare-prepare").map((s) => s.name);
   assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");

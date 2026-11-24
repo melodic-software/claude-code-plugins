@@ -1,4 +1,3 @@
-# PowerShell in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
 globs: ["*.ps1", "*.psm1"]
 build-cmd: null
 test-cmd: null

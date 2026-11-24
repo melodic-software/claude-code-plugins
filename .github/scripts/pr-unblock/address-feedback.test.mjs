@@ -1,14 +1,16 @@
 // test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/scripts/pr-unblock/* docs/upstream/* .github/scripts/lib/conflict-record.mjs
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { bodySectionNames, bodyView, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, localTemplate, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, templateHeadings, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
+import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -1389,26 +1391,11 @@ test("listActivity rejects when a later page answers an error, never returning t
   }
 });
 
-// apply-dependency-verdict.mjs runs from $RUNNER_TEMP/base-script, a copy of
-// this directory, with the shared modules in $RUNNER_TEMP/lib and
-// merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
-// (collect-base-activity).
 test("listActivity loads its cursor reader from the staged layout a script activity runs in", async () => {
   const root = tempDir("base-activity-");
   try {
-    const scripts = fileURLToPath(new URL("../", import.meta.url));
-    const dest = (file) => join(root, relative(scripts, file).replace(/^pr-unblock\//, "base-script/"));
-    const seen = new Set();
-    const stage = (file) => {
-      if (seen.has(file) || !file.startsWith(scripts) || !existsSync(file)) return;
-      seen.add(file);
-      mkdirSync(dirname(dest(file)), { recursive: true });
-      cpSync(file, dest(file));
-      if (!file.endsWith(".mjs")) return;
-      for (const [, spec] of readFileSync(file, "utf8").matchAll(/(?:from |import\(|new URL\()"(\.\.?\/[^"]+)"/g)) stage(resolve(dirname(file), spec));
-    };
-    stage(fileURLToPath(new URL("./address-feedback.mjs", import.meta.url)));
-    const { createGitHubApi: staged } = await import(pathToFileURL(join(root, "base-script", "address-feedback.mjs")).href);
+    stage(fileURLToPath(new URL("../../..", import.meta.url)), ".github/scripts/pr-unblock/apply-dependency-verdict.mjs", root);
+    const { createGitHubApi: staged } = await import(pathToFileURL(join(root, ".github/scripts/pr-unblock/address-feedback.mjs")).href);
     const api = staged({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch: activityFetch([rows(100), rows(1)]) });
     assert.equal((await api.listActivity("b")).length, 101);
   } finally {

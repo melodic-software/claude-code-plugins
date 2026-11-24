@@ -95,7 +95,11 @@ a comment on the item with a line that reads exactly
 `Pre-confirmed: a person confirms this item's problem`, outside any quote or fenced block. It
 counts only when the run verifies that its author is a user listed as `kind: human` on the
 repository's trusted-actor list read from the default branch (matched by numeric account id;
-`.github/standards/trusted-actors/trusted-actors.json` in this marketplace), that the comment was
+`.github/standards/trusted-actors/trusted-actors.json` in this marketplace, or
+`components/trusted-actors/trusted-actors.json` in the repository `standards_repository` names, at
+its main commit, where `docs/conventions/source-control.yaml` sets
+`trusted_actors_source: standards`), that the
+comment was
 not posted through an App, that the author has `admin` or `write` permission
 (`gh api repos/<owner>/<repo>/collaborators/<login>/permission` on GitHub), that every edit to the
 comment is the author's, and that the item's body is unedited since. A marker by an agent, an App

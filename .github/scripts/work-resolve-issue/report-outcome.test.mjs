@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -57,6 +58,7 @@ import { closeStop, parentDone } from "../lib/done-evidence.mjs";
 import { finishedParent, patchCapStopped } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
+import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -3865,18 +3867,11 @@ test("a stop the skill reported goes to a person even with a funding record", ()
   assert.equal(plan.action, "hand-back");
 });
 
-// collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, so every import must resolve inside it.
-// collect-base-activity puts the base .github/scripts/lib/ beside that copy.
-test("the script loads from a copy of its own directory alone, beside the shared lib", async () => {
+test("the script loads from its staged closure", async () => {
   const copy = tempDir("base-script-");
   try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    cpSync(here, join(copy, "base-script"), { recursive: true });
-    cpSync(join(here, "..", "lib"), join(copy, "lib"), { recursive: true });
-    mkdirSync(join(copy, "pr-merge"));
-    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(copy, "pr-merge", "merge-holds.mjs"));
-    const module = await import(pathToFileURL(join(copy, "base-script", "report-outcome.mjs")).href);
+    stage(fileURLToPath(new URL("../../..", import.meta.url)), ".github/scripts/work-resolve-issue/report-outcome.mjs", copy);
+    const module = await import(pathToFileURL(join(copy, ".github/scripts/work-resolve-issue/report-outcome.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
     rmSync(copy, { recursive: true, force: true });

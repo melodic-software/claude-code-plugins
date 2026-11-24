@@ -161,7 +161,7 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch" "\$MAX_DIFF_BYTES"$/m);
   assert.match(writeDiff, /^DIFF = \["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"\]$/m);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
-  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/diff-chunking\/diff_chunking\.py split "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" \|\| split=\$\?$/m);
+  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/diff-chunking\/diff_chunking\.py split "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" --cut-lines \|\| split=\$\?$/m);
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
@@ -233,8 +233,7 @@ function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxC
 test("a diff the review cannot read whole stops green and names its reason for the report-review-counts job", () => {
   const small = "diff --git a/x b/x\n@@ -1 +1 @@\n+short\n";
   for (const job of LEGS) {
-    // One file of 612 bytes fits no 300-byte chunk.
-    const tooLarge = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n${"+line\n".repeat(100)}`, { job });
+    const tooLarge = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n+${"x".repeat(400)}\n`, { job });
     assert.equal(tooLarge.status, 0, job);
     assert.equal(tooLarge.output, `stop=too-large\nclaude-security-review-stop=too-large\nclaude-security-review-head=${SHA_A}\n`, job);
     assert.deepEqual(tooLarge.parts, [], job);
@@ -247,6 +246,10 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.doesNotMatch(manyHunks.output, /stop=/, job);
     assert.match(manyHunks.output, /^chunks=2$/m, job);
     assert.deepEqual(manyHunks.parts, ["chunk-1", "chunk-1/part-001.patch", "chunk-2", "chunk-2/part-001.patch"], job);
+    const oneHunk = runDiff(`diff --git a/x b/x\n@@ -1,0 +1,100 @@\n${"+line\n".repeat(100)}`, { job });
+    assert.equal(oneHunk.status, 0, job);
+    assert.doesNotMatch(oneHunk.output, /stop=/, job);
+    assert.match(oneHunk.output, /^chunks=3$/m, job);
     // Five 200-byte files need five 300-byte chunks, one more than the four.
     const files = ["a", "b", "c", "d", "e"].map((name) => filePatch(name, 200));
     const tooMany = runDiff(files.join(""), { job });
@@ -781,6 +784,7 @@ test("the key leg takes the check-trigger job's gate only from this attempt, and
       "judged=${{ steps.judged.outputs.judged }}",
       "held=${{ steps.select.outputs.held }}",
       "main-sha=${{ steps.main.outputs.main-sha }}",
+      "standards-sha=${{ steps.standards.outputs.sha }}",
     ],
   );
   assert.doesNotMatch(trigger, /head-ref/);

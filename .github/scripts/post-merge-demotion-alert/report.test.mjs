@@ -1,7 +1,10 @@
-// report() against a fake GitHub: hand-built runs, merges and issues, with
-// the expected decision taken from the red-main rule (README.md, "Red main").
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { LOG_MARKER, MARKER_PATTERN } from "./red-main.mjs";
 import { report } from "./report.mjs";
@@ -23,8 +26,6 @@ const ENV = {
 
 const failedJob = (id, name) => ({ id, name, conclusion: "failure", steps: [{ name: "Run tests", conclusion: "failure" }] });
 
-// A fake world: `merges` oldest first ({ sha, number, by, run }), where `run`
-// is that merge's own full run ({ id, conclusion, attempts: [[jobs]...] }).
 function world({ merges, head = { attempts: [[failedJob(1, "Test Node")], [failedJob(2, "Test Node")]] }, issues = [], comments = [], autoReverts = [], startAttempt }) {
   const writes = [];
   const runs = {
@@ -88,7 +89,6 @@ function world({ merges, head = { attempts: [[failedJob(1, "Test Node")], [faile
       return { number: Number(m[1]), labels: [], merged_at: "2026-10-20T09:00:00Z" };
     }
     if (path.includes("labels=auto-revert")) return autoReverts;
-    // `comments` is one list for every issue, or lists keyed by issue number.
     if ((m = /\/issues\/(\d+)\/comments/.exec(path))) return Array.isArray(comments) ? comments : (comments[m[1]] ?? []);
     if (path.includes("/issues?state=all&creator=")) return issues;
     throw new Error(`unexpected GET ${path}`);
@@ -177,8 +177,6 @@ test("a range with no evidence run at its oldest merge pins no culprit and opens
   assert.doesNotMatch(result.body, /The revert it would open/);
 });
 
-// A world whose re-run of run 500 passed. The fake's run reads `failure`; the
-// re-run attempt's conclusion is what decides.
 function unconfirmedWorld(options) {
   const w = world({ ...options, head: { attempts: [[failedJob(1, "Test Node")], []] } });
   const inner = w.call;
@@ -292,7 +290,6 @@ test("a revert of a revert is never auto-reverted", async () => {
 });
 
 test("the culprit's age is read after the wait for the re-run, not before it", async () => {
-  // Merged 23 h 40 min before the job starts; the re-run finishes 30 minutes later.
   let minutes = 0;
   const start = Date.parse("2026-10-20T12:00:00Z");
   const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }], startAttempt: 1 });
@@ -315,7 +312,6 @@ test("a newer issue carrying the log marker is not the log, so its decisions nei
   const decoy = { number: 99, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\ndecoy" };
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
-    // Newest first, as the issues list returns them.
     issues: [decoy, LOG],
     comments: {
       99: [
@@ -366,8 +362,6 @@ test("a red full run the log already reports is not named again", async () => {
   assert.doesNotMatch((await run(ENV, w)).body, /no report on this log/);
 });
 
-// An early return posts no report, so it notes the dropped reds on the log
-// rather than leaving them unnamed until the next confirmed red.
 const noteOn = (write) => {
   assert.equal(write.method, "POST");
   assert.match(write.path, /\/issues\/77\/comments$/);
@@ -448,4 +442,19 @@ test("a note is no report: its run stays unreported and unlogged, and it neither
   assert.equal(result.posted, true, "the note's run is not already reported");
   assert.match(result.body, /run-41 at `a{12}`/);
   assert.equal(decisionOf(result.body), "auto-revert", "two decisions and a note stay under the cap of three");
+});
+
+test("main hands BASE_PATH and STANDARDS_DIR to redMainFromBase", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "report-base-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  mkdirSync(join(base, ".github/actions/resolve-config"), { recursive: true });
+  writeFileSync(
+    join(base, ".github/actions/resolve-config/resolve-config.mjs"),
+    "export const redMainFromBase = (args) => { throw new Error(`loaded ${JSON.stringify(args)}`); };\n",
+  );
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL("./report.mjs", import.meta.url))], {
+    env: { BASE_PATH: base, STANDARDS_DIR: "/standards", REPOSITORY: REPO, RUN_SHA: "a".repeat(40), RUN_ID: "41", RUN_CREATED: "2026-10-21T12:00:00Z" },
+    encoding: "utf8",
+  });
+  assert.equal(run.stdout.trim(), `::error::loaded ${JSON.stringify({ BASE_PATH: base, STANDARDS_DIR: "/standards" })}`, run.stderr);
 });

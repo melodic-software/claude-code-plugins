@@ -123,6 +123,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Compare the dispatcher file with the tip's
         id: current
         if: inputs.dispatcher-run-id != ''
@@ -192,6 +196,7 @@ jobs:
           PATHS_FILE: ${{ runner.temp }}/changed-paths.txt
           CODEOWNERS_FILE: .base/.github/CODEOWNERS
           TRUNCATED: ${{ steps.files.outputs.truncated }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-refine/write-pass-plan.mjs
 
       - name: Read the PR's head SHA
@@ -237,6 +242,7 @@ jobs:
           # A rate limit past the guard's budget refuses the read with a
           # notice, and the step holds.
           API_BUDGET_HOLD: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       - name: Log the API budget at the end

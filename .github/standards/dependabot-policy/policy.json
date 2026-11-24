@@ -3,9 +3,9 @@
   "scheduleInterval": "weekly",
   "scheduleIntervalByEcosystem": {
     "github-actions": {
-      "accepted": ["daily", "weekly"],
-      "reviewed": "2026-11-23",
-      "basis": "Owner decision 2026-11-23 returns github-actions to weekly, since Dependabot moves no first-party ref (owner-decisions L351) and the entry now carries only vendor major tags and third-party SHA pins; both values are accepted during the fleet switch."
+      "accepted": ["weekly"],
+      "reviewed": "2026-11-24",
+      "basis": "Owner decision 2026-11-23 returns github-actions to weekly, since Dependabot moves no first-party ref (owner-decisions L351) and the entry now carries only vendor major tags and third-party SHA pins; daily is no longer accepted."
     }
   },
   "cooldownMinimumDays": 3,

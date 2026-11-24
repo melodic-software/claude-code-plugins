@@ -229,6 +229,9 @@ class FakeGitHub:
                 return ok(ACTORS)
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?"):
                 return ok({"items": []})
+        team = f"repos/{REPO}/contents/{ve.merge_policy.repo_config.YAML_CONFIG_PATH}?"
+        if any(a.startswith(team) for a in args):
+            return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
         raise AssertionError(f"unexpected gh call: {args}")
 
 
