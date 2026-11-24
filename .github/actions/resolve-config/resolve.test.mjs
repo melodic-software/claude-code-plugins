@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 import { parse, stringify } from "yaml";
 
-import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
+import { LIMIT_DEFAULTS, WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 import { LANE_LEVEL_DEFAULTS } from "../../scripts/lib/lane-level.mjs";
 import { LEVEL_VARIABLE } from "../../scripts/lib/lane-level-value.mjs";
 
@@ -389,6 +389,12 @@ const LIMITS = {
 
 test("limits: a config with no limits leaf resolves today's thirteen values", () => {
   assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
+});
+
+test("limits: resolve-config's defaults and LIMIT_DEFAULTS in work-resolve-issue/limits.mjs are one set", () => {
+  const resolved = run(fixture("valid.yaml")).limits;
+  const shared = Object.fromEntries(Object.keys(LIMIT_DEFAULTS).map((key) => [key, resolved[key]]));
+  assert.deepEqual(shared, { ...LIMIT_DEFAULTS });
 });
 
 test("limits: a set leaf overrides its default and leaves the others", () => {

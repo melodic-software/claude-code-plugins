@@ -36,7 +36,7 @@ An activity is either a leaf or a composite
    `resolve.mjs:446-471`.
 4. **What the reader checks that the schema cannot**: every child is defined, `needs:` names only
    siblings, no composite contains itself, a composite holds only leaves, and a leaf appears at
-   most once in a lane. Basis: `resolve.mjs:117-169`. The depth limit of two layers below
+   most once in a lane. Basis: `resolve.mjs:117-169,398-407`. The depth limit of two layers below
    the lane: judgment, held until a third layer is needed.
 
 ## Alternatives considered
@@ -44,7 +44,7 @@ An activity is either a leaf or a composite
 - **Nested definitions** (children defined inline, a leaf identified by its path). Rejected: a leaf
   under two composites is defined twice, and the resolver, broker and report job would all have
   to carry paths instead of one key. Basis: judgment, from the activity-name keying in
-  `resolve.mjs:542-554` and the check name `<lane> / <activity>` in
+  `resolve.mjs:482-501` and the check name `<lane> / <activity>` in
   [ADR 0053](0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md) point 2.
 - **No composites; group by name prefix only.** Rejected: nothing could enable, order or gate a
   group as one unit, which is what the later pr-unblock groups need. Basis: judgment.
