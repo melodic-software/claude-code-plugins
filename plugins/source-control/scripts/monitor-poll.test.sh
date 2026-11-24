@@ -353,15 +353,31 @@ assert_eq "base branch without the pr-verify workflow: its file is read once" "1
   "$(grep -c 'pr-verify.yml' "$FXV/calls")"
 assert_not_contains "base branch without the pr-verify workflow: no artifact is read" "$(cat "$FXV/calls")" "actions/artifacts"
 
+FXV=$(verdict_fx fxv-pending)
+for n in 1 2; do runs_json a | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FXV/checks.$n"; done
+echo 4 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_eq "a check run still pending: no verdict read" "" "$(awk '$1 <= 2 && /actions\/artifacts/' "$FXV/calls")"
+assert_contains "every check run finished: the verdict reads start" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "every check run finished: a verdict landing later is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-terminal)
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+echo "$H2" >"$FXV/head.4"
+outv="$(run_poll "$FXV")"
+assert_eq "a verdict recorded for the head: its reads stop" "" "$(awk '$1 == 3 && /actions\/artifacts/' "$FXV/calls")"
+assert_contains "a new head: the verdict reads start again" "$(awk '$1 == 4' "$FXV/calls")" "pr-verify-7-$H2-pass"
+
 FXV=$(verdict_fx fxv-rearm)
 echo 1 >"$FXV/art/pr-verify-7-$H1-pass"
 run_poll "$FXV" --snapshot "$FXV/snap" >/dev/null
 assert_contains "snapshot: holds the verdict at the head" "$(cat "$FXV/snap")" "PR-VERIFY pass $H1"
+echo "$H2" >"$FXV/head.3"
 echo 3 >"$FXV/art/pr-verify-index-pr-7"
-echo 3 >"$FXV/art/pr-verify-index-sha-$H1"
+echo 3 >"$FXV/art/pr-verify-index-sha-$H2"
 outv="$(run_poll "$FXV" --baseline "$FXV/snap")"
 assert_not_contains "re-armed from the snapshot: the verdict it holds is not printed again" "$outv" "PR-VERIFY pass"
-assert_eq "re-armed from the snapshot: a new verdict is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+assert_eq "re-armed from the snapshot: a verdict at a new head is printed once" "1" "$(grep -c "^PR-VERIFY fail $H2 — " <<<"$outv")"
 assert_not_contains "re-armed from the snapshot: the verdict line is not taken for a check" "$outv" "BASELINE-UNREADABLE"
 
 FXV=$(verdict_fx fxv-once)

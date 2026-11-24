@@ -205,7 +205,10 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
      head-ref digest, and a FAIL as one run holding both its index artifacts,
      `pr-verify-index-pr-<N>` and `pr-verify-index-sha-<head-sha>`, since its own name ends in
      issue numbers the script does not read. Each name holds the head, so a verdict at an earlier
-     head never emits. Its first successful verdict read records, as the checks read does, unless
+     head never emits. The watch reads verdicts only while no check run at the head is pending,
+     since pr-verify starts when the head's checks finish, and stops reading a head once it has
+     recorded a verdict there; a new head reads again, and `--verdict` reads whatever is there.
+     Its first successful verdict read records, as the checks read does, unless
      `--baseline` names a snapshot. `--verdict` reads the verdicts once, prints them, `PR-VERIFY none
      <head-sha>` or `PR-VERIFY off`, and exits.
 

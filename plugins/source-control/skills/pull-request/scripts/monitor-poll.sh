@@ -215,6 +215,10 @@ verdict_read() {
   done
   return 0
 }
+pv_wanted() {
+  [[ "$checks_ok" -eq 1 ]] && ! grep -q ': pending$' <<<"$run_rows" &&
+    ! grep -q " $head_sha\$" <<<"$pv_seen"
+}
 pv_print() {
   if [[ "$1" == "PR-VERIFY fail "* ]]; then
     echo "$1 — label pr-verify-failed; its notes are the review threads that open with <!-- pr-verify:fail-note -->"
@@ -277,7 +281,8 @@ while true; do
       echo "SNAPSHOT-FAILED — checks read failed; no snapshot written"
       exit 1
     fi
-    verdict_read || pv_now=""
+    pv_now=""
+    if pv_wanted && ! verdict_read; then pv_now=""; fi
     printf '%s\n%s\n%s' "$SNAPSHOT_MARK" "$cur_checks" "$pv_now" >"$SNAPSHOT_FILE.tmp" &&
       mv "$SNAPSHOT_FILE.tmp" "$SNAPSHOT_FILE"
     exit $?
@@ -291,7 +296,7 @@ while true; do
     prev_checks="$cur_checks"
     baselined=1
   fi
-  if [[ -n "${head_sha:-}" ]] && verdict_read; then
+  if [[ -n "${head_sha:-}" ]] && pv_wanted && verdict_read; then
     while IFS= read -r key; do
       [[ -n "$key" ]] || continue
       grep -qxF -- "$key" <<<"$pv_seen" && continue
