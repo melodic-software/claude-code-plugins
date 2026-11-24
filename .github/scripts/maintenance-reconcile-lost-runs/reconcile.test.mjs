@@ -2963,6 +2963,26 @@ test("a follow-up tick leaves the head to the full pass when its queued checks r
   assert.deepEqual((await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) })).reruns, [201, 301], "the same head with none of these goes");
 });
 
+test("a follow-up tick re-runs a deferred review only when every ci-status failure is a review stop, past GitHub's exit-code note", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const url = (id) => `https://github.com/${REPO}/actions/runs/${id}`;
+  const stoppedLine = `'pr-review / claude-review-status' did not run on ${sha(1)} (${url(201)}): an API budget defer or ${REVIEW_STOP_NOTE}. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of ${url(201)}; ci-status re-runs when it finishes.`;
+  const upstreamLine = `'pr-review-security / claude-security-review-status' did not run on ${sha(1)} (${url(301)}): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head.`;
+  const note = (message) => ({ annotation_level: "failure", title: "", message });
+  const checks = (notes) =>
+    failed(101, sha(1), {
+      jobs: [
+        { id: 501, name: "Lint Repo", status: "completed", conclusion: "success", steps: [] },
+        { id: 502, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes },
+      ],
+    });
+  const otherLane = run(301, sha(1), { path: SECURITY_REVIEW, conclusion: "failure", jobs: [] });
+  const tick = (notes) => followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: [checks(notes), deferredRun(201, sha(1)), otherLane] });
+  const exit = note("Process completed with exit code 1.");
+  assert.deepEqual((await tick([note(stoppedLine), note(upstreamLine), exit])).reruns, [], "an outage note for the other lane leaves the head to the full pass");
+  assert.deepEqual((await tick([note(stoppedLine), exit])).reruns, [201], "the review stop alone, beside the exit-code note, re-runs the deferred review");
+});
+
 test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const notices = () => log.mock.calls.map((c) => String(c.arguments[0])).filter((line) => line.startsWith("::notice title=reconcile::reconcile follow-up tick: "));

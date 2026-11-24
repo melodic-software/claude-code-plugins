@@ -561,7 +561,7 @@ export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review t
 export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
-const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).

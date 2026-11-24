@@ -16,7 +16,8 @@ const CHECKS = ".github/workflows/pr-require-checks.yml";
 const REVIEW = ".github/workflows/pr-review-hosted.yml";
 const SECURITY_REVIEW = ".github/workflows/pr-review-security-hosted.yml";
 const HEAD = "1".padStart(40, "0");
-const STATUS_HOSTS = ["www.githubstatus.com", "status.npmjs.org"];
+const CHILD_TIMEOUT_MS = 20_000;
+const STATUS_HOSTS =["www.githubstatus.com", "status.npmjs.org"];
 
 const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
 const run = (id, workflowPath, { conclusion, status = "completed", jobs }) => ({
@@ -49,13 +50,14 @@ const redChecks = (status) =>
       },
     ],
   });
+const gateJob = (runId) => runId * 10 + 2;
 const deferredReview = (id, workflowPath, reset) =>
   run(id, workflowPath, {
     conclusion: "success",
     jobs: [
-      { id: 311, name: "Resolve Model", status: "completed", conclusion: "success", steps: [] },
+      { id: id * 10 + 1, name: "Resolve Model", status: "completed", conclusion: "success", steps: [] },
       {
-        id: 312,
+        id: gateJob(id),
         name: "Check Kill Switch",
         status: "completed",
         conclusion: "success",
@@ -65,7 +67,7 @@ const deferredReview = (id, workflowPath, reset) =>
         ],
         notes: [{ annotation_level: "notice", message: `a kill switch stops this review (lanes: kill-switch cause=defer reset=${reset}, CLAUDE_REVIEW_DISABLED: unset)` }],
       },
-      { id: 313, name: "PR Review", status: "completed", conclusion: "skipped", steps: [] },
+      { id: id * 10 + 3, name: "PR Review", status: "completed", conclusion: "skipped", steps: [] },
     ],
   });
 const pull = {
@@ -146,11 +148,13 @@ async function planStep(rows, runs) {
     CLAUDE_SECURITY_REVIEW_DISABLED: "false",
   };
   try {
-    const { code, stdout, stderr } = await new Promise((resolve) => {
-      execFile(process.execPath, [`--import=${routeStatusPagesTo(base)}`, SCRIPT], { env }, (error, out, err) => resolve({ code: error ? error.code : 0, stdout: out, stderr: err }));
+    const { code, signal, stdout, stderr } = await new Promise((resolve) => {
+      execFile(process.execPath, [`--import=${routeStatusPagesTo(base)}`, SCRIPT], { env, timeout: CHILD_TIMEOUT_MS }, (error, out, err) =>
+        resolve({ code: error ? error.code : 0, signal: error?.signal ?? null, stdout: out, stderr: err }),
+      );
     });
     const plan = existsSync(files.PLAN_PATH) ? JSON.parse(readFileSync(files.PLAN_PATH, "utf8")) : null;
-    return { code, stdout: `${stdout}${stderr}`, plan, calls };
+    return { code, signal, stdout: `${stdout}${stderr}`, plan, calls };
   } finally {
     server.close();
     rmSync(dir, { recursive: true, force: true });
@@ -159,10 +163,18 @@ async function planStep(rows, runs) {
 
 const notices = (stdout) => stdout.split("\n").filter((line) => line.startsWith("::notice title=reconcile::reconcile follow-up tick: "));
 const reset = (fromNowS) => Math.floor(Date.now() / 1000) + fromNowS;
+const exitedZero = ({ code, signal, stdout }) => {
+  assert.equal(signal, null, `the plan step was killed by ${signal} after running past ${CHILD_TIMEOUT_MS} ms:\n${stdout}`);
+  assert.equal(code, 0, `the plan step exits 0, not ${code} (13 is a top-level await left unsettled):\n${stdout}`);
+};
 
 test("a follow-up tick run as the workflow runs it exits 0 and plans the queued reviews' re-runs", async () => {
-  const { code, stdout, plan, calls } = await planStep(queued, [redChecks(), deferredReview(201, REVIEW, reset(-600)), deferredReview(301, SECURITY_REVIEW, reset(-600))]);
-  assert.equal(code, 0, `the plan step exits 0, not 13 for a top-level await left unsettled:\n${stdout}`);
+  const result = await planStep(queued, [redChecks(), deferredReview(201, REVIEW, reset(-600)), deferredReview(301, SECURITY_REVIEW, reset(-600))]);
+  const { stdout, plan, calls } = result;
+  exitedZero(result);
+  for (const id of [201, 301]) {
+    assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/${gateJob(id)}/annotations?per_page=100`), `review run ${id}'s own gate notice is read for its reset`);
+  }
   assert.deepEqual(notices(stdout), ["::notice title=reconcile::reconcile follow-up tick: 2 queued, 2 re-run"]);
   assert.deepEqual(
     plan.items.map((item) => [item.kind, item.id, item.path, item.record]),
@@ -176,16 +188,18 @@ test("a follow-up tick run as the workflow runs it exits 0 and plans the queued 
 });
 
 test("a follow-up tick with an empty queue exits 0, reads no GitHub route and plans nothing", async () => {
-  const { code, stdout, plan, calls } = await planStep([], []);
-  assert.equal(code, 0, stdout);
+  const result = await planStep([], []);
+  const { stdout, plan, calls } = result;
+  exitedZero(result);
   assert.deepEqual(notices(stdout), ["::notice title=reconcile::reconcile follow-up tick: 0 queued, 0 re-run"]);
   assert.deepEqual(plan, { items: [], failed: 0 });
   assert.deepEqual(calls.filter((call) => call.includes("/repos/")), []);
 });
 
 test("a follow-up tick before the queued reviews' defer reset exits 0 and plans nothing", async () => {
-  const { code, stdout, plan } = await planStep(queued, [redChecks(), deferredReview(201, REVIEW, reset(600)), deferredReview(301, SECURITY_REVIEW, reset(600))]);
-  assert.equal(code, 0, stdout);
+  const result = await planStep(queued, [redChecks(), deferredReview(201, REVIEW, reset(600)), deferredReview(301, SECURITY_REVIEW, reset(600))]);
+  const { stdout, plan } = result;
+  exitedZero(result);
   assert.deepEqual(notices(stdout), ["::notice title=reconcile::reconcile follow-up tick: 2 queued, 0 re-run"]);
   assert.deepEqual(plan, { items: [], failed: 0 });
   assert.match(stdout, /reconcile: #1: review run 201 \(\.github\/workflows\/pr-review-hosted\.yml\) was deferred on the GITHUB_TOKEN budget; waiting for the rate-limit reset at /);
