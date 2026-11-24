@@ -65,12 +65,6 @@ name: Maintenance Reconcile Lost Runs
 # a re-run github-actions[bot] starts. No model, and no PR code is checked out.
 # Rules: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
 #
-# One full pass runs per token window. A later tick of that window runs only
-# when the full pass queued hosted reviews it left waiting on a running checks
-# run: it re-runs those, once their checks run has finished, through the same
-# budget gate, records and act step, and uploads no settled runs
-# (followup.mjs).
-#
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false".
 
@@ -133,22 +127,9 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reset-tick.mjs
 
-      - name: Skip a run right after a full pass
-        id: recent
-        if: steps.reset.outputs.due != 'false' || steps.reset.outputs.pass-after != ''
-        continue-on-error: true
-        env:
-          MIN_GAP_MINUTES: "60"
-          PASS_AFTER: ${{ steps.reset.outputs.pass-after }}
-          FORCE: ${{ inputs.force }}
-          GITHUB_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          FOLLOWUP_PATH: ${{ runner.temp }}/reconcile-followup.json
-        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs
-
       - name: Check the kill switch
         id: kill
-        if: steps.reset.outputs.due != 'false' || steps.recent.outputs.followup == 'true'
+        if: steps.reset.outputs.due != 'false'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -184,13 +165,23 @@ jobs:
           PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
+      - name: Skip a run right after a full pass
+        id: recent
+        if: steps.reset.outputs.due != 'false'
+        continue-on-error: true
+        env:
+          MIN_GAP_MINUTES: "60"
+          PASS_AFTER: ${{ steps.reset.outputs.pass-after }}
+          FORCE: ${{ inputs.force }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs
+
       - name: Find lost runs
         id: plan
-        if: (steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true') || steps.recent.outputs.followup == 'true'
+        if: steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: plan
-          FOLLOWUP: ${{ steps.recent.outputs.followup }}
-          FOLLOWUP_PATH: ${{ runner.temp }}/reconcile-followup.json
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
           RECORD_PATH: ${{ runner.temp }}/reconcile-record/record.json
           SETTLED_PATH: ${{ runner.temp }}/reconcile-settled/settled.json
@@ -513,7 +504,7 @@ jobs:
           retention-days: 2
 
       - name: Re-run lost runs
-        if: (steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true') || steps.recent.outputs.followup == 'true'
+        if: steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -527,7 +518,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload-4
         if: >-
-          ${{ !cancelled() && steps.plan.outcome == 'success' && steps.recent.outputs.followup != 'true' }}
+          ${{ !cancelled() && steps.plan.outcome == 'success' }}
         # A hit withholds only the carry: the next pass reads every run.
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
@@ -537,7 +528,7 @@ jobs:
 
       - name: Carry the settled runs
         if: >-
-          (!cancelled() && steps.plan.outcome == 'success' && steps.recent.outputs.followup != 'true') && steps.scan-upload-4.outputs.clean == 'true'
+          (!cancelled() && steps.plan.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
