@@ -65,8 +65,7 @@ that path.
 
 Present the markdown report as printed: the scope, the "Coverage of this run" table, the
 references with their provenance, then one row per file and per function. Keep the `--json`
-document when the numbers feed a comparison: pass it to `/verification:measure metrics` when the
-`verification` plugin is enabled, treating `status: empty` on either side as INCONCLUSIVE;
+document when the numbers feed a comparison: pass it to `/verification:measure metrics` (if enabled), treating `status: empty` on either side as INCONCLUSIVE;
 otherwise keep the JSON beside your notes and compare by hand.
 
 ## Getting a first artifact
@@ -140,7 +139,7 @@ does not land on one of the well-known names.
   file an artifact never records from a source file the suites never reach; the paths can.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
-  `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is enabled;
+  `/mutation-testing:audit` (if enabled) owns that question;
   without it, say that the coverage number is an execution count and stop there.
 - Exit 0 whenever a report was produced, including an empty one; exit 2 for a usage error, which
   includes a named artifact or scope path that does not exist; exit 3 when a complexity collector
@@ -177,6 +176,10 @@ Everything tunable resolves through the code-metrics layers (layers and keys in
 - The numbers feed a before-and-after comparison: `/verification:measure metrics`.
 - Coverage looks healthy but the tests may assert nothing: `/mutation-testing:audit`.
 - A number is about to be quoted at someone: `/code-metrics:principles`.
+
+## Related
+
+- Complexity without coverage artifacts: /code-metrics:audit complexity.
 
 ## Gotchas
 

@@ -62,7 +62,7 @@ test("each leg holds one credential, in its presence check and its rating step a
     const holders = [...stepsOf(id)].filter(([, block]) => /secrets\./.test(block)).map(([name]) => name);
     assert.deepEqual(holders, ["Check the credential", "Rate the pull request"], id);
     const check = step(id, "Check the credential");
-    assert.match(check, /uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /, id);
+    assert.match(check, /uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main\b/, id);
     assert.match(check, new RegExp(`\\n {10}leg: ${leg}\\n {10}role: pr-verify\\n {10}credential-set: \\$\\{\\{ secrets\\.${secret} != '' \\}\\}\\n`), id);
     const rate = step(id, "Rate the pull request");
     assert.deepEqual([...rate.matchAll(/secrets\.([A-Z_]+)/g)].map(([, name]) => name), [secret], id);
@@ -171,7 +171,7 @@ test("in every leg, no model or upload step runs unless the resolver and the tri
 test("the rating runs under dontAsk on the data directory and the review plugin's copy alone", () => {
   for (const id of Object.values(LEGS)) {
     const rate = step(id, "Rate the pull request");
-    assert.match(rate, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
+    assert.match(rate, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main\b/);
     assert.match(rate, /role: pr-verify\n/);
     assert.match(rate, /permission-mode: dontAsk\n/);
     assert.match(rate, /continue-on-error: true\n/);

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [".work/coupling/coupling-ledger.md", "src/orders.ts"],
+      "why": "the pass ledgered its findings, the rejected abstraction included"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["src/orders.ts", "src/billing.ts"],
+      "why": "no ledger: a bare refusal with no pass behind it"
+    }
+  ]
+}

@@ -4,6 +4,13 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.4.1] - 2026-11-23
+
+- Changed: "edit time", which the ladder never defined, becomes "locally, at the stage the
+  check-placement contract assigns". The static-analysis "runs at" column reads `local stage and
+  CI`; the harness-setting and action-guard rows read `each agent action`, and the scaffold row
+  `generation`. No rung, id or rule changes.
+
 ## [3.4.0] - 2026-11-22
 
 - Changed: the `automated-review` rung writes to the repository's review-criteria index when it

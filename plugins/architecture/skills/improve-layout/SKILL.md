@@ -161,7 +161,7 @@ with a recommended answer drawn from the card:
 3. **What proves it.** The check that would fail if the files drifted apart again, if any.
 
 A card routed elsewhere goes there instead of this interview: to `/architecture:improve boundaries`,
-to `/architecture:improve conventions`, to `/corrections:codify` or to `/instruction-placement:audit`.
+to `/architecture:improve conventions`, to `/corrections:codify` (if enabled) or to `/instruction-placement:audit` (if enabled).
 Name the route and offer it; never run it unasked.
 
 When the layout is agreed, set the entry's `status: agreed-layout` and fill `agreed-layout` with the

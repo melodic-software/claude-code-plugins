@@ -7,8 +7,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/setup-check.sh"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-# The apply script is the write side of the same skill; naming it keeps the
-# suites of this skill selected together (setup-apply.py).
 : "$SCRIPT_DIR/setup-apply.py"
 
 FAILED=0
@@ -93,10 +91,6 @@ else
   pass "a home-root user-global file is not called retired"
 fi
 
-# 3. An ignored (and therefore uncommittable) team file is a FAIL and the exit
-#    code says so; a personal override that is not ignored warns with the
-#    recommended line. git reports an ignore match only for untracked paths,
-#    so the file is untracked first.
 (cd "$repo" && git rm -q --cached docs/conventions/code-metrics.yaml && git commit -q -m untrack)
 printf 'docs/conventions/code-metrics.yaml\n' >"$repo/.gitignore"
 mkdir -p "$repo/.claude"

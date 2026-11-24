@@ -1010,6 +1010,34 @@ STUB_COMMENTS='[]' V_CHANGED=2 V_FILES="$EVIL_FILES$(patch_file .github/workflow
 STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
 V_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" vdep "a listed owner's bump clears by the owner list, reading no comments" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 if grep -q '/comments' "$TMP_ROOT/log"; then fail "a listed owner's bump read the comments"; else ok "a listed owner's bump reads no comments"; fi
+PINS=lib/cdn-pins/pins.json
+pins_files() { jq -cn --arg st "${1:-modified}" '[{filename: "lib/cdn-pins/pins.json", status: $st},
+  {filename: "lib/cdn-pins/package.json", status: "modified"}, {filename: "lib/cdn-pins/package-lock.json", status: "modified"}]'; }
+PINS_HELD="::error::#77 by Dependabot changes only the CDN pins record on trust-gate paths: $PINS. The lanes App's review-dependency verdict=merge at this head clears it"
+PINS_CLEARED="names $HEAD with verdict=merge, which clears the trust-gate hold (owner decision Q154 A)"
+pdep() { LANES_APP_ID="${LANES_APP_ID-$LANE_APP}" STUB_CHANGED="${P_CHANGED:-3}" SHARED_FILES="${P_FILES-$(pins_files)}" dep "$@"; }
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")"
+pdep "a CDN-pin bump whose only trust-gate path is the pins record clears on the merge verdict at the head" 0 "$PINS_CLEARED" "::error::"
+P_CHANGED=4 P_FILES="$(pins_files)$(files CODEOWNERS)" \
+  pdep "a merge verdict does not clear a CDN-pin bump that also changes another trust-gate path" 1 "A person merges it" "$PINS_CLEARED"
+P_FILES="$(pins_files | jq -c 'map(if .filename == "lib/cdn-pins/pins.json" then .status = "renamed" | .previous_filename = "lib/cdn-pins/old.json" else . end)')" \
+  pdep "a merge verdict does not clear a pins record renamed into place" 1 "A person merges it" "$PINS_CLEARED"
+P_FILES='' STUB_FILES="$(pins_files)" BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="$TMP_ROOT/dep-config" LANES_APP_ID=$LANE_APP STUB_CHANGED=3 \
+  expect "a merge verdict does not clear a pins record with no broker file pages" 1 "A person merges it" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "${HEAD//0/f}" merge 1)")"
+pdep "a merge verdict for another head does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" fix 1)")"
+pdep "a fix verdict at the head does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)" "$(round "$LANE_APP" Bot "$HEAD" escalate 2)")"
+pdep "a newer escalate marker keeps the pins record held" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" User "$HEAD" merge 1)")"
+pdep "a merge marker by a user account with the lanes App's id does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round 777 Bot "$HEAD" merge 1)")"
+pdep "a merge marker by another bot does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS="$(comments "$(round "$LANE_APP" Bot "$HEAD" merge 1)")" STUB_COMMENTS_FAIL=1
+pdep "unreadable round markers keep the pins record held" 1 "$PINS_HELD" "$PINS_CLEARED"
+STUB_COMMENTS_FAIL=
+LANES_APP_ID='' pdep "with no lanes App id a merge marker does not clear the pins record" 1 "$PINS_HELD" "$PINS_CLEARED"
 STUB_COMMENTS='[]'
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"

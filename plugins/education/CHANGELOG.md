@@ -3,6 +3,13 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.12] - 2026-11-24
+
+### Changed
+
+- `/education:explain` now carries a `## Related` section. In `/education:illustrate` the
+  `## Related` section moves after `## Next` and lists one condition per line.
+
 ## [2.1.11] - 2026-11-23
 
 ### Fixed

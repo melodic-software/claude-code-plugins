@@ -1,9 +1,5 @@
-// A GitHub REST client within a call budget, and a paginator over it, for
-// lane scripts that call the API with a token and no retry.
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export class BudgetSpent extends Error {}

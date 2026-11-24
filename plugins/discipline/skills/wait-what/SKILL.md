@@ -14,7 +14,7 @@ followed and explain again from there, adding the context I was missing.
 Write it in ASD-STE100 Simplified Technical English (short sentences, one
 meaning per word, technical terms exact) and use the terms the project
 itself uses for its domain. Read its domain glossary with
-`/domain-driven-design:ubiquitous-language lookup` when that skill is available, or
+`/domain-driven-design:ubiquitous-language lookup` (if enabled), or
 find the glossary yourself, when one exists; with none, plain technical
 English alone.
 
@@ -32,6 +32,6 @@ English alone.
   `discipline-batch` tier is set.
 - **Siblings.** `/discipline:tighten-your-output` when the problem is too many
   words; `/discipline:mind-your-maxims` when the standing communication
-  discipline needs re-anchoring. If enabled, `/education:explain` when the
+  discipline needs re-anchoring. `/education:explain` (if enabled) when the
   reader needs the idea simplified, not the message re-grounded, and
-  `/adhd:clarify` when the content is right but the shape is wrong.
+  `/adhd:clarify` (if enabled) when the content is right but the shape is wrong.

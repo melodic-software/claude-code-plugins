@@ -25,7 +25,7 @@ export const said = { type: "item.completed", item: { id: "item_0", type: "agent
 export const completed = { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
 export const clean = events(...opened, said, completed);
 
-export const noOperatorSettings = { install: { pluginId: null, name: null, userSettings: null }, managedFiles: [] };
+export const noOperatorSettings = { install: { pluginId: null, name: null, userSettings: null }, managed: () => [] };
 export const isolation = join(tests, "support", "no-operator-settings.mjs");
 export const cli = (args, options) => spawnSync(process.execPath, ["--import", pathToFileURL(isolation).href, join(tests, "..", "bin", "external-agents"), ...args], { encoding: "utf8", ...options });
 

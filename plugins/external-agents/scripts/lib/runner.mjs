@@ -87,10 +87,10 @@ export function setup(opts) {
   }
   const projectRoot = git(ctx.cwd, ["rev-parse", "--show-toplevel"])?.trim() || ctx.cwd;
   const bound = conventionHome(projectRoot);
-  const operator = opts.userConfig ? { userConfig: opts.userConfig, errors: [] } : operatorUserConfig(opts.operatorSettings);
-  const config = loadConfig({ projectRoot, home: bound.home, userConfig: operator.userConfig });
-  config.errors.unshift(...operator.errors);
+  const user = opts.userConfig === undefined ? operatorUserConfig(opts.operatorSettings) : { userConfig: opts.userConfig, problem: null };
+  const config = loadConfig({ projectRoot, home: bound.home, userConfig: user.userConfig });
   if (bound.problem) config.errors.push(`convention home: ${bound.problem}; reading ${bound.home}`);
+  if (user.problem) config.errors.push(`userConfig: ${user.problem}`);
   return { ctx, record, config, settings: config.values[record.product] ?? {}, notices: config.errors.map((e) => `config: ${e}`), announced: [] };
 }
 

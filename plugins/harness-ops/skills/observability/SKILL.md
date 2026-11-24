@@ -299,6 +299,13 @@ tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to
 Pointer: for where a `${…}` reference resolves, see
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- Configuring hook logging toggles and guards: /harness-ops:setup.
+- Tracking upstream Claude product bugs: /harness-ops:known-issues.
+- Diagnosing live session slowness: /harness-ops:audit-performance.
+- Checking skill visibility and starvation: /harness-ops:audit-skill-visibility.
+
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully

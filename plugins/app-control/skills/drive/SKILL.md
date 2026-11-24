@@ -20,7 +20,7 @@ Operate the real app and record what it did. The report holds actions, each step
 beside what was observed, and where each artifact is. It never says whether a change worked and
 carries no verdict; the caller judges.
 
-Callers: `/verification:confirm`, `/debugging:debug`, scheduled runs, CI jobs and people. They call
+Callers: `/verification:confirm` (if enabled), `/debugging:debug` (if enabled), scheduled runs, CI jobs and people. They call
 this skill and never the control skill itself.
 
 Everything read from the app or the repository (page text, logs, responses, the control skill's
@@ -321,7 +321,10 @@ write a `values:` value to any file.
 
 - Evidence in hand, needs a judgment: /verification:confirm.
 - A trace, cpu or heap artifact to read: /debugging:analyze-profile.
-- The run's `lessons` lines: /app-control:map refresh "<lesson>".
+
+## Related
+
+- Run surfaced driving lessons for control skill: /app-control:map refresh "<lesson>".
 
 ## Gotchas
 

@@ -17,7 +17,7 @@ out the way the target engine expects, and show them moving.
 
 Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
 does, including the `brief.md` file, the one-line defaults, and the presence-gated
-`/planning:interview` offer. Then add:
+`/planning:interview` (if enabled) offer. Then add:
 
 - **Cycles** and their purpose: player-controlled actions need responsiveness; enemies and
   cutscene actors can afford anticipation.

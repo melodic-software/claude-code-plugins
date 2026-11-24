@@ -5,26 +5,26 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "../../lib/config-cascade.mjs";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../lib/plugin-options.mjs";
 
-export const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const readJson = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
+export const pluginRoot = join(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..");
 
 /** The userConfig options plugin.json declares, each named after its schema leaf. */
 export const USER_OPTIONS = ["antigravity_uses_task_mode", "antigravity_uses_investigate_mode", "codex_uses_task_mode", "codex_uses_investigate_mode"];
 
 /**
- * The declared options as set in the operator's own settings (docs/contracts/hook-config-delivery,
- * channel F): {userConfig, errors}. The install defaults to this copy's real path, so the user
- * settings file is found only for a cache install. A source that cannot be read sets nothing.
+ * The plugin's userConfig options from the operator's own user and managed settings (pluginConfigs),
+ * the cascade's userConfig layer. A Bash-run command gets no CLAUDE_PLUGIN_OPTION_* variables, so the
+ * settings are read directly; an unreadable source leaves the layer empty and names the problem.
  */
-export function operatorUserConfig({ install, managedFiles } = {}) {
+export function operatorUserConfig({ install = resolveInstall(pluginRoot), managed = managedSettingsFiles } = {}) {
   try {
-    const options = readOperatorOptions(install ?? resolveInstall(realpathSync.native(pluginRoot)), managedFiles ?? managedSettingsFiles(), USER_OPTIONS);
-    return { userConfig: Object.fromEntries(Object.entries(options).map(([key, { value }]) => [key, value])), errors: [] };
+    const found = readOperatorOptions(install, managed(), USER_OPTIONS);
+    return { userConfig: Object.fromEntries(Object.entries(found).map(([key, { value }]) => [key, value])), problem: null };
   } catch (error) {
     if (!(error instanceof OptionsError)) throw error;
-    return { userConfig: {}, errors: [`userConfig: ${error.message}; no option is read from settings`] };
+    return { userConfig: {}, problem: `${error.message}; the userConfig layer is not read` };
   }
 }
+const readJson = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
 
 const HELPER_FAIL = 3;
 const HELPER_NO_HOME = [1, 4, 5];

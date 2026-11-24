@@ -23,7 +23,7 @@ One line per check; act on each:
 | `antigravity: ready` | Ready; the breaker is closed. `ready (check: ...)` names checks below that need a look |
 | `antigravity: unavailable: ...` | Relay it: it says what to install or log in to. Stop |
 | `version:`, `login:` | Report them when the user asked about readiness |
-| `cli facts: <path>` | `agy.txt` (agy's help) and `models.txt` (`agy models`) for this version. Read them for any flag, subcommand or model question; then do the model check below |
+| `cli facts: <path>` | `agy.txt` (agy's help) and `models.txt` (`agy models`) for this version. Read them for any flag, subcommand or model question; then do the model check below. A failed command is named in parentheses with its exit code and the start of what it printed, as in `(models: models exited 1: <excerpt>)`, and leaves no file |
 | `version check:` | A newer release: tell the user once |
 | `docs index:` | `unreachable`: say the routing pointers could not be checked |
 | `routing: due; re-read the routing pointers` | Do the routing refresh below |
@@ -37,6 +37,10 @@ Read `antigravity.model` from `<home>/external-agents.yaml` and `<home>/external
 tell the user the configured model is not in this agy version's list, name the key, and quote the
 closest slugs from the file. Unset: say nothing; agy's own default applies. Change no config file
 yourself.
+
+When `models.txt` is absent, `agy models` failed: relay the `models:` reason from the `cli facts:`
+line to the user, and, when `antigravity.model` is set, say it cannot be checked against this agy
+version's list. Neither confirm nor reject the slug. The next `update` asks `agy models` again.
 
 ## Routing refresh
 

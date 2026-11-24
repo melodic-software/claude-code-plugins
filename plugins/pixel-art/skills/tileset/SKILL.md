@@ -16,7 +16,7 @@ Produce a tileset or parallax layer the target engine can load, and show it.
 
 Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
 does, including the `brief.md` file, the one-line defaults, and the presence-gated
-`/planning:interview` offer. Then add:
+`/planning:interview` (if enabled) offer. Then add:
 
 - **Set**: seamless single tile, blob-47, 16-tile corner, RPG Maker quarter-tile block, or parallax layers.
 - **Tile size and sheet**: the engine cell and which file (A2, B, a Godot atlas, a plain strip). Read

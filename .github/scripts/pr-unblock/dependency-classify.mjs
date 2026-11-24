@@ -222,12 +222,18 @@ const ACTION = /^(.+\/)?action\.ya?ml$/;
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
 // A pinned `uses:` line: its indent and key, the action path, the full SHA.
 const PINNED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@([0-9a-f]{40})(?:\s+#.*)?\s*$/;
+const TAGGED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@(v\d+(?:\.\d+){0,2})(?:\s+#.*)?\s*$/;
+// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351
+export const VENDOR_ACTION_OWNERS = Object.freeze(["actions", "github", "dependabot", "microsoft", "azure", "anthropics", "openai"]);
+const isVendorAction = (path) => VENDOR_ACTION_OWNERS.includes(path.split("/")[0].toLowerCase());
 
 // Why a Dependabot change to a workflow or action file (either side of a
 // rename) is not a pin swap, or null. Each change block in its patch must
 // remove and add the same number of lines, and each removed line pairs in
 // order with an added `uses:` line that keeps its indent and action path,
 // both pinned to a full SHA: only the SHA and the trailing comment differ.
+// A VENDOR_ACTION_OWNERS action may instead move between version tags:
+// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351
 // `files` is the REST pull-request files listing with patches.
 export function pinSwapRefusal(files) {
   const isWorkflow = (path) => /^\.github\/workflows\//i.test(path) || ACTION.test(path);
@@ -255,9 +261,11 @@ export function pinSwapRefusal(files) {
       for (const [i, before] of removed.entries()) {
         const after = added[i];
         if (!USES_LINE.test(before) || !USES_LINE.test(after)) return `${where}:not-a-uses-line`;
-        const [, oldKey, oldPath, oldSha] = PINNED_USES.exec(before) ?? [];
-        const [, newKey, newPath, newSha] = PINNED_USES.exec(after) ?? [];
-        if (!oldSha || !newSha) return `${where}:not-a-full-sha`;
+        const pinned = [PINNED_USES.exec(before), PINNED_USES.exec(after)];
+        const tagged = [TAGGED_USES.exec(before), TAGGED_USES.exec(after)];
+        const pair = pinned.every(Boolean) ? pinned : tagged.every((m) => m && isVendorAction(m[2])) ? tagged : null;
+        if (!pair) return `${where}:not-a-full-sha-or-vendor-tag`;
+        const [[, oldKey, oldPath], [, newKey, newPath]] = pair;
         if (oldKey !== newKey || oldPath !== newPath) return `${where}:action-changed`;
       }
     }
@@ -432,7 +440,17 @@ export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX
 
 export const SKIP_MARKER = "[dependabot skip]";
 
-export async function cdnSyncRefusal(detail, appId, paths, entry) {
+export const CDN_SYNC_TRAILER = "Lane-Activity: pr-unblock/review-dependency";
+export const cdnSyncSubject = (ref) => `Sync the CDN pins to the bumped manifest on ${ref} ${SKIP_MARKER}`;
+const REF_SAFE = /^(?!.*[~^:?*[\\])[!-~]+$/;
+
+export function cdnSyncMessageRefusal(message, headRef) {
+  const lines = String(message ?? "").replace(/\n+$/, "").split("\n");
+  if (typeof headRef !== "string" || !REF_SAFE.test(headRef) || lines[0] !== cdnSyncSubject(headRef)) return "cdn-sync-message";
+  return lines.length === 3 && lines[1] === "" && lines[2] === CDN_SYNC_TRAILER ? null : "cdn-sync-trailer";
+}
+
+export async function cdnSyncRefusal(detail, appId, paths, entry, headRef) {
   const verification = detail?.commit?.verification;
   if (
     !Number.isInteger(appId) ||
@@ -444,7 +462,8 @@ export async function cdnSyncRefusal(detail, appId, paths, entry) {
     return "cdn-sync-author";
   }
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1) return "cdn-sync-parents";
-  if (!String(detail.commit?.message ?? "").includes(SKIP_MARKER)) return "cdn-sync-message";
+  const message = cdnSyncMessageRefusal(detail.commit?.message, headRef);
+  if (message) return message;
   if (!Array.isArray(detail.files) || detail.files.length === 0) return "cdn-sync-files";
   const scope = await paths();
   if (!(scope instanceof Set) || scope.size === 0) return "cdn-sync-base-unreadable";
@@ -770,6 +789,8 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
 
 // The standards-synced Dependabot policy, read at the base.
 export const POLICY_PATH = ".github/standards/dependabot-policy/policy.json";
+export const STANDARDS_POLICY_PATH = "components/dependabot-policy/policy.json";
+export const policyPath = (env, fallback) => (env.STANDARDS_DIR ? `${env.STANDARDS_DIR}/${STANDARDS_POLICY_PATH}` : fallback);
 export const POLICY_UNREADABLE = "dependabot-policy-unreadable";
 // The head branch's ecosystem segment in dependabot.yml spelling; any other
 // segment is the same in both.

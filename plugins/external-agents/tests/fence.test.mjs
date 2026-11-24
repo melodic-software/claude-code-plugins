@@ -3,6 +3,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 import { review, run, status } from "../scripts/lib/runner.mjs";
+import { operatorUserConfig } from "../scripts/lib/config.mjs";
+import { OptionsError } from "../lib/plugin-options.mjs";
 import { assertNoBypass, clean, cli, cliArgs, fakeAgy, fixtures, gitRepo, scratch, world } from "./support/world.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -163,5 +165,56 @@ describe("write fences and extra writable directories", () => {
     const onReview = cli(["review", "codex", "--base", "main", "--add-dir", scratch], { env, cwd: scratch });
     assert.equal(onReview.status, 2);
     assert.equal(onReview.stdout, "codex: failed (review: unknown option --add-dir)\n");
+  });
+});
+
+describe("the antigravity_uses_task_mode userConfig option", () => {
+  const ok = { envelope: { status: "SUCCESS", response: "done", conversation_id: "conv-1" } };
+  const readOnly = "schema: 1\nantigravity:\n  uses:\n    task:\n      mode: read-only\n";
+  const task = (w, userConfig) => run({ ...w.opts, product: "antigravity", providersRoot: fixtures, binary: fakeAgy, model: "m1", use: "task", mode: "write", prompt: "fix it", userConfig });
+
+  test("unset, a task run asking for write runs read-only", async () => {
+    const { job } = await task(world(ok), {});
+    assert.equal(job.mode, "read-only");
+    assert.ok(job.notices.some((n) => n.includes("antigravity.uses.task.mode is read-only")), job.notices.join("\n"));
+  });
+
+  test("set to write, a task run writes inside agy's sandbox", async () => {
+    const { job } = await task(world(ok), { antigravity_uses_task_mode: "write" });
+    assert.equal(job.mode, "write");
+    assert.equal(job.fence, "sandbox");
+    assert.deepEqual(cliArgs(job).slice(0, 2), ["--mode", "accept-edits"]);
+  });
+
+  test("a team or personal file setting read-only wins over userConfig write", async () => {
+    for (const layer of ["team", "local"]) {
+      const { job } = await task(world(ok, { [layer]: readOnly }), { antigravity_uses_task_mode: "write" });
+      assert.equal(job.mode, "read-only", layer);
+    }
+  });
+
+  test("an invalid value is reported and the read-only default stands", async () => {
+    const { job } = await task(world(ok), { antigravity_uses_task_mode: "yes" });
+    assert.equal(job.mode, "read-only");
+    assert.ok(job.notices.some((n) => n.includes("antigravity.uses.task.mode")), job.notices.join("\n"));
+  });
+
+  test("the value is read from pluginConfigs in the operator's user settings, and a broken file reads as unset", () => {
+    const settings = join(scratch, "user-settings.json");
+    const install = { pluginId: "external-agents@melodic-software", name: "external-agents", userSettings: settings };
+    writeFileSync(settings, JSON.stringify({ pluginConfigs: { "external-agents@melodic-software": { options: { antigravity_uses_task_mode: "write" } } } }));
+    assert.deepEqual(operatorUserConfig({ install, managed: () => [] }), { userConfig: { antigravity_uses_task_mode: "write" }, problem: null });
+    writeFileSync(settings, "{not json");
+    const broken = operatorUserConfig({ install, managed: () => [] });
+    assert.deepEqual(broken.userConfig, {});
+    assert.match(broken.problem, /not valid JSON.*userConfig layer is not read/);
+  });
+
+  test("an unreadable managed-settings directory reads as unset instead of aborting the run", () => {
+    const install = { pluginId: "external-agents@melodic-software", name: "external-agents", userSettings: null };
+    const unreadable = () => { throw new OptionsError("managed settings directory /etc/claude-code/managed-settings.d cannot be read (EACCES)"); };
+    const got = operatorUserConfig({ install, managed: unreadable });
+    assert.deepEqual(got.userConfig, {});
+    assert.match(got.problem, /EACCES.*userConfig layer is not read/);
   });
 });

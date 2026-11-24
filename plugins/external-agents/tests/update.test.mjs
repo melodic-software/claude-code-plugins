@@ -118,6 +118,33 @@ describe("update", () => {
     assert.ok(lines(got).includes(`cli facts: ${join(w.dataDir, "cli-facts", "codex", "0.168.0")} (models: debug models exited 2)`), got.stdout);
   });
 
+  test("a model list command that fails names what it printed on stderr, and update stays ready", async () => {
+    const w = world({ answers: { "debug models": { exit: 1, stderr: "boom\n" } } });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
+    assert.ok(lines(got).includes(`cli facts: ${join(w.dataDir, "cli-facts", "codex", "0.168.0")} (models: debug models exited 1: boom)`), got.stdout);
+    assert.equal(got.code, 0);
+  });
+
+  test("a failed fact's output is one line, clipped, with email addresses left out", async () => {
+    const stderr = `error: not signed in as person@example.com\n${"x".repeat(400)}\n`;
+    const w = world({ answers: { "debug models": { exit: 1, stdout: "ignored\n", stderr } } });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    const facts = lines(got).find((line) => line.startsWith("cli facts: "));
+    const said = facts.match(/\(models: debug models exited 1: (.*)\)$/)[1];
+    assert.equal(said.length, 200);
+    assert.ok(said.startsWith("error: not signed in as <email> xxx"), said);
+    assert.ok(said.endsWith("..."), said);
+    assert.doesNotMatch(got.stdout, /person@example\.com|ignored/);
+    assert.equal(lines(got).length, 9, got.stdout);
+  });
+
+  test("a failed fact that printed only on stdout names that output", async () => {
+    const w = world({ answers: { "debug models": { exit: 1, stdout: "no models here\n" } } });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    assert.ok(lines(got).includes(`cli facts: ${join(w.dataDir, "cli-facts", "codex", "0.168.0")} (models: debug models exited 1: no models here)`), got.stdout);
+  });
+
   test("an unreachable docs index is reported", async () => {
     const w = world();
     const got = await update({ ...w.opts, fetch: web({ docs: 404 }).fetch });
@@ -291,6 +318,12 @@ describe("models", () => {
     const got = await models(agyWorld({ "--help": { stdout: "  --effort=<level>  Reasoning effort: low, medium, high\n" } }).opts);
     assert.equal(got.code, 1);
     assert.deepEqual(JSON.parse(got.stdout), { schema: 1, product: "antigravity", status: "failed", reason: "agy --help lists no --effort choices this record can read" });
+  });
+
+  test("a models command that fails is failed, exit 1, with what it printed on stderr in the reason", async () => {
+    const got = await models(agyWorld({ models: { exit: 1, stderr: "boom\n" } }).opts);
+    assert.equal(got.code, 1);
+    assert.deepEqual(JSON.parse(got.stdout), { schema: 1, product: "antigravity", status: "failed", reason: "models: models exited 1: boom" });
   });
 
   test("an empty cached file is asked for again", async () => {

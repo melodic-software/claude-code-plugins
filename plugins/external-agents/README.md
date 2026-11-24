@@ -108,10 +108,23 @@ precedence are in the
 profile leaves the CLI's own configuration in charge.
 
 The task and investigate modes can also be set once per machine, for every repository, through the
-plugin options below. The runner reads them from your user settings (or managed settings), below a
-repository's team and personal files, so a repository file still overrides them. Your user
-settings file is found only for an install in the plugin cache; a `--plugin-dir` copy sees managed
-settings only.
+plugin options below, for example in `pluginConfigs` in your user `settings.json`:
+
+```json
+{
+  "pluginConfigs": {
+    "external-agents@melodic-software": {
+      "options": { "antigravity_uses_task_mode": "write" }
+    }
+  }
+}
+```
+
+The command reads them from your user and managed settings itself, since a command run through the
+Bash tool gets no `CLAUDE_PLUGIN_OPTION_*` variables. They sit below a repository's team and
+personal files, so a repository file still overrides them. Your user settings file is found only
+for an install in the plugin cache; a `--plugin-dir` copy sees managed settings only. The options'
+`options` picker needs Claude Code v2.1.271 or later; an earlier release cannot load the plugin.
 
 ## Job files
 
@@ -139,7 +152,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `antigravity_uses_task_mode` | string | `"read-only"` | Default and ceiling for agy task runs on this machine, in every repository. read-only (default) keeps them read-only; write lets a --mode write run edit files. agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it. |
+| `antigravity_uses_task_mode` | string | `"read-only"` | read-only (default): /external-agents:antigravity task runs cannot edit files. write: task runs may write, fenced by agy's terminal sandbox, in every repository. A repository's docs/conventions/external-agents.yaml or .local.yaml antigravity.uses.task.mode wins over this option. |
 | `antigravity_uses_investigate_mode` | string | `"read-only"` | Default and ceiling for agy investigate runs on this machine, in every repository. read-only (default) or write; agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it. |
 | `codex_uses_task_mode` | string | `"write"` | Default and ceiling for Codex task runs on this machine, in every repository. write (default) or read-only. A repository's team or personal external-agents.yaml overrides it. |
 | `codex_uses_investigate_mode` | string | `"read-only"` | Default and ceiling for Codex investigate runs on this machine, in every repository. read-only (default) or write. A repository's team or personal external-agents.yaml overrides it. |

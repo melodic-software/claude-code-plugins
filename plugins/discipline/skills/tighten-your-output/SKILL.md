@@ -77,8 +77,7 @@ and report its line ([levels](https://github.com/melodic-software/claude-code-pl
 ## Routing, where batch and proactive work live
 
 - **Prose a person reads (a ticket comment, a pull-request body, a doc, a
-  status update) → `/writing:be-concise`** when the `writing` plugin is
-  enabled. It owns the point-first, scannable shape those readers need,
+  status update) → `/writing:be-concise` (if enabled)**. It owns the point-first, scannable shape those readers need,
   which this corrector does not. Without that plugin, reduce against the
   markdown discipline above and say the point-first shape went unapplied.
 - **Batch prose remediation → the docs-hygiene compress capability** when
@@ -122,6 +121,13 @@ this table gives the other.
 
 Once either skill is loaded, route by the target in front of you, not by the
 phrase that reached it; the sections above say where.
+
+## Related
+
+- Reshape human-read tickets, PRs, or docs: /writing:be-concise.
+- Batch markdown compression with semantic-diff guard: /docs-hygiene:compress.
+- Batch code simplification sweep: /code-tidying:batch-simplify.
+- Remove duplicated content rather than wordiness: /discipline:point-dont-copy.
 
 ## Gotchas
 

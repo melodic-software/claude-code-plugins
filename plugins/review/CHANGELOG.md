@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.10.2] - 2026-11-23
+
+### Changed
+
+- `/review:quality-gate`'s `## Next` drops its availability clause and names `/verification:confirm`, then `/source-control:pull-request create`, or a `self` re-run after fixes.
+
 ## [10.10.1] - 2026-11-23
 
 ### Changed

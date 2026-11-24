@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# added-lines.sh: list the line ranges a branch adds, for the `--added-since <base>`
-# scope of remove-comments and its audit action. Read-only.
-#
-# Usage: added-lines.sh <base>
-#
-# Compares the working tree against the merge base of <base> and HEAD, so lines the
-# base side added after the branch point never count as this branch's. Tracked files
-# only; a deleted file adds nothing; a rename reports only its edited lines.
-#
-# Output: one row per added hunk, `<start><TAB><count><TAB><path>`, path last and
-# repository-relative. Paths come from `git diff -z`, so a space survives whole.
 # Exit: 0 on success (no rows when nothing was added); 2 on a missing or unknown base,
 # outside a repository, when a git diff fails, when any changed path holds a control character, which
 # would make a row ambiguous, or when a hunk header's start or count is not digits
@@ -38,9 +27,6 @@ mb="$(git merge-base "$base" HEAD)" || {
   exit 2
 }
 
-# Records: status, then one path (two for a rename or copy), NUL-terminated. NUL cannot sit
-# in a shell variable, so the listing is read from a process substitution and its exit
-# status collected with wait: a failed git must not pass as an empty or partial listing.
 records=()
 while IFS= read -r -d '' field; do
   records+=("$field")
@@ -50,13 +36,11 @@ wait "$!" || {
   exit 2
 }
 
-# The join separator is a space, so only a control character inside a field matches.
 if [[ "${records[*]-}" =~ [[:cntrl:]] ]]; then
   echo "added-lines.sh: a changed path holds a control character; no rows printed" >&2
   exit 2
 fi
 
-# Print the added hunks of one diff, labeled with the path given.
 hunks() {
   local path="$1" line spec start count diff
   shift
@@ -70,8 +54,6 @@ hunks() {
     spec="${spec%% @@*}"
     start="${spec%%,*}"
     if [[ "$spec" == *,* ]]; then count="${spec#*,}"; else count=1; fi
-    # Never let a header field reach arithmetic unchecked: bash evaluates an array subscript
-    # inside (( )), so a crafted field would run a command.
     if [[ ! "$start" =~ ^[0-9]+$ || ! "$count" =~ ^[0-9]+$ ]]; then
       echo "added-lines.sh: a hunk header is not git's @@ form; no rows trusted" >&2
       return 2

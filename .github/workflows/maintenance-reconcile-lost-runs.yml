@@ -105,14 +105,14 @@ jobs:
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .base/.node-version
 
@@ -208,7 +208,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.plan.outputs.record-1 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -216,7 +216,7 @@ jobs:
       - name: Record re-run 1
         if: >-
           (steps.plan.outputs.record-1 != '') && steps.scan-upload.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-1 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -227,7 +227,7 @@ jobs:
         id: scan-upload-2
         if: >-
           steps.plan.outputs.record-2 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -235,7 +235,7 @@ jobs:
       - name: Record re-run 2
         if: >-
           (steps.plan.outputs.record-2 != '') && steps.scan-upload-2.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-2 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -246,7 +246,7 @@ jobs:
         id: scan-upload-3
         if: >-
           steps.plan.outputs.record-3 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -254,7 +254,7 @@ jobs:
       - name: Record re-run 3
         if: >-
           (steps.plan.outputs.record-3 != '') && steps.scan-upload-3.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-3 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -265,7 +265,7 @@ jobs:
         id: scan-record-4
         if: >-
           steps.plan.outputs.record-4 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -273,7 +273,7 @@ jobs:
       - name: Record re-run 4
         if: >-
           (steps.plan.outputs.record-4 != '') && steps.scan-record-4.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-4 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -284,7 +284,7 @@ jobs:
         id: scan-record-5
         if: >-
           steps.plan.outputs.record-5 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -292,7 +292,7 @@ jobs:
       - name: Record re-run 5
         if: >-
           (steps.plan.outputs.record-5 != '') && steps.scan-record-5.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-5 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -303,7 +303,7 @@ jobs:
         id: scan-record-6
         if: >-
           steps.plan.outputs.record-6 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -311,7 +311,7 @@ jobs:
       - name: Record re-run 6
         if: >-
           (steps.plan.outputs.record-6 != '') && steps.scan-record-6.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-6 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -322,7 +322,7 @@ jobs:
         id: scan-record-7
         if: >-
           steps.plan.outputs.record-7 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -330,7 +330,7 @@ jobs:
       - name: Record re-run 7
         if: >-
           (steps.plan.outputs.record-7 != '') && steps.scan-record-7.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-7 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -341,7 +341,7 @@ jobs:
         id: scan-record-8
         if: >-
           steps.plan.outputs.record-8 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -349,7 +349,7 @@ jobs:
       - name: Record re-run 8
         if: >-
           (steps.plan.outputs.record-8 != '') && steps.scan-record-8.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-8 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -360,7 +360,7 @@ jobs:
         id: scan-record-9
         if: >-
           steps.plan.outputs.record-9 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -368,7 +368,7 @@ jobs:
       - name: Record re-run 9
         if: >-
           (steps.plan.outputs.record-9 != '') && steps.scan-record-9.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-9 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -379,7 +379,7 @@ jobs:
         id: scan-record-10
         if: >-
           steps.plan.outputs.record-10 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -387,7 +387,7 @@ jobs:
       - name: Record re-run 10
         if: >-
           (steps.plan.outputs.record-10 != '') && steps.scan-record-10.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-10 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -398,7 +398,7 @@ jobs:
         id: scan-record-11
         if: >-
           steps.plan.outputs.record-11 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -406,7 +406,7 @@ jobs:
       - name: Record re-run 11
         if: >-
           (steps.plan.outputs.record-11 != '') && steps.scan-record-11.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-11 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -417,7 +417,7 @@ jobs:
         id: scan-record-12
         if: >-
           steps.plan.outputs.record-12 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -425,7 +425,7 @@ jobs:
       - name: Record re-run 12
         if: >-
           (steps.plan.outputs.record-12 != '') && steps.scan-record-12.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-12 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -436,7 +436,7 @@ jobs:
         id: scan-record-13
         if: >-
           steps.plan.outputs.record-13 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -444,7 +444,7 @@ jobs:
       - name: Record re-run 13
         if: >-
           (steps.plan.outputs.record-13 != '') && steps.scan-record-13.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-13 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -455,7 +455,7 @@ jobs:
         id: scan-record-14
         if: >-
           steps.plan.outputs.record-14 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -463,7 +463,7 @@ jobs:
       - name: Record re-run 14
         if: >-
           (steps.plan.outputs.record-14 != '') && steps.scan-record-14.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-14 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -474,7 +474,7 @@ jobs:
         id: scan-record-15
         if: >-
           steps.plan.outputs.record-15 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -482,7 +482,7 @@ jobs:
       - name: Record re-run 15
         if: >-
           (steps.plan.outputs.record-15 != '') && steps.scan-record-15.outputs.clean == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.plan.outputs.record-15 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
@@ -496,7 +496,7 @@ jobs:
       # record outlives its marker. The plan holds run ids, PR numbers and SHAs.
       - name: Mark the deferred verdicts
         if: steps.plan.outputs.deferral == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: pr-feedback-deferral
           path: ${{ runner.temp }}/reconcile-plan.json
@@ -521,7 +521,7 @@ jobs:
           ${{ !cancelled() && steps.plan.outcome == 'success' }}
         # A hit withholds only the carry: the next pass reads every run.
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reconcile-settled/settled.json
@@ -530,7 +530,7 @@ jobs:
         if: >-
           (!cancelled() && steps.plan.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7
         with:
           name: reconcile-settled-runs
           path: ${{ runner.temp }}/reconcile-settled/settled.json

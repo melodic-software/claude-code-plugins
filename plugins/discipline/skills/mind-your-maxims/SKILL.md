@@ -85,6 +85,11 @@ mid-session corrector can score.
   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
   `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
 
+## Related
+
+- Verify factual truthfulness and evidence: /discipline:do-your-research.
+- Trim large-scale verbosity: /discipline:tighten-your-output.
+
 ## Gotchas
 
 - **Correct and unhelpful is still a finding.** An answer can be true, and

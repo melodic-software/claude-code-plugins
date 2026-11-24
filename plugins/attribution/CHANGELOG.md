@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.5] - 2026-11-24
+
+### Changed
+
+- `/attribution:audit` now carries a `## Related` section that lists the skills to reach for in
+  nearby situations, one condition per line.
+
 ## [0.22.4] - 2026-11-23
 
 ### Changed

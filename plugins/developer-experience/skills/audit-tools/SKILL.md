@@ -82,18 +82,25 @@ is not, do the part this skill can, say the plugin is not enabled and print
 `claude plugin enable <plugin>@<marketplace>`, preceded by
 `claude plugin install <plugin>@<marketplace>` when it is not installed.
 
-- User-level and local-scope MCP configs: `/mcp-tools:audit-posture`. This skill reads only the
+- User-level and local-scope MCP configs: `/mcp-tools:audit-posture` (if enabled). This skill reads only the
   project config.
-- Plugin and built-in skills and other invocable surfaces on this machine: `/harness-ops:inventory`. This skill reads only the repository's.
-- A retire verdict to settle before deleting: `/overengineering:justify <artifact>`.
-- A rename or move: `/docs-hygiene:rename-references` to find every reference.
+- Plugin and built-in skills and other invocable surfaces on this machine: `/harness-ops:inventory` (if enabled). This skill reads only the repository's.
+- A retire verdict to settle before deleting: `/overengineering:justify <artifact>` (if enabled).
+- A rename or move: `/docs-hygiene:rename-references` (if enabled) to find every reference.
 - Whether Claude-harness automation (hooks, MCP servers, skills, subagents) should exist or be
-  added: `/harness-config:audit-automation-gaps`.
+  added: `/harness-config:audit-automation-gaps` (if enabled).
 
 ## Next
 
 - A consolidate or migrate verdict that builds or extends a CLI: /developer-experience:build-cli.
 - A retire verdict to justify first: /overengineering:justify <artifact>.
+
+## Related
+
+- User or local MCP config posture: /mcp-tools:audit-posture.
+- Machine-level plugin and skill inventory: /harness-ops:inventory.
+- Sweep references after a rename or move: /docs-hygiene:rename-references.
+- Evaluate whether harness automation should exist: /harness-config:audit-automation-gaps.
 
 ## Gotchas
 

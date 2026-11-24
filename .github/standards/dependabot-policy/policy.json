@@ -5,7 +5,7 @@
     "github-actions": {
       "accepted": ["daily"],
       "reviewed": "2026-11-16",
-      "basis": "Owner decision 2026-11-16: the github-actions entry checks daily so this organization's own releases arrive within a day."
+      "basis": "Owner decision 2026-11-16: the github-actions entry checks daily. First-party actions float on main and official-vendor actions on their major tag (architecture owner-decisions L351), so the entry moves vendor major tags and third-party full-commit-SHA pins, never a first-party ref."
     }
   },
   "cooldownMinimumDays": 3,

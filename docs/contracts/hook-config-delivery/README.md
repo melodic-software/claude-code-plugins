@@ -155,7 +155,7 @@ Conformance is tracked as it exists on `main`, per the
 | autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the harness-ops lane launcher) | conforms (0.12.0, #1784) |
 | source-control babysit-loop promotion-evidence helper (`promotion_evidence_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `skills/babysit-loop/scripts/operator-options.mjs`, anchored on the script's own install path) | conforms (#7008) |
 | corrections findings-buffer user-scope adapter binding (`findings_buffer_adapter_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `scripts/lib/plugin-options.mjs`, anchored on `findings-buffer.mjs`'s own install path) | conforms (#9059) |
-| external-agents use modes (`antigravity_uses_*_mode`, `codex_uses_*_mode`), the Bash-run `external-agents` CLI | F (shared Node reader `lib/plugin-options.mjs`, generated as `lib/plugin-options.mjs`, anchored on the real path of `scripts/lib/config.mjs`'s plugin root) | conforms (#18573) |
+| external-agents use modes (`antigravity_uses_*_mode`, `codex_uses_*_mode`), the Bash-run `external-agents` CLI | F (shared Node reader `lib/plugin-options.mjs`, generated as `lib/plugin-options.mjs`, anchored on the real path of `scripts/lib/config.mjs`'s plugin root; the value feeds the cascade's userConfig layer) | conforms (#18573) |
 | harness-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the

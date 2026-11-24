@@ -96,8 +96,6 @@ test("claude-protected is optional and refuses as a protected path", () => {
   assert.equal(PROTECTED_REFUSALS["claude-protected"].test({ path: ".claude/worktrees/a.md" }), false);
 });
 
-// A merge or shared-copy patch carries the base's own changes, so a rename into
-// a Claude Code protected path stays pushable where only the universal rules apply.
 test("rename-into-refused ignores claude-protected and still reads the universal rules", () => {
   const rename = (path) => PROTECTED_REFUSALS["rename-into-refused"].test({ path, renamedFrom: "a.md" });
   assert.equal(rename(".claude/rules/a.md"), false);

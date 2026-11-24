@@ -407,7 +407,7 @@ describe("use modes set once per machine through the plugin options", () => {
   const userSettings = (text) => {
     const file = join(scratch, `user-settings-${(files += 1)}.json`);
     writeFileSync(file, text);
-    return { install: { pluginId: "external-agents@test-market", name: "external-agents", userSettings: file }, managedFiles: [] };
+    return { install: { pluginId: "external-agents@test-market", name: "external-agents", userSettings: file }, managed: () => [] };
   };
   const withOptions = (options) => userSettings(JSON.stringify({ pluginConfigs: { "external-agents@test-market": { options } } }));
 
@@ -443,7 +443,7 @@ describe("use modes set once per machine through the plugin options", () => {
 
   test("a settings file that cannot be read is a config notice and sets no option", async () => {
     const got = await run(agy(world(ok), userSettings("{ not json")));
-    assert.match(got.stderr, /notice: config: userConfig: settings file .* is not valid JSON .*; no option is read from settings/);
+    assert.match(got.stderr, /notice: config: userConfig: settings file .* is not valid JSON .*; the userConfig layer is not read/);
     assert.equal(got.job.mode, "read-only");
   });
 
@@ -471,7 +471,7 @@ describe("use modes set once per machine through the plugin options", () => {
 
   test("a managed settings file applies with no user settings location, as for a --plugin-dir copy", async () => {
     const managed = withOptions({ antigravity_uses_task_mode: "write" });
-    const got = await run(agy(world(ok), { install: { pluginId: null, name: "external-agents", userSettings: null }, managedFiles: [managed.install.userSettings] }));
+    const got = await run(agy(world(ok), { install: { pluginId: null, name: "external-agents", userSettings: null }, managed: () => [managed.install.userSettings] }));
     assert.equal(got.job.mode, "write");
   });
 });

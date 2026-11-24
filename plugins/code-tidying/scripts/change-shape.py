@@ -69,9 +69,6 @@ EXIT_UNPROVABLE = 21
 EXIT_NO_TOOLING = 3
 EXIT_USAGE = 2
 
-# Extension -> (grammar language name, per-language wheel module, attribute
-# on that module that returns the language pointer). A None module marks the
-# native PowerShell backend, which loads no grammar.
 EXT_LANG = {
     ".py": ("python", "tree_sitter_python", "language"),
     ".pyi": ("python", "tree_sitter_python", "language"),
@@ -93,8 +90,6 @@ EXT_LANG = {
     ".psm1": ("powershell", None, None),
 }
 
-# Leaf kinds that count as identifiers for the RENAME-ONLY verdict. Anything
-# else that differs is a code change.
 IDENTIFIER_KINDS = frozenset(
     {
         "identifier",
@@ -106,20 +101,13 @@ IDENTIFIER_KINDS = frozenset(
         "shorthand_property_identifier",
         "shorthand_property_identifier_pattern",
         "statement_identifier",
-        # PowerShell. Not `Identifier`, which is both member names and type
-        # names, so `[string]` -> `[int]` would read as a rename; not `Generic`,
-        # which is command names and bare-word arguments; not `Parameter`, which
-        # is a cross-file call-site contract.
         "Variable",
         "SplattedVariable",
-        # A variable read out of an expandable string, normalized to `$name`.
         "InterpolatedVariable",
     }
 )
 
 PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
-# `#requires` is accepted in any case and must survive stripping as the shebang
-# does: deleting it leaves the token stream identical.
 PS_REQUIRES = re.compile(r"^\s*#requires\b", re.IGNORECASE)
 
 
@@ -137,9 +125,6 @@ def powershell_records(*args: str) -> list[dict]:
         # A Windows client's default policy is Restricted, where -File refuses
         # to run at all and the failure would read as a tooling absence.
         cmd += ["-ExecutionPolicy", "Bypass"]
-    # ponytail: one pwsh process per verdict (~0.5 s of startup plus ~1 s per
-    # megabyte of source). Batch N pairs per process if a large run measures
-    # badly; do not build the batch before it does.
     proc = subprocess.run(
         [*cmd, "-File", str(PS_SCRIPT), *args],
         capture_output=True,
@@ -160,7 +145,6 @@ def powershell_records(*args: str) -> list[dict]:
 def powershell_leaves(record: dict) -> list[tuple[str, str]]:
     """Tokens minus comments, with the directive comments kept as leaves."""
     flat = record["tokens"]
-    # Tokens read out of an expandable string, keyed on that string's position.
     triples = record["nested"]
     extra: dict[int, list[tuple[str, str]]] = {}
     for j in range(0, len(triples), 3):
@@ -182,10 +166,6 @@ def powershell_leaves(record: dict) -> list[tuple[str, str]]:
             elif i == 0 and text.startswith("#!"):
                 out.append(("shebang", text))
         elif kind == "NewLine":
-            # A newline separates statements, so dropping it would let
-            # `cmd $a # c` and the line under it merge into one call behind a
-            # comment deletion. A run collapses to one leaf and the ends are
-            # trimmed, which keeps blank lines and reflow invisible.
             if out and out[-1][0] != "NewLine":
                 out.append(("NewLine", "\n"))
         elif kind != "EndOfInput":
@@ -204,12 +184,8 @@ def powershell_rename_defect(mapping: dict[str, str], reserved: set[str]) -> str
     """
     for old, new in mapping.items():
         for name in (old, new):
-            # `$env:PATH` is rejected by the scope test below, so only the bare
-            # name matters here.
             if name.lstrip("$@").lower() in reserved:
                 return f"rename touches the reserved variable {name}"
-        # `$x` -> `$global:x` and `$x` -> `$env:PATH` are scope changes, so the
-        # sigil-to-last-colon prefix has to match on both sides.
         if old.rpartition(":")[0].lower() != new.rpartition(":")[0].lower():
             return f"scope prefix changed: {old} -> {new}"
     return None
@@ -472,21 +448,14 @@ def classify_leaves(
         reverse: dict[str, str] = {}
         for (_, old), (_, new) in diffs:
             if key(old) == key(new):
-                # The same name respelled. Nothing was renamed, and under a
-                # case-insensitive fold the mapping would be an identity.
                 return code_changed(reason="one name respelled, not renamed", at=old)
             if folded.setdefault(key(old), key(new)) != key(new):
                 return code_changed(reason="inconsistent identifier mapping", at=old)
             if reverse.setdefault(key(new), key(old)) != key(old):
-                # Two renamed identifiers collapsing onto one name is a merge,
-                # not a rename: the mapping must be injective as well as consistent.
                 return code_changed(
                     reason="two identifiers collapse to one name", at=new
                 )
             mapping[old] = new
-        # The diff only sees positions that changed. An old name still present
-        # at an unchanged position is a rename that missed a reference; a new
-        # name already present at one is a rename onto an existing identifier.
         unchanged = {
             key(text)
             for (kind, text), y in zip(a, b)
@@ -549,8 +518,6 @@ def main(argv: list[str] | None = None) -> int:
             powershell_leaves(records[1]),
             records[0]["errors"] > 0,
             records[1]["errors"] > 0,
-            # PowerShell variable names are case-insensitive, so `$Old` and
-            # `$old` are one name to every check that reasons about names.
             fold=str.lower,
         )
         if verdict == "RENAME-ONLY":

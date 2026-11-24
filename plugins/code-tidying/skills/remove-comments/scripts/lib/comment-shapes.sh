@@ -1,9 +1,4 @@
 # shellcheck shell=bash
-# Shared comment-residue detectors for /code-tidying:remove-comments audit (sourceable; not invoked directly).
-# Shape definitions and treatments: actions/audit.md "Residue shapes and treatments".
-#
-# Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
-# code (identifiers, string literals) are not flagged.
 
 cr_trim_excerpt() {
   local line="$1"
@@ -29,15 +24,10 @@ cr_line_skipped() {
   [[ "$prev" == *'comment-residue-ignore'* || "$line" == *'comment-residue-ignore'* ]]
 }
 
-# Set REPLY to the comment portion of a line, or empty. A leader (`//`, `/*`, `#`, `--`) opens a
-# comment only OUTSIDE a "...", '...', or `...` span, so a URL's `//` or a quoted phrase is
-# not a comment. Heuristic, not a per-language lexer: enough for a read-only audit.
-# REPLY, not stdout, so a per-line caller forks no command substitution.
 cr_comment_text() {
   REPLY=""
   local line="${1//$'\r'/}"
-  [[ "$line" =~ ^[[:space:]]*#! ]] && return 0 # shebang, not a comment
-  # Block-comment continuation line ("* ..." inside a /* */ block): whole body is comment.
+  [[ "$line" =~ ^[[:space:]]*#! ]] && return 0
   if [[ "$line" =~ ^[[:space:]]*\*[[:space:]] ]]; then
     REPLY="${line#*\*}"
     return 0
@@ -47,7 +37,7 @@ cr_comment_text() {
     ch="${line:i:1}"
     if [[ -n "$quote" ]]; then
       if [[ "$ch" == "\\" ]]; then
-        ((i++)) # skip the escaped character
+        ((i++))
         continue
       fi
       [[ "$ch" == "$quote" ]] && quote=""
@@ -63,8 +53,6 @@ cr_comment_text() {
     nx="${line:i+1:1}"
     if [[ "$ch$nx" == '//' || "$ch$nx" == '--' ]]; then
       rest="${line:i+2}"
-      # `///` and `//!` are doc-comment leaders. Left in the text they occupy the
-      # clause-opening position, so a cue right behind one would never anchor.
       [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
       REPLY="$rest"
       return 0
@@ -80,7 +68,6 @@ cr_comment_text() {
   return 0
 }
 
-# TODO(#issue) and its kin are the sanctioned back-reference — never flag their ticket ref.
 cr_is_sanctioned_todo() {
   local re='(^[[:space:]]*|[,;:.][[:space:]]+|\([[:space:]]*)(TODO|FIXME|HACK|XXX)[(:]'
   [[ "$1" =~ $re ]]
@@ -90,8 +77,6 @@ cr_is_comment_line() {
   [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
 }
 
-# License or attribution cue. `copyright` and `(c)` are ordinary words, so each needs a
-# year, a (c)/© sign, or the start of the comment as corroboration.
 cr_has_license_cue() {
   local lc="${1,,}"
   [[ "$lc" =~ (spdx-license-identifier|licensed[[:space:]]+under|license:) ]] && return 0
@@ -106,10 +91,6 @@ cr_has_workaround_cue() {
   [[ "$lc" =~ (^|[^[:alnum:]_])(work[-[:space:]]?arounds?|works[[:space:]]+around|working[[:space:]]+around|worked[[:space:]]+around)([^[:alnum:]_]|$) ]]
 }
 
-# A workaround is justified by a link (a URL, an issue or PR number, an RFC) or by a
-# removal condition (`until` a version, up to two words before it as in `until node 22`, or
-# a release or fix event; `remove when`, `drop it once`, `once ... ships`). A bare `until` is
-# a loop bound (`retry until it succeeds`), not a removal condition.
 cr_has_workaround_justification() {
   local lc="${1,,}"
   local sb='(^|[^[:alnum:]])' eb='([^[:alnum:]]|$)'
@@ -122,8 +103,6 @@ cr_has_workaround_justification() {
   return 1
 }
 
-# Print the line numbers of every contiguous comment run in which any line's comment text
-# passes the named predicate. A trailing comment on a code line starts no run.
 cr_run_lines_with() {
   local predicate="$1" line n=0 start=0 cue=0 i
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -144,14 +123,10 @@ cr_run_lines_with() {
   return 0
 }
 
-# A contiguous comment run with any license cue is exempt from origin-note whole: a NOTICE
-# header states its license once and attributes on a separate line.
 cr_license_block_lines() {
   cr_run_lines_with cr_has_license_cue "$1"
 }
 
-# A workaround comment run is justified whole when any of its lines carries the link or
-# removal condition, so a condition wrapped onto the next line still counts.
 cr_justified_run_lines() {
   cr_run_lines_with cr_has_workaround_justification "$1"
 }
@@ -165,19 +140,14 @@ cr_add_shape() {
   REPLY+="${REPLY:+$'\n'}$1"
 }
 
-# The same over comment text already extracted from a line, or joined from two lines.
-# $2: the line sits in a license block; $3: the line sits in a justified comment run.
 cr_detect_shapes_text() {
   local ct="$1" in_license_block="${2:-0}" in_justified_run="${3:-0}"
   REPLY=""
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
   local lc="${ct,,}"
 
-  # Every tier-1 cue is a whole phrase: the start boundary keeps `formerly` out of `reformerly`
-  # and `changed to` out of `unchanged to`; the end boundary keeps `used to` out of `used tokens`.
   local sb='(^|[^[:alnum:]])' eb='([^[:alnum:]]|$)'
 
-  # history-narration (tier 1): the comment narrates what the code used to be.
   if [[ "$lc" =~ ${sb}(used[[:space:]]to|no[[:space:]]longer|previously|formerly)${eb} ]] ||
     [[ "$lc" =~ ${sb}(changed[[:space:]](from|to)|renamed[[:space:]](from|to)|refactored[[:space:]](from|to|into))${eb} ]] ||
     [[ "$lc" =~ ${sb}(we[[:space:]](switched|changed|pivoted|migrated)|this[[:space:]](used[[:space:]]to|was[[:space:]](previously|formerly)))${eb} ]] ||
@@ -185,26 +155,18 @@ cr_detect_shapes_text() {
     cr_add_shape 'history-narration'
   fi
 
-  # plan-reference (tier 1): references a work plan / session / changeset, not the code.
   if [[ "$lc" =~ ${sb}(per[[:space:]]the[[:space:]]plan|as[[:space:]]planned|replaces[[:space:]]the[[:space:]]old)${eb} ]] ||
     [[ "$lc" =~ ${sb}in[[:space:]]this[[:space:]](pr|change|refactor|commit|session)${eb} ]] ||
     [[ "$lc" =~ ${sb}(task|plan|phase|step)[[:space:]]#?[0-9]+[[:space:]]+(of|in)[[:space:]]the[[:space:]]plan${eb} ]]; then
     cr_add_shape 'plan-reference'
   fi
 
-  # conversational-antecedent (tier 1): addresses the requester / the producing conversation.
   if [[ "$lc" =~ ${sb}(per[[:space:]]your[[:space:]]request|as[[:space:]]requested|per[[:space:]]our[[:space:]](conversation|discussion|chat))${eb} ]] ||
     [[ "$lc" =~ ${sb}as[[:space:]](you|we)[[:space:]](asked|requested|discussed|mentioned|said|wanted|decided)${eb} ]] ||
     [[ "$lc" =~ ${sb}(you[[:space:]](asked|wanted|mentioned|requested)|like[[:space:]]you[[:space:]]said)${eb} ]]; then
     cr_add_shape 'conversational-antecedent'
   fi
 
-  # origin-note (tier 1): the comment names where the block came from or when it was
-  # added. The cue must open the comment or a clause, be whole words, and carry an origin
-  # VERB, so a description ("bytes copied from the buffer") or a bare date is not a finding;
-  # attribution:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
-  # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
-  # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from${eb} ]] ||
       [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?${eb} ]]; then
@@ -212,9 +174,6 @@ cr_detect_shapes_text() {
     fi
   fi
 
-  # history-narration-weak (tier 2): cues that usually narrate the past but also open ordinary
-  # prose ("as before the loop starts", "the old value is compared"), so a person decides.
-  # `replaces the old` is plan-reference's, so it is blanked before the `the old <word>` cue.
   local wk="$lc" rre='replaces[[:space:]]+the[[:space:]]+old'
   while [[ "$wk" =~ $rre ]]; do wk="${wk/"${BASH_REMATCH[0]}"/ }"; done
   if [[ "$wk" =~ ${sb}(as[[:space:]]+before|always[[:space:]]+used)${eb} ]] ||
@@ -223,8 +182,6 @@ cr_detect_shapes_text() {
     cr_add_shape 'history-narration-weak'
   fi
 
-  # unjustified-workaround (tier 2): the comment names a workaround and gives neither a link
-  # nor a removal condition, so nothing tells a reader when the workaround can go.
   local workaround=0
   if cr_has_workaround_cue "$ct"; then
     workaround=1
@@ -233,9 +190,6 @@ cr_detect_shapes_text() {
     fi
   fi
 
-  # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
-  # Sanctioned TODO(#issue) is exempt, and so is a workaround comment, whose reference is the
-  # justification the class above asks for.
   if ((!workaround)) && ! cr_is_sanctioned_todo "$ct"; then
     if [[ "$lc" =~ (see[[:space:]]+(pr|mr|issue)|(^|[^[:alnum:]])(pr|issue|mr)[[:space:]]*#?[0-9]|github\.com/[^[:space:]]+/(pull|issues)/[0-9]+|[a-z0-9_.-]+/[a-z0-9_.-]+#[0-9]+|(^|[^[:alnum:]_.-])[a-z0-9][a-z0-9_.-]{2,}#[0-9]+([^[:alnum:]]|$)|from[[:space:]]+branch|from[[:space:]]+(the[[:space:]]+)?[a-z0-9][a-z0-9._/-]*[[:space:]]+branch|in[[:space:]]this[[:space:]]session([^[:alnum:]]|$)) ]] ||
       [[ "$lc" =~ (ticket|issue|jira|linear)([[:space:]]#?[a-z0-9]*-?[0-9]|-[0-9]) ]]; then

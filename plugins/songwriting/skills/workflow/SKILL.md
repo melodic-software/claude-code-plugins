@@ -52,7 +52,7 @@ the plugin-root `../../README.md` "Method content and the author seam".
 | scansion, meter, prosody, phrasing, stability, lyric-melody fit | `/songwriting:meter-prosody` |
 | form, song forms, hook, repetition, verse, bridge, box model | `/songwriting:song-form` |
 | co-write protocol, Title Game, titles, high-volume line/section dumps | `/songwriting:co-write` |
-| diagnose a draft, demo review, pre-lock audit, variations, rewrite | `/songwriting:diagnose` |
+| diagnose a draft, demo review, pre-lock audit, variations, rewrite | `/songwriting:revise` |
 | daily practice curriculum, numbered exercises | `/songwriting:practice` |
 | Suno v5.5 prompt formatting (separate capability) | `/songwriting:suno` |
 
@@ -105,7 +105,7 @@ dive. Every scenario routes through
   re-explain here.
 - If the user wants step-by-step guidance, run `coach`: ask one question, wait, apply Pat's tool,
   surface the next choice point. Never list-and-leave; never monologue 14 steps.
-- If the user gives a draft, that is diagnosis. Invoke `/songwriting:diagnose` via the Skill tool (`demo` for any
+- If the user gives a draft, that is diagnosis. Invoke `/songwriting:revise` via the Skill tool (`demo` for any
   stage, `diagnose` for near-complete).
 - If the user pastes an incomplete fragment / idea / half-song, route to `fragment` or `idea` here.
 - If a session is heading toward line emission and no writer voiceprint exists, building one is
@@ -136,7 +136,7 @@ override wins over the bundled skill default, first match, per that file's "Temp
 - Scansion, prosody, and melody fit: /songwriting:meter-prosody.
 - Song structure, hooks, and bridges: /songwriting:song-form.
 - Co-write rules, titles, and line dumps: /songwriting:co-write.
-- Draft diagnosis, audit, and rewrites: /songwriting:diagnose.
+- Draft diagnosis, audit, and rewrites: /songwriting:revise.
 - Daily practice curriculum: /songwriting:practice.
 - Suno v5.5 prompt formatting: /songwriting:suno.
 

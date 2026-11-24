@@ -5,7 +5,7 @@ import { evaluate, truthy } from "./gate-expression.mjs";
 
 // The one pin every select-model-credential step in the given workflows names.
 export function selectPin(...workflowTexts) {
-  const pins = new Set(workflowTexts.flatMap((text) => [...text.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@([0-9a-f]{40})/g)].map((m) => m[1])));
+  const pins = new Set(workflowTexts.flatMap((text) => [...text.matchAll(/uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@(main)/g)].map((m) => m[1])));
   assert.equal(pins.size, 1, `one select-model-credential pin, found ${[...pins].join(", ")}`);
   return [...pins][0];
 }

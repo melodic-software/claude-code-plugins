@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for comment-tooling-probe.sh.
-#
-# Proves the probe never fails on a missing tool and every absent layer names the
-# capability lost. Absence is simulated with an emptied PATH and an empty PYTHONPATH.
 set -u
 
 PROBE="$(cd "$(dirname "$0")" && pwd)/comment-tooling-probe.sh"
@@ -64,8 +60,6 @@ fi
 
 EMPTY="$(mktemp -d)"
 trap 'rm -rf "$EMPTY"' EXIT
-# BASH must be an absolute path: with PATH emptied the run would die at 127 before
-# the probe executes, and the assertions below would pass vacuously.
 BASH_ABS="$(command -v bash)"
 bare="$(PATH="$EMPTY" PYTHONPATH="$EMPTY" "$BASH_ABS" "$PROBE" 2>/dev/null)"
 bare_rc=$?

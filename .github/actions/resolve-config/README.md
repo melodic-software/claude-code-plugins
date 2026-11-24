@@ -13,6 +13,7 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `activity` | empty | The activity to select from the lane's slots |
 | `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`, and `resolve-issue` for the upkeep and release intake model jobs): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
+| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran; when set, the vocabulary and trusted-actor list are read from under it instead |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |
 | `event-name`, `event-path` | the run's event | Decide an `events` predicate |
@@ -23,7 +24,10 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
 It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
-and `.github/standards/github-actions-conventions/vocabulary.json`. The lane rules
+and `.github/standards/github-actions-conventions/vocabulary.json`. With `standards-path` set, it
+reads the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
+`components/trusted-actors/` under that checkout instead; a path there that resolves outside it is
+an error, as under `base-path`. The lane rules
 ([`lane-rules.json`](lane-rules.json)), per-leaf rules ([`activity-rules.json`](activity-rules.json))
 effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
 ([`patch-rules.json`](patch-rules.json), validated by
@@ -36,9 +40,8 @@ own base checkout.
 keyed by repository id ([ADR 0085](../../../docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)
 Decision 2): `repository` (a label for readers; the id is the key), `lanes` (each lane the
 repository may run, mapping each activity to its effect, which `effect-grants.json` turns into
-permissions), `trusted-actors` (actors trusted in that repository beyond the trusted-actor list,
-in its `actors` entry shape) and `ci-workflows-commits` (the ci-workflows commits whose lane
-reusables may mint). A repository with no row, or a lane or activity missing from its row, gets no
+permissions) and `trusted-actors` (actors trusted in that repository beyond the trusted-actor
+list, in its `actors` entry shape). A repository with no row, or a lane or activity missing from its row, gets no
 token. Today's rows reproduce what each repository's own configuration grants; this action does
 not read the file, and the broker reads it only after its one-time change (ADR 0085 Decision 7).
 No lane patch can change it or the trusted-actor list: every [patch rules](patch-rules.json) row
@@ -242,6 +245,8 @@ A job that uses this action:
 - Leaves it without `continue-on-error`. An invalid config fails red; it is never a skip and never
   `proceed=false`.
 - Passes `config-path` only from a test caller, never from a production dispatch input.
+- Passes `standards-path` only from a `download-standards` step that ran before any head code:
+  head code shares `$RUNNER_TEMP`, where that checkout sits.
 - Reads `args` from the file at `output-path`, never from a step output.
 
 ## Tests

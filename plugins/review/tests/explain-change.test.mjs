@@ -819,7 +819,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
-    assert.match(skill, /`\/source-control:pull-request view <url> --diff --out <dir>\/pr\.diff`, where `<url>` is the `url` in `facts\.json`/);
+    assert.match(skill, /`\/source-control:pull-request view <url> --diff --out <dir>\/pr\.diff` \(if enabled\), where `<url>` is the `url` in `facts\.json`/);
     assert.match(skill, /on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it/);
     assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
     assert.doesNotMatch(skill, /--publish-gate --repo/);

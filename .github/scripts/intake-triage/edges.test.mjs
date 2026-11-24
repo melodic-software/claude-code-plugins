@@ -226,7 +226,6 @@ describe("writeEdges", () => {
       "::notice title=apply-verdict::blocked-by edge not written: #7 blocked by #12, GitHub refused it as a cycle (the reverse edge exists)",
     ]);
     assert.ok(!fake.calls.some(({ method }) => method === "DELETE"));
-    // Not resent past the one 422, and the edges are not re-read for it.
     assert.equal(fake.calls.filter(({ method, path }) => method === "GET" && path.includes("/dependencies/blocked_by")).length, 1);
   });
 

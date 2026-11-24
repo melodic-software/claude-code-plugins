@@ -381,6 +381,16 @@ session by `CLAUDE_CODE_REMOTE`, the only entrypoint variable it branches on.
 - **`reg` (Windows) and `defaults` (macOS), required for an optional feature.** Absent, that one
   managed surface is `skipped` with a visible notice and everything else still runs.
 
+## Next
+
+/harness-config:draft-auto-mode-rules when the audit shows dropped rules or an autoMode block needing drafting.
+
+## Related
+
+- Check grant portability and auto-mode durability: /harness-config:audit-permission-grants.
+- Check settings correctness outside permission plane: /harness-config:audit.
+- Audit CLAUDE.md and rules: /harness-memory:audit.
+
 ## Gotchas
 
 Failure modes that produce a confidently wrong answer, and the honest limits of what has been
