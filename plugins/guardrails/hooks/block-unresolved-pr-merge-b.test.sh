@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/fixtures/standards-commits-main.json plugins/guardrails/hooks/fixtures/standards-trusted-actors.json
+# test-scope: plugins/guardrails/hooks/fixtures/standards-ref-heads-main.json plugins/guardrails/hooks/fixtures/standards-trusted-actors.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -143,7 +143,7 @@ run "pr-verify: a scope read that fails with an error other than 404 fails open"
 assert_contains "failed scope read -> runs unchecked" "$OUT" "for its pr-verify verdict"
 
 STD_FIX="$(dirname "${BASH_SOURCE[0]}")/fixtures"
-STD_SHA="$(jq -r .sha "$STD_FIX/standards-commits-main.json")"
+STD_SHA="$(jq -r .object.sha "$STD_FIX/standards-ref-heads-main.json")"
 STD_HUMAN="$(jq -r '[.actors[] | select(.kind == "human")][0].id' "$STD_FIX/standards-trusted-actors.json")"
 pv_std() {
   pv_scenario
@@ -151,12 +151,14 @@ pv_std() {
   jq --arg s "$1" --arg t "$(jq -c --argjson u "$STD_HUMAN" '.actors |= map(select(.id != $u))' "$STD_FIX/standards-trusted-actors.json")" \
     '.data.repository.s = {text: $s} | .data.repository.t.text = $t' \
     "$FIX/graphql_scope.json" >"$FIX/scope.next" && mv "$FIX/scope.next" "$FIX/graphql_scope.json"
-  cp "$STD_FIX/standards-commits-main.json" "$FIX/commits_main.json"
+  cp "$STD_FIX/standards-ref-heads-main.json" "$FIX/ref_heads_main.json"
+  printf '{"sha":"%s"}' "$(printf 'f%.0s' {1..40})" >"$FIX/commits_main.json"
   cp "$STD_FIX/standards-trusted-actors.json" "$FIX/contents_trusted-actors.json"
 }
 pv_std $'pr_open_state: ready\ntrusted_actors_source: standards # opt in\nstandards_repository: acme/standards\n'
 run "pr-verify: opted in, the standards list judges the author" 'gh pr merge 42 --auto' 2
-assert_contains "opted in -> resolves standards main once" "$(calls)" "repos/acme/standards/commits/main"
+assert_contains "opted in -> resolves standards main by its full ref" "$(calls)" "repos/acme/standards/git/ref/heads/main"
+assert_absent "opted in -> never commits/main, which a tag named main answers" "$(calls)" "acme/standards/commits/"
 assert_contains "opted in -> reads the list at that commit" "$(calls)" "repos/acme/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD_SHA"
 pv_std $'trusted_actors_source: repository\n'
 run "pr-verify: trusted_actors_source repository keeps the copy" 'gh pr merge 42 --auto' 0
@@ -170,7 +172,7 @@ assert_contains "unknown source -> runs unchecked, naming it" "$OUT" "trusted_ac
 pv_std $'trusted_actors_source: standards\n'
 run "pr-verify: opted in with no standards_repository fails open" 'gh pr merge 42 --auto' 0
 assert_contains "no standards_repository -> runs unchecked, naming the key" "$OUT" "needs standards_repository as <owner>/<repo>"
-assert_absent "no standards_repository -> no commits read" "$(calls)" "/commits/main"
+assert_absent "no standards_repository -> no commits read" "$(calls)" "/git/ref/heads/main"
 pv_std $'trusted_actors_source: standards\nstandards_repository: not a repo\n'
 run "pr-verify: a malformed standards_repository fails open" 'gh pr merge 42 --auto' 0
 assert_contains "malformed standards_repository -> runs unchecked" "$OUT" "needs standards_repository as <owner>/<repo>"
@@ -178,9 +180,9 @@ pv_std $'trusted_actors_source: elsewhere\n'
 jq '.data.repository.w = null' "$FIX/graphql_scope.json" >"$FIX/scope.next" && mv "$FIX/scope.next" "$FIX/graphql_scope.json"
 run "pr-verify: a base with no pr-verify never reads the trust source" 'gh pr merge 42 --auto' 0
 assert_absent "no pr-verify -> no unchecked notice" "$OUT" "for its pr-verify verdict"
-assert_absent "no pr-verify -> no standards read" "$(calls)" "/commits/main"
+assert_absent "no pr-verify -> no standards read" "$(calls)" "/git/ref/heads/main"
 pv_std $'trusted_actors_source: standards\nstandards_repository: acme/standards\n'
-rm -f "$FIX/commits_main.json"
+rm -f "$FIX/ref_heads_main.json"
 run "pr-verify: standards main unreadable fails open" 'gh pr merge 42 --auto' 0
 assert_contains "standards unreadable -> runs unchecked" "$OUT" "for its pr-verify verdict"
 pv_std $'trusted_actors_source: standards\nstandards_repository: acme/standards\n'

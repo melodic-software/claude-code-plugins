@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-commits-main.json plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-trusted-actors.json
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-ref-heads-main.json plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-trusted-actors.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # Offline: get-statuses against a gh stub. The plain answer's shape is the GraphQL
 # Issue.issueFieldValues read of one issue (melodic-software/claude-code-plugins,
@@ -39,11 +39,12 @@ done
 printf '%s\n' "$args" >>"$GH_STUB_LOG"
 [[ -z "${GH_STUB_ERR:-}" ]] || { printf '%s\n' "$GH_STUB_ERR" >&2; exit 1; }
 case "$*" in
-*acme/standards/commits/main*)
+*acme/standards/git/ref/heads/main*)
   [[ -n "${GH_STUB_STD_COMMIT:-}" ]] || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
-  jq -r .sha "$GH_STUB_STD_COMMIT"
+  jq -r .object.sha "$GH_STUB_STD_COMMIT"
   exit 0
   ;;
+*acme/standards/commits/main*) printf '%s\n' ffffffffffffffffffffffffffffffffffffffff; exit 0 ;;
 *acme/standards/contents/components/trusted-actors/trusted-actors.json\?ref=*) src="$GH_STUB_ACTORS" ;;
 *contents/trust/actors.json*) src="$GH_STUB_ACTORS" ;;
 *contents/trust/model.yaml*) src="$GH_STUB_MODEL" ;;
@@ -269,9 +270,9 @@ answer "$unmapped" "i1=$(issue confirmed "$(ev add 100 confirmed)")"
 ANSWER="$unmapped" trust_fails 1 "a counted state the model does not map"
 
 STD_FIX="$(cd "$(dirname "$S")" && pwd)/fixtures"
-STD_COMMIT="$STD_FIX/standards-commits-main.json"
+STD_COMMIT="$STD_FIX/standards-ref-heads-main.json"
 STD_LIST="$STD_FIX/standards-trusted-actors.json"
-STD_SHA="$(jq -r .sha "$STD_COMMIT")"
+STD_SHA="$(jq -r .object.sha "$STD_COMMIT")"
 STD_HUMAN="$(jq -r '[.actors[] | select(.kind == "human")][0].id' "$STD_LIST")"
 STD_OUTSIDER="$(jq -r '[.actors[].id] | max + 1' "$STD_LIST")"
 STD_PATH=components/trusted-actors/trusted-actors.json
@@ -283,12 +284,13 @@ answer "$STD_ANSWER" \
 GH_STUB_STD_COMMIT="$STD_COMMIT" ACTORS_FILE="$STD_LIST" BINDING="$STD_BINDING" ANSWER="$STD_ANSWER" run --field "Work status" "${ids[@]}" "github:p/q#1"
 assert_eq "a standards list → exit 0" "0" "$RC"
 assert_eq "a standards list decides as the repository's would" "ready|needs-human" "$(st 3)|$(st 1)"
-assert_eq "standards main is resolved once for every repository" "1" "$(grep -c 'acme/standards/commits/main' "$LOG")"
+assert_eq "standards main is resolved once for every repository, by its full ref" "1" "$(grep -c 'acme/standards/git/ref/heads/main' "$LOG")"
+assert_eq "standards main is never read as commits/main, which a tag named main answers" "0" "$(grep -c 'acme/standards/commits/' "$LOG")"
 assert_eq "the standards list is read once, at that commit" "1" "$(grep -c "acme/standards/contents/$STD_PATH?ref=$STD_SHA" "$LOG")"
 assert_eq "the item repository's list is not read" "0" "$(grep -c 'contents/trust/actors.json' "$LOG")"
 assert_contains "the model is still read from the item repository" "$(cat "$LOG")" "repos/o/r/contents/trust/model.yaml"
 NOT_A_SHA="$TMP_ROOT/not-a-sha.json"
-jq '.sha = "not-a-sha"' "$STD_COMMIT" >"$NOT_A_SHA"
+jq '.object.sha = "not-a-sha"' "$STD_COMMIT" >"$NOT_A_SHA"
 ANSWER="$STD_ANSWER" BINDING="$STD_BINDING" trust_fails 5 "standards main unread"
 GH_STUB_STD_COMMIT="$NOT_A_SHA" ACTORS_FILE="$STD_LIST" BINDING="$STD_BINDING" trust_fails 3 "standards main that is not a commit"
 GH_STUB_STD_COMMIT="$STD_COMMIT" ACTORS_FILE=404 BINDING="$STD_BINDING" trust_fails 3 "a standards list that is absent"

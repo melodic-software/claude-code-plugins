@@ -75,7 +75,7 @@ function defaultBranch(git, root) {
  */
 function standardsList(root, standards) {
   const api = (...args) => spawnSync("gh", ["api", ...args], { cwd: root, encoding: "utf8", timeout: 30000 });
-  const main = api(`repos/${standards}/commits/main`, "--jq", ".sha");
+  const main = api(`repos/${standards}/git/ref/heads/main`, "--jq", ".object.sha");
   const sha = main.status === 0 ? main.stdout.trim() : "";
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`${standards} main could not be resolved`);
   const read = api("-H", "Accept: application/vnd.github.raw", `repos/${standards}/contents/${STANDARDS_LIST}?ref=${sha}`);

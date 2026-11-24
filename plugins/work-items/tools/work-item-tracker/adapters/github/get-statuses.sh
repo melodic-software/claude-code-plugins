@@ -70,7 +70,7 @@ fetch_repo_file() {
 fetch_standards_file() {
   local errfile="$TRUST_TMP/err" sha
   if [[ ! -s "$TRUST_TMP/standards.sha" ]]; then
-    if ! gh api "repos/$1/commits/main" --jq .sha >"$TRUST_TMP/standards.sha" 2>"$errfile"; then
+    if ! gh api "repos/$1/git/ref/heads/main" --jq .object.sha >"$TRUST_TMP/standards.sha" 2>"$errfile"; then
       trust_fail "$(wit_map_gh_error "$(<"$errfile")")" "status_trust: $1 main unread: $(head -n 1 "$errfile")"
     fi
   fi

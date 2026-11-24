@@ -69,6 +69,7 @@ graphql)
   [[ -f "$fix/contents_error" ]] && { echo "gh: HTTP 500" >&2; exit 1; }
   f="contents_$(basename "${endpoint%%\?*}")"
   ;;
+*/git/ref/heads/main) f=ref_heads_main.json ;;
 */commits/main) f=commits_main.json ;;
 */ccr/review_threads) f=ccr.json ;;
 */reviews\?*) f=reviews.json ;;

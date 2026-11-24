@@ -1319,7 +1319,7 @@ _bupm_verify() {
   standards)
     [[ "$std" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
       _bupm_unchecked "$sc: trusted_actors_source standards needs standards_repository as <owner>/<repo>" "its pr-verify verdict"
-    _bupm_api "repos/$std/commits/main" --jq .sha || _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    _bupm_api "repos/$std/git/ref/heads/main" --jq .object.sha || _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
     sha="$BUPM_OUT"
     [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || _bupm_unchecked "$std main did not resolve to a commit" "its pr-verify verdict"
     _bupm_api -H 'Accept: application/vnd.github.raw' "repos/$std/contents/components/trusted-actors/trusted-actors.json?ref=$sha" ||
