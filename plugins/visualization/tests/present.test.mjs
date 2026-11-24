@@ -1,8 +1,3 @@
-// /visualization:present: the deck gate (root outside a working tree and reached
-// through no symlink, a plain-text title, K2 slides on an allowlist, medium
-// resolved by the shared medium resolver, the shared publish gate over every file)
-// and the skill's contract (quickstart at run time, no hard-coded type_url, gate
-// before the create call, the create call's title read from the gate).
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -22,7 +17,6 @@ const scratch = realpathSync(mkdtempSync(join(tmpdir(), "present-test-")));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude"), { recursive: true });
-/** The gate with no user layers unless a test names them: an empty home, no project. */
 const checkDeck = ({ layers, ...input }) => gate({ ...input, layers: { home: HOME, project: null, dataDir: null, ...layers } });
 
 let n = 0;
@@ -35,7 +29,6 @@ function deck(slides, index = { v: 4, title: "Talk", order: Object.keys(slides) 
 const slide = (id, body) => `<section id="${id}" style="background:#fbfbf8;padding:128px">${body}</section>`;
 const plain = { cover: slide("cover", "<h1 style=\"font-size:96px\">Merge queues</h1><p>a &lt;b&gt; one = 2 url(x)</p><aside>Hi.</aside>") };
 
-/** A git working tree holding `files` as [path, text, tracked]. */
 function repo(files, ignore = []) {
   const dir = join(scratch, `repo-${(n += 1)}`);
   mkdirSync(join(dir, ".claude"), { recursive: true });
@@ -108,10 +101,8 @@ describe("check-deck", () => {
     ["a style value holding (, \\, or &", '<div style="background:url(https://evil.example/a.png)"></div>'],
     ["an image not uploaded by this session", '<img src="https://evil.example/a.png" alt="x">'],
     ["a style, link, frame, object, form, meta, or base element", "<style>p{}</style>"],
-    // A `>` inside a quoted value does not end the tag.
     ["an event handler", '<div title=">" onclick="alert(1)">x</div>'],
     ["an image not uploaded by this session", '<img alt=">" src="https://evil.example/x.png">'],
-    // `/` is not an attribute separator.
     ["markup the gate cannot parse cleanly", "<img/onerror=alert(1) src=/_blob/abc>"],
     ["an attribute outside the allowlist", '<img srcset="https://evil.example/x.png 1x" src="/_blob/abc">'],
     ["an attribute outside the allowlist", '<img poster="https://evil.example/x.png" src="/_blob/abc">'],
@@ -312,11 +303,9 @@ describe("skill contract", () => {
   });
 });
 
-// The medium resolver owns the medium values, so no skill or eval in this plugin enumerates them.
 describe("no enumerated medium list in the plugin's skills or evals", () => {
   const SKILLS = join(PLUGIN, "skills");
   const EVALS = join(PLUGIN, "evals");
-  /** Every markdown file under skills/ and evals/: the skill text and each eval case's prompt. */
   function files(dir) {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       const path = join(dir, entry.name);
@@ -326,7 +315,6 @@ describe("no enumerated medium list in the plugin's skills or evals", () => {
     });
   }
   const MEDIUM = "(?:terminal|file|artifact|hosted)";
-  // One line at a time: [ \t] never spans a line break.
   const list = new RegExp(`\\b${MEDIUM}[\`"']?(?:[ \\t]*(?:[|/,]|→|->)[ \\t]*|[ \\t]+or[ \\t]+)[\`"']?${MEDIUM}\\b`, "i");
   const tier = /terminal[ \t]*(?:→|->).*file[ \t]*(?:→|->).*artifact/i;
   const found = [...files(SKILLS), ...files(EVALS)];

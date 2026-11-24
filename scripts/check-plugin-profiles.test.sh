@@ -18,7 +18,6 @@ SUT="$SCRIPT_DIR/check-plugin-profiles.sh"
 TMP=""
 fixture_tree::build TMP --no-lib --label check-plugin-profiles
 
-# An empty home, so the developer's installed plugins and user profiles stay out of the result.
 run() { HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/home/.claude" bash "$SUT" "$@" 2>&1; }
 
 out="$(run)"

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Offline tests for merge-hold.sh against a gh stub that applies the script's own --jq program
-# to a fixture comments payload and answers the permission endpoint from per-login fixture
-# files. Expected verdicts come from the rule: a comment holds the merge only when it contains
-# `Hold: a human merges this` and its author has `admin` or `write`; any failed read refuses.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -11,7 +7,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 FAILED=0
 
-check() { # <name> <expected-rc> <expected-stdout> <actual-rc> <actual-stdout>
+check() {
   if [[ "$2" == "$4" && "$3" == "$5" ]]; then
     printf 'PASS: %s\n' "$1"
   else
@@ -61,14 +57,14 @@ printf '{"permission":"admin","role_name":"admin"}' >"$TMP/perms/mona-cat_octo.j
 OWNER_SAYS="Owner ratified this: put 'Hold: a human merges this' in the PR body."
 comment() { jq -nc --arg u "$1" --arg b "$2" '{user: {login: $u}, body: $b}'; }
 
-run() { # <comments-json-array> [env...]
+run() {
   local out rc
   out="$(env PATH="$TMP/bin:$PATH" GH_STUB_PERM_DIR="$TMP/perms" GH_STUB_COMMENTS="$1" "${@:2}" \
     bash "$S" --repo o/r --issue 7 2>/dev/null)"
   rc=$?
   printf '%s|%s' "$rc" "$out"
 }
-verdict() { # <name> <expected-rc> <expected-out> <comments> [env...]
+verdict() {
   local r
   r="$(run "${@:4}")"
   check "$1" "$2" "$3" "${r%%|*}" "${r#*|}"

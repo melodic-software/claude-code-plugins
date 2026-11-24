@@ -72,7 +72,6 @@ if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; the
 else
   fail "ci-status's first step is '$first', not the helper"
 fi
-# Every step that reads through gh_read or pr_read sources it first.
 while IFS= read -r name; do
   body="$(awk -v name="      - name: $name" '$0 == name { on = 1; next } on && /^      - / { exit } on { print }' <<<"$job")"
   if [[ "$body" == *$'        run: |\n          . "$RUNNER_TEMP/gh-read.sh"\n'* ]]; then
@@ -167,8 +166,6 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 NOW=1792800000
 LIMITED="limit 0 $((NOW + 30)) - API rate limit exceeded for installation."
 
-# run <commands>: sources gh-read.sh, then runs <commands>, in one bash -e
-# step. The stops and deadline stay from earlier runs until fresh.
 run() {
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/sleeps"
@@ -178,7 +175,6 @@ run() {
   sleeps=$(paste -sd' ' "$TMP_ROOT/sleeps")
 }
 fresh() { ci_gh_read::reset "$TMP_ROOT" $((NOW + 600)); }
-# check <label> <want-rc> <want-calls> <want-sleeps> [want-out] [refuse-out]
 check() {
   if [[ "$rc" -ne "$2" ]]; then
     fail "$1: expected rc=$2 got rc=$rc out='$out'"
@@ -314,9 +310,6 @@ STUB_NOW=$((NOW + 560)) STUB_SCRIPT='limit 4999 0 61 You have exceeded a seconda
   run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
 check "a later step's wait that would end past the deadline is not taken" 0 1 "" "past the 2026-10-24T00:10:00Z ci-status can wait to"
 
-# jitter <label> <want-rc> <want-calls> <ceiling>... [-- want-out]: as check,
-# but each logged sleep must be a whole number of seconds no greater than its
-# ceiling, one sleep per ceiling, since the waits are random.
 jitter() {
   local label="$1" want_rc="$2" want_calls="$3" want_out='' i s
   shift 3
@@ -376,8 +369,6 @@ STUB_SCRIPT='fail 502 Bad Gateway
 ok second' run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
 jitter "a read that fails once succeeds on its second send" 0 2 5 -- "got second"
 
-# Full jitter: the first wait is drawn from 0 to 5 s, so repeated reads do
-# not all wait the same time, as a fixed backoff would.
 firsts=()
 for _ in $(seq 30); do
   fresh

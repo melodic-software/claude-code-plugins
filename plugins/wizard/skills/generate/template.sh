@@ -12,10 +12,6 @@
 
 set -euo pipefail
 
-# ──────────────────────────────────────────────────────────────────────────
-# Shared library: prompts, output and storage helpers. Same text in all wizards.
-# ──────────────────────────────────────────────────────────────────────────
-
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
   # `|| true`: a terminfo entry may lack a capability, and tput then exits
   # nonzero, which set -e would turn into a silent exit before any prompt.
@@ -42,7 +38,6 @@ if ! { exec 3</dev/tty; } 2>/dev/null; then
   fatal "no interactive terminal (/dev/tty unavailable); run this wizard from a real terminal, not a pipe or CI"
 fi
 
-# The stages section overrides this with its stage count.
 TOTAL_STAGES=0
 
 # --dry-run: walk every stage and print what it would write, writing nothing.
@@ -64,16 +59,15 @@ dry_run() { ((_WIZARD_DRY_RUN)); }
 
 _STAGE_INDEX=0
 ENV_FILE="${ENV_FILE:-.env}"
-# Where ENV_FILE may resolve to without asking (_check_env_target).
 _WIZARD_PROJECT_DIR="$(pwd -P)"
-WRITTEN_ENV=()    # keys saved in ENV_FILE during this run
-WRITTEN_SECRET=() # CI secret names stored during this run
-WRITTEN_VAR=()    # CI variable names stored during this run
-SKIPPED=()        # manual follow-ups: no gh, a gh failure, a declined repo
-_WIZARD_RECORDED=()    # KEY=VALUE pairs kept for the record only (record)
-_WIZARD_TEMPORARY=()   # "KEY: where to delete it" for temporary credentials
-_WIZARD_FIXED=()       # manual steps the person finished by hand (_offer_fix)
-_WIZARD_SECRET_KEYS=() # keys captured with ask_secret, which record refuses
+WRITTEN_ENV=()
+WRITTEN_SECRET=()
+WRITTEN_VAR=()
+SKIPPED=()
+_WIZARD_RECORDED=()
+_WIZARD_TEMPORARY=()
+_WIZARD_FIXED=()
+_WIZARD_SECRET_KEYS=()
 
 # Temp-file hygiene: write_env stages its rewrite in a mktemp file alongside
 # ENV_FILE (same filesystem, so the final mv of a regular file is an atomic
@@ -237,10 +231,6 @@ gate() {
   confirm "$1" || fatal "stopped: $2"
 }
 
-# _offer_fix "what failed" "the one manual step": when a stage fails, show the
-# single step that finishes it by hand instead of only stopping. A yes goes on
-# with the wizard and the closing summary lists the step as finished by hand;
-# anything else ends the wizard with what failed.
 # shellcheck disable=SC2310  # confirm's no-branch is the handled stop; fatal exits directly
 _offer_fix() {
   warn "$1"
@@ -292,14 +282,12 @@ _existing() {
       val="${val:1:${#val}-2}"
       [[ "$val" != *[\\\$\"\`]* ]] || return 1
       ;;
-    *) ;; # unquoted (hand-written line), offer verbatim
+    *) ;;
     esac
   fi
   printf '%s' "$val"
 }
 
-# _ask_prompt "Prompt" CURRENT: the prompt line ask and ask_secret share. The
-# "[Enter keeps current]" hint shows only when a stored value can be kept.
 _ask_prompt() {
   if [[ -n "$2" ]]; then
     printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$1" "$RESET" "$DIM" "$RESET"
@@ -506,7 +494,7 @@ write_env() {
   _valid_key "$__wiz_key"
   _assignable_key "$__wiz_key"
   _check_env_target
-  _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
+  _check_env_ignored
   if ((_WIZARD_DRY_RUN)); then
     printf -v "$__wiz_key" '%s' "$__wiz_value"
     WRITTEN_ENV+=("$__wiz_key")
@@ -539,13 +527,11 @@ write_env() {
   fi
 }
 
-# ── GitHub Actions helpers ────────────────────────────────────────────────
 # portability-ok: storing a secret or variable for GitHub Actions is inherently
 # a GitHub-forge capability — these helpers exist only for stages whose
 # declared destination is GitHub CI, degrade to SKIPPED when gh is absent,
 # and nothing else in this library touches a forge.
 
-# _gh_ready — gh installed and authenticated.
 _gh_ready() {
   command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1
 }
@@ -590,9 +576,6 @@ _gh_read_back() {
   fi
 }
 
-# _gh_set KIND NAME VALUE: the shared body of set_secret/set_var. KIND is both
-# the gh subcommand and the noun every message uses, so the two helpers cannot
-# drift in their refusals or their remediation lines.
 # shellcheck disable=SC2310  # _gh_ready/_resolve_repo are status-returning gates; every false branch is handled
 _gh_set() {
   local kind="$1" name="$2" value="$3" err
@@ -767,7 +750,7 @@ run_wizard() {
   write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
   # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
   write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
-  set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
+  set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN"
   # The check reads the token on stdin and makes one read-only call, so the
   # token is never a command argument. It runs after the token's last write.
   # shellcheck disable=SC2329  # prove_credential calls it by name

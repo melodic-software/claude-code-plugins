@@ -53,8 +53,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 . scripts/lib/hook-configs.sh || exit 2
 
 commands=0
-# Findings are buffered and printed once, sorted under LC_ALL=C, so the order
-# never depends on glob collation, jq key order or the walk.
 FINDINGS=()
 finding() {
   FINDINGS+=("$1")
@@ -63,16 +61,13 @@ print_findings() {
   ((${#FINDINGS[@]} == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
 }
 
-# Scripts shape (a) scans, keyed by path, each mapped to one declaring site.
 declare -A SCRIPTS=()
 
-# plugin_of <file>: plugins/<name> for any file under plugins/<name>/.
 plugin_of() {
   local rest="${1#plugins/}"
   printf 'plugins/%s' "${rest%%/*}"
 }
 
-# consider <file> <where> <form> <command-line>
 consider() {
   local file="$1" where="$2" form="$3" cmd="$4" plugin seg word path first shebang
   local -a segs words
@@ -81,9 +76,6 @@ consider() {
   cmd="${cmd//&&/;}"
   cmd="${cmd//||/;}"
   cmd="${cmd//|/;}"
-  # ponytail: splits on ; && || | even inside quotes, and skips only `exec` and
-  # VAR= as leading words (`env`, `timeout`, `nice` hide the script); no
-  # registered command has either shape today.
   IFS=';' read -r -a segs <<<"$cmd"
   for seg in "${segs[@]}"; do
     read -r -a words <<<"$seg" || true
@@ -117,8 +109,6 @@ consider() {
   return 0
 }
 
-# on_hook <file> <where> <form> <args> <command> <argv>. A non-array `args`
-# leaves the command line unreadable, so it is a finding as well as a command.
 # shellcheck disable=SC2329  # called by hook_configs::scan by name
 on_hook() {
   if [[ "$4" == other ]]; then
@@ -127,8 +117,6 @@ on_hook() {
   consider "$1" "$2" "$3" "$6"
 }
 
-# on_unreadable <surface> <file> <where> <detail>: every unreadable surface,
-# an unparsable manifest included, is a finding.
 # shellcheck disable=SC2329  # called by hook_configs::scan by name
 on_unreadable() {
   case "$1" in
@@ -162,11 +150,6 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
     prev="$line"
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" == *slow-shape-ok:* || "$above" == *slow-shape-ok:* ]] && continue
-    # One simple command at a time: a bound counts only when it reads the file
-    # itself (`tail -c N -- "$T"`), not from an earlier command on the line
-    # (`head -c 1 x; cat "$T"`) or a later pipeline stage (`cat "$T" | head -c`).
-    # ponytail: splits on ; & | inside quotes and $( ) too; that only splits
-    # more finely, never joins a bound to a read it does not govern.
     segline="${line//&&/;}"
     segline="${segline//||/;}"
     segline="${segline//|/;}"

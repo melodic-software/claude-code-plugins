@@ -24,7 +24,6 @@ TEAM_NODE='{"teams":{"nodes":[{"id":"uuid-team-eng"}]}}'
 # pagination/workspace-label cases below for why.
 LABEL_PAGE='{"issueLabels":{"nodes":[{"id":"uuid-label-fix","name":"type: fix"},{"id":"uuid-label-hi","name":"priority: high"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}'
 
-# seed_create [<children-nodes-json>]: the parent's children answer the sibling check, none by default.
 seed_create() {
   lin_reset
   lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
@@ -36,7 +35,6 @@ seed_create() {
     '{issue: {children: {nodes: $n, pageInfo: {hasNextPage: false, endCursor: null}}}}')"
 }
 
-# child_node <number> <state-type> <title> [<completedAt>]: a child as the sibling check selects it.
 child_node() {
   jq -c --arg c "${4:-}" '. + {completedAt: (if ($c | length) > 0 then $c else null end), canceledAt: null}' \
     <<<"$(lin_issue_json "$1" "$2" "$3")"
@@ -68,8 +66,6 @@ rc="$(lin_run "$S" --title "labeled" --labels "type: fix,priority: high")"
 assert_eq "labeled create → exit 0" "0" "$rc"
 assert_contains "label ids are sent, not names" "$(lin_bodies)" '"labelIds":["uuid-label-fix","uuid-label-hi"]'
 
-# An unknown label is REFUSED, not dropped: an item filed without its type or priority
-# label is invisible to the very selection tiers that would have picked it up.
 seed_create
 rc="$(lin_run "$S" --title "x" --labels "type: fix,nonexistent")"
 assert_eq "unknown label → exit 5" "5" "$rc"
@@ -86,15 +82,11 @@ assert_eq "--type is accepted → exit 0" "0" "$rc"
 assert_contains "but reported as ignored" "$(lin_err)" "--type is ignored"
 assert_eq "and type stays null" "null" "$(jq -r '.type' <<<"$(lin_out)")"
 
-# --- the parent link rides in the CREATE input ---
-# One fewer window in which a created item exists without its container.
 seed_create
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "create with a parent → exit 0" "0" "$rc"
 assert_contains "parentId is in the create input" "$(lin_bodies)" '"parentId":"uuid-issue-12"'
 
-# --- a same-titled child of the parent is returned, not filed again (CONTRACT.md "Verbs") ---
-# Open, with whitespace around the stored title: the match is exact after trimming both.
 seed_create "[$(child_node 40 started '  child  ')]"
 rc="$(lin_run "$S" --title "child " --parent "linear:acme/ENG#12")"
 assert_eq "open same-titled child → exit 0" "0" "$rc"
@@ -104,7 +96,6 @@ assert_eq "carrying the parent" "linear:acme/ENG#12" "$(jq -r '.parent_id' <<<"$
 assert_eq "as an open item" "open" "$(jq -r '.state' <<<"$(lin_out)")"
 assert_contains "stderr names the child" "$(lin_err)" "linear:acme/ENG#40"
 
-# Closed an hour ago by completedAt: still blocks.
 seed_create "[$(child_node 41 completed child "$HOUR_AGO")]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "child completed 1h ago → exit 0" "0" "$rc"
@@ -118,39 +109,32 @@ assert_eq "child canceled 1h ago → exit 0" "0" "$rc"
 assert_no_create "and no issue is created for a recently canceled sibling"
 assert_eq "stdout is the canceled child" "linear:acme/ENG#42" "$(jq -r '.id' <<<"$(lin_out)")"
 
-# Completed two days ago, reopened, then canceled an hour ago: the later close time counts.
 seed_create "[$(jq -c --arg d "$TWO_DAYS_AGO" --arg c "$HOUR_AGO" '. + {completedAt: $d, canceledAt: $c}' <<<"$(lin_issue_json 43 canceled child)")]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "child canceled 1h ago after an older completion → exit 0" "0" "$rc"
 assert_no_create "and the older completion time does not let a duplicate through"
 
-# An open match wins over a recently closed one, whatever the order.
 seed_create "[$(child_node 41 completed child "$HOUR_AGO"),$(child_node 40 started child)]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "open and closed siblings → exit 0" "0" "$rc"
 assert_eq "the open sibling is returned" "linear:acme/ENG#40" "$(jq -r '.id' <<<"$(lin_out)")"
 
-# Closed two days ago: does not block.
 seed_create "[$(child_node 41 completed child "$TWO_DAYS_AGO")]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "child completed 2 days ago → exit 0" "0" "$rc"
 assert_contains "and a new issue is created" "$(lin_requests)" "issueCreate"
 assert_eq "returning the new item" "linear:acme/ENG#12" "$(jq -r '.id' <<<"$(lin_out)")"
 
-# Closed with no readable close time counts as closed earlier.
 seed_create "[$(child_node 41 completed child)]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "closed child with no close time → exit 0" "0" "$rc"
 assert_contains "and a new issue is created over it" "$(lin_requests)" "issueCreate"
 
-# A differently titled open child does not block.
 seed_create "[$(child_node 40 started 'other work')]"
 rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "differently titled child → exit 0" "0" "$rc"
 assert_contains "and a new issue is created beside it" "$(lin_requests)" "issueCreate"
 
-# A match on the second children page still blocks: the walk follows endCursor. Routes
-# sharing a pattern are call-ordered, so the second children seeding is page 2.
 CHILDREN_P1="$(jq -cn --argjson n "[$(child_node 40 started 'other work')]" \
   '{issue: {children: {nodes: $n, pageInfo: {hasNextPage: true, endCursor: "c1"}}}}')"
 CHILDREN_P2="$(jq -cn --argjson n "[$(child_node 44 started child)]" \
@@ -167,7 +151,6 @@ assert_no_create "and no issue is created for a sibling on a later page"
 assert_eq "stdout is the page-2 child" "linear:acme/ENG#44" "$(jq -r '.id' <<<"$(lin_out)")"
 assert_contains "the second page was requested with the cursor" "$(lin_bodies)" '"after":"c1"'
 
-# Without --parent nothing is read and the item is created as before.
 seed_create "[$(child_node 40 started child)]"
 rc="$(lin_run "$S" --title "child")"
 assert_eq "same title without --parent → exit 0" "0" "$rc"
@@ -179,7 +162,6 @@ else
   pass "and reads no children"
 fi
 
-# A failed children read exits non-zero rather than creating a possible duplicate.
 lin_reset
 lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
 lin_data 'teams(filter:' "$TEAM_NODE"
@@ -189,9 +171,6 @@ rc="$(lin_run "$S" --title "child" --parent "linear:acme/ENG#12")"
 assert_eq "refused children read → exit 4" "4" "$rc"
 assert_no_create "and nothing is created when the children read fails"
 
-# The children walk is bounded by the declared ceiling: a truncated child list would read
-# as "no duplicate", so an endless feed stops with an error and creates nothing. A fixture
-# copy of the adapter declares a ceiling of 2; the last route repeats, so one page is endless.
 FIX_ADAPTER="$LIN_FIX/adapter"
 mkdir -p "$FIX_ADAPTER"
 cp "$D"/*.sh "$FIX_ADAPTER/"
@@ -208,9 +187,6 @@ assert_no_create "and nothing is created past the ceiling"
 assert_contains "stderr names the parent and the ceiling" "$(lin_err)" "children of linear:acme/ENG#12 passed the declared ceiling of 2"
 assert_eq "the walk stopped one page past the ceiling" "3" "$(grep -c 'children(' <<<"$(lin_requests)")"
 
-# --- ids are validated and RESOLVED before the item is created ---
-# The links are separate operations, so a bad id found afterwards would leave a created
-# item whose declared relationships were never written — an item that then looks ready.
 lin_reset
 rc="$(lin_run "$S" --title "t" --parent "not-an-id")"
 assert_eq "malformed --parent → exit 2" "2" "$rc"
@@ -290,21 +266,12 @@ rc="$(lin_run "$S" --title "x" --labels "type: fix")"
 assert_eq "a null endCursor terminates rather than looping" "0" "$rc"
 assert_eq "and asked for labels exactly once" "1" "$(grep -c 'issueLabels(' <<<"$(lin_bodies)")"
 
-# --- the label walk is BOUNDED, and says which kind of "not found" it means ---
-# A null cursor stops the walk (above); a server that keeps supplying VALID ones does not,
-# and without a ceiling create-item would hang with ALL_LABELS growing. Routes sharing a
-# pattern are call-ordered and the last one repeats, so a single always-more page is exactly
-# the misbehaving server this bound exists for: 50 labels per page against a ceiling of 1000
-# means the walk stops on page 21 rather than never.
 lin_reset
 lin_data 'teams(filter:' "$TEAM_NODE"
 ENDLESS_PAGE="$(jq -cn '{issueLabels: {nodes: ([range(50)] | map({id: "uuid-\(.)", name: "filler: \(.)"})), pageInfo: {hasNextPage: true, endCursor: "always-more"}}}')"
 lin_data 'issueLabels(' "$ENDLESS_PAGE"
 rc="$(lin_run "$S" --title "x" --labels "never: present")"
 assert_eq "an endless label feed terminates → exit 5" "5" "$rc"
-# The message must distinguish truncated-so-it-might-exist from absent-so-create-it. A bare
-# "create them first" against a truncated list sends someone to create a label that is
-# already there — the same wrong-direction failure the org-label fix removes for gitea.
 assert_contains "and says the list was truncated, not that the label is absent" \
   "$(lin_err)" "truncated at the declared ceiling"
 if [[ "$(lin_err)" == *"create them first"* ]]; then
@@ -312,7 +279,6 @@ if [[ "$(lin_err)" == *"create them first"* ]]; then
 else
   pass "and does not tell the operator to create it"
 fi
-# 1000/50 = 20 full pages, and the 21st is what pushes LABEL_SEEN past the ceiling.
 assert_eq "the walk stopped at the ceiling rather than running on" "21" \
   "$(grep -c 'issueLabels(' <<<"$(lin_bodies)")"
 

@@ -40,9 +40,6 @@ printf '| a | <https://fixture.test/f> |\n' >"$repo/scripts/fixtures/hooks-lifec
 g add -A
 g commit -q -m change
 
-# The stub: --dump prints STUB_DUMP and records the files it was given; any
-# other run records its arguments and input, prints STUB_REPORT and exits
-# STUB_EXIT.
 stub="$TMP_ROOT/lychee"
 cat >"$stub" <<'EOF'
 #!/usr/bin/env bash
@@ -61,7 +58,6 @@ chmod +x "$stub"
 # What lychee's parser would extract from docs/a.md at head: no code span URL.
 dump=$'https://kept.test/a\nhttps://new.test/page#section\nhttps://wiki.test/Rule_(programming)\nhttps://host.test/\nhttps://fixture.test/f'
 
-# run [VAR=value ...] -- <script args>: the script in the repo with the stub.
 run() {
   local envs=()
   while [[ $1 != -- ]]; do envs+=("$1"); shift; done
@@ -152,8 +148,6 @@ out="$(run STUB_DUMP=$'https://kept.test/a\nhttps://moved.test/m#f' -- --list "$
 grep -qx 'docs/guide/a.md' "$TMP_ROOT/dump-args" && [[ $out == 'https://moved.test/m#f' ]]
 check $? "a moved and edited file's added link is kept" "out=$out args=$(cat "$TMP_ROOT/dump-args")"
 
-# A link to this repository's base branch is skipped only when its path exists
-# at HEAD: it resolves once the change merges.
 g branch -f trunk
 printf 'Own [adr](https://github.com/o/r/blob/trunk/docs/guide/a.md#x), [gone](https://github.com/o/r/blob/trunk/docs/gone.md).\n' >>"$repo/docs/guide/a.md"
 g commit -q -am self

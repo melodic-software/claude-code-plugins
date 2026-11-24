@@ -59,8 +59,6 @@ for st in completed canceled duplicate; do
   assert_eq "state type '$st' normalizes to closed" "closed" "$(jq -r '.state' <<<"$(lin_out)")"
 done
 
-# The classification is config, not a constant — the same override seam jira gives its
-# statusCategory keys, so a workspace with different conventions is not stuck.
 lin_write_binding '{"done_state_types":["canceled"]}'
 lin_reset
 lin_seed_issue 12 completed
@@ -70,8 +68,6 @@ lin_reset
 lin_seed_issue 12 canceled
 lin_run "$S" "linear:acme/ENG#12" >/dev/null
 assert_eq "and keeps canceled closed" "closed" "$(jq -r '.state' <<<"$(lin_out)")"
-# An empty override would classify every state as open, so a claimed item's completion
-# would never reach the frontier. Refused as a config error.
 lin_write_binding '{"done_state_types":[]}'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "empty done_state_types → exit 3" "3" "$rc"
@@ -89,15 +85,9 @@ lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
     ])]}}')"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "blocked issue → exit 0" "0" "$rc"
-# Two open `blocks` relations: the completed blocker and the `related` relation are both
-# excluded. Counting the completed one is the bug that keeps an item off the frontier
-# forever.
 assert_eq "counts open blocks relations only" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
 assert_eq "no closed-not-completed blocker → won't-do 0" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
 
-# --- a blocker closed without completing (canceled, duplicate) still blocks ---
-# A canceled blocker will never be built, so its dependent leaves the frontier for
-# re-triage rather than graduating; won't-do counts it separately.
 lin_reset
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
   '{issues: {nodes: [($i | .inverseRelations.nodes = [
@@ -109,8 +99,6 @@ lin_run "$S" "linear:acme/ENG#12" >/dev/null
 assert_eq "canceled and duplicate blockers still block" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
 assert_eq "canceled and duplicate blockers count as won't-do" "2" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
 
-# A done_state_types override that leaves out `completed` makes a completed issue open,
-# so a completed blocker keeps blocking, the same as any other open blocker.
 lin_write_binding '{"done_state_types":["canceled"]}'
 lin_reset
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
@@ -147,7 +135,6 @@ lin_seed 'issues(filter:' 200 '{"errors":[{"message":"slow down","extensions":{"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "GraphQL rate limit inside a 200 → exit 8" "8" "$rc"
 
-# An empty node list is a missing ITEM, not an empty success.
 lin_reset
 lin_data 'issues(filter:' '{"issues":{"nodes":[]}}'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"

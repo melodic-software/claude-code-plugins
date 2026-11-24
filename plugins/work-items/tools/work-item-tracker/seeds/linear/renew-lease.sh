@@ -44,9 +44,6 @@ ISSUE_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 MATCH="$(jq -c --argjson h "$LEASE_COMMENT_ID" '[.[] | select(.handle == $h)][0] // empty' <<<"$ENTRIES")"
 if [[ -z "$MATCH" ]]; then
-  # The handle addresses a lease on THIS item. A handle from another item is not a
-  # missing lease, it is the wrong item — exit 7 rather than 5, so a caller that mixed
-  # up two claims sees a conflict rather than concluding the item vanished.
   printf 'linear: no lease with handle %s on %s\n' "$LEASE_COMMENT_ID" "$ID" >&2
   exit "$EX_CONFLICT"
 fi
@@ -65,7 +62,6 @@ if ! wit_linear_lease_live "$LEASE"; then
   exit "$EX_CONFLICT"
 fi
 
-# Live is not enough: an earlier live lease holds the item, in claim's step-4 order.
 while IFS=$'\t' read -r ehandle earlier_lease; do
   if [[ -z "$ehandle" ]] || ! wit_linear_lease_live "$earlier_lease"; then continue; fi
   printf 'linear: lease %s on %s is outranked by the earlier live lease %s; not renewing\n' \

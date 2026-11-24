@@ -58,9 +58,6 @@ for hook in "$HOOKS_DIR"/*.sh; do
   *.test.sh) continue ;;
   *) ;;
   esac
-  # A ref wires the hook when it names the repo-relative path, or the
-  # basename as a path segment rather than a substring of a longer filename:
-  # `gate.sh` must not match a ref that only names `not-gate.sh`.
   ere="$(printf '%s' "$base" | sed 's/[][(){}.^$*+?|\\]/\\&/g')"
   pat="(^|[/\\\\ \"'])${ere}([/\\\\ \"']|$)"
   wired=0

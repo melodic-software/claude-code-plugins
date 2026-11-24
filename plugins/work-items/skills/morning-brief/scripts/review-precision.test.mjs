@@ -1,9 +1,3 @@
-// review-precision.mjs over a hand-built snapshot. Every expected count below is counted by hand
-// from the fixture: the answer shapes are the D5 table (review-discipline.md), pr-unblock's bold
-// reply line (publish-feedback.mjs renderReply) and prose; the sample text is written for this
-// file. PR 101's security repost follows a real shape (a manifest flag re-raised on the next head
-// with a reworded first line, answered "Same flag as on <sha>"); PR 102's line-347 pair follows a
-// Codex finding and a claude-review finding on one line, which is no repost.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -23,7 +17,6 @@ const sha = (c) => c.repeat(40);
 const [A, B, C, D, E, F, H, I] = ["a", "b", "c", "d", "e", "f", "8", "9"].map(sha);
 const CR = "claude-review";
 const SR = "claude-security-review";
-// A lane's reviewed-head record; with no counts it stands for a skipped head, which records none.
 const review = (lane, head, at, findings, inline) => ({ lane, sha: head, at, findings, inline });
 let nextId = 3000;
 const thread = (path, head, root, ...replies) => ({
@@ -61,15 +54,10 @@ function fixture() {
           review(SR, C, T("12", "05")),
         ],
         threads: [
-          // 3000-3001: the table shape, VALID, fixed.
           thread("x.sh", A, lane(CR, "**Quoting bug in `x.sh:12`**", T("10")), human(T("10", "30"), "| Finding | Verdict | Evidence |\n|---|---|---|\n| quoting | VALID, fixed | Fixed in abc1234. |")),
-          // 3002-3003: the pr-unblock line, INCORRECT.
           thread("y.sh", B, lane(CR, "**Off-by-one in the loop**", T("11")), ["melodic-lanes[bot]", T("11", "30"), "**pr-unblock / address-feedback: INCORRECT, left open**\n\nEvidence: `y.sh:4`\n\n```text\nThe loop is inclusive on purpose.\n```"]),
-          // 3004-3005: prose with no label.
           thread("m.json", A, lane(SR, "manifest flag: removing the default turns the check on", T("10", "05")), human(T("10", "40"), "Acknowledged, no change. The owner chose the new default.")),
-          // 3006-3007: the same flag on the next head, reworded, answered by citing the earlier one.
           thread("m.json", B, lane(SR, "manifest flag: the removed default switches the check on for everyone", T("11", "05")), human(T("11", "40"), `Same flag as on aaaaaaa, same disposition: no change. Reasons: https://github.com/example/repo/pull/101#discussion_r${t4root - 1}`)),
-          // 3008: a Codex thread: no lane footer, so no finding.
           thread("y.sh", B, ["chatgpt-codex-connector", T("11", "10"), "**P2: Guard the loop**\n\n<!-- codex-code-review-finding:v1 -->"]),
         ],
         comments: [
@@ -85,14 +73,10 @@ function fixture() {
         mergedAt: T("14"),
         reviews: [review(CR, D, T("10"), 1, 1), review(SR, D, T("10", "05"), 1, 1), review(CR, E, T("11"), 2, 2), review(SR, E, T("11", "05"), 0, 0), review(CR, F, T("12"), 0, 0)],
         threads: [
-          // 3009-3010: prose UNCERTAIN.
           thread("p.md", D, lane(CR, "**The `docs` link at line 5 is broken**", T("10")), human(T("10", "20"), "UNCERTAIN: it depends on the renderer.")),
-          // 3011-3012: the same lane, path and first line on a later head: a repost.
           thread("p.md", E, lane(CR, "**The docs link at line 7 is broken**", T("11")), human(T("11", "20"), "VALID (defer), filed #250.")),
-          // 3013-3014 and 3015-3016: Codex and claude-review on one line; prose VALID.
           thread("q.sh", E, ["chatgpt-codex-connector", T("11", "01"), "**P2: Guard the clock read**"], human(T("11", "25"), "| Finding | Verdict |\n|---|---|\n| clock | VALID, fixed |")),
           thread("q.sh", E, lane(CR, "**The clock fallback fails under set -u**", T("11")), human(T("11", "26"), "Same defect as the Codex thread on this line: VALID, fixed in f2fc66f.")),
-          // 3017-3018: a Classification column, VALID (defer) with a forward tracker id.
           thread("s.yml", D, lane(SR, "token scope wider than the job needs", T("10", "05")), human(T("10", "30"), "| # | Finding | Classification | Evidence |\n|---|---|---|---|\n| 1 | scope | VALID (defer) | Structural; filed #250. |")),
         ],
         comments: [],
@@ -104,14 +88,11 @@ function fixture() {
         mergedAt: T("15"),
         reviews: [review(CR, H, T("10"), 1, 1), review(SR, H, T("10", "05"), 1, 1), review(CR, I, "2026-10-29T02:00:00Z", 0, 0)],
         threads: [
-          // 3019-3020: answered only after `until`: unanswered.
           thread("r.sh", H, lane(CR, "**Unchecked exit status**", T("10")), human("2026-10-29T03:00:00Z", "VALID, fixed in 1234567.")),
-          // 3021-3022: VALID (defer) citing only an older item: answered, unlabeled.
           thread("t.sh", H, lane(SR, "secret echoed to the log", T("10", "05")), human(T("10", "30"), "VALID (defer): tracked in #50.")),
         ],
         comments: [],
       },
-      // Merged outside the window: left out.
       { number: 90, headRefName: "old", createdAt: T("01"), mergedAt: "2026-10-26T12:00:00Z", reviews: [review(CR, A, T("02"), 5, 5)], threads: [], comments: [] },
     ],
   };
@@ -140,7 +121,6 @@ test("each answer shape reaches each labeled bucket", () => {
   for (const [shape, text, bucket] of cases) {
     assert.equal(answerBucket(text, 500).bucket, bucket, `${shape}: ${text}`);
   }
-  // The verdict column decides even when another column holds a label word.
   assert.equal(answerBucket("| Finding | Verdict | Evidence |\n|---|---|---|\n| INCORRECT claim? | VALID, fixed | f |", 500).bucket, "valid-fixed");
   assert.deepEqual(bucketOf("VALID (defer): see #50", 500), { bucket: "answered-unlabeled", deferUnlinked: true });
 });
@@ -154,7 +134,6 @@ test("per-lane counts, outcomes and precision over the fixture", () => {
   const result = compute(fixture());
   const { by_author_kind: crBy, ...cr } = result.lanes[CR];
   const { by_author_kind: srBy, ...sr } = result.lanes[SR];
-  // A snapshot that records no author type puts every answered outcome under unknown.
   assert.deepEqual(crBy.unknown, { outcomes: { "valid-fixed": 2, "valid-follow-up": 0, intentional: 1, incorrect: 1, uncertain: 1, "answered-unlabeled": 0 }, labeled: 5, precision: 0.4 });
   assert.deepEqual([crBy["user-unmarked"].labeled, crBy["user-marked"].labeled, crBy.bot.labeled, srBy.unknown.labeled], [0, 0, 0, 1]);
   assert.deepEqual(cr, {
@@ -185,7 +164,6 @@ test("per-lane counts, outcomes and precision over the fixture", () => {
 test("an answer's author kind: a Bot, a User with a D5 marker line, any other User, else unknown", () => {
   assert.equal(authorKind("Bot", "VALID"), "bot");
   assert.equal(authorKind("User", "| # | Finding | Classification |\n\n<!-- d5 finding=1 label=VALID lane=claude[bot] -->"), "user-marked");
-  // Claude Code's attribution line is no marker: only the D5 marker line sets user-marked.
   assert.equal(authorKind("User", "VALID, fixed.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"), "user-unmarked");
   assert.equal(authorKind("User", "VALID, fixed. The `<!-- d5 finding=` marker is optional here."), "user-unmarked");
   assert.equal(authorKind("Mannequin", "VALID"), "unknown");
@@ -194,10 +172,6 @@ test("an answer's author kind: a Bot, a User with a D5 marker line, any other Us
   assert.ok(!AUTHOR_KINDS.includes("person"));
 });
 
-// The fixture with each comment's raw author type recorded as fetch records it. The PR 101 table
-// reply and the PR 102 clock reply carry the D5 marker, and PR 101's summary-only finding is
-// answered by a D5 summary table with its marker on its own line below the table, so a User with
-// the marker answered those three; the lanes App is a Bot; the other User answers carry no marker.
 function fixtureWithTypes() {
   const snap = fixture();
   const marker = "\n\n<!-- d5 finding=1 label=VALID lane=github-actions[bot] -->";
@@ -228,8 +202,6 @@ test("Bot, user-marked and user-unmarked answers on one lane give separate count
   assert.deepEqual(row(cr.unknown), [0, 0, 0, 0, 0, null]);
   const sr = result.lanes[SR].by_author_kind["user-unmarked"];
   assert.deepEqual([sr.outcomes["valid-follow-up"], sr.outcomes["answered-unlabeled"], sr.labeled, sr.precision], [1, 2, 1, 1]);
-  // The split leaves the combined figures equal to the result with author types removed, which
-  // puts every answered outcome under unknown, and the kinds sum to the combined figures.
   const untyped = compute(withoutTypes(fixtureWithTypes()));
   for (const lane of [CR, SR]) {
     const { by_author_kind: split, ...combined } = result.lanes[lane];
@@ -261,14 +233,12 @@ test("a repost is caught by path and first line, and by a citation of the earlie
   const prs = compute(fixture()).prs;
   assert.equal(prs.find((pr) => pr.number === 102).lanes[CR].reposts, 1);
   assert.equal(prs.find((pr) => pr.number === 101).lanes[SR].reposts, 1);
-  // Without the citation the reworded flag is a fresh finding.
   const snap = fixture();
   const reply = snap.prs[0].threads[3].comments[1];
   reply.body = "Acknowledged again, no change.";
   const pr101 = compute(snap).prs.find((pr) => pr.number === 101).lanes[SR];
   assert.equal(pr101.reposts, 0);
   assert.equal(pr101.outcomes["answered-unlabeled"], 2);
-  // A link to the earlier thread's reply alone resolves to that thread's finding.
   reply.body = "No change; see https://github.com/example/repo/pull/101#discussion_r3005";
   assert.equal(compute(snap).prs.find((pr) => pr.number === 101).lanes[SR].reposts, 1);
 });
@@ -286,10 +256,8 @@ test("a D5 table answers the only lane with summary-only findings, unless its ma
     `| # | Finding | Classification | Evidence | Reacted |\n|---|---|---|---|---|\n| 1 | The description omits the default | INCORRECT | It is there. | 👎 |\n\n<!-- d5 finding=1 label=INCORRECT lane=${login} -->`;
   const pr101 = (snap) => compute(snap).prs.find((pr) => pr.number === 101).lanes[CR].outcomes;
   const snap = fixture();
-  // PR 101's code lane has one INCORRECT thread answer already; the D5 row adds the second.
   snap.prs[0].comments[0].body = d5("github-actions[bot]");
   assert.deepEqual([pr101(snap).incorrect, pr101(snap).intentional, pr101(snap).unanswered], [2, 0, 0]);
-  // With the lanes' summary comment present, a marker naming another reviewer answers no lane.
   snap.prs[0].comments.push({ author: "github-actions", createdAt: T("10", "01"), body: `<!-- claude-lane-reviewed-head lane=${CR} sha=${A} -->` });
   assert.equal(pr101(snap).incorrect, 2);
   snap.prs[0].comments[0].body = d5("chatgpt-codex-connector[bot]");
@@ -304,7 +272,6 @@ test("a round is the lanes App's comment opening with the marker, never a quote 
   snap.prs[0].comments.push({ author: "kyle-sexton", createdAt: T("12"), body: "The counter keys on `<!-- pr-unblock:address-feedback-round -->`." });
   snap.prs[0].comments.push({ author: "kyle-sexton", createdAt: T("12", "10"), body: "<!-- pr-unblock:address-feedback-round -->\nNot the App." });
   assert.equal(rounds(snap), 1);
-  // A snapshot that names no App counts the first-line marker from any author.
   delete snap.round_author;
   assert.equal(rounds(snap), 2);
 });
@@ -342,12 +309,10 @@ test("both round counts", () => {
   const snap = fixture();
   snap.rounds_cap.value = 2;
   assert.equal(compute(snap).rounds.lane_review_rounds[CR].over_cap, 2);
-  // A clean head followed by new findings does not end the count.
   snap.prs[1].reviews = [review(CR, D, T("10"), 1, 1), review(CR, E, T("11"), 0, 0), review(CR, F, T("12"), 1, 0), review(CR, A, T("13"), 0, 0)];
   assert.equal(compute(snap).prs.find((pr) => pr.number === 102).lane_review_rounds[CR], 4);
   snap.prs[1].reviews.pop();
   assert.equal(compute(snap).prs.find((pr) => pr.number === 102).lane_review_rounds[CR], null);
-  // A PR no lane reviewed is unreviewed, not never clean.
   snap.prs.push({ number: 104, createdAt: T("08"), mergedAt: T("16"), reviews: [], threads: [], comments: [] });
   const rounds104 = compute(snap).rounds.lane_review_rounds[CR];
   assert.deepEqual([rounds104.unreviewed, rounds104.never_clean], [1, 2]);
@@ -362,7 +327,6 @@ test("an unanswered finding on a resolved thread stays unanswered and is counted
 
 test("a lane comment's versions give one review per reviewed head", () => {
   const body = (lane, head, n, k) => `<!-- claude-lane-reviewed-head lane=${lane} sha=${head} -->\n**${lane}** reviewed \`${head}\`: read 2 of 2 changed file(s); ${n} finding(s), ${k} as inline comments.\n\n## Review`;
-  // Never edited: the body is the one version.
   assert.deepEqual(reviewsOf({ createdAt: T("10"), body: body(CR, A, 2, 1), userContentEdits: { totalCount: 0, nodes: [] } }), [{ lane: CR, sha: A, at: T("10"), findings: 2, inline: 1 }]);
   // Edited: each edit holds a full version, the newest first; the body repeats the newest.
   const edited = { createdAt: T("10"), body: body(SR, B, 0, 0), userContentEdits: { totalCount: 2, nodes: [{ editedAt: T("11"), diff: body(SR, B, 0, 0) }, { editedAt: T("10"), diff: body(SR, A, 1, 1) }] } };
@@ -370,12 +334,10 @@ test("a lane comment's versions give one review per reviewed head", () => {
     { lane: SR, sha: B, at: T("11"), findings: 0, inline: 0 },
     { lane: SR, sha: A, at: T("10"), findings: 1, inline: 1 },
   ]);
-  // A comment without the marker or the counts line records nothing.
   assert.deepEqual(reviewsOf({ createdAt: T("10"), body: "LGTM", userContentEdits: { totalCount: 0, nodes: [] } }), []);
   assert.deepEqual(reviewsOf({ createdAt: T("10"), body: `<!-- claude-lane-reviewed-head lane=${CR} sha=${A} -->\nskipped`, userContentEdits: { totalCount: 0, nodes: [] } }), []);
 });
 
-// Reverse every array and every object's key order: input order must not reach the output.
 function permute(value) {
   if (Array.isArray(value)) return value.map(permute).reverse();
   if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).reverse().map((k) => [k, permute(value[k])]));

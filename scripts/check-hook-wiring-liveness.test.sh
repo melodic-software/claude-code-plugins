@@ -26,9 +26,6 @@ fixture_tree::build TMP --sut "$SUT_SRC"
 mkdir -p "$TMP/.claude/hooks"
 SUT="$TMP/scripts/check-hook-wiring-liveness.sh"
 
-# Minimal settings: env-wired telemetry sink. Command-form and args-form
-# wiring are asserted in their own cases; this fixture names no file
-# outside .claude/hooks/.
 write_settings() {
   cat >"$TMP/.claude/settings.json" <<'EOF'
 {
@@ -47,7 +44,6 @@ write_hook() {
 
 run() { (cd "$TMP" && bash "$SUT" 2>&1); }
 
-# --- 1. Happy path: env-wired sink, no extra scripts -> green. --------------
 write_settings
 write_hook hook-telemetry-sink.sh
 out="$(run)"
@@ -71,7 +67,6 @@ else
 fi
 rm -f "$TMP/.claude/hooks/pr-linkage-mcp-gate.sh"
 
-# --- 3. *.test.sh is out of scope even when unwired. ------------------------
 write_hook hook-telemetry-sink.test.sh
 write_hook pr-linkage-mcp-gate.test.sh
 out="$(run)"
@@ -83,7 +78,6 @@ else
 fi
 rm -f "$TMP/.claude/hooks/"*.test.sh
 
-# --- 4. A command-wired hook (not just env) counts as referenced. -----------
 write_hook extra-gate.sh
 jq --arg cmd 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/extra-gate.sh"' \
   '.hooks.PreToolUse = [{"matcher":"Bash","hooks":[{"type":"command","command":$cmd}]}]' \
@@ -99,7 +93,6 @@ fi
 rm -f "$TMP/.claude/hooks/extra-gate.sh"
 write_settings
 
-# --- 5. Exec-form args also count (command is the interpreter). -------------
 write_hook extra-gate.sh
 cat >"$TMP/.claude/settings.json" <<'EOF'
 {
@@ -132,8 +125,6 @@ fi
 rm -f "$TMP/.claude/hooks/extra-gate.sh"
 write_settings
 
-# --- 6. A longer sibling name must not satisfy a shorter basename. ----------
-# `not-gate.sh` in env would substring-match `gate.sh` under a raw grep -F.
 write_hook gate.sh
 write_hook not-gate.sh
 jq '.env.HOOK_TELEMETRY_SINK = ".claude/hooks/not-gate.sh"' \
@@ -149,7 +140,6 @@ fi
 rm -f "$TMP/.claude/hooks/gate.sh" "$TMP/.claude/hooks/not-gate.sh"
 write_settings
 
-# --- 7. Missing settings.json is a hard usage error, not a silent pass. -----
 rm -f "$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
@@ -160,7 +150,6 @@ else
 fi
 write_settings
 
-# --- 8. Invalid settings.json fails closed. ---------------------------------
 printf '{not json\n' >"$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
@@ -171,7 +160,6 @@ else
 fi
 write_settings
 
-# --- 9. Back to green after the dead script is gone. ------------------------
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
@@ -180,9 +168,6 @@ else
   fail "restored env-only tree should pass (rc=$rc): $out"
 fi
 
-# --- 10. Live tree pin: the checkout this test lives in must itself be green.
-# Running the SUT in place (not the fixture copy) is the honesty proof the
-# fixture cases cannot fake: if a new unwired hook lands beside this test, this assertion fails.
 live_out="$( (cd "$SCRIPT_DIR/.." && bash "$SUT_SRC" 2>&1))"
 live_rc=$?
 if [[ $live_rc -eq 0 ]]; then

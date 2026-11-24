@@ -65,9 +65,6 @@ if [[ -f "$BASELINE" ]]; then
   read_list::into entries "$BASELINE" --comments inline || exit 2
 fi
 
-# matched_baseline <fixture-path> -> print the baseline entry that grandfathers
-# it and return 0, or return 1 when none does. Callers that only need the
-# yes/no answer discard stdout.
 matched_baseline() {
   local path="$1" entry
   for entry in "${entries[@]}"; do
@@ -79,7 +76,6 @@ matched_baseline() {
   return 1
 }
 
-# plugin root that owns a path under plugins/<name>/… -> plugins/<name>
 plugin_root_of_to() {
   local rest="${2#plugins/}"
   printf -v "$1" 'plugins/%s' "${rest%%/*}"
@@ -109,7 +105,6 @@ ere_escape_to() {
   printf -v "$1" '%s' "$__out"
 }
 
-# jq files[] extract, once per evals.json: many fixtures share one grader.
 declare -A EVAL_FILES_VALUES
 eval_files_values_to() {
   local __dest="$1" __path="$2"
@@ -123,7 +118,6 @@ eval_files_values_to() {
   printf -v "$__dest" '%s' "$__v"
 }
 
-# consumed <fixture-path> -> 0 if some grader consumes it
 consumed() {
   local fixture="$1"
   local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
@@ -131,14 +125,13 @@ consumed() {
   local -a skill_tests plugin_other_tests
 
   fixtures_dir="${fixture%/*}"
-  # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
   while [[ "$fixtures_dir" == */* && "${fixtures_dir##*/}" != "fixtures" ]]; do
     fixtures_dir="${fixtures_dir%/*}"
   done
-  evals_dir="${fixtures_dir%/fixtures}" # …/evals
-  skill_dir="${evals_dir%/evals}"       # dir that owns evals/
+  evals_dir="${fixtures_dir%/fixtures}"
+  skill_dir="${evals_dir%/evals}"
   evals_json="$evals_dir/evals.json"
-  rel="${fixture#"$skill_dir"/}" # evals/fixtures/<sub>
+  rel="${fixture#"$skill_dir"/}"
   base="${fixture##*/}"
 
   # Basename matches are bounded by NON-FILENAME characters on both sides:
@@ -168,10 +161,6 @@ consumed() {
     fi
   fi
 
-  # A `claude plugin eval` case consumes a fixture its scaffold.sh, or a seed
-  # script beside the fixtures that some scaffold runs, seeds by name. Seeders
-  # often name the stem without the .txt suffix fixtures carry so no linter
-  # reads them as source.
   local seeder esc_stem stem_re
   local -a seeders=() scaffolds=()
   for seeder in "$evals_dir"/*/scaffold.sh; do
@@ -193,11 +182,6 @@ consumed() {
     fi
   fi
 
-  # Test-file consumption is scoped: a bounded-basename match counts only inside
-  # the OWNING skill, so same-named fixtures in sibling skills are never
-  # conflated. A test elsewhere in the plugin must name the fixture by its
-  # plugin-relative path (fixed string), which is unambiguous across skills.
-  # ALL_TEST_FILES is indexed once below — not `find` per fixture.
   plugin_root_of_to plugin "$fixture"
   plugin_rel="${fixture#"$plugin"/}"
   skill_tests=()
@@ -246,8 +230,6 @@ for f in "${fixtures[@]}"; do
     continue
   fi
   if p="$(matched_baseline "$f")"; then
-    # The entry is shadowing a real orphan, so it has not outlived what it
-    # excuses. scripts/lib/read-list.sh owns the consumed-set.
     read_list::mark_used "$p"
     continue
   fi

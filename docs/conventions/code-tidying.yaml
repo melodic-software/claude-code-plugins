@@ -9,9 +9,3 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
-comment_lint_exclude:
-  # Vendored ci-workflows contract files, byte-identical to the pinned commit so the credential-legs
-  # test runs offline; their comments are upstream's, not ours. Owner decision Q156: "I'm fine with
-  # lint exclusions, but those need to be heavily justified, and they should be far and few between."
-  # https://github.com/melodic-software/architecture/pull/232
-  - '.github/scripts/pr-unblock/fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f/**'

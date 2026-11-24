@@ -25,7 +25,6 @@ set_version() {
     >"$fixture/plugins/$name/.claude-plugin/plugin.json"
 }
 
-# plugin <fixture> <name> <version> — a plugin with one vendored source file.
 plugin() {
   local fixture="$1" name="$2"
   mkdir -p "$fixture/plugins/$name/.claude-plugin" "$fixture/plugins/$name/vendor/pkg"
@@ -33,8 +32,6 @@ plugin() {
   printf 'module.exports = 1;\n' >"$fixture/plugins/$name/vendor/pkg/index.js"
 }
 
-# base_fixture <out-var> → two vendored plugins committed as the base ref; the
-# base ref is HEAD.
 base_fixture() {
   local dir
   fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
@@ -156,8 +153,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a fragment carries the bump only in fragment mode -----------------------
-# add_fragment <fixture> <plugin> <bump>: an added changelog fragment.
 add_fragment() {
   mkdir -p "$1/.changes/$2"
   printf -- '---\nbump: %s\n---\n\n### Fixed\n\n- x\n' "$3" >"$1/.changes/$2/feat-x-0123abcd.md"
@@ -187,7 +182,6 @@ else
 fi
 rm -rf "$f"
 
-# A fragment-mode plugin with no fragment is told to add one, not to bump.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
@@ -219,7 +213,7 @@ echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 git -C "$f" add plugins
 GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com' \
   GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com git_test_config "$f" commit -qm "build(deps): bump pkg"
-run_dependabot_gate() { # <gh-answer> <author>
+run_dependabot_gate() {
   PATH="$f/stub:$PATH" GH_ANSWER="$1" CHANGELOG_PR_AUTHOR="$2" GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
     run_gate "$f" --check-bump "$dependabot_base" 2>&1
 }
@@ -254,7 +248,6 @@ else
 fi
 rm -rf "$f"
 
-# --- deleting the manifest is not an off switch -----------------------------
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 git -C "$f" rm -q plugins/alpha/.claude-plugin/plugin.json
@@ -265,8 +258,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an ADDED skill-level vendor/ tree is in scope --------------------------
-# It installs with the plugin, so it needs a bump.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
@@ -431,9 +422,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a skill-level vendor/ tree needs a bump too ----------------------------
-# plugins/<name>/skills/<skill>/vendor/ installs with the plugin exactly like
-# the plugin-root vendor/, so an unbumped edit never reaches consumers.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/lookup/vendor/pkg"
 echo 'module.exports = 1;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"

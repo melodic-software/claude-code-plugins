@@ -71,7 +71,6 @@ const REGISTRY = [
   "",
 ].join("\n");
 
-// repo({ files, exemptions, shared }) -> root
 function repo({ files = {}, exemptions, shared = [] }) {
   const root = path.join(work, `repo${++n}`);
   mkdirSync(path.join(root, "lib"), { recursive: true });

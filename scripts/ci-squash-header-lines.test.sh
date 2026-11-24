@@ -49,7 +49,6 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# expect <label> <want-rc> <event> <TEXT> [want-out] [unwanted-out]
 expect() {
   local label="$1" want_rc="$2" out rc
   out="$(LC_ALL=C.UTF-8 GITHUB_EVENT_NAME="$3" TEXT="$4" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
@@ -65,14 +64,12 @@ expect() {
 }
 
 PR=pull_request
-# 70 characters, so the word after it starts the second wrapped line.
 PAD='aaaaaaaaa bbbbbbbbb ccccccccc ddddddddd eeeeeeeee fffffffff gggggggggg'
 expect "'committer ' at a wrap point fails" 1 $PR "Closes #1
 
 $PAD committer identity set in the step env." "starts with 'committer '"
 expect "'committer ' at a line start fails" 1 $PR "Closes #1
 committer identity set in the step env." "starts with 'committer '"
-# The other header words are not checked: no evidence they break signing.
 for key in tree parent author gpgsig encoding mergetag; do
   expect "'$key ' at a wrap point passes" 0 $PR "Closes #1
 

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -43,7 +43,11 @@ function commitOf(ref) {
 function pinned(pin) {
   if (!PIN.test(pin)) throw new Error(`ci-workflows pin is not a full commit sha: ${pin}`);
   const dir = join(CACHE, pin);
-  if (existsSync(join(dir, "ready"))) return dir;
+  if (existsSync(join(dir, "ready"))) {
+    const now = new Date();
+    utimesSync(dir, now, now);
+    return dir;
+  }
   mkdirSync(CACHE, { recursive: true });
   const work = mkdtempSync(join(CACHE, `${pin}-`));
   try {

@@ -334,9 +334,6 @@ FNR == 1 {
 END { if (n > 0) finish() }
 '
 
-# The lexer reads every character, so the repository-wide scan is split into
-# one contiguous slice of the sorted list per CPU, each written to its own file
-# and read back in order, which keeps the output the same as a serial run.
 cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)"
 [[ "$cpus" =~ ^[1-9][0-9]*$ ]] || cpus=1
 per=$(((${#files[@]} + cpus - 1) / cpus))
@@ -361,8 +358,6 @@ if ((scan_failed)); then
   exit 2
 fi
 
-# A baselined file's findings are known debt; an entry with none left is stale.
-# The baseline exempts whole files, so a new pipe in a listed file passes too.
 stale=0
 if ((${#baseline[@]} > 0)); then
   declare -A listed=()

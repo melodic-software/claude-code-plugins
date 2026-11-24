@@ -204,10 +204,15 @@ test("the record job's name is the one the release requires to have succeeded", 
   assert.match(job("compare-record"), new RegExp(`^ {2}compare-record:\\n {4}name: ${RECORD_JOB}\\n`));
 });
 
+test("the verdict job's name is the one whose failure keeps a cannot-start release back", async () => {
+  const { VERDICT_JOB } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.match(job("compare-verdict"), new RegExp(`^ {2}compare-verdict:\\n {4}name: ${VERDICT_JOB}\\n`));
+});
+
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
   assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
   assert.match(job("compare-prepare"), /if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false'\n {6}&& github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
-  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
+  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\} target=\{2\}', inputs\.pr, inputs\.head-sha, inputs\.target\)/);
   const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
   const head = "d".repeat(40);
   const run = {
@@ -218,11 +223,66 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     conclusion: "success",
     run_attempt: 1,
     head_sha: "f".repeat(40),
-    display_title: `eval-compare pr=12 head=${head}`,
+    display_title: `eval-compare pr=12 head=${head} target=plugins/demo`,
     repository: { full_name: "o/r" },
     head_repository: { full_name: "o/r" },
   };
-  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head });
+  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.deepEqual(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=plugins/demo/` }, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.equal(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=demo` }, "o/r", "main"), null);
+});
+
+test("a compare run records that compare mode refuses the pull request, after its dispatcher, input and head checks, and runs no arm", async () => {
+  const { stepNamed, steps, outputs, jobIf } = workflowText(text);
+  const names = steps("compare-prepare").map((s) => s.name);
+  const at = (name) => names.indexOf(name);
+  for (const check of ["Check the dispatcher is a trusted human", "Check the compare inputs", "Check the pull request head", "Check a listed human wrote the pull request"]) {
+    assert.ok(at(check) >= 0 && at(check) < at("Build the arm patches"), check);
+  }
+  assert.ok(!names.includes("Check the evals switch"), "compare-prepare stays behind the switch and records no evals-disabled cause");
+  const script = (s) => /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(s.text)[1].replace(/^ {10}/gm, "");
+  const work = mkdtempSync(join(tmpdir(), "cannot-start-"));
+  try {
+    const runIn = (body, env) => {
+      const output = join(work, `out-${Math.random().toString(36).slice(2)}`);
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", body], { cwd: work, env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env }, encoding: "utf8" });
+      return { status: result.status, output: readFileSync(output, "utf8") };
+    };
+    const arms = stepNamed("compare-prepare", "Build the arm patches");
+    mkdirSync(join(work, ".base/.github/scripts/plugin-eval"), { recursive: true });
+    for (const [body, status, output] of [
+      ["exit 0", 0, ""],
+      ['echo refused=true >>"$GITHUB_OUTPUT"; exit 3', 0, "refused=true\ncannot-start=compare-refused\n"],
+      ["exit 3", 3, ""],
+      ["exit 1", 1, ""],
+      ["exit 2", 2, ""],
+    ]) {
+      writeFileSync(join(work, ".base/.github/scripts/plugin-eval/compare-arms.sh"), `${body}\n`);
+      assert.deepEqual(runIn(script(arms), {}), { status, output }, `compare-arms.sh: ${body}`);
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  assert.equal(outputs("compare-prepare")["cannot-start"], "${{ steps.arms.outputs.cannot-start }}");
+  for (const name of ["compare-before", "compare-after"]) {
+    const ctx = (cause) => ({
+      "needs.compare-prepare.result": "success",
+      "needs.compare-prepare.outputs.cannot-start": cause,
+      "github.event_name": "workflow_dispatch",
+    });
+    assert.equal(evaluate(jobIf(name), ctx("")), true, name);
+    assert.equal(evaluate(jobIf(name), ctx("compare-refused")), false, name);
+  }
+  const { CANNOT_START_JOB, CANNOT_START_CAUSES } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.deepEqual(CANNOT_START_CAUSES, ["compare-refused"]);
+  assert.match(job("compare-cannot-start"), new RegExp(`^ {2}compare-cannot-start:\\n {4}name: "${CANNOT_START_JOB}: \\$\\{\\{ needs\\.compare-prepare\\.outputs\\.cannot-start \\}\\}"\\n {4}needs: compare-prepare\\n`));
+  assert.match(job("compare-cannot-start"), /\n {4}permissions: \{\}\n/);
+  for (const cause of [...CANNOT_START_CAUSES, "evals-disabled", "", "other"]) {
+    const ctx = { "needs.compare-prepare.result": "success", "needs.compare-prepare.outputs.cannot-start": cause };
+    assert.equal(evaluate(jobIf("compare-cannot-start"), ctx), CANNOT_START_CAUSES.includes(cause), JSON.stringify(cause));
+  }
+  assert.equal(evaluate(jobIf("compare-cannot-start"), { "needs.compare-prepare.result": "failure", "needs.compare-prepare.outputs.cannot-start": "compare-refused" }), false);
 });
 
 test("cases input reaches stage-suites and run-eval through env, and rejects case+cases together", () => {

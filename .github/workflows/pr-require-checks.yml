@@ -2912,6 +2912,57 @@ jobs:
         uses: $/.github/actions/setup-pinned-shfmt
         with:
           cache-dir: ~/.cache/ci-tools
+      - name: Decide whether the git-hook time budget applies
+        id: hook_budget_scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            merge_group) base='HEAD^1' ;;
+            pull_request) base="origin/$BASE_REF" ;;
+            *) base='' ;;
+          esac
+          if [ -z "$base" ]; then
+            echo applies=true >>"$GITHUB_OUTPUT"
+          elif ! scripts/check-git-hook-time-budget.sh --base "$base" --scope-only >>"$GITHUB_OUTPUT"; then
+            echo applies=true >>"$GITHUB_OUTPUT"
+          fi
+      - name: Install pinned typos for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: _typos.toml
+          paths: lefthook-remote.yml
+          annotations: 'false'
+      - name: Install pinned Go and goimports for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        run: bash .github/scripts/lib/install-pinned-goimports.sh "$RUNNER_TEMP/gobin" "$HOME/.cache/ci-tools"
+      - name: Restore the npm cache for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
+      - name: Install the locked biome and markdownlint-cli2 for the git-hook time budget
+        if: steps.hook_budget_scope.outputs.applies == 'true'
+        timeout-minutes: 2
+        run: |
+          npm ci --ignore-scripts
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >>"$GITHUB_PATH"
+      - name: Verify every git hook stays within its time budget
+        id: git_hook_time_budget
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh git-hook-time-budget {0}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-git-hook-time-budget.sh --base 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-git-hook-time-budget.sh --base "origin/$BASE_REF"
+          else
+            scripts/check-git-hook-time-budget.sh --force
+          fi
       - name: Check performance counter ceilings
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
@@ -2946,6 +2997,7 @@ jobs:
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
             changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
             changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            git-hook-time-budget=${{ steps.git_hook_time_budget.outcome }}
             changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
             marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
@@ -4017,6 +4069,34 @@ jobs:
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'plugins/miro/server/package-lock.json', 'plugins/ai-briefing/skills/generate/output/build/package-lock.json', 'plugins/knowledge/skills/video-digest/extraction/package-lock.json', 'plugins/knowledge/skills/course-digest/extraction/package-lock.json', '.github/actions/resolve-config/package-lock.json') }}
+      - name: Restore the ci-workflows pin cache
+        id: pin_cache
+        uses: actions/cache/restore@v6
+        with:
+          path: /tmp/ci-workflows-at-pin
+          key: ci-workflows-at-pin-${{ github.run_id }}
+          restore-keys: ci-workflows-at-pin-
+      - name: Rebuild each restored ci-workflows pin from its checked objects
+        run: |
+          dir=/tmp/ci-workflows-at-pin
+          mkdir -p "$dir"
+          for old in "$dir"/*; do
+            [ -e "$old" ] || continue
+            pin=${old##*/}
+            new=$(mktemp -d "$RUNNER_TEMP/pin-XXXXXX")
+            if [[ $pin =~ ^[0-9a-f]{40}$ ]] && [ -e "$old/ready" ] && git -C "$new" init -q &&
+              git -C "$new" -c transfer.fsckObjects=true fetch -q --depth 1 --no-tags "file://$old" "$pin" &&
+              [ "$(git -C "$new" rev-parse --verify -q "$pin^{commit}")" = "$pin" ]; then
+              touch "$new/ready"
+              touch -r "$old" "$new"
+              rm -rf "${old:?}"
+              mv "$new" "$old"
+            else
+              echo "::notice::dropped restored pin $pin: it did not rebuild from checked objects"
+              rm -rf "${old:?}" "${new:?}"
+            fi
+          done
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort >"$RUNNER_TEMP/pins-restored.txt"
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -4158,6 +4238,22 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Keep the 20 newest ci-workflows pins
+        id: pins
+        if: github.ref == 'refs/heads/main'
+        run: |
+          dir=/tmp/ci-workflows-at-pin
+          [ -d "$dir" ] || exit 0
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | comm -13 "$RUNNER_TEMP/pins-restored.txt" - | grep -q . || exit 0
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%T@ %f\n' | sort -rn | tail -n +21 |
+            while read -r _ pin; do rm -rf "${dir:?}/$pin"; done
+          echo "new=true" >>"$GITHUB_OUTPUT"
+      - name: Save the ci-workflows pin cache
+        if: steps.pins.outputs.new == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: /tmp/ci-workflows-at-pin
+          key: ${{ steps.pin_cache.outputs.cache-primary-key }}
 
   # THE SUITES A CHANGE ADDS OR CHANGES, TRACED. Each runs under strace
   # (scripts/selection-audit.sh trace), and a tracked file it read whose

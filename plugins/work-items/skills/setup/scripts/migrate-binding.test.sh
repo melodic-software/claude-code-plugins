@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for migrate-binding.sh: a fixture JSON binding and personal override are copied into
-# the convention home's YAML files, read back through the seam's own reader, and the
-# JSON files are left byte-for-byte unchanged.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR
@@ -43,7 +40,6 @@ assert_absent() {
   if [[ ! -e "$2" ]]; then pass "$1"; else fail "$1" "$2 exists"; fi
 }
 
-# fixture <name>: a fresh git repository with a gitignored YAML personal override path.
 fixture() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir"
@@ -52,7 +48,6 @@ fixture() {
   printf '%s\n' "$dir"
 }
 
-# effective <root>: the binding path and effective binding the seam resolves there.
 effective() {
   CLAUDE_PROJECT_DIR="$1" bash -c '
     source "$1"
@@ -61,7 +56,6 @@ effective() {
     wit_effective_binding_json "$path" | jq -S -c .' _ "$BINDING_LIB"
 }
 
-# Case 1: binding plus personal override, default home, values the YAML subset must escape.
 ROOT="$(fixture default-home)"
 cat >"$ROOT/.work-item-tracker.json" <<'EOF'
 {
@@ -89,7 +83,6 @@ assert_eq "binding plus personal override: seam resolves the YAML binding" "$ROO
 expected='{"config":{"github":{"empty":[],"wont_do_labels":["wontfix","invalid"]},"lease_ttl_hours":"6","role_labels":{"human-gated":"needs: human"}},"docs":"Binding: see \"CONTRACT.md\" at a\\path\tend","provider":"github","schema_version":"1.0"}'
 assert_eq "binding plus personal override: seam reads the same values, personal override merged" "$expected" "${read_back#*$'\n'}"
 
-# Case 2: a re-run finds both layers already in YAML and writes nothing.
 cp "$ROOT/docs/conventions/work-items.yaml" "$TEST_TMPDIR/yaml.first"
 out="$(bash "$SCRIPT" --root "$ROOT" 2>&1)"
 assert_eq "re-run: exit 0" 0 "$?"
@@ -97,7 +90,6 @@ assert_contains "re-run: binding already in YAML" "$out" "binding: already-yaml"
 assert_contains "re-run: personal override already in YAML" "$out" "override: already-yaml"
 assert_same_file "re-run: YAML binding unchanged" "$TEST_TMPDIR/yaml.first" "$ROOT/docs/conventions/work-items.yaml"
 
-# Case 3: an existing work-items.yaml with other settings and no final newline.
 ROOT="$(fixture existing-yaml)"
 mkdir -p "$ROOT/docs/conventions"
 printf '# team layer\nai_disclaimer: false' >"$ROOT/docs/conventions/work-items.yaml"
@@ -109,7 +101,6 @@ records="$(awk -f "$SCRIPT_DIR/../../triage/scripts/yaml-subset.awk" "$ROOT/docs
 assert_contains "existing YAML: other settings kept" "$records" $'ai_disclaimer\tfalse'
 assert_contains "existing YAML: binding appended" "$records" $'tracker.provider\tgithub'
 
-# Case 4: a bound convention home receives the files.
 ROOT="$(fixture bound-home)"
 mkdir -p "$ROOT/config/team"
 # shellcheck disable=SC2016 # the backticks are the pointer line's markdown, not a command
@@ -121,8 +112,6 @@ assert_eq "bound home: exit 0" 0 "$?"
 read_back="$(effective "$ROOT")"
 assert_eq "bound home: binding lands in the home" "$ROOT/config/team/work-items.yaml" "${read_back%%$'\n'*}"
 
-# Case 5: a personal override path no .gitignore rule covers stops both layers: a
-# YAML binding alone would leave the JSON personal override unread.
 ROOT="$(fixture not-ignored)"
 : >"$ROOT/.gitignore"
 printf '%s\n' '{"schema_version": "1.0", "provider": "github", "config": {"lease_ttl_hours": 24}}' >"$ROOT/.work-item-tracker.json"
@@ -133,8 +122,6 @@ assert_contains "not ignored: reported" "$out" "override: not-ignored"
 assert_absent "not ignored: no YAML binding" "$ROOT/docs/conventions/work-items.yaml"
 assert_absent "not ignored: no YAML personal override" "$ROOT/docs/conventions/work-items.local.yaml"
 
-# Case 5b: a global excludes file named .gitignore protects no teammate, so it does
-# not count as a repository rule.
 ROOT="$(fixture global-excludes)"
 : >"$ROOT/.gitignore"
 mkdir -p "$TEST_TMPDIR/home"
@@ -147,8 +134,6 @@ assert_eq "global excludes file: exit 3" 3 "$?"
 assert_contains "global excludes file: reported" "$out" "override: not-ignored"
 assert_absent "global excludes file: no YAML personal override" "$ROOT/docs/conventions/work-items.local.yaml"
 
-# Case 6: values the YAML subset cannot carry, or the seam would read as absent,
-# stop before any write.
 ROOT="$(fixture null-value)"
 printf '%s\n' '{"schema_version": "1.0", "provider": "github", "config": {"lease_ttl_hours": 24, "container_label": null, "jira": {"resolutions": {}}}}' >"$ROOT/.work-item-tracker.json"
 err="$(bash "$SCRIPT" --root "$ROOT" 2>&1 >/dev/null)"
@@ -157,14 +142,12 @@ assert_contains "unsupported value: names the null" "$err" "null at config.conta
 assert_contains "unsupported value: names the empty object" "$err" "an empty object at config.jira.resolutions"
 assert_absent "unsupported value: no YAML written" "$ROOT/docs/conventions/work-items.yaml"
 
-# Case 7: no JSON binding writes nothing.
 ROOT="$(fixture no-json)"
 out="$(bash "$SCRIPT" --root "$ROOT" 2>&1)"
 assert_eq "no JSON: exit 0" 0 "$?"
 assert_contains "no JSON: reported" "$out" "binding: no-json"
 assert_absent "no JSON: no YAML written" "$ROOT/docs/conventions/work-items.yaml"
 
-# Case 8: a repository that declined a home keeps the JSON binding.
 ROOT="$(fixture declined)"
 printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' 'declined' '<!-- END GENERATED: convention-home -->' >"$ROOT/AGENTS.md"
 printf '%s\n' '{"schema_version": "1.0", "provider": "github", "config": {"lease_ttl_hours": 24}}' >"$ROOT/.work-item-tracker.json"

@@ -39,9 +39,6 @@ esac
 wit_need_linear_config
 wit_linear_require_scoped_id "$PARENT_ID"
 
-# The container itself is fetched first so a missing parent is exit 5 rather than an
-# empty child list — "no such container" and "a container with no children" are
-# different answers, and the second is legitimately an empty array.
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 PARENT_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 
@@ -92,9 +89,6 @@ while :; do
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
   SEEN=$((SEEN + $(jq '(.nodes // []) | length' <<<"$PAGE" 2>/dev/null || echo 0)))
   PAGES=$((PAGES + 1))
-  # Bounded by the declared list ceiling. A truncated child list would read as "nothing
-  # open" to the closed-children invariant, so passing the ceiling is an error, never a
-  # partial list. Pages are counted too, so a server sending empty pages forever also stops.
   if ((SEEN > WIT_LINEAR_LIST_ITEMS_MAX || PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
     printf 'list-sub-items.sh: the children of %s passed the declared ceiling of %s items; refusing to report a partial child list\n' \
       "$PARENT_ID" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2

@@ -59,7 +59,6 @@ command -v jq >/dev/null 2>&1 || die 1 "jq is required"
 WORK="$(mktemp -d)" || exit 1
 trap 'rm -rf "$WORK"' EXIT
 
-# What the seam reads back from the YAML: every scalar as a string.
 readonly NORMALIZE='(.. | select(type == "number" or type == "boolean")) |= tostring'
 
 # The YAML lines for a JSON object, under `tracker:`. Strings are double-quoted
@@ -78,9 +77,6 @@ readonly EMIT='
       else $ind + $k + ": " + ($v | scalar) end;
   "tracker:", lines("  ")'
 
-# unsupported <json-file>: name each value the YAML subset cannot carry, or the seam
-# would read differently, if any. An empty object reads back as absent, which turns
-# a present-but-empty key (a config error for some adapters) into its default.
 unsupported() {
   jq -r '
     def at($p): $p | map(tostring) | join(".");
@@ -95,13 +91,9 @@ unsupported() {
     | .[]' "$1"
 }
 
-# STATE and DETAIL: what plan found for a layer.
 STATE=""
 DETAIL=""
 
-# plan <label> <json> <yaml>: decide one layer without writing. STATE is no-json,
-# already-yaml, empty or copy; for copy, DETAIL is the checked temp file holding the
-# new YAML. Fails, naming the problem, when the layer cannot be copied.
 plan() {
   local json="$2" yaml="$3" expected actual bad tmp="$WORK/$1.yaml"
   STATE=""
@@ -149,7 +141,6 @@ plan() {
   STATE="copy"
 }
 
-# write <label> <state> <detail> <json> <yaml>: carry out what plan decided.
 write() {
   local label="$1" state="$2" detail="$3" json="$4" yaml="$5"
   if [[ "$state" != "copy" ]]; then

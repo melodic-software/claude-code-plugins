@@ -171,3 +171,27 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   (a warning fails), and the marketplace, catalog and cheat-sheet generators in `--check` mode.
   They read the working tree, so a dirty tree leaves them to CI. On native Windows (MINGW, MSYS,
   Cygwin) only the fragment checks run until the job is timed there.
+
+## Addendum (2026-11-24): CI times the git hooks
+
+Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
+durations": CI installs every hook tool and times every shipped `pre-commit` entry on a
+10-file staged fixture and every `pre-push` entry on the real checkout, HEAD pushed as a new
+branch, since pre-push cost grows with the repository (`scripts/check-git-hook-time-budget.sh`).
+A piped group counts as one unit. It runs when a change touches a hook config or a script an
+entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
+alone can trip it. Each run times a reference workload that runs no hook code and does not
+grow with the repository: starts of the interpreters the entries use (pwsh compiling a
+one-line type with Add-Type, bare python3, node, bash, git) plus a fixed git and node part.
+The budget is 3 s x that reference / its value on the desk that set the budget (815 ms,
+Linux on WSL2, 2026-11-24), so a slower runner
+does not flake; each run also prints the hooks' own ratio to that desk, and CI warns when the two
+ratios differ by more than 30%. It fails a
+hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
+or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at
+run time.
+
+**Over or near budget** (near: within 10% of it, a judgment threshold). In order: measure it on
+the fixture; confirm every entry reads only the staged files (`pre-commit`) or the pushed range
+(`pre-push`), never the whole tree; optimize it (fewer process starts, one tool run instead of
+two); only if it still risks the budget, move the check to CI and remove it from the hook.

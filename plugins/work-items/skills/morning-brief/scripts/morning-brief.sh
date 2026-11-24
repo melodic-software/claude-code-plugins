@@ -203,26 +203,12 @@ BEHIND_JSON=""
 DECISIONS_JSON=""
 TELEMETRY_JSON=""
 MERGED_JSON=""
-# The floor of the window for merged PRs still carrying unresolved review
-# threads: wide enough to cover a bot that reviews well after a merge lands. A
-# gap between runs is covered by the bookmark, not by this number.
 STRANDED_DAYS="3"
-# Landed section: PRs merged since this machine's landed_at, of which
-# LANDED_SAMPLE are listed under "Read these". Empty: the morning_brief
-# landed_sample key, else 3.
 LANDED_SAMPLE=""
-# The stranded read's cutoff once its merged-PR pages read in full, so the
-# landed section can reuse those pages when they reach back far enough.
 STRANDED_READ_CUTOFF=""
-# Stuck section: an open item counts as stuck once its newest labeled event for
-# a queue label is older than STUCK_DAYS; STUCK_LIMIT caps the lines shown.
-# Judgment defaults (the owner's, 2026-10-20), kept as settings.
 STUCK_DAYS="7"
 STUCK_LIMIT="20"
 STUCK_JSON=""
-# Owner touches: the window in UTC days (today so far, and the days before it),
-# and who counts as the operator and the lane identity (default: the gh login,
-# and merge.agent-identity in the repo's pr-pipeline.yaml).
 TOUCH_DAYS="2"
 TOUCH_JSON=""
 STATUS_JSON=""
@@ -239,11 +225,8 @@ CLAUDE_ACTION_RE='uses:[[:space:]]*["'\'']?anthropics/claude-code(-base)?-action
 LANE_DAYS=7
 # Each read run costs one jobs read plus one annotations read per job.
 LANE_READ_LIMIT=200
-# Max-turns hits per activity and profile above which the model-usage table
-# prints a RECOMMENDED line. Unset by default: no evidence yet sets a number.
 MAX_TURNS_HITS=""
 ORG_ARG=""
-# Set only by --org and --subscription: a settings file never turns a fixture run live.
 ORG_FLAG=0
 SUBSCRIPTION_FLAG=0
 ORG_SCAN_JSON=""
@@ -263,24 +246,16 @@ BILLING_USAGE_JSON=""
 BILLING_BUDGETS_JSON=""
 AZURE_JSON=""
 
-# Result caps on the gh list reads. A result that reaches its cap prints PARTIAL.
 LABEL_LIMIT=500
 COUNT_LIMIT=1000
 PR_LIST_LIMIT=200
 DECISION_LIMIT=200
 TELEMETRY_SEARCH_LIMIT=100
 
-# Telemetry-issue discovery. The lanes skill's consumer posts to the issue this
-# search finds, so the literal is shared verbatim with that script rather than
-# through an import (the two skills install independently). The REST path
-# derives its title tokens from the same literal: every token must appear.
 TELEMETRY_SEARCH='loop-lane telemetry running per-lane status in:title'
 read -ra TELEMETRY_TITLE_TOKENS <<<"${TELEMETRY_SEARCH% in:title}"
 
 usage() {
-  # Sentinel-based, not a hardcoded line range: prints every comment line after
-  # the shebang up to the first non-comment (blank) line, so the header can
-  # grow or shrink without silently truncating or over-running --help output.
   awk '
     NR == 1 { next }
     /^#/ { sub(/^# ?/, ""); print; next }
@@ -303,7 +278,6 @@ require_file() {
   }
 }
 
-# A money or size amount: digits with an optional decimal part.
 require_amount() {
   [[ "$2" =~ ^[0-9]+(\.[0-9]+)?$ ]] || {
     printf 'morning-brief: %s requires a non-negative number\n' "$1" >&2
@@ -318,7 +292,6 @@ require_uint() {
   }
 }
 
-# A share of an amount: an integer from 0 to 100.
 is_percent() { [[ "$1" =~ ^[0-9]+$ ]] && ((10#$1 <= 100)); }
 require_percent() {
   is_percent "$2" || {
@@ -348,12 +321,11 @@ take() {
     value="$((10#$value))"
     ;;
   amount) require_amount "$flag" "$value" ;;
-  *) ;; # text: any value require_value accepts
+  *) ;;
   esac
   printf -v "$var" '%s' "$value"
 }
 
-# Every flag but --help takes a value, so each arm leaves the shift to the loop.
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
@@ -454,9 +426,6 @@ have jq || {
   exit 4
 }
 
-# --- Cost settings: flag, then personal file, then team file, then default ---
-# The convention home is --config-home, else docs/conventions in the checkout's
-# git root; a root that is $HOME, or no git root, has no home.
 CONFIG_SOURCES=()
 # Run by bare filename (`bash morning-brief.sh`), the strip is a no-op: the
 # script's directory is then the current one.
@@ -492,10 +461,6 @@ config_layer() {
   CONFIG_SOURCES+=("${file##*/}")
   awk -F'\t' '$1 ~ /^morning_brief\./ { sub(/^morning_brief\./, "", $1); print $1 "\t" $2 }' <<<"$out"
 }
-# binding_decision_label FILE: the tracker binding's owner-decision role label in FILE
-# (tracker.config.role_labels.owner-decision; label-taxonomy.md "Canonical roles"), or
-# nothing when the file is absent, a symlink, unparsable or sets none. Only the team
-# file binds the tracker, so the personal layer is never read for it.
 binding_decision_label() {
   local out
   [[ -f "$1" && ! -L "$1" ]] || return 0
@@ -510,14 +475,8 @@ if CONFIG_HOME="$(config_home)"; then
   CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/work-items.local.yaml")"
   CONFIG_DECISION_LABEL="$(binding_decision_label "$CONFIG_HOME/work-items.yaml")"
 fi
-# The decision label: the flag, else the binding's owner-decision role label, else
-# the default.
 DECISION_LABEL="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
 COST_SETTING_LAYERS=()
-# config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
-# is text, owner, uint, percent, amount or list. VAR already holds the flag's
-# value, if any; a list is read from KEY.0, KEY.1 and so on and comma-joined.
-# Each value set by a flag or a file is recorded as `key=value (layer)`.
 config_value() {
   local var="$1" key="$2" kind="$3" default="$4" layer value file
   if [[ -n "${!var}" ]]; then
@@ -566,8 +525,6 @@ config_value ANOMALY_ALERT anomaly_alert text ""
 config_value EXPIRY_DAYS expiry_days uint 30
 config_value ALLOWED_COLLABORATORS_ARG allowed_collaborators list ""
 config_value WORKFLOW_READ_LIMIT workflow_read_limit uint 300
-# The landed sample size is not a cost setting: its layer prints in the Landed
-# section, not on the Cost section's settings line.
 n_cost_settings=${#COST_SETTING_LAYERS[@]}
 config_value LANDED_SAMPLE landed_sample uint 3
 LANDED_SETTING="${COST_SETTING_LAYERS[*]:n_cost_settings}"
@@ -579,17 +536,6 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 ERR_FILE="$WORK/stderr"
 
-# =============================================================================
-# gh invocation and error detection
-# =============================================================================
-# Every gh call goes through gh_read so that a non-zero exit and an error
-# document in the body are both surfaced to the caller as a failure. A caller
-# that captures stdout and ignores the status turns an unread API into an empty
-# result, which the rendering below would print as an all-clear; that is the
-# fail-open this file is written to prevent.
-#
-# gh_read OUTFILE gh-args...   writes stdout to OUTFILE; returns 1 on failure
-#                              with LAST_ERR set to the error's first line.
 LAST_ERR=""
 TRANSPORT="gh"
 
@@ -641,10 +587,6 @@ graphql_blocked() {
   grep -qi 'GraphQL is not available from Claude Code sessions' <<<"$1"
 }
 
-# gql_or_rest OUTFILE gql_fn rest_fn
-# Runs gql_fn unless the transport already switched to REST. When gql_fn fails
-# with the blocked shape, switches the transport for the rest of the run and
-# runs rest_fn. Any other failure propagates with LAST_ERR intact.
 gql_or_rest() {
   local out="$1" gql_fn="$2" rest_fn="$3"
   if [[ "$TRANSPORT" == "gh" ]]; then
@@ -669,8 +611,6 @@ rest_paginate_array() {
   }
 }
 
-# gh is only needed for live sources; a fully fixtured run (tests) must not
-# require it. Demand it only when at least one section will hit the network.
 NEEDS_LIVE_COUNTS=0
 NEEDS_LIVE_PRS=0
 NEEDS_LIVE_DECISIONS=0
@@ -686,10 +626,6 @@ NEEDS_LIVE_TOUCH=0
 [[ -z "$STUCK_JSON" ]] && NEEDS_LIVE_STUCK=1
 [[ -z "$TOUCH_JSON" ]] && NEEDS_LIVE_TOUCH=1
 
-# --- Repo label inventory -------------------------------------------------------
-# An inventory that reached its cap cannot prove a label absent, so it is
-# reported as unavailable: the callers then show every configured label instead
-# of dropping one that sits past the cap.
 LABELS_CAPPED=0
 fetch_repo_labels_gql() {
   gh_read "$WORK/labels.raw" label list "${REPO_ARGS[@]}" --limit "$LABEL_LIMIT" --json name -q '.[].name' || return 1
@@ -710,7 +646,6 @@ fetch_repo_labels_rest() {
   jq '[ .[].name ] | unique' "$WORK/labels.rest" >"$1"
 }
 
-# fetch_repo_label_names OUTFILE: a JSON array of label names, or 1.
 fetch_repo_label_names() {
   local out="$1"
   if [[ -n "$REPO_LABELS_JSON" ]]; then
@@ -736,24 +671,17 @@ label_exists_in_repo() {
   jq -e --arg l "$label" 'index($l) != null' "$names_file" >/dev/null 2>&1
 }
 
-# Parked-decisions can short-circuit on a fixture label inventory when the
-# decision label is absent — no gh issue list needed for that probe.
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
   if fetch_repo_label_names "$WORK/probe-labels.json"; then
     label_exists_in_repo "$DECISION_LABEL" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
-# The stranded, stuck and owner-touch sections alone never force a repo resolution: every
-# other section can be driven from fixtures, and a fixture-only run must not
-# reach for the network just to resolve a repo it was not given. With --repo, or
-# once another live section resolves one, the section is live like the rest.
 ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK || NEEDS_LIVE_TOUCH) && ${#REPO} > 0)))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
 fi
 
-# --- Resolve the target repo --------------------------------------------------
 # `gh repo view` first: GH_REPO, else the remote `gh repo set-default` recorded,
 # else gh's first remote by name, which is not necessarily origin. When that call
 # is unavailable, the `origin` remote is the fallback; in a fork checkout the two
@@ -797,7 +725,6 @@ else
   NEEDS_LIVE_MERGED=0 NEEDS_LIVE_STUCK=0 NEEDS_LIVE_TOUCH=0
 fi
 
-# --- Portable date handling ---------------------------------------------------
 # GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
 # Claude Code commonly runs on macOS. to_epoch/from_epoch try GNU first (Linux,
 # most CI) then BSD, so a timestamp parses on either platform. On the BSD branch
@@ -845,7 +772,6 @@ from_epoch() {
 # bookmark file keeps the bare form `from_epoch` renders, so it stays parseable.
 utc_stamp() { printf '%s UTC' "$(from_epoch "$1")"; }
 
-# --- Clock --------------------------------------------------------------------
 if [[ -n "$NOW_ISO" ]]; then
   NOW_EPOCH="$(to_epoch "$NOW_ISO")"
   [[ -n "$NOW_EPOCH" ]] || {
@@ -856,8 +782,6 @@ else
   NOW_EPOCH="$(date -u +%s)"
 fi
 
-# Render a non-negative second-delta as a compact age (e.g. "2d 3h", "5h 12m",
-# "8m"). A negative delta (clock skew / future stamp) renders as "future".
 fmt_age() {
   local secs="$1"
   if ((secs < 0)); then
@@ -874,7 +798,6 @@ fmt_age() {
   fi
 }
 
-# --- Queue label resolution ---------------------------------------------------
 resolve_queue_labels() {
   QUEUE_LABELS=()
   if [[ -n "$QUEUE_LABELS_ARG" ]]; then
@@ -896,38 +819,25 @@ resolve_queue_labels() {
 
 resolve_queue_labels
 
-# The labels the Queues section settled on (after its live filter), which the
-# Stuck section reads too. print_queues narrows it; until then, or when the
-# inventory could not be read, it is the full configured set.
 STUCK_LABELS=("${QUEUE_LABELS[@]}")
 
-# --- Section state ---------------------------------------------------------
-# Sections render into files so the header, printed first, can carry the
-# unreadable count.
 SECTIONS_TOTAL=10
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
 unreadable() {
-  # unreadable <section-name> <error>
   UNREADABLE=$((UNREADABLE + 1))
   UNREADABLE_NAMES+=("$1")
   echo "  UNREADABLE: ${2:-data source failed}"
   echo
 }
 
-# partial_labels NOTE LABEL...: one PARTIAL line naming the LABELs, comma-separated.
 partial_labels() {
   local list
   printf -v list '%s, ' "${@:2}"
   echo "  PARTIAL: ${list%, }: $1"
 }
 
-# =============================================================================
-# Work status (models.issue-status)
-# =============================================================================
-# fetch_pipeline: the default branch's docs/conventions/pr-pipeline.yaml into
-# $WORK/pipeline.yaml, read once; an absent file leaves it empty. 1 on a failed read.
 fetch_pipeline() {
   [[ -f "$WORK/pipeline.yaml" ]] && return 0
   gh_read "$WORK/pipeline.raw" api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml" || {
@@ -937,8 +847,6 @@ fetch_pipeline() {
   mv "$WORK/pipeline.raw" "$WORK/pipeline.yaml"
 }
 
-# status_model: STATUS_MODEL set to the model as JSON, or null when there is
-# none; 1 with LAST_ERR when it cannot be read.
 STATUS_MODEL=""
 status_model() {
   [[ -n "$STATUS_MODEL" ]] && return 0
@@ -1015,9 +923,6 @@ STATUS_DEFS='
     | {__typename: .[0], createdAt: $e.at, actor: {login: ($e.actor.login // "")}, label: {name: $m.labels[.[1]][0]}};
 '
 
-# The open issues with their labels, Work status values and the newest 100
-# label and field events, 50 a page; STATUS_PAGE_LIMIT pages at most, past
-# which the sections print PARTIAL.
 STATUS_PAGE_LIMIT=20
 STATUS_FIELD_EVENTS='nodes { __typename
           ... on IssueFieldAddedEvent { createdAt value actor { __typename login } issueField { ...status } }
@@ -1135,16 +1040,11 @@ status_items() {
   STATUS_STATE=ok
 }
 
-# The open issues whose labels, as status_items decides them, hold LABEL.
 status_with_label() {
   jq -c --arg l "$1" 'select(any(.labels[]; ascii_downcase == ($l | ascii_downcase)))' "$WORK/status.items"
 }
 
-# =============================================================================
-# Section 1 — queue label counts
-# =============================================================================
 count_label_gql() {
-  # count_label_gql OUTFILE label
   gh_read "$WORK/count.raw" issue list "${REPO_ARGS[@]}" --state open --label "$2" \
     --limit "$COUNT_LIMIT" --json number,subIssuesSummary \
     -q '"\(length) \(map(select((.subIssuesSummary.total // 0) > (.subIssuesSummary.completed // 0))) | length)"' || return 1
@@ -1178,8 +1078,6 @@ search_zero_unconfirmed() {
 print_queues() {
   echo "== Queues (open issues per label) =="
   local labels_to_show=() label n labels_available=0
-  # The inventory only narrows the rows to labels that exist. When it cannot be
-  # read, the counts below still decide whether the section is readable.
   if [[ -n "$REPO_LABELS_JSON" || (-z "$COUNTS_JSON" && -n "$REPO") ]]; then
     if fetch_repo_label_names "$WORK/labels.json"; then
       labels_available=1
@@ -1263,9 +1161,6 @@ print_queues() {
   echo
 }
 
-# =============================================================================
-# Section 1b — open items stuck in a queue label
-# =============================================================================
 # For each label the Queues section shows, the open issues and PRs whose newest
 # labeled event for that label is older than --stuck-days. The read is one paged
 # GraphQL search per label, with the label events inside the search, so it stays
@@ -1330,8 +1225,6 @@ print_stuck() {
   echo "== Stuck (open items in a queue label for more than ${STUCK_DAYS}d) =="
   local label pages="$WORK/stuck.pages" items="$WORK/stuck.items" err ceiling=() unavailable=() out
   if [[ -n "$STUCK_JSON" ]]; then
-    # A fixture is held to the same standard as a live read: an error document
-    # is an unreadable source, never an all-clear.
     err="$(body_error "$STUCK_JSON")"
     if [[ -n "$err" ]]; then
       unreadable stuck "$err"
@@ -1342,7 +1235,6 @@ print_stuck() {
       return
     }
   elif [[ -z "$REPO" ]]; then
-    # A fixture-only run resolves no repo; that is an empty state, not a failure.
     echo "  (no repo resolved — pass --repo or --stuck-json)"
     echo
     return
@@ -1356,8 +1248,6 @@ print_stuck() {
     echo
     return
   fi
-  # With a Work status model the issues come from the status read and the
-  # label searches keep their pull requests.
   local by_status=false
   if [[ -n "$STATUS_JSON" || -z "$STUCK_JSON" ]]; then
     status_items || {
@@ -1389,14 +1279,12 @@ print_stuck() {
         unreadable stuck "$label: $err"
         return
       fi
-      # A label the fixture does not list holds nothing.
       [[ "$(jq 'length' "$pages" 2>/dev/null)" == "0" ]] && continue
     elif ! fetch_stuck_label_gql "$pages" "$label"; then
       graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
       unreadable stuck "$label: $LAST_ERR"
       return
     fi
-    # A response with no page document is not an empty label.
     jq -s -e '[ .. | objects | select(has("data")) | .data.search | objects ] | length > 0' \
       "$pages" >/dev/null 2>&1 || {
       unreadable stuck "$label: could not parse the search pages"
@@ -1437,7 +1325,6 @@ print_stuck() {
     }
   done
 
-  # Oldest first across every label, dated items before the `days unknown` ones.
   out="$(jq -s -r --argjson now "$NOW_EPOCH" --argjson days "$STUCK_DAYS" --argjson cap "$STUCK_LIMIT" '
     def line:
       "  #\(.number) \(.kind)  \(.title)  (\(.label), "
@@ -1465,9 +1352,6 @@ print_stuck() {
   echo
 }
 
-# =============================================================================
-# Section 2 — merge-ready PRs (gh-native: non-draft + mergeStateStatus CLEAN)
-# =============================================================================
 PR_PARTIAL=()
 fetch_prs_gql() {
   gh_read "$1" pr list "${REPO_ARGS[@]}" --state open --limit "$PR_LIST_LIMIT" \
@@ -1515,7 +1399,6 @@ fetch_prs_rest() {
       merge_state_uncomputed "$WORK/pr.$number" && uncomputed+=("#$number")
     done
   fi
-  # After the retry pass, so a re-read pull replaces its first response.
   for number in "${numbers[@]}"; do
     cat "$WORK/pr.$number" >>"$WORK/prs.detail"
   done
@@ -1609,9 +1492,6 @@ print_merge_ready() {
   echo
 }
 
-# =============================================================================
-# Section 3 — parked decisions (needs-decision) with their RECOMMENDED line
-# =============================================================================
 fetch_decisions_gql() {
   # One call returns body + comments for every decision issue -- no N+1
   # hydration loop (which also avoids `gh` draining a while-read loop's stdin).
@@ -1648,8 +1528,6 @@ fetch_decisions_rest() {
 print_decisions() {
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
   local decisions_file="$WORK/decisions.json"
-  # An unreadable inventory does not decide this section; the decision read
-  # below carries its own error if it fails.
   if [[ -z "$DECISIONS_JSON" && (-n "$REPO" || -n "$REPO_LABELS_JSON") ]]; then
     if fetch_repo_label_names "$WORK/labels.json" &&
       ! label_exists_in_repo "$DECISION_LABEL" "$WORK/labels.json"; then
@@ -1678,9 +1556,6 @@ print_decisions() {
       return
     }
   fi
-  # With a Work status model, membership is by the labels the field decides:
-  # an issue the field moved off the label leaves, and one parked only on the
-  # field joins, read by its own view.
   if [[ "$STATUS_STATE" == ok ]]; then
     local number members="$WORK/dec.members" joined="$WORK/dec.joined"
     status_with_label "$DECISION_LABEL" | jq -s '.' >"$members"
@@ -1714,35 +1589,18 @@ print_decisions() {
     number="$(jq -r ".[$i].number" "$decisions_file")"
     title="$(jq -r ".[$i].title" "$decisions_file")"
     url="$(jq -r ".[$i].url // \"\"" "$decisions_file")"
-    # RECOMMENDED marker across the body and every comment. Two-tier so the
-    # deliberate uppercase marker wins over an incidental lowercase mention
-    # (e.g. "not recommended"): tier 1 = the uppercase RECOMMENDED token, tier 2
-    # = a case-insensitive fallback. BOTH tiers require a LABELED marker —
-    # RECOMMENDED immediately followed (past optional bold/space) by a
-    # `:`/`-`/em-dash separator — not mere presence. That separator is the
-    # discriminator on each tier independently: it accepts a real marker whether
-    # at line start or mid-line ("After review, RECOMMENDED: ...") while
-    # rejecting negated prose ("... is NOT RECOMMENDED because ...", "not
-    # recommended for ..."), where the token is followed by a word, not a
-    # separator. Anchoring to line start instead would wrongly drop the
-    # legitimate mid-line marker form.
     local combined marker_re
     marker_re='RECOMMENDED[[:space:]]*\**[[:space:]]*[-:—]'
     combined="$(jq -r ".[$i] | (.body // \"\") + \"\n\" + ((.comments // []) | map(.body // \"\") | join(\"\n\"))" \
       "$decisions_file")"
     rec="$(grep -am1 -E "$marker_re" <<<"$combined")"
     [[ -n "$rec" ]] || rec="$(grep -iam1 -E "$marker_re" <<<"$combined")"
-    # Strip leading list bullets / enumeration / blockquote / bold so the line reads clean.
     rec="$(sed -E 's/^[[:space:]]*//; s/^[0-9]+[.)][[:space:]]*//; s/^[-*>|#[:space:]]*//; s/\*\*//g; s/[[:space:]]*$//' <<<"$rec")"
-    # Drop a leading RECOMMENDED/recommended token + its separator: the section
-    # already labels the line, so keeping it would double-print "RECOMMENDED: RECOMMENDED —".
     if [[ "$rec" == RECOMMENDED* || "$rec" == recommended* ]]; then
       rec="${rec#RECOMMENDED}"
       rec="${rec#recommended}"
       rec="$(sed -E 's/^([[:space:]]|[-:—])*//' <<<"$rec")"
     fi
-    # Truncate to a scannable preview (0 = never truncate); the URL above
-    # carries the full text for anyone who wants it.
     if [[ "$REC_MAXLEN" != "0" && -n "$rec" && "${#rec}" -gt "$REC_MAXLEN" ]]; then
       rec="${rec:0:$REC_MAXLEN}…"
     fi
@@ -1765,9 +1623,6 @@ decisions_status_partial() {
   return 0
 }
 
-# =============================================================================
-# Section 4 — loop-lane telemetry freshness (per-lane telemetry-issue comments)
-# =============================================================================
 TELEMETRY_PARTIAL=0
 find_telemetry_issue_gql() {
   gh_read "$WORK/tel.raw" issue list "${REPO_ARGS[@]}" --state open \
@@ -1835,8 +1690,6 @@ print_telemetry() {
     return
   fi
 
-  # A lane comment opens with the lane-telemetry sentinel and carries a `lane:`
-  # field. For each, pull lane, last-cycle, flags.
   local n
   n="$(jq -r 'if type == "array" then length else error("not a list") end' <<<"$comments" 2>/dev/null)" || {
     unreadable telemetry "could not parse the telemetry comments"
@@ -1881,9 +1734,6 @@ print_telemetry() {
   echo
 }
 
-# =============================================================================
-# Section 5 — findings stranded on merged PRs
-# =============================================================================
 # A review that lands AFTER a merge has nowhere to go: the merge gate is a
 # merge-time predicate that already passed, the babysit lane works OPEN PRs, and
 # nothing on a merged PR surfaces its open threads.
@@ -1950,8 +1800,6 @@ MERGED_QUERY='
       }
     }'
 
-# The bookmark: one file per repo under the data dir, holding the cutoff the
-# next run must read back to. Empty when no usable path resolves.
 stranded_bookmark_path() {
   local base="$DATA_DIR_ARG" seg="${CLAUDE_PLUGIN_DATA:-}" key
   if [[ -z "$base" ]]; then
@@ -1984,8 +1832,6 @@ print_stranded() {
   local floor=$((NOW_EPOCH - STRANDED_DAYS * 86400)) cutoff bookmark="" mark mark_epoch window
   cutoff=$floor
   window="last ${STRANDED_DAYS}d"
-  # The bookmark belongs to a live read of the repo; a fixture run neither
-  # reads nor moves it.
   if [[ -z "$MERGED_JSON" && -n "$REPO" ]]; then
     bookmark="$(stranded_bookmark_path)"
     if [[ -n "$bookmark" && -f "$bookmark" ]]; then
@@ -2003,8 +1849,6 @@ print_stranded() {
   local merged_file="$WORK/merged.json"
   if [[ -n "$MERGED_JSON" ]]; then
     merged_file="$MERGED_JSON"
-    # A fixture is held to the same standard as a live read: an error document
-    # is an unreadable source, never an all-clear.
     local fixture_err
     fixture_err="$(body_error "$merged_file")"
     if [[ -n "$fixture_err" ]]; then
@@ -2012,7 +1856,6 @@ print_stranded() {
       return
     fi
   elif [[ -z "$REPO" ]]; then
-    # A fixture-only run resolves no repo; that is an empty state, not a failure.
     echo "  (no repo resolved — pass --repo or --merged-json)"
     echo
     return
@@ -2029,7 +1872,6 @@ print_stranded() {
     STRANDED_READ_CUTOFF=$cutoff
   fi
 
-  # A response with no page document is not a clean window.
   jq -s -e '[ .. | objects | select(has("data")) | .data.repository.pullRequests | objects ] | length > 0' \
     "$merged_file" >/dev/null 2>&1 || {
     unreadable stranded "could not parse the merged-PR pages"
@@ -2104,8 +1946,6 @@ print_stranded() {
     return
   }
 
-  # A truncated thread page means the read was PARTIAL, so neither a finding
-  # list nor an all-clear below can be trusted to be complete. Say so.
   local truncated
   truncated="$(jq -s -r '
     [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]?
@@ -2125,8 +1965,6 @@ print_stranded() {
   else
     echo "  (none — every merged PR in the window is clear)"
   fi
-  # Advance the bookmark only past a full read: the next run then reads back
-  # to this run's floor, so every merge since then is read at least once more.
   if [[ -n "$bookmark" ]]; then
     if [[ -n "$truncated" ]]; then
       echo "  bookmark not advanced: this read is PARTIAL"
@@ -2137,13 +1975,6 @@ print_stranded() {
   echo
 }
 
-# =============================================================================
-# Section 5b — landed PRs and the ones to read
-# =============================================================================
-# PRs merged since this machine's landed_at, a stamp under the data dir beside
-# the stranded bookmark. A first run reads the last day. LANDED_SAMPLE of them,
-# spread evenly across the merge order, are listed under "Read these". landed_at
-# moves to this run's clock only after the section read in full.
 print_landed() {
   local cutoff=$((NOW_EPOCH - 86400)) window="first read on this machine: last 1d" stamp="" mark mark_epoch
   if [[ -z "$MERGED_JSON" && -n "$REPO" ]]; then
@@ -2178,7 +2009,6 @@ print_landed() {
     unreadable landed "the merged-PR read needs GraphQL, which this session does not serve"
     return
   elif [[ -z "$STRANDED_READ_CUTOFF" ]] || ((STRANDED_READ_CUTOFF > cutoff)); then
-    # The stranded pages do not reach back to this cutoff: read again.
     merged_file="$WORK/landed.json"
     if ! fetch_merged_gql "$merged_file" "$cutoff"; then
       graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
@@ -2215,9 +2045,6 @@ print_landed() {
   echo
 }
 
-# =============================================================================
-# Section 6 — lane runs: failures by class, limit stops, restarts, turn headroom
-# =============================================================================
 # One row per lane workflow over the last LANE_DAYS days. A failed run's class
 # comes from its jobs' check-run annotations: the `class` of the lane-outcome
 # records they carry (ci-workflows docs/lane-outcome.md), except that a run the
@@ -2388,13 +2215,8 @@ SPEND_JQ="$LANE_DEFS"'
 '
 
 LANES_PARTIAL=0
-# Runs a single day's search still left out after the per-day re-read.
 LANE_RUNS_SHORT=0
-# A caller job's display name (`Fix CI`) or job id (`fix-ci`, a run before the
-# rename or a repository whose job has no display name); either reads as the id.
 CALLER_JOB_RE='^([A-Za-z0-9][A-Za-z0-9 -]*) / '
-# fetch_lane_runs_by_day WORKFLOW SINCE_EPOCH: replaces $WORK/lane.page with one runs search per
-# UTC day from SINCE_EPOCH's day through today.
 fetch_lane_runs_by_day() {
   local wf="$1" e="$2" day today
   today="$(from_epoch "$NOW_EPOCH")"
@@ -2409,7 +2231,6 @@ fetch_lane_runs_by_day() {
   mv "$WORK/lane.days" "$WORK/lane.page"
 }
 
-# fetch_lane_runs OUTFILE SINCE_EPOCH: an object of workflow file -> runs.
 fetch_lane_runs() {
   local out="$1" day wf
   day="$(from_epoch "$2")"
@@ -2570,9 +2391,6 @@ print_lanes() {
   echo
 }
 
-# =============================================================================
-# Section 6b — owner touches: each time the factory needed the owner
-# =============================================================================
 # Per UTC day over the last --touch-days days, from GitHub's own events: the
 # operator login's approvals, merges and do-not-merge lifts, the hold label
 # (needs-human) going on and coming off with the wait between, and escalation
@@ -2647,12 +2465,8 @@ TOUCH_QUERY='
       }
     }'
 
-# gql_stamp EPOCH SECONDS: from_epoch's minute stamp with a seconds field.
 gql_stamp() { local s; s="$(from_epoch "$1")" && printf '%s:%sZ' "${s%Z}" "$2"; }
 
-# fetch_touch_pages OUTFILE START_EPOCH: one GraphQL page document per page,
-# every UTC day from START_EPOCH to now. With a Work status model an issue also
-# carries its newest 100 field events.
 fetch_touch_pages() {
   local out="$1" start="$2" day_start day_end cursor pages args since fields="" query
   [[ "${STATUS_MODEL:-null}" == null ]] || fields="fields: timelineItems(itemTypes:$STATUS_EVENT_TYPES, last:100) { $STATUS_FIELD_EVENTS }"
@@ -2685,8 +2499,6 @@ fetch_touch_pages() {
   done
 }
 
-# The lane identity: merge.agent-identity in docs/conventions/pr-pipeline.yaml
-# on the default branch. Prints nothing when the file or key is absent.
 fetch_lane_identity() {
   fetch_pipeline || return 1
   awk '/^[^[:space:]#]/ { top = $0 } top ~ /^merge:/ && /^[[:space:]]+agent-identity:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); gsub(/["'"'"']/, ""); print; exit }' "$WORK/pipeline.yaml"
@@ -2860,9 +2672,6 @@ print_touches() {
   echo
 }
 
-# =============================================================================
-# Section 7 — cost: what on GitHub or Azure is charging or could start charging
-# =============================================================================
 # One line per check: a status (OK, ALERT, INFO or UNREADABLE), its source, a
 # label and the detail. ALERT is the line to act on. A read that failed or was
 # not made (no org admin, az absent or logged out, a fixture run) prints each of
@@ -2878,12 +2687,8 @@ COST_HAS_DATA=0
 COST_LOST=0
 AZ_SUB_ARGS=()
 [[ -n "$SUBSCRIPTION_ARG" ]] && AZ_SUB_ARGS=(--subscription "$SUBSCRIPTION_ARG")
-# Month-to-date actual cost by day, service and meter category; the day column
-# gives the latest usage date, the budget lines' data date.
 COST_QUERY_BODY='{"type":"ActualCost","timeframe":"MonthToDate","dataset":{"granularity":"Daily","aggregation":{"cost":{"name":"Cost","function":"Sum"}},"grouping":[{"type":"Dimension","name":"ServiceName"},{"type":"Dimension","name":"MeterCategory"}]}}'
-# Activity-log events read per run; a read that reaches it prints PARTIAL.
 AZ_ACTIVITY_LIMIT=1000
-# Cost query pages read per run; a read that reaches it prints PARTIAL.
 AZ_QUERY_PAGE_LIMIT=20
 # Control-plane writes that can start a charge or widen access.
 COST_WRITE_OPS='["microsoft.security/pricings/write","microsoft.authorization/policyassignments/write","microsoft.authorization/roleassignments/write"]'
@@ -2895,9 +2700,6 @@ if [[ -n "$COST_ORG" ]] && ! is_owner "$COST_ORG"; then
   COST_ORG_ERR="${COST_ORG//[[:cntrl:]]/ } is not a GitHub owner name"
   COST_ORG=""
 fi
-# A fixture run never reaches for the network: the cost reads go live with the
-# rest of the brief, or when the --org or --subscription flag asks for them. A
-# settings file never does.
 GH_COST_LIVE=$(((ANY_LIVE || ORG_FLAG) && ${#COST_ORG} > 0))
 AZ_COST_LIVE=$((ANY_LIVE || ORG_FLAG || SUBSCRIPTION_FLAG))
 COST_DATA_DATE="usage data date unread"
@@ -2906,20 +2708,16 @@ COST_YEAR=$((10#${COST_MONTH:0:4}))
 COST_MON=$((10#${COST_MONTH:5:2}))
 COST_NEXT="$((COST_YEAR + COST_MON / 12))-$(printf '%02d' $((COST_MON % 12 + 1)))"
 COST_HOURS=$((($(to_epoch "${COST_NEXT}-01T00:00Z") - $(to_epoch "${COST_MONTH}-01T00:00Z")) / 3600))
-# Comma lists become JSON arrays for the jq programs.
 csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$"; "")) | map(select(length > 0))'; }
 REQUIRED_BUDGETS_JSON="$(csv_json "$REQUIRED_BUDGETS_ARG")"
 ALLOWED_COLLABORATORS_JSON="$(csv_json "$ALLOWED_COLLABORATORS_ARG")"
 ANOMALY_ALERT_JSON="$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')"
 COST_READ_AT="$(utc_stamp "$NOW_EPOCH")"
-# The GitHub billing usage lines, and the Azure lines, so a read that fails
-# before any of them renders each of them UNREADABLE.
 USAGE_LABELS=("usage $COST_MONTH" "Actions minutes $COST_MONTH, private repos" "Actions storage $COST_MONTH, private repos")
 SCAN_LABELS=("collaborators" "fork-triggered workflows")
 ADMIN_FIX="org admin needed: run gh auth login with an org admin account"
 AZ_LABELS=("budgets" "budget and anomaly alerts" "Defender plans" "Defender charges, month to date"
   "Log Analytics" "activity, last 24h" "secure score" "Advisor security" "Advisor cost")
-# The Log Analytics query: the peak day of billable ingestion over 31 days.
 LA_PEAK_QUERY='Usage | where TimeGenerated > ago(31d) | where IsBillable == true | summarize GB = sum(Quantity) / 1000.0 by Day = bin(TimeGenerated, 1d) | top 1 by GB desc'
 
 # Each program turns one response into rows of [status, source, label, detail];
@@ -3158,10 +2956,6 @@ billing_read() {
   return 1
 }
 
-# fetch_org_scan OUTFILE: the org's repos (listed once), its admins, and for
-# each live repo its direct collaborators and default-branch workflow files, up
-# to WORKFLOW_READ_LIMIT files. Returns 1 with LAST_ERR set on a failed read; a
-# repo with no .github/workflows directory has no workflows.
 fetch_org_scan() {
   local out="$1" repo branch archived name files=0 skipped=0
   rest_paginate_array "$WORK/org-repos" "orgs/$COST_ORG/repos?per_page=100&type=all" || return 1
@@ -3203,7 +2997,6 @@ fetch_org_scan() {
     '{admins: [$admins[0][].login], repos: $repos, partial: $partial}' >"$out"
 }
 
-# cost_unreadable SOURCE REASON LABEL...: one UNREADABLE line per label.
 cost_unreadable() {
   local source="$1" reason="$2" label
   shift 2
@@ -3212,7 +3005,6 @@ cost_unreadable() {
   done
 }
 
-# Why the GitHub reads were not made live, and the fix.
 cost_gh_unread_reason() {
   if [[ -n "$COST_ORG_ERR" ]]; then
     printf '%s; pass --org' "$COST_ORG_ERR"
@@ -3229,7 +3021,6 @@ cost_github() {
     cost_unreadable GitHub "$(cost_gh_unread_reason)" "${USAGE_LABELS[@]}" budgets "${SCAN_LABELS[@]}"
     return
   fi
-  # The org scan first: the usage lines need each repo's visibility.
   if [[ -n "$ORG_SCAN_JSON" ]]; then
     cp "$ORG_SCAN_JSON" "$scan" && scanned=1
   elif ((GH_COST_LIVE)) && have gh; then
@@ -3275,14 +3066,11 @@ cost_github() {
   fi
 }
 
-# az_read OUTFILE KEY az-args...: one az read, or its KEY in --azure-json.
-# Returns 1 with LAST_ERR set when the read failed.
 az_read() {
   local out="$1" key="$2" rc
   shift 2
   LAST_ERR=""
   if [[ -n "$AZURE_JSON" ]]; then
-    # A KEY of a/b reads a nested value; an absent or null value is a failed read.
     jq -e --arg k "$key" 'type == "object" and getpath($k | split("/")) != null' "$AZURE_JSON" >/dev/null 2>&1 || {
       LAST_ERR="no $key in --azure-json"
       return 1
@@ -3307,8 +3095,6 @@ az_read() {
   fi
 }
 
-# az_check KEY LABEL PROGRAM az-args...: one read rendered into rows; a failed
-# read or a response PROGRAM cannot parse is an UNREADABLE row.
 az_check() {
   local key="$1" label="$2" prog="$3" out="$WORK/az-$1.json"
   shift 3
@@ -3319,7 +3105,6 @@ az_check() {
   cost_row UNREADABLE Azure "$label" "$LAST_ERR"
 }
 
-# Every Azure line UNREADABLE with REASON.
 az_unreadable() {
   cost_unreadable Azure "$1" "subscription${SUBSCRIPTION_ARG:+ $SUBSCRIPTION_ARG}" "${AZ_LABELS[@]}"
 }
@@ -3379,18 +3164,14 @@ cost_azure() {
     return
   fi
   if ! az_read "$acct" account account show || ! sub="$(jq -r '.id // empty' "$acct" 2>/dev/null)" || [[ -z "$sub" ]]; then
-    # az is installed but no account reads: every Azure line is a read that failed.
     LAST_ERR="${LAST_ERR:-account show named no subscription id}"
     [[ "$LAST_ERR" == *"az login"* ]] || LAST_ERR="$LAST_ERR; run az login"
     az_unreadable "$LAST_ERR"
     return
   fi
-  # Every later read names the subscription account show resolved.
   AZ_SUB_ARGS=(--subscription "$sub")
   arm="https://management.azure.com/subscriptions/$sub/providers"
   cost_row INFO Azure "subscription" "$(jq -r '"\(.name // .id) (\(.state // "state unknown"))"' "$acct")"
-  # The cost query first: its latest usage date is the budget lines' data date.
-  # A query that failed leaves the budget lines readable, with the date unread.
   if cost_query "$arm/Microsoft.CostManagement/query?api-version=2023-11-01"; then
     COST_DATA_DATE="$(jq -r '
       (.properties.columns | map(.name | ascii_downcase) | index("usagedate")) as $i
@@ -3447,7 +3228,6 @@ cost_azure() {
 print_cost() {
   local row status source label detail unread=0 line
   echo "== Cost (GitHub and Azure: charges, included usage, budgets and alerts, secret triggers, posture) =="
-  # Which layer set each cost setting that is not a default.
   if ((${#COST_SETTING_LAYERS[@]})); then
     line="${COST_SETTING_LAYERS[*]}"
     echo "  settings: ${line//[[:cntrl:]]/ }"
@@ -3472,11 +3252,6 @@ print_cost() {
   echo
 }
 
-# =============================================================================
-# Render
-# =============================================================================
-# Each section renders into its own file first so the header can state how
-# many were unreadable before any section prints.
 print_queues >"$WORK/s1"
 print_stuck >"$WORK/s1b"
 print_merge_ready >"$WORK/s2"
@@ -3497,10 +3272,6 @@ fi
 echo
 cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s5b" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
 
-# Exit 5 when the brief carries no data at all; 6 when some sections rendered
-# beside unreadable ones, so a caller never takes a partial brief for a full one.
-# When every other section is lost, the brief carries data only if a cost line
-# is OK, ALERT or INFO; a cost section of UNREADABLE lines carries none.
 if ((UNREADABLE - COST_LOST >= SECTIONS_TOTAL - 1 && !COST_HAS_DATA)); then
   exit 5
 elif ((UNREADABLE > 0)); then

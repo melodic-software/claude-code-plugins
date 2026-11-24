@@ -34,9 +34,6 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
-// scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
-// flow shared with scripts/generate-catalog.mjs; exercised through this file's
-// --check path.
 import { findMarkerBlock, markerForms, syncMarkerBlock, wrapMarkerBlock } from "./lib/marker-block.mjs";
 
 const argv = process.argv.slice(2);
@@ -70,8 +67,6 @@ function fail(messages) {
   process.exit(1);
 }
 
-// --- Inventory: exact-depth glob plugins/*/skills/*/SKILL.md ---------------
-
 function listDirs(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
@@ -80,7 +75,7 @@ function listDirs(dir) {
     .sort();
 }
 
-const skills = []; // { plugin, skill, path, meta }
+const skills = [];
 for (const plugin of listDirs(join(root, "plugins"))) {
   for (const skill of listDirs(join(root, "plugins", plugin, "skills"))) {
     const path = join(root, "plugins", plugin, "skills", skill, "SKILL.md");
@@ -119,9 +114,6 @@ function readCheatsheetMeta(path) {
       }
       const m = line.match(/^\s+([A-Za-z0-9-]+):\s*(.*)$/);
       if (!m) continue;
-      // Raw value kept alongside the stripped one: the guard's " #" rejection
-      // must see the value BEFORE comment semantics apply, or a hand-edited
-      // trailing comment silently truncates instead of being rejected.
       raw[m[1]] = m[2].trim();
       // Trailing-comment strip mirrors skill_frontmatter::metadata_field.
       values[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
@@ -188,7 +180,6 @@ function actionWords(hint) {
   return [...new Set(words)];
 }
 
-// The `/plugin:skill` tokens of the body's `## Next` section, in order.
 function successorTokens(bodyLines) {
   const start = bodyLines.findIndex((l) => l.trim() === "## Next");
   if (start === -1) return [];
@@ -198,8 +189,6 @@ function successorTokens(bodyLines) {
     .map((m) => `${m[1]}/${m[2]}`);
   return [...new Set(tokens)];
 }
-
-// --- Enforcement ------------------------------------------------------------
 
 const errors = [];
 const bySkillKey = new Set(skills.map((s) => `${s.plugin}/${s.skill}`));
@@ -219,8 +208,6 @@ for (const key of EXCLUDED_SKILLS.keys()) {
 const mapped = [];
 for (const s of skills) {
   const key = `${s.plugin}/${s.skill}`;
-  // readCheatsheetMeta returns bare {} when line 1 is not a `---` fence; a
-  // named diagnostic here beats the TypeError that reading .values would throw.
   if (s.meta.values === undefined) {
     errors.push(`${key}: ${s.path} has no YAML frontmatter (line 1 is not ---)`);
     continue;
@@ -231,9 +218,6 @@ for (const s of skills) {
     (s.skill === EXCLUDED_SKILL_NAME.name ? EXCLUDED_SKILL_NAME.reason : undefined);
   const { "workflow-stage": stage, summary, cadence } = s.meta.values;
 
-  // Reject a trailing comment on any swept key from the RAW value — after the
-  // strip the guard's own " #" branch is unreachable, and the stripped value
-  // would render a silently truncated row that reads as intended content.
   for (const k of ["workflow-stage", "summary", "cadence"]) {
     const rawValue = s.meta.raw[k];
     if (rawValue !== undefined && rawValue !== s.meta.values[k]) {
@@ -291,9 +275,7 @@ for (const row of REVIEW_PR_MAP) {
   mapRows.push({ ...row, plugin: skill.plugin, name: skill.skill });
 }
 
-// The command typed for each stage, and what it runs, each claim cited by the
-// path:line of its basis quote, found afresh on every run.
-const stageCommands = new Map(); // stage slug -> { command, runs: [cited claim] }
+const stageCommands = new Map();
 for (const entry of STAGE_COMMANDS) {
   const id = `stage commands: ${entry.stage}`;
   const skill = mapped.find((s) => `${s.plugin}/${s.skill}` === entry.skill);
@@ -337,7 +319,6 @@ if (errors.length > 0) fail(errors);
 // workflow stage definitions, same order — a stage rename upstream fails this
 // gate instead of silently stranding the copy. The Task kinds H2 in the same
 // file is the kind-to-stages table, not a stage.
-
 const TASK_KINDS_HEADING = "Task kinds";
 const stepsPath = join(
   root, "plugins", "session-flow", "skills", "workflow", "context", "steps.md",
@@ -372,7 +353,6 @@ if (spineErrors.length > 0) fail(spineErrors);
 // number and without anything after a colon or an opening parenthesis
 // ("## 11. Verify outcome" is "Verify outcome", "## Ship: PR lifecycle ..." is
 // "Ship"). An unknown name fails, so the table cannot rot silently.
-
 const stageByName = new Map(
   workflowStages.map((s, i) => [
     stepHeadings[i].replace(/^\d+\.\s+/, "").split(/:|\s\(/)[0].trim(),
@@ -452,8 +432,6 @@ for (const record of UPSTREAM_RECORDS) {
   }
 }
 
-// --- Render -------------------------------------------------------------------
-
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 const marketplace = JSON.parse(readFileSync(marketplacePath, "utf8"));
 const installName = new Map(
@@ -520,8 +498,6 @@ for (const stage of STAGES) {
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
 }
 
-// The by-kind view: steps.md's Task kinds joined with each stage's command
-// entry and the stage tables below, each stage linking to its table.
 const BY_KIND_HEADING = "By kind of task";
 const stageLink = ({ name, stage }) =>
   renderedStages.has(stage.slug) ? `[${name}](#${slugify(stage.heading)})` : name;
@@ -562,8 +538,6 @@ if (mapRows.length > 0) {
 }
 
 const body = `${toc.join("\n")}\n\n${sections.join("\n\n")}`;
-
-// --- Write / check -------------------------------------------------------------
 
 if (!existsSync(OUTPUT_PATH)) {
   fail([`${OUTPUT_PATH} is missing; create it once with the markers (${FORMS_TEXT})`]);

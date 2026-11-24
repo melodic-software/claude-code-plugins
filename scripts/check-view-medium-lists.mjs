@@ -124,7 +124,6 @@ export function collect(root) {
   return { flagged, lanes };
 }
 
-// exemptions(root) -> [{ laneId, cites }]
 function exemptions(root) {
   return listRows(path.join(root, EXEMPTIONS)).map((row) => {
     const hash = row.indexOf("#");

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-hook-slow-shapes.sh. Each scenario builds a small
-# plugins/ tree in a temp dir and runs the gate against it; the gate's own
-# `cd "$(dirname "$0")/.."` scans <fixture>/plugins/. Every shape is exercised
-# from both sides: a gate that only ever sees clean input proves nothing.
 # shellcheck disable=SC2016  # fixture bodies are literal shell/JSON/YAML carrying ${CLAUDE_PLUGIN_ROOT} and $TRANSCRIPT; expansion is never wanted
 set -uo pipefail
 
@@ -20,13 +16,12 @@ REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --sut "$READER" --plugins || return 1
   mkdir -p "${!1}/.github"
   cp "$REQUIREMENTS" "${!1}/.github/requirements-ci.txt"
 }
 
-# plugin_file <fixture> <plugin> <relpath> <content>
 plugin_file() {
   mkdir -p "$1/plugins/$2/$(dirname "$3")"
   printf '%s\n' "$4" >"$1/plugins/$2/$3"
@@ -41,7 +36,6 @@ row_json() {
   printf '%s' "$1" | jq -Rs --argjson x "$extra" '{hooks:{Stop:[{hooks:[{type:"command",command:.} + $x]}]}}'
 }
 
-# hooks_json <fixture> <plugin> <command>
 hooks_json() {
   mkdir -p "$1/plugins/$2/hooks"
   row_json "$3" >"$1/plugins/$2/hooks/hooks.json"
@@ -51,7 +45,6 @@ run_check() (
   cd "$1" && bash scripts/check-hook-slow-shapes.sh 2>&1
 )
 
-# expect <label> <fixture> <want-rc> [<needle>]
 expect() {
   local label="$1" out rc
   out="$(run_check "$2")"
@@ -66,8 +59,6 @@ expect() {
 ENV_SCRIPT='#!/usr/bin/env bash
 exit 0'
 ROOTED='"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh'
-
-# --- shape (b): a #!/usr/bin/env script with no interpreter prefix ---------
 
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
@@ -114,8 +105,6 @@ hooks:
 body'
 expect "(b) a skill-frontmatter hook is scanned" "$f" 1 "ENV SHEBANG: plugins/demo/skills/s/SKILL.md"
 
-# A shell-form frontmatter hook whose command is not a scalar is unreadable, a
-# finding, never silently skipped.
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
 plugin_file "$f" demo hooks/y.sh '#!/bin/bash
@@ -147,9 +136,6 @@ printf '%s' "$ROOTED" | jq -Rs '{name:"demo",hooks:["./config/none.json",{Stop:[
   >"$f/plugins/demo/.claude-plugin/plugin.json"
 expect "(b) an inline map inside a manifest hooks array is scanned" "$f" 1 "ENV SHEBANG: plugins/demo/.claude-plugin/plugin.json:.hooks[1].Stop[0].hooks[0]"
 
-# --- shape (a): a whole-file read of the transcript -------------------------
-
-# transcript_hook <body-after-assignment>
 transcript_hook() {
   printf '#!/bin/bash\nTRANSCRIPT=$(jq -r .transcript_path)\n%s\nexit 0\n' "$1"
 }
@@ -172,7 +158,6 @@ plugin_file "$f" demo hooks/x.sh "$(transcript_hook 'grep -F x -- "$TRANSCRIPT" 
 hooks_json "$f" demo "bash $ROOTED"
 expect "(a) a head -c AFTER a whole-file reader is not a bound and FAILS" "$f" 1 "TRANSCRIPT READ"
 
-# A bound in an earlier command on the same line bounds nothing later.
 for read_line in 'head -c 1 /dev/null; cat "$TRANSCRIPT"' 'tail -c 5 /dev/null && grep -F x "$TRANSCRIPT"'; do
   new_fixture f
   plugin_file "$f" demo hooks/x.sh "$(transcript_hook "$read_line")"
@@ -180,9 +165,6 @@ for read_line in 'head -c 1 /dev/null; cat "$TRANSCRIPT"' 'tail -c 5 /dev/null &
   expect "(a) '$read_line' is not bounded by the earlier command and FAILS" "$f" 1 "TRANSCRIPT READ"
 done
 
-# Documented miss (header, "Out of reach"): text that merely contains
-# `tail -c` reads as a bound. Pinned so a change in this behavior is seen;
-# the growth ratchets, not this lint, catch the cost.
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$(transcript_hook 'grep -c "tail -c" "$TRANSCRIPT"')"
 hooks_json "$f" demo "bash $ROOTED"
@@ -200,7 +182,6 @@ python3 x.py --transcript "$TRANSCRIPT"')"
 hooks_json "$f" demo "bash $ROOTED"
 expect "(a) a test or hand-off of the path is not a read" "$f" 0
 
-# A launcher's bare-name arguments resolve under the same plugin's hooks/.
 new_fixture f
 plugin_file "$f" demo hooks/run.sh '#!/bin/bash
 exit 0'
@@ -208,9 +189,6 @@ plugin_file "$f" demo hooks/inner.sh "$(transcript_hook 'cat "$TRANSCRIPT"')"
 hooks_json "$f" demo 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run.sh inner.sh'
 expect "(a) a launcher argument script is scanned" "$f" 1 "TRANSCRIPT READ: plugins/demo/hooks/inner.sh"
 
-# --- deterministic output ----------------------------------------------------
-# Several flagged scripts: the findings come out in sorted path order, the same
-# on every run.
 new_fixture f
 for s in zz mm aa kk; do
   plugin_file "$f" demo "hooks/$s.sh" "$(transcript_hook 'cat "$TRANSCRIPT"')"

@@ -30,7 +30,6 @@ assert_eq "undeclared team → exit 2" "2" "$rc"
 assert_contains "refusal names the declared scope" "$(lin_err)" "config.linear.scopes"
 assert_eq "and nothing was requested" "" "$(lin_requests)"
 
-# seed_page <nodes-json> [has-next] [cursor]
 seed_page() {
   lin_data 'issues(filter:' "$(jq -cn --argjson n "$1" --argjson h "${2:-false}" --arg c "${3:-}" \
     '{issues: {nodes: $n, pageInfo: {hasNextPage: $h, endCursor: $c}}}')"
@@ -49,8 +48,6 @@ assert_contains "teams travel in the filter variable" "$(lin_bodies)" '"team":{"
 assert_contains "an explicit page size is sent" "$(lin_bodies)" '"first":50'
 assert_not_contains "no label filter unless asked" "$(lin_bodies)" '"labels"'
 
-# --- the state and label filters travel in the query ---
-# Built from done_state_types, the set the normalizer classifies with.
 lin_reset
 seed_page '[]'
 lin_run "$S" --state open >/dev/null
@@ -73,7 +70,6 @@ assert_contains "--label asks for issues carrying that label" "$(lin_bodies)" \
 assert_usage_error "$S" --label
 assert_usage_error "$S" --label ""
 
-# --- the normalized state is still checked after the query ---
 lin_reset
 seed_page "$(jq -cn --argjson o "$(lin_issue_json 12 started)" --argjson c "$(lin_issue_json 13 completed)" '[$o, $c]')"
 rc="$(lin_run "$S" --state open)"
@@ -91,7 +87,6 @@ seed_page "$(jq -cn --argjson o "$(lin_issue_json 12 started)" --argjson c "$(li
 lin_run "$S" --state all >/dev/null
 assert_eq "--state all returns both" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
 
-# The override reaches list filtering too, not just get-item.
 lin_write_binding '{"done_state_types":["canceled"]}'
 lin_reset
 seed_page "[$(lin_issue_json 13 completed)]"
@@ -109,9 +104,6 @@ assert_eq "both pages collected" "2" "$(jq -r '.items | length' <<<"$(lin_out)")
 assert_contains "the cursor is sent on the second call" "$(lin_bodies)" '"after":"cursor-1"'
 assert_eq "a listing whose last page arrived carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
 
-# --- the declared ceiling ends the walk and the envelope says so ---
-# A fixture copy of the adapter declares a ceiling of 2, so two one-item pages reach it
-# and the third page, asked for one node past the ceiling, proves more exist.
 FIX_ADAPTER="$LIN_FIX/adapter"
 mkdir -p "$FIX_ADAPTER"
 cp "$D"/*.sh "$FIX_ADAPTER/"
@@ -127,9 +119,6 @@ assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated'
 assert_contains "and stderr announces it" "$(lin_err)" "ceiling of 2 items"
 assert_contains "the page after the ceiling asks for one node" "$(lin_bodies)" '"first":1'
 
-# --- a ceiling below the page size bounds one page too ---
-# Ceiling 25, 30 issues: the request asks for 26, and a provider that returns all 30 on
-# one last page still yields 25 items and truncated:true, never 30 and false.
 jq '.limits.list_items_max = 25' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
 THIRTY="$(for n in $(seq 1 30); do lin_issue_json "$n" started; done | jq -cs '.')"
 lin_reset
@@ -192,7 +181,6 @@ rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" WIT_LINEAR_CURL="$SERVER/curl" \
 assert_eq "a label carried by one of four issues, ceiling 2 → complete" "linear:acme/ENG#4 false" \
   "$(jq -r '([.items[].id] | join(",")) + " " + (.truncated | tostring)' <<<"$(lin_out)")"
 
-# An empty result is an empty envelope, never an error.
 lin_reset
 seed_page '[]'
 rc="$(lin_run "$S")"

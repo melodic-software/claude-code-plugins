@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-purged-em-dashes.sh.
-#
-# Hermetic and cwd-independent: builds a throwaway git repository containing its
-# own markdown, its own allowlist and its own detector config, points the SUT at
-# it through the four EM_DASH_* injection variables, and asserts on exit code
-# plus output. The one thing it does NOT stub is the detector. The fixture
-# drives the real plugins/ai-slop/skills/audit/scripts/detect.sh, because the
-# behavior most worth pinning here is precisely that this gate and that
-# detector agree on what counts as prose. A stubbed detector would let the two
-# drift and still report green.
-#
-# The seeded violation is the point of the suite. A gate whose failing path is
-# never exercised is a gate nobody has evidence works; every "clean" assertion
-# below would also pass against a script that unconditionally exits 0. So the
-# fixture plants a real em dash in prose and requires exit 1 and the offending
-# file named, and separately plants em dashes in the places that legitimately
-# carry them, a fenced code block and an ignore-marked line, and requires
-# those NOT to fire.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,19 +43,12 @@ run_cfg() {
 
 run() { run_cfg "docs/conventions/ai-slop.yaml" "$@"; }
 
-# --- Fixture ----------------------------------------------------------------
-# One repository, several allowlists pointed at different subsets of it, so each
-# case selects the surface it means to assert on rather than rebuilding a repo.
-
 REPO="$TMP/repo"
 mkdir -p "$REPO/docs/conventions" "$REPO/surface" "$REPO/other"
 git_init_test_repo "$REPO"
 
 write() { printf '%s\n' "$2" >"$REPO/$1"; }
 
-# The tracked detector config, shaped like this repository's: rule-em-dash
-# disabled here, so a passing run PROVES the SUT's throwaway layer re-enabled it
-# rather than inheriting an already-permissive config.
 write "docs/conventions/ai-slop.yaml" 'excluded_paths: []
 disabled_rules: ["rule-em-dash", "rule-emoji-formatting"]'
 
@@ -81,10 +56,6 @@ write "surface/clean.md" 'A purged surface. It uses periods, and commas, instead
 
 write "surface/dirty.md" "A surface with a regression ${EM} right here in prose."
 
-# Em dashes that are DATA, not prose: one inside a fenced code block, one on a
-# line the detector's own ignore marker declines. Both must stay silent, or the
-# gate would push contributors to corrupt quoted material to satisfy a style
-# rule.
 printf '%s\n' \
   'Prose with no em dash.' \
   '' \
@@ -103,29 +74,14 @@ write "other/unlisted.md" "Not on the allowlist ${EM} so not this gate's busines
 mkdir -p "$REPO/surface/deep"
 write "surface/deep/nested.md" "A nested regression ${EM} that surface/*.md must not see."
 
-# Tells that OTHER detector rules would fire on, and no em dash. The gate
-# must stay clean: it judges rule-em-dash only. Combined with the one-rule
-# liveness assertion in the SUT, a passing run of this surface is what pins
-# that the throwaway layer disabled the rest of the roster rather than
-# merely ignoring those findings.
 write "surface/other-tells.md" 'I hope this helps. It is important to note this, in order to keep the check cheap.'
 
-# A file the detector opens and then declines on an in-file marker. The detector
-# counts such a file BOTH as scanned and as declined, so a gate that adds those
-# two totals sees one file too many and reports a coverage mismatch on a file the
-# allowlist legitimately names. The marker is documented as an exemption, so it
-# has to be usable from an allowlisted path.
 printf '%s\n' \
   '<!-- ai-slop-ignore-file -->' \
   '' \
   "Wholly declined text ${EM} not this gate's business either." \
   >"$REPO/surface/marked.md"
 
-# Three more tracked configs, each carrying one switch that can quiet
-# rule-em-dash on an allowlisted file. The SUT strips the first two when it
-# derives its throwaway layer and fails the run on the third, so each of these
-# is pointed at the SEEDED VIOLATION: a config that could suppress the finding
-# is the only fixture in which stripping is observable.
 write "docs/conventions/cfg-em-dash-allowed.yaml" 'excluded_paths: []
 em_dash_allowed_paths: ["surface/dirty.md"]
 disabled_rules: ["rule-em-dash"]'
@@ -135,13 +91,8 @@ rule_allowed_paths:
 disabled_rules: ["rule-em-dash"]'
 write "docs/conventions/cfg-excluded.yaml" 'excluded_paths: ["surface/dirty.md"]
 disabled_rules: ["rule-em-dash"]'
-# A JSON document is outside the YAML subset, so the detector would skip it
-# whole and drop its excluded_paths and thresholds without a word.
 write "docs/conventions/cfg-refused.yaml" '{"excluded_paths":[],"disabled_rules":["rule-em-dash"]}'
 
-# Matcher edge cases for the stale-entry and --list attribution: a leading dot,
-# a dot inside a directory name, brackets in a file name, and single-star
-# segments at two depths.
 mkdir -p "$REPO/edge/b.c" "$REPO/edge/x/deep" "$REPO/edge/y"
 for f in edge/.dotted.md edge/b.c/inner.md 'edge/[lit].md' edge/x/a.md edge/y/a.md edge/x/deep/a.md; do
   write "$f" 'Clean edge-case surface.'
@@ -168,11 +119,6 @@ list "edge" 'edge/.dotted.md' 'edge/*.md' 'edge/b.?/*.md' 'edge/[xy]/a.md' \
 git_test_config "$REPO" add -A
 git_test_config "$REPO" commit -qm fixture
 
-# Each `run` forks the detector, which is the expensive part of this suite, so
-# every allowlist is run ONCE and all of its assertions read the captured
-# result. Re-running the same fixture to ask a second question about it is what
-# made this suite minutes long instead of seconds.
-
 run "$REPO" "only-clean.txt"
 clean_rc=$RC clean_out="$OUT"
 if ((clean_rc == 0)); then
@@ -180,12 +126,6 @@ if ((clean_rc == 0)); then
 else
   fail "clean surface passes (rc=$clean_rc): $clean_out"
 fi
-# An unlisted file is unenforced: that is the allowlist's defining property, and
-# asserting it here is what stops a later "just scan everything" edit from
-# passing this suite. Asserting the file is merely ABSENT from the output does
-# not pin that, because a clean run prints one summary line and names nothing;
-# the scanned count is what distinguishes "one file was checked" from "the whole
-# fixture was checked and happened to be clean apart from the listed one".
 if [[ "$clean_out" != *"unlisted.md"* ]] &&
   [[ "$clean_out" == *"1 declared paths, 1 files scanned"* ]]; then
   ok "a file outside the allowlist is not scanned"
@@ -193,7 +133,6 @@ else
   fail "a file outside the allowlist is not scanned: $clean_out"
 fi
 
-# THE SEEDED VIOLATION.
 run "$REPO" "with-dirty.txt"
 if ((RC == 1)); then
   ok "seeded em dash fails the gate"
@@ -210,19 +149,11 @@ if [[ "$OUT" != *"surface/clean.md:"* ]]; then
 else
   fail "the failure does not implicate the clean file: $OUT"
 fi
-# If the SUT ever stopped re-enabling rule-em-dash, the fixture's tracked config
-# would leave the rule off and this same case would report a clean run. The
-# liveness guard must therefore not be what fired here.
 if [[ "$OUT" != *"config layer did not take effect"* ]]; then
   ok "the derived config layer takes effect"
 else
   fail "the derived config layer takes effect: $OUT"
 fi
-# The real detector ships ~15 rules. A throwaway layer that only re-enabled
-# rule-em-dash and left the rest of the roster running would still fail the
-# seeded violation (so the case above would stay green) and would still
-# balance the file-count arithmetic. The one-rule liveness guard is what
-# makes that shape exit 2 instead of a slow, silently-wide check.
 if [[ "$OUT" != *"expected only rule-em-dash enabled"* ]]; then
   ok "the one-rule liveness guard is not what failed the seeded violation"
 else
@@ -236,12 +167,6 @@ else
   fail "em dashes in a code fence and an ignore-marked line do not fire (rc=$RC): $OUT"
 fi
 
-# THE NARROW-RULE PIN. other-tells.md carries chatbot and filler residue the
-# real detector would report if those rules ran enabled. The SUT only greps
-# rule-em-dash findings, so ignoring those rows is not enough to stay cheap;
-# the one-rule liveness guard is what fails a wide run at exit 2. A passing
-# result here is the coverage arithmetic re-proven under the narrower config:
-# two declared files, one enabled rule, no em dashes.
 run "$REPO" "other-tells.txt"
 if ((RC == 0)) && [[ "$OUT" == *"2 declared paths, 2 files scanned"* ]]; then
   ok "other-rule tells on a declared path do not fail a one-rule run"
@@ -249,11 +174,6 @@ else
   fail "other-rule tells on a declared path do not fail a one-rule run (rc=$RC): $OUT"
 fi
 
-# A whole-file ignore marker is one of the exemptions this gate documents, so an
-# allowlisted path is allowed to carry one. The detector counts such a file both
-# as scanned and as declined, and a gate that reads those two totals as disjoint
-# concludes it was handed one file too many and refuses the run at exit 2 —
-# green surfaces reported broken because of an exemption they were promised.
 run "$REPO" "marked.txt"
 if ((RC == 0)); then
   ok "a whole-file ignore marker does not break the coverage assertion"
@@ -331,10 +251,6 @@ if ((RC == 0)) && [[ "$OUT" == *"surface/clean.md"* ]]; then
 else
   fail "--list reports each declared entry (rc=$RC): $OUT"
 fi
-# --list is the cheap audit the allowlist header sends a reader to, so it must
-# stop at the expansion. Pointed at the seeded violation it still lists rather
-# than judging: no detector verdict in the output, and exit 0 for a listing that
-# expanded cleanly even though a check of the same allowlist would exit 1.
 run "$REPO" "with-dirty.txt" --list
 if ((RC == 0)) && [[ "$OUT" != *"no em dashes"* ]] && [[ "$OUT" != *"em-dash line(s)"* ]]; then
   ok "--list expands the allowlist without running the detector"
@@ -366,17 +282,6 @@ else
   fail "a detector config the YAML parser refuses is exit 2 (rc=$RC): $OUT"
 fi
 
-# --- Switches that could quiet rule-em-dash on a declared path ---------------
-#
-# Each of the three runs below uses with-dirty.txt, whose surface/dirty.md the
-# base case above proves is a real finding. So each asserts on the ONE thing
-# its config changes, against a fixture where suppression would be visible.
-
-# em_dash_allowed_paths exempts a single file from rule-em-dash alone. The
-# detector still opens the file, so it counts as scanned, the coverage
-# assertion still balances and the rule summary still says disabled=0: nothing
-# in a passing run would have said the file was never actually judged. The SUT
-# strips the key rather than trusting those counters to reveal it.
 run_cfg "docs/conventions/cfg-em-dash-allowed.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "em_dash_allowed_paths does not exempt a declared path"
@@ -384,9 +289,6 @@ else
   fail "em_dash_allowed_paths does not exempt a declared path (rc=$RC, want 1): $OUT"
 fi
 
-# rule_allowed_paths is the generalized form of the same switch, keyed by rule
-# slug, and reaches the detector through a different reader. Stripping one and
-# not the other would leave the identical hole under a second spelling.
 run_cfg "docs/conventions/cfg-rule-allowed.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "rule_allowed_paths[rule-em-dash] does not exempt a declared path"
@@ -394,18 +296,12 @@ else
   fail "rule_allowed_paths[rule-em-dash] does not exempt a declared path (rc=$RC, want 1): $OUT"
 fi
 
-# excluded_paths is handled the other way round: the file is never opened, so
-# the SUT cannot judge it and does not pretend to. It reports the path and
-# FAILS, because a declaration the detector never reads is not coverage, and a
-# green exit is exactly how it would be mistaken for some.
 run_cfg "docs/conventions/cfg-excluded.yaml" "$REPO" "with-dirty.txt"
 if ((RC == 1)) && [[ "$OUT" == *"were NOT checked"* ]] && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "a declared path the config excludes fails the gate and is named"
 else
   fail "a declared path the config excludes fails the gate and is named (rc=$RC, want 1): $OUT"
 fi
-# ... and the failure is the exclusion, not the em dash that happens to be in
-# that file: the detector never read it, so it can report no finding on it.
 if [[ "$OUT" != *"em-dash line(s)"* ]]; then
   ok "the excluded path fails as unchecked rather than as a finding"
 else

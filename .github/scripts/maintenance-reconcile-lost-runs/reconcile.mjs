@@ -605,12 +605,22 @@ const TARGET_FORMS = [
 ];
 const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(call(m[1]))));
 const floorCompanion = (message, floors) => FLOOR_COMPANION.test(message) && namedCalls(message).some((call) => floors.some((f) => call.test(f)));
+// The label holds ci-status fails on: its human-gated step (pr-require-checks.yml)
+// and check-contract's label checks
+// (https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/pr-require-checks/check-contract/run.sh).
+// A hold keeps ci-status red by itself, so a review re-run beside one merges nothing.
+const HUMAN_GATED_NOTE = /^#[1-9][0-9]* carries '[^']+'(?: \(.*\))?\. Removing the label approves this pull request; ci-status re-runs on the unlabel\.$/;
+const CONTRACT_HOLD_NOTE = /^check-contract: this PR carries the '[^']+' (?:label; remove it to merge|hold label; a person removes it to release the hold)\.$/;
+const CONTRACT_FAILED_NOTE = "ci-status: the pull-request contract or the draft policy failed; see the step above.";
 export const reviewStopsAmidGateNotes = (annotations) => {
   const causes = failureCauses(annotations);
-  const floors = causes.map((a) => String(a.message ?? "")).filter((m) => FLOOR_NOTE.test(m));
+  const messages = causes.map((a) => String(a.message ?? ""));
+  const floors = messages.filter((m) => FLOOR_NOTE.test(m));
+  const contractHeld = messages.some((m) => CONTRACT_HOLD_NOTE.test(m));
+  const holdNote = (m) => HUMAN_GATED_NOTE.test(m) || CONTRACT_HOLD_NOTE.test(m) || (contractHeld && m === CONTRACT_FAILED_NOTE);
   const gateNote = (a) => {
     const m = String(a.message ?? "");
-    return stopCause(a) || killSwitchNoted([a]) || PENDING_REVIEW_NOTE.test(m) || MISSING_REVIEW_NOTE.test(m) || FLOOR_NOTE.test(m) || floorCompanion(m, floors);
+    return stopCause(a) || killSwitchNoted([a]) || PENDING_REVIEW_NOTE.test(m) || MISSING_REVIEW_NOTE.test(m) || FLOOR_NOTE.test(m) || floorCompanion(m, floors) || holdNote(m);
   };
   return causes.some(stopCause) && causes.every(gateNote);
 };

@@ -23,14 +23,9 @@ done
 
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 
-# Lease-time logic (wit_iso_to_epoch, wit_lease_is_live, wit_lease_json) is
-# shared with the local-markdown adapter and tested once in lib/lease.test.sh.
-
 assert_eq "404 → not-found (5)" "5" "$(wit_map_gh_error 'HTTP 404 Not Found')"
 assert_eq "rate limit → unavailable (8)" "8" "$(wit_map_gh_error 'API rate limit exceeded')"
 
-# Bot-wrapper resolution (CONTRACT.md "Identity routing (GitHub adapter)"):
-# consumer-local-first, plugin-bundled fallback, regardless of adapter location.
 CONSUMER_ROOT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 mkdir -p "$CONSUMER_ROOT/tools/github-auth"
 CONSUMER_WRAPPER="$CONSUMER_ROOT/tools/github-auth/gh-bot.sh"
@@ -56,9 +51,6 @@ assert_eq "falls back to bundled path when CLAUDE_PROJECT_DIR unset" "$BUNDLED" 
 
 rm -rf "$CONSUMER_ROOT" "$EMPTY_ROOT"
 
-# --- wit_emit_item / wit_resolve_repo take the REST path below gh 2.94 ---
-# The stub 403s every GraphQL-backed call (`issue view`, `repo view`) the way a
-# sandboxed session does and serves `gh api`; gh 2.94 reads through `issue view`.
 if command -v jq >/dev/null 2>&1; then
   EMIT_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$EMIT_STUB/gh" <<'EOF'
@@ -208,8 +200,6 @@ EOF
 
   rm -rf "$EMIT_STUB"
 
-  # In a job (RUNNER_TEMP set) sourcing common.sh wraps gh: a read goes with
-  # -i, its reading lands under github-token, and the caller sees the body alone.
   WRAP_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   mkdir -p "$WRAP_STUB/runner"
   cat >"$WRAP_STUB/gh" <<'EOF'
@@ -230,7 +220,6 @@ EOF
   rm -rf "$WRAP_STUB"
 fi
 
-# --- a closed blocker unblocks only when it was completed ---
 # Issue N carries one blocker whose state and close reason the stub fixes per N. The
 # `gh --json blockedBy` projection has no stateReason, so the reason is served only
 # by `gh api graphql` (nodes by id); GH_STUB_GRAPHQL_FAIL makes that query fail.
@@ -339,11 +328,8 @@ EOF
   assert_contains "the close-reason query fetches each closed blocker's labels" \
     "$(grep 'api graphql' "$REASON_STUB/calls.log")" "labels"
 
-  # config.github.wont_do_labels: a closed blocker carrying a listed label is won't-do
-  # whatever its stateReason, matched case-insensitively. Fixture item 7 has one blocker
-  # closed COMPLETED and labeled Wont-Fix.
   LABEL_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
-  gh_binding() { # <github-config-json>: a github binding with that config.github
+  gh_binding() {
     jq -cn --argjson g "$1" '{schema_version: "1.0", provider: "github", config: {lease_ttl_hours: 24, github: $g}}' \
       >"$LABEL_DIR/binding.json"
   }
@@ -378,7 +364,6 @@ EOF
   rm -rf "$REASON_STUB"
 fi
 
-# The README's REST search filter: doc and test read the same text.
 README="$(dirname "${BASH_SOURCE[0]}")/README.md"
 FILTER="$(sed -n "/rest-search-filter:start/,/rest-search-filter:end/{s/^FILTER='\(.*\)'\$/\1/p}" "$README")"
 assert_eq "README carries the REST search filter" "1" "$([[ -n "$FILTER" ]] && echo 1 || echo 0)"
@@ -391,10 +376,10 @@ assert_eq "REST search filter drops PRs, matches case-insensitively" $'1\tFix Lo
 eval "$(sed -n '/open-linked-prs-filter:start/,/open-linked-prs-filter:end/{/^[A-Z_]*=/p}' "$README")"
 assert_eq "README carries the open-linked-PR reductions" "1" \
   "$([[ -n "${PR_GATE:-}" && -n "${PR_READY_GATE:-}" && -n "${PR_REPORT:-}" ]] && echo 1 || echo 0)"
-pr_page() { # <nodes-json>: one page of the README's query for item o/r#1
+pr_page() {
   jq -cn --argjson n "$1" '{data: {repository: {nameWithOwner: "o/r", issue: {closedByPullRequestsReferences: {nodes: $n}}}}}'
 }
-pr() { # <number> <state> <draft> <head nameWithOwner or null>
+pr() {
   jq -cn --argjson n "$1" --arg s "$2" --argjson d "$3" --argjson h "$4" \
     '{number: $n, state: $s, isDraft: $d, createdAt: "2026-10-01T00:00:00Z", headRepository: (if $h == null then null else {nameWithOwner: $h} end)}'
 }

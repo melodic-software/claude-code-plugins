@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for scripts/check-html-assets.sh: the manifest is enforced in
-# both directions (a listed asset must exist and lint; a tracked asset must be
-# listed), and a missing linter is an environment error, never a silent pass.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
