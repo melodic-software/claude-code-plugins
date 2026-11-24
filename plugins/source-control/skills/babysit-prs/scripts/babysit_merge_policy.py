@@ -156,11 +156,10 @@ MAX_ADOPTION_IDLE_HOURS = 720
 # Whose pull requests the pr-merge lane adopts: every account on this list,
 # by id (`trusted_actor_ids`).
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
-TRUSTED_SOURCE_KEY = "trusted_actors_source"
-TRUSTED_SOURCES = ("repository", "standards")
-STANDARDS_REPO = "melodic-software/standards"
-STANDARDS_TRUSTED_ACTORS_PATH = "components/trusted-actors/trusted-actors.json"
-STANDARDS_DEPENDABOT_POLICY_PATH = "components/dependabot-policy/policy.json"
+STANDARDS_REPO_KEY = "standards_repository"
+STANDARDS_TRUSTED_ACTORS = "components/trusted-actors/trusted-actors.json"
+STANDARDS_SOURCE_KEY = "trusted_actors_source"
+STANDARDS_SOURCES = ("repository", "standards")
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -1068,9 +1067,14 @@ def enabled_authority(config: PipelineConfig) -> str | None:
     return None
 
 
-def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
-    """The file's text at `sha`, or None when absent from a readable tree."""
+def _file_at(
+    owner: str, name: str, path: str, sha: str, *, probe: bool = True
+) -> str | None:
+    """The file's text at `sha`, or None when absent from a readable tree;
+    with `probe` False, None on any 404."""
     status, payload = _get(f"repos/{owner}/{name}/contents/{path}?ref={sha}")
+    if status == 404 and not probe:
+        return None
     if status == 404:
         root, _ = _get(f"repos/{owner}/{name}/contents?ref={sha}")
         if root == 200:
@@ -5012,75 +5016,6 @@ def path_lifters(
 AUTHOR_NOT_OWNER = "author-not-owner"
 # `trusted_actors` by (repo, ref), read once a run.
 _TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {}
-_TRUSTED_SOURCE: dict[tuple[str, str, str], str] = {}
-_STANDARDS_SHA: dict[str, str] = {}
-_STANDARDS_FILES: dict[str, str | None] = {}
-
-
-def trusted_actors_source(owner: str, name: str, ref: str) -> str:
-    """`trusted_actors_source` from the team YAML at `ref`, read once a
-    process per (repository, ref): `standards`, or `repository` when the file
-    or the key is absent. Raises `PolicyReadError` when the file cannot be
-    read, the shared reader rejects it, or the value is not a scalar in
-    `TRUSTED_SOURCES`."""
-    key = (owner, name, ref)
-    if key not in _TRUSTED_SOURCE:
-        path = repo_config.YAML_CONFIG_PATH
-        text = _file_at(owner, name, path, ref)
-        source = TRUSTED_SOURCES[0]
-        if text is not None:
-            values = _concern_values(text, [(TRUSTED_SOURCE_KEY, False)])
-            if values is None:
-                raise PolicyReadError(f"{path} at {ref}: the shared YAML reader rejects it")
-            found = values[TRUSTED_SOURCE_KEY]
-            if found:
-                source = found[0]
-            elif re.search(rf"^{TRUSTED_SOURCE_KEY}[ \t]*:", text, re.M) or (
-                TRUSTED_SOURCE_KEY in text and _records_below(text, TRUSTED_SOURCE_KEY)
-            ):
-                raise PolicyReadError(
-                    f"{path} at {ref}: {TRUSTED_SOURCE_KEY} is not a scalar value"
-                )
-        if source not in TRUSTED_SOURCES:
-            raise PolicyReadError(
-                f"{path} at {ref}: {TRUSTED_SOURCE_KEY} {source!r} is not a known value"
-            )
-        _TRUSTED_SOURCE[key] = source
-    return _TRUSTED_SOURCE[key]
-
-
-def _standards_file(path: str) -> tuple[str | None, str]:
-    """(`path` on `STANDARDS_REPO` or None when absent, the commit read): the
-    commit its `main` names at this process's first read, and each file read
-    once a process. Raises `PolicyReadError` when that commit or the file
-    cannot be read."""
-    owner, name = _split_repo(STANDARDS_REPO)
-    if STANDARDS_REPO not in _STANDARDS_SHA:
-        status, payload = _get(f"repos/{owner}/{name}/commits/main")
-        sha = json_object(payload).get("sha") if status == 200 else None
-        if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
-            raise PolicyReadError(
-                f"{STANDARDS_REPO} main names no readable commit (status {status})"
-            )
-        _STANDARDS_SHA[STANDARDS_REPO] = sha
-    sha = _STANDARDS_SHA[STANDARDS_REPO]
-    if path not in _STANDARDS_FILES:
-        _STANDARDS_FILES[path] = _file_at(owner, name, path, sha)
-    return _STANDARDS_FILES[path], sha
-
-
-def _list_text(
-    owner: str, name: str, ref: str, path: str, standards_path: str
-) -> tuple[str | None, str]:
-    """(the list's text or None when absent, where it was read): with the team
-    YAML at `ref` setting `trusted_actors_source: standards`, `standards_path`
-    on `STANDARDS_REPO` (`_standards_file`), else the repository's `path` at
-    `ref`. Raises `PolicyReadError` when the choice or the file cannot be
-    read."""
-    if trusted_actors_source(owner, name, ref) == "standards":
-        text, sha = _standards_file(standards_path)
-        return text, f"{STANDARDS_REPO} {standards_path} at {sha}"
-    return _file_at(owner, name, path, ref), f"{path} at {ref}"
 
 
 def trusted_actors(
@@ -5103,25 +5038,121 @@ def trusted_actors(
     return _TRUSTED_IDS[key]
 
 
-def trusted_listing(repo: str, ref: str) -> tuple[tuple[int, Any, Any], ...]:
-    """Each actor on the trusted list for `ref` as (id, login, kind): the
-    repository's `TRUSTED_ACTORS_PATH` at `ref`, or the standards copy when
-    the team YAML at `ref` opts in (`_list_text`). Raises `PolicyReadError`
-    when that choice cannot be read, or the list is absent, unreadable or does
-    not match its schema (version 1, every id a positive whole number)."""
-    owner, name = _split_repo(repo)
-    text, where = _list_text(
-        owner, name, ref, TRUSTED_ACTORS_PATH, STANDARDS_TRUSTED_ACTORS_PATH
-    )
+_READS_STANDARDS: dict[tuple[str, str, str], str | None] = {}
+_STANDARDS_SHA: dict[str, str] = {}
+_STANDARDS_TEXT: dict[tuple[str, str], str | None] = {}
+
+
+def opts_in_to_standards(text: str | None) -> str | None:
+    """The `standards_repository` a team YAML names when it sets
+    `trusted_actors_source: standards`, else None. Raises `PolicyReadError`
+    when the shared reader rejects it, the source is not one of
+    `STANDARDS_SOURCES`, or an opted-in YAML names no owner/repo pair, so
+    nothing is read from either source."""
+    if text is None:
+        return None
+    keys = (STANDARDS_SOURCE_KEY, STANDARDS_REPO_KEY)
+    values = _concern_values(text, [(k, False) for k in keys])
+    if values is None:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: the shared YAML reader rejects it"
+        )
+    for key in keys:
+        if not values[key] and (
+            repo_config._yaml_writes(text, key)
+            or (key in text and _records_below(text, key))
+        ):
+            raise PolicyReadError(
+                f"{repo_config.YAML_CONFIG_PATH}: {key} is not a scalar value"
+            )
+    found = values[STANDARDS_SOURCE_KEY]
+    if found and found[0] not in STANDARDS_SOURCES:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_SOURCE_KEY} "
+            f"{found[0]!r} is not one of {STANDARDS_SOURCES}"
+        )
+    if found[:1] != ["standards"]:
+        return None
+    repo = (values[STANDARDS_REPO_KEY] or [""])[0]
     try:
+        _split_repo(repo)
+    except PolicyReadError as exc:
+        raise PolicyReadError(
+            f"{repo_config.YAML_CONFIG_PATH}: {STANDARDS_REPO_KEY}: {exc}"
+        ) from exc
+    return repo
+
+
+def team_yaml_at(owner: str, name: str, ref: str) -> str | None:
+    """The team YAML at `ref`, from a checkout holding `ref` or the contents
+    API; None on a 404, since a YAML hidden from the token hides the copy it
+    would leave in place too."""
+    text = checkout_file_at(repo_config.YAML_CONFIG_PATH, ref)
+    if text is not None:
+        return text
+    return _file_at(owner, name, repo_config.YAML_CONFIG_PATH, ref, probe=False)
+
+
+def reads_standards(owner: str, name: str, ref: str) -> str | None:
+    """The standards repository the repository's team YAML at `ref` opts in
+    to (`opts_in_to_standards`), read once a process per ref."""
+    key = (owner, name, ref)
+    if key not in _READS_STANDARDS:
+        _READS_STANDARDS[key] = opts_in_to_standards(team_yaml_at(owner, name, ref))
+    return _READS_STANDARDS[key]
+
+
+def standards_sha(repo: str) -> str:
+    """The standards repository `repo`'s main branch tip (`base_tip`, by its
+    full ref) at its first read in this process, so every file a process
+    reads from it comes from one commit."""
+    if repo not in _STANDARDS_SHA:
+        try:
+            _STANDARDS_SHA[repo] = base_tip(*_split_repo(repo), "main")
+        except PolicyReadError as exc:
+            raise PolicyReadError(f"{repo}: {exc}") from exc
+    return _STANDARDS_SHA[repo]
+
+
+def standards_file(repo: str, path: str) -> str | None:
+    """`path` in the standards repository `repo` at `standards_sha`, or None
+    when absent; each path read once a process."""
+    key = (repo, path)
+    if key not in _STANDARDS_TEXT:
+        owner, name = _split_repo(repo)
+        _STANDARDS_TEXT[key] = _file_at(owner, name, path, standards_sha(repo))
+    return _STANDARDS_TEXT[key]
+
+
+def synced_file(
+    owner: str, name: str, copy: str, component: str, ref: str
+) -> str | None:
+    """A standards-synced file: `component` in the standards repository the
+    repository opts in to at `ref` (`reads_standards`), else its copy at
+    `ref`."""
+    standards = reads_standards(owner, name, ref)
+    if standards:
+        return standards_file(standards, component)
+    return _file_at(owner, name, copy, ref)
+
+
+def trusted_listing(repo: str, ref: str) -> tuple[tuple[int, Any, Any], ...]:
+    """Each actor on the trusted list (`synced_file`) at `ref` as (id, login,
+    kind). Raises `PolicyReadError` when the list is absent, unreadable or
+    does not match its schema (version 1, every id a positive whole number)."""
+    owner, name = _split_repo(repo)
+    try:
+        text = synced_file(
+            owner, name, TRUSTED_ACTORS_PATH, STANDARDS_TRUSTED_ACTORS, ref
+        )
         listing = json_object(json.loads(text or "{}"))
     except ValueError as exc:
-        raise PolicyReadError(f"{where}: {exc}") from exc
+        raise PolicyReadError(f"{TRUSTED_ACTORS_PATH} at {ref}: {exc}") from exc
     actors = [json_object(a) for a in json_array(listing.get("actors"))]
     if listing.get("version") != 1 or not all(
         type(a.get("id")) is int and a["id"] > 0 for a in actors
     ):
-        raise PolicyReadError(f"{where} is absent or invalid")
+        raise PolicyReadError(f"{TRUSTED_ACTORS_PATH} at {ref} is absent or invalid")
     return tuple((a["id"], a.get("login"), a.get("kind")) for a in actors)
 
 
@@ -5846,12 +5877,11 @@ def _cdn_paths(owner: str, name: str, base_sha: str) -> frozenset[str] | None:
 
 
 def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
-    """The Dependabot policy for `sha` as parsed JSON: the repository's copy
-    at `sha`, or the standards one when the team YAML at `sha` opts in
-    (`_list_text`). None when it is absent or not JSON (`review_only` then
-    reports it unreadable). Raises `PolicyReadError` on a read failure."""
-    text, _ = _list_text(
-        owner, name, sha, dependabot.POLICY_PATH, STANDARDS_DEPENDABOT_POLICY_PATH
+    """The standards Dependabot policy (`synced_file`) at `sha` as parsed
+    JSON, or None when it is absent or not JSON (`review_only` then reports it
+    unreadable). Raises `PolicyReadError` on a read failure."""
+    text = synced_file(
+        owner, name, dependabot.POLICY_PATH, dependabot.STANDARDS_POLICY, sha
     )
     try:
         return json.loads(text) if text is not None else None

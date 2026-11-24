@@ -139,7 +139,6 @@ plugins/source-control/skills/babysit-loop/reference/promotion-evidence-resoluti
 plugins/source-control/skills/babysit-prs/reference/orchestration.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/ci-workflows	4	link to another repository of the publishing organization, cited for a reader
 plugins/source-control/skills/babysit-prs/reference/safety.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
-plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py	melodic-software/standards	1	the repository the trusted list and Dependabot policy are read from when the team YAML sets trusted_actors_source: standards
 plugins/source-control/skills/pull-request/reference/create.md	melodic-software/claude-code-plugins	4	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/merge.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/source-control/skills/pull-request/reference/ready-for-review.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
