@@ -42,7 +42,7 @@ for the technique entries this skill applies.
 
 ## Who writes the ceiling
 
-Check whether the `toolchain` plugin's ratchet skill is available in this session.
+Check whether `/toolchain:ratchet` (if enabled) is available in this session.
 
 - **It is available:** hand it the counter's name, command, field and goal (with its Correlation
   value), and skip §2-§4 here. It picks the ceilings file the repository's CI already checks, or
