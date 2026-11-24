@@ -54,6 +54,7 @@ const RECORD = /^<!-- eval-pair verdict=no-loss validity=VALID head=([0-9a-f]{40
 const RUN = /^<!-- eval-pair-run id=([1-9][0-9]{0,19}) -->$/;
 const COMPARE_TITLE = /^eval-compare pr=([1-9][0-9]{0,9}) head=([0-9a-f]{40})(?: target=plugins\/([A-Za-z0-9][A-Za-z0-9._-]*)\/?)?$/;
 const EVAL_TEXT = /^plugins\/([A-Za-z0-9._-]+)\/(?:skills|agents|context)\//;
+const PLUGIN_FILE = /^plugins\/([A-Za-z0-9._-]+)\//;
 export const COMPARE_WORKFLOW = ".github/workflows/pr-run-plugin-evals.yml";
 export const WORKFLOW_LOGIN = "github-actions[bot]";
 export const RUNS_PER_PULL = 3;
@@ -150,23 +151,29 @@ export function runVouches(run, repo, defaultBranch) {
 
 /**
  * The plugins whose skills/, agents/ or context/ files a pull request changes,
- * sorted, from GET pulls/{n}/files (a rename counts both paths), or null when
- * the list holds fewer files than `changedFiles`, as a list cut short does.
+ * or, when it changes none, every plugin it changes any file of, sorted, from
+ * GET pulls/{n}/files (a rename counts both paths); null when the list holds
+ * fewer files than `changedFiles`, as a list cut short does.
  */
 export function evalPlugins(files, changedFiles) {
   if (!Array.isArray(files) || !Number.isSafeInteger(changedFiles) || files.length < changedFiles) {
     return null;
   }
-  const names = new Set();
+  const text = new Set();
+  const any = new Set();
   for (const file of files) {
     for (const path of [file?.filename, file?.previous_filename]) {
       const name = EVAL_TEXT.exec(String(path ?? ""))?.[1];
       if (name !== undefined) {
-        names.add(name);
+        text.add(name);
+      }
+      const plugin = PLUGIN_FILE.exec(String(path ?? ""))?.[1];
+      if (plugin !== undefined) {
+        any.add(plugin);
       }
     }
   }
-  return [...names].sort();
+  return [...(text.size > 0 ? text : any)].sort();
 }
 
 /**
@@ -289,7 +296,7 @@ export const releasedComment = (head, record) =>
 export const cannotStartMarker = (head, { cause, runs }) => `<!-- eval-hold-released head=${head} cannot-start=${cause} run=${runs.map((run) => run.id).join(",")} -->`;
 
 export const cannotStartComment = (head, cannotStart) =>
-  `${cannotStartMarker(head, cannotStart)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and for every plugin whose skill, agent or context text this pull request changes, the newest compare run for \`${head}\`, read back as this pull request's, recorded that it cannot start (\`${cannotStart.cause}\`): ${cannotStart.runs.map((run) => `\`${run.plugin}\` ${run.html_url}`).join(", ")}. Such a pull request merges first: after it merges, its affected cases run in a suite run on the default branch, and a FAIL reverts it (docs/review/evals.md). pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
+  `${cannotStartMarker(head, cannotStart)}\nThe \`${LABEL}\` hold waited only on eval evidence (\`reason=${EVAL_REASON}\`), and for every plugin whose skill, agent or context text this pull request changes (or, when it changes none, every plugin it changes), the newest compare run for \`${head}\`, read back as this pull request's, recorded that it cannot start (\`${cannotStart.cause}\`): ${cannotStart.runs.map((run) => `\`${run.plugin}\` ${run.html_url}`).join(", ")}. Such a pull request merges first: after it merges, its affected cases run in a suite run on the default branch, and a FAIL reverts it (docs/review/evals.md). pr-merge removed \`${LABEL}\`. To hold again, add the label back with a new \`pr-hold\` reason line.`;
 
 /**
  * A reason to stop before the remaining reads, or null. A cited run is read

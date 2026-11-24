@@ -581,7 +581,7 @@ real-time deadline. A hold that lands after the merge is not a hold.
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
   record at the head, the same step also removes it when, for every plugin whose skill, agent or
-  context text the PR changes, the newest compare run naming this PR, its head and that plugin as
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
   its target reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
   instead, the run's own record that compare mode refused the PR (`compare-refused`);
   its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run ids> -->`,

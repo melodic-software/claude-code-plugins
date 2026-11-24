@@ -837,7 +837,7 @@ const BETA_RUN_ID = "44900000004";
 const betaRun = (overrides = {}) =>
   listedRun({ id: Number(BETA_RUN_ID), html_url: `https://github.com/${REPO}/actions/runs/${BETA_RUN_ID}`, display_title: `eval-compare pr=7 head=${HEAD} target=plugins/beta`, ...overrides });
 
-test("evalPlugins names each plugin whose skill, agent or context text changes, and nothing from a list cut short", () => {
+test("evalPlugins names each plugin whose skill, agent or context text changes, else each plugin changed at all, and nothing from a list cut short", () => {
   const files = [
     { filename: "plugins/beta/agents/a.md" },
     { filename: "plugins/alpha/skills/x/SKILL.md" },
@@ -846,7 +846,9 @@ test("evalPlugins names each plugin whose skill, agent or context text changes, 
     { filename: "plugins/zeta/context/new.md", previous_filename: "plugins/eta/context/old.md" },
   ];
   assert.deepEqual(evalPlugins(files, files.length), ["alpha", "beta", "eta", "zeta"]);
-  assert.deepEqual(evalPlugins([{ filename: "plugins/gamma/evals/case/prompt.md" }], 1), []);
+  assert.deepEqual(evalPlugins([{ filename: "plugins/gamma/evals/case/prompt.md" }], 1), ["gamma"]);
+  assert.deepEqual(evalPlugins([{ filename: "plugins/delta/reference/r.md" }, { filename: "plugins/gamma/.claude-plugin/plugin.json" }], 2), ["delta", "gamma"]);
+  assert.deepEqual(evalPlugins([{ filename: "docs/review/evals.md" }], 1), []);
   assert.equal(evalPlugins(files, files.length + 1), null);
   assert.equal(evalPlugins(undefined, 1), null);
   assert.equal(evalPlugins(files, undefined), null);
@@ -895,11 +897,18 @@ test("one plugin refused and the other without a refused run keeps the hold", as
   }
 });
 
-test("a files read that fails or is cut short, a pull request with no eval text, or a run name without a target keeps the hold", async () => {
+test("a pull request that changes no skill, agent or context text releases on a refused run for each plugin it changes", async () => {
+  const files = [{ filename: "plugins/alpha/reference/r.md" }];
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment()], files } }, { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs() } });
+  await quietMain(github);
+  assert.deepEqual(calls.filter(isWrite).map((call) => call.method), ["POST", "DELETE"]);
+});
+
+test("a files read that fails or is cut short, a pull request that changes no plugin, or a run name without a target keeps the hold", async () => {
   const cases = {
     "a files read that fails": [{ pull: pull(), comments: [holdComment()], files: null }, { listed: [listedRun()] }],
     "a files list cut short": [{ pull: pull({ changedFiles: 2 }), comments: [holdComment()] }, { listed: [listedRun()] }],
-    "no plugin's skill, agent or context text": [{ pull: pull(), comments: [holdComment()], files: [{ filename: "plugins/alpha/evals/case/prompt.md" }] }, { listed: [listedRun()] }],
+    "no plugin file": [{ pull: pull(), comments: [holdComment()], files: [{ filename: "docs/review/evals.md" }] }, { listed: [listedRun()] }],
     "a run name without a target": [{ pull: pull(), comments: [holdComment()] }, { listed: [listedRun({ display_title: `eval-compare pr=7 head=${HEAD}` })] }],
   };
   for (const [name, [entry, options]] of Object.entries(cases)) {

@@ -83,7 +83,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   dispatcher, input and head checks and then finds `compare-arms.sh` refusing the PR
   (`compare-refused`) runs no arm and succeeds its `Compare Cannot Start: compare-refused` job.
   pr-merge's release step lifts the eval hold only when, for every plugin whose skill, agent or
-  context text the PR changes, the newest compare run at the current head since the label was last
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run at the current head since the label was last
   added that names that plugin as its target is such a run, read back under the same checks as a
   compare record; a refusal for one plugin never lifts a hold over another plugin's cut. It comments
   `<!-- eval-hold-released head=<sha> cannot-start=compare-refused run=<run ids> -->`. A missing
