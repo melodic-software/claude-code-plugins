@@ -213,9 +213,6 @@ classify_tier() {
   esac
 }
 
-# ---------------------------------------------------------------------------
-# Build the file list.
-# ---------------------------------------------------------------------------
 declare -a FILES=()
 SKIPPED=0
 SKIP_ROWS="$(mktemp)"
@@ -256,37 +253,17 @@ else
     FILES+=("$f")
   done <<<"$tracked"
 
-  # Rules reached through a symlink are not tracked by design; discovery owns
-  # that asymmetry, so pull them in from there rather than from the git listing.
-  #
-  # The exclusion and tier filters run again here. Skipping them would let this
-  # loop UNDO the one above: a tracked rule under an excluded subtree is written
-  # to SKIP_ROWS and left out of FILES, then re-added here because it is "not
-  # already in FILES" -- emitting a SKIP row and a FILE row for the same path and
-  # counting it in both summary totals. `context/corpus.md` states exclusions are
-  # absolute and applied before any classification, so nothing below can reach
-  # the candidate set; a second entry point into that set has to enforce the same
-  # rule or the invariant is only true of the first one.
   while IFS= read -r r; do
     [[ -z "$r" ]] && continue
     for existing in "${FILES[@]}"; do
       [[ "$existing" == "$r" ]] && continue 2
     done
-    # Already SKIP-rowed by the loop above, so this is a silent drop rather than
-    # a second row for the same path.
     is_excluded "$r" && continue
     [[ "$TIER" == "core" && "$(classify_tier "$r")" != "core" ]] && continue
     FILES+=("$r")
   done < <(ip_discover_rules .)
 fi
 
-# ---------------------------------------------------------------------------
-# Per-file emission.
-#
-# One awk pass per file produces SECTION, SIGNAL, and HINT records together, so
-# the line accounting for fences and frontmatter is done once and cannot drift
-# between the three record types.
-# ---------------------------------------------------------------------------
 emit_file_facts() {
   local file="$1"
   # The path comes in through ENVIRON rather than `awk -v`: POSIX has -v process
@@ -403,9 +380,6 @@ emit_file_facts() {
   ' "$file"
 }
 
-# A small, documented language→extension table. Deterministic and auditable;
-# the skill may accept or override any hint, and an unknown language simply
-# produces no `lang` hint rather than a guess.
 lang_hints() {
   local file="$1"
   # ENVIRON rather than `awk -v`, for the reason given in emit_file_facts above.
@@ -529,14 +503,9 @@ for f in "${FILES[@]}"; do
   } >>"$ROWS"
 done
 
-# Existing rule inventory, from the shared discovery layer.
 RULE_COUNT=0
 while IFS= read -r rule; do
   [[ -z "$rule" ]] && continue
-  # One parser, shared with glob-tools.sh and render-index.sh. A private copy
-  # here would risk the brace-comma bug: splitting the inline flow form
-  # `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
-  # broken ones.
   globs="$(ip_parse_paths "$rule" | paste -sd, -)"
   if [[ -n "$globs" ]]; then
     printf 'RULE\t%s\tscoped\t%s\n' "$rule" "$globs" >>"$ROWS"

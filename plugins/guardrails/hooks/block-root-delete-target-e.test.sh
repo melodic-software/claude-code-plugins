@@ -33,7 +33,6 @@ source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 rdt_allowed_roots_fixture
 rdt_worktree_fixture
 
-# --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0
 bash "$HOOK" </dev/null >/dev/null 2>&1 || rc=$?
 assert_exit "empty stdin is a skip, not a block" 0 "$rc"
@@ -72,9 +71,6 @@ expect_both 'X="build" && rm -rf "${X}" allowed (braced)' 0 "${RDT_CWD[@]}" \
   --command 'X="build" && rm -rf "${X}"'
 expect_both 'X=build; rm -rf ${X}/out allowed (braced, unquoted)' 0 "${RDT_CWD[@]}" \
   --command 'X=build; rm -rf ${X}/out'
-# An unbound `$S/x` or `${X}x` is not a bare variable and is allowed with or
-# without a binding, so the rows that decide whether NAME binds delete the bare
-# `$S` or `${S}`: bound, it is the literal; unbound, it blocks.
 expect_both 'X=build; rm -rf ${X} allowed (braced, unquoted, bare)' 0 "${RDT_CWD[@]}" \
   --command 'X=build; rm -rf ${X}'
 expect_both 'a scratch literal, unquoted through mkdir and rm, allowed' 0 "${RDT_CWD[@]}" \
@@ -83,7 +79,6 @@ expect "attended: an unquoted operand is allowed, not asked" 0 "${RDT_CWD[@]}" \
   --command 'X=build && rm -rf $X' -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended: an unquoted operand carries no decision" "" \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
-# Outside that shape nothing binds, and the variable blocks as a bare variable.
 expect_both 'X=build && rm -rf "$X"/ blocks (suffix outside the quotes)' 2 "${RDT_CWD[@]}" \
   --command 'X=build && rm -rf "$X"/'
 expect_both 'X=build && rm -rf ${X}x $X blocks (a longer word)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf ${X}x $X'
@@ -128,8 +123,6 @@ expect_both 'a temp scratch literal used, then deleted, allowed' 0 "${RDT_CWD[@]
   --command $'S=/tmp/rdt-scratch\nmkdir -p "$S/a" && touch "$S/a/f"\nls "$S" | wc -l\nrm -rf "$S"'
 expect_both 'a temp scratch literal deleted inside a subshell allowed' 0 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch && (cd "$S" && ls) && rm -rf "$S"'
-# Still blocked: a literal outside the allowed roots, a value the command can
-# change before the delete, and an assignment that does not run first.
 expect_both 'a literal outside the tree, several statements before, blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/etc; ls "$S"; rm -rf "$S"'
 expect_both 'a later reassignment to a root blocks' 2 "${RDT_CWD[@]}" \
@@ -176,8 +169,6 @@ expect_both 'an assignment on a later line, then &&, allowed' 0 "${RDT_CWD[@]}" 
   --command $'mkdir -p /tmp/rdt-scratch\nS=/tmp/rdt-scratch && rm -rf ${S}'
 expect_both 'a later literal outside the tree blocks' 2 "${RDT_CWD[@]}" \
   --command 'true; S=/etc; rm -rf $S'
-# Still blocked: anything before the assignment that can skip it, run it
-# elsewhere or hide it, a prefix assignment, and a use before it.
 for rdt_cmd in 'false && S=/tmp/rdt-scratch; rm -rf $S' 'true || S=/tmp/rdt-scratch; rm -rf $S' \
   'echo | S=/tmp/rdt-scratch; rm -rf $S' 'true & S=/tmp/rdt-scratch; rm -rf $S' \
   $'if false; then\nS=/tmp/rdt-scratch\nfi\nrm -rf $S' $'while false; do\nS=/tmp/rdt-scratch\ndone\nrm -rf $S' \
@@ -211,7 +202,6 @@ expect_both 'an arithmetic subscript on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; a[S++]=x; rm -rf "$S"'
 expect_both 'a literal built from another variable blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=build; P=$S/probe; rm -rf $P'
-# A later statement that may change the variable drops the binding.
 expect_both 'a reassignment behind || blocks' 2 "${RDT_CWD[@]}" --command 'X=build; true || X=/; rm -rf "$X"'
 expect_both 'a guarded first assignment blocks' 2 "${RDT_CWD[@]}" --command 'X=/; true || X=build; rm -rf "$X"'
 expect_both 'read NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; read X; rm -rf "$X"'
@@ -225,7 +215,6 @@ expect_both 'an assignment inside if/then blocks' 2 "${RDT_CWD[@]}" --command 'i
 expect_both 'an assignment in a subshell blocks' 2 "${RDT_CWD[@]}" --command '(X=build); rm -rf "$X"'
 expect_both 'NAME= inside quotes elsewhere blocks' 2 "${RDT_CWD[@]}" --command 'X=build; echo "X=/"; rm -rf "$X"'
 expect_both 'a value from a substitution blocks' 2 "${RDT_CWD[@]}" --command 'D=$(mktemp -d); rm -rf "$D"'
-# Every arm still reads the literal, and only that exact shape is read.
 expect_both 'X=/ && rm -rf "$X" blocks (root)' 2 "${RDT_CWD[@]}" --command 'X=/ && rm -rf "$X"'
 expect_both 'X=/etc && rm -rf "$X" blocks (outside the tree)' 2 "${RDT_CWD[@]}" --command 'X=/etc && rm -rf "$X"'
 expect_both 'X=build | rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build | rm -rf "$X"'
@@ -246,8 +235,6 @@ expect_both 'a literal beside a substitution blocks (the tokenizer splits on its
 expect_both 'the non-literal one beside it still blocks' 2 "${RDT_CWD[@]}" \
   --command 'X=build Y=$(pwd) && rm -rf "$Y"'
 
-# Anything in the command that can set a variable out of sight drops every
-# binding. Each of these once read X as `build` while the shell deleted /etc.
 expect_both 'declare -n beside the literal blocks' 2 "${RDT_CWD[@]}" \
   --command 'X=build; declare -n R=X; R=/etc; rm -rf "$X"'
 expect_both 'a DEBUG trap beside the literal blocks' 2 "${RDT_CWD[@]}" \
@@ -292,9 +279,6 @@ expect_both 'a comment line before the literal blocks' 2 "${RDT_CWD[@]}" \
 expect_both 'a plain statement line before the literal allowed (#7413)' 0 "${RDT_CWD[@]}" \
   --command $'true\nX=build && rm -rf "$X"'
 
-# --- 5c. An attended session asks instead of denying (refuse.sh) ---------------
-# An ask is the verdict on the WHOLE command: any segment that denies, and any
-# budget the reading runs past, denies the call, alone and through the row.
 RDT_MANY=""
 for ((rdt_i = 1; rdt_i <= 600; rdt_i++)); do RDT_MANY+=" a$rdt_i"; done
 RDT_CDS=""
@@ -335,7 +319,6 @@ assert_eq "attended: outside-tree decision is ask" ask \
 expect "attended=0: rm -rf / denies" 2 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=0
 assert_eq "attended=0: no document" "" "$GUARD_OUT"
 expect "attended unset: rm -rf / denies" 2 --command 'rm -rf /'
-# A command the guard cannot finish reading names nothing a person could judge.
 expect "attended: a command over the length cap still denies" 2 \
   --command "rm -rf $(printf 'x%.0s' {1..16400})" -- CLAUDE_CODE_SESSION_ATTENDED=1
 expect "attended, dispatched: rm -rf / asks too" 0 --via dispatched \
@@ -346,8 +329,6 @@ expect "attended, dispatched: an outside-tree delete asks (decided in the judgme
   "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended, dispatched: outside-tree decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
-# Attended but unwatched: the ask would wait on a prompt nobody answers, so the
-# guard denies and names the command for a person to run later (refuse.sh).
 expect_both "unwatched: an outside-tree delete denies instead of asking" 2 "${RDT_CWD[@]}" \
   --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
 expect "unwatched: an outside-tree delete denies, alone" 2 "${RDT_CWD[@]}" \
@@ -363,7 +344,6 @@ expect "unwatched=0: an attended outside-tree delete still asks" 0 "${RDT_CWD[@]
 assert_eq "unwatched=0: the decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
-# --- 5d. Guards stay on in auto mode -------------------------------------------
 expect_both "auto mode: rm -rf / still blocks" 2 \
   --payload '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto"}'
 
@@ -582,31 +562,25 @@ expect_both $'engine parity 151 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --comman
 expect_both $'engine parity 152 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -f file.txt'
 expect_both $'engine parity 153 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -r ./build'
 expect_both $'engine parity 154 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf ./node_modules'
-# plugin stricter, kept: a target outside the session's allowed roots
 expect_both $'engine parity 155 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/projects/build'
 expect_both $'engine parity 156 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'git rm -rf .'
 expect_both $'engine parity 157 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo rm -rf ~'
 expect_both $'engine parity 158 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'ls -la ~'
 expect_both $'engine parity 159 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf /tmp/scratch'
 expect_both $'engine parity 160 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'grep -rf pattern ~'
-# plugin stricter, kept: a relative operand is judged from every directory the command may run it from
 expect_both $'engine parity 161 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'cd / && rm -rf build'
 expect_both $'engine parity 162 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf build && cp x ~'
 expect_both $'engine parity 163 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf node_modules; ls ~'
 expect_both $'engine parity 164 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf dist || echo failed; cd ~'
-# plugin stricter, kept: a target outside the session's allowed roots
 expect_both $'engine parity 165 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'rm -rf '"$RDT_EP_UH"$'/projects'
 expect_both $'engine parity 166 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force .\\dist'
 expect_both $'engine parity 167 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item ~'
 expect_both $'engine parity 168 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Get-ChildItem ~'
-# plugin stricter, kept: a target outside the session's allowed roots
 expect_both $'engine parity 169 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force '"$RDT_EP_WH"$'\\projects\\build' # portability-ok: a Windows path, not a regex \\b
 expect_both $'engine parity 170 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force @params'
 expect_both $'engine parity 171 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf $(echo ~)'
 expect_both $'engine parity 172 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf $(echo /*)'
-# plugin stricter, kept: a find delete, which the engine did not read
 expect_both $'engine parity 173 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find / -delete'
-# plugin stricter, kept: a find delete, which the engine did not read
 expect_both $'engine parity 174 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find ~ -delete'
 expect_both $'engine parity 175 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf build/{a,b}'
 expect_both $'engine parity 176 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf ./$(date)'
@@ -614,7 +588,6 @@ expect_both $'engine parity 177 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --comman
 expect_both $'engine parity 178 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'sh -c "echo hi"'
 expect_both $'engine parity 179 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse:$false ~'
 expect_both $'engine parity 180 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:.\\dist'
-# plugin stricter, kept: a pipeline removal of what the listing names
 expect_both $'engine parity 181 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Get-ChildItem -Force C:\\ | Remove-Item -Recurse -Force'
 expect_both $'engine parity 182 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf {a,b}'
 expect_both $'engine parity 183 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'eval ls ~'
@@ -645,9 +618,7 @@ expect_both $'engine parity 204 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --comman
 # plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
 expect_both $'engine parity 205 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs -I {} rm -rf '"$RDT_EP_UH"$'/projects/{}'
 expect_both $'engine parity 206 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'xargs ls ~'
-# plugin stricter, kept: a listing of the git toplevel piped into a delete
 expect_both $'engine parity 207 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find . -name \'*.tmp\' | xargs rm -rf'
-# The dangerous spellings the cases the engine misread were aiming at.
 expect_both 'engine parity companion: rm -rf "$USERPROFILE" blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$USERPROFILE"'
 expect_both 'engine parity companion: cmd /c rd /s /q with a quoted profile path blocks' 2 "${RDT_CWD[@]}" \
   --command "cmd /c rd /s /q '$RDT_EP_WH'"
@@ -662,7 +633,6 @@ expect_both 'engine parity companion: a cmd /c statement after & is judged' 2 "$
 expect_both 'engine parity companion: a balanced rm -rf ~ after echo blocks' 2 "${RDT_CWD[@]}" \
   --command "echo 'terminated' ; rm -rf ~"
 
-# --- 6. Kill switch ----------------------------------------------------------
 expect "kill switch disables the guard" 0 --command 'rm -rf /' \
   -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 

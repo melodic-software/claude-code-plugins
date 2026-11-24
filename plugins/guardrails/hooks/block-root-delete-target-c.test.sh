@@ -61,7 +61,7 @@ RDT_IX_FORMS+=(
   $'cat <<A\nprint(1)\nA\nruby -rfileutils - <<B\nFileUtils.rm_rf("TGT")\nB'
   "python3 <<< \"import shutil; shutil.rmtree('TGT')\""
 )
-rdt_ix() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_ix() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_IX_FORMS[@]}"; do
@@ -216,7 +216,7 @@ $(echo B64 | base64 -d)
 bash <<< "$(echo B64 | base64 -d)"
 echo "$(echo B64 | base64 -d | sh)"
 EOF
-rdt_ds() { # <label> <want> <base64 payload> <hex payload> [guard_invoke option ...]: every form
+rdt_ds() {
   local label="$1" want="$2" b="$3" h="$4" f c
   shift 4
   for f in "${RDT_DS_FORMS[@]}"; do
@@ -284,7 +284,7 @@ guard_invoke --command 'echo cm0gLXJmIC8= | base64 -d | sh'
 assert_exit 'decoder sink: a decoder piped into sh exits 2' 2 "$GUARD_RC"
 assert_contains 'decoder sink: the refusal names the mechanism' "$GUARD_ERR" 'decoded text'
 
-rdt_enc() { # <ascii text>: the -EncodedCommand value that decodes to it
+rdt_enc() {
   local s="$1" i
   for ((i = 0; i < ${#s}; i++)); do
     printf '%s\0' "${s:i:1}"
@@ -323,7 +323,7 @@ Get-ChildItem TGT | Remove-Item -Recurse; Write-Output done
 [IO.File]::Delete('TGT')
 (Get-Item TGT).Delete($true)
 EOF
-rdt_psi() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_psi() {
   local label="$1" want="$2" t="$3" f c e
   shift 3
   e=$(rdt_enc "Remove-Item -Recurse -Force $t")
@@ -444,7 +444,7 @@ RDT_MVP_FORMS=(
   'Set-Content -Path TGT, build\rdt-x -Value x'
   'Set-Content build\rdt-x,TGT x'
 )
-rdt_mv() { # <label> <want> <bash target> <PowerShell target> [guard_invoke option ...]: every form
+rdt_mv() {
   local label="$1" want="$2" t="$3" tp="$4" f
   shift 4
   for f in "${RDT_MV_FORMS[@]}"; do

@@ -211,7 +211,7 @@ has_drive_root_tmp() {
   [[ "$s" =~ (^|[^[:alnum:]])[a-z]:\/tmp(\/|[^[:alnum:]_./-]|$) ]]
 }
 
-mask_quoted_redirect_ops_to() { # <var> <segment>: the mask, in this shell
+mask_quoted_redirect_ops_to() {
   local __dt_dest="$1" __dt_s="$2" __dt_out="" __dt_i=0 __dt_c __dt_quote=""
   local -i __dt_len=${#__dt_s}
   while ((__dt_i < __dt_len)); do
@@ -407,7 +407,7 @@ segment_writes_drive_root_tmp() {
       [[ -n "$dest" ]] && has_drive_root_tmp "$dest"
       return
       ;;
-    *) ;; # unreachable: segment_leading_exe_verb_to only returns those verbs
+    *) ;;
     esac
   fi
   if [[ "$subject" =~ $_DRIVE_TMP_CREATOR_QUOTED ]] ||

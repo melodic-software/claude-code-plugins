@@ -423,7 +423,7 @@ assert_contains "gh missing -> says so" "$OUT" "gh is not on PATH"
 scenario unresolved none green green
 
 # --- 8b. a GraphQL mutation whose PR cannot be resolved FAILS CLOSED --------
-gql_refused() { # <label> <command>
+gql_refused() {
   scenario none none green green
   run "$1" "$2" 2
   assert_contains "$1 -> says why" "$ERR" "could not be checked"
@@ -490,7 +490,7 @@ for tool in Bash PowerShell; do
 done
 # --- 8c. a merge whose target is not literal FAILS CLOSED (#8598) ------------
 # The PR is clean, so a guard that let these through would exit 0.
-unresolvable() { # <label> <command> [ENV=value ...]
+unresolvable() {
   local label="$1" command="$2"
   shift 2
   scenario none none green green
@@ -576,8 +576,7 @@ unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
 unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''
 assert_contains "single-quoted backtick -> names --body-file" "$ERR" "--body-file"
 unresolvable "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"'
-# Only one merge per command can be checked, so a second one is refused.
-multi() { # <label> <command>
+multi() {
   unresolvable "$1" "$2"
   assert_contains "$1 -> says to run each merge alone" "$ERR" "run each merge as its own command"
 }

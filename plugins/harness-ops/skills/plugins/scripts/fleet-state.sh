@@ -467,9 +467,6 @@ if [[ -n "$LIST_MARKETPLACES" ]]; then
   MODE="list"
 fi
 
-# --ids projects ONE marketplace block; --all's {marketplaces: {...}} envelope
-# has no single block to project. Refused rather than invented, so a caller
-# never gets a silently-empty list from a combination this does not implement.
 if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
   echo "ERROR: --ids cannot be combined with --all" >&2
   echo "  Run --ids once per marketplace with --marketplace <name>." >&2
@@ -525,17 +522,6 @@ ids_selector_valid() {
   esac
 }
 
-# The fields each selector's branch of PROJECTION_PROGRAM actually consumes,
-# as `<field>:<jq type>` pairs. This exists for `--from`: a live run computed
-# the block itself and every field is present by construction, but a saved
-# report is arbitrary input, and a syntactically valid object that simply lacks
-# the field a selector reads projects to NOTHING and exits 0 — a silently-empty
-# id list, the exact failure class `--ids` exists to prevent.
-#
-# ADDITIVE to the baseline shape check below (.marketplace.name plus
-# .installed, which together are what makes a file a fleet-state report at
-# all), never a replacement for it. Keep this in step with PROJECTION_PROGRAM:
-# a selector that starts reading a new field adds it here.
 ids_selector_required_fields() {
   case "$1" in
   installed-user | current-project) echo 'installed:array' ;;
@@ -549,14 +535,10 @@ ids_selector_required_fields() {
   esac
 }
 
-# Validate the selector before any marketplace resolution: a typo is a usage
-# error (exit 2) and must report as one, not be masked by whatever the
-# resolution attempt would have returned first.
 if [[ -n "$IDS_SELECTOR" ]]; then
   ids_selector_valid "$IDS_SELECTOR" || exit 2
 fi
 
-# Checked after argument parsing so --help and usage errors work without jq.
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
   exit 2
@@ -617,19 +599,6 @@ PROJECTION_PROGRAM='
     elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
     else error("unknown selector: " + $selector) end'
 
-# --- --from: project a selector from an already-emitted report ----------------
-# `sync` re-reads the full JSON report before each mutating step anyway, and
-# every selector is derivable from that report. Re-running the whole live
-# pipeline for the projection costs a second process that re-parses
-# installed_plugins.json, re-walks the catalog manifests, and re-runs realpath,
-# to recompute a block the caller is already holding. `--from` runs the same
-# PROJECTION_PROGRAM over the saved report instead.
-#
-# It is a PROJECTION mode, so every flag that would drive a live read is a
-# contradiction and is refused rather than silently ignored: `--all` has no
-# single block to project (the same reason --ids refuses it), and `--from`
-# without `--ids` has nothing to project and would otherwise fall through to
-# the `$selector == ""` branch and echo the report straight back.
 FS_FROM_NAME=""
 if [[ -n "$FROM_REPORT" ]]; then
   if [[ "$MODE" == "all" ]]; then
@@ -684,9 +653,6 @@ if [[ -n "$FROM_REPORT" ]]; then
     exit 2
   fi
   FS_FROM_NAME="${FS_FROM_CHECK#ok:}"
-  # --marketplace alongside --from is an optional CONSISTENCY CHECK, never a
-  # second read: projecting one marketplace's report while believing it is
-  # another's is how a sweep mutates the wrong fleet.
   if [[ "$MODE" == "single" && "$TARGET" != "$FS_FROM_NAME" ]]; then
     echo "ERROR: --from report is for marketplace '$FS_FROM_NAME', not '$TARGET': $FROM_REPORT" >&2
     exit 2
@@ -750,11 +716,6 @@ if [[ -z "$PROJECT_ROOT" && "$MODE" != "list" ]]; then
   PROJECT_ROOT="${PROJECT_ROOT//$'\r'/}"
 fi
 
-# Every path whose physical form this run needs is resolved by ONE batched
-# `realpath` (hook::_physical_prime), then read back from hook-utils' cache
-# with no further process. The plugin root is only needed for default-mode
-# marketplace self-resolution; the cwd/$HOME pair only for the corroborated
-# non-git fallback.
 cwd_native=""
 home_native=""
 phys_tmp=""
@@ -806,7 +767,6 @@ if [[ -n "$cwd_native" ]]; then
   [[ "$cwd_norm" != "$home_norm" ]] && PROJECT_ROOT="$cwd_native"
 fi
 
-# --- Normalized current-project root, for the `currentProject` install flag
 current_project_norm=""
 if [[ -n "$PROJECT_ROOT" ]]; then
   hook::_physical_cached_to phys_tmp "$PROJECT_ROOT" || true
@@ -1027,16 +987,6 @@ if [[ "$MODE" == "list" ]]; then
   exit 0
 fi
 
-# --- projectPath liveness (advisory only — NEVER a filter) -------------------
-# Answers "is this record's projectPath a directory on this machine right
-# now", nothing more. A false is equally consistent with a worktree that was
-# removed and with a volume that is merely not mounted, a network share that
-# is offline, or removable media that is unplugged — so this field annotates
-# a row, and must never suppress one. Suppressing on it would hide real drift
-# for anyone whose repos live on an external or network volume.
-# Computed per DISTINCT path across every marketplace's records (a machine can
-# hold a hundred records naming a dozen directories), so the stat count tracks
-# directories, not records, and the answer is taken once for the whole run.
 presence_tsv=""
 # Each present path's raw .claude/settings.json text, read with a builtin, so the
 # block can say what enabledPlugins entry that file holds for each record:
@@ -1364,12 +1314,6 @@ emit_marketplace() {
     fi
   fi
 
-  # --- Pass 2: the catalog's own entry list ------------------------------------
-  # A single marketplace's catalog being malformed is a per-marketplace failure
-  # like the branches above — report it inline and return 1 so one corrupt
-  # clone doesn't abort an --all sweep of every other marketplace. This is
-  # also the only pass that needs the entries as shell data: the manifest each
-  # `source` points at is located with builtins below.
   local pass2=""
   jq_to pass2 -rn --rawfile c "$catalog_json" "$PASS2_PROGRAM" || pass2="INVALID"
   if [[ "$pass2" == "INVALID"* ]]; then
@@ -1505,9 +1449,6 @@ emit_marketplace() {
     "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"$'\x1d'"$settings_bundle"
 }
 
-# Emit one marketplace: the JSON block by default, or its projected id list when
-# --ids is in play. Keeps the two single-marketplace call sites (default and
-# --marketplace) identical instead of branching on IDS_SELECTOR at each.
 emit_one() {
   local rc=0
   emit_marketplace "$1" || rc=$?
@@ -1567,10 +1508,6 @@ if [[ "$MODE" == "default" && -z "$resolved_target" && -n "$phys_root" ]]; then
   done
 fi
 
-# --- Stage 3b: the running root sits under a known installLocation -----------
-# Computed in pass 1's jq (see PASS1_PROGRAM) so every path comparison stays on
-# the jq side; consulted only here, after 3a, so the ordering of the stages is
-# 1, 2, 3a, 3b.
 if [[ "$MODE" == "default" && -z "$resolved_target" ]]; then
   resolved_target="$location_target"
 fi

@@ -161,8 +161,6 @@ else
   fi
 fi
 
-# Shape check: a single-marketplace report with a divergences array. An --all
-# envelope or an arbitrary object is refused by name rather than planned as empty.
 shape=""
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 if ! jq_to shape -r '
