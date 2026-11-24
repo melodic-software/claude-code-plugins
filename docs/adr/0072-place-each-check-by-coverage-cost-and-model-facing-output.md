@@ -172,3 +172,8 @@ every hook tool, runs every shipped `pre-commit` and `pre-push` entry on a fixed
 hook whose total is over its 3 s budget, or an entry whose tool is missing
 (`scripts/check-git-hook-time-budget.sh`). A local run skips such an entry (item 4's skip).
 Nothing kills a hook at run time.
+
+**Over or near budget** (near: within 10% of it, a judgment threshold). In order: measure it on
+the fixture; confirm every entry reads only the staged files (`pre-commit`) or the pushed range
+(`pre-push`), never the whole tree; optimize it (fewer process starts, one tool run instead of
+two); only if it still risks the budget, move the check to CI and remove it from the hook.
