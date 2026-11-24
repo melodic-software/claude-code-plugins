@@ -352,10 +352,10 @@ export const admissionLine = (s) =>
 
 const escape = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-async function baseConfig(basePath, log) {
+async function baseConfig(basePath, standardsDir, log) {
   try {
     const { wipFromBase } = await import(new URL("../resolve-config/resolve-config.mjs", import.meta.url).href);
-    const { limits, wip } = wipFromBase({ BASE_PATH: basePath });
+    const { limits, wip } = wipFromBase({ BASE_PATH: basePath, STANDARDS_DIR: standardsDir });
     return { limits, wip: resolveWip(wip), configError: false };
   } catch (error) {
     log(`::warning title=check-wip-cap::the base config could not be read (${escape(error?.message ?? error)}); the defaults apply`);
@@ -377,7 +377,7 @@ const alertText = (s) =>
 export async function main({ env = process.env, github, now = Date.now(), log = console.log } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
   const basePath = env.BASE_PATH || ".base";
-  const { limits, wip, configError } = await baseConfig(basePath, log);
+  const { limits, wip, configError } = await baseConfig(basePath, env.STANDARDS_DIR, log);
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
   const statusOf = listedStatusOf({ env: { ...env, BASE_PATH: basePath }, github, repository: repo });

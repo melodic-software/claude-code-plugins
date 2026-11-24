@@ -48,6 +48,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
     [
       "Resolve main's tip",
       "Check out the default branch tip",
+      "Resolve the standards commit",
       "Write the source-control trust settings",
       "Set up Node",
       "Check the kill switch",
@@ -194,6 +195,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         DEPENDABOT: "off",
         LANE_PRS: "gate",
         EVENT_PR: "",
+        TRUSTED_ACTORS_PATH: join(dir, ".base/.github/standards/trusted-actors/trusted-actors.json"),
         ...env,
       },
     });

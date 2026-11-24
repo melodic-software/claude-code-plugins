@@ -92,6 +92,7 @@ jobs:
       tags: ${{ steps.inputs.outputs.tags }}
       case: ${{ steps.inputs.outputs.case }}
       base-sha: ${{ github.sha }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -101,6 +102,10 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -131,6 +136,7 @@ jobs:
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           require-pr: "false"
           require-kind: human
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # A low budget ends the run neutral: go stays unset, so no pass runs.
       - name: Report a budget stop
@@ -319,6 +325,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-inputs.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -389,6 +401,7 @@ jobs:
           model-route: resolve-issue
           base-path: .base
           output-path: ${{ runner.temp }}/hill-climb-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Files, not step outputs: run-claude-cli reads both.
       - name: Write the prompt and schema
@@ -909,6 +922,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-inputs.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -932,6 +951,7 @@ jobs:
           activity: apply-skill-edit-branch
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Before the mint: the scan job's artifact, by id, and the SHA-256 it
       # recorded. A missing or altered patch fails the job.
@@ -1054,6 +1074,12 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-inputs.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1077,6 +1103,7 @@ jobs:
           activity: publish-skill-edit-pr
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Download the win
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'

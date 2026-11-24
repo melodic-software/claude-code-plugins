@@ -226,6 +226,11 @@
       "items": { "type": "string", "minLength": 1 },
       "description": "Repository-relative files that record the approved runner labels. /source-control:babysit-prs routes a wrong organization-owned runs-on label to them. Unset: the repository's own CI documentation."
     },
+    "standards_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "description": "owner/repo of the standards repository whose components/trusted-actors/trusted-actors.json the guardrails merge guard and the review loosened-check reader read, at the commit its main names, when trusted_actors_source is standards. Unset or invalid with trusted_actors_source standards: those readers read no list (the merge guard runs unchecked with a warning; the review reader gives no reason)."
+    },
     "org_settings_repo": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",

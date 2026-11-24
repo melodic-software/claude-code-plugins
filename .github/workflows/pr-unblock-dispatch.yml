@@ -116,6 +116,11 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -168,7 +173,7 @@ jobs:
           require-pr: false
           require-kind: human
           dispatched-workflow: .github/workflows/pr-unblock.yml
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
 
@@ -293,6 +298,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
           DISPATCH_RECORD: ${{ runner.temp }}/pr-unblock-dispatch-record.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
 
       - name: Save the dispatch record
@@ -404,6 +410,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -435,6 +445,7 @@ jobs:
           SENDER_ID: ${{ github.event.sender.id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs
 
       # Named from the commit this file ran from and the id the dispatch API

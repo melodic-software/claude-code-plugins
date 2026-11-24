@@ -39,6 +39,13 @@ inputs:
     description: A token that can search this repository's pull requests and list its issues.
     required: false
     default: ${{ github.token }}
+  standards-path:
+    description: >
+      A melodic-software/standards checkout (download-standards' `path`
+      output), checked out before any head code ran. When set, the
+      vocabulary and trusted-actor list are read from it, not from base-path.
+    required: false
+    default: ""
 
 outputs:
   capped:
@@ -74,6 +81,7 @@ runs:
         BASE_PATH: ${{ inputs.base-path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         WIP_READS: ${{ inputs.reads }}
+        STANDARDS_DIR: ${{ inputs.standards-path }}
       run: |
         timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$BASE_PATH/.github/actions/resolve-config" ||
           echo "::warning title=check-wip-cap::resolve-config's dependencies did not install; the base config cannot be read, so the run holds and admissions close"

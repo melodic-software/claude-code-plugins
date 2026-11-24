@@ -1634,6 +1634,7 @@ test("refine invariant 2: no PR text reaches a step; run: holds no expression an
     "vars.CLAUDE_LANES_REPO_DISABLED",
     "steps.record.outputs.name",
     "steps.record-2.outputs.name",
+    "steps.standards.outputs.path",
   ]);
   const used = [...lines.join("\n").matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((match) => match[1].trim());
   assert.ok(used.includes("github.event.pull_request.number"));
@@ -1662,7 +1663,7 @@ test("refine invariant 4: no secret and no token beyond GITHUB_TOKEN; only the l
   const body = lines.join("\n");
   assert.doesNotMatch(body, /secrets\.|secrets\[|id-token|toJSON\(secrets\)/);
   const uses = lines.filter((line) => /^\s+(?:- )?uses: /.test(line)).map((line) => line.trim().replace(/^- /, "").replace(/\s*#.*$/, ""));
-  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@v7|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload)@main|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
+  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@v7|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload|download-standards)@main|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
   for (const use of uses) {
     assert.match(use, allowed, `${use} is not an action the refine job may run`);
   }

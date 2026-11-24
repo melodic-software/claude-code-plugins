@@ -76,6 +76,14 @@
     {
       "answer": "| 4 | Toggles | INFO | `actionlint_enabled` is the default `true`, so the pre-commit entry lints. |",
       "why": "article before default"
+    },
+    {
+      "answer": "| 5 | `actionlint_enabled` | INFO | Effective value is `false`, the shipped default. |",
+      "why": "verdict cell, then Effective value is"
+    },
+    {
+      "answer": "actionlint_enabled: value true",
+      "why": "value, then the value"
     }
   ],
   "fail": [
@@ -153,6 +161,10 @@
     {
       "answer": "actionlint_enabled is the option that turns the hooks off or on.",
       "why": "the, then no value"
+    },
+    {
+      "answer": "| actionlint_enabled | INFO | Effective value is unknown here. |",
+      "why": "Effective value is, then no value"
     }
   ]
 }

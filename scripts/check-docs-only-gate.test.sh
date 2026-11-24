@@ -92,6 +92,7 @@ jobs:
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
       lane_base: ${{ steps.base.outputs.ref }}
+      standards_sha: ${{ steps.standards.outputs.sha }}
       bash_legs: ${{ steps.plan.outputs.bash_legs }}
       bash_plan: ${{ steps.plan.outputs.bash_plan }}
       bash_needs: ${{ steps.plan.outputs.bash_needs }}
@@ -662,6 +663,14 @@ expect "a data output inside a longer expression is rejected" 1 "outside the agg
 f="$scratch/data-lowercase-key.yml"
 xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.select-tests.outputs.lane_base }}" "$f"
 expect "a data output read under a non-env key is rejected" 1 "outside the aggregator feed template" --check "$f"
+
+f="$scratch/data-aggregate-reads-value.yml"
+xform_insert_after "$base" "    if: \${{ !cancelled() }}" "    env:\n      STANDARDS_COMMIT: \${{ needs.select-tests.outputs.standards_sha }}" "$f"
+expect "the aggregate reading only a data value under !cancelled() is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/data-and-gate-under-cancelled.yml"
+xform_insert_after "$base" "  gamma:" "    if: \${{ !cancelled() }}\n    env:\n      STANDARDS_COMMIT: \${{ needs.select-tests.outputs.standards_sha }}" "$f"
+expect "a data read does not excuse a gated consumer carrying !cancelled()" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job 'gamma'" --check "$f"
 
 f="$scratch/data-matrix.yml"
 xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.bash_legs || '[0]') }}" "$f"

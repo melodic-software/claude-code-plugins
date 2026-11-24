@@ -183,6 +183,7 @@ run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && f
 # the test-lane plan of scripts/plan-test-lanes.sh.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
+standards_sha${TAB}\${{ steps.standards.outputs.sha }}
 bash_legs${TAB}\${{ steps.plan.outputs.bash_legs }}
 bash_plan${TAB}\${{ steps.plan.outputs.bash_plan }}
 bash_needs${TAB}\${{ steps.plan.outputs.bash_needs }}
@@ -791,7 +792,12 @@ fi
 feed_infix=" && 'success' || steps."
 feed_suffix=".outcome }}"
 
+is_value_read() {
+  [[ "$1" != stepif && "$1" != jobif ]] && { is_data_read "$2" || has_line "$MATRIX_READS"$'\n' "$2"; }
+}
+
 refjobs=""
+gate_refjobs=""
 ref_count=0
 gated_ordinals=""
 feed_targets=""
@@ -800,6 +806,9 @@ while IFS="$TAB" read -r refjob reford kind text; do
   ref_count=$((ref_count + 1))
   if [[ "$refjob" != "$RESOLVER_JOB" ]] && ! has_line "$refjobs" "$refjob"; then
     refjobs+="$refjob"$'\n'
+  fi
+  if [[ "$refjob" != "$RESOLVER_JOB" ]] && ! is_value_read "$kind" "$text" && ! has_line "$gate_refjobs" "$refjob"; then
+    gate_refjobs+="$refjob"$'\n'
   fi
 
   # An expression may be written bare or wrapped in ${{ }}. The single quotes
@@ -837,7 +846,7 @@ while IFS="$TAB" read -r refjob reford kind text; do
   *)
     # A data output, read as a whole env entry or as the matrix size
     # (property 10).
-    if is_data_read "$text" || has_line "$MATRIX_READS"$'\n' "$text"; then
+    if is_value_read "$kind" "$text"; then
       continue
     fi
     # An aggregator feed entry, for some table output X:
@@ -962,7 +971,13 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # The condition need not mention the output to cause this, so this check does not
 # look at what it says.
 #
-# It applies to REQUIRED consumers. A lane outside the closure cannot report
+# It applies to REQUIRED consumers that read the resolver other than as a data
+# value. A job whose every read is a whole data read (property 10) gates no step
+# on the resolver, and an empty value already means its default (the whole
+# tree, standards main), so it has no empty-string state to misread: the
+# aggregate reads `standards_sha` under its `!cancelled()` that way.
+#
+# A lane outside the closure cannot report
 # success to branch protection at all, so a job-level condition there costs a
 # skipped informational lane rather than a false green, and skipping the whole
 # job is the cheaper shape: it is why a non-required Windows lane may gate at
@@ -1025,7 +1040,7 @@ while IFS= read -r refjob; do
     fi
     report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> (or lint-shell, row shell; check-tests, row check_tests) whose run_<x> row the table names: $(job_gate_skip '<x>')"
   done <<<"$REC_JOBIF"
-done <<<"$refjobs"
+done <<<"$gate_refjobs"
 
 # --- 12. A SKIP IS CHECKED -----------------------------------------------------
 #

@@ -377,6 +377,8 @@ resolves to `terminal`, make no offer and print no unavailable line. Otherwise, 
 `visualization:visualize` installed, offer it in one line after the report, before any `--fix`
 handoff. Without that plugin, say in one line that the optional view is unavailable, and never
 hand-build an HTML file, chart or extra markdown file instead.
+Run the resolver whether or not `visualization:visualize` is installed: its report line and notices print either way.
+Copy the resolver's `view: ...` report line and each notice line into the reply word for word, after the report.
 
 Resolve `medium` first with the shared resolver. `<option>` is this plugin's `medium` option,
 `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command. Add `--argument` only when the run has a `--medium` value:
