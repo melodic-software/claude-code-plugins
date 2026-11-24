@@ -6,7 +6,6 @@ The identity keying defined here is the single source both the snapshot engine
 and the guarded merge gate use, so a StatusContext can never hide -- or be
 hidden by -- a same-named CheckRun.
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -202,9 +201,6 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
             if is_json_object(check)
         ]
     )
-    # The name list and the identity list of each bucket are two views of the
-    # SAME filtered checks; deriving both from one filter keeps them from
-    # drifting out of index-for-index correspondence.
     failing_checks = [check for check in checks if check["category"] == "failing"]
     pending_checks = [check for check in checks if check["category"] == "pending"]
 
@@ -256,7 +252,6 @@ STUCK_NEVER_SETTLING = "never_settling"
 
 
 def _check_age_seconds(check: dict[str, Any], observed: Any) -> float | None:
-    """Age of one normalized check at snapshot time, or None if unknowable."""
     if observed is None:
         return None
     created = parse_timestamp(check.get("created_at"))

@@ -59,11 +59,9 @@ KEYS = (
     SKIP_DOWNGRADE,
     *OVERRIDE_KEYS,
 )
-# The keys a repository supplies, whose team home is `YAML_CONFIG_PATH`.
 POLICY_KEYS = (*UNION_KEYS, SKIP_DOWNGRADE, *OVERRIDE_KEYS)
 MERGE_METHODS = ("squash", "merge", "rebase")
 
-# Each key's deprecated `userConfig` value arrives as this CLI flag's parsed dest.
 FLAG_DESTS = {
     "babysit_merge_method": "method",
     "babysit_merge_block_labels": "block_labels",
@@ -77,8 +75,6 @@ FLAG_DESTS = {
     "babysit_ci_gateway_context": "ci_gateway_context",
 }
 
-# The babysit-loop keys whose team value lives in `YAML_CONFIG_PATH`, each with
-# its accepted values; None is a positive whole number.
 LOOP_KEYS: dict[str, tuple[str, ...] | None] = {
     "babysit_loop_stop_mode": ("standing", "drain"),
     "babysit_loop_tier": ("safe", "worker", "autopilot"),
@@ -92,21 +88,16 @@ LOOP_KEYS: dict[str, tuple[str, ...] | None] = {
 }
 LOOP_MERGE = "babysit_loop_merge"
 LOOP_PREFIX = "babysit_loop_"
-# A top-level `babysit_loop_*` key in the YAML: tracked adoption.
 LOOP_YAML_KEY_RE = re.compile(rf"^{LOOP_PREFIX}\w+[ \t]*:", re.M)
-# The merge rung's default depends on tracked adoption (`resolve_loop_keys`).
 LOOP_DEFAULTS = {
     "babysit_loop_stop_mode": "standing",
     "babysit_loop_tier": "safe",
     "babysit_loop_grace_window_minutes": "30",
 }
-# The layer names a resolved loop key reports, as config-resolution.md lists them.
 DEFAULT_LAYER = "default"
 
 GhRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 RepoLayer = dict[str, str | frozenset[str]]
-# Each key's values from a YAML document, or None when the shared reader
-# rejects the document.
 YamlReader = Callable[[str, list[tuple[str, bool]]], dict[str, list[str]] | None]
 
 
@@ -122,8 +113,6 @@ class EffectiveConfig:
     approval_downgrade_logins: frozenset[str]
     skip_downgrade_logins: frozenset[str]
     review_trigger_phrase: str | None
-    # The userConfig pair, passed through raw so the merge gate's own
-    # both-or-neither refusal still sees a half-set pair.
     review_bot_logins: frozenset[str] | None
     review_settle_minutes: str | None
     review_gate_context: str | None
@@ -433,7 +422,6 @@ def _shared_yaml_values(
     text: str, keys: list[tuple[str, bool]]
 ) -> dict[str, list[str]] | None:
     """The keys' values through the shared YAML reader the merge gate runs."""
-    # The merge policy imports this module, so it is imported here, at call time.
     import babysit_merge_policy as policy
 
     try:
@@ -503,8 +491,6 @@ def resolve_loop_keys(
                 values[key] = _loop_value(key, items[0], where)
                 sources[key] = YAML_CONFIG_PATH
             elif _yaml_writes(yaml_text, key):
-                # The reader prints nothing for an empty or non-scalar value,
-                # which must not fall through to the default.
                 raise RepoConfigError(f"{where}: {key} is not a scalar value")
         adopted = bool(values or LOOP_YAML_KEY_RE.search(yaml_text))
     defaults = {

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A failed check read must keep the baseline: the discriminating cases are a
-# failed FIRST read (the second good poll must only record) and a failed read
-# BETWEEN two good polls (nothing is emitted twice).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +19,6 @@ export TMPDIR="$TEST_TMPDIR"
 BIN="$TEST_TMPDIR/bin"
 mkdir -p "$BIN"
 
-# <checkout>: a checkout whose one GitHub remote is owner/repo, the only
-# source of the repository the poll reads.
 CHECKOUT="$TEST_TMPDIR/checkout"
 git init -q "$CHECKOUT"
 git -C "$CHECKOUT" remote add origin https://github.com/owner/repo.git
@@ -130,7 +125,6 @@ echo "THREADS_OK unresolved=0"
 STUB
 chmod +x "$BIN/gh"
 
-# runs_json <name>... — a check-runs payload with each named check completed.
 runs_json() {
   local out="" n
   for n in "$@"; do
@@ -146,7 +140,6 @@ run_poll() {
     timeout 60 bash "$POLL" --pr 7 --interval 0 --checkout "$CHECKOUT" "${@:2}" 2>/dev/null)
 }
 
-# --- failed FIRST read: the second poll is the baseline, the third emits once.
 FX1="$TEST_TMPDIR/fx1"
 mkdir -p "$FX1"
 echo FAIL >"$FX1/checks.1"
@@ -159,7 +152,6 @@ assert_not_contains "failed first read: check b not emitted" "$out1" "b: pass"
 assert_eq "failed first read: only c is emitted, once" "1" "$(grep -c '^c: pass$' <<<"$out1")"
 assert_contains "failed first read: watch completes" "$out1" "PR #7 MERGED — watch complete"
 
-# --- failed read BETWEEN two good polls: nothing is emitted twice.
 FX2="$TEST_TMPDIR/fx2"
 mkdir -p "$FX2"
 runs_json a >"$FX2/checks.1"
@@ -170,7 +162,6 @@ out2="$(run_poll "$FX2")"
 assert_not_contains "failed middle read: baseline check a not emitted" "$out2" "a: pass"
 assert_eq "failed middle read: b is emitted exactly once" "1" "$(grep -c '^b: pass$' <<<"$out2")"
 
-# --- no failures: behavior unchanged (baseline silent, later check emitted).
 FX3="$TEST_TMPDIR/fx3"
 mkdir -p "$FX3"
 runs_json a >"$FX3/checks.1"
@@ -239,8 +230,6 @@ assert_eq "--once: b is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out7")"
 assert_not_contains "--once: the watch does not run on to the merge" "$out7" "watch complete"
 assert_eq "--once: it stopped after poll 2" "2" "$(cat "$FX7/poll")"
 
-# --- a fault in any single call of the read (actions/runs, status) keeps the
-# baseline too: poll 1 faults, poll 2 is the baseline, poll 3 adds c.
 for fault in actions status; do
   FXF="$TEST_TMPDIR/fx-$fault"
   mkdir -p "$FXF"
@@ -255,7 +244,6 @@ for fault in actions status; do
   assert_contains "faulted $fault read: watch completes" "$outf" "PR #7 MERGED — watch complete"
 done
 
-# --- a rate limit on the check read still stops the watch with exit 2.
 FX4="$TEST_TMPDIR/fx4"
 mkdir -p "$FX4"
 runs_json a >"$FX4/checks.1"
@@ -266,8 +254,6 @@ rc4=$?
 assert_eq "rate limit: exit status" "2" "$rc4"
 assert_contains "rate limit: RATE-LIMITED line" "$out4" "RATE-LIMITED"
 
-# --- a rate limit on a later read of the poll (the comment reads) still stops
-# the watch: stderr from every read collects in one variable.
 FX6="$TEST_TMPDIR/fx6"
 mkdir -p "$FX6"
 runs_json a >"$FX6/checks.1"
@@ -343,7 +329,6 @@ for doc in skill provider; do
   assert_contains "$doc doc: the documented watch completes" "$outd" "PR #7 MERGED — watch complete"
 done
 
-# Every run above ended (merged, rate-limited, stopped); none wrote a file.
 assert_eq "poll script leaves no temp file behind" "" "$(find "$POLL_TMP" -mindepth 1)"
 
 [[ $FAILED -eq 0 ]] || exit 1

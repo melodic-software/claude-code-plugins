@@ -74,8 +74,6 @@ export const OPTION_KEYS = [
 ];
 const MAX_AGE = "promotion_evidence_max_age_hours";
 const HOUR_MS = 3_600_000;
-// How far the publisher's clock may run ahead of this host's before a generated_at reads as
-// forged: a future one would keep the evidence fresh past the bound.
 const CLOCK_SKEW_MS = 300_000;
 
 const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
@@ -125,7 +123,6 @@ export function laneWritable(path, { access = canWrite, stat = statSync, uid = p
   return false;
 }
 
-// Returns the realpath, or fails closed with a reason naming the option or argument.
 function resolveInput(label, value, roots) {
   if (!value) emit(source, `${label} not set${label.startsWith("--") ? "" : " in managed or user settings"}`);
   if (!isAbsolute(value)) emit(source, `${label} ${value} is not an absolute path`);
@@ -144,7 +141,6 @@ function resolveInput(label, value, roots) {
   return real;
 }
 
-// Fails closed when the lane can write `path`, or when that cannot be judged.
 function refuseLaneWritable(label, path, judge) {
   let writable;
   try {
@@ -155,8 +151,6 @@ function refuseLaneWritable(label, path, judge) {
   if (writable) emit(source, `lane-writable:${label}`);
 }
 
-// A root that does not exist yet is canonicalized through its longest existing prefix, so a
-// symlinked parent cannot hide where the root will land.
 function canonical(path) {
   const missing = [];
   let existing = path;
@@ -172,8 +166,6 @@ function canonical(path) {
   }
 }
 
-// The checker's strict form: an explicit offset, at most millisecond precision, and a calendar
-// date that survives a round trip, so the instant cannot shift across a ratification.
 const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 function isStrictIso(value) {
   const match = ISO_DATE_TIME.exec(value);
@@ -192,8 +184,6 @@ function isStrictIso(value) {
 
 const restartEvents = (events, at) => [...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))];
 
-// Fails closed unless the publisher's sidecar describes `text`, the source as read, and its
-// generated_at is within the operator's age bound of now.
 function requireFresh(path, text, judge) {
   const bound = options[MAX_AGE]?.value?.trim();
   if (!bound) emit(source, `${MAX_AGE} not set in managed or user settings, so a re-earn cannot be read`);
@@ -221,10 +211,6 @@ function requireFresh(path, text, judge) {
   }
 }
 
-// The source as given, once a source holding a `re-earned` event has passed requireFresh: without
-// --window-start such an event lifts a contrary event the file holds with no demotion record, so
-// a stale file must not keep its cell promoted. A source that does not read as a JSON array is
-// left to the checker, which reports it unavailable.
 function checkedSource(path, judge) {
   let text;
   let events;
@@ -238,8 +224,6 @@ function checkedSource(path, judge) {
   return path;
 }
 
-// The source's events plus one gate-failure per promotable cell at `at`, written outside every
-// root and removed on exit.
 function restartedCopy(path, at, roots, judge) {
   if (!isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
   let text;
@@ -323,8 +307,6 @@ export function main({ platform = process.platform, ...judge } = {}) {
     emit(null, `usage: ${error.message}`);
   }
 
-  // This install's root, from the helper's own real path (skills/babysit-loop/scripts/ below it),
-  // never from the environment.
   const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..", "..");
   try {
     options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles(), OPTION_KEYS);
@@ -336,7 +318,6 @@ export function main({ platform = process.platform, ...judge } = {}) {
   // The write test is not trusted on Windows (reference/promotion-evidence-bootstrap.md).
   if (platform === "win32") emit(source, "writability-unverifiable-on-win32");
 
-  // The option's realpath, once its value and the settings file it came from are lane-unwritable.
   const option = (key, roots) => {
     const real = resolveInput(key, options[key]?.value, roots);
     refuseLaneWritable(key, options[key].value, judge);
@@ -357,14 +338,12 @@ export function main({ platform = process.platform, ...judge } = {}) {
   const sourcePath = option("promotion_evidence_source", roots);
   const evidence =
     values["window-start"] === undefined ? checkedSource(sourcePath, judge) : restartedCopy(sourcePath, values["window-start"], roots, judge);
-  // The roots name the probe host, so only the settings file that set them is judged.
   const credentialSetting = options.promotion_evidence_credential_roots;
   if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
   const credentialRoots = credentialRootsArgs(credentialSetting?.value, roots);
   emitVerdict(runChecker(checker, [binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots]));
 }
 
-// The checker, run with an allowlisted environment.
 function runChecker(checker, args) {
   const checkerEnv = Object.fromEntries(
     CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
@@ -379,7 +358,6 @@ function runChecker(checker, args) {
   });
 }
 
-// Emits the cells the checker's evaluation block printed, or fails closed on anything else.
 function emitVerdict(run) {
   if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
   if (run.status !== 0) {

@@ -52,9 +52,7 @@ RECORD_RE = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
     re.MULTILINE,
 )
-# Whole reviews a pull request may request; past that a person decides.
 MAX_TOGGLES = 2
-# A lane conversion to draft this long after a record belongs to its toggle.
 CONVERT_WINDOW = timedelta(minutes=10)
 CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
@@ -67,7 +65,6 @@ MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in diff_risk.LANES.values())
-# The lane whose clean review clears a `review-path:` hold.
 SECURITY_LANE = "claude-security-review"
 NEW_RUN_CLEARS = frozenset({"rerun-not-allowed", "base-retargeted"})
 CONVERT = (
@@ -216,7 +213,6 @@ def _short_bucket(env: Mapping[str, str] | None) -> str | None:
     for bucket in ("core", "graphql"):
         left = int(resources[bucket]["remaining"])
         limit = int(resources[bucket]["limit"])
-        # A limit of zero or less is no budget to judge against, so it refuses.
         if limit <= 0 or left < MIN_SHARE * limit:
             return f"{bucket}:{left}/{limit}"
     return None

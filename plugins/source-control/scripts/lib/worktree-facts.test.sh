@@ -107,7 +107,6 @@ row2="$(worktree_fact_row "/gone" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" ""
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _us _cf _ut _peers extra risk2 reason2 <<<"$row2"
 assert_eq "a new column stays a dash-or-value and does not move risk" "$extra|$risk2|$reason2" "EXTRA|notgit|path-absent"
 
-# notgit row, same schema, reason in its own column.
 row3="$(worktree_fact_row "/notgit" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "notgit" "not-a-worktree-root")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _us _cf _ut _peers risk3 reason3 <<<"$row3"
@@ -118,13 +117,11 @@ assert_eq "lock-reason text has one home" "$encoder" "$(realpath "$SCRIPT_DIR/wo
 parse_home="$(grep -Rnl 'line#worktree ' "$SCRIPT_DIR/.." --include='*.sh' | grep -v '\.test\.sh$' | xargs -n1 realpath)"
 assert_eq "porcelain parse has one home" "$parse_home" "$(realpath "$SCRIPT_DIR/worktree-facts.sh")"
 
-# A reasonless lock is still a lock, and `list` prints it.
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/bare-lock" -b bare-lock
 git -C "$TEST_TMPDIR/repo" worktree lock "$TEST_TMPDIR/bare-lock"
 listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$GIT_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
 assert_eq "list: a reasonless lock reads locked=yes, lock_reason=-" "$listed" "yes|-"
 
-# The session parser reads what the encoder writes, and only that.
 assert_eq "reason_lane: host and session id come back" "$(worktree_reason_lane "$helper_reason")" "testhost sess-owner"
 no_session_reason="$(HOSTNAME=testhost worktree_lock_reason worktree-create.sh)"
 if worktree_reason_lane "$no_session_reason" >/dev/null; then

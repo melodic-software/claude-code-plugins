@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-root-scan.sh. Black-box: throwaway git
-# fixtures (commit signing off, git environment cleared by test-helpers.sh) and
-# assertions on the TSV rows and exit codes. The scan is report-only, so every
-# case also proves the fixture survives it. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,14 +18,12 @@ trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 RC=0
 OUT=""
 ERR=""
-# Invoked from an unrelated cwd so a cwd leak would surface.
 run_scan() {
   OUT="$(cd "$UNRELATED" && bash "$SCAN" "$@" 2>"$TEST_TMPDIR/err")"
   RC=$?
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
 
-# row_for <name> — the row whose path ends in /<name>, else empty.
 row_for() {
   printf '%s\n' "$OUT" | awk -F'\t' -v n="/$1" 'substr($1, length($1) - length(n) + 1) == n'
 }
@@ -44,7 +38,6 @@ git -C "$REPO_B" worktree add -q -b other "$ROOT/other-live" >/dev/null 2>&1
 
 mkdir "$ROOT/empty-dir"
 
-# A husk is a worktree whose registration git dropped while its main clone is intact.
 git -C "$REPO_A" worktree add -q -b husk "$ROOT/husk" >/dev/null 2>&1
 rm -rf "$REPO_A/.git/worktrees/husk"
 rm -f "$ROOT/husk/README"
@@ -52,7 +45,6 @@ git -C "$REPO_A" worktree add -q -b husk-content "$ROOT/husk-content" >/dev/null
 rm -rf "$REPO_A/.git/worktrees/husk-content"
 printf 'x\n' >"$ROOT/husk-content/precious.txt"
 
-# A live worktree whose main clone was moved or deleted still holds its work.
 REPO_MOVED="$(mkrepo)"
 git -C "$REPO_MOVED" worktree add -q -b moved "$ROOT/moved-main" >/dev/null 2>&1
 printf 'x\n' >"$ROOT/moved-main/precious.txt"
@@ -119,7 +111,6 @@ assert_file_exists "moved-main worktree content survives the scan" "$ROOT/moved-
 assert_file_exists "foreign content survives the scan" "$ROOT/foreign/notes.txt"
 assert_eq "empty dir survives the scan" yes "$([[ -d "$ROOT/empty-dir" ]] && echo yes || echo no)"
 
-# A directory that cannot be listed may hold work: unknown, never empty.
 UNREADABLE_ROOT="$TEST_TMPDIR/unreadable-root"
 mkdir -p "$UNREADABLE_ROOT/unreadable"
 printf 'x\n' >"$UNREADABLE_ROOT/unreadable/precious.txt"
@@ -134,7 +125,6 @@ fi
 chmod 755 "$UNREADABLE_ROOT/unreadable"
 assert_file_exists "unreadable directory content survives the scan" "$UNREADABLE_ROOT/unreadable/precious.txt"
 
-# A root inside a repository must not turn a plain child into a live one.
 NESTED_REPO="$(mkrepo)"
 mkdir -p "$NESTED_REPO/wt-root/inner"
 printf 'x\n' >"$NESTED_REPO/wt-root/inner/f"
@@ -142,7 +132,6 @@ run_scan --root "$NESTED_REPO/wt-root" --repo-dir "$NESTED_REPO"
 assert_eq "root inside a repo: child without .git is foreign" $'inner\tforeign\tno' \
   "$(row_for inner | sed 's#^.*/##')"
 
-# Root from worktreeroot.path when --root is omitted.
 git -C "$REPO_A" config worktreeroot.path "$ROOT"
 run_scan --repo-dir "$REPO_A"
 assert_exit "default root resolves through worktreeroot.path" 0 "$RC"
@@ -150,7 +139,6 @@ assert_exit "default root resolves through worktreeroot.path" 0 "$RC"
 # `pwd -P` (on Windows Git Bash /c/..., not the /tmp/... mktemp returned).
 assert_contains "default root scans the configured root" "$OUT" "$(physical_dir "$ROOT")/husk"
 
-# Missing, unresolved and unusable input: non-zero, no rows.
 run_scan --root "$TEST_TMPDIR/not-mounted" --repo-dir "$REPO_A"
 assert_exit "missing root exits 3" 3 "$RC"
 assert_eq "missing root emits no rows" "" "$OUT"

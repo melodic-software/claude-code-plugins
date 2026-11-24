@@ -39,8 +39,6 @@ PROG=${0##*/}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER="$SCRIPT_DIR/reap-project-plugin-records.sh"
 
-# Print the header block with its comment markers stripped; derived, not a
-# hardcoded line range, so it cannot truncate as the header grows.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
@@ -97,20 +95,15 @@ total=${#paths[@]}
 index=0
 start_dir="$PWD"
 
-# fail_path <path> <step> <detail> — name the path and step, then stop.
 fail_path() {
   printf 'error: [%s/%s] %s: failed at %s — %s\n' "$index" "$total" "$1" "$2" "$3"
   printf 'error: stopped; %s later path(s) were not touched.\n' "$((total - index))"
 }
 
-# indent — prefix the helper's output so it reads as part of its step.
 indent() { sed 's/^/    /'; }
 
-# one_line <text> — the text with its line breaks turned into spaces.
 one_line() { printf '%s' "$1" | tr '\r\n' '  '; }
 
-# run_helper <step> [<flag>...] — run the helper on $path, its output indented
-# under the step; on failure name the step and stop, leaving the directory.
 run_helper() {
   local step="$1" out rc
   shift
@@ -132,8 +125,6 @@ for raw in "${paths[@]}"; do
     fail_path "$raw" "validate" "empty path"
     exit 1
   fi
-  # The chain changes directory, so a relative path is anchored to where the
-  # script started; the helper compares --worktree-path against its own cwd.
   case "$path" in
   /* | [A-Za-z]:[/\\]*) ;;
   *) path="$start_dir/$path" ;;
@@ -156,8 +147,6 @@ for raw in "${paths[@]}"; do
   fi
   printf '  mkdir: created\n'
 
-  # From here on the directory exists and was created by this script. Every
-  # later failure leaves it in place.
   if ! cd -- "$path"; then
     fail_path "$path" "cd" "could not enter the directory it just created"
     exit 1

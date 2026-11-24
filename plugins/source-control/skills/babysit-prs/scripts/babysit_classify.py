@@ -51,12 +51,6 @@ NEGATED_SEVERITY_LIST_RE = re.compile(
     + r"(?:issues?|findings?|defects?|problems?|regressions?|vulnerabilities?)\b",
     re.I,
 )
-# Negated CRITICAL/IMPORTANT conclusions ("No CRITICAL or IMPORTANT findings",
-# "No CRITICAL issues found") are the structured-severity analogue of
-# NEGATED_SEVERITY_LIST_RE: a clean approval stating the absence of high-severity
-# findings, not a live one. The severity tokens stay case-sensitive (uppercase
-# only) for the same reason BLOCKING_SEVERITY_RE is -- lowercase "critical"/
-# "important" are ordinary prose -- while the negator and trailing noun are not.
 NEGATED_SEVERITY_MARKER_RE = re.compile(
     r"(?i:\b(?:no|zero|without)\s+(?:actionable\s+)?)"
     + r"(?:CRITICAL|IMPORTANT)"
@@ -107,8 +101,6 @@ REVIEW_SKIP_RE = re.compile(
 )
 NOT_APPROVING_RE = re.compile(r"\bnot approving\b", re.I)
 
-# Dependency-manager product bots (a tool taxonomy, not a tenant identity):
-# their PRs feed the cross-tier hold-merge rule.
 DEPENDENCY_MANAGER_LOGINS = frozenset(
     {
         "dependabot",
@@ -272,15 +264,6 @@ def body_text(item: dict[str, Any]) -> str:
 
 
 def _redact_negated_severity(text: str) -> str:
-    """Redact negated findings ahead of a STRUCTURED-severity scan.
-
-    The three substitutions are order-dependent -- one pattern's removal can
-    create or destroy another's match -- so the sequence is defined once here
-    rather than restated at each scan site. `has_blocking_text` deliberately
-    does NOT route through this: it omits the CRITICAL/IMPORTANT marker
-    redaction, and that omission is what keeps the prose vocabulary distinct
-    from the structured one.
-    """
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
     redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
     return NEGATED_BLOCKING_TERM_RE.sub("", redacted)
@@ -361,9 +344,6 @@ SEVERITY_WORDS_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT|SUGGESTION)\b")
 # a second time, so a bare `P[0-3]` would double-count). `/badge/P0-` never
 # matches a lowercase priority:p0-critical label.
 SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
-# Plain bracketed P-severity markers ([P0]..[P3]) -- neither a severity word nor
-# a shields badge. Bounded to the documented P0-P3 range so incidental [P4]+
-# text cannot inflate the count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
 # A markdown table cell that OPENS with a disposition token -- not one that
 # merely contains a disposition word somewhere in its prose. The cell is
@@ -401,12 +381,6 @@ _CLASSIFY_CELL = (
     + r"(?:\||$)"
 )
 CLASSIFY_TOKEN_RE = re.compile(_CLASSIFY_CELL, re.IGNORECASE)
-# A classification table row: a `|`-prefixed line carrying a disposition cell.
-# Built by concatenating the row anchor onto the SAME cell pattern
-# `CLASSIFY_TOKEN_RE` uses, so the rows excluded from the finding corpus
-# (`count_findings`) and the rows credited as classified (`count_classified`)
-# cannot drift apart -- a row counted as a classification but not stripped would
-# re-count its own embedded severity word as a phantom finding.
 CLASSIFY_ROW_RE = re.compile(r"^[ \t]*(?=\|).*" + _CLASSIFY_CELL, re.IGNORECASE)
 PIPE_ROW_RE = re.compile(r"^[ \t]*\|")
 
