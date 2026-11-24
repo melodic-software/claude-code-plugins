@@ -145,8 +145,6 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
     }
 
     It 'reports INFO at the >7 boundary in passive mode (sigAge=8)' {
-        # Boundary regression guard: passive mode checks $sigAge -gt 3, so pin the
-        # behavior at the >7 threshold too.
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus `
                 -AntivirusSignatureAge 8 `
@@ -362,7 +360,6 @@ Describe 'Test-Defender -- detections from events' -Tag 'check' {
         }
 
         $result = Invoke-DefenderAsObject
-        # The parsed detection still counts: its CRIT is not hidden behind UNKNOWN.
         $result.severity | Should -Be 'CRIT'
         $result.detail.events_skipped_count | Should -Be 2
         $result.notes | Should -Match '2 Defender event record'

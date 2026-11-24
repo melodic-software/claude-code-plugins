@@ -156,7 +156,6 @@ Describe 'Test-Battery -- failure modes' -Tag 'check' {
         }
 
         $result = Invoke-BatteryAsObject
-        # Battery present, capacity unknown without the HTML report.
         $result.severity | Should -Be 'OK'
         $result.notes | Should -Match 'ReportPath|capacity'
     }

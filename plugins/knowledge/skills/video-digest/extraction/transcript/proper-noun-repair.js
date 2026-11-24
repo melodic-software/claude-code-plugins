@@ -58,9 +58,9 @@ function stripEdgePunctuation(token) {
 function isProperNounShaped(word) {
   if (word.length < 2 || word.length > TERM_MAX_LENGTH) return false;
   if (word.startsWith("@") || word.startsWith("#")) return true;
-  if (/[A-Za-z]/.test(word) && /\d/.test(word)) return true; // large-v3, GPT-5
-  if (/^[A-Z]{2,}$/.test(word)) return true; // API, NPX
-  if (/[a-z][A-Z]/.test(word)) return true; // CamelCase / mixed: GitHub, npX
+  if (/[A-Za-z]/.test(word) && /\d/.test(word)) return true;
+  if (/^[A-Z]{2,}$/.test(word)) return true;
+  if (/[a-z][A-Z]/.test(word)) return true;
   if (/^[A-Z][a-z'’-]+$/.test(word) && word.length >= 3) {
     return !STOPWORDS.has(word.toLowerCase());
   }
@@ -91,10 +91,6 @@ export function buildRepairLexicon(description, harvestedLinks = [], title = "")
   for (const text of [title, description]) {
     const tokens = (text ?? "").split(/\s+/).map(stripEdgePunctuation).filter(Boolean);
 
-    // Runs of consecutive capitalized words form phrases ("Claude Code") — the
-    // multi-word shape single-token extraction misses. Phrases go in FIRST so
-    // the author's spaced phrasing wins a key collision with a compacted form
-    // of the same name (e.g. the "#ClaudeCode" hashtag).
     /** @type {string[]} */
     let run = [];
     const flushRun = () => {
@@ -248,7 +244,7 @@ function repairTextCompiled(text, entries, maxWordCount) {
       const core = stripEdgePunctuation(windowText);
       if (!core) continue;
       const windowKey = normalizeKey(core);
-      if (windowKey.length < 4) continue; // never fuzzy/case-rewrite tiny fragments
+      if (windowKey.length < 4) continue;
 
       /** @type {LexiconEntry|null} */
       let exact = null;

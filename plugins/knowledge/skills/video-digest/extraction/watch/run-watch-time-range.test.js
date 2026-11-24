@@ -156,7 +156,6 @@ describe("run-watch time range (CLI-level)", () => {
     ]);
 
     const { sliceDir, videoSlug } = JSON.parse(captured.stdout.join(""));
-    // The range is in the slice key, so another range of this video gets its own slice.
     expect(videoSlug).toMatch(new RegExp(`-${VIDEO_ID}-r3600-4800$`));
     expect(path.basename(sliceDir)).toBe(videoSlug);
     const state = JSON.parse(await fs.readFile(watchStatePath(sliceDir), "utf8"));
@@ -188,7 +187,6 @@ describe("run-watch time range (CLI-level)", () => {
     const mediaPath = path.join(fixtureDir, `${VIDEO_ID}.mp4`);
     const infoPath = path.join(fixtureDir, `${VIDEO_ID}.info.json`);
     await fs.writeFile(mediaPath, "binary", "utf8");
-    // The stream ended an hour ago, so its caption wait is still open.
     const info = {
       id: VIDEO_ID,
       title: "Conference Stream",

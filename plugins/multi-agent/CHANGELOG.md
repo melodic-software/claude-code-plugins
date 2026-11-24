@@ -3,6 +3,14 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.0] - 2026-11-24
+
+### Removed
+
+- **Breaking:** `vendors.promotion_audits` and `vendors.promotion_days` are gone from `multi-agent.schema.json`, so a config that sets either fails validation; delete both keys. `resolve-roles.sh` now ignores them as unknown keys.
+- `/multi-agent:audit-defaults registry` no longer records per-machine audit history or proposes promoting a `support-only` row to `permanent`: `skills/audit-defaults/scripts/registry-history.mjs` is deleted, and the registry judge no longer returns `error_range` or `tests_required_vendors`. A row leads only with an error range and consensus needs two clusters, so with today's rows a promotion could never change a routing decision. Demotion is unchanged.
+- `reference/vendor-routing-audit.md` is deleted; nothing referenced it.
+
 ## [3.8.2] - 2026-11-24
 
 ### Fixed

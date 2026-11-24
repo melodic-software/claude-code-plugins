@@ -68,8 +68,6 @@ function Invoke-DriversCheck {
     [OutputType([pscustomobject])]
     param(
         [switch] $Human,
-        # Tests dot-source this script and read the object. The script entry
-        # point omits -PassThru so the envelope writes the result.
         [switch] $PassThru
     )
 
@@ -174,7 +172,6 @@ function Invoke-DriversCheck {
             $adminFields.Add('pending_driver_updates')
         }
 
-        # GPU info + vendor CLIs are not admin-gated.
         $gpus = @()
         try { $gpus = @(Get-GpuDriverInfo) } catch {
             Write-Verbose "Test-Drivers: GPU probe failed. $($_.Exception.Message)"
@@ -184,9 +181,6 @@ function Invoke-DriversCheck {
             Write-Verbose "Test-Drivers: vendor CLI probe failed. $($_.Exception.Message)"
         }
 
-        # Severity rubric: pnputil problem devices + pending driver updates upgrade
-        # severity even past the existing signing + age rules. One run's CodeIntegrity
-        # reading caps at WARN; CRIT needs the repeat Invoke-TrendAnalysis checks.
         $hasPendingUpdates = $null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0
         $severity = 'OK'
         if ($ciEvents.Count -gt 0 -or $unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {

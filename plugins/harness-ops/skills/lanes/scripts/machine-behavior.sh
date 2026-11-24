@@ -68,13 +68,13 @@ usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOU
 # Guard for a space-separated option that consumes the next token: reject a
 # missing value or one that looks like another flag. Called as a bare statement
 # (never in a subshell) so its exit fires for the whole script.
-require_value() { # <flag> <value>
+require_value() {
   [[ -n "${2:-}" && "$2" != -* ]] && return 0
   err "option '$1' requires a value"
   exit 3
 }
 
-set_opt() { # <flag> <value>
+set_opt() {
   case "$1" in
   --plugin) WANT_PLUGINS+=("$2") ;;
   --repo) REPO="$2" ;;
@@ -122,7 +122,6 @@ type -P jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# --- Repo resolution ---------------------------------------------------------
 if [[ -n "$REPO" ]]; then
   [[ -d "$REPO" ]] || {
     err "repo not a directory: $REPO"
@@ -137,9 +136,6 @@ else
   }
 fi
 
-# --- gh identity -------------------------------------------------------------
-# The account the lane acts as. Degrades to `unavailable` if gh is missing or
-# unauthenticated — a lane with no gh is degraded, not a script failure.
 gh_identity() {
   local login id
   if ! command -v gh >/dev/null 2>&1; then
@@ -247,7 +243,6 @@ plugin_versions() {
   printf '%s\n' "$rows"
 }
 
-# --- Emit --------------------------------------------------------------------
 read_worktrees
 
 printf '== MACHINE-BEHAVIOR ==\n'

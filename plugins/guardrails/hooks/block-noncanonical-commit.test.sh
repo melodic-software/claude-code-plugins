@@ -976,7 +976,7 @@ fi
 # the top level, so the guard must keep resolving `<w>/child` there, not
 # `<w>/sub/child`.
 LAUNCH="$TEST_TMPDIR/launchdir"
-launch_tree() { # <root> <out-child-alias> <work-child-alias> <sub-child-alias>
+launch_tree() {
   nested_repo "$1/work"
   nested_repo "$1/work/child"
   nested_repo "$1/work/sub/child"
@@ -1118,7 +1118,7 @@ assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 PARSE_CREATIONS=7
 PARSE_EXECVE=2
-strace_census() { # <payload> <guard> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+strace_census() {
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \

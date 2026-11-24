@@ -3,10 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { cuesInMediaTime, watchingInVideoTime } from "../lib/time-range.js";
 import { orchestrateWatching } from "./orchestrate-watching.js";
 
-/**
- * Fake deduplicator following the real one's contract: a bare path carries no
- * time, a frame keeps its time fields; nothing is marked duplicate.
- */
 function passThroughDedup() {
   return vi.fn(async (inputs) => {
     const unique = inputs.map((input) =>
@@ -51,7 +47,6 @@ describe("orchestrateWatching", () => {
         framesDir: "/tmp/frames",
         contactSheetsDir: "/tmp/sheets",
         cues: [{ startSec: 10, endSec: 20, text: "Let me show you this code demo" }],
-        // A cap above the two 60s gaps keeps gap fill out of this composition check.
         maxFrameGapSec: 120,
       },
       {
@@ -93,8 +88,6 @@ describe("orchestrateWatching", () => {
       frameCount: paths.length,
     }));
     const probeVideoDuration = vi.fn(async () => ({ durationSec: 120, formatName: "mp4" }));
-    // 73s is deliberately off the ordinal grid (duration/frameCount) so a
-    // fabricated timestamp could never coincidentally equal it.
     const extractAnchorFrames = vi.fn(async () => [
       { path: "/tmp/anchor_0073.png", file: "anchor_0073.png", timestampSec: 73, isInterval: false },
     ]);
@@ -174,13 +167,6 @@ describe("orchestrateWatching", () => {
     expect(byFile["anchor_0073.png"].timestampSource).toBe("anchor");
   });
 
-  /**
-   * Scene frames at 0s and 200s of a 300s video plus one untimed frame, which
-   * keeps the scene yield high enough that no stratified pass runs, and no cues,
-   * so no densification or cue anchors are planned.
-   *
-   * @param {{ maxFrameGapSec?: number }} [options]
-   */
   async function watchSparseScenes(options = {}) {
     const extractAnchorFrames = vi.fn(async (_videoPath, _dir, timestampsSec) =>
       timestampsSec.map((t) => ({
@@ -227,7 +213,6 @@ describe("orchestrateWatching", () => {
   it("extracts a frame inside a gap between scene frames longer than the maximum gap", async () => {
     const { state, requested } = await watchSparseScenes();
 
-    // 300s is the top of the medium tier, whose default cap is 6s.
     expect(state.coveragePlan.maxFrameGapSec).toBe(6);
     expect(state.coveragePlan.forceStratifiedPass).toBe(false);
     expect(requested.some((t) => t > 0 && t < 200)).toBe(true);
