@@ -357,9 +357,19 @@ FXV=$(verdict_fx fxv-pending)
 for n in 1 2; do runs_json a | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FXV/checks.$n"; done
 echo 4 >"$FXV/art/pr-verify-7-$H1-pass"
 outv="$(run_poll "$FXV")"
-assert_eq "a check run still pending: no verdict read" "" "$(awk '$1 <= 2 && /actions\/artifacts/' "$FXV/calls")"
+assert_contains "first poll: the record-only verdict read runs though a check run is pending" \
+  "$(awk '$1 == 1' "$FXV/calls")" "actions/artifacts"
+assert_eq "a check run still pending after the first poll: no verdict read" "" "$(awk '$1 == 2 && /actions\/artifacts/' "$FXV/calls")"
 assert_contains "every check run finished: the verdict reads start" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
 assert_eq "every check run finished: a verdict landing later is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-pending-at-arming)
+echo 6 >"$FXV/merged_at"
+for n in 1 2 3; do runs_json a | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FXV/checks.$n"; done
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_eq "no baseline, a check run pending through poll 3, a verdict at poll 2: printed exactly once" "1" \
+  "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
 
 FXV=$(verdict_fx fxv-terminal)
 echo 2 >"$FXV/art/pr-verify-7-$H1-pass"

@@ -205,7 +205,7 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
      head-ref digest, and a FAIL as one run holding both its index artifacts,
      `pr-verify-index-pr-<N>` and `pr-verify-index-sha-<head-sha>`, since its own name ends in
      issue numbers the script does not read. Each name holds the head, so a verdict at an earlier
-     head never emits. The watch reads verdicts only while no check run at the head is pending,
+     head never emits. After its first, record-only read, the watch reads verdicts only while no check run at the head is pending,
      since pr-verify starts when the head's checks finish, and stops reading a head once it has
      recorded a pass or pass-notes there; after a `fail` it keeps reading, since pr-verify judges
      the same head again after a trusted body edit or an approving review; a new head reads again, and `--verdict` reads whatever is there.

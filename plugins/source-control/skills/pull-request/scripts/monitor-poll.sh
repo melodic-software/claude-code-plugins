@@ -216,7 +216,7 @@ verdict_read() {
   return 0
 }
 pv_wanted() {
-  [[ "$checks_ok" -eq 1 ]] && ! grep -q ': pending$' <<<"$run_rows" &&
+  [[ "$checks_ok" -eq 1 ]] && { [[ "$pv_based" -eq 0 ]] || ! grep -q ': pending$' <<<"$run_rows"; } &&
     ! grep -qE "^PR-VERIFY pass(-notes)? $head_sha\$" <<<"$pv_seen"
 }
 pv_print() {
