@@ -448,7 +448,9 @@ proposes a `/goal` line; the Stop hook holds the same condition without one. Ask
 session, it launches a background session and arms it from this one before you leave. Opt-in
 only: the plugin's PermissionRequest, Elicitation, Stop and UserPromptSubmit hooks run in every
 session but do nothing until an absence is started, and exit before Python starts while none
-exists. The settings are the five `away_*` options in "Options reference";
+exists. With `away_orchestrate` on, or launch words that ask for it, the run works as an
+orchestrator: it delegates and keeps only briefs, verdicts and state in its own context, so it
+lasts through compaction. The settings are the six `away_*` options in "Options reference";
 `/session-flow:setup` reports each and checks that every watched folder exists.
 
 ```shell
@@ -548,8 +550,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 (see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
 keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
 `cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
-session and whether its wrap-up offers a retro; the five `away_*` keys set `/session-flow:step-away`'s
-night start, report-by times, days off and watched folders; nine more keys tune single skills, and
+session and whether its wrap-up offers a retro; the six `away_*` keys set `/session-flow:step-away`'s
+night start, report-by times, days off, watched folders and orchestrator posture; nine more keys tune single skills, and
 "Option details" explains `worker_continuation`, `wip_commit`, `retro_lenses` and
 `transcript_scope`. Every key is in the options reference below. The observer keys:
 
@@ -680,6 +682,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `away_report_by_day_off` | string | `"10:00"` | Local time of day, HH:MM, by which /session-flow:step-away has its return report ready on a day off; default 10:00. A time named in the launch words wins. |
 | `away_days_off` | string | `"Sat,Sun"` | Comma-separated three-letter weekday names /session-flow:step-away treats as days off when it picks the report-by time; default Sat,Sun. |
 | `away_watched_folders` | string | *(none)* | Comma-separated folders /session-flow:step-away scans for files written while you are away; empty (default) scans the home folder. Dot folders and git work trees are skipped. |
+| `away_orchestrate` | boolean | `false` | When on, /session-flow:step-away runs every absence as an orchestrator: the main session delegates work and keeps only briefs, verdicts and state in its context, so it rides compaction through a long run. Off by default. Words in the launch line can turn it on or off for one run. |
 
 ### How to set these
 

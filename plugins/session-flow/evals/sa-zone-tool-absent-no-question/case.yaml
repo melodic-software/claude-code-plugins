@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: sa-zone-tool-absent-no-question
+description: 'Step-away zone check with the context-usage plugin absent (AC4): the run has no mcp__context-usage__status tool, so it asks no question and its own text says the zone (context) check was skipped. The heavy-zone branch (offer a fresh session) is not evaluable here because a case cannot seed a zone. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [step-away, launch, context-zone]
+plugins: ["../.."]
+expected_outcome: 'The run asks no AskUserQuestion, and its own text says the context zone check was skipped.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:step-away'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, AskUserQuestion]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: asks-no-question
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both
+  - name: states-zone-skipped
+    type: regex
+    pattern: '^(?=[^\n]*"type":\s*"assistant")[^\n]*?"type":\s*"text",\s*"text":\s*"(?:[^"\\\n]|\\.)*?(?:\b(?:zone|context)\b(?:[^"\\\n]|\\[^n]){0,60}\bskipped\b|\bskipped\b(?:[^"\\\n]|\\[^n]){0,60}\b(?:zone|context)\b)'
+    flags: 'mi'
+    target: trace
+    arm: both

@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed --task-file /ws/.work/away/tasks-abc12345.md --setting 'away_night_start=21:00' --setting 'away_orchestrate=true'"
+          }
+        }
+      ],
+      "why": "single-quoted posture setting"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/session-flow/scripts/away.py start --session abc12345-0000 --data-root /data/session-flow-inline --kind bed --setting away_orchestrate=true"
+          }
+        }
+      ],
+      "why": "unquoted posture setting"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/session-flow/scripts/away.py start --session abc12345-0000 --data-root /data/session-flow-inline --kind bed --setting \"away_orchestrate=true\""
+          }
+        }
+      ],
+      "why": "double-quoted posture setting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/session-flow/scripts/away.py start --session abc12345-0000 --data-root /data/session-flow-inline --kind bed"
+          }
+        }
+      ],
+      "why": "no posture setting"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/session-flow/scripts/away.py start --session abc12345-0000 --data-root /data/session-flow-inline --kind bed --setting 'away_orchestrate=false'"
+          }
+        }
+      ],
+      "why": "posture set off"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/session-flow/scripts/away.py start --session abc12345-0000 --data-root /data/session-flow-inline --kind bed; echo --setting away_orchestrate=true"
+          }
+        }
+      ],
+      "why": "the setting is in another command"
+    }
+  ]
+}
