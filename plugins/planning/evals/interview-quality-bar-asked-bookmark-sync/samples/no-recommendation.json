@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\nContext:\n- A throwaway prototype gets scoping questions only; an internal tool adds failure handling; production adds monitoring and rollback (SKILL.md, Ask the quality bar in round 1).\n\nDiscovery: the answer sets how deep the rest of the interview goes.",
+      "why": "the bar asked open, with a Discovery: line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q2: **Which quality bar is this work for?**\n\n➡️ My recommendation: **prototype**. It reads like a personal tool.",
+      "why": "a recommendation drawn from the request's wording, with no survey evidence"
+    },
+    {
+      "answer": "Q2: **Which quality bar?**\n**My recommendation:** internal tool",
+      "why": "a bold recommendation label"
+    }
+  ]
+}

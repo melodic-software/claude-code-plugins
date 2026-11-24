@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Q1: What quality bar is this for: a throwaway prototype, an internal tool, or production?\nMy recommendation: **prototype** - it is a personal tool.",
+      "answer": "Q1: What quality bar is this for: a throwaway prototype, an internal tool, or production?",
       "why": "names the low and high ends of the bar in one question"
     },
     {
