@@ -242,8 +242,6 @@ assert_lacks "a misspelled --dryrun does not enable dry-run" "${out}" "[DRY-RUN]
 assert_contains "a misspelled --dryrun takes the live path" "${out}" "=== USER STEPS (do not skip) ==="
 assert_touched_nothing "unknown argument" "${sbx}" "${before}"
 
-# --- G. no dependency on the Windows environment variables ---
-
 # Unlike its siblings, sync-prep.sh expands no LOCALAPPDATA/APPDATA/USERPROFILE,
 # so it runs before provisioning. Under `set -u` a newly added expansion of an
 # unset one would abort mid-walkthrough, which this case catches.
@@ -259,8 +257,6 @@ assert_rc "runs with the Windows env vars unset" 0 "${rc}"
 assert_contains "unset env vars still yield the full walkthrough" "${out}" "=== END USER STEPS ==="
 assert_lacks "unset env vars raise no unbound-variable error" "${out}" "unbound variable"
 assert_touched_nothing "unset Windows env vars" "${sbx}" "${before}"
-
-# --- H. the handoff paths survive a relative-path invocation ---
 
 # SCRIPT_DIR is `cd ... && pwd`, not a bare dirname, and the difference only
 # shows when the script is invoked by a relative path: the printed
