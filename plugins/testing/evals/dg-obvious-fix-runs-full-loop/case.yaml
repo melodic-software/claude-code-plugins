@@ -12,7 +12,7 @@ graders:
   - name: skill-fired
     type: tool_used
     tool: Skill
-    input_match: '"skill"\s*:\s*"(?:testing:)?diagnose"'
+    input_match: '"skill"\s*:\s*"(?:testing:)?fix-failing"'
   - name: read-loop
     type: tool_used
     tool: Read
