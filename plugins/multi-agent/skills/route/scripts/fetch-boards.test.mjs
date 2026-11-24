@@ -53,8 +53,8 @@ test('fetch-boards dates captured boards by their page dates, never by a model s
       board('id-suffix'),
     ],
     {
-      'artificialanalysis-ai/image/leaderboard/text-to-image.md': captured('aa-image-t2i-page.md'),
-      'www-tbench-ai/leaderboard.md': captured('terminal-bench-page.md'),
+      'artificialanalysis-ai/image/leaderboard/text-to-image.md': captured('aa-image-t2i-page.txt'),
+      'www-tbench-ai/leaderboard.md': captured('terminal-bench-page.txt'),
       'www-tbench-ai/heading.md': '# Leaderboard\n\n## v1.1.1 (2026-11-18)\n',
       'www-tbench-ai/changelog.md': '# Leaderboard\n\n- Added 3 models (2026-11-18)\n',
       'www-tbench-ai/updated.md': '# Leaderboard\n\nLast updated (2026-11-18)\n',
