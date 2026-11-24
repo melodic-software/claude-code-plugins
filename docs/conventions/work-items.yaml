@@ -40,6 +40,6 @@ tracker:
     lease_ttl_hours: 24
     github:
       status_trust:
-        trusted_actors: standards:components/trusted-actors/trusted-actors.json
+        trusted_actors: standards:melodic-software/standards:components/trusted-actors/trusted-actors.json
         model: docs/conventions/pr-pipeline.yaml
         lanes_app: melodic-automation-lanes[bot]

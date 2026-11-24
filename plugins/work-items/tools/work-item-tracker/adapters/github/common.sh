@@ -360,15 +360,17 @@ wit_gh_load_status_trust() {
   WIT_GH_STATUS_TRUST="$(jq -c '(.config.github // {}) as $g
     | def text: type == "string" and length > 0;
     def relative: text and (startswith("/") | not) and (split("/") | index("..") | not);
+    def standards: ltrimstr("standards:") | index(":") as $i
+      | $i != null and (.[:$i] | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")) and (.[$i + 1:] | relative);
     if ($g | type) != "object" or ($g | has("status_trust") | not) then null
-    elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | text and (ltrimstr("standards:") | relative))
+    elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | text and (if startswith("standards:") then standards else relative end))
       and ($g.status_trust.model | relative) and ($g.status_trust.lanes_app | text)
     then $g.status_trust | {trusted_actors, model, lanes_app}
     else "bad" end' <<<"$_WIT_GH_BINDING_JSON")"
   case "$WIT_GH_STATUS_TRUST" in
   null) WIT_GH_STATUS_TRUST="" ;;
   '"bad"')
-    echo "github: config.github.status_trust must set trusted_actors (a repo-relative path or standards:<path>), model (a repo-relative path) and lanes_app (a login)" >&2
+    echo "github: config.github.status_trust must set trusted_actors (a repo-relative path or standards:<owner>/<repo>:<path>), model (a repo-relative path) and lanes_app (a login)" >&2
     exit "$EX_CONFIG"
     ;;
   *) ;;

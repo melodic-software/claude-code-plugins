@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/fixtures/standards-commits-main.json plugins/guardrails/hooks/fixtures/standards-trusted-actors.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -153,27 +154,39 @@ pv_std() {
   cp "$STD_FIX/standards-commits-main.json" "$FIX/commits_main.json"
   cp "$STD_FIX/standards-trusted-actors.json" "$FIX/contents_trusted-actors.json"
 }
-pv_std $'pr_open_state: ready\ntrusted_actors_source: standards # opt in\n'
+pv_std $'pr_open_state: ready\ntrusted_actors_source: standards # opt in\nstandards_repository: acme/standards\n'
 run "pr-verify: opted in, the standards list judges the author" 'gh pr merge 42 --auto' 2
-assert_contains "opted in -> resolves standards main once" "$(calls)" "repos/melodic-software/standards/commits/main"
-assert_contains "opted in -> reads the list at that commit" "$(calls)" "repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD_SHA"
+assert_contains "opted in -> resolves standards main once" "$(calls)" "repos/acme/standards/commits/main"
+assert_contains "opted in -> reads the list at that commit" "$(calls)" "repos/acme/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STD_SHA"
 pv_std $'trusted_actors_source: repository\n'
 run "pr-verify: trusted_actors_source repository keeps the copy" 'gh pr merge 42 --auto' 0
-assert_absent "repository source -> no standards read" "$(calls)" "melodic-software/standards"
+assert_absent "repository source -> no standards read" "$(calls)" "acme/standards"
 pv_std ''
 run "pr-verify: no opt-in keeps the copy" 'gh pr merge 42 --auto' 0
-assert_absent "no opt-in -> no standards read" "$(calls)" "melodic-software/standards"
+assert_absent "no opt-in -> no standards read" "$(calls)" "acme/standards"
 pv_std $'trusted_actors_source: elsewhere\n'
 run "pr-verify: an unknown trusted_actors_source fails open" 'gh pr merge 42 --auto' 0
 assert_contains "unknown source -> runs unchecked, naming it" "$OUT" "trusted_actors_source elsewhere is not repository or standards"
 pv_std $'trusted_actors_source: standards\n'
+run "pr-verify: opted in with no standards_repository fails open" 'gh pr merge 42 --auto' 0
+assert_contains "no standards_repository -> runs unchecked, naming the key" "$OUT" "needs standards_repository as <owner>/<repo>"
+assert_absent "no standards_repository -> no commits read" "$(calls)" "/commits/main"
+pv_std $'trusted_actors_source: standards\nstandards_repository: not a repo\n'
+run "pr-verify: a malformed standards_repository fails open" 'gh pr merge 42 --auto' 0
+assert_contains "malformed standards_repository -> runs unchecked" "$OUT" "needs standards_repository as <owner>/<repo>"
+pv_std $'trusted_actors_source: elsewhere\n'
+jq '.data.repository.w = null' "$FIX/graphql_scope.json" >"$FIX/scope.next" && mv "$FIX/scope.next" "$FIX/graphql_scope.json"
+run "pr-verify: a base with no pr-verify never reads the trust source" 'gh pr merge 42 --auto' 0
+assert_absent "no pr-verify -> no unchecked notice" "$OUT" "for its pr-verify verdict"
+assert_absent "no pr-verify -> no standards read" "$(calls)" "/commits/main"
+pv_std $'trusted_actors_source: standards\nstandards_repository: acme/standards\n'
 rm -f "$FIX/commits_main.json"
 run "pr-verify: standards main unreadable fails open" 'gh pr merge 42 --auto' 0
 assert_contains "standards unreadable -> runs unchecked" "$OUT" "for its pr-verify verdict"
-pv_std $'trusted_actors_source: standards\n'
+pv_std $'trusted_actors_source: standards\nstandards_repository: acme/standards\n'
 touch "$FIX/graphql_refused"
 printf 'merge:\n  verify-authors: lane-or-owner\n' >"$FIX/contents_pr-pipeline.yaml"
-printf 'trusted_actors_source: "standards"\n' >"$FIX/contents_source-control.yaml"
+printf 'trusted_actors_source: "standards"\nstandards_repository: "acme/standards"\n' >"$FIX/contents_source-control.yaml"
 echo '{"path":".github/workflows/pr-verify.yml"}' >"$FIX/contents_pr-verify.yml"
 run "pr-verify: GraphQL refused, the opt-in read over REST" 'gh pr merge 42 --auto' 2
 assert_contains "REST opt-in -> the base branch's source-control.yaml" "$(calls)" "contents/docs/conventions/source-control.yaml?ref=main"

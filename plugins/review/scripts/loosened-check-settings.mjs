@@ -45,7 +45,7 @@ function parseArgs(argv) {
 const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const SOURCE_CONTROL = "docs/conventions/source-control.yaml";
 const SOURCES = ["repository", "standards"];
-const STANDARDS = "melodic-software/standards";
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const STANDARDS_LIST = "components/trusted-actors/trusted-actors.json";
 const ACTOR_KEYS = "id,kind,login";
 const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -69,24 +69,25 @@ function defaultBranch(git, root) {
 }
 
 /**
- * The trusted-actor list STANDARDS holds at its main commit, resolved once, as [where, text]. Read
- * only for a repository whose source-control.yaml sets trusted_actors_source: standards.
+ * The trusted-actor list the standards repository holds at its main commit, resolved once, as
+ * [where, text]. Read only for a repository whose source-control.yaml sets
+ * trusted_actors_source: standards and names that repository in standards_repository.
  */
-function standardsList(root) {
+function standardsList(root, standards) {
   const api = (...args) => spawnSync("gh", ["api", ...args], { cwd: root, encoding: "utf8", timeout: 30000 });
-  const main = api(`repos/${STANDARDS}/commits/main`, "--jq", ".sha");
+  const main = api(`repos/${standards}/commits/main`, "--jq", ".sha");
   const sha = main.status === 0 ? main.stdout.trim() : "";
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`${STANDARDS} main could not be resolved`);
-  const read = api("-H", "Accept: application/vnd.github.raw", `repos/${STANDARDS}/contents/${STANDARDS_LIST}?ref=${sha}`);
-  if (read.status !== 0) throw new Error(`${STANDARDS_LIST} is not readable at ${STANDARDS}@${sha}`);
-  return [`${STANDARDS}@${sha}`, read.stdout];
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`${standards} main could not be resolved`);
+  const read = api("-H", "Accept: application/vnd.github.raw", `repos/${standards}/contents/${STANDARDS_LIST}?ref=${sha}`);
+  if (read.status !== 0) throw new Error(`${STANDARDS_LIST} is not readable at ${standards}@${sha}`);
+  return [`${standards}@${sha}`, read.stdout];
 }
 
 /**
  * The human ids of the trusted-actor list on the default branch, schema-checked as loadTrustedList
  * does; null when the default branch has no list; throws on any other failure, and when --ref names
  * another commit, so a run pointed at a head branch never reads a list that branch edited. The list
- * comes from STANDARDS instead when the default branch's source-control.yaml opts in.
+ * comes from the standards repository instead when the default branch's source-control.yaml opts in.
  */
 function trustedHumans(opts, root) {
   const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
@@ -102,15 +103,21 @@ function trustedHumans(opts, root) {
     if (commit(opts.ref) !== head) throw new Error(`--ref ${opts.ref} is not the default branch ${ref}, so its trusted-actor list is not read`);
   }
   let source = "repository";
+  let standards;
   if (git("cat-file", "-e", `${head}:${SOURCE_CONTROL}`).status === 0) {
     const conf = git("show", `${head}:${SOURCE_CONTROL}`);
     if (conf.status !== 0) throw new Error(`${SOURCE_CONTROL} is not readable at ${ref}`);
-    source = parse(conf.stdout)?.trusted_actors_source ?? "repository";
+    const settings = parse(conf.stdout);
+    source = settings?.trusted_actors_source ?? "repository";
+    standards = settings?.standards_repository;
     if (!SOURCES.includes(source)) throw new Error(`${SOURCE_CONTROL} at ${ref}: trusted_actors_source ${JSON.stringify(source)} is not one of ${SOURCES.join(", ")}`);
+    if (source === "standards" && !(typeof standards === "string" && REPOSITORY.test(standards))) {
+      throw new Error(`${SOURCE_CONTROL} at ${ref}: trusted_actors_source standards needs standards_repository as <owner>/<repo>`);
+    }
   }
   let where = ref;
   let text;
-  if (source === "standards") [where, text] = standardsList(root);
+  if (source === "standards") [where, text] = standardsList(root, standards);
   else {
     if (git("cat-file", "-e", `${head}:${TRUSTED_ACTORS}`).status !== 0) return { ref, humans: null };
     const shown = git("show", `${head}:${TRUSTED_ACTORS}`);

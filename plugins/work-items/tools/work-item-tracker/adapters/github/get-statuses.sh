@@ -70,14 +70,14 @@ fetch_repo_file() {
 fetch_standards_file() {
   local errfile="$TRUST_TMP/err" sha
   if [[ ! -s "$TRUST_TMP/standards.sha" ]]; then
-    if ! gh api repos/melodic-software/standards/commits/main --jq .sha >"$TRUST_TMP/standards.sha" 2>"$errfile"; then
-      trust_fail "$(wit_map_gh_error "$(<"$errfile")")" "status_trust: melodic-software/standards main unread: $(head -n 1 "$errfile")"
+    if ! gh api "repos/$1/commits/main" --jq .sha >"$TRUST_TMP/standards.sha" 2>"$errfile"; then
+      trust_fail "$(wit_map_gh_error "$(<"$errfile")")" "status_trust: $1 main unread: $(head -n 1 "$errfile")"
     fi
   fi
   sha="$(<"$TRUST_TMP/standards.sha")"
-  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || trust_fail "$EX_CONFIG" "status_trust: melodic-software/standards main is not a commit"
-  [[ -s "$TRUST_TMP/standards.json" ]] || fetch_repo_file melodic-software/standards "$1?ref=$sha" "$TRUST_TMP/standards.json"
-  cp "$TRUST_TMP/standards.json" "$2"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || trust_fail "$EX_CONFIG" "status_trust: $1 main is not a commit"
+  [[ -s "$TRUST_TMP/standards.json" ]] || fetch_repo_file "$1" "$2?ref=$sha" "$TRUST_TMP/standards.json"
+  cp "$TRUST_TMP/standards.json" "$3"
 }
 
 # trust_context <repo>: set CONTEXT to {field, states, ready, people, bots} from <repo>'s
@@ -92,7 +92,8 @@ trust_context() {
   model_path="$(jq -r '.model' <<<"$WIT_GH_STATUS_TRUST")"
   lanes="$(jq -r '.lanes_app' <<<"$WIT_GH_STATUS_TRUST")"
   if [[ "$actors_path" == standards:* ]]; then
-    fetch_standards_file "${actors_path#standards:}" "$TRUST_TMP/actors.json"
+    actors_path="${actors_path#standards:}"
+    fetch_standards_file "${actors_path%%:*}" "${actors_path#*:}" "$TRUST_TMP/actors.json"
   else
     fetch_repo_file "$repo" "$actors_path" "$TRUST_TMP/actors.json"
   fi

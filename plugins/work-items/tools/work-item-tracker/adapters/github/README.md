@@ -693,9 +693,9 @@ tracker:
 ```
 
 - `trusted_actors`: a repo-relative path to the trust list, `{version: 1, actors: [{id, login,
-  kind}]}`, every id a positive whole number; or `standards:<path>`, the list at `<path>` in
-  `melodic-software/standards` (`standards:components/trusted-actors/trusted-actors.json`), read
-  at the main commit resolved once per run, the same list for every item repository.
+  kind}]}`, every id a positive whole number; or `standards:<owner>/<repo>:<path>`, the list at `<path>`
+  in that repository (`standards:<owner>/<repo>:components/trusted-actors/trusted-actors.json`),
+  read at its main commit resolved once per run, the same list for every item repository.
 - `model`: a repo-relative path to a YAML file whose `models.issue-status` block gives `field-id`
   and `options` (option id to state), and may give `bot-setters` (`{id, login}` entries) and
   `ready-state`, the state only a person's value counts for (absent or empty: `agent-ready`).

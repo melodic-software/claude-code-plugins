@@ -1274,7 +1274,7 @@ _bupm_verify() {
   read -r skip uid login default head <<<"$_bupm_pv"
   [[ "$skip" == - && -n "$_bupm_base" && "$_bupm_base" != null ]] || return 0
   local wf=.github/workflows/pr-verify.yml pp=docs/conventions/pr-pipeline.yaml ta=.github/standards/trusted-actors/trusted-actors.json
-  local sc=docs/conventions/source-control.yaml source sha
+  local sc=docs/conventions/source-control.yaml source std sha
   # shellcheck disable=SC2016  # GraphQL variables and jq, not shell expansions
   if _bupm_api graphql -f query='query($o:String!,$r:String!,$w:String!,$c:String!,$t:String!,$s:String!){repository(owner:$o,name:$r){w:object(expression:$w){oid} c:object(expression:$c){... on Blob{text}} t:object(expression:$t){... on Blob{text}} s:object(expression:$s){... on Blob{text}}}}' \
     -f o="${BUPM_REPO%%/*}" -f r="${BUPM_REPO#*/}" -f w="$_bupm_base:$wf" -f c="$_bupm_base:$pp" -f t="$_bupm_base:$ta" -f s="$_bupm_base:$sc" \
@@ -1306,17 +1306,23 @@ _bupm_verify() {
     conf="$(jq -cn --arg c "$pp_text" --arg t "$ta_text" --arg s "$sc_text" '{w: true, c: $c, t: $t, s: $s}')" ||
       _bupm_unchecked "the pr-verify settings could not be read" "its pr-verify verdict"
   fi
+  jq -e .w <<<"$conf" >/dev/null || return 0
   # shellcheck disable=SC2016  # jq, not shell expansions
-  source="$(jq -r '[.s | split("\n")[] | capture("^trusted_actors_source: *(?<v>\"[^\"]*\"|\u0027[^\u0027]*\u0027|[^ #]*)").v
-    | ltrimstr("\"") | rtrimstr("\"") | ltrimstr("\u0027") | rtrimstr("\u0027")] | first // ""' <<<"$conf")" ||
+  local top='[.s | split("\n")[] | capture("^" + $k + ": *(?<v>\"[^\"]*\"|\u0027[^\u0027]*\u0027|[^ #]*)").v
+    | ltrimstr("\"") | rtrimstr("\"") | ltrimstr("\u0027") | rtrimstr("\u0027")] | first // ""'
+  if ! source="$(jq -r --arg k trusted_actors_source "$top" <<<"$conf")" ||
+    ! std="$(jq -r --arg k standards_repository "$top" <<<"$conf")"; then
     _bupm_unchecked "the pr-verify settings could not be read" "its pr-verify verdict"
+  fi
   case "$source" in
   "" | repository) ;;
   standards)
-    _bupm_api repos/melodic-software/standards/commits/main --jq .sha || _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    [[ "$std" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+      _bupm_unchecked "$sc: trusted_actors_source standards needs standards_repository as <owner>/<repo>" "its pr-verify verdict"
+    _bupm_api "repos/$std/commits/main" --jq .sha || _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
     sha="$BUPM_OUT"
-    [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || _bupm_unchecked "melodic-software/standards main did not resolve to a commit" "its pr-verify verdict"
-    _bupm_api -H 'Accept: application/vnd.github.raw' "repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$sha" ||
+    [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || _bupm_unchecked "$std main did not resolve to a commit" "its pr-verify verdict"
+    _bupm_api -H 'Accept: application/vnd.github.raw' "repos/$std/contents/components/trusted-actors/trusted-actors.json?ref=$sha" ||
       _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
     conf="$(jq -c --arg t "$BUPM_OUT" '.t = $t' <<<"$conf")" ||
       _bupm_unchecked "the pr-verify settings could not be read" "its pr-verify verdict"

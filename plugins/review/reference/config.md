@@ -97,8 +97,9 @@ trusted-actor list from the default branch it resolves itself (`refs/remotes/ori
 default branch `gh api` reports), and a `--ref` naming another commit prints `no reason`,
 so a run pointed at a head branch never reads a list that branch edited. Where the default
 branch's `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`, the list
-is `components/trusted-actors/trusted-actors.json` in `melodic-software/standards` at its main
-commit, resolved once, instead; `repository` or no key keeps the copy, and any other value prints
+is `components/trusted-actors/trusted-actors.json` in the `<owner>/<repo>` that
+`standards_repository` names, at its main commit, resolved once, instead; `repository` or no key
+keeps the copy, and any other value, or `standards` with no valid `standards_repository`, prints
 `no reason`. Where the list (that one, or
 `.github/standards/trusted-actors/trusted-actors.json` on the default branch) exists, it decides
 alone: the author must be a User whose id is a human entry. Where the default branch has no such

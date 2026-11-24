@@ -96,8 +96,9 @@ a comment on the item with a line that reads exactly
 counts only when the run verifies that its author is a user listed as `kind: human` on the
 repository's trusted-actor list read from the default branch (matched by numeric account id;
 `.github/standards/trusted-actors/trusted-actors.json` in this marketplace, or
-`components/trusted-actors/trusted-actors.json` in `melodic-software/standards` at its main commit
-where `docs/conventions/source-control.yaml` sets `trusted_actors_source: standards`), that the
+`components/trusted-actors/trusted-actors.json` in the repository `standards_repository` names, at
+its main commit, where `docs/conventions/source-control.yaml` sets
+`trusted_actors_source: standards`), that the
 comment was
 not posted through an App, that the author has `admin` or `write` permission
 (`gh api repos/<owner>/<repo>/collaborators/<login>/permission` on GitHub), that every edit to the
