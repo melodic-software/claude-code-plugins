@@ -4,6 +4,10 @@
   covers, see the amendment below)
 - Date: 2026-10-03
 - Supersedes: [ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md)
+- Superseded in part by `scripts/test-plugin-mods.sh`, run from `scripts/validate-plugins.sh`:
+  "No CI check or other enforcement for mods" no longer holds. And by
+  `plugins/context-usage/README.md` ("No part of the plugin denies a tool call."): the Consequences
+  line that context-usage's zone gate moved into its mod.
 
 This record was to stay Proposed until a probe on a machine with a Team or Enterprise sign-in
 passed. The owner ruled that machine out of scope on 2026-10-03, so the record is Accepted without

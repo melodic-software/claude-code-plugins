@@ -4,6 +4,11 @@
 - Date: 2026-10-04
 - Amended by [ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md): point 1, for
   callers that pass `trusted-base: default-tip`
+- Superseded in part by `.github/workflows/pr-run-activity-write.yml` and
+  `pr-run-activity-read.yml` (contract: `docs/conventions/pr-pipeline/pr-run-activity.md`): one
+  workflow no longer runs every activity. The write workflow runs scripts only and fails a skill
+  (`skill-in-write-runner`) and a `read` effect; skills and other `read` activities run in the
+  read workflow.
 
 ## Context
 
