@@ -32,7 +32,6 @@ test("no LANE_CAUSES.risk entry is a reason only a person clears", () => {
   assert.ok(LANE_CAUSES.risk.length > 0, "LANE_CAUSES.risk is empty");
   for (const entry of LANE_CAUSES.risk) {
     if (entry.endsWith(":")) {
-      // A prefix entry matches every code that starts with it.
       const overlapping = [...codes, ...prefixes].filter((person) => person.startsWith(entry) || entry.startsWith(person));
       assert.deepEqual(overlapping, [], `lane prefix ${entry} overlaps person ${overlapping}`);
     } else {
@@ -45,15 +44,12 @@ test("no LANE_CAUSES.risk entry is a reason only a person clears", () => {
 
 test("no LANE_CAUSES.verdict entry is a verifier refusal only a person clears", () => {
   const { verdicts } = personSets();
-  // Owner rule 2026-10-27: an untrusted spec is a trust boundary, a person's.
   assert.ok(verdicts.includes("verify:untrusted-spec"), "NEEDS_HUMAN lost verify:untrusted-spec");
   const overlapping = LANE_CAUSES.verdict.filter((entry) => verdicts.includes(entry));
   assert.deepEqual(overlapping, [], `lane verdicts ${overlapping} are in NEEDS_HUMAN`);
 });
 
 test("the repeated-FAIL cap and an old pull request are lane causes the clear lifts", () => {
-  // Owner rule 2026-10-27: neither is intent, design or security, so a label
-  // either one placed comes off at its head.
   for (const refusal of ["verify:repeated-fail", "verify:too-old"]) {
     assert.ok(LANE_CAUSES.verdict.includes(refusal), `${refusal} is not a lane cause`);
   }

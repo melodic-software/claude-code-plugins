@@ -257,6 +257,7 @@ import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
+import { followUp } from "./followup.mjs";
 import {
   AGGREGATE_JOBS,
   FAILED,
@@ -560,7 +561,7 @@ export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review t
 export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
 // The note GitHub adds for a step that exits non-zero.
-const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
@@ -1854,7 +1855,6 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       return finish(0);
     }
     if (env.FOLLOWUP === "true") {
-      const { followUp } = await import("./followup.mjs");
       result = await followUp({ repo, call, say, now, env, readStatus });
       if (result.items.some(recorded) && !env.RECORD_PATH) {
         throw new Error("RECORD_PATH is not set");

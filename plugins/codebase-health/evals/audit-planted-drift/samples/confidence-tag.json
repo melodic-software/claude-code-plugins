@@ -14,6 +14,10 @@
     {
       "answer": "| 1 | warning | doc-drift | `README.md:4` | README names `npm run dev`, which package.json does not define. | Read `package.json:6-9`. Unverified (verification: skipped, light). |",
       "why": "light level: unverified with the skipped line"
+    },
+    {
+      "answer": "Needs you: none. Every finding here is `unverified` because verification is set to `light`.",
+      "why": "unverified tied to the light verification level"
     }
   ],
   "fail": [
@@ -36,6 +40,10 @@
     {
       "answer": "| 1 | warning | doc-drift | README.md:4 | README names a missing script | unverified |",
       "why": "review example: unverified cell with no skipped line"
+    },
+    {
+      "answer": "This is unverified. Verification of the docs happens later, by hand.",
+      "why": "unverified and verification with no level named"
     }
   ]
 }

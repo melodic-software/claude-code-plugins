@@ -9,6 +9,7 @@ import {
   ciRecoveryFirst,
   DEFER_MAX,
   DEFERRED,
+  EXIT_NOTE,
   isRedChecks,
   newestByWorkflow,
   onlyAggregateFailed,
@@ -22,6 +23,11 @@ import {
   waitingReview,
   withAnnotations,
 } from "./reconcile.mjs";
+
+export const onlyReviewStopsNoted = (annotations) => {
+  const causes = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
+  return causes.length > 0 && causes.every((a) => reviewStopNoted([a]) || rateHeldNoted([a]));
+};
 
 export function readQueue(path) {
   const data = JSON.parse(readFileSync(path, "utf8"));
@@ -90,7 +96,7 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
       }
       const status = onlyAggregateFailed(await readJobs(checks));
       const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
-      if (!reviewStopNoted(notes) && !rateHeldNoted(notes)) {
+      if (!onlyReviewStopsNoted(notes)) {
         toFullPass(pull, `checks run ${checks.id} failed on more than a review stop`);
         continue;
       }

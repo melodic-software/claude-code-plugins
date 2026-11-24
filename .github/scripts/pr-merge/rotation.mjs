@@ -37,27 +37,19 @@ import { PR_MERGE_TITLE } from "../lib/run-title.mjs";
 export const CURSOR_ARTIFACT = "pr-merge-gate-cursor";
 const WORKFLOW_PATH = ".github/workflows/pr-merge.yml";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// Pages of main's runs listed, and trusted runs asked for a cursor, before
-// giving up on finding one.
 const MAX_PAGES = 2;
 const MAX_RUNS = 10;
 
 export const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// Ascending by PR number, starting at the first number above `last`.
 export function rotate(candidates, last) {
   const sorted = [...candidates].sort((a, b) => a.number - b.number);
   const start = Number.isInteger(last) ? sorted.findIndex((c) => c.number > last) : -1;
   return start <= 0 ? sorted : [...sorted.slice(start), ...sorted.slice(0, start)];
 }
 
-// The run name pr-merge.yml gives a PR-scoped dispatch (`run-name`, from
-// inputs.pr); the capture is the input as given.
 export const WAKE_TITLE = PR_MERGE_TITLE;
 
-// A scheduled or hand-started run of main's copy of pr-merge.yml, or of the
-// workflow at `path`. A PR-scoped dispatch (WAKE_TITLE) reads and arms one
-// pull request, so its kept files do not stand for a sweep's.
 export function trustedRun(run, path = WORKFLOW_PATH) {
   return (
     run?.path === path &&
@@ -104,9 +96,6 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
   };
 }
 
-// The newest (highest id) unexpired artifact named `name` in run `runId`'s
-// whole artifact listing as saved in the file at `shared`, or undefined when
-// the file holds no complete listing for the run, or none such in it.
 function listedArtifactId({ repo, runId, name, shared }) {
   if (!shared) return undefined;
   let saved;
@@ -162,13 +151,6 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout 
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-// `actions` with its GET answers shared through the file at `path`
-// (PR_MERGE_READS_PATH, in the job's own RUNNER_TEMP, which only this job's
-// steps write), so the readers of one job (the cursor, the head-ref map, the
-// lane records) list main's runs, each run's artifacts and each compare once
-// between them. An unreadable file shares nothing, and one that cannot be
-// written only leaves the next reader to read GitHub; the answers never
-// outlive the job.
 export function sharedReads(actions, path) {
   if (!path) return actions;
   return async (method, url, ...rest) => {
@@ -188,9 +170,6 @@ export function sharedReads(actions, path) {
   };
 }
 
-// The run's artifacts named `name`, from one listing of all its artifacts
-// that every reader shares, or by the name filter when that listing holds
-// less than all of them.
 async function artifactsNamed({ repo, actions, runId, name }) {
   const all = await actions("GET", `/repos/${repo}/actions/runs/${runId}/artifacts?per_page=100`);
   if (Array.isArray(all?.artifacts) && Number.isInteger(all.total_count) && all.total_count <= all.artifacts.length) {
@@ -202,19 +181,10 @@ async function artifactsNamed({ repo, actions, runId, name }) {
 
 const runOrder = (run) => (Number.isSafeInteger(run?.id) ? run.id : -1);
 
-// The id of the newest trusted run of `workflow` (pr-merge.yml unless named),
-// this one aside, holding an unexpired artifact named `name` and passing
-// `accept`, or undefined when there is none.
 export async function newestTrustedRun(options) {
   return (await newestTrustedArtifact(options))?.runId;
 }
 
-// newestTrustedRun's run as {runId, artifactId}: artifactId is the newest
-// (highest id) unexpired artifact named `name` from the listing already read,
-// undefined when that listing gives it no id. `trusted` picks the runs asked
-// (trustedRun by default).
-// `event`, when set, lists only that event's runs, so a reader that trusts one
-// event does not page past the others.
 export async function newestTrustedArtifact({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH, trusted = (run) => trustedRun(run, workflow), event }) {
   const file = workflow.slice(workflow.lastIndexOf("/") + 1);
   const only = event === undefined ? "" : `&event=${event}`;
@@ -252,7 +222,6 @@ export async function newestTrustedArtifact({ repo, runId, actions, name, accept
   return undefined;
 }
 
-// The newest trusted cursor, {last, deferred}, or undefined when there is none.
 export async function readCursor({ repo, runId, actions, download, shared }) {
   const id = await newestTrustedRun({ repo, runId, actions: sharedReads(actions, shared), name: CURSOR_ARTIFACT });
   if (id === undefined) {

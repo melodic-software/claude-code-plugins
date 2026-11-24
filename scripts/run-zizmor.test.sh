@@ -157,7 +157,7 @@ run_in() {
   : >"$scratch/calls"
   : >"$scratch/configs"
   : >"$scratch/gh.calls"
-  OUT=$(cd "$1" && PATH="$scratch/bin:$PATH" BASE_SHA="$2" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
+  OUT=$(cd "$1" && PATH="$scratch/bin:$PATH" BASE_SHA="$2" STANDARDS_DIR="${3:-}" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
 }
 
 run_in "$repo" "$base_sha"
@@ -176,6 +176,19 @@ run_in "$bare" "$bare_sha"
 check "an unreadable standards config fails closed before zizmor runs" \
   "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
 
+standards="$scratch/standards"
+mkdir -p "$standards/.github"
+printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
+run_in "$bare" "$bare_sha" "$standards"
+check "a base with no config reads the run's standards checkout, with no API read" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: checkout\nrules: checkout' && ! -s "$scratch/gh.calls" ]] && echo yes)"
+run_in "$repo" "$base_sha" "$standards"
+check "the base commit's own config still wins over the standards checkout" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: base\nrules: base' ]] && echo yes)"
+run_in "$bare" "$bare_sha" "$scratch/no-standards"
+check "a standards checkout without the config fails closed before zizmor runs" \
+  "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
+
 run_in "$repo" "$(printf '0%.0s' {1..40})"
 check 'a base commit missing from the checkout fails closed' \
   "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
@@ -184,10 +197,12 @@ run_in "$repo" ""
 check 'outside a pull request zizmor gets no --config and discovers its own' \
   "$([[ $RC -eq 0 && "$(grep -c -- '--config' "$scratch/calls")" -eq 0 && ! -s "$scratch/gh.calls" ]] && echo yes)"
 
-step=$(grep -n -A8 -- '- name: Run zizmor$' "$ROOT/.github/workflows/pr-require-checks.yml")
+step=$(grep -n -A9 -- '- name: Run zizmor$' "$ROOT/.github/workflows/pr-require-checks.yml")
 check 'the lint-repo zizmor step runs scripts/run-zizmor.sh' \
   "$([[ "$step" == *'run: scripts/run-zizmor.sh'* ]] && echo yes)"
 check "the lint-repo zizmor step hands it the pull request's base commit" \
   "$([[ "$step" == *'BASE_SHA: '*'{{ github.event.pull_request.base.sha }}'* ]] && echo yes)"
+check "the lint-repo zizmor step hands it the run's standards checkout" \
+  "$([[ "$step" == *'STANDARDS_DIR: '*'{{ steps.standards.outputs.path }}'* ]] && echo yes)"
 
 test_harness::report

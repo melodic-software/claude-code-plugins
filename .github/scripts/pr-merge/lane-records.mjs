@@ -56,15 +56,12 @@ export const RECORDS_ARTIFACT = "pr-merge-lane-records";
 export const RECORDS_FILE = "lane-records.json";
 const VERSION = 1;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// babysit_postmerge.py `_LANE_RECORD_NAME`.
 const NAME = /^pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const dated = (value) => typeof value === "string" && ZONED.test(value) && !Number.isNaN(Date.parse(value));
 
-// The file's records, by name, or an error for any other shape; the check
-// (babysit_postmerge.py `load_lane_records`) applies the same rules and more.
 export function parseRecords(text, repo) {
   const data = JSON.parse(text);
   if (!isObject(data) || data.version !== VERSION || data.repo !== repo || !isObject(data.records)) {
@@ -90,7 +87,6 @@ export function parseRecords(text, repo) {
 
 const serialize = (repo, records) => JSON.stringify({ version: VERSION, repo, records });
 
-// The newest trusted run's records, by name, or undefined when no run has any.
 export async function readRecords({ repo, runId, actions: client, download, shared }) {
   const actions = sharedReads(client, shared);
   const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
@@ -98,10 +94,6 @@ export async function readRecords({ repo, runId, actions: client, download, shar
   return id === undefined ? undefined : { run: id, records: parseRecords(download(id), repo) };
 }
 
-// The next run's records: those unexpired at `now` whose artifact `listing`
-// lists unexpired, under the record's name, uploaded by its sender run. With
-// no listing, expiry alone: the check kept each record only once its artifact
-// was listed unexpired (babysit_postmerge.py `_prove`).
 export function nextRecords({ records, listing, now }) {
   const listed =
     listing &&
@@ -123,7 +115,6 @@ export function nextRecords({ records, listing, now }) {
 export async function main({ mode = process.argv[2], env = process.env, actions, download, now = Date.now() } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
   try {
-    // A file left in its place before this step is never read as one.
     if (mode === "read" && env.LANE_RECORDS_PATH) rmSync(env.LANE_RECORDS_PATH, { force: true });
     if (!REPO.test(repo)) throw new Error("GITHUB_REPOSITORY is not owner/repo");
     if (mode === "read") {

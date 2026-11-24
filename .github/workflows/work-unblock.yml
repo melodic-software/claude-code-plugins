@@ -161,6 +161,7 @@ jobs:
     outputs:
       # The sweep's lanes App rate-limit readings, for publish-lane-level.
       lane-readings: ${{ steps.readings.outputs.readings }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -173,6 +174,10 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -247,7 +252,8 @@ jobs:
           # The job's own read-only token, to read this run's record.
           ACTIONS_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
 
       # Reads the lane's rules from main: the label-unblocked activity's
@@ -266,6 +272,7 @@ jobs:
           activity: label-unblocked
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
@@ -350,7 +357,7 @@ jobs:
           ACTIONS_TOKEN: ${{ github.token }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
@@ -362,6 +369,7 @@ jobs:
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
           # The published lane level, for the re-fire room (lane-level-value.mjs).
           LANE_VARS: ${{ toJSON(vars) }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
       # The collect part of the adaptive lane level: this sweep's lanes App
@@ -477,6 +485,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.label-unblocked.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -506,6 +520,7 @@ jobs:
           activity: publish-lane-level
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # limits.lane-level.shadow: a shadow run mints no token.
       - name: Read the publish mode
@@ -514,6 +529,7 @@ jobs:
         env:
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
           SCRIPT: ${{ steps.config.outputs.script }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" mode
 
       # The resolved grant: Variables write, with contents, pull-requests and
@@ -550,6 +566,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           VARIABLES_STATE: ${{ runner.temp }}/lane-variables-before.json
           SCRIPT: ${{ steps.config.outputs.script }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" snapshot
 
       - name: Decide and publish the lane level
@@ -569,6 +586,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           STATE_OUT: ${{ runner.temp }}/lane-level-state.json
           SCRIPT: ${{ steps.config.outputs.script }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" run
 
       # Unlike the rest of this job, which ends green, this step fails the job
@@ -584,6 +602,7 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
           VARIABLES_STATE: ${{ runner.temp }}/lane-variables-before.json
           SCRIPT: ${{ steps.config.outputs.script }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" check
 
       - name: Scan the upload for credentials
@@ -661,6 +680,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -687,7 +710,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           ACTOR_ID: ${{ github.actor_id }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
         run: |
           if jq -e --arg id "$ACTOR_ID" 'any(.actors[]; .kind == "human" and (.id | tostring) == $id)' "$TRUSTED_ACTORS_PATH" >/dev/null; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
@@ -709,6 +732,7 @@ jobs:
           activity: sync-status
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
@@ -746,7 +770,8 @@ jobs:
           API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise

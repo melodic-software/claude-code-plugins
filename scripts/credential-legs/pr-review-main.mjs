@@ -54,6 +54,7 @@ const leg = (suffix, route, { drop = [], comments = {}, replace }) => ({
       1,
     ],
     [" && needs.check-trigger.outputs.run-attempt != github.run_attempt\n", "\n", 1],
+    ["ref: ${{ needs.check-trigger.outputs.standards-sha }}", "ref: ${{ needs.collect-trusted-text.outputs.standards-sha }}", 1],
     [/^ {10}# The check-trigger job's result, only from this run attempt\.\n {10}CARRIED: .*\n(?: {10}CARRIED_\w+: .*\n)+/gm, '          CARRIED: "false"\n', 1],
     ...replace,
   ],

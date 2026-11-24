@@ -190,6 +190,7 @@ test("the workflow_call outputs the run and check-broker jobs set, and their sou
     "lease-comment-id": "${{ steps.lease.outputs.lease-comment-id }}",
     blocked: "${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}",
     "skip-key": "${{ steps.credit.outputs.skip-key }}",
+    "standards-sha": "${{ steps.standards.outputs.sha }}",
   };
   const outputsBlock = TEXT.slice(TEXT.indexOf("\n    outputs:\n"), TEXT.indexOf("\npermissions:"));
   for (const [name, expression] of Object.entries(call)) {

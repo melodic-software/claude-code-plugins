@@ -1,9 +1,3 @@
-// Expected values come from the owner's decision Q-EVAL-HOLD (a), 2026-11-06:
-// a listed human's `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->`
-// line for the pull request's current head releases a `do-not-merge` hold
-// whose recorded reason is `eval`, and nothing else does: not a wrong head, an
-// unlisted author, an App-posted comment, a quoted or fenced line, another
-// hold reason, or a pull request without the label.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -126,7 +120,6 @@ test("a hold with no recorded reason is kept", () => {
 
 test("only reasons and records since the newest label event count", () => {
   const relabeled = [...events, { event: "labeled", label: { name: LABEL }, created_at: "2026-11-06T12:00:00Z" }];
-  // The eval hold and its record came before the label went on again.
   assert.equal(run({ events: relabeled }).reason, "no-hold-reason");
   const newHold = comment(holdLine("eval"), { at: "2026-11-06T12:01:00Z" });
   assert.equal(run({ events: relabeled, comments: [holdComment(), recordComment(), newHold] }).reason, "no-record");
@@ -146,8 +139,6 @@ test("ownLines drops fenced and quoted lines and keeps the rest", () => {
   assert.deepEqual([...ownLines("a\n```\nb\n```\n> c\nd")], ["a", "d"]);
 });
 
-// main: the comment names the record and the head, then the label comes off;
-// a pull request that does not qualify gets neither.
 const TRUSTED_DIR = mkdtempSync(join(tmpdir(), "release-eval-hold-"));
 after(() => rmSync(TRUSTED_DIR, { recursive: true, force: true }));
 const TRUSTED = join(TRUSTED_DIR, "trusted-actors.json");
@@ -252,7 +243,6 @@ test("main comments with the record's URL and head, then removes the label, and 
   assert.ok(writes[0].body.body.includes(HEAD));
   assert.ok(lines.includes(`release-eval-hold: #7 released head=${HEAD} record=${record.html_url} wait-minutes=30`));
   assert.ok(lines.includes("release-eval-hold: #8 kept: no-eval-hold"));
-  // #8 cost one read: its comments hold no eval hold.
   assert.deepEqual(
     calls.filter((call) => /\/(?:issues|pulls)\/8\b/.test(call.path)).map((call) => call.path.replace(/\?.*/, "")),
     [`/repos/${REPO}/issues/8/comments`],
