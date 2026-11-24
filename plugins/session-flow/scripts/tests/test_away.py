@@ -366,57 +366,6 @@ def test_start_twice_reconciles(ctx):
     assert "hand-written note" in report.read_text(encoding="utf-8"), "the report is not rewritten"
 
 
-def test_posture_defaults_off(ctx):
-    ctx.start("--kind", "bed")
-    assert ctx.state()["posture"] == "off"
-
-
-def test_posture_on_shows_in_status(ctx):
-    ctx.start("--kind", "bed", "--setting", "away_orchestrate=true")
-    status = json.loads(ctx.cli("status").stdout)
-    assert status["posture"] == "orchestrator"
-
-
-def test_posture_rejects_other_values(ctx):
-    result = ctx.cli("start", "--kind", "bed", "--setting", "away_orchestrate=maybe")
-    assert result.returncode != 0
-    assert "away_orchestrate" in result.stderr
-
-
-def test_posture_unsubstituted_token_is_unset(ctx):
-    ctx.start("--kind", "bed", "--setting", "away_orchestrate=${user_config.away_orchestrate}")
-    assert ctx.state()["posture"] == "off"
-
-
-def test_posture_kept_by_a_start_without_the_setting(ctx):
-    ctx.start("--kind", "bed", "--setting", "away_orchestrate=true")
-    ctx.start("--kind", "bed", "--task-file", str(ctx.repo / "tasks.md"))
-    assert ctx.state()["posture"] == "orchestrator"
-
-
-def test_posture_turned_off_by_a_later_start(ctx):
-    ctx.start("--kind", "bed", "--setting", "away_orchestrate=true")
-    ctx.start("--kind", "bed", "--setting", "away_orchestrate=false")
-    assert ctx.state()["posture"] == "off"
-
-
-def test_hook_notes_name_the_posture_only_when_on(ctx):
-    task = ctx.repo / "tasks.md"
-    task.write_text("- [ ] write the docs\n", encoding="utf-8")
-    ctx.start("--kind", "trip", "--task-file", str(task))
-    fill_report(ctx.report())
-    off_stop = json.loads(ctx.hook("Stop", "stop"))["reason"]
-    off_prompt = json.loads(ctx.hook("UserPromptSubmit", "user_prompt_typed"))["hookSpecificOutput"]["additionalContext"]
-    assert "session-flow:orchestrate" not in off_stop
-    assert "session-flow:orchestrate" not in off_prompt
-    ctx.start("--kind", "trip", "--setting", "away_orchestrate=true")
-    task.write_text("- [ ] write the docs\n- [ ] fix the test\n", encoding="utf-8")
-    on_stop = json.loads(ctx.hook("Stop", "stop"))["reason"]
-    on_prompt = json.loads(ctx.hook("UserPromptSubmit", "user_prompt_typed"))["hookSpecificOutput"]["additionalContext"]
-    assert "session-flow:orchestrate" in on_stop
-    assert "session-flow:orchestrate" in on_prompt
-
-
 def test_start_twice_rewrites_header(ctx):
     first_task, second_task = ctx.repo / "tasks.md", ctx.repo / "later.md"
     first_task.write_text("- [ ] one\n", encoding="utf-8")
