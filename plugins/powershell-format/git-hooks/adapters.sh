@@ -204,7 +204,7 @@ psf__job_skipped() {
   awk -v job="$1" '
     function close_items(min, d) {
       for (d = top; d >= min; d--) {
-        if (open[d] && name[d] == job && skip[d] == "true") found = 1
+        if (open[d] && name[d] == job && tolower(skip[d]) == "true") found = 1
         open[d] = 0
       }
     }

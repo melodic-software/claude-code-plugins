@@ -250,6 +250,8 @@ skip_job() {
 for shape in \
   "name first|          - name: powershell-format-remote-lint
             skip: true" \
+  "capitalized boolean|          - name: powershell-format-remote-lint
+            skip: True" \
   "skip first, with a comment|          - skip: true # disabled locally
             name: powershell-format-remote-lint" \
   "quoted name, a comment on its own line|          - name: 'powershell-format-remote-lint' # broken here
@@ -288,6 +290,13 @@ expect "shared run: format rewrote the approved, staged rule module" "    Write-
 expect "shared run: with CustomRulePath declared, format lints nothing, so no rule module runs unsigned" "0" "$(cached "$REPO")"
 expect "shared run: a rule module format rewrote stops lint at the trust gate, as lint's own start does" yes \
   "$(grep -q 'trust gate: linting skipped' < <(cd "$REPO" && bash "$CHECK" 2>&1) && echo yes || echo no)"
+
+new_repo
+printf '%s\n' "$SETTINGS_BODY" '# staged edit' >"$REPO/PSScriptAnalyzerSettings.psd1"
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/a.ps1"
+git -C "$REPO" add -A
+(cd "$REPO" && bash "$FORMAT" >/dev/null 2>&1)
+expect "shared run: a staged settings file format may rewrite makes format lint nothing" "0" "$(cached "$REPO")"
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))
