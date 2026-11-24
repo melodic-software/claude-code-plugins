@@ -1076,3 +1076,5 @@ lib/merge-readiness.sh plugins/guardrails/hooks/merge-readiness.sh
 lib/merge-readiness.sh plugins/source-control/skills/pull-request/scripts/merge-readiness.sh
 lib/merge-hold-labels.json plugins/guardrails/hooks/merge-hold-labels.json
 lib/merge-hold-labels.json plugins/source-control/skills/pull-request/scripts/merge-hold-labels.json
+lib/merge-guard-option.mjs plugins/source-control/skills/pull-request/scripts/merge-guard-option.mjs
+lib/plugin-options.mjs plugins/source-control/skills/pull-request/scripts/plugin-options.mjs

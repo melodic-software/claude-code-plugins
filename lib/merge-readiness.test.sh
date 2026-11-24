@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json
+# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -62,8 +62,50 @@ check acme/widgets 42
 assert_exit "a failure no setting names -> held, never informational" 1 "$RC"
 ENVS=(CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=ci:flaky-lint)
 check acme/widgets 42
-assert_exit "the same failure named in merge_guard_ignored_checks -> READY" 0 "$RC"
+assert_exit "an inherited CLAUDE_PLUGIN_OPTION_ value is not the guardrails setting -> held" 1 "$RC"
 ENVS=()
+
+# One merge_guard_ignored_checks setting, both readers. The operator sets it for
+# guardrails in their user settings; Claude Code hands the guard hook that value
+# as CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS, and the skill's copy, run
+# from a source-control install in the same plugin cache, reads the same entry
+# (https://github.com/melodic-software/claude-code-plugins/issues/18822).
+CFG="$TEST_TMPDIR/config"
+SKILL_COPY="$CFG/plugins/cache/m/source-control/1.0.0/skills/pull-request/scripts"
+mkdir -p "$SKILL_COPY"
+SC_SCRIPTS="$LIB_DIR/../plugins/source-control/skills/pull-request/scripts"
+cp "$SC_SCRIPTS/merge-readiness.sh" "$SC_SCRIPTS/merge-guard-option.mjs" "$SC_SCRIPTS/plugin-options.mjs" \
+  "$SC_SCRIPTS/merge-hold-labels.json" "$SKILL_COPY/"
+guardrails_setting() {
+  jq -n --arg v "$1" '{pluginConfigs: {"guardrails@m": {options: {merge_guard_ignored_checks: $v}}}}' >"$CFG/settings.json"
+}
+skill_check() {
+  OUT=$(env PATH="$BIN:$PATH" FAKE_GH_DIR="$FIX" bash "$SKILL_COPY/merge-readiness.sh" acme/widgets 42 2>&1)
+  RC=$?
+}
+guard_check() {
+  run "$1" 'gh pr merge 42' "$2" CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS="$(jq -r '.pluginConfigs["guardrails@m"].options.merge_guard_ignored_checks' "$CFG/settings.json")"
+}
+scenario none none green green
+jq -n '{total_count: 1, check_runs: [{id: 901, name: "flaky-lint", app: {id: 1, slug: "ci"}, status: "completed", conclusion: "failure"}]}' >"$FIX/checks.json"
+guardrails_setting "github-actions:Merge, ci:flaky-lint"
+skill_check
+assert_exit "custom guardrails setting names the failure -> the skill reads READY" 0 "$RC"
+guard_check "custom guardrails setting names the failure -> the guard lets the merge run" 0
+guardrails_setting "github-actions:Merge"
+skill_check
+assert_exit "custom guardrails setting without the failure -> the skill holds" 1 "$RC"
+guard_check "custom guardrails setting without the failure -> the guard refuses" 2
+rm -f "$CFG/settings.json"
+skill_check
+assert_exit "no guardrails setting -> the skill applies the default and holds" 1 "$RC"
+echo '{"pluginConfigs": []}' >"$CFG/settings.json"
+skill_check
+assert_exit "an unreadable guardrails setting -> UNCHECKED" 3 "$RC"
+assert_contains "unreadable setting -> says which" "$OUT" "merge_guard_ignored_checks setting could not be read"
+assert_eq "the built-in default is the guardrails option's declared default" \
+  "$(jq -r '.userConfig.merge_guard_ignored_checks.default' "$LIB_DIR/../plugins/guardrails/.claude-plugin/plugin.json")" \
+  "$(grep -o 'MERGE_GUARD_IGNORED_CHECKS-[^}]*' "$LIB_DIR/merge-readiness.sh" | cut -d- -f2-)"
 
 scenario none none pending green
 check acme/widgets 42

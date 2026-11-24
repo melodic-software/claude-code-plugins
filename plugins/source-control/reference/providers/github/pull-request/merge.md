@@ -115,8 +115,10 @@ checks. The first line of the output is the verdict:
 - `UNCHECKED:` (exit 3): a read failed, a hold reported with its reason.
 
 A failed check clears only by passing or through the guardrails `merge_guard_ignored_checks`
-setting, read from `CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS` when it is set and otherwise
-its default (`github-actions:Merge,github-actions:merge`). On a triangular flow, name the base
+setting. The script reads the operator's guardrails entry from their settings files
+(`merge-guard-option.mjs`), the value Claude Code hands the merge guard, and otherwise applies the
+option's default (`github-actions:Merge,github-actions:merge`); a settings file it cannot read is
+`UNCHECKED`, and so is a machine without `node`. On a triangular flow, name the base
 repository in place of `$REPO`, as the top of this file says.
 
 ## Wait for a known merge state

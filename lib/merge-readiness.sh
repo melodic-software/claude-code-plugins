@@ -585,5 +585,19 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   [[ -z "$MG_HEAD" || "$MG_HEAD" =~ ^[0-9a-f]{40}$ ]] || _mg_usage
   command -v gh >/dev/null 2>&1 || _mg_unchecked "gh is not on PATH"
   command -v jq >/dev/null 2>&1 || _mg_unchecked "jq is not on PATH"
+  # Run as a command (the pull-request skill), this is outside the guardrails
+  # hook environment that carries merge_guard_ignored_checks, and an inherited
+  # value can come from a repository's settings env block. So the operator's
+  # guardrails setting is read from their settings files, as the guard gets it
+  # (https://github.com/melodic-software/claude-code-plugins/issues/18822).
+  unset CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS
+  command -v node >/dev/null 2>&1 ||
+    _mg_unchecked "node is not on PATH, so the guardrails merge_guard_ignored_checks setting cannot be read"
+  _mg_opt="$(node "$_MG_DIR/merge-guard-option.mjs")"
+  case $? in
+  0) CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS="$_mg_opt" ;;
+  1) ;;
+  *) _mg_unchecked "the guardrails merge_guard_ignored_checks setting could not be read" ;;
+  esac
   merge_readiness::check
 fi
