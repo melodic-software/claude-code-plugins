@@ -176,13 +176,16 @@ def posture_choice(pairs: list[str]) -> str | None:
     choice = None
     for pair in pairs:
         key, _, value = pair.partition("=")
-        if key != POSTURE_KEY or not _given(value):
-            continue
-        flag = value.strip().lower()
-        if flag not in ("true", "false"):
-            raise AwayError(f"{POSTURE_KEY} takes true or false, not {value!r}")
-        choice = "orchestrator" if flag == "true" else "off"
+        if key == POSTURE_KEY and _given(value):
+            choice = posture_of(value)
     return choice
+
+
+def posture_of(value: str) -> str:
+    flag = value.strip().lower()
+    if flag not in ("true", "false"):
+        raise AwayError(f"{POSTURE_KEY} takes true or false, not {value!r}")
+    return "orchestrator" if flag == "true" else "off"
 
 
 def _given(value: str) -> bool:
@@ -504,6 +507,7 @@ def watched_folders(settings: Mapping[str, str]) -> list[str]:
 def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
     settings = resolve_settings(os.environ, args.setting)
     posture = posture_choice(args.setting)
+    resolved_posture = posture_of(settings[POSTURE_KEY])
     if args.kind == "until" and not args.until:
         raise AwayError("--kind until needs --until <ISO time>")
     if args.until:
@@ -533,7 +537,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
                 mode_warned=False,
                 scope=None,
                 task_file=None,
-                posture="off",
+                posture=resolved_posture,
             )
         state.update(kind=args.kind, report_by=report_by.isoformat() if report_by else None)
         state["watched"] = watched_folders(settings)

@@ -67,6 +67,19 @@ def test_hook_notes_name_the_posture_only_when_on(ctx):
     assert "session-flow:orchestrate" in on_prompt
 
 
+def test_new_absence_takes_the_option_from_the_environment(ctx):
+    env = ctx.env(CLAUDE_PLUGIN_OPTION_AWAY_ORCHESTRATE="true")
+    ctx.start("--kind", "bed", "--setting", "away_orchestrate=${user_config.away_orchestrate}", env=env)
+    assert ctx.state()["posture"] == "orchestrator"
+
+
+def test_reconcile_keeps_a_launch_word_choice_over_the_environment(ctx):
+    env = ctx.env(CLAUDE_PLUGIN_OPTION_AWAY_ORCHESTRATE="true")
+    ctx.start("--kind", "bed", "--setting", "away_orchestrate=false", env=env)
+    ctx.start("--kind", "bed", "--task-file", str(ctx.repo / "tasks.md"), env=env)
+    assert ctx.state()["posture"] == "off"
+
+
 def test_helper_reports_carry_the_posture_while_stop_stays_silent(ctx):
     task = ctx.repo / "tasks.md"
     task.write_text("- [ ] write the docs\n", encoding="utf-8")
