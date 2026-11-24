@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for lib/hook-test-sink.sh, the telemetry-sink stub the hook test
-# suites share. The cases that go through hook::emit_telemetry pin what the sink
-# contract really is: one executable path, run with the envelope on stdin, and a
-# wait that fails when nothing arrives instead of passing silently.
 
 set -uo pipefail
 
@@ -35,8 +31,6 @@ now_ms() {
   NOW_MS=$((${t%[.,]*} * 1000 + 10#${t#*[.,]} / 1000))
 }
 
-# timed_wait <file> <tries> -> run wait_for_sink, leaving its status in WAIT_RC
-# and the elapsed milliseconds in WAIT_MS.
 timed_wait() {
   local t0
   now_ms
@@ -47,10 +41,6 @@ timed_wait() {
   WAIT_MS=$((NOW_MS - t0))
 }
 
-# emit_with_sink <sink-value> [repo-root] -> send one envelope through
-# hook::emit_telemetry with HOOK_TELEMETRY_SINK set to <sink-value>, then join
-# the background dispatch. Leaves the function's status in EMIT_RC and its
-# stdout in EMIT_OUT.
 emit_with_sink() {
   local rc_file="$WORK/emit.rc"
   EMIT_OUT=$(
@@ -66,7 +56,6 @@ emit_with_sink() {
 # single process spawn has been measured at 3.2 s on a loaded host.
 BOUND_MS=5000
 
-# --- Sourcing defines the three functions and nothing else ------------------
 # shellcheck disable=SC2016  # $1 expands in the child shell, not here
 funcs=$(env -i "$BASH" -c 'source "$1" && declare -F' _ "$LIB_DIR/hook-test-sink.sh" 2>&1 | sed 's/^declare -f //')
 if [[ "$funcs" == $'check_envelope\nmake_sink\nwait_for_sink' ]]; then
@@ -75,7 +64,6 @@ else
   fail "source: expected exactly check_envelope, make_sink and wait_for_sink, got: $funcs"
 fi
 
-# --- make_sink refuses to run without a $WORK directory ---------------------
 : >"$WORK/plain-file"
 errf="$WORK/guard.err"
 for guard_case in "unset|-u WORK" "a file|WORK=$WORK/plain-file" "a missing path|WORK=$WORK/missing-dir"; do
@@ -92,7 +80,6 @@ for guard_case in "unset|-u WORK" "a file|WORK=$WORK/plain-file" "a missing path
 done
 unset guard_case guard_label guard_env out rc
 
-# --- (a) make_sink returns one executable path that captures stdin ----------
 CAP_A="$WORK/cap-a"
 sink_a=$(make_sink "cat >\"$CAP_A\"")
 rc=$?
@@ -122,7 +109,6 @@ if [[ -n "$sink_a2" && "$sink_a2" != "$sink_a" ]]; then
 else
   fail "make_sink: a second call returned [$sink_a2] after [$sink_a]"
 fi
-# Fire-and-forget, the way hook::emit_telemetry dispatches it.
 (printf '{"probe":"a"}\n' | "$sink_a") &
 if wait_for_sink "$CAP_A"; then
   ok "wait_for_sink: sees the file the stub captured stdin into"
@@ -136,7 +122,6 @@ else
   fail "make_sink: captured [$(<"$CAP_A")]"
 fi
 
-# --- (b) a sink that never fires makes wait_for_sink fail, boundedly --------
 CAP_B="$WORK/cap-b"
 sink_b=$(make_sink ':')
 emit_with_sink "$sink_b"
@@ -163,10 +148,6 @@ else
   fail "wait_for_sink: returned 0 for an empty file"
 fi
 
-# --- (c) a sink with arguments is not run; the single-path stub delivers ----
-# hook::emit_telemetry execs "$HOOK_TELEMETRY_SINK" as ONE word. `tee FILE`
-# therefore names a file called "tee FILE": nothing runs, nothing is delivered,
-# and the function stays fail-open (status 0, silent stdout).
 CAP_C="$WORK/cap-c"
 TEE=$(command -v tee)
 printf 'control\n' | "$TEE" "$CAP_C" >/dev/null
@@ -204,7 +185,6 @@ else
   fail "single-path stub: unexpected capture: $(cat "$CAP_C" 2>/dev/null)"
 fi
 
-# --- (d) wait_for_sink terminates within its tries bound --------------------
 CAP_D="$WORK/cap-d"
 timed_wait "$CAP_D" 1
 if [[ $WAIT_RC -ne 0 && $WAIT_MS -lt $BOUND_MS ]]; then
@@ -226,7 +206,6 @@ else
   fail "wait_for_sink tries=1: status $WAIT_RC after $WAIT_MS ms for a written file"
 fi
 
-# --- check_envelope: schema-driven envelope conformance ---------------------
 SCHEMA="$LIB_DIR/../docs/contracts/hook-telemetry/envelope.schema.json"
 [[ -s "$SCHEMA" ]] || SCHEMA="$LIB_DIR/../docs/conventions/hook-telemetry/envelope.schema.json"
 CAP_E="$WORK/cap-e"
@@ -238,8 +217,6 @@ fi
 ENV_GOOD="$WORK/env-good.json"
 cp "$CAP_E" "$ENV_GOOD"
 
-# expect_envelope <pass|fail> <label> <envelope-file> [schema-file] -> run
-# check_envelope and assert its status; a failure also needs one stderr line.
 expect_envelope() {
   local want="$1" label="$2" err="$WORK/env.err" rc
   check_envelope "${@:3}" 2>"$err"
@@ -253,8 +230,6 @@ expect_envelope() {
   fi
 }
 
-# mutate <name> <jq-filter> -> write the good envelope through <jq-filter> to
-# $WORK/<name>.json and print that path.
 mutate() {
   jq -c "$2" "$ENV_GOOD" >"$WORK/$1.json"
   printf '%s' "$WORK/$1.json"
@@ -264,13 +239,6 @@ expect_envelope pass "the real hook::emit_telemetry envelope against the real sc
 expect_envelope pass "an explicit schema-file argument" "$ENV_GOOD" "$SCHEMA"
 HOOK_ENVELOPE_SCHEMA="$SCHEMA" expect_envelope pass "the HOOK_ENVELOPE_SCHEMA override" "$ENV_GOOD"
 
-# --- check_envelope: the default schema under either contract home ----------
-# The contract moved from docs/conventions/ to docs/contracts/, leaving a stub
-# with no required list at the old path. The default schema resolves to the new
-# home when it exists and to the old one otherwise.
-# home_case <label> <home>... -> a fixture repo holding a copy of this library
-# and the real schema under each <home>, plus a stub at docs/conventions/ when
-# docs/contracts/ is among them; assert the default resolution passes.
 home_case() {
   local label="$1" repo="$WORK/home-${RANDOM}" home
   shift
@@ -326,7 +294,6 @@ expect_envelope fail "an empty envelope file" "$WORK/env-empty.json"
 expect_envelope fail "a missing envelope file" "$WORK/env-absent.json"
 expect_envelope fail "no envelope argument"
 
-# A missing or unusable schema fails rather than passing vacuously.
 expect_envelope fail "a missing schema path" "$ENV_GOOD" "$WORK/no-such.schema.json"
 : >"$WORK/empty.schema.json"
 expect_envelope fail "an empty schema file" "$ENV_GOOD" "$WORK/empty.schema.json"
@@ -335,9 +302,6 @@ expect_envelope fail "a schema with an empty required list" "$ENV_GOOD" "$WORK/n
 jq 'del(.required)' "$SCHEMA" >"$WORK/nokey.schema.json"
 expect_envelope fail "a schema with no required list" "$ENV_GOOD" "$WORK/nokey.schema.json"
 
-# Consumer test: the field list comes from the schema file. Add a required
-# field to a copy and the envelope that passed against the original now fails;
-# tighten a type on a copy and the same holds.
 jq '.required += ["added_field"] | .properties.added_field = {type: "string"}' "$SCHEMA" >"$WORK/added.schema.json"
 expect_envelope fail "the good envelope against a schema copy that requires a new field" "$ENV_GOOD" "$WORK/added.schema.json"
 jq '.properties.hook.type = "integer"' "$SCHEMA" >"$WORK/retyped.schema.json"

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/docs-raw.sh (no external test lib; the copies ship with the plugins).
-#
-# No case touches the network: every case sets the docs fixture seam, so
-# fetch-docs.sh reads pages from a fixture directory.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +24,6 @@ printf '%s\n' '# Docs' \
   '- [Small](https://code.claude.com/docs/en/small.md): s' \
   '- [Big](https://code.claude.com/docs/en/big.md): b' \
   '- [Huge](https://code.claude.com/docs/en/huge.md): h' >"$FETCH_DOCS_FIXTURE_DIR/llms.txt"
-# 19 bytes without the trailing newline, counted by hand: "# Small" (7) + "\n\n" (2) + "Body line." (10).
 printf '# Small\n\nBody line.\n' >"$FETCH_DOCS_FIXTURE_DIR/small.md"
 printf '# Big\n\nintro\n\n## Alpha\n\nalpha text\n\n## Beta\n\nbeta text\n' >"$FETCH_DOCS_FIXTURE_DIR/big.md"
 {
@@ -37,7 +32,6 @@ printf '# Big\n\nintro\n\n## Alpha\n\nalpha text\n\n## Beta\n\nbeta text\n' >"$F
   printf '\n## Two\n\ntwo\n'
 } >"$FETCH_DOCS_FIXTURE_DIR/huge.md"
 
-# 1. A page at or under the whole-page threshold prints whole, with its byte count.
 out="$(bash "$SCRIPT" https://code.claude.com/docs/en/small)"
 head1="$(head -1 <<<"$out")"
 assert_eq "case 1: small page is read whole" "state=read kind=page bytes=19" \
@@ -45,38 +39,32 @@ assert_eq "case 1: small page is read whole" "state=read kind=page bytes=19" \
 assert_eq "case 1: body is the page" $'# Small\n\nBody line.' "$(tail -n +2 <<<"$out")"
 if [[ "$head1" =~ sha256=[0-9a-f]{64} ]]; then pass "case 1: header carries the page sha256"; else fail "case 1: sha256" "$head1"; fi
 
-# 2. Over the threshold, the body is the bare section map, not the page.
 out="$(DOCS_CACHE_WHOLE_PAGE_BYTES=20 bash "$SCRIPT" 'https://code.claude.com/docs/en/big#beta')"
 head1="$(head -1 <<<"$out")"
 assert_eq "case 2: the fragment is dropped from the URL" "url=https://code.claude.com/docs/en/big" "$(grep -oE 'url=[^ ]+' <<<"$head1")"
 assert_eq "case 2: kind is map" "kind=map" "$(grep -oE 'kind=[a-z-]+' <<<"$head1")"
 assert_eq "case 2: map rows name the sections" "Big|Big > Alpha|Big > Beta" "$(tail -n +2 <<<"$out" | cut -f7 | paste -sd'|' -)"
 
-# 3. With ids, the body is those sections only.
 out="$(DOCS_CACHE_WHOLE_PAGE_BYTES=20 bash "$SCRIPT" https://code.claude.com/docs/en/big 3)"
 assert_eq "case 3: kind is sections" "kind=sections" "$(head -1 <<<"$out" | grep -oE 'kind=[a-z-]+')"
 assert_eq "case 3: body is the Beta section" $'## Beta\n\nbeta text' "$(tail -n +2 <<<"$out")"
 
-# 4. A slug the index does not list is unread with its reason, and exits 0.
 rc=0
 out="$(bash "$SCRIPT" https://code.claude.com/docs/en/missing)" || rc=$?
 assert_eq "case 4: exit 0" "0" "$rc"
 assert_eq "case 4: unread header" "docs-raw: url=https://code.claude.com/docs/en/missing state=unread reason=not-in-index" "$out"
 
-# 5. A request the cache would answer with the whole page is too-large, with no body.
 out="$(bash "$SCRIPT" https://code.claude.com/docs/en/huge 2)"
 assert_eq "case 5: kind too-large" "kind=too-large" "$(head -1 <<<"$out" | grep -oE 'kind=[a-z-]+')"
 assert_eq "case 5: no body" "1" "$(wc -l <<<"$out" | tr -d ' ')"
 out="$(bash "$SCRIPT" https://code.claude.com/docs/en/huge 3)"
 assert_eq "case 5: a small section of the same page still prints" $'## Two\n\ntwo' "$(tail -n +2 <<<"$out")"
 
-# 6. With the cache disabled the page is read from the fetched file.
 out="$(DOCS_CACHE_ENABLED=false bash "$SCRIPT" https://code.claude.com/docs/en/small)"
 assert_eq "case 6: page without a cache entry" $'# Small\n\nBody line.' "$(tail -n +2 <<<"$out")"
 out="$(DOCS_CACHE_ENABLED=false DOCS_CACHE_WHOLE_PAGE_BYTES=20 bash "$SCRIPT" https://code.claude.com/docs/en/big 2)"
 assert_eq "case 6: sections without a cache entry" $'## Alpha\n\nalpha text' "$(tail -n +2 <<<"$out")"
 
-# 7. Arguments that are not an https URL and section ids are refused before any fetch.
 for args in "http://code.claude.com/docs/en/small" "file:///etc/passwd" "https://code.claude.com/docs/en/small 1;id" \
   "https://code.claude.com/docs/en/small 0" "https://code.claude.com/docs/en/small --file"; do
   rc=0
@@ -91,7 +79,6 @@ rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "case 7: refused: no URL" "2" "$rc"
 
-# 8. bytes and body_sha256 describe the body as printed; CRLF line ends print as LF.
 printf '# Crlf\r\n\r\nNa\xc3\xafve line.\r\n' >"$FETCH_DOCS_FIXTURE_DIR/crlf.md"
 printf '%s\n' '- [Crlf](https://code.claude.com/docs/en/crlf.md): c' >>"$FETCH_DOCS_FIXTURE_DIR/llms.txt"
 out="$(bash "$SCRIPT" https://code.claude.com/docs/en/crlf)"
@@ -106,8 +93,6 @@ printf '%s\n' '- [Tail](https://code.claude.com/docs/en/tail.md): t' >>"$FETCH_D
 assert_eq "case 8: trailing blank CRLF lines are not counted" "bytes=5" \
   "$(bash "$SCRIPT" https://code.claude.com/docs/en/tail | head -1 | grep -oE 'bytes=[0-9]+')"
 
-# The network cases: no fixture seam, a curl stand-in first on PATH that logs
-# its arguments and serves one markdown page, and DNS answers from the seam.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/curl" <<'EOF'
@@ -130,15 +115,12 @@ EOF
 chmod +x "$SHIM/curl"
 net() { env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$TEST_TMPDIR/curl.log" FETCH_DOCS_ADDRESSES="$1" bash "$SCRIPT" "$2"; }
 
-# 9. A public name whose DNS answer is a private address is unread, and nothing is requested.
 : >"$TEST_TMPDIR/curl.log"
 assert_eq "case 9: a DNS answer of a private address is refused" \
   "docs-raw: url=https://docs.example.com/page state=unread reason=private-address" \
   "$(net 'docs.example.com=10.0.0.7' https://docs.example.com/page)"
 assert_eq "case 9: no request was made" 0 "$(wc -l <"$TEST_TMPDIR/curl.log" | tr -d ' ')"
 
-# 10. A public answer is read through a request pinned to it, and a generic page
-# never reaches the shared docs cache.
 rm -rf "$DOCS_CACHE_DIR"
 out="$(net 'docs.example.com=93.184.216.34' https://docs.example.com/page)"
 assert_eq "case 10: the page is read" $'# Remote\n\nremote body' "$(tail -n +2 <<<"$out")"
