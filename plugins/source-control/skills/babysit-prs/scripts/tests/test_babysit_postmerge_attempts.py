@@ -1,4 +1,5 @@
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json
 """The attempt carry of the post-merge check (`babysit_postmerge`).
 
 A completed attempt of a workflow run never changes, so a check answers an
