@@ -712,7 +712,7 @@ def _row_sessions(body: list[str] | None) -> dict[str, tuple[str, str]]:
 def journey(path: Path, limit: int = 1000) -> Journey:
     """Every hop of `path`'s chain still on disk: the handoff files `read_chain`
     reaches, then, from the chain's archive files, each handoff file that is gone
-    (read from the copy the next hop's file holds) and any older handoff file a
+    (read from the copy the next hop's file holds) and any older handoff file an
     archive file names that the walk did not reach. Only archive files at or below
     `path`'s hop and on its own branch count: a fork's branches share the
     archive directory, so an archive file is read only when its hop and session
