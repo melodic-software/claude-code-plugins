@@ -5,6 +5,8 @@
 # cleaned one record at a time, while a user's own hook and the hooks
 # `apply install-git-hooks` installs in their place are left alone.
 # test-scope: plugins/guardrails/retirements.yaml plugins/guardrails/lib/check-retirements.sh plugins/guardrails/lib/git-hooks/install.mjs
+# test-scope: plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/hooks/*.sh plugins/guardrails/lib/verification/*.sh
+# test-scope: plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PROJECT_DIR
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
@@ -84,6 +86,98 @@ node "$INSTALL" copy --scope local --repo "$REPO" >/dev/null 2>&1
 expect "install-git-hooks wrote its plain dispatchers" yes \
   "$(test -f "$REPO/.git/hooks/commit-msg" && test -f "$REPO/.git/hooks/pre-commit" && echo yes)"
 expect "the hooks install-git-hooks writes are not leftovers" "0|" "$(detect)"
+
+RV_ASSETS="hooks/run-guards.sh hooks/abort-boundary.sh hooks/hook-utils.sh hooks/cli-flag-verify.sh
+hooks/skill-reference-verify.sh hooks/stale-path-verify.sh lib/verification/verify-cli-flag.sh
+lib/verification/cli-flag-cache.sh"
+RV_LOCAL="guardrails-r005 guardrails-r006 guardrails-r007 guardrails-r008 guardrails-r009 guardrails-r010 guardrails-r011 guardrails-r012 guardrails-r013 guardrails-r014"
+RV_SHARED="guardrails-r015 guardrails-r016 guardrails-r017 guardrails-r018 guardrails-r019 guardrails-r020 guardrails-r021 guardrails-r022 guardrails-r023 guardrails-r024"
+reference_verify_install() {
+  local d="$1" a
+  mkdir -p "$d/pre-push.d" "$d/guardrails"
+  printf 'guardrails/reference-verify.sh\n' >"$d/pre-push.d/guardrails.reference-verify"
+  {
+    printf '#!/bin/sh\n# guardrails reference-verify sha256:%064d\n' 0
+    tail -n +2 "$PLUGIN/git-hooks/reference-verify.sh"
+  } >"$d/guardrails/reference-verify.sh"
+  for a in $RV_ASSETS; do cp "$PLUGIN/$a" "$d/guardrails/"; done
+}
+
+clean_all() {
+  local id rc=0
+  for id in "$@"; do [[ "$(clean "$id")" == 0 ]] || rc=1; done
+  echo "$rc"
+}
+
+new_repo
+reference_verify_install "$REPO/.git/hooks"
+expect "every file of a local reference-verify install is detected" "1|$RV_LOCAL" "$(detect)"
+expect "the marker cleans on its own" 0 "$(clean guardrails-r005)"
+expect "cleaning the marker removes only the marker" \
+  "1|${RV_LOCAL#guardrails-r005 }" "$(detect)"
+# shellcheck disable=SC2086 # one id per word
+expect "the script and every asset clean" 0 "$(clean_all ${RV_LOCAL#guardrails-r005 })"
+expect "nothing is left after the reference-verify cleanups" "0|" "$(detect)"
+
+new_repo
+mkdir -p "$REPO/.git/hooks/pre-push.d" "$REPO/.git/hooks/guardrails"
+printf 'my-tools/check.sh\n' >"$REPO/.git/hooks/pre-push.d/guardrails.reference-verify"
+printf '#!/bin/sh\n# my own reference check\nexit 0\n' >"$REPO/.git/hooks/guardrails/reference-verify.sh"
+printf '#!/bin/sh\n# my own runner\nexit 0\n' >"$REPO/.git/hooks/guardrails/run-guards.sh"
+expect "a user's own files at the reference-verify paths are not leftovers" "0|" "$(detect)"
+expect "a user's own file at a recorded path is not cleaned" 1 "$(clean guardrails-r007)"
+expect "the user's own file is still there" yes "$(test -f "$REPO/.git/hooks/guardrails/run-guards.sh" && echo yes)"
+
+SL='/'
+FAKE_LINUX="${SL}home${SL}alice${SL}projects${SL}demo${SL}src${SL}main.sh"
+new_repo
+git init -q --bare -b main "$WORK/r$n.git"
+git -C "$REPO" config user.name t
+git -C "$REPO" config user.email t@example.invalid
+git -C "$REPO" commit -q --allow-empty -m seed
+git -C "$REPO" remote add origin "$WORK/r$n.git"
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+git -C "$REPO" remote set-head origin main >/dev/null
+node "$INSTALL" copy --scope local --repo "$REPO" >/dev/null 2>&1
+reference_verify_install "$REPO/.git/hooks"
+expect "a reference-verify install beside the current entries is detected alone" "1|$RV_LOCAL" "$(detect)"
+# shellcheck disable=SC2086 # one id per word
+expect "the reference-verify files clean beside the current entries" 0 "$(clean_all $RV_LOCAL)"
+h="$REPO/.git/hooks"
+expect "the current entries' files are untouched" yes \
+  "$(test -f "$h/pre-push" && test -f "$h/pre-push.d/guardrails.pre-push-content" &&
+    test -f "$h/guardrails/pre-push-content.sh" && test -f "$h/guardrails/content-scan.sh" &&
+    test -f "$h/guardrails/check-lib.sh" && test -f "$h/guardrails/secret-patterns.sh" &&
+    test -f "$h/guardrails/hardcoded-path-patterns.sh" && test -f "$h/guardrails/machine-path-patterns.sh" && echo yes)"
+printf 'see %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+git -C "$REPO" commit -q --no-verify -m path
+push_err="$(git -C "$REPO" push -q origin main 2>&1 >/dev/null)"
+push_rc=$?
+expect "the next push still runs pre-push-content, which blocks the path" 1 "$push_rc"
+expect "the push names the path finding" yes "$(grep -q 'machine-specific path' <<<"$push_err" && echo yes)"
+expect "the push names no missing registered script" no "$(grep -q 'registered but missing' <<<"$push_err" && echo yes || echo no)"
+
+new_repo
+git -C "$REPO" config user.name t
+git -C "$REPO" config user.email t@example.invalid
+git -C "$REPO" commit -q --allow-empty -m seed
+reference_verify_install "$REPO/.git/hooks"
+git -C "$REPO" worktree add -q -b side "$WORK/wt$n" 2>/dev/null
+main_repo="$REPO"
+REPO="$WORK/wt$n"
+expect "a linked worktree finds the local install in the common git dir" "1|$RV_LOCAL" "$(detect)"
+expect "a linked worktree cleans the common git dir's marker" 0 "$(clean guardrails-r005)"
+expect "the marker is gone from the main checkout's hooks" no \
+  "$(test -f "$main_repo/.git/hooks/pre-push.d/guardrails.reference-verify" && echo yes || echo no)"
+
+new_repo
+reference_verify_install "$REPO/.githooks"
+git -C "$REPO" config core.hooksPath .githooks
+expect "every file of a shared reference-verify install is detected" "1|$RV_SHARED" "$(detect)"
+# shellcheck disable=SC2086 # one id per word
+expect "every shared reference-verify file cleans" 0 "$(clean_all $RV_SHARED)"
+expect "nothing is left after the shared cleanups" "0|" "$(detect)"
 
 echo "retired-installs: $PASS passed, $FAIL failed"
 ((FAIL == 0))
