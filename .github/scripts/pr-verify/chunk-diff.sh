@@ -8,12 +8,14 @@
 # chunks of at most MAX_DIFF_BYTES and parts of at most PART_BYTES and
 # PART_LINES. With more than one chunk the manifest lists every file, and each
 # piece as `piece <i> of <n>`, with its chunk and first part, in
-# $DATA/manifest/part-<n>.txt files of at most PART_BYTES. An empty diff is one
-# chunk with one empty part.
+# $DATA/manifest/part-<n>.txt files of at most PART_BYTES. A hunk over
+# MAX_DIFF_BYTES with its file's header is cut between its lines (--cut-lines),
+# each cut under a recounted `@@` header. An empty diff is one chunk with one
+# empty part.
 #
-# A file with a hunk over MAX_DIFF_BYTES with its header, or a diff that needs
-# more than MAX_CHUNKS chunks, prints an error naming it and exits 1 with no
-# chunk written: the head gets no verdict, and so no fail on size alone.
+# A file with one line over MAX_DIFF_BYTES with its headers, or a diff that
+# needs more than MAX_CHUNKS chunks, prints an error naming it and exits 1 with
+# no chunk written: the head gets no verdict, and so no fail on size alone.
 # shellcheck disable=SC2154 # the step's env sets DATA and the limits
 set -euo pipefail
 
@@ -36,7 +38,7 @@ MAX_CHUNKS=${MAX_CHUNKS:-12}
 chunking="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../diff-chunking/diff_chunking.py"
 mkdir "$DATA/diff"
 status=0
-reason=$(python3 -I "$chunking" split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$((MAX_DIFF_BYTES * MAX_CHUNKS))" 2>&1) || status=$?
+reason=$(python3 -I "$chunking" split "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$((MAX_DIFF_BYTES * MAX_CHUNKS))" --cut-lines 2>&1) || status=$?
 if [[ "$status" -eq 3 ]]; then
   echo "::error::no verdict for this head: the diff is $(wc -c <"$DATA/diff.patch") bytes; ${reason#split-diff: }"
   exit 1

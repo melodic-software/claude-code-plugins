@@ -102,8 +102,6 @@ escalate() {
   exit 0
 }
 
-# Lane commits are recognized by author name only; a commit forged with that
-# name can only make the cap escalate early.
 lane_runs=0
 while IFS= read -r -d '' record; do
   [[ ${record%%$'\t'*} == "${GIT_AUTHOR_NAME:-}" ]] || break

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/default-branch-file.sh: the file comes from origin's default branch by SHA, never from the
-# working tree or a local branch named origin/HEAD, and a missing file or unreadable branch is an exit code.
-# Run directly: bash lib/default-branch-file.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +22,6 @@ assert_eq() {
 
 g() { git -c user.email=t@example.invalid -c user.name=t -c commit.gpgsign=false "$@"; }
 
-# A clone of a local bare origin whose main commits docs/conventions/explainer-video.yaml and style.css.
 dir="$TEST_TMPDIR/repo"
 mkdir -p "$dir/work/docs/conventions"
 g init -q -b main "$dir/work"
@@ -47,7 +43,6 @@ code() {
 assert_eq "the team file is read from the default branch" "stitcher: ffmpeg" "$(run --plugin explainer-video)"
 assert_eq "a repository path is read from the default branch" "body{}" "$(run --path style.css)"
 
-# The branch's own edits and a local branch named origin/HEAD never change what is read.
 g -C "$repo" checkout -q -b origin/HEAD
 printf 'stitcher: ./evil {inputs} {out}\n' >"$repo/docs/conventions/explainer-video.yaml"
 g -C "$repo" commit -q -am branch

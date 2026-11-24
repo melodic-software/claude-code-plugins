@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 import { evaluate } from "../lib/gate-expression.mjs";
 import { ifOf, workflowText } from "../lib/workflow-text.mjs";
 
@@ -1330,7 +1331,7 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
   test(`${jobId}: a run that stops as superseded still logs its github-token calls`, async () => {
     const body = job(jobId);
     const stepOf = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(body)?.[1];
-    const context = { "github.event_name": "workflow_dispatch", "github.actor_id": String(OWNER.id), "github.token": "t" };
+    const context = { "github.event_name": "workflow_dispatch", "github.actor_id": String(OWNER.id), "github.token": "t", "steps.standards.outputs.path": standardsCheckout() };
     const envOf = (step) =>
       Object.fromEntries([...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e] ?? "")]));
     const answers = {
@@ -1993,6 +1994,7 @@ async function runWho(
     "github.actor_id": actorId,
     "github.triggering_actor": rerunner.login,
     "github.token": "t",
+    "steps.standards.outputs.path": standardsCheckout(),
   };
   const stepEnv = Object.fromEntries(
     [...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e])]),

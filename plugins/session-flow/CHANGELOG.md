@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.22.11] - 2026-11-24
+
+### Fixed
+
+- `continue-in-background`, `find-handoff` and `orient` read a handoff's Observations section, or each `- Moved:` pointer's hop file, before reporting that a handoff says nothing on the topic asked.
+
 ## [9.22.10] - 2026-11-24
 
 ### Fixed

@@ -5,6 +5,9 @@
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
 // test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
 // test-scope: .github/scripts/*.mjs docs/conventions/pr-pipeline.yaml .github/workflows/pr-run-activity-write.yml
+// test-scope: .github/actions/resolve-config/* .github/scripts/intake-triage/* .github/scripts/pr-unblock/*
+// test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
+// test-scope: .github/actions/check-born-triaged/check-born-triaged.mjs .github/actions/check-wip-cap/check-wip-cap.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -12,11 +15,13 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { STOP_REASONS } from "../../scripts/lib/stop-reason.mjs";
 import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { loads, stage as stageClosure } from "./stage-closure.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -160,48 +165,148 @@ function stage(overrides) {
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
-const UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS = {
-  ".github/scripts/pr-unblock/declare-test-scope.mjs": ["../actions/log-api-budget/rate-guard.mjs", "maintenance-reconcile-lost-runs/infra-failure.mjs"],
-};
-test("each activity runner script's static relative imports resolve in the staged base-script layout, apply-patch.mjs with the write runner's apply-base copies", () => {
+function runnerScripts() {
   const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
   const config = parse(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   const runnerLanes = Object.entries(config.lanes).filter(([lane]) => {
     const workflow = path.join(REPO_ROOT, ".github/workflows", `${lane}.yml`);
     return existsSync(workflow) && /uses: \.\/\.github\/workflows\/pr-run-activity-(read|write)\.yml/.test(readFileSync(workflow, "utf8"));
   });
-  const scripts = [
-    ...new Set(
-      runnerLanes
-        .flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script))
-        .filter((script) => script?.endsWith(".mjs")),
-    ),
-  ];
-  assert.ok(scripts.includes(".github/scripts/pr-unblock/apply-dependency-verdict.mjs"), scripts.join(" | "));
+  return [...new Set(runnerLanes.flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script)).filter(Boolean))];
+}
+
+test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
+  const scripts = runnerScripts();
+  assert.ok(scripts.includes(".github/scripts/pr-unblock/report-escalation.sh"), scripts.join(" | "));
   const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
-  const write = readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
-  const applyBase = [...write.matchAll(/^\s+cp \.base\/\.github\/scripts\/(([^/\s]+)\/[^/\s]+) "\$RUNNER_TEMP\/\2\/"$/gm)].map((m) => m[1]);
-  assert.ok(applyBase.length > 0, "the write runner's apply-base step copies sibling modules");
+  const runs = ["read", "write"].map((kind) => {
+    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
+    return /^\s+("\$RUNNER_TEMP\/base-script\/[^\n]*")$/m.exec(workflow)?.[1];
+  });
+  assert.ok(runs[0] && runs[0] === runs[1], `both runners run the script by one path: ${runs.join(" | ")}`);
   const missing = {};
   for (const script of scripts) {
     const runTemp = mkdtempSync(path.join(root, "script-"));
-    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp };
+    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname };
     const result = spawnSync("bash", ["-e", "-c", copy], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    if (path.basename(script) === "apply-patch.mjs") {
-      for (const file of applyBase) cpSync(path.join(REPO_ROOT, ".github/scripts", file), path.join(runTemp, file));
-    }
+    const entry = spawnSync("bash", ["-c", `printf %s ${runs[0]}`], { env, encoding: "utf8" }).stdout;
     const seen = new Set();
     const walk = (file) => {
       if (seen.has(file)) return;
       seen.add(file);
       if (!existsSync(file)) return (missing[script] ??= []).push(path.relative(runTemp, file));
-      if (!file.endsWith(".mjs")) return;
-      for (const [, spec] of readFileSync(file, "utf8").matchAll(/^(?:import|export)\b[^;]*?\bfrom ["'](\.\.?\/[^"']+)["']/gm)) walk(path.resolve(path.dirname(file), spec));
+      if (statSync(file).isFile()) for (const next of loads(file)) walk(next);
     };
-    walk(path.join(runTemp, "base-script", path.basename(script)));
+    walk(entry);
   }
-  assert.deepEqual(missing, UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS);
+  assert.deepEqual(missing, {});
+});
+
+test("a data file a module loads from outside its directory is staged alone, and every file beside the module", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/intake-triage/admit.mjs", dest);
+  const github = path.join(dest, ".github");
+  const top = readdirSync(github, { withFileTypes: true });
+  assert.deepEqual(top.filter((e) => e.isFile()).map((e) => e.name), ["recurring-schedule.json"]);
+  assert.ok(!top.some((e) => e.name === "workflows"), top.map((e) => e.name).join(" | "));
+  assert.deepEqual(readFileSync(path.join(github, "recurring-schedule.json")), readFileSync(path.join(REPO_ROOT, ".github/recurring-schedule.json")));
+  const files = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name).sort();
+  assert.deepEqual(files(path.join(github, "scripts/intake-triage")), files(path.join(REPO_ROOT, ".github/scripts/intake-triage")));
+});
+
+test("a module's directory is staged without its subdirectories nothing loads from", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/pr-unblock/publish-feedback.mjs", dest);
+  const unblock = path.join(dest, ".github/scripts/pr-unblock");
+  assert.ok(existsSync(path.join(unblock, "publish-feedback.mjs")));
+  assert.ok(existsSync(path.join(REPO_ROOT, ".github/scripts/pr-unblock/fixtures")));
+  assert.ok(!existsSync(path.join(unblock, "fixtures")));
+});
+
+test("a sibling beside the entry script brings its own loads from outside the entry directory", () => {
+  const base = mkdtempSync(path.join(root, "sibling-base-"));
+  mkdirSync(path.join(base, "a"));
+  mkdirSync(path.join(base, "lib"));
+  writeFileSync(path.join(base, "a", "entry.mjs"), "export const tool = process.argv[2];\n");
+  writeFileSync(path.join(base, "a", "sibling.mjs"), 'import { x } from "../lib/x.mjs";\nexport { x };\n');
+  writeFileSync(path.join(base, "lib", "x.mjs"), "export const x = 1;\n");
+  writeFileSync(path.join(base, "lib", "unrelated.mjs"), "export const y = 2;\n");
+  const dest = mkdtempSync(path.join(root, "sibling-dest-"));
+  stageClosure(base, "a/entry.mjs", dest);
+  assert.ok(existsSync(path.join(dest, "a", "sibling.mjs")));
+  assert.ok(existsSync(path.join(dest, "lib", "x.mjs")), "the sibling's import is staged");
+  assert.ok(!existsSync(path.join(dest, "lib", "unrelated.mjs")));
+});
+
+test("a file loaded outside the entry script's directory is staged alone, module or data", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/intake-triage/issue-spec.mjs", dest);
+  const files = (dir) => readdirSync(path.join(dest, dir), { withFileTypes: true }).filter((e) => !e.isDirectory()).map((e) => e.name);
+  assert.deepEqual(files("scripts"), ["upstream-drift-vendored-report.sh"]);
+  const publish = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/scripts/pr-verify/write-verdict.mjs", publish);
+  assert.deepEqual(readdirSync(path.join(publish, "lib")), ["publish-gate.mjs"]);
+});
+
+test("a staged resolve-config module still loads yaml and ajv from the copied node_modules", async () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  stageClosure(REPO_ROOT, ".github/actions/resolve-config/resolve.mjs", dest);
+  for (const pkg of ["yaml", "ajv"]) assert.ok(existsSync(path.join(dest, ".github/actions/resolve-config/node_modules", pkg, "package.json")), pkg);
+  const staged = path.join(dest, ".github/actions/resolve-config/resolve.mjs");
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(staged).href)});`], { cwd: dest, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+});
+
+test("every runner .mjs entry imports from its staged tree", () => {
+  const entries = runnerScripts().filter((script) => script.endsWith(".mjs"));
+  assert.ok(entries.length > 0);
+  for (const script of entries) {
+    const dest = mkdtempSync(path.join(root, "closure-"));
+    stageClosure(REPO_ROOT, script, dest);
+    const url = pathToFileURL(path.join(dest, script)).href;
+    const run = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(url)});`], { cwd: dest, encoding: "utf8" });
+    assert.equal(run.status, 0, `${script}: ${run.stderr}`);
+  }
+});
+
+test("every self-relative path in a runner shell entry's staged scripts is one the stager follows", () => {
+  const entries = runnerScripts().filter((script) => script.endsWith(".sh"));
+  assert.ok(entries.length > 0);
+  const unfollowed = [];
+  for (const script of entries) {
+    const dest = mkdtempSync(path.join(root, "closure-"));
+    stageClosure(REPO_ROOT, script, dest);
+    const reached = new Set();
+    const walk = (file) => {
+      if (reached.has(file) || !existsSync(file) || !statSync(file).isFile()) return;
+      reached.add(file);
+      for (const next of loads(file)) walk(next);
+    };
+    walk(path.join(dest, script));
+    for (const file of [...reached].filter((file) => /\.(sh|bash)$/.test(file))) {
+      const code = readFileSync(file, "utf8").replace(/^\s*#.*$/gm, "");
+      const selfRefs = code.match(/BASH_SOURCE\[0\]|dirname "?\$0"?/g)?.length ?? 0;
+      if (selfRefs !== loads(file).length) unfollowed.push(`${path.relative(dest, file)}: ${selfRefs} self-relative, ${loads(file).length} followed`);
+    }
+  }
+  assert.deepEqual(unfollowed, []);
+});
+
+test("a script path outside the base is refused before anything is read or copied", () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  for (const script of ["../outside/run.sh", ".github/../../outside/run.sh", path.join(REPO_ROOT, ".github/scripts/pr-unblock/report-escalation.sh")]) {
+    assert.throws(() => stageClosure(REPO_ROOT, script, dest), /outside the base/, script);
+  }
+  assert.deepEqual(readdirSync(dest), []);
+});
+
+test("a staged declare-test-scope reads the base config through resolve-config's rule files", async () => {
+  const dest = mkdtempSync(path.join(root, "closure-"));
+  const script = ".github/scripts/pr-unblock/declare-test-scope.mjs";
+  stageClosure(REPO_ROOT, script, dest);
+  const { testScopeFromBase } = await import(pathToFileURL(path.join(dest, script)).href);
+  assert.equal(typeof (await testScopeFromBase(REPO_ROOT)).apply, "boolean");
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied

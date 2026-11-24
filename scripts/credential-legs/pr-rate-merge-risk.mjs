@@ -11,6 +11,8 @@ const CREDENTIAL_CALL = `          credential-set: \${{ secrets.PR_VERIFY_CLAUDE
           selected: \${{ steps.credit.outputs.next-leg }}
           key-off: \${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}`;
 const API_KEY = "          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}\n";
+const STANDARDS = "        uses: melodic-software/ci-workflows/.github/actions/download-standards@main\n";
+const standardsFrom = (job) => [STANDARDS, `${STANDARDS}        with:\n          ref: \${{ needs.${job}.outputs.standards-sha }}\n`, 1];
 const shared = (leg) => [
   ["    if: >-\n      github.ref", "    if: >-\n      !cancelled()\n      && github.ref", 1],
   ["if: steps.pr.outputs.proceed == 'true' && steps.credential.outputs.present == 'true'", "if: steps.pr.outputs.proceed == 'true'", 1],
@@ -34,6 +36,7 @@ export default {
         ["  rate-merge-risk:\n    name: Rate Merge Risk\n", "  rate-merge-risk-subscription:\n    name: Rate Merge Risk Subscription\n    needs: rate-merge-risk\n", 1],
         [HEAD_REPO, `${HEAD_REPO}      && needs.rate-merge-risk.result == 'success'\n      && needs.rate-merge-risk.outputs.next-leg == 'subscription'\n`, 1],
         ...shared("subscription"),
+        standardsFrom("rate-merge-risk"),
         [
           CREDENTIAL_CALL,
           `          credential-set: \${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
@@ -58,8 +61,9 @@ export default {
           `${HEAD_REPO}      && needs.rate-merge-risk-subscription.result == 'success'\n      && needs.rate-merge-risk-subscription.outputs.next-leg == 'fallback'\n`,
           1,
         ],
-        ["    outputs:\n      next-leg: ${{ steps.next.outputs.next-leg }}\n      next-reason: ${{ steps.next.outputs.next-reason }}\n", "", 1],
+        ["    outputs:\n      next-leg: ${{ steps.next.outputs.next-leg }}\n      next-reason: ${{ steps.next.outputs.next-reason }}\n      standards-sha: ${{ steps.standards.outputs.sha }}\n", "", 1],
         ...shared("fallback"),
+        standardsFrom("rate-merge-risk-subscription"),
         [
           CREDENTIAL_CALL,
           `          credential-set: \${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}

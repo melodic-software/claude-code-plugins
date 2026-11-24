@@ -25,7 +25,6 @@ const WAKE = {
 };
 
 let n = 0;
-// `rerunner`: the triggering actor this run's own record names.
 async function who(env, { rerunner = OWNER_ID } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
@@ -73,7 +72,6 @@ test("a near miss of the wake stops", async () => {
 
 test("a re-run of the wake proceeds only when a listed human started it", async () => {
   assert.equal((await who({ ...WAKE, GITHUB_RUN_ATTEMPT: "2" }, { rerunner: 41898282 })).proceed, false);
-  // The bot is no listed human, so even a listed human's re-run of its run stops.
   assert.equal((await who({ ...WAKE, GITHUB_RUN_ATTEMPT: "2" }, { rerunner: OWNER_ID })).proceed, false);
 });
 

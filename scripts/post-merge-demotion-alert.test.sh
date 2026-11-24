@@ -107,13 +107,13 @@ want_dropin='        uses: melodic-software/ci-workflows/.github/actions/apply-c
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-if [[ "$uses" == $'melodic-software/ci-workflows/.github/actions/resolve-branch-tip\nactions/checkout\nmelodic-software/ci-workflows/.github/actions/apply-claude-managed-settings\n./.base/.github/actions/log-api-budget' &&
+if [[ "$uses" == $'melodic-software/ci-workflows/.github/actions/resolve-branch-tip\nactions/checkout\nmelodic-software/ci-workflows/.github/actions/download-standards\nmelodic-software/ci-workflows/.github/actions/apply-claude-managed-settings\n./.base/.github/actions/log-api-budget' &&
   "$dropin" =~ ^${want_dropin}$ &&
   "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"branch: main"* &&
   "$checkout" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$checkout" == *"persist-credentials: false"* ]]; then
-  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but the pinned tip resolver, the pinned settings drop-in and that checkout's log-api-budget"
+  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but the pinned tip resolver, the standards download, the pinned settings drop-in and that checkout's log-api-budget"
 else
-  fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA, the pinned settings drop-in and its log-api-budget: '$uses'"
+  fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA, the standards download, the pinned settings drop-in and its log-api-budget: '$uses'"
 fi
 if grep -qF "\${{" "$ROOT/$FILE_SCRIPT"; then
   fail "the step body interpolates an expression; pass it through env"
@@ -2550,7 +2550,6 @@ cat >"$TMP_ROOT/bin-read/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_DIR/log"
 case "$*" in
-  *trusted-actors.json*) exec cat "$STUB_DIR/trusted.json" ;;
   *actions/runs/*/attempts/1) exec cat "$STUB_DIR/attempt.json" ;;
 esac
 exit 1
@@ -2580,7 +2579,7 @@ run_read() {
     {id: 337, login: "lanes[bot]", kind: "bot"}, {id: 200, login: "a-bot", kind: "bot"}]}' >"$TMP_ROOT/read/trusted.json"
   OUT="$(PATH="$TMP_ROOT/bin-read:$PATH" STUB_DIR="$TMP_ROOT/read" GITHUB_OUTPUT="$TMP_ROOT/read/output" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="$1" INPUT_RUN_ID="$2" ACTOR_ID="$3" TRIGGERING_ACTOR="$4" \
-    INPUT_HEAD_SHA="${READ_HEAD_SHA-$SHA}" APP_SENDER_ID=337 RUN_WORKFLOW="${WR_NAME:-}" RUN_EVENT="${WR_EVENT:-}" RUN_CONCLUSION="${WR_CONCLUSION:-}" \
+    INPUT_HEAD_SHA="${READ_HEAD_SHA-$SHA}" APP_SENDER_ID=337 TRUSTED_ACTORS_PATH="$TMP_ROOT/read/trusted.json" RUN_WORKFLOW="${WR_NAME:-}" RUN_EVENT="${WR_EVENT:-}" RUN_CONCLUSION="${WR_CONCLUSION:-}" \
     RUN_BRANCH="${WR_BRANCH:-}" RUN_REPO="${WR_REPO:-}" RUN_SHA="${WR_SHA:-}" RUN_URL="${WR_URL:-}" RUN_ID="${WR_ID:-}" \
     RUN_WORKFLOW_ID="${WR_WORKFLOW_ID:-}" RUN_CREATED="${WR_CREATED:-}" RUN_ATTEMPT="${WR_ATTEMPT:-}" \
     RUN_TRIGGERING_ACTOR="${WR_ACTOR:-}" RUN_COMMIT_MESSAGE="${WR_MESSAGE:-}" \

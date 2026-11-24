@@ -1,8 +1,3 @@
-// Expected values come from the rotation rule in pr-merge.yml: the gate loop
-// starts after the last candidate the previous loop reached and wraps round to
-// the lowest PR number, and only a scheduled or hand-started pr-merge.yml run
-// on main sets that position (a pull_request_target run runs the PR base
-// branch's copy). The cursor is found from the workflow's own run list.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -40,7 +35,6 @@ test("with no cursor the loop starts at the lowest number", () => {
 });
 
 test("budgeted runs reach every candidate across runs", () => {
-  // Each run reaches two candidates; the cursor is the last one reached.
   const all = prs(1, 2, 3, 4, 5);
   const seen = new Set();
   let last;
@@ -53,8 +47,6 @@ test("budgeted runs reach every candidate across runs", () => {
 });
 
 let n = 0;
-// `pages` is the workflow's run listing, newest first, page by page; `cursors`
-// maps a run id to the cursor its artifact holds.
 async function run({ pages = [[]], cursors = {}, fail } = {}) {
   n += 1;
   const candidates = join(dir, `candidates-${n}.json`);
@@ -95,14 +87,11 @@ test("main reads the newest trusted run's cursor and rewrites the candidates in 
     pages: [[wf(999, "schedule"), wf(8, "schedule"), wf(7, "workflow_dispatch"), wf(6, "schedule")]],
     cursors: { 7: '{"last": 20}', 6: '{"last": 10}' },
   });
-  // This run (999) is skipped; run 8 has no cursor (a superseded run).
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.order, [30, 10, 20]);
 });
 
 test("the newest run is the highest id, whatever order created_at lists them in", async () => {
-  // Run 7 was created an hour before run 8 but stamped an hour ahead, so the
-  // API lists it first (2026-11-01 08:00-09:00Z).
   const result = await run({
     pages: [[wf(999, "schedule"), wf(7, "schedule"), wf(8, "schedule")]],
     cursors: { 7: '{"last": 20}', 8: '{"last": 10}' },
@@ -121,8 +110,6 @@ test("a pull_request_target run's cursor is never read", async () => {
   assert.deepEqual(result.order, [10, 20, 30]);
 });
 
-// pr-merge.yml's run-name marks a PR-scoped dispatch, which reads one pull
-// request: no sweep reads its files, and it costs no artifact listing.
 test("a PR-scoped dispatch's files are never read, and a hand-started sweep's are", async () => {
   const scoped = (id, title) => ({ ...wf(id, "workflow_dispatch"), display_title: title });
   const result = await run({
@@ -141,16 +128,13 @@ test("a PR-scoped dispatch under the run-name prefix is not a sweep, and the wor
 });
 
 test("the lookup pages through main's runs, then stops at its bounds", async () => {
-  // A full first page of push runs, then the trusted run on page two.
   const found = await run({ pages: [filler(1000, 100), [wf(9, "schedule")]], cursors: { 9: '{"last": 10}' } });
   assert.deepEqual(found.downloads, [9]);
   assert.deepEqual(found.order, [20, 30, 10]);
-  // Ten trusted runs without a cursor end the search before an eleventh is asked.
   const runs = Array.from({ length: 11 }, (_, i) => wf(110 - i, "schedule"));
   const bounded = await run({ pages: [runs], cursors: { 100: '{"last": 10}' } });
   assert.equal(bounded.calls.filter((path) => path.includes("/artifacts")).length, 10);
   assert.deepEqual(bounded.downloads, []);
-  // Never more than two pages.
   const paged = await run({ pages: [filler(1000, 100), filler(2000, 100), [wf(9, "schedule")]], cursors: { 9: '{"last": 10}' } });
   assert.equal(paged.calls.filter((path) => path.includes("/workflows/")).length, 2);
   assert.deepEqual(paged.order, [10, 20, 30]);
@@ -160,11 +144,9 @@ test("a candidate the last run deferred at its read limit is gated first, and al
   const deferred = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 20}' } });
   assert.deepEqual(deferred.order, [20, 30, 10]);
   assert.deepEqual(deferred.deferred, [20]);
-  // With none deferred, no candidate is marked.
   const plain = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 10}' } });
   assert.deepEqual(plain.order, [20, 30, 10]);
   assert.deepEqual(plain.deferred, []);
-  // A deferred PR no longer listed leaves none marked, starting above it.
   const gone = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 15}' } });
   assert.deepEqual(gone.order, [20, 30, 10]);
   assert.deepEqual(gone.deferred, []);
@@ -183,12 +165,6 @@ test("an unreadable cursor leaves the listing order with a warning", async () =>
   }
 });
 
-// One job's three readers, as the merge job runs them, against main's runs
-// newest first: this run (999), a run that skipped its gate and kept nothing
-// but its summary (8), and the run that kept all three files (7). Counted by
-// hand, each reader alone lists the runs, asks runs 8 and 7 for artifacts and,
-// for the map and the records, compares run 7's head with main: 3 + 4 + 4 = 11
-// calls. Shared, those are read once: 4.
 const RECORDS = JSON.stringify({ version: 1, repo: REPO, records: {} });
 const MAP = JSON.stringify({ version: 1, repo: REPO, head_refs: { 5: "feat/x" } });
 async function job({ shared, total } = {}) {
@@ -245,11 +221,8 @@ async function job({ shared, total } = {}) {
 test("a job's readers share one run listing, each run's artifact list and each compare", async () => {
   const alone = await job();
   const shared = await job({ shared: true });
-  // The tag named main and main's tip are read once per process
-  // (head-ref-map.mjs onMain), here once for both readers.
   assert.equal(alone.calls.length, 13);
   assert.equal(shared.calls.length, 6);
-  // Every reader still finds its own file, so the answers are the same.
   for (const result of [alone, shared]) {
     assert.deepEqual(result.order, [20, 30, 10]);
     assert.equal(result.map, MAP);
@@ -276,9 +249,6 @@ test("a write through the shared reads is sent every time, never answered from t
   assert.deepEqual(sent, [`POST ${url}`, `POST ${url}`]);
 });
 
-// The routes are api-budget.bash's templating of the two API URLs gh logs
-// (log-api-budget.test.mjs's verdict download records the same two); the
-// download host is off GitHub's API, so it is no request.
 test("ghDownload counts each API request gh run download sends in the job's api-calls notice", () => {
   const run = tempDir("rotation-download-");
   try {
@@ -404,9 +374,6 @@ test("ghDownloadArtifact reads an archive member larger than execFileSync's 1 Mi
   }
 });
 
-// A reader's artifact listing saved in the shared reads (artifactsNamed) names
-// the artifact, so ghDownload fetches it by id, one request where gh run
-// download sends two (the listing and the archive), with the same text.
 test("ghDownload fetches by the id the shared artifact listing names, and lists again only without one", () => {
   const run = tempDir("rotation-shared-download-");
   try {
@@ -430,9 +397,6 @@ test("ghDownload fetches by the id the shared artifact listing names, and lists 
     const download = ghDownload({ repo: "o/r", token: "t", dir: run, env, shared });
     assert.equal(download(41), '{"last":7}');
     assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean), ["api -i repos/o/r/actions/artifacts/9/zip"]);
-    // An artifact missing the file (a pr-merge-verify-answers artifact without
-    // eam-skip.json) reads as gh run download's missing file does: ENOENT on
-    // open, which verify-answers.mjs takes as "no skip records".
     assert.throws(() => download(41, "eam-skip.json"), (error) => error.code === "ENOENT" && error.syscall === "open");
   } finally {
     rmSync(run, { recursive: true, force: true });

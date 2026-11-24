@@ -1,7 +1,3 @@
-// The tier both lanes share. The vectors are the pr-merge lane's
-// (plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_dependabot.py,
-// classes Classify and Content), one for one, so the two lanes sort a pull
-// request the same way; the content-step and security cases are this lane's.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -57,7 +53,6 @@ const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email
   commit: { message, author: { name, email }, ...signed },
 });
 
-// A readable policy that lists nothing, so the review-only step adds no reason.
 const NO_POLICY = { autoMerge: { reviewOnly: [] } };
 
 const tier = (title, { body = "", ref = NPM, ci = "success", commits = [] } = {}) =>
@@ -119,8 +114,6 @@ test("an actions update from an unlisted publisher is review", () => {
   assert.equal(tier("bump someone/pkg from 1.0.0 to 1.1.0").tier, "auto", "outside github_actions the publisher is not read");
 });
 
-// The policy's fastTrack.own: this organization's own releases, as
-// ci-workflows' automerge-dependabot gate reads them.
 const OWN_POLICY = { ...NO_POLICY, fastTrack: { own: ["melodic-software/*"] } };
 const RUN_CLI = "melodic-software/ci-workflows/.github/actions/run-claude-cli";
 const OWN_REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e";
@@ -285,7 +278,6 @@ test("a security update is the security label or an advisory in the body", () =>
   assert.equal(classify({ author: "dependabot[bot]", title: "bump x from 1.0.0 to 1.0.1", labels: ["security"] }).security, true);
 });
 
-// Content: the pr-merge lane's Content class.
 const CONFIG_PAIRS = parseConfig(
   [
     "version: 2",
@@ -394,7 +386,6 @@ test("paths another checked commit touched pass", () => {
   assert.equal(refusal([changed("plugins/miro/CHANGELOG.md")], ["plugins/miro/CHANGELOG.md"]), null);
 });
 
-// The content step, as the pr-merge lane's _dependabot_content.
 const ACTIONS_COMMIT = commit("chore(plugins): release bump [dependabot skip]", {
   sha: "e".repeat(40),
   name: "github-actions[bot]",
@@ -429,8 +420,6 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
 });
 
-// The commit step, as the pr-merge lane's commits_refusal (its cases are
-// test_babysit_dependabot.py's class Commits), as review reasons here.
 const H = "1".repeat(40);
 const full = (commits, files, commitFiles = () => null, totalCommits = commits.length) =>
   classify({
@@ -452,7 +441,6 @@ test("a verified Dependabot commit with covered files is auto", () => {
   assert.deepEqual(full([commit("")], [LOCK]).tier, "auto");
 });
 
-// test_babysit_merge_policy.py's commits-listed case, as a review reason.
 test("a commits listing that is not the pull request's whole total is review", () => {
   const listed = (total) => full([commit("")], [LOCK], () => null, total);
   assert.equal(listed(1).tier, "auto");
@@ -494,7 +482,6 @@ test("a lanes App fix commit keeps the pull request review, and no commits is re
   assert.ok(full([], [LOCK]).reasons.includes("commits-missing"));
 });
 
-// Review-only: the pr-merge lane's ReviewOnly class, one for one.
 const REPO = "melodic-software/claude-code-plugins";
 const ROOT = "dependabot/npm_and_yarn/npm-minor-patch-ba695db9ca";
 const UPDATES = [
@@ -629,7 +616,6 @@ const slsa = (repository, path, ref = "refs/heads/main") => ({
     },
   ],
 });
-// A packument of [version, publish date, { attested, oidc }] rows.
 const packument = (name, rows) => ({
   name,
   versions: Object.fromEntries(
@@ -644,8 +630,6 @@ const packument = (name, rows) => ({
   ),
   time: { created: "2020-01-01T00:00:00.000Z", ...Object.fromEntries(rows.map(([v, at]) => [v, at])) },
 });
-// A registry answering only the URLs it holds; anything else throws, as a
-// 404 or a timeout does.
 function registry(pages) {
   const calls = [];
   const get = async (url, accept) => {
@@ -674,8 +658,6 @@ const npmUpdate = (name, version) => [{ name, major: false, version }];
 test("an npm release from the same repository and workflow as the previous one passes", async () => {
   const { get, calls } = registry(biomePages());
   assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", get), []);
-  // The packument, the new version's attestation and the newest earlier
-  // stable version's; the prerelease and older versions are not read.
   assert.equal(calls.length, 3);
 });
 
@@ -812,11 +794,6 @@ test("a review that only a parse gap caused is a classifier gap; any other reaso
   assert.deepEqual(classifierGaps([]), []);
 });
 
-// The fix rule's vectors, one for one with test_babysit_dependabot.py's
-// FixRule class, so both lanes refuse the same fix. Each expected value is
-// the rule as the security review states it: a version-range change of an
-// existing dependency entry, registry-only lock tarballs with no install
-// script change, and `name==version` requirement pins with hashes.
 const FIX_PKG = (deps, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: deps, ...extra });
 // A lock of `entries` (key to entry) under the root; reg() is the registry
 // tarball npm records for a name and version (registry.npmjs.org/<name>/-/<base>-<v>.tgz).
@@ -893,8 +870,6 @@ const FIX_VECTORS = [
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@*": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.0": true } }), FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.1": true } }), "package-json-key:allowScripts"],
-  // A fix that moves the manifest and the pin together, to a downgrade or
-  // past Dependabot's version: the pin follows only the version Dependabot set.
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.300" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.300": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.318" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.318": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true, "e@1.0.0": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true, "e@1.0.0": true, "f@1.0.0": true } }), "package-json-key:allowScripts"],
@@ -931,11 +906,6 @@ test("Dependabot's commit is matched on its account ids, not its author text alo
   assert.ok(!isDependabotSigned({ ...own, commit: { ...own.commit, author: { name: "x", email: "x@example.com" } } }));
 });
 
-// One for one with test_babysit_dependabot.py's PUSH_VECTORS, so both lanes
-// tie each commit to the same pusher. Each vector is the pull request's
-// commits as [sha, author, parents], its pushes newest first as [type, pusher,
-// before, after], and the refusal; the head is the newest push's `after`
-// unless the vector names one.
 const [D, D2, B, A, X, ZERO] = ["d", "c", "e", "f", "9", "0"].map((c) => c.repeat(40));
 const PUSH_VECTORS = [
   { why: "Dependabot's own branch", commits: [[D, "dependabot", []]], pushes: [["branch_creation", "dependabot", ZERO, D]], want: null },

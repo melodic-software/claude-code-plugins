@@ -99,10 +99,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   const deadline = start + capMs;
   const say = (level, text) => log(`::${level}::wait-refine #${number} ${head}: ${text}`);
 
-  // The pull request once it is closed or its head is no longer this one,
-  // else null. An open PR read with another head is read again after one
-  // poll, so one lagging read can neither end the wait nor leave this head
-  // with no review. `pr` is a read already made.
   async function moved(pr) {
     pr ??= await api.get(`pulls/${number}`);
     if (pr.state === "open" && pr.head?.sha !== head) {
@@ -112,10 +108,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     return pr.state !== "open" || pr.head?.sha !== head ? pr : null;
   }
 
-  // moved() for a poll, skipped while the head's ref still names this head.
-  // The ref route carries only the PR number, so no branch name reaches a
-  // rate-guard log line. A failed ref read adds its own call to the poll's
-  // pull request reads, so the first failure in a job is warned once.
   let refFailed = false;
   async function movedAtPoll() {
     let failure = null;
@@ -143,8 +135,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     return movedAtPoll();
   }
 
-  // Re-reads run <id> until it completes; returns null once the next poll
-  // would pass the cap, or { moved } with the pull request once the head moves.
   async function completed(run, polls = 0) {
     while (run.status !== "completed") {
       if (now() + pollMs > deadline) return null;
@@ -164,11 +154,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   }
 
   try {
-    // The dispatcher's refine job runs only for a same-repository PR into
-    // main, so any other PR is reviewed without waiting out the window. The
-    // event's base ref and head repository answer that with no read; without
-    // both, the pull request is read, and a head it shows already moved is
-    // skipped once a second read confirms it.
     const pr = baseRef && headRepository ? null : await api.get(`pulls/${number}`);
     const [base, from] = pr ? [pr.base?.ref, pr.head?.repo?.full_name] : [baseRef, headRepository];
     if (base !== "main" || from !== repository) {
@@ -210,7 +195,6 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       if (pr) return skip(pr, `waiting for pr-refine run ${id}`);
     }
     const refine = await api.get(`actions/runs/${id}`);
-    // pr-refine.yml's run-name ends with the PR number it refines.
     if (refine.path !== REFINE || refine.event !== "workflow_dispatch" || refine.head_branch !== "main" || !String(refine.display_title ?? "").endsWith(` #${number}`)) {
       say("warning", `run ${id} named by dispatcher run ${source} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
       return await finish("not-refine");

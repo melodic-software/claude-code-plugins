@@ -32,24 +32,15 @@ const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
 
-// One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
-// `mainFiles` the files main changed since its merge base with the head.
-// `headChecks` is the head's check runs, as the job token lists them, or an
-// Error its read throws.
-// The head's pr-require-checks runs are suites 500 and 501.
 const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
-// `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-// `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
 function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
-    // `statuses` is the HEAD's REST statuses, newest first, or an Error;
-    // `keyStatuses` the KEY's, an older head a lane stopped on.
     const statusHead = new RegExp(`^/repos/${REPO}/commits/([0-9a-f]{40})/statuses\\?`).exec(path)?.[1];
     if (statusHead === HEAD || statusHead === KEY) {
       const rows = statusHead === HEAD ? statuses : keyStatuses;
@@ -312,14 +303,6 @@ test("a reason a person decides is never cleared", async () => {
   assert.deepEqual(w.writes(), []);
 });
 
-// escalation-routes.json now ends these in a failing status, not a person.
-// A fix-ci label an older lane run set comes off while the head's own CI
-// checks read failed. Any other stays on for a person, on the head the lane
-// stopped on and on a new one alike: a lane posts a pr-unblock/* status on a
-// head only when it stops there or clears its own failure, so a new head
-// carries nothing that proves the cause gone or fails it in the label's place.
-// unresolved-conflict, workflow-staged, protected-path-conflict,
-// feedback-protected-path and feedback-not-landed keep their own check.
 test("a label for a reason now routed to a failing status: fix-ci comes off on a red head, others stay after the head moves", async () => {
   for (const reason of ["ci-fix-escalated", "ci-fix-round-cap"]) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
@@ -364,7 +347,6 @@ const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ is
 const notLanded = (head = KEY) => commented(BOT, escalationBody("feedback-not-landed").replaceAll(KEY, head), "2026-10-18T10:00:05Z");
 
 test("feedback-not-landed stays on the head the lane's fix did not reach", async () => {
-  // Any feedback-not-landed key on the head keeps it, beside one that moved.
   const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), notLanded(HEAD)] });
   const { logs } = await run(w);
   assert.deepEqual(w.writes(), []);
@@ -416,7 +398,6 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
   for (const [label, headChecks, cleared] of [
     ["red", RED, true],
     ["timed out", [check("test-bash (1/4)", "timed_out")], true],
-    // ci-status reads a cancelled lane job as red, so it stays red without the label.
     ["cancelled", [check("test-node", "cancelled")], true],
     ["green", [check("test-node", "success"), check("lint", "success", { id: 2 })], false],
     ["only ci-status red", [check("ci-status", "failure"), check("test-node", "success", { id: 2 })], false],
@@ -424,9 +405,7 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     ["no checks", [], false],
     ["another app's failure", [check("test-node", "failure", { slug: "someone-else" })], false],
     ["read fails", new Error("HTTP 502"), false],
-    // An advisory lane is no pr-require-checks lane: ci-status would go green.
     ["only pr-test-platforms red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
-    // A contract-only run's later skip does not hide the real run's failure.
     ["a failed lane with a newer skipped duplicate", [check("test-node", "failure"), check("test-node", "skipped", { id: 2, suite: 501 })], true],
   ]) {
     const w = world({ timeline, headChecks });
@@ -457,8 +436,6 @@ test("report-escalation.sh's lane-stopped comment since the label is the lane's 
   assert.equal(w.writes().at(-1)?.method, "DELETE");
 });
 
-// publish-feedback.mjs posts the round record and the model-run line after
-// each address-feedback round on an escalated PR (gate-source.mjs knows both).
 test("address-feedback's round record since the label is pr-unblock's own, not another marker", async () => {
   const round = commented(BOT, "<!-- pr-unblock:address-feedback-round -->\n<!-- pr-unblock:address-feedback-model-run 5000-1 -->\nRound 1.", "2026-10-18T10:30:00Z");
   const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), round] });
@@ -489,14 +466,11 @@ test("a sweep that finds its own comment for this head retries only the removal"
   );
 });
 
-// pr-merge's own escalations, in babysit_merge.py's verify_escalation_body and
-// risk_comment_body formats: the marker line, then a line naming `at head `<sha>``.
 const OLD = "d".repeat(40);
 const verifyBody = (head) =>
   `<!-- babysit-merge-verify-escalation -->\nUnattended merge: the verifier verdict refuses \`verify:fail\` at head \`${head}\`. That refusal needs a human, who merges in person; the pr-merge lane will not merge this pull request.`;
 const riskBody = (head) =>
   `<!-- babysit-merge-risk -->\nUnattended merge: risk **HIGH** at head \`${head}\`. Only LOW merges without a human. This pull request waits for one.\n\n\`\`\`text\nHIGH workflow-change: .github/workflows/ci.yml\n\`\`\``;
-// pr-merge writes its comment, then the label.
 const mergeEscalated = (body) => [commented(BOT, body, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")];
 
 test("a pr-merge verify escalation at an old head comes off as head-moved, naming both heads", async () => {
@@ -519,9 +493,6 @@ test("a pr-merge risk comment at an old head comes off as head-moved", async () 
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
 });
 
-// Under merge.lane-prs native, enable-auto-merge judges the new head
-// once the label is off and labels it again only for a cause a person must
-// clear, so the label comes off under native as under gate.
 test("a pr-merge escalation at an old head comes off under lane-prs native and gate alike", async () => {
   for (const [lanePrs, author] of [["native", BOT], ["gate", BOT], ["native", OWNER]]) {
     const w = world({ timeline: mergeEscalated(riskBody(OLD)), author });
@@ -529,21 +500,17 @@ test("a pr-merge escalation at an old head comes off under lane-prs native and g
     assert.equal(w.writes().length, 2, lanePrs);
     assert.equal(w.writes()[1].method, "DELETE", lanePrs);
   }
-  // At the current head it stays.
   const current = world({ timeline: mergeEscalated(riskBody(HEAD)), author: BOT });
   await run(current, { LANE_PRS: "native" });
   assert.deepEqual(current.writes(), []);
 });
 
-// enable-auto-merge puts a missing label back under its standing escalation
-// comment with no new comment: that label is still pr-merge's.
 test("a label put back under pr-merge's standing escalation comment is pr-merge's", async () => {
   const escalation = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n${riskBody(OLD)}`;
   const relabeled = [commented(BOT, escalation, "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")];
   const w = world({ timeline: relabeled, author: BOT });
   await run(w, { LANE_PRS: "native" });
   assert.equal(w.writes().length, 2);
-  // Without the escalation line, an old comment pairs with no label.
   const unpaired = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")], author: BOT });
   await run(unpaired, { LANE_PRS: "native" });
   assert.deepEqual(unpaired.writes(), []);
@@ -586,9 +553,7 @@ test("a pr-merge escalation naming the current head is kept", async () => {
   for (const timeline of [
     mergeEscalated(verifyBody(HEAD)),
     mergeEscalated(riskBody(HEAD)),
-    // Rewritten in place at the new head after the label.
     [commented(BOT, verifyBody(HEAD), "2026-10-18T09:59:58Z", "2026-10-18T12:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
-    // Either marker at the current head holds it.
     [...mergeEscalated(verifyBody(OLD)), commented(BOT, riskBody(HEAD), "2026-10-18T12:00:00Z")],
   ]) {
     const w = world({ timeline });
@@ -632,7 +597,6 @@ test("a pr-merge comment rewritten just before the label pairs with it", async (
 });
 
 test("a pr-merge risk comment created long ago and rewritten to escalate just before the label pairs with it", async () => {
-  // babysit_merge.py appends its persisted-refusal line, then adds the label.
   const escalatedRisk = `${riskBody(OLD)}\n\nThis refusal has stood unchanged at this head, so a person is needed: the pr-merge lane added the human-gated label.`;
   const w = world({ timeline: [commented(BOT, escalatedRisk, "2026-10-18T08:30:00Z", "2026-10-18T09:59:59Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
   await run(w);
@@ -642,8 +606,6 @@ test("a pr-merge risk comment created long ago and rewritten to escalate just be
 });
 
 test("a pr-merge escalation posted as a new comment beside an older reasons comment pairs with the label", async () => {
-  // babysit_merge.py posts the escalation new, then adds the label; the
-  // earlier reasons comment it extends stays as it was.
   const line = "This refusal has stood unchanged at this head, so a person is needed: the pr-merge lane added the human-gated label.";
   const timeline = (head) => [
     commented(BOT, riskBody(head), "2026-10-18T08:30:00Z"),
@@ -660,16 +622,12 @@ test("a pr-merge escalation posted as a new comment beside an older reasons comm
 });
 
 test("an old pr-merge comment with nothing written beside a later label is kept", async () => {
-  // The label came on for another reason whose comment write failed.
   const w = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-17T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
   await run(w);
   assert.deepEqual(w.writes(), []);
 });
 
 test("a Dependabot-major escalation at an old head beside an older pr-merge comment comes off as head-moved", async () => {
-  // babysit_merge.py's major_escalation_body, posted before the label it adds.
-  // Under `merge.dependabot.majors: review` pr-merge judges the new head
-  // afresh, so a moved head clears it like its other escalations.
   const major = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->\nUnattended merge: \`actions/checkout 5.0.0\` is a major version update at head \`${OLD}\`.`;
   for (const prior of [riskBody(OLD), verifyBody(OLD)]) {
     const w = world({
@@ -706,10 +664,6 @@ test("a feedback-protected-path label comes off once the PR changes nothing unde
   }
 });
 
-// A review lane's hold: its marker comment, by claude[bot], or by
-// github-actions[bot] when the comment ends in the lane's footer (the
-// pr-review-cli shape). Adding a label the PR already carries writes no
-// `labeled` event, so the hold may sit under the App's own label.
 const HOLD = "<!-- claude-lane-hold lane=claude-security-review sha=" + HEAD + " criteria=trust-gate -->";
 const laneHold = (user, at, { footer = true, updatedAt = at } = {}) =>
   commented(user, `${HOLD}\nChanges a trust gate.${footer ? "\n\n`claude-lane: claude-security-review`\n" : ""}`, at, updatedAt);
@@ -749,9 +703,6 @@ test("a review-lane hold a person approved by unlabeling no longer keeps a later
   assert.equal(w.writes().at(-1)?.method, "DELETE");
 });
 
-// ci-status (pr-require-checks.yml, "Fail a review-lane hold an untrusted
-// account lifted") accepts a lift only from a `human` of trusted-actors.json,
-// and counts a review lane's own `labeled` event as a hold.
 test("a review-lane hold an account off the trusted list unlabeled, or that the list does not read, keeps a later escalation", async () => {
   const timeline = [laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(STRANGER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
   const w = world({ timeline });
@@ -774,9 +725,6 @@ test("a review lane's labeled event is a hold until a trusted person unlabels it
 });
 
 test("a review-lane hold with no binding counts only unedited: an edit after posting makes it no lane's", async () => {
-  // The lanes never edit a hold comment, and any workflow's token can, so an
-  // edited hold with no binding is no review lane's (lane-binding.mjs
-  // legacyCounts). An unedited one still holds.
   const timeline = (updatedAt) => [
     laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", { updatedAt }),
     unlabeled(OWNER, "2026-10-18T09:00:00Z"),
@@ -877,7 +825,6 @@ const clean = (pull) => ({ head: pull.headRefOid, refusal: null, ineligible: nul
 const refusing = (refusal) => (pull) => ({ head: pull.headRefOid, refusal, ineligible: null });
 const risk = (codes) => `pr-merge's gate holds it on its risk score (${codes})`;
 const reviewsNow = (reviews) => (pull) => ({ ...clean(pull), reviews });
-// The reader's early answer for a link it does not take: no verdict, no risk score.
 const ineligible = (why) => (pull) => ({ head: pull.headRefOid, refusal: "verify:ineligible", ineligible: why });
 const DELETE = { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined };
 
@@ -893,11 +840,6 @@ test("enable-auto-merge's label at the current head comes off once the gate's re
   assert.deepEqual(removal, DELETE);
 });
 
-// The person refusal written out by hand, its reason lines as given: one line
-// per reason before reasons wrapped, or a reason wrapped at 100 columns with
-// two-space continuations. LONG_UNBOUND's ";" is its 99th column (the risk
-// prefix is 44, then 17 + 37 + 1), so the wrap cuts right after "; " and the
-// lane code after it is on the next line.
 const handRefusal = (reasonLines, head = HEAD) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
@@ -918,7 +860,6 @@ test("enable-auto-merge's long refusal comes off in the old one-line format and 
     const { logs } = await run(w, NATIVE);
     assert.deepEqual(w.writes().at(-1), DELETE, `${body}\n${logs.join("\n")}`);
   }
-  // A person's code on the wrapped line still keeps the label.
   for (const body of [handRefusal([LONG_SECURITY]), handRefusal(wrapAfterSemicolon(LONG_SECURITY))]) {
     const w = world({ timeline: mergeEscalated(body), author: BOT, evidence: clean });
     await run(w, NATIVE);
@@ -928,12 +869,9 @@ test("enable-auto-merge's long refusal comes off in the old one-line format and 
 
 test("enable-auto-merge's label comes off when the reader now reads a refusal the lanes clear for the same cause", async () => {
   for (const [reason, evidence] of [
-    // A lane-class verifier label: any verdict the lanes clear, read whole.
     [SPEC_CHANGED, refusing("verify:fail")],
     [SPEC_CHANGED, refusing("verify:earlier-fail")],
-    // A risk label: a risk score read whole, now naming only lane causes.
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
-    // A lane verdict now passes, and the risk score it hid names only lane causes.
     [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
     // Owner rule 2026-10-27: the repeated-FAIL cap and an old pull request
     // hold for the lanes, so their labels come off at the head where the
@@ -947,9 +885,6 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
   }
 });
 
-// Owner decision Q-CLEAR B: a label whose recorded cause is a person's is
-// never lifted at the head it was raised at, whatever the reader answers; a
-// person removes it, or a push clears it as head-moved. It is not read.
 const PERSON_CLASS = [
   SECURITY,
   risk("trust-gate:trusted-actors: widens the trusted actors"),
@@ -958,11 +893,8 @@ const PERSON_CLASS = [
   risk("high-path:.github/workflows/**: .github/workflows/ci.yml"),
   UNTRUSTED_SPEC,
   UNTRUSTED,
-  // A link reason, the reader's own unread link included.
   "pr-merge's lane does not take its issue link (unreadable: timed out)",
-  // Off the lane list: one the reader always pairs with a link answer.
   "pr-merge's gate refuses its verifier verdict (verify:ineligible)",
-  // A code not known to be a lane's, matched whole, or a person's beside a lane's.
   risk("a-new-code: x"),
   risk("files-incomplete-x: d"),
   "pr-merge's gate refuses its verifier verdict (verify:fail-x)",
@@ -1000,9 +932,6 @@ test("a lane-class label comes off at its head once nothing refuses", async () =
   }
 });
 
-// A risk score is read only when the verdict passes (babysit_verify_evidence.py
-// `evidence`), so a refusal or an unread answer hides a lane's recorded cause:
-// the label stays.
 test("a lane-class label stays when the reader's answer no longer shows its cause", async () => {
   for (const [reason, evidence] of [
     [SPEC_CHANGED, refusing("verify:unreadable")],
@@ -1011,7 +940,6 @@ test("a lane-class label stays when the reader's answer no longer shows its caus
     [SPEC_CHANGED, reviewsNow("unreadable: no agent identity")],
     [UNBOUND, refusing("verify:fail")],
     [SPEC_CHANGED, ineligible("not-agent-ready")],
-    // A lane cause recorded never lifts a person's now.
     [risk("files-incomplete: the listing did not read whole"), reviewsNow("high-path:infra/**: infra/main.tf")],
     [UNBOUND, reviewsNow("security-finding: 1 open CRITICAL finding")],
     [SPEC_CHANGED, refusing("verify:untrusted-spec")],
@@ -1025,13 +953,10 @@ test("a lane-class label stays when the reader's answer no longer shows its caus
 
 test("enable-auto-merge's label stays while its cause, or another a person must clear, holds at the head", async () => {
   for (const evidence of [
-    // A security finding or a trusted-actor widening stays a person's.
     (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }),
     (pull) => ({ ...clean(pull), reviews: "trust-gate:trusted-actors: widens the trusted actors" }),
-    // A verifier refusal a person must clear, an issue link the trust hold refuses.
     refusing("verify:untrusted-spec"),
     ineligible("untrusted-provenance"),
-    // Unread, read at another head, or a read that fails.
     () => null,
     () => ({ ...clean({ headRefOid: OLD }) }),
     () => {
@@ -1040,7 +965,6 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
   ]) {
     const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence });
     const { code, logs } = await run(w, NATIVE);
-    // Kept as a verdict, never a per-PR error: a null answer included.
     assert.equal(code, 0, `${evidence}\n${logs.join("\n")}`);
     assert.deepEqual(w.writes(), [], String(evidence));
   }
@@ -1126,8 +1050,6 @@ test("enable-auto-merge's comment is not read under merge.lane-prs gate", async 
   }
 });
 
-// enable-auto-merge puts the label back under its standing comment after
-// this script took it off; the put-back is judged again like the first.
 test("a label enable-auto-merge put back after this script cleared it is judged again", async () => {
   const timeline = [
     ...nativeEscalated(UNBOUND),
@@ -1154,8 +1076,6 @@ test("at most NATIVE_READS_PER_RUN reader runs a run", async () => {
   assert.equal(logs.filter((line) => /reader runs this run/.test(line)).length, 2);
 });
 
-// More labels held for a person than reads a run: the start moves with the
-// run number, so each one is read within as many runs as there are labels.
 test("labels past the read cap are read on a later run", async () => {
   const numbers = Array.from({ length: NATIVE_READS_PER_RUN + 1 }, (_, i) => 7 + i);
   const read = new Set();
@@ -1170,12 +1090,6 @@ test("labels past the read cap are read on a later run", async () => {
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
 });
 
-// A trusted move: the head left every resume key through pushes the base
-// trusted-actors.json lists as a `human` (never the lanes App's own entry),
-// read with the job token (`reader`). Expected values come from the owner rule
-// of 2026-10-26: a person is needed only for intent, design or a HIGH/CRITICAL
-// security finding, so a mechanical stop comes off once trusted evidence shows
-// its cause gone.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1202,8 +1116,6 @@ writeFileSync(
 );
 const TRUST_ENV = { TRUSTED_ACTORS_PATH: TRUSTED, BABYSIT_VERIFY_GH_TOKEN: "job-token" };
 
-// The branch's activity, newest first: created before the label, then `pushes`
-// ({ actor, after, at }) after it.
 const activityOf = (pushes) => [
   ...pushes.map(({ actor, after, at }) => ({ activity_type: "push", actor, after, before: KEY, timestamp: at })).reverse(),
   { activity_type: "branch_creation", actor: PERSON, after: KEY, before: "0".repeat(40), timestamp: "2026-10-17T09:00:00Z" },
@@ -1214,8 +1126,6 @@ const GREEN = [run_("ci-status", "failure", 1), run_("test-node", "success", 2),
 
 const ACTIVITY = `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc&per_page=100`;
 
-// The job-token reads: branch activity, main's tip when the lane escalated,
-// whether the head contains it, and the head's check runs.
 function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = GREEN, calls = [] } = {}) {
   return async (method, path) => {
     calls.push(path);
@@ -1262,22 +1172,13 @@ test("a lanes App push is not a trusted move: the App never lifts its own stop w
   }
 });
 
-// feedback-not-landed after a push no trusted person made: the review lanes'
-// runs, status jobs and completion records at the head, read with the job
-// token (`scopes` names each lane's record scope; a lane left out has no run;
-// `jobs` names each lane's status job), and the security lane's reviewed-head
-// marker carrying its summary.
 const REVIEW_FILES = { "claude-review": "pr-review-hosted.yml", "claude-security-review": "pr-review-security-hosted.yml" };
 const STATUS_JOBS = { "claude-review": "PR Review / review-status", "claude-security-review": "PR Review Security / review-status" };
-// The status job names on a head tested before the caller jobs' rename.
 const PRE_RENAME_STATUS_JOBS = { "claude-review": "pr-review / review-status", "claude-security-review": "pr-review-security / review-status" };
-// pr-review-cli.yml's Title Case status job, under the callers' display names and ids.
 const TITLE_STATUS_JOBS = { "claude-review": "PR Review / Status", "claude-security-review": "PR Review Security / Status" };
 const TITLE_ID_STATUS_JOBS = { "claude-review": "pr-review / Status", "claude-security-review": "pr-review-security / Status" };
-// Its planned name `Publish Review`, under the same two.
 const PLANNED_STATUS_JOBS = { "claude-review": "PR Review / Publish Review", "claude-security-review": "PR Review Security / Publish Review" };
 const PLANNED_ID_STATUS_JOBS = { "claude-review": "pr-review / Publish Review", "claude-security-review": "pr-review-security / Publish Review" };
-// The status job names pr-review-cli.yml gave before it named both review-status.
 const RETIRED_STATUS_JOBS = { "claude-review": "pr-review / claude-review-status", "claude-security-review": "pr-review-security / security-review" };
 function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed", jobs = STATUS_JOBS } = {}) {
   const fallback = readerFor({ pushes });
@@ -1391,9 +1292,6 @@ test("feedback-not-landed comes off after a trusted person's push, as before, wi
   assert.ok(!calls.some((path) => path.includes("/actions/")), calls.join("\n"));
 });
 
-// Per the owner's direction on the security finding: clean review lanes stand
-// in for a person only when every escalation recorded against the label since
-// it was last removed is a lane-only one.
 test("feedback-not-landed stays after a lanes App push when another escalation is recorded against the label", async () => {
   for (const [label, earlier, named] of [
     ["a pr-merge risk hold", commented(BOT, riskBody(OLD), "2026-10-18T09:00:00Z"), "<!-- babysit-merge-risk -->"],
@@ -1464,7 +1362,6 @@ const pagedReader = (rows, link = (n, pages) => n + 1 < pages.length) => {
     return Object.defineProperty(page, Symbol.for("github.link"), { value: link(n, pages) ? `<https://api.github.com/repositories/1/activity?after=c${n + 1}>; rel="next"` : null });
   };
 };
-// `count` trusted pushes since the label, the newest landing the head, then the branch's creation.
 const longHistory = (count) => activityOf(Array.from({ length: count }, (_, i) => pushedBy(PERSON, i === count - 1 ? HEAD : "e".repeat(40), new Date(Date.parse("2026-10-18T11:00:00Z") + i * 1000).toISOString())));
 
 test("workflow-staged comes off when the trusted move reads past the first activity page, or ends on an empty one", async () => {
@@ -1489,8 +1386,6 @@ test("workflow-staged stays at the activity cursor's end: a full page with no ne
   }
 });
 
-// Page 1 alone would clear the hold (the empty-page case above), so only a
-// read that stops at the failed page 2 keeps it.
 test("workflow-staged stays when a later activity page fails to read or is not a list", async () => {
   const pages = pagedReader(longHistory(99), (n) => n === 0);
   for (const [label, page2] of [
@@ -1733,8 +1628,6 @@ test("a thread opened, or a person's reply, while the gate's reader runs keeps e
 });
 
 test("a person's reply inside an existing thread after feedback-not-landed's own thread read keeps the label", async () => {
-  // The reply lands while the check reads the trusted move with the job
-  // token, after its thread read saw none.
   const reviewComments = [BOT_THREAD];
   const trusted = readerFor();
   const reader = async (method, path) => {
@@ -1891,12 +1784,6 @@ test("a needs-session stop whose head statuses do not read keeps the label witho
   assert.ok(logs.some((line) => /::warning title=clear-escalations::#8: HTTP 403/.test(line)), logs.join("\n"));
 });
 
-// Defect D1, PR 16950: pr-verify FAILed the head and opened fail-note
-// threads; kyle-sexton fixed the body and replied in the note thread; pr-verify
-// passed the head (pass-notes, superseding the FAIL); address-feedback could
-// not see the long Summary, answered UNCERTAIN, and stopped feedback-disputed
-// (needs-session). Once the note threads are resolved, the stop is settled at
-// the same head with no lane success status.
 const NOTE_ROOT = { databaseId: 41898282 };
 const gqlComment = (createdAt, __typename, login) => ({ createdAt, author: { __typename, login } });
 const noteThread = ({ resolved = true, commit = HEAD } = {}) => ({

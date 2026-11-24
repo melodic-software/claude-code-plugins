@@ -178,8 +178,6 @@ ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLO
 check "push dispatcher: a target record is not read, and its head is compared" \
   "repos/o/r/actions/runs/41217038328 repos/o/r/contents/$UNBLOCK?ref=$HEAD" "$(tr '\n' ' ' <"$STUB/calls" | sed 's/ $//')"
 
-# In a job the script wraps its gh calls: each response's header block becomes
-# a reading in the job's api-budget state, and the verdict is unchanged.
 CASE_RUNNER_TEMP="$TMP/runner" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
 check "in a job: exit 0" 0 "$RC"
 check "in a job: stale" 'stale=true' "$(cat "$STUB/output")"

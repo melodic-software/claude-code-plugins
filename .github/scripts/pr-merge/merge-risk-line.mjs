@@ -22,7 +22,6 @@
 // The rating artifact is untrusted on read: its shape is checked again, and
 // max and demote are recomputed from its rows, never taken from it.
 // write-rating.mjs runs the same checks on the skill's result before upload.
-
 import { parseLaneBranch } from "../lib/lane-branch.mjs";
 import { isMergeRiskTitle, mergeRiskTitle } from "../lib/run-title.mjs";
 import { ofOrigin } from "../pr-verify/resolve-pr.mjs";
@@ -33,14 +32,11 @@ export const RATING_FILE = "rating.json";
 export const LEVELS = Object.freeze(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 export const CHECKS = Object.freeze(["agreed", "disputed", "added", "unchecked"]);
 export const REASONS = Object.freeze(["pending", "no-run", "no-rating", "invalid", "unreadable", "over-budget"]);
-// The run-name pr-rate-merge-risk.yml gives each run, so a run still going
-// can be told apart for its pull request and head.
 export const runTitle = mergeRiskTitle;
 export const artifactName = (pr, head) => `${ARTIFACT_PREFIX}-${pr}-${head}`;
 
 const SHA = /^[0-9a-f]{40}$/;
 const VERSION = /^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$/;
-// A model id as the CLI reports it, or one of the closed stand-ins.
 const MODEL = /^(claude-[a-z0-9]+(?:-[a-z0-9]+){0,6}(?:\[1m\])?|unknown|none)$/;
 const MAX_ROWS = 20;
 const AREA_MAX = 200;
@@ -54,7 +50,6 @@ const refuse = (why) => {
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const rank = (level) => LEVELS.indexOf(level);
 
-// One row of the skill's result, or a refusal.
 function checkRow(row, index) {
   if (!isObject(row)) refuse(`row ${index} is not an object`);
   const { area, level, why, check, checker_level: checkerLevel = "", checker = "" } = row;
@@ -67,9 +62,6 @@ function checkRow(row, index) {
   return { area, level, why, check, checker_level: checkerLevel, checker };
 }
 
-// The skill's result block (merge-risk SKILL.md step 5) for `pr` at `head`,
-// with max and demote recomputed from the rows: the highest of every row's
-// level and checker_level, and demote when that is HIGH or CRITICAL.
 export function checkResult(value, { pr, head }) {
   if (!isObject(value)) refuse("the result is not an object");
   if (!SHA.test(String(head)) || value.head !== head) refuse("the result names another head");
@@ -81,8 +73,6 @@ export function checkResult(value, { pr, head }) {
   return { pr, head, risks, max, demote: rank(max) >= rank("HIGH") };
 }
 
-// rating.json as write-rating.mjs wrote it, checked as checkResult checks the
-// result, plus the fields the line takes.
 export function checkRating(value, { pr, head }) {
   const checked = checkResult(value, { pr, head });
   if (!VERSION.test(String(value.rubric ?? ""))) refuse("the rating has no rubric version");
@@ -123,26 +113,16 @@ const LANE = "[a-z][a-z0-9-]{0,63}";
 const RUN = "[1-9][0-9]{0,19}";
 const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40})(?: lane=${LANE} run=${RUN})? -->$`);
 
-// The lane and run id a lane branch names, or null for any other branch.
 export function producerOf(branch) {
   const match = parseLaneBranch(branch, { lanePattern: LANE, runPattern: RUN });
   return match ? { lane: match.lane, run: match.run } : null;
 }
 
-// The record's comment body for `head`: the marker line, naming `producer`
-// when there is one, then `line`.
 export const markerBody = (head, line, producer = null) =>
   `<!-- ${MERGE_RISK_MARKER} head=${head}${producer ? ` lane=${producer.lane} run=${producer.run}` : ""} -->\n${line}`;
 
 const isRated = (line) => String(line ?? "").startsWith("Merge-Risk: max=");
 
-// What the arm does with its record, from `comments` it already read
-// (author, editor, body, createdAt, lastEditedAt, databaseId): the lanes
-// App's (`bot`, its login without `[bot]`) newest marker comment for `head`
-// holding `line` under the marker for `producer`, or a rated line when `line`
-// is unrated, needs nothing; one holding another line or marker is patched. A record last edited by anyone but the App,
-// or by an editor that does not read, is no longer the App's text, so it, like
-// no record or one for another head, gets a new comment.
 export function markerAction(comments, { bot, head, line, producer = null }) {
   const isApp = (actor) => actor?.__typename === "Bot" && actor.login === bot;
   const newest = (Array.isArray(comments) ? comments : [])
@@ -155,12 +135,6 @@ export function markerAction(comments, { bot, head, line, producer = null }) {
   return Number.isSafeInteger(newest.databaseId) ? { action: "patch", id: newest.databaseId } : { action: "post" };
 }
 
-// The line for `pr` at `head`, and its outcome token (`rated` or
-// `unrated:<reason>`). Reads on `actions` (the job token, actions: read):
-// the artifacts of that exact name, each counted only from a run of the
-// rating workflow's origin; with none, the workflow's recent runs say whether
-// one for this head is still going. `download(artifactId)` returns the text of
-// rating.json. A throwing read is `unreadable`; a bad rating `invalid`.
 export async function readRating({ actions, download, repository, pr, head, base = "main" }) {
   const name = artifactName(pr, head);
   let text;
@@ -191,18 +165,11 @@ export async function readRating({ actions, download, repository, pr, head, base
   }
 }
 
-// Resolves to `fallback` once `ms` pass, whatever `promise` does.
 const within = (promise, ms, fallback) => {
   let timer;
   return Promise.race([Promise.resolve(promise).catch(() => fallback), new Promise((resolve) => (timer = setTimeout(resolve, ms, fallback)))]).finally(() => clearTimeout(timer));
 };
 
-// The arm-side step: read the rating within `readMs` (a synchronous
-// `download` runs to its own timeout first), then write the record within
-// `writeMs` as markerAction says, on `github`, the lanes App client. The
-// marker names the producer `pull.headRefName` gives (producerOf).
-// `comments` are the pull request's comments the arm already read; no list
-// is read again. Never throws.
 export async function recordMergeRisk({ pull, comments, repository, actions, github, download, bot, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
   const started = now();
   const result = { token: "unrated:unreadable", wrote: false, skipped: undefined, readMs: 0 };

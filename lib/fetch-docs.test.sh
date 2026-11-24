@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/fetch-docs.sh (no external test lib; the copies ship with the plugins).
-#
-# No case touches the network: the fixture cases set the docs fixture seam, and
-# the fetch cases put a curl stand-in first on PATH that serves local files and
-# logs every request.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-docs.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# A caller's cache settings must never receive this suite's fixture bytes, and no
-# DOCS_CACHE_* setting or machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export HOME="$TEST_TMPDIR/suite-home" XDG_CONFIG_HOME="$TEST_TMPDIR/suite-config"
 
@@ -135,7 +128,6 @@ mk_index() {
     '- [Vars](https://other.test/docs/en/env-vars.md): vars' >"$1/llms.txt"
 }
 
-# fixture_run <fixture dir> <out dir> <args...>: no network by construction.
 fixture_run() {
   local fx="$1" out="$2"
   shift 2
@@ -143,7 +135,6 @@ fixture_run() {
     bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
 }
 
-# shim_run <served dir> <out dir> <args...>: the curl stand-in on PATH, seam unset.
 shim_run() {
   local src="$1" out="$2"
   shift 2
@@ -151,12 +142,10 @@ shim_run() {
     FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
 }
 
-# page <manifest> <slug> <jq path>: one field of one page record.
 page() {
   jq -r --arg s "$2" ".pages[] | select(.slug == \$s) | $3" "$1"
 }
 
-# New served dir holding the index and a couple of pages.
 new_served() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d"
@@ -166,7 +155,6 @@ new_served() {
   printf '%s' "$d"
 }
 
-# --- Case 1: a fixture page is read, with the hash, size and lines of its bytes
 fx="$TEST_TMPDIR/fx1"
 mkdir -p "$fx"
 mk_index "$fx"
@@ -187,7 +175,6 @@ assert_eq "case 1: a fixture read has no HTTP status" null "$(page "$m" skills .
 assert_eq "case 1: claude_version is the run's" 9.8.7 "$(jq -r .claude_version "$m")"
 assert_eq "case 1: the index is a read record" "read fixture" "$(jq -r '.index | "\(.state) \(.source)"' "$m")"
 
-# --- Case 2: a fixture directory that is set but empty means no network --------
 fx="$TEST_TMPDIR/fx2"
 mkdir -p "$fx"
 rc=0
@@ -203,14 +190,12 @@ FETCH_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" FETCH_DOCS_CLAUDE_BIN="" \
 assert_eq "case 2: a missing fixture directory reads the same" "unread fixture-missing" "$(jq -r '.index | "\(.state) \(.reason)"' "$TEST_TMPDIR/out2b/manifest.json")"
 assert_eq "case 2: an unreadable claude is an empty claude_version" "" "$(jq -r .claude_version "$TEST_TMPDIR/out2b/manifest.json")"
 
-# --- Case 3: a page the index lists but the fixture lacks is fixture-missing ---
 fx="$TEST_TMPDIR/fx3"
 mkdir -p "$fx"
 mk_index "$fx"
 fixture_run "$fx" "$TEST_TMPDIR/out3" skills
 assert_eq "case 3: fixture-missing" "unread fixture-missing" "$(page "$TEST_TMPDIR/out3/manifest.json" skills '"\(.state) \(.reason)"')"
 
-# --- Case 4: a slug the index does not list is not requested -------------------
 src="$(new_served served4)"
 cp "$src/skills.md" "$src/slash-commands.md"
 rc=0
@@ -228,7 +213,6 @@ assert_eq "case 4: a URL the index lacks is not-in-index too" "unread not-in-ind
   page "$TEST_TMPDIR/out4b/manifest.json" slash-commands '"\(.state) \(.reason)"'
 )"
 
-# --- Case 5: a 404 records its status and is unread ----------------------------
 src="$(new_served served5)"
 printf '%s\n' 'not found' >"$src/skills.md"
 printf '%s' 404 >"$src/skills.md.status"
@@ -238,7 +222,6 @@ assert_eq "case 5: 404 is unread" "unread http-404" "$(page "$m" skills '"\(.sta
 assert_eq "case 5: the status is recorded" 404 "$(page "$m" skills .status)"
 assert_no_file "case 5: no page file" "$TEST_TMPDIR/out5/skills.md"
 
-# --- Case 6: a text/html body is unread ----------------------------------------
 src="$(new_served served6)"
 printf '%s' 'text/html; charset=utf-8' >"$src/skills.md.ctype"
 shim_run "$src" "$TEST_TMPDIR/out6" skills
@@ -247,7 +230,6 @@ assert_eq "case 6: html is unread" "unread unexpected-content-type" "$(page "$m"
 assert_eq "case 6: the content type is recorded" "text/html; charset=utf-8" "$(page "$m" skills .content_type)"
 assert_no_file "case 6: no page file" "$TEST_TMPDIR/out6/skills.md"
 
-# --- Case 7: an empty body leaves no file, even over an earlier run's file -----
 src="$(new_served served7)"
 : >"$src/skills.md"
 mkdir -p "$TEST_TMPDIR/out7"
@@ -257,7 +239,6 @@ assert_eq "case 7: empty body is unread" "unread empty-body" "$(page "$TEST_TMPD
 assert_no_file "case 7: no file, stale or partial" "$TEST_TMPDIR/out7/skills.md"
 assert_no_file "case 7: no partial file left" "$TEST_TMPDIR/out7/skills.md.part"
 
-# --- Case 8: a body cut off mid-download is unread -----------------------------
 src="$(new_served served8)"
 printf 'half of a pa' >"$src/skills.md.partial"
 shim_run "$src" "$TEST_TMPDIR/out8" skills
@@ -265,21 +246,18 @@ assert_eq "case 8: truncated body is unread" "unread fetch-failed" "$(page "$TES
 assert_no_file "case 8: no file, no partial" "$TEST_TMPDIR/out8/skills.md"
 assert_no_file "case 8: no .part left" "$TEST_TMPDIR/out8/skills.md.part"
 
-# --- Case 9: a redirect that lands off-origin is unread ------------------------
 src="$(new_served served9)"
 printf '%s' 'https://elsewhere.example/docs/en/skills.md' >"$src/skills.md.effective"
 shim_run "$src" "$TEST_TMPDIR/out9" skills
 assert_eq "case 9: off-origin landing is unread" "unread redirected-off-origin" "$(page "$TEST_TMPDIR/out9/manifest.json" skills '"\(.state) \(.reason)"')"
 assert_no_file "case 9: no page file" "$TEST_TMPDIR/out9/skills.md"
 
-# --- Case 10: an index link off the docs origin is not fetched -----------------
 src="$(new_served served10)"
 printf '%s\n' '# Vars' >"$src/env-vars.md"
 shim_run "$src" "$TEST_TMPDIR/out10" env-vars
 assert_eq "case 10: off-origin link is unread" "unread off-origin" "$(page "$TEST_TMPDIR/out10/manifest.json" env-vars '"\(.state) \(.reason)"')"
 assert_eq "case 10: no page request" 0 "$(grep -c 'env-vars' "$src.log")"
 
-# --- Case 11: every request is HTTPS only, capped and timed --------------------
 src="$(new_served served11)"
 shim_run "$src" "$TEST_TMPDIR/out11" skills settings-reference
 total="$(wc -l <"$src.log" | tr -d ' ')"
@@ -290,7 +268,6 @@ assert_eq "case 11: every request opens with -q, so no curlrc is read" "$total" 
 assert_eq "case 11: without --public-only no request is pinned" 0 "$(grep -c -- '--connect-to' "$src.log")"
 assert_eq "case 11: a fetched page records its status and content type" "200 text/markdown; charset=utf-8" "$(page "$TEST_TMPDIR/out11/manifest.json" skills '"\(.status) \(.content_type)"')"
 
-# --- Case 12: the hash is over raw bytes, control characters included ----------
 src="$(new_served served12)"
 printf 'a\001b\r\nc\033[0md\177\n' >"$src/skills.md"
 shim_run "$src" "$TEST_TMPDIR/out12" skills
@@ -299,7 +276,6 @@ assert_eq "case 12: sha256 is of the raw bytes" "$(sha256sum <"$src/skills.md" |
 assert_eq "case 12: bytes are the raw count" "$(wc -c <"$src/skills.md" | tr -d ' ')" "$(page "$m" skills .bytes)"
 assert_eq "case 12: the file on disk is byte-identical" "" "$(cmp "$src/skills.md" "$TEST_TMPDIR/out12/skills.md" 2>&1)"
 
-# --- Case 13: --follow is accepted and changes nothing -------------------------
 src="$(new_served served13)"
 rc=0
 shim_run "$src" "$TEST_TMPDIR/out13a" skills || rc=$?
@@ -312,7 +288,6 @@ rc=0
 shim_run "$src" "$TEST_TMPDIR/out13c" --follow deep skills 2>/dev/null || rc=$?
 assert_eq "case 13: a non-numeric depth is fatal" 2 "$rc"
 
-# --- Case 14: --mode is recorded per page as declared --------------------------
 fx="$TEST_TMPDIR/fx14"
 mkdir -p "$fx"
 mk_index "$fx"
@@ -322,14 +297,12 @@ fixture_run "$fx" "$TEST_TMPDIR/out14" skills --mode search settings-reference
 m="$TEST_TMPDIR/out14/manifest.json"
 assert_eq "case 14: modes per page" "full search" "$(page "$m" skills .mode) $(page "$m" settings-reference .mode)"
 
-# --- Case 15: --discover requests every docs-origin page the index links -------
 src="$(new_served served15)"
 shim_run "$src" "$TEST_TMPDIR/out15" --discover
 m="$TEST_TMPDIR/out15/manifest.json"
 assert_eq "case 15: the two origin pages, not the off-origin link" "settings-reference skills" "$(jq -r '[.pages[].slug] | sort | join(" ")' "$m")"
 assert_eq "case 15: both read" "read read" "$(jq -r '[.pages[].state] | join(" ")' "$m")"
 
-# --- Case 16: an index that fails to fetch leaves every page unread ------------
 src="$(new_served served16)"
 rm -f "$src/llms.txt"
 shim_run "$src" "$TEST_TMPDIR/out16" skills
@@ -338,14 +311,12 @@ assert_eq "case 16: index unread" "unread fetch-failed" "$(jq -r '.index | "\(.s
 assert_eq "case 16: page unread index-unread" "unread index-unread" "$(page "$m" skills '"\(.state) \(.reason)"')"
 assert_eq "case 16: only the index was requested" 1 "$(wc -l <"$src.log" | tr -d ' ')"
 
-# --- Case 17: a slug that is not a path segment run is refused ------------------
 fx="$TEST_TMPDIR/fx17"
 mkdir -p "$fx"
 mk_index "$fx"
 fixture_run "$fx" "$TEST_TMPDIR/out17" '../escape'
 assert_eq "case 17: invalid slug" "unread invalid-slug" "$(jq -r '.pages[0] | "\(.state) \(.reason)"' "$TEST_TMPDIR/out17/manifest.json")"
 
-# --- Case 18: bad arguments are fatal -------------------------------------------
 rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out18" >/dev/null 2>&1 || rc=$?
 assert_eq "case 18: no page and no --discover" 2 "$rc"
@@ -356,7 +327,6 @@ rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out18" --index-url http://docs.test/docs/llms.txt skills >/dev/null 2>&1 || rc=$?
 assert_eq "case 18: a non-https index URL" 2 "$rc"
 
-# --- Case 19: a nested page never shadows the top-level page of the same name --
 src="$TEST_TMPDIR/served19"
 mkdir -p "$src"
 printf '%s\n' '# Docs' \
@@ -373,7 +343,6 @@ assert_eq "case 19: discover lists the top-level page with its url" "https://doc
 assert_eq "case 19: discover does not call the top-level page not-in-index" read "$(page "$m" x .state)"
 assert_eq "case 19: discover still resolves the nested page" "https://docs.test/docs/en/plugins/x.md" "$(page "$m" plugins/x .url)"
 
-# --- Case 20: a non-https index link to the slug is off-origin, not absent ------
 src="$TEST_TMPDIR/served20"
 mkdir -p "$src"
 printf '%s\n' '# Docs' '- [X](http://other.test/docs/en/x.md): x' >"$src/llms.txt"
@@ -383,7 +352,6 @@ printf '%s\n' '# Docs' '- [X](//other.test/docs/en/x.md): x' >"$src/llms.txt"
 shim_run "$src" "$TEST_TMPDIR/out20r" x
 assert_eq "case 20: protocol-relative link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20r/manifest.json" x '"\(.state) \(.reason)"')"
 
-# --- Case 21: --cache serves a fresh entry and says so -------------------------
 T1=1000000000
 T1_ISO='2001-09-09T01:46:40Z'
 T2=1000000100
@@ -428,7 +396,6 @@ assert_eq "edge: offline: the stale page file is the cached bytes" "" \
   "$(printf '%s\n' '# Skills' 'body of skills' | cmp - "$TEST_TMPDIR/out21e/skills.md" 2>&1)"
 assert_eq "edge: offline: a fresh read is not stale" false "$(page "$TEST_TMPDIR/out21b/manifest.json" skills .stale)"
 
-# --- Case 22: the cache flags and their guards ----------------------------------
 src="$(new_served served22)"
 shim_run "$src" "$TEST_TMPDIR/out22" skills
 m="$TEST_TMPDIR/out22/manifest.json"
@@ -462,10 +429,8 @@ assert_eq "case 22: a refused cache write names its reason in the manifest and t
   "$(page "$TEST_TMPDIR/out22k/manifest.json" skills '"\(.state) \(.cache_key)"') $(page "$TEST_TMPDIR/out22k/manifest.json" skills .cache_error | grep -c 'path too long') $(grep -c 'skills.md was read but not cached in .*: path too long' "$TEST_TMPDIR/err22k")"
 assert_eq "case 22: a stored page has no cache_error" null "$(page "$TEST_TMPDIR/out22h/manifest.json" skills .cache_error)"
 
-# --- Case 22c: the docs-cache configuration layers ------------------------------
 CFGX="$TEST_TMPDIR/cfg22/claude-docs-cache"
 mkdir -p "$CFGX"
-# cfg_run <out> <VAR=value>... -- <args...>: a fixture run with case 22c's config home.
 cfg_run() {
   local out="$TEST_TMPDIR/$1"
   shift
@@ -520,7 +485,6 @@ assert_eq "case 22c: a malformed machine file warns and the run goes on" "0 read
   "$rc $(page "$TEST_TMPDIR/out22e3/manifest.json" skills .state) $(grep -c '^WARNING: docs-cache config: .*config.json is not one JSON object' <<<"$err")"
 rm -f "$CFGX/config.json"
 
-# --- Case 23: clock skew, a server error, removal and notes ---------------------
 src="$(new_served served23)"
 C="$TEST_TMPDIR/cache23"
 SKEW_DATE='Tue, 11 Sep 2001 01:46:40 GMT'
@@ -566,7 +530,6 @@ cache_run $T3 out23i --max-age 0 settings-reference
 assert_eq "edge: page removed from the index: not-in-index quarantines the key" "unread not-in-index not-in-index" \
   "$(page "$TEST_TMPDIR/out23i/manifest.json" settings-reference '"\(.state) \(.reason)"') $(DC info "$settings_key" | jq -r .quarantine.reason)"
 
-# A generic page redirected off its path quarantines both of its format keys' entries.
 src="$TEST_TMPDIR/gs23"
 mkdir -p "$src"
 printf '%s\n' '# Page' 'body' >"$src/page"
@@ -579,10 +542,6 @@ env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_S
 assert_eq "edge: page redirected: a generic page landing off its path is unread and quarantined" "redirected-off-path redirected-off-path" \
   "$(jq -r '.pages[0].reason' "$TEST_TMPDIR/out23k/manifest.json") $(DC info "$(DC key https://docs.test/guide/page markdown)" | jq -r .quarantine.reason)"
 
-# --- Case 24: a pointer switched between choosing and serving an entry -----------
-# A jq stand-in runs the real jq and, after the first meta.json read (the cache
-# lookup that picks the entry), points the key at an older entry, as a racing
-# writer could. The served record must keep the chosen entry's validated time.
 src="$TEST_TMPDIR/gs24"
 mkdir -p "$src"
 C="$TEST_TMPDIR/gc24"
@@ -616,7 +575,6 @@ assert_eq "race: a pointer switched after the lookup still serves the chosen ent
   "cache $(sha256sum <"$TEST_TMPDIR/race2.md" | cut -d' ' -f1) 2001-09-09T01:48:20Z 100" \
   "$(jq -r '.pages[0] | "\(.source) \(.sha256) \(.validated) \(.age_seconds)"' "$TEST_TMPDIR/out24/manifest.json")"
 
-# --- Case: publisher profiles ---------------------------------------------------
 fx="$TEST_TMPDIR/fxp"
 mkdir -p "$fx"
 printf '%s\n' '# Docs' '- [Skills](https://code.claude.com/docs/en/skills.md): skills' >"$fx/llms.txt"
@@ -637,7 +595,6 @@ rc=0
 FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile --out "$TEST_TMPDIR/outp-bad" skills >/dev/null 2>&1 || rc=$?
 assert_eq "profile: --profile takes the next word as its value" 2 "$rc"
 
-# --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
 # shellcheck disable=SC2016 # the stub script expands its own arguments
 printf '#!/usr/bin/env bash\necho "$1" >"%s"\nshift\nexec "$@"\n' "$TEST_TMPDIR/timeout.log" >"$TEST_TMPDIR/tbin/timeout"
@@ -647,7 +604,6 @@ PATH="$TEST_TMPDIR/tbin:$PATH" FETCH_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" FET
 assert_eq "timeout: probe bounded to 30 s" 30 "$(cat "$TEST_TMPDIR/timeout.log" 2>/dev/null)"
 assert_eq "timeout: version still read" 9.8.7 "$(jq -r .claude_version "$TEST_TMPDIR/out-to/manifest.json")"
 
-# --- platform profile -------------------------------------------------------------
 fx="$TEST_TMPDIR/fxplat"
 mkdir -p "$fx/build-with-claude"
 printf '%s\n' '# Docs' '- [Overview](https://platform.claude.com/docs/en/build-with-claude/overview.md): o' >"$fx/llms.txt"
@@ -656,7 +612,6 @@ FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile platform --out "$TEST_TMPD
 assert_eq "platform: index at the platform root, pages under /docs/" \
   "https://platform.claude.com/llms.txt read https://platform.claude.com/docs/en/build-with-claude/overview.md markdown" \
   "$(jq -r '"\(.index.url) \(.pages[0].state) \(.pages[0].url) \(.pages[0].format)"' "$TEST_TMPDIR/outplat/manifest.json")"
-# Over the curl stand-in: the index lives at the origin root, outside /docs/.
 src="$TEST_TMPDIR/served-plat"
 mkdir -p "$src"
 printf '%s\n' '# Docs' '- [Overview](https://platform.claude.com/docs/en/build-with-claude/overview.md): o' >"$src/llms.txt"
@@ -673,7 +628,6 @@ plat_run outplat3
 assert_eq "platform: an index request landing anywhere but the index URL is still unread" "unread redirected-off-origin index-unread" \
   "$(jq -r '"\(.index.state) \(.index.reason) \(.pages[0].reason)"' "$TEST_TMPDIR/outplat3/manifest.json")"
 
-# --- generic profile: negotiation, validators, identity, conversion --------------
 G1=1000000000
 G1_ISO='2001-09-09T01:46:40Z'
 G2=1000000100
@@ -687,8 +641,6 @@ cat >"$CONV" <<'EOF'
 printf 'PYTHONUTF8=%s\n' "${PYTHONUTF8:-}" >>"$PY_LOG"
 sed -e 's|<h1>\(.*\)</h1>|# \1|' -e 's/<[^>]*>//g' "$1" | grep -v '^[[:space:]]*$'
 EOF
-# mk_py <dir> <name> <probe output>: a python stand-in whose probe (run as -I -c) prints the
-# given output and which runs the converter with bash otherwise.
 mk_py() {
   mkdir -p "$1"
   cat >"$1/$2" <<EOF
@@ -709,8 +661,6 @@ PYNONE="$TEST_TMPDIR/pynone"
 mk_py "$PYNONE" python3 ''
 mk_py "$PYNONE" python 2
 
-# gen_run <served dir> <out> <python dir> <now> <args...>: the generic profile
-# through the curl stand-in, with the stand-in converter and cache.
 gen_run() {
   local src="$1" out="$2" py="$3" now="$4"
   shift 4
@@ -723,7 +673,6 @@ key_of() { printf '%s\n%s' "$1" "$2" | sha256sum | cut -d' ' -f1; }
 entry_dirs() { find "$1/entries" -mindepth 1 -maxdepth 1 -type d ! -name '.tmp-*' | wc -l | tr -d ' '; }
 html_page() { printf '<html><head><title>%s</title></head><body>\n<h1>%s</h1>\n<p>%s</p>\n</body></html>\n' "$2" "$2" "$3" >"$1"; }
 
-# Markdown by Accept, with an ETag: the revalidation is a 304.
 src="$TEST_TMPDIR/gs-etag"
 mkdir -p "$src"
 printf '%s\n' '# Page' 'body' >"$src/page"
@@ -742,7 +691,6 @@ assert_eq "validators: an ETag 304 serves the entry, moves validated, keeps retr
 assert_eq "validators: a 304 writes the page file from the entry" "" "$(cmp "$src/page" "$TEST_TMPDIR/go-e2/docs-test/guide/page.md" 2>&1)"
 assert_eq "validators: a 304 adds no entry" 1 "$(entry_dirs "$C")"
 
-# Last-Modified then 304; Last-Modified equal to Date is absent.
 src="$TEST_TMPDIR/gs-lm"
 mkdir -p "$src"
 printf '%s\n' '# Page' 'body' >"$src/page"
@@ -764,7 +712,6 @@ assert_eq "edge: Last-Modified equal to Date is not a validator" 0 "$(grep -c --
 assert_eq "edge: so the revalidation is a refetch, same sha, validated moved" "fetch 200 $G1_ISO $G2_ISO" \
   "$(gpage go-d2 '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
 
-# No validator: same bytes move validated only; changed bytes are a new entry.
 src="$TEST_TMPDIR/gs-none"
 mkdir -p "$src"
 printf '%s\n' '# Page' 'one' >"$src/page"
@@ -779,7 +726,6 @@ gen_run "$src" go-n3 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL
 assert_eq "validators: none and changed bytes: a new entry with a new retrieved" "$G2_ISO $G2_ISO 2 false" \
   "$(gpage go-n3 '"\(.retrieved) \(.validated)"') $(entry_dirs "$C") $(gpage go-n3 .quarantined)"
 
-# One URL negotiating to markdown, then to HTML: two keys.
 src="$TEST_TMPDIR/gs-neg"
 mkdir -p "$src"
 html_page "$src/page" Page 'html body'
@@ -801,7 +747,6 @@ assert_eq "html: the title is recorded and the HTML content type kept" "Page tex
 assert_eq "html: the .md suffix and llms.txt were tried before converting" "1 1" \
   "$(grep -cF 'https://docs.test/guide/page.md' "$src.log") $(grep -cF 'https://docs.test/llms.txt' "$src.log")"
 
-# .md suffix and the llms.txt bundle as markdown channels.
 src="$TEST_TMPDIR/gs-sfx"
 mkdir -p "$src"
 html_page "$src/page" Page body
@@ -821,7 +766,6 @@ gen_run "$src" go-b1 "$PYNONE" $G1 "$PAGE_URL"
 assert_eq "generic: a same-origin llms.txt link for the path is the third channel" "read markdown from bundle" \
   "$(gpage go-b1 '"\(.state) \(.format)"') $(sed -n 2p "$TEST_TMPDIR/go-b1/docs-test/guide/page.md")"
 
-# text/plain on the URL's own request: markdown for a .md path, not for any other.
 src="$TEST_TMPDIR/gs-plainmd"
 mkdir -p "$src"
 printf '%s\n' '# Page' 'plain md' >"$src/page.md"
@@ -839,7 +783,6 @@ gen_run "$src" go-pm2 "$PYOK" $G1 "$PAGE_URL"
 assert_eq "generic: text/plain for a non-.md path is refused" "unread unexpected-content-type" \
   "$(gpage go-pm2 '"\(.state) \(.reason)"')"
 
-# A retitled page quarantines its key.
 src="$TEST_TMPDIR/gs-title"
 mkdir -p "$src"
 printf '%s\n' '# Alpha' 'body' >"$src/page"
@@ -852,7 +795,6 @@ assert_eq "identity: a title change between fetches quarantines the key" "Beta t
 assert_eq "identity: the cache records both titles" "Alpha Beta" \
   "$(bash "$SCRIPT_DIR/docs-cache.sh" --cache-dir "$C" info "$(key_of "$PAGE_URL" markdown)" | jq -r '.quarantine | "\(.from_title) \(.to_title)"')"
 
-# A redirect off the requested path is unread, and no other channel is tried.
 src="$TEST_TMPDIR/gs-redir"
 mkdir -p "$src"
 printf '%s\n' '# Other' >"$src/page"
@@ -937,7 +879,6 @@ assert_eq "login-wall: a fixture-served shell is unread login-wall" "unread logi
   "$(gpage go-w5 '"\(.state) \(.reason) \(.source)"')"
 assert_no_file "login-wall: the fixture shell leaves no page file" "$TEST_TMPDIR/go-w5/$X_FILE"
 
-# Targets the generic profile refuses.
 gen_run "$src" go-x "$PYOK" $G1 skills 'http://docs.test/a' >/dev/null
 assert_eq "generic: a slug or a non-https URL is unread invalid-url" "invalid-url invalid-url" \
   "$(jq -r '[.pages[].reason] | join(" ")' "$TEST_TMPDIR/go-x/manifest.json")"
@@ -945,9 +886,6 @@ rc=0
 gen_run "$src" go-y "$PYOK" $G1 --discover >/dev/null 2>&1 || rc=$?
 assert_eq "generic: --discover is fatal" 2 "$rc"
 
-# --public-only: the address check runs the real Python 3 on PATH against the
-# DNS answers in FETCH_DOCS_ADDRESSES; the curl stand-in logs what it was given.
-# pub_run <served dir> <out> <answers> [<path prefix>]: one generic read of PAGE_URL.
 pub_run() {
   : >"$1.log"
   env -u FETCH_DOCS_FIXTURE_DIR PATH="${4:+$4:}$SHIM:$PATH" CURL_SHIM_LOG="$1.log" CURL_SHIM_SRC="$1" \
@@ -973,22 +911,16 @@ assert_eq "public-only: a host that does not resolve is unread fetch-failed" "un
 pub_run "$src" pub5 'docs.test=93.184.216.34' "$PYNONE"
 assert_eq "public-only: no Python 3 to check with is unread address-unchecked" "unread address-unchecked 0" \
   "$(gpage pub5 '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ')"
-# A module planted in the working directory is never imported by the address check.
 plant="$TEST_TMPDIR/planted-cwd"
 mkdir -p "$plant"
 printf 'open(%s, "w").write("ran")\n' "'$TEST_TMPDIR/planted-ran'" >"$plant/ipaddress.py"
 (cd "$plant" && pub_run "$src" pub7 'docs.test=93.184.216.34' >/dev/null 2>&1)
 assert_no_file "public-only: an ipaddress.py in the cwd is not imported" "$TEST_TMPDIR/planted-ran"
 assert_eq "public-only: the address check still passes beside a planted module" "read" "$(gpage pub7 .state)"
-# A redirect toward an internal host: curl follows it under the pin, so the hop
-# reaches the checked address, and the landing off origin is unread.
 printf '%s' 'https://intranet.corp/guide/page' >"$src/page.effective"
 pub_run "$src" pub6 'docs.test=93.184.216.34 intranet.corp=10.0.0.5'
 assert_eq "public-only: a redirect to an internal host is unread" "unread redirected-off-origin" "$(gpage pub6 '"\(.state) \(.reason)"')"
 assert_eq "public-only: the redirected request was pinned to the checked address" 1 "$(grep -c -- '--connect-to ::93\.184\.216\.34: ' "$src.log")"
-# An origin with no llms.txt has no bundle channel, even though the address
-# check runs inside that fetch: a file named for the checked address in the
-# working directory is never read as the bundle.
 src="$TEST_TMPDIR/gs-pub-nobundle"
 mkdir -p "$src" "$TEST_TMPDIR/pub-cwd"
 printf '%s' '{}' >"$src/page"
@@ -1000,7 +932,6 @@ printf '%s\n' '- [Page](/guide/page.txt)' >"$TEST_TMPDIR/pub-cwd/93.184.216.34"
 assert_eq "public-only: an origin with no llms.txt has no bundle channel" "unread 0" \
   "$(gpage pub7 .state) $(grep -c 'page\.txt' "$src.log")"
 
-# An indexed profile revalidates with its stored ETag too.
 src="$(new_served served-idx-etag)"
 printf '%s' '"s1"' >"$src/skills.md.etag"
 C="$TEST_TMPDIR/gc-idx"
@@ -1010,7 +941,6 @@ assert_eq "validators: an indexed page revalidates with If-None-Match and a 304"
   "$(page "$TEST_TMPDIR/out-ie2/manifest.json" skills '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
 assert_eq "validators: the conditional request named the stored ETag" 1 "$(grep -c -- 'If-None-Match: "s1"' "$src.log")"
 
-# --- Case 25: a body over max_page_bytes is unread too-large, never stored ----
 src="$(new_served served25)"
 head -c 2000 /dev/zero | tr '\0' x >>"$src/skills.md"
 C="$TEST_TMPDIR/cache25"
@@ -1046,8 +976,6 @@ DOCS_CACHE_MAX_PAGE_BYTES=010 shim_run "$src" "$TEST_TMPDIR/out25e" skills setti
 assert_eq "case 25: DOCS_CACHE_MAX_PAGE_BYTES=010 is warned and the 10 MiB default applies" "1 read read" \
   "$(grep -c '^WARNING: docs-cache config: DOCS_CACHE_MAX_PAGE_BYTES=010 ' "$TEST_TMPDIR/err25e") $(page "$TEST_TMPDIR/out25e/manifest.json" skills .state) $(page "$TEST_TMPDIR/out25e/manifest.json" settings-reference .state)"
 
-# The cap is inclusive: a body of exactly max_page_bytes is read, one byte more is
-# not. The .nocap sidecar leaves the decision to fetch-docs.sh's own size check.
 src="$(new_served served25x)"
 head -c 1000 /dev/zero | tr '\0' x >"$src/skills.md"
 head -c 1001 /dev/zero | tr '\0' x >"$src/settings-reference.md"
@@ -1065,7 +993,6 @@ printf '%s' 'text/html' >"$src/page.ctype"
 DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-big "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: a generic HTML page over the cap is unread too-large and never converted" "unread too-large 0" \
   "$(gpage go-big '"\(.state) \(.reason)"') $(grep -c ran "$PY_LOG")"
-# The markdown request answers small plain text; the plain GET that follows answers HTML over the cap.
 printf '%s\n' 'not markdown' >"$src/page.accept-md"
 printf '%s' 'text/plain' >"$src/page.accept-md.ctype"
 : >"$PY_LOG"
@@ -1074,8 +1001,6 @@ DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-big2 "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: HTML over the cap on the plain GET after the markdown request is unread too-large, never converted" \
   "unread too-large 0 1" \
   "$(gpage go-big2 '"\(.state) \(.reason)"') $(grep -c ran "$PY_LOG") $(grep -v -- '-H Accept' "$src.log" | awk -v u="$PAGE_URL" '$NF == u' | wc -l | tr -d ' ')"
-# An over-cap fallback channel is skipped, and the read moves on to the next one.
-# The .nocap sidecars have the body written, so the size check must delete it.
 src="$TEST_TMPDIR/gs-bigsfx"
 mkdir -p "$src"
 html_page "$src/page" Page 'html body'
@@ -1094,14 +1019,12 @@ head -c 2000 /dev/zero | tr '\0' x >"$src/page.txt"
 DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bigbundle "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: an llms.txt link over the cap is skipped; the HTML is converted" "read html-converted 1 0" \
   "$(gpage go-bigbundle '"\(.state) \(.format)"') $(grep -c ran "$PY_LOG") $(find "$TEST_TMPDIR/go-bigbundle" -name '*.part' | wc -l | tr -d ' ')"
-# No later channel writes the page's .part file when the page is neither markdown nor HTML.
 head -c 2000 /dev/zero | tr '\0' x >"$src/page.md"
 printf '%s' 'text/plain' >"$src/page.ctype"
 DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bignone "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: over-cap fallbacks with nothing read after them leave no .part file" "unread 0" \
   "$(gpage go-bignone .state) $(find "$TEST_TMPDIR/go-bignone" -name '*.part' | wc -l | tr -d ' ')"
 
-# --- Case 26: a browser-form URL resolves to the page the index lists ------------
 src="$(new_served served26)"
 C="$TEST_TMPDIR/cache26"
 skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
@@ -1117,7 +1040,6 @@ cache_run $T1 out26c --max-age 0 https://evil.test/docs/en/skills
 assert_eq "case 26: an off-origin browser form is unread and never fetched" "unread 0" \
   "$(page "$TEST_TMPDIR/out26c/manifest.json" https://evil.test/docs/en/skills .state) $(grep -c 'evil\.test' "$src.log")"
 
-# --- Case 27: a removal quarantine is never served fresh from the cache -----------
 src="$(new_served served27)"
 C="$TEST_TMPDIR/cache27"
 skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
@@ -1142,8 +1064,6 @@ cache_run $((T1 + 50)) out27f --max-age 86400 skills
 assert_eq "case 27: a retitled key is still served fresh from the cache" "read cache true" \
   "$(page "$TEST_TMPDIR/out27f/manifest.json" skills '"\(.state) \(.source) \(.quarantined)"')"
 
-# Case 28: the reading procedure that makes --out with mktemp also has the reader remove it,
-# so a docs lookup leaves no tmp.* directory behind.
 procedure="$SCRIPT_DIR/docs-lookup-procedure.md"
 # shellcheck disable=SC2016 # the patterns are literal procedure text
 assert_eq "case 28: the procedure makes --out with mktemp" 1 "$(grep -c '^out="$(mktemp -d)"$' "$procedure")"

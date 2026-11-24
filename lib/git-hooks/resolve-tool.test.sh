@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for lib/git-hooks/resolve-tool.sh: a file resolves to the
-# plugin's shipped adapter when the tool's own config opts it in, else to
-# nothing; a .claude/ecosystems/ record is never run; files reach the command
-# as arguments, never as command text; lint output becomes repo-relative
-# findings, and a linter that fails without one fails closed.
 # test-scope: lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # commands and expected scripts are literal text
 set -uo pipefail
@@ -19,7 +14,7 @@ mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -29,7 +24,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# A stand-in tool: logs each argument and rewrites each file to "formatted".
 BIN="$WORK/bin"
 mkdir -p "$BIN"
 cat >"$BIN/stubfmt" <<EOF
@@ -42,11 +36,10 @@ EOF
 chmod +x "$BIN/stubfmt"
 PATH="$BIN:$PATH"
 
-# The plugin side: one id, one adapter gated on demo.cfg.
 RT_PLUGIN=demo
 RT_IDS=demo
 # shellcheck disable=SC2329  # called by name from the resolver
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   [[ -f "$3/demo.cfg" ]] || return 1
   RT_ADAPTER=demofmt RT_TOOL=stubfmt RT_BIN=stubfmt RT_DIR="$3" RT_INSTALL="install stubfmt"
   RT_DETAIL="config demo.cfg"
@@ -56,7 +49,7 @@ rt_adapter() { # <concern> <file> <root>
   esac
 }
 # shellcheck disable=SC2329  # called by name from the resolver
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   if [[ ! -f "$2/demo.cfg" ]]; then
     RT_DETAIL="no demo.cfg"
     return 1
@@ -73,7 +66,7 @@ new_repo() {
   git init -q -b main "$REPO"
   printf 'seed\n' >"$REPO/seed.dm"
 }
-resolve() { # <file> <concern> -> "<source>|<script>"
+resolve() {
   rt_resolve "$1" "$2" "$REPO"
   printf '%s|%s' "$RT_SOURCE" "$RT_SCRIPT"
 }
@@ -85,7 +78,6 @@ expect "lint resolves the adapter's lint command" 'adapter:demofmt|stubfmt --ada
 rm "$REPO/demo.cfg"
 expect "no adapter config: nothing" "none|" "$(resolve seed.dm format)"
 
-# A record never runs from a hook, whatever it names or wherever it sits.
 new_repo
 mkdir -p "$REPO/.claude/ecosystems" "$HOME/.claude/ecosystems"
 printf '%s\n' 'globs: ["*.dm"]' 'fix-cmd: "touch record-ran <files>"' >"$REPO/.claude/ecosystems/demo.yaml"
@@ -107,7 +99,6 @@ printf '%s\n' 'fix-cmd: "touch record-ran <files>"' >"$REPO/docs/conventions/eco
 expect "a record at the convention home gets the same note" "demo	format	adapter:demofmt	stubfmt	yes	config demo.cfg; the demo record is not run by hooks; /toolchain:lint and /toolchain:check run it" "$(rt_print format "$REPO")"
 rm -r "$REPO/docs"
 
-# Running: files reach the command as arguments, never as command text.
 new_repo
 : >"$REPO/demo.cfg"
 name='$(touch marker);x.dm'
@@ -127,7 +118,6 @@ RT__ARGMAX=20
 expect "file lists are split into chunks under the length limit, each run once" "3" "$(grep -c -- '--adapter' "$WORK/stub.log")"
 RT__ARGMAX=24000
 
-# Lint output becomes repo-relative "<path>:<line>: <message>".
 cat >"$BIN/stublint" <<EOF
 #!/bin/sh
 case "\$1" in
