@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box tests for lib/suppression-scan.py: the marker catalog, the
-# justified predicate, --diff, --count, --correctness-rules and the exit codes.
-# Every expected value below is read off the fixture lines this file writes.
-# Run directly: bash lib/suppression-scan.test.sh
 # shellcheck disable=SC2016 # `$(...)` and backticks here are fixture text, never expanded
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -30,7 +26,6 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: [$2], actual: [$3]"; fi
 }
 
-# One line per record: `<file>:<line> <tool> <rules joined by ,> <yes|no>`.
 summarize() {
   "$PY" -c '
 import json, sys
@@ -255,9 +250,6 @@ sec.py:11 bandit B105 yes
 sec.py:11 gitleaks - yes
 sec.sh:1 semgrep - no" "$out"
 
-# ---- --exclude ------------------------------------------------------------------
-# The report counts the files left once `scope.exclude` has dropped its matches;
-# the frozen count takes the same globs and must agree with it.
 EXC="$TEST_TMPDIR/exc"
 mkdir -p "$EXC/src" "$EXC/vendor/deep" "$EXC/gen"
 printf '%s\n' 'x = 1  # noqa: E501 kept' 'y = 2  # noqa' >"$EXC/src/app.py"
@@ -287,9 +279,6 @@ assert_eq "a ** segment spans directories" "gen/out.py:1 noqa F401 no
 src/app.py:1 noqa E501 yes
 src/app.py:2 noqa - no" "$out"
 PATHGLOB="$SCRIPT_DIR/../plugins/code-metrics/scripts/pathglob.py"
-# The audit matches `scope.exclude` with pathglob.translate; the scanner carries
-# its own copy of that translation. Run both over one table so a change to either
-# fails here instead of letting --count and the report drift apart.
 drift="$(
   "$PY" -I - "$SCANNER" "$PATHGLOB" <<'PYEOF'
 import importlib.util, re, sys
@@ -322,8 +311,6 @@ if bad:
 print("checked %d pairs" % checked)
 PYEOF
 )"
-# The last line proves the script ran to the end: a crash leaves it out, so an
-# empty mismatch list can't pass for agreement.
 assert_eq "the scanner's glob matcher agrees with pathglob.py on every glob/path pair" "checked 221 pairs" "$drift"
 
 out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude '[z-a]' 2>/dev/null)"
@@ -370,9 +357,6 @@ assert_eq "--paths-from reads one path per line" 'with space.sh:1 shellcheck SC2
 out="$(cd "$REPO" && "$PY" "$SCANNER" r2.py | summarize)"
 assert_eq "inventory mode still lists the renamed file's suppression" 'r2.py:1 noqa F401 no' "$out"
 
-# ---- --unread-to ------------------------------------------------------------------
-# A text file the scanner has no kind for is named; a binary file and a file
-# known by its shebang are not. Stdout is the same with or without the option.
 UNR="$TEST_TMPDIR/unread"
 mkdir -p "$UNR/src"
 printf '%s\n' 'fn main() {} // allow(dead_code)' >"$UNR/src/lib.rs"
