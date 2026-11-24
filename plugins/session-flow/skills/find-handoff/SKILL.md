@@ -80,6 +80,7 @@ is named as such and never presented as the lost handoff. When the operator asks
 says beyond its metadata and prompt, read that section by name with
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py read <file> --section "<name>"`, which follows a
 section moved to the hop file; reading it changes nothing and the confirm gate still holds.
+When the operator's question names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's hop file with Read, before you say the handoff lacks the answer.
 
 **The resume prompt this skill recovers is the resume region plus the goal region (when one
 applies) plus every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
@@ -162,7 +163,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    captured `/loop` re-arm notes with it, all of them, on both modes, whenever any were found**,
    and say plainly that each re-arm is its own follow-up message sent after the continuation is
    under way. Dropping one here loses that loop just as surely as never recovering the prompt. Ask
-   for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
+   for an explicit yes/no and **stop**.
+   A waiver in the request itself ("just resume it", "no need to check with me") is not that
+   yes: the operator has not yet seen the candidate.
+   Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
 

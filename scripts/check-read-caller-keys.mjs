@@ -86,12 +86,12 @@ function environmentError(message) {
 let yaml;
 try {
   const requireFrom = createRequire(
-    path.join(root, ".github/standards/runner-policy/package.json"),
+    path.join(root, "scripts/ci-deps/package.json"),
   );
   yaml = await import(pathToFileURL(requireFrom.resolve("yaml")).href);
 } catch {
   environmentError(
-    "the yaml package is not installed; run npm ci --prefix .github/standards/runner-policy",
+    "the yaml package is not installed; run npm ci --prefix scripts/ci-deps",
   );
 }
 

@@ -61,8 +61,6 @@ g=("${clean[@]}" GIT_DIR="$scratch/git" GIT_WORK_TREE="$work" GIT_INDEX_FILE="$s
 "${g[@]}" cat-file -e "$head^{commit}" 2>/dev/null || fail "the head $head is not a commit here"
 [[ $from == "$head" || $("${g[@]}" cat-file -t "$from" 2>/dev/null) == tree ]] || fail "$from is not a tree here"
 
-# .lane/ holds what the runner staged for the skill (pr-run-activity-read.yml),
-# never the activity's change.
 paths=(':(top)' ':(top,exclude).lane')
 # The CLI's Bash, under the environment scrub run-claude-cli sets, leaves
 # these as empty files at the top of the checkout, hidden only by an

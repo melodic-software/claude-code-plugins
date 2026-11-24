@@ -1,10 +1,4 @@
-// Expected values come from the lane's plan: a missing or invalid outcome file
-// means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
-// with a Conventional Commits title (the run's, else one from the issue title), no
-// label (the class lives on the issue only), and the hold line for
-// untrusted-provenance work or a trust or lane-power diff; `pushback` and
-// `stopped` comment and take the route stop-routes.json gives their stop:
-// needs-human only for an intent, design, security or cost reason.
+// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -64,15 +58,13 @@ import { closeStop, parentDone } from "../lib/done-evidence.mjs";
 import { finishedParent, patchCapStopped } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
+import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
-// The real Work status reader (read-status.mjs statusReader) over field reads
-// that `fields` answers (read-status.fixtures.mjs withFields); it makes no
-// other call.
 const fieldReaderOver = (github) => statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
 const fieldReader = (fields) => {
   const github = withFields(async (method, path) => {
@@ -85,24 +77,16 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { ADMISSION_RECORD_MARKER, recordBody } from "../lib/admission-record.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
-// The first line of every hand-back comment: the attended queue's escalation
-// marker in the grammar of plugins/work-items/reference/escalation-marker.md.
 const ESC = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n";
-// The issue history a retry reads to count the retries already made.
 const HISTORY = [
   ["GET", /\/issues\/77\/comments$/, 200, []],
   ["GET", /\/issues\/77\/events$/, 200, []],
 ];
 
-// The run-checks job's `checks` output for `branch` at `tip`, and the ref
-// read main compares that tip with. A test puts it in the outcome directory as
-// `runner-checks`, and env() hands it to main as RUNNER_CHECKS.
 const CHECKED_TIP = "c".repeat(40);
 const FRAGMENTS = "scripts/check-changelog-fragments.sh --check";
 const checksFile = ({ branch = BRANCH, tip = CHECKED_TIP, results = [{ check: FRAGMENTS, exit: 0 }] } = {}) =>
   JSON.stringify({ version: 1, branch, tip, results });
-// The runner's record when the activity lists no checks: decide() needs one
-// to open a PR at all.
 const NO_CHECKS = { tip: CHECKED_TIP, results: [] };
 const branchTip = (branch = BRANCH, sha = CHECKED_TIP) => ["GET", new RegExp(`/git/ref/heads/${branch}$`), 200, { object: { sha } }];
 
@@ -120,7 +104,6 @@ function withDir(files, run) {
 
 const done = { exit: "done", reason: "", title: "docs(work-items): fix a typo", summary: "Fixed it." };
 
-// The merge lane's denied paths, as the resolved config carries them.
 const HOLD_GLOBS = [".github/**", "**/AGENTS.md", ".claude-plugin/**", "plugins/*/skills/**"];
 
 function decideDone(overrides = {}) {
@@ -137,7 +120,6 @@ function decideDone(overrides = {}) {
 }
 
 
-// main's Work status write, recorded among a fake's calls in call order.
 const statusInto = (calls) => async (number, state) => {
   calls.push({ method: "STATUS", path: `/issues/${number}`, body: { state } });
 };
@@ -179,8 +161,6 @@ test("done opens a PR whose body starts with Closes #N", () => {
 const bodyOf = (outcome) =>
   withDir({ "work-outcome.json": JSON.stringify(outcome) }, (dir) => decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) }).body);
 
-// A run that sets `link: refs` for the issue's own parent `Refs:` line and
-// names no remaining work opens a PR that closes the issue.
 test('"link": "refs" with no remaining work closes the issue', () => {
   for (const remaining of [undefined, []]) {
     const body = bodyOf({ ...done, link: "refs", remaining });
@@ -201,8 +181,6 @@ test('remaining work opens a Refs PR whatever "link" says', () => {
   assert.ok(bodyOf({ ...done, link: "closes", remaining: ["Part B"] }).startsWith("Refs: #77\n"));
 });
 
-// A malformed `remaining` counts as empty, whatever `link` says: a wrong
-// Closes fails pr-verify against the whole issue, a fix round at worst.
 for (const [name, remaining] of [
   ["a string", "Part B"],
   ["an object", { what: "Part B" }],
@@ -318,8 +296,6 @@ test("done keeps a Conventional Commits title", () => {
   assert.equal(decideDone().title, "docs(work-items): fix a typo");
 });
 
-// The two titles below are ones real lane runs wrote, which the old subject
-// class refused.
 test("done keeps a run title whose subject holds a semicolon", () => {
   const title = "fix(bugs): frame scanned-repo and tracker text as untrusted; author-check scan lane cursor and dedupe";
   assert.equal(decideDone({ outcome: { ...done, title } }).title, title);
@@ -377,7 +353,6 @@ for (const label of ["provenance: untrusted"]) {
   });
 }
 
-// Structural risk shows in the diff, which the review lanes read.
 test("structural work on ordinary files carries no hold line", () => {
   const plan = decideDone({ issueLabels: ["work-class: structural"] });
   assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
@@ -437,8 +412,6 @@ for (const [name, text] of [
   });
 }
 
-// merge.diff-check.path-holds (owner decisions Q15 and Q16): off, a denied
-// path holds nothing; on, it holds as before; an unreadable list still holds.
 test("with path holds off a denied path holds nothing, and on it holds the PR", () => {
   const config = (pathHolds) => JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"], ...(pathHolds === undefined ? {} : { "path-holds": pathHolds }) } } });
   for (const off of [undefined, false]) {
@@ -482,18 +455,15 @@ test("a label's labeler is trusted when its newest labeled event is a listed hum
   assert.equal(trustedLabeler([labeled("merge: human", "kyle-sexton", 153232337)], "merge: human", trust), true);
   assert.equal(trustedLabeler([labeled("merge: human", "melodic-automation-lanes[bot]", 9)], "merge: human", trust), true);
   assert.equal(trustedLabeler([labeled("merge: human", "stranger", 42)], "merge: human", trust), false);
-  // Removed and re-added by someone unlisted: the newest event decides.
   assert.equal(
     trustedLabeler([labeled("merge: human", "kyle-sexton", 153232337), labeled("merge: human", "stranger", 42)], "merge: human", trust),
     false,
   );
-  // A login that copies a listed human's but not their id is not trusted.
   assert.equal(trustedLabeler([labeled("merge: human", "kyle-sexton", 42)], "merge: human", trust), false);
   assert.equal(trustedLabeler([labeled("work-class: scoped", "kyle-sexton", 153232337)], "merge: human", trust), false);
   assert.equal(trustedLabeler([], "merge: human", trust), false);
 });
 
-// The body's `##` headings, in order.
 const headings = (body) => body.split("\n").filter((line) => /^## /.test(line));
 const section = (body, name) => body.split(`\n## ${name}\n\n`)[1].split("\n\n## ")[0];
 
@@ -521,7 +491,6 @@ test("the model's text is cut to the length caps after escaping", () => {
   const plan = decideDone({
     outcome: { ...done, summary: "<".repeat(5000), changes: Array(30).fill("<".repeat(400)) },
   });
-  // 3000 for the summary, 20 items of 300 for the list, plus the fixed text.
   assert.ok(plan.body.length < 3000 + 20 * 305 + 1000, String(plan.body.length));
   assert.ok(!/&[a-z]*…$/m.test(plan.body), "no half-cut entity before the cut marker");
   assert.ok(/&lt;…$/m.test(plan.body), plan.body);
@@ -650,7 +619,6 @@ test("a done outcome with an empty not_done and a failing runner check is stoppe
     outcome: { ...done, notDone: [], verification: ["every check passed"] },
     checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 1 }] },
   });
-  // An unfinished check goes back to agent-ready with the branch named.
   assert.equal(plan.action, "retry");
   assert.equal(plan.stop, "check-failed");
   assert.deepEqual(plan.addLabels, []);
@@ -683,8 +651,6 @@ test("the runner's check results count only for this branch, with a tip and whol
   assert.equal(readChecks(checksFile({ branch: "" }), { branch: "" }), null);
 });
 
-// .claude/rules/pr-body-contract.md: the closing line first, then Summary,
-// Fix, Verification and Related, in that order.
 test("the body follows the PR body contract's order", () => {
   for (const notDone of [[], [{ what: "x", required: false }]]) {
     const plan = decideDone({ outcome: { ...done, notDone } });
@@ -694,9 +660,6 @@ test("the body follows the PR body contract's order", () => {
   }
 });
 
-// The live PR conventions: the repository's own PR template when it has one,
-// else the org default, and the canonical body policy in the standards repo.
-// Both are fetched, not copied, so a change to either fails this test.
 async function liveText(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
   assert.ok(response.ok, `${url} answered ${response.status}`);
@@ -873,8 +836,6 @@ test("a refused patch on a resumed run goes to the host queue instead of opening
   assert.ok(plan.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), plan.comment);
 });
 
-// A failure after apply-issue-patch made its branch (a later step) leaves the
-// branch's plan as it was.
 test("patch-apply-failed changes no plan for a run whose branch apply-issue-patch made", () => {
   const branch = "work-resolve-issue/issue-77-100-1";
   assert.deepEqual(decideDone({ branch, escalation: "patch-apply-failed" }), decideDone({ branch }));
@@ -905,9 +866,6 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.match(plan.comment, /Which file\?/);
 });
 
-// The owner's rule for when work stops for the owner: a pre-edit question reaches a person only as an intent
-// question, which the run names with `cause: "intent"`; a choice of means or a
-// design detail, or a pushback naming no cause, is the lane's to decide.
 test("a pushback whose cause opens with a hold code holds on that code, whatever its reason", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   for (const [cause, stop] of [
@@ -948,9 +906,6 @@ test("a pushback without cause intent goes back through intake instead of reachi
   });
 });
 
-// A pushback with no intent cause holds only for a hold code its reason opens
-// with or its cause names; a security word alone goes to intake, whose own
-// security rules judge it.
 test("a pushback holds only for an explicit hold code, never for a security word alone", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   const run = (reason, cause) => decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary: "" } });
@@ -983,20 +938,13 @@ test("a pushback holds only for an explicit hold code, never for a security word
     assert.equal(plan.stop, stop, `${cause} ${reason}`);
     assert.equal(parseReason(plan.comment).reason, code, plan.comment);
   }
-  // A cause that names a code with no hold route, or a hold-class word that
-  // is not a code, is no hold.
   for (const cause of ["cost", "host-only", "stopped", "pushback-means"]) {
     assert.equal(run("Which helper should change?", cause).stop, "pushback-means", cause);
   }
-  // A host-run or attended code takes its row.
   const host = run("host-only: needs the GPU desktop.");
   assert.equal(host.stop, "host-only");
   assert.equal(host.action, "host-run");
-  // Work status leaves agent-ready, so a listed human's agent-ready after the
-  // host step is a field change that starts a run.
   assert.equal(host.status, "status: confirmed");
-  // One that names a security risk after the code reaches a person (owner
-  // decision 2026-10-29), and a capability phrasing names none.
   for (const reason of ["host-only: needs the deploy token printed in the log.", "manual-external: rotate the leaked deploy token in the DNS account."]) {
     const risky = run(reason);
     assert.equal(risky.stop, "security-risk", reason);
@@ -1009,14 +957,11 @@ test("a pushback holds only for an explicit hold code, never for a security word
   assert.equal(attended.stop, "manual-external");
   assert.equal(attended.action, "attended");
   assert.equal(attended.status, "status: confirmed");
-  // A non-hold, non-lane code goes through intake.
   for (const reason of ["blocked-by-pr: #12 changes the same file.", "already-done: abc1234 fixed it.", "report-delivered: the report is posted."]) {
     const plan = run(reason);
     assert.equal(plan.stop, "pushback-means", reason);
     assert.equal(plan.action, "intake", reason);
   }
-  // A cause names its code in spaces, mixed case, full-width letters, hyphen
-  // runs and a trailing colon.
   for (const [cause, stop] of [
     ["Security Risk", "security-risk"],
     ["COST_RISK.", "cost-risk"],
@@ -1030,9 +975,6 @@ test("a pushback holds only for an explicit hold code, never for a security word
   }
 });
 
-// A pushback with no code whose words read as a security risk goes to intake
-// with no means framing; a second one since a listed human added agent-ready
-// holds as security-risk instead of failing.
 test("a pushback naming a security risk goes to intake unframed once, then reaches a person", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   for (const reason of ["The issue asks to print the deploy token in the log.", "blocked-by-pr: #12's log printed the deploy token."]) {
@@ -1053,9 +995,6 @@ test("a pushback naming a security risk goes to intake unframed once, then reach
   assert.equal(capRetries(means, 1).action, "fail");
 });
 
-// The security reading reads every text the comment can show (the reason, the
-// summary, each not-done item) and the cause, so no security text the run
-// wrote ends the issue with no person.
 test("a pushback whose summary or cause names a security risk goes to intake marked security, then reaches a person", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "123" };
   for (const [reason, cause, summary, notDone = []] of [
@@ -1081,7 +1020,6 @@ test("a pushback whose summary or cause names a security risk goes to intake mar
   assert.equal(parseOutcomeMarker(means.comment).security, undefined);
 });
 
-// A security marker parses with every other field intact.
 test("parseOutcomeMarker reads the security tag beside run and branch", () => {
   assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=intake security run=99 branch=resumed -->\nWhy."), {
     outcome: "intake",
@@ -1093,7 +1031,6 @@ test("parseOutcomeMarker reads the security tag beside run and branch", () => {
   assert.equal(parseOutcomeMarker(`${ESC}<!-- work-resolve-issue outcome=intake security run=99 -->`).run, "99");
 });
 
-// An explicit security-risk code outranks an intent cause.
 test("a pushback with cause intent whose reason opens with security-risk holds as security-risk", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   for (const cause of ["intent", "intent-change"]) {
@@ -1102,7 +1039,6 @@ test("a pushback with cause intent whose reason opens with security-risk holds a
     assert.equal(plan.action, "hand-back", cause);
     assert.equal(plan.stop, "security-risk", cause);
     assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
-    // Intake never ran on this round-one hold, so its line claims no intake.
     assert.match(plan.comment, /the run named a possible security risk/, plan.comment);
     assert.doesNotMatch(plan.comment, /intake triage/, plan.comment);
   }
@@ -1135,8 +1071,6 @@ test("a run that stopped with patch-protected-path goes to host-run naming the r
   assert.doesNotMatch(stoppedWith("Tests failed; not a patch-protected-path stop.").comment, /stopped early/);
 });
 
-// A stop held for a person carries the hold alone: agent-ready beside
-// needs-human leaves it in both queues.
 test("a held stop removes agent-ready and names the branch that holds partial work", () => {
   const plan = decide({
     outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" },
@@ -1152,16 +1086,12 @@ test("a held stop removes agent-ready and names the branch that holds partial wo
   assert.ok(plan.comment.includes("set Work status to agent-ready again (clearing the `needs-human` hold)"), plan.comment);
 });
 
-// main against a fake GitHub API: the calls it makes are the lane's effect on
-// the issue, an unmanaged dependency, so they are what the test checks.
 function fakeFetch(routes) {
   const calls = [];
   const fetch = async (url, init = {}) => {
     const method = init.method ?? "GET";
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
-    // An issue no open PR closes, unless a route says otherwise.
-    // A held PR's do-not-merge label write succeeds, unless a route says otherwise.
     const none =
       path === "/graphql"
         ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }]
@@ -1230,9 +1160,7 @@ test("main on a run whose issue changed after agent-ready comments that reason, 
   });
 });
 
-// agent-ready starts this lane, so a run that added it would start the next.
 test("main refuses a human-gated label that is agent-ready and writes no label", async () => {
-  // Not withDir: main reads the tracker config after its first await.
   const dir = tempDir("outcome-");
   try {
     writeFileSync(join(dir, "tracker.json"), JSON.stringify({ config: { role_labels: { "human-gated": " Agent-Ready" } } }));
@@ -1317,8 +1245,6 @@ test("main leaves a park alone when a person set needs-human after the run read 
   });
 });
 
-// The field is the state: a write that fails stops the stop before any label
-// comes off, as a failed label add did, so a re-run finds agent-ready still on.
 test("main fails a park whose Work status write fails, leaving every label on", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -1337,9 +1263,6 @@ test("main fails a park whose Work status write fails, leaving every label on", 
   });
 });
 
-// Only a hold and a park have a Work status state of their own; an
-// outside-author stop moves a field still at agent-ready to needs-triage
-// after its comment, before agent-ready comes off.
 test("main's outside-author stop leaves agent-ready for needs-triage", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -1373,8 +1296,6 @@ test("main's close removes only host-run of its labels and writes no Work status
   });
 });
 
-// The lanes App keeps one admission comment per issue, so a park edits the one
-// admission already wrote.
 test("main on a dimension skip edits the lanes App's earlier admission comment in place", async () => {
   await withDir({}, async (dir) => {
     const own = { id: 501, user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane yet: an older reason.", created_at: "2026-10-20T00:00:00Z" };
@@ -1396,9 +1317,6 @@ test("main on a dimension skip edits the lanes App's earlier admission comment i
   });
 });
 
-// Owner Q93: intake splits a Size Large issue, so a split-required skip goes
-// back through intake with no person: agent-ready and the status labels
-// admission reads come off, and nothing adds needs-human.
 test("main on a split-required dimension skip sends the issue back through intake, to no person", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -1423,9 +1341,6 @@ test("main on a split-required dimension skip sends the issue back through intak
   });
 });
 
-// A trusted split child keeps Size Large past admission (owner Q93), so the
-// lane may skip it again: a second intake since a listed human added
-// agent-ready fails, so intake and the lane never loop.
 test("main fails a split-required skip that intake already sent back once, to no person", async () => {
   await withDir({}, async (dir) => {
     const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
@@ -1447,9 +1362,6 @@ test("main fails a split-required skip that intake already sent back once, to no
   });
 });
 
-// A pushback naming no cause goes back through intake with no person, and a
-// second intake since a listed human added agent-ready fails, so intake and
-// the lane never loop.
 test("main on a pushback with no cause sends the issue back through intake once, then fails", async () => {
   const pushback = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
   const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
@@ -1471,8 +1383,6 @@ test("main on a pushback with no cause sends the issue back through intake once,
   }
 });
 
-// The tracker's human-gated label decides the hand-back's Work status through
-// models.issue-status labels; one no state lists fails the run unwritten.
 test("main's hand-back writes the Work status the configured human label maps to, and fails on a label no state lists", async () => {
   const pushback = JSON.stringify({ exit: "pushback", reason: "The issue asks to print the deploy token in the log.", title: "", summary: "" });
   const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
@@ -1496,8 +1406,6 @@ test("main's hand-back writes the Work status the configured human label maps to
   }
 });
 
-// The same pushback naming a security risk: the second intake holds it for a
-// person instead of failing.
 test("main on a second pushback naming a security risk holds it as security-risk", async () => {
   const pushback = JSON.stringify({ exit: "pushback", reason: "The issue asks to print the deploy token in the log.", title: "", summary: "" });
   const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
@@ -1519,10 +1427,6 @@ test("main on a second pushback naming a security risk holds it as security-risk
   });
 });
 
-// An earlier round's security mark does not carry over: intake triage
-// re-judged it before admitting the issue again, so whatever stops the second
-// intake round (a plain means pushback, a split-required skip) ends as it
-// would after a plain round.
 test("main ends a second intake round the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const secure = { user: bot, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
@@ -1549,7 +1453,6 @@ test("main ends a second intake round the same after a security or a plain earli
   }
 });
 
-// A spent retry fails the same after a security or a plain intake round.
 test("main fails a spent retry the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const marker = (outcome, run, at) => ({ user: bot, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->\nWhy.`, created_at: at });
@@ -1572,7 +1475,6 @@ test("main fails a spent retry the same after a security or a plain earlier inta
   }
 });
 
-// A report-delivered close closes the same after a security or a plain intake round.
 test("main closes a report-delivered stop the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
@@ -1597,9 +1499,6 @@ test("main closes a report-delivered stop the same after a security or a plain e
   }
 });
 
-// An issue whose author is outside the trusted list stops at the check-admission job;
-// report-skip says so on the issue and takes agent-ready off, with no
-// needs-human: a listed human re-files the work, and a retry stops again.
 test("main on an outside-author stop moves agent-ready to needs-triage and posts one comment telling a listed human to re-file", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -1623,9 +1522,6 @@ test("main on an outside-author stop moves agent-ready to needs-triage and posts
   });
 });
 
-// lane.json's `stale`: the stale lane branch the run started fresh past,
-// which issue-prior found no comment naming. report-outcome names it once on
-// the issue, beside its usual report, and never deletes it.
 test("main names lane.json's stale branch on the issue once, and deletes no branch", async () => {
   const stale = "work-resolve-issue/issue-77-400-1";
   await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
@@ -1662,9 +1558,6 @@ test("main names no stale branch when lane.json has none, or one of another shap
   }
 });
 
-// A re-run of report-skip finds the lanes App's own outside-author comment and
-// posts no second one; the same marker from anyone else (the outside author
-// can write it) does not count.
 test("main on an outside-author stop posts no second comment when the lanes App already posted one", async () => {
   const marker = "<!-- work-resolve-issue outcome=outside-author run=99 -->\nThe lane did not start this issue.";
   for (const [login, posts] of [
@@ -1756,18 +1649,15 @@ test("main sends a run whose scan refused an oversize patch to intake for a spli
   assert.ok(comment.includes("too-large: the patch was over its 262144-byte cap"), comment);
   assert.doesNotMatch(comment, /no readable outcome file/);
   assert.equal(parseOutcomeMarker(comment).outcome, "intake");
-  // Admission reads this comment as the patch-cap stop that splits the issue.
   assert.equal(patchCapStopped([{ user: { id: 9 }, created_at: "2026-10-21T10:00:00Z", body: comment }], [], new Set(), 9), true);
 });
 
-// A refusal means a model ran, so a lane.json that says it never started loses.
 test("a scan refusal outranks a lane.json issue-file class in the hand-back", async () => {
   const comment = await scanRefusedComment({ marker: "patch\n", lane: { branch: "", class: "issue-edited" } });
   assert.ok(comment.includes("too-large: the patch was over its 262144-byte cap"), comment);
   assert.doesNotMatch(comment, /did not start/);
 });
 
-// Any other refusal may be a credential shape, so a person decides it.
 test("main hands back a run whose scan refused any other output naming the scan refusal", async () => {
   const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt", attempt: "2", states: ["needs-human"] });
   assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
@@ -1912,8 +1802,6 @@ test("main on done opens no PR and retries the issue when the runner's checks do
   for (const [label, files, tip] of [
     ["a failing check", { "runner-checks": checksFile({ results: [{ check: FRAGMENTS, exit: 1 }] }) }, CHECKED_TIP],
     ["no check results", {}, CHECKED_TIP],
-    // Code the model started can rewrite the outcome artifact, so results
-    // there are not the runner's: only run-checks' job output counts.
     ["results only in the outcome artifact", { "checks.json": checksFile() }, CHECKED_TIP],
     ["a tip the branch moved off", { "runner-checks": checksFile() }, "d".repeat(40)],
   ]) {
@@ -1940,8 +1828,6 @@ test("main on done opens no PR and retries the issue when the runner's checks do
   }
 });
 
-// run-checks checks only this run's own lane branch, so a lane.json naming
-// another run's branch carries results run-checks did not write.
 test("main on done ignores check results for another run's lane branch", async () => {
   const other = "work-resolve-issue/issue-77-99-1";
   await withAsyncDir(
@@ -1982,8 +1868,6 @@ test("main on done writes the runner's check results into the PR body", async ()
   );
 });
 
-// The merge lane merges a plain Refs PR as a closing one, so opening it puts no
-// hold on the issue: work-unblock hands the issue to triage once it merges.
 test("main on done with Refs opens the PR and writes nothing to the issue", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify({ ...done, remaining: ["Part B"] }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
@@ -1998,7 +1882,6 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
-      // No denied-path list reads here, so the PR holds and carries the hold label.
       assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
@@ -2093,10 +1976,6 @@ test("main does not adopt an open PR from the branch that someone else opened", 
   );
 });
 
-// A resumed run can finish the inherited work without a commit of its own:
-// its branch was deleted, so the PR opens from the branch it resumed, once
-// run-checks has checked that whole branch and every commit on it ahead of
-// the default branch is the lanes App's.
 const RESUMED = "work-resolve-issue/issue-77-100-1";
 const APP_COMMIT = {
   author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
@@ -2149,7 +2028,6 @@ test("main on a resumed done with no commit of its own opens the PR from the res
         ["POST", /\/pulls$/, 201, { number: 90, head: { sha: CHECKED_TIP } }],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
-      // The compare reads the tip the runner checked, not wherever the name points now.
       assert.ok(calls.some((c) => c.path === `/repos/o/r/compare/main...${CHECKED_TIP}`), JSON.stringify(calls.map((c) => c.path)));
       assert.ok(!calls.some((c) => c.method === "PATCH"));
       const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body;
@@ -2164,10 +2042,6 @@ test("main on a resumed done with no commit of its own opens the PR from the res
   );
 });
 
-// The resumed branch comes from lane.json, which code the model started can
-// rewrite, so the runner opens it only when its checks name it, the branch is
-// still at the tip they checked, they passed, and every commit ahead of the
-// default branch is the lanes App's.
 test("main on a resumed done retries when its branch's checks fail, moved, or carry a commit not the App's", async () => {
   for (const [label, checks, tip, compare] of [
     ["a failing check", checksFile({ branch: RESUMED, results: [{ check: FRAGMENTS, exit: 1 }] }), CHECKED_TIP, resumedCompare()],
@@ -2200,8 +2074,6 @@ test("main on a resumed done retries when its branch's checks fail, moved, or ca
   }
 });
 
-// The branch name can move between the tip check and the PR open, so a PR
-// whose head is not the checked tip is closed and the issue handed back.
 test("main closes a resumed branch's new PR whose head is not the tip the runner checked, and retries", async () => {
   await withAsyncDir(
     {
@@ -2318,8 +2190,6 @@ test("a limit stop with no reset time restarts five hours after the run ended", 
   assert.equal(plan.resets, "2026-10-17T17:00:00Z");
 });
 
-// A stated reset is held between one hour and seven days after the stop, so a
-// reset in the past cannot loop restarts and one far off cannot park the issue.
 test("a limit stop's stated reset is held between one hour and seven days out", () => {
   for (const [resets, expected] of [
     ["2026-10-01T00:00:00Z", "2026-10-17T13:00:00Z"],
@@ -2339,8 +2209,6 @@ test("a limit stop's stated reset is held between one hour and seven days out", 
   }
 });
 
-// The lane record can be forged by any code the run executed, so it never
-// overrides an outcome the skill wrote.
 test("a stop the skill reported goes to a person even with a limit record", () => {
   const plan = decide({
     outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "" },
@@ -2427,7 +2295,6 @@ test("the outcome marker names a valid credential and fallback reason from lane.
     credential: "ISSUE_LANE_CLAUDE_API_KEY",
     fallback: "credit-stop",
   });
-  // A hand-back decide builds opens with the escalation line; its outcome line takes the tags.
   const handBack = decide({
     outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] },
     issueNumber: 77,
@@ -2445,8 +2312,6 @@ test("the outcome marker names a valid credential and fallback reason from lane.
 });
 
 test("the outcome marker drops a credential that is not a secret name and a fallback reason outside the closed set", () => {
-  // An upper-snake value outside the three names run-claude-cli records for
-  // issue-lane is dropped too: a rewritten lane.json could hold an encoded token.
   for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "Q".repeat(42), "AUTOMATIONS_CLAUDE_API_KEY", "", 7]) {
     assert.deepEqual(credentialOf({ credential }), {}, String(credential));
   }
@@ -2457,7 +2322,6 @@ test("the outcome marker drops a credential that is not a secret name and a fall
   assert.deepEqual(withDir({ "lane.json": "{not json" }, (dir) => readLaneCredential(dir)), {}, "an unreadable lane.json");
   const plan = { action: "limited", comment: "<!-- work-resolve-issue outcome=failed run=9 -->" };
   assert.equal(withCredential(plan, { credential: TOKEN_SHAPED, fallback: "handoff" }), plan, "nothing valid leaves the plan as it was");
-  // A marker whose tokens fall outside the closed values does not parse as the lane's.
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 credential=lower_case -->"), null);
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 fallback=handoff -->"), null);
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 credential=AUTOMATIONS_CLAUDE_API_KEY -->"), null);
@@ -2487,8 +2351,6 @@ test("main on a limit stop comments the marker and touches no label", async () =
   });
 });
 
-// The tags reach the posted comment on the limited path and on a stop that
-// finishStop finalizes.
 test("main posts the credential and fallback tags on a limited stop and a routed stop", async () => {
   const tags = { credential: "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", fallback: "credit-stop" };
   await withAsyncDir({ "lane.json": JSON.stringify({ ...JSON.parse(LIMITED_LANE), ...tags }) }, async (dir) => {
@@ -2567,7 +2429,6 @@ test("a late rerun finds its marker past the first page of the whole history", a
       }
       return ok(ISSUE[2]);
     };
-    // Two days after the stop: a since-bounded read would miss the marker.
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW + 2 * 86_400_000 }), 0);
     assert.ok(!calls.some((call) => call.method === "POST"));
     assert.ok(!calls.some((call) => call.url.includes("since=")));
@@ -2615,7 +2476,6 @@ test("a run at its turn cap with a restart left keeps agent-ready and names the 
   assert.ok(plan.comment.includes(BRANCH));
 });
 
-// A spent cap is a visible stop, not a person: agent-ready comes off, no label.
 test("a run at its turn cap with no restart left fails, naming the cap, never needs-human", () => {
   for (const overrides of [{ turnCapRestarts: 1 }, { limits: { "turn-cap-restarts": 0 } }]) {
     const plan = capped(overrides);
@@ -2634,8 +2494,6 @@ test("a run at its turn cap that committed nothing names no branch", () => {
   assert.match(plan.comment, /committed nothing/);
 });
 
-// Code the run executed can forge lane.json, so a class beside an outcome the
-// skill wrote never overrides it.
 test("a forged turn-cap class beside a readable outcome keeps that outcome", () => {
   assert.equal(capped({ outcome: done }).action, "open-pr");
   const stoppedPlan = capped({ outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "" } });
@@ -2689,8 +2547,6 @@ test("a run whose issue changed after agent-ready hands back naming that, not a 
   assert.match(plan.comment, /<!-- stop-reason lane=work-resolve-issue reason=security -->/);
 });
 
-// The brief for this route: an edit by a listed human or one of our Apps goes
-// back through intake triage, with no needs-human and no person reason.
 test("a run whose issue only listed accounts changed after agent-ready goes back through intake, not to a person", () => {
   const issueStop = withDir({ "lane.json": JSON.stringify({ branch: "", class: "issue-edited-trusted" }) }, (dir) => readIssueStop(dir));
   const plan = decide({
@@ -2734,8 +2590,6 @@ test("lane.json's max-turns class is the turn-cap record; any other class is non
   }
 });
 
-// run-claude-cli counts a run that finished past its cap a success (empty
-// class), so lane.json's turns over its max-turns is the only sign of it.
 test("lane.json's turns over its max-turns is the over-cap record; anything else is none", () => {
   for (const [lane, expected] of [
     [{ branch: "", class: "", "max-turns": "75", turns: "140" }, { turns: 140, cap: 75 }],
@@ -2765,10 +2619,6 @@ test("a done run within its turn cap opens its PR with no turn-budget line", () 
   assert.doesNotMatch(plan.body, /turn budget|max-turns=/);
 });
 
-// A leg run-claude-cli stopped at its timeout (class timeout) ran out of time
-// like a turn cap: with a restart left it keeps agent-ready, so work-unblock
-// restarts it and the next run resumes its branch (turn-cap is RESUMABLE);
-// it never hands back as stopped while a restart is left.
 test("a leg timeout with no outcome of its own restarts from its branch like a turn cap, naming the time", () => {
   const timedOut = withDir({ "lane.json": JSON.stringify({ branch: "", class: "timeout", "max-turns": "75" }) }, (dir) => readTurnCap(dir));
   const plan = capped({ turnCap: timedOut });
@@ -2783,7 +2633,6 @@ test("a leg timeout with no outcome of its own restarts from its branch like a t
   assert.equal(spent.action, "fail", "with its restarts used it stops, visibly, with no label");
 });
 
-// A Work status field event as resolve-config.mjs fieldEvents shapes it.
 const fieldSet = (actorId, at, { to = "agent-ready", actorType = actorId === 337595936 ? "Bot" : "User", removed = false, field = "48484079" } = {}) => ({ field, removed, actorId, actorLogin: "x", actorType, at, from: null, to: removed ? null : to });
 
 test("restarts count the App's turn-cap markers since a listed human last set Work status agent-ready, not this run's", async () => {
@@ -2800,8 +2649,6 @@ test("restarts count the App's turn-cap markers since a listed human last set Wo
   ];
   const events = [
     fieldSet(153232337, "2026-10-17T02:00:00Z"),
-    // The App's restart and an unlisted triager's set reset nothing, nor does
-    // a listed human's set of another state or field.
     fieldSet(337595936, "2026-10-17T03:30:00Z"),
     fieldSet(42, "2026-10-17T03:45:00Z"),
     fieldSet(153232337, "2026-10-17T03:50:00Z", { to: "needs-human" }),
@@ -2846,7 +2693,6 @@ test("main on a rerun after its turn-cap marker posts nothing again", async () =
   });
 });
 
-// A turn cap with no restart left fails, an earlier security intake marker included.
 test("main fails a spent turn cap after an earlier security intake marker", async () => {
   const secure = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
   await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
@@ -2886,11 +2732,6 @@ test("main at the turn cap with no restarts configured fails to needs-triage and
   });
 });
 
-// Idempotency per issue, before the resolve-issue mint. Expected values come
-// from the owner's decisions: stop on an open lanes-App PR from a lane branch,
-// or an open closing PR by the lanes App or a listed human (never an
-// outsider's); reuse the first lane branch, newest first, ahead of main with
-// no lanes-App PR in any state and no outcome marker for its run; else run.
 const BOT = "melodic-automation-lanes[bot]";
 const OWNER_ID = 153232337;
 const HUMANS = new Set([OWNER_ID]);
@@ -3005,8 +2846,6 @@ test("--find-prior runs the model when the only lane branch's tip is not the lan
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
-// A reported run's branch is never reused: the model runs again, resuming the
-// branch after a turn-cap, stop or limit and starting fresh after a pushback.
 test("a stopped, pushback or limited marker for the branch's run keeps it from reuse", () => {
   for (const [outcome, action] of [["stopped", "resume"], ["pushback", "run"], ["limited", "resume"]]) {
     const markers = [{ outcome, run: "400", resets: null, at: Date.parse("2026-10-16T11:00:00Z") }];
@@ -3027,10 +2866,6 @@ test("a marker naming no run covers branches whose tip is older than it, not new
   assert.deepEqual(prior({ branches: [older, newer], markers }), { action: "reuse", branch: lane(400) });
 });
 
-// Resume (plan: turn-cap resume, PR 3): when the newest lanes-App outcome
-// marker is turn-cap, stopped or limited and names a run whose lane branch
-// passes the App-tip check and is ahead of main, the next run starts its lane
-// branch at that branch's tip instead of main's.
 const SHA_400 = "4".repeat(40);
 const marked = (outcome, run, at = "2026-10-16T11:00:00Z") => ({ outcome, run, resets: null, at: Date.parse(at) });
 
@@ -3053,8 +2888,6 @@ test("a pushback marker, or a newer pushback for another run, resumes nothing", 
   assert.deepEqual(prior({ branches, markers: newer }), { action: "run" });
 });
 
-// A dimension skip ran nothing and touched no branch, so it leaves the
-// earlier run's resume as it was.
 test("a newer dimension-skip marker keeps an earlier run's resume", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
   for (const reason of ["split-required", "research-first", "probe-first", "parked"]) {
@@ -3063,24 +2896,18 @@ test("a newer dimension-skip marker keeps an earlier run's resume", () => {
   }
 });
 
-// A not-assessed marker an earlier run left ran nothing either, so it also
-// keeps the earlier run's resume.
 test("a newer retired not-assessed marker keeps an earlier run's resume", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
   const markers = [marked("turn-cap", "400"), marked("not-assessed", "401", "2026-10-16T12:00:00Z")];
   assert.deepEqual(prior({ branches, markers }), { action: "resume", branch: lane(400), tip: SHA_400, cause: "turn-cap" });
 });
 
-// A resumed run that committed nothing keeps no branch of its own, so the
-// work is still on the run before it.
 test("a newer turn-cap marker for a resumed run that kept no branch resumes the run before it", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
   const markers = [marked("turn-cap", "400"), { ...marked("turn-cap", "401", "2026-10-16T12:00:00Z"), onResumed: true }];
   assert.equal(prior({ branches, markers }).branch, lane(400));
 });
 
-// Run 401 resumed 400 and committed, so its branch held 400's commits too; a
-// person deleted it to start over. The older run's branch must not be resumed.
 test("a resumable marker whose run's branch was deleted starts fresh, not from an older run's branch", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
   for (const outcome of ["turn-cap", "limited", "stopped", "funding"]) {
@@ -3107,8 +2934,6 @@ test("a marked run's branch that fails the App-tip check, has no commits or has 
   }
 });
 
-// Someone with push access can put a commit under an App tip; a resume would
-// carry it into the next PR, so every commit ahead must be the App's.
 test("a marked run's branch with any commit not the lanes App's, or a cut-short listing, resumes nothing", () => {
   for (const [label, commits] of [
     ["a person's commit under the App tip", [{ ...LANE_TIP, author: { login: "stranger" } }, LANE_TIP]],
@@ -3120,9 +2945,6 @@ test("a marked run's branch with any commit not the lanes App's, or a cut-short 
   }
 });
 
-// A resumed branch carries its base into the runner's whole-branch checks, so
-// one behind main starts fresh from main under a new branch, and the old
-// branch is left for a person to delete.
 test("a marked run's branch behind main starts fresh instead of resuming", () => {
   for (const behindBy of [1, 865]) {
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
@@ -3134,8 +2956,6 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
-// The check-issue-fields job re-derives a resume claimed before the model ran;
-// main moving during the run must not void it.
 test("with keepBehind a marked run's branch behind main still resumes at its tip", () => {
   for (const behindBy of [0, 1, 865]) {
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
@@ -3159,8 +2979,6 @@ test("a lanes-App PR open from a lane branch behind main still stops the run", (
   assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");
 });
 
-// The fresh run that replaced a stale resume reports under its own run, so
-// the next admission never falls back to the stale branch.
 test("after a fresh run replaced a stale resume, the stale branch is not resumed again", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865 })];
   for (const outcome of ["stopped", "turn-cap", "pushback"]) {
@@ -3193,13 +3011,10 @@ test("--find-prior runs the model fresh, with no resume outputs, when the marked
   const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nstale-branch=${lane(400)}\nstale-tip=${"a".repeat(40)}\nstale-noted=false\n`);
-  // Only the reads the resume decision already made: one compare per lane branch.
   assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1);
   assert.deepEqual(writesToGitHub(calls), []);
 });
 
-// report-outcome names a stale branch once: a lanes App comment opening with
-// its marker, from any earlier run, makes stale-noted true.
 test("--find-prior marks a stale branch noted only when a lanes App comment opens with that branch's marker", async () => {
   const stopped = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" };
   const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
@@ -3248,7 +3063,6 @@ const prune = (facts) => {
 test("a stopped run's lane branch with no pull request is pruned", () => {
   const markers = [marked("pushback", "400")];
   assert.deepEqual(prune({ branches: [branchFact(lane(400))], markers }), [lane(400)]);
-  // Every attempt of a stopped run that is not resumed goes.
   assert.deepEqual(prune({ branches: [branchFact(lane(400, 1)), branchFact(lane(400, 2))], markers }), [lane(400, 2), lane(400, 1)]);
 });
 
@@ -3297,8 +3111,6 @@ test("--find-prior names a stopped run's branch with no pull request to prune, a
   assert.equal(kept.output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
-// findPriorMain against a fake GitHub API: its only effect is the step
-// outputs, and it writes nothing to GitHub.
 async function withAsyncDir(files, run) {
   const dir = tempDir("prior-");
   try {
@@ -3351,8 +3163,6 @@ const graphql = (nodes,pageInfo = { hasNextPage: false, endCursor: null }) => ({
 });
 const refOf = (name) => ({ ref: `refs/heads/${name}`, object: { sha: "a".repeat(40) } });
 
-// `graphqlPages`, when given, answers the closing-PR query by its `after`
-// cursor: page i is served for cursor `c<i>` (page 0 for none).
 async function runPrior({
   comments = [],
   nodes = [],
@@ -3463,8 +3273,6 @@ test("--find-prior does not take another account's copy of a marker as a report"
   assert.equal(output, `proceed=false\nskip-reason=not-applicable\nreuse-branch=${lane(400)}\n`);
 });
 
-// The read runner's `go` step stops the activity only on proceed=false, so the
-// hold writes exactly that: no reuse branch to report and no branch to prune.
 const HELD = "proceed=false\n";
 
 test("--find-prior holds when a read fails: green with a notice and proceed=false, and it writes nothing to GitHub", async (t) => {
@@ -3493,9 +3301,6 @@ test("--find-prior holds when a read fails: green with a notice and proceed=fals
   assert.ok(!logged.some((line) => line.startsWith("::error")), logged.join("\n"));
 });
 
-// The check-issue-fields job's re-derive publishes a branch claim only on this
-// step's success (pr-run-activity-read.yml), so a read it could not make still
-// fails, and its job continues on the error.
 test("--find-prior re-deriving a claim (FIND_PRIOR_KEEP_BEHIND) still fails on a failed read, with no output", async () => {
   const { code, output } = await runPrior({ refs: { message: "odd" }, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
   assert.equal(code, 1);
@@ -3545,7 +3350,6 @@ test("--find-prior re-deriving a claim fails while the stop file holds the REST 
   assert.equal(failed, 1, "the guard failed the step");
 });
 
-// What no read can fix is a fault in the step, not an outage.
 test("--find-prior still fails on a bad issue number, a bad repository or an unreadable trust list", async () => {
   for (const env of [{ ISSUE_NUMBER: "x" }, { GITHUB_REPOSITORY: "nope" }, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted.json" }]) {
     const { code, output } = await runPrior({ env });
@@ -3570,7 +3374,6 @@ test("--find-prior holds on a pull request listing that is not a list", async ()
   }
 });
 
-// Each answer of the wrong shape is an incomplete read: the step holds.
 const failsClosed = async (label, facts) => {
   const { code, output } = await runPrior(facts);
   assert.equal(code, 0, label);
@@ -3730,10 +3533,6 @@ test("a reuse branch that is not this issue's lane branch is refused", async () 
   }
 });
 
-// The summary pass: on a reuse, a read-only model pass over the branch diff
-// and the issue writes reuse-summary.json beside runner facts (issue, branch,
-// the tip it read). A reuse PR holds on mustHold's conditions whether or not
-// it carries a usable summary; with none, it keeps the fixed text.
 const TIP = "a".repeat(40);
 const summaryFile = (overrides = {}, output = {}) =>
   JSON.stringify({
@@ -3744,8 +3543,6 @@ const summaryFile = (overrides = {}, output = {}) =>
     output: { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"], ...output },
     ...overrides,
   });
-// Readable denied paths, so the README-only, read-only-class reuse PRs below
-// hold only because no runner checks or leak scan reached them.
 const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS, "path-holds": true } } });
 const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVED_CONFIG: join(dir, "resolved.json") });
 const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
@@ -3868,8 +3665,6 @@ test("a branch's own outcome wins over a summary, so the summary never stands in
   );
 });
 
-// main on a done run of an issue with these labels and `labeled` events, under
-// a resolved config that denies no path, so only the label can hold the PR.
 async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST, open = [], labelStatus = 200 }) {
   return withAsyncDir(
     {
@@ -3925,9 +3720,6 @@ test("main without merge: human holds no PR and reads no label events", async ()
   assert.ok(!calls.some((c) => c.path.endsWith("/events")));
 });
 
-// The hold line is body text the lanes App can edit, so a held PR also
-// carries a label only a listed person's removal lifts (ci-status's
-// human-merge hold step).
 const holdLabelPosts = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels"));
 
 test("main labels a held PR do-not-merge right after it opens", async () => {
@@ -3978,10 +3770,6 @@ test("main holds the PR when the trusted list that judges merge: human's labeler
   assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)], trusted: null })).body));
 });
 
-// A label whose adder is unknown is neither ignored, which would drop a listed
-// human's hold, nor taken as one, which would hold the PR for a person on no
-// evidence. No marker goes up, so the branch stays unreported and the next run
-// reuses it.
 test("main opens no PR and writes nothing when merge: human's labeler cannot be read, and ends green", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, eventsStatus: 500, events: { message: "boom" } });
@@ -4002,7 +3790,6 @@ test("main still reports a stop that opens no PR when merge: human's labeler can
     assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "host-run");
-    // The stop sets Work status to confirmed and still adds its host-run label.
     assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/77/labels") && c.body?.labels?.includes("host-run")), JSON.stringify(calls.map((c) => `${c.method} ${c.path}`)));
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
   });
@@ -4066,9 +3853,6 @@ test("a funding stop with no date leaves a marker with no reset, and work-unbloc
   assert.doesNotMatch(plan.comment, /a person/);
 });
 
-// work-unblock's fail route after limits.limit-stops-per-issue leaves an
-// outcome=failed marker naming the stopped run; a person's new agent-ready
-// then resumes that run's branch like the limit or funding marker it follows.
 test("a failed marker is resumable", () => {
   assert.ok(RESUMABLE.has("failed"));
 });
@@ -4083,19 +3867,11 @@ test("a stop the skill reported goes to a person even with a funding record", ()
   assert.equal(plan.action, "hand-back");
 });
 
-// collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, so every import must resolve inside it.
-// collect-base-activity puts the base .github/scripts/lib/ beside that copy.
-test("the script loads from a copy of its own directory alone, beside the shared lib", async () => {
+test("the script loads from its staged closure", async () => {
   const copy = tempDir("base-script-");
   try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    cpSync(here, join(copy, "base-script"), { recursive: true });
-    cpSync(join(here, "..", "lib"), join(copy, "lib"), { recursive: true });
-    // collect-base-activity also stages the base merge-holds.mjs as ../pr-merge/.
-    mkdirSync(join(copy, "pr-merge"));
-    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(copy, "pr-merge", "merge-holds.mjs"));
-    const module = await import(pathToFileURL(join(copy, "base-script", "report-outcome.mjs")).href);
+    stage(fileURLToPath(new URL("../../..", import.meta.url)), ".github/scripts/work-resolve-issue/report-outcome.mjs", copy);
+    const module = await import(pathToFileURL(join(copy, ".github/scripts/work-resolve-issue/report-outcome.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
     rmSync(copy, { recursive: true, force: true });
@@ -4123,12 +3899,6 @@ function runChecksScript(step = "run-checks") {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// The lane repository forks from a commit holding the base's check and a
-// scripts/list.txt saying bad; the lane branch then commits its own files and
-// the default branch moves on with `baseFiles`, and BASE is a clone of that
-// tip. The base's check passes only when scripts/list.txt says ok, the branch
-// holds .changes/good.md and `extraCheck` holds; the branch's copy of the check
-// logs "lane" and always passes, so running it gives a different log and result.
 function runChecks({
   goodFragment,
   branchList = "ok\n",
@@ -4327,9 +4097,6 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
   }
 });
 
-// Every comment that reaches a person says which of the owner's reasons
-// applies, as a marker and a visible line (../lib/stop-reason.mjs); `none`
-// never reaches one.
 test("every person-routed comment carries the stop-reason marker and the Reason line", async () => {
   const holds = Object.keys(STOP_ROUTES).filter((reason) => STOP_ROUTES[reason].route === "hold");
   assert.ok(holds.length > 0);
@@ -4345,14 +4112,9 @@ test("every person-routed comment carries the stop-reason marker and the Reason 
   const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } });
   assert.equal(parseReason(pushback.comment).reason, "intent");
   assert.ok(pushback.comment.includes("Reason: `intent`"));
-  // A comment that reaches no person carries no stop-reason marker.
   assert.equal(parseReason(decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }).comment), null);
 });
 
-// A security hold read from the run's words names the word, so a person can
-// dismiss a false hit in one read. Expected lines follow the comment's rule:
-// the word, in a code span, of ASCII letters, digits, hyphens, underscores and
-// single spaces.
 const WORD_LINE = "Matched security word: ";
 const wordLine = (comment) => comment.split("\n").find((line) => line.startsWith(WORD_LINE));
 const wordsPlan = (reason, over = {}) =>
@@ -4457,7 +4219,6 @@ test("unmarkedAnswer names the newest listed human's own comment only when it la
   for (const html_url of ["https://evil.example/o/r/issues/77#issuecomment-6 extra", "javascript:alert(1)", undefined]) {
     assert.equal(pick([issueComment(6, OWNER_ID, "Hi.", { html_url })]), null, String(html_url));
   }
-  // A comment the lane's last outcome comment already answered is not linked again.
   const report = { id: 7, user: { login: BOT }, body: `${ESC}<!-- work-resolve-issue outcome=pushback run=5 -->\nWhy.`, html_url: commentUrl(7) };
   assert.equal(pick([unmarked, report]), null);
   assert.equal(pick([unmarked, report, issueComment(8, OWNER_ID, "Still option 1.")]), commentUrl(8));
@@ -4500,8 +4261,6 @@ test("main on a pushback reads the issue's comments and links the owner's unmark
   }
 });
 
-// main reads a pushback's cause from work-outcome.json: a hold-class cause
-// reaches a person as that code with no code in the reason.
 test("main on a pushback whose work-outcome.json names cause cost-risk holds it as cost-risk", async () => {
   const pushback = JSON.stringify({ exit: "pushback", reason: "This provisions a paid Azure plan.", cause: "cost-risk", title: "", summary: "" });
   await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
@@ -4519,11 +4278,6 @@ test("main on a pushback whose work-outcome.json names cause cost-risk holds it 
   });
 });
 
-// Ledger L7: write-issue.mjs leaves out a record posted after the run's
-// admission, so a pushback hold would wait on an answer the issue already
-// has. The answer re-dispatches the lane once, with a fresh admission record
-// and the App's restart of the Work status field; any other late comment
-// takes the hold as before.
 const ADDED = "2026-10-02T00:00:00Z";
 const LATE = "2026-10-02T01:00:00Z";
 const APP_ID = 337595936;
@@ -4534,8 +4288,6 @@ const OWNER_SET = fieldSet(OWNER_ID, ADDED);
 const redispatchRecord = (id, names, at = LATE, run = "99") =>
   late(id, APP_ID, `<!-- work-resolve-issue outcome=redispatch run=${run} -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
 const ISSUE_TEXT = { title: "Fix the README", body: "Done when: the README says so." };
-// A Work status field (report-outcome.mjs workStatusField's shape) whose
-// trusted state and events are given; each restart goes into `calls`.
 const fakeField = ({ state = "agent-ready", events = [], calls = [], restarted = true } = {}) => ({
   id: "48484079",
   state: async () => {
@@ -4548,9 +4300,6 @@ const fakeField = ({ state = "agent-ready", events = [], calls = [], restarted =
     return restarted;
   },
 });
-// `states` lists the Work status writes, `restarts` the field restarts'
-// expected states, `records` the admission records posted; `statusOf` is
-// main's field reader.
 async function runLateRecord(comments, { fieldEvents = [OWNER_SET], reason = "Which file?", state = "agent-ready", statusOf, recordStatus = 201 } = {}) {
   const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
   let result;
@@ -4561,7 +4310,6 @@ async function runLateRecord(comments, { fieldEvents = [OWNER_SET], reason = "Wh
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ];
     const { fetch: inner, calls } = fakeFetch(routes);
-    // The admission record's post answers `recordStatus`.
     const fetch = async (url, init = {}) =>
       String(init.body ?? "").includes(ADMISSION_RECORD_MARKER) && recordStatus !== 201
         ? (calls.push({ method: "POST", path: new URL(url).pathname, body: JSON.parse(init.body) }), { ok: false, status: recordStatus, json: async () => ({}), text: async () => "" })
@@ -4586,7 +4334,6 @@ test("a listed human's decision posted after admission re-dispatches a pushback 
   const { posted, labeled, states, redispatches, records, restarts } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
   assert.deepEqual(states, []);
   assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome posted a fresh admission record and set the Work status field to agent-ready again, so a fresh run admits the issue as it stands now and reads it.`]);
-  // The record carries the sha256 of the title and body this run read.
   assert.deepEqual(records, [recordBody({ actorId: APP_ID, ...ISSUE_TEXT })]);
   assert.equal(posted.length, 2, "the redispatch record, then the admission record, and no hand-back comment");
   assert.ok(posted[0].includes("redispatch comment=5") && posted[1] === records[0], "the redispatch record goes first");
@@ -4600,8 +4347,6 @@ test("a redispatch whose admission record fails to post restarts nothing", async
   assert.deepEqual(run.restarts, []);
 });
 
-// A hold that exists only on the Work status field holds, and so does a
-// field read that fails, or a field no longer at agent-ready.
 test("a hold on the Work status field alone, an unread field, or a field off agent-ready takes the hold over a late decision", async () => {
   const decision = [late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })];
   for (const [name, options] of [
@@ -4653,8 +4398,6 @@ test("a late comment that is no decision, or is not a listed human's own, or pre
   }
 });
 
-// The admission is the newest App record or listed human's agent-ready set:
-// an App restart's set and a stranger's set never move it past the answer.
 test("the admission a late decision is read against is the newest App record or listed human's set, never an App restart", async () => {
   const decision = late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" });
   const restart = await runLateRecord([decision], { fieldEvents: [OWNER_SET, fieldSet(APP_ID, "2026-10-02T02:00:00Z"), fieldSet(42, "2026-10-02T02:00:00Z")] });
@@ -4666,16 +4409,12 @@ test("the admission a late decision is read against is the newest App record or 
   assert.deepEqual([none.redispatches, none.states], [[], ["needs-human"]], "no admission found takes the hold");
 });
 
-// A security stop reaches a person first, whatever was posted since.
 test("a security-risk hold takes the hold even with a listed human's late decision", async () => {
   const { redispatches, restarts, states } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
   assert.deepEqual(redispatches, []);
   assert.deepEqual([restarts, states], [[], ["needs-human"]]);
 });
 
-// A re-run of this run's report finds its own redispatch record (run=123)
-// and finishes what is missing, never posting it again or taking the hold;
-// another run's record is read like any App comment.
 test("a re-run finishes this run's redispatch: the record once, then the restart; a landed restart is done", async () => {
   const decision = late(5, OWNER_ID, DECISION_BODY);
   const own = redispatchRecord(6, 5, LATE, "123");
@@ -4690,8 +4429,6 @@ test("a re-run finishes this run's redispatch: the record once, then the restart
   assert.deepEqual([landed.posted, landed.restarts, landed.states], [[], [], []], "its restart landed: nothing left to do, and no hold");
 });
 
-// The App's removal landed and its set did not: the re-run sets agent-ready
-// on the unset field, while a person's removal takes the hold.
 test("a redispatch stopped after the App removed the field value is finished on a re-run; a person's removal takes the hold", async () => {
   const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5, LATE, "123"), late(7, APP_ID, recordBody({ actorId: APP_ID, ...ISSUE_TEXT }), { at: LATE, type: "Bot", login: BOT })];
   const removal = (actorId) => fieldSet(actorId, "2026-10-02T01:00:02Z", { removed: true });
@@ -4701,9 +4438,6 @@ test("a redispatch stopped after the App removed the field value is finished on 
   assert.deepEqual([person.restarts, person.states], [[], ["needs-human"]]);
 });
 
-// The stopped run may have committed to its lane branch; the record's outcome
-// marker reports that run, so the fresh admission runs the model instead of
-// reusing the branch unread.
 test("a redispatch record reports its run's lane branch, so findPrior runs fresh instead of reusing it", () => {
   const body = redispatchComment({ id: 5, html_url: commentUrl(5) }, "400");
   assert.deepEqual(parseOutcomeMarker(body), { outcome: "redispatch", resets: null, run: "400", onResumed: false });
@@ -4712,8 +4446,6 @@ test("a redispatch record reports its run's lane branch, so findPrior runs fresh
   assert.deepEqual(prior({ branches, markers: [{ ...parseOutcomeMarker(body), at: Date.parse(LATE) }] }), { action: "run" });
 });
 
-// report-outcome restates these because a script activity runs from a copy
-// of its own directory; the sources they restate must not drift from them.
 test("report-outcome's restated decision line and refinement marker match their sources", async () => {
   const admit = await import("../intake-triage/admit.mjs");
   assert.equal(REFINE_MARKER, admit.REFINE_MARKER);
@@ -4722,11 +4454,6 @@ test("report-outcome's restated decision line and refinement marker match their 
   assert.equal(isDecisionComment(decision(`${DECISION_LINE} yes`), HUMANS), true);
 });
 
-// stop-routes.json routes every stop. Expected values are the owner's
-// direction of 2026-10-27: a person only for an intent, design, security or
-// cost reason; a host-only or protected-path stop to the host queue's one
-// signal, host-run; a crash or unfinished check back to agent-ready under a
-// hard retry cap, and past it a visible stop with no label.
 const stoppedPlan = (reason, overrides = {}) =>
   decide({
     outcome: { exit: "stopped", reason, title: "", summary: "" },
@@ -4761,8 +4488,6 @@ test("route host-run: a run's host-only code adds host-run, removes agent-ready 
   assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
 });
 
-// Owner decision 2026-10-28: a manual external step goes to attended, never
-// to needs-human, which keeps meaning an owner decision.
 test("route attended: a run's manual-external code adds attended, removes agent-ready and escalates to no person", () => {
   const plan = stoppedPlan("manual-external: the record needs a DNS change at the registrar");
   assert.equal(plan.action, "attended");
@@ -4801,8 +4526,6 @@ test("route fail: a retry past limits.stop-retries removes agent-ready and adds 
   assert.equal(capRetries(hold, 9, { "stop-retries": 0 }), hold, "a plan that is not a retry is left as it is");
 });
 
-// Owner direction 2026-10-29: a stop with no code names no intent, design,
-// security or cost finding, so it retries once and then fails, never a person.
 test("a stop with no code retries once, then fails, and never goes to a person", () => {
   const plan = stoppedPlan("I could not finish this.");
   assert.equal(plan.stop, "stopped");
@@ -4816,8 +4539,6 @@ test("a stop with no code retries once, then fails, and never goes to a person",
   assert.equal(capRetries(plan, 0, { "stop-retries": 0 }).action, "fail", "the lane-wide cap still bounds it");
 });
 
-// A run that waits on an unmerged pull request names no owner reason, so it
-// keeps agent-ready instead of going to a person.
 test("route wait: a blocked-by-pr code keeps agent-ready and names the pull request in its marker", () => {
   const plan = stoppedPlan("blocked-by-pr: #10743 adds the binding this needs; see also #77");
   assert.equal(plan.action, "wait");
@@ -4853,8 +4574,6 @@ test("a reuse run opens no PR from the resumed branch while a listed human's pul
   assert.notEqual(decideDone({ ...resumed, escalation: "patch-apply-failed" }).action, "open-pr", "a failed pull request read keeps the PR closed");
 });
 
-// Work that must land after another issue names no owner reason: intake
-// triage writes the blocked-by edge the run names, so admission waits for it.
 test("route intake: a blocked-by-issue code sends the issue back through intake, naming the issue it waits on", () => {
   const plan = stoppedPlan("blocked-by-issue #13187 must land first; see also #77");
   assert.equal(plan.stop, "blocked-by-issue");
@@ -4877,14 +4596,11 @@ test("route close: already-done and report-delivered close the issue as complete
     assert.match(plan.comment, /closes the issue as completed/);
     assert.ok(plan.comment.includes(reason), plan.comment);
   }
-  // The close comment reads back as its stop and the run's own reason, which
-  // isTrustedClose re-checks (owner Q9, 2026-10-29).
   const done = stoppedPlan("already-done: #5 shipped it\nand abb359be too", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
   assert.deepEqual(closeStop(done.comment), { stop: "already-done", reason: "already-done: ＃5 shipped it\nand abb359be too" });
   const report = stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
   assert.equal(closeStop(report.comment).stop, "report-delivered");
   assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
-  // A report closes only an issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
   for (const opts of [{}, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
     const retry = stoppedPlan("report-delivered: the report is below", opts);
@@ -4893,7 +4609,6 @@ test("route close: already-done and report-delivered close the issue as complete
   }
 });
 
-// Owner Q85: a stop routes by no work class, or by a missing one.
 test("route close: report-delivered closes a class-less or structural issue with no branch, and retries with one", () => {
   for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
     const closed = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "" });
@@ -4905,8 +4620,6 @@ test("route close: report-delivered closes a class-less or structural issue with
   }
 });
 
-// The earlier run's commits are unmerged on the branch this run resumed, so a
-// report that committed nothing of its own closes nothing.
 test("route close: report-delivered retries on a resumed branch when the run committed nothing, keeping that branch for the next run", () => {
   for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
     const plan = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "", resumed: "work/7-earlier" });
@@ -4916,8 +4629,6 @@ test("route close: report-delivered retries on a resumed branch when the run com
   }
 });
 
-// main against a fake API for the routes whose effect needs a read first.
-// `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
 const stopRun = async ({ reason, summary = "", routes, trusted = false, issue = ISSUE[2], extraEnv = {}, extraFiles = {} }) => {
   let result;
   const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }), ...extraFiles };
@@ -5014,7 +4725,6 @@ test("main closes an already-done issue only when its cited commit is on the def
   assert.ok(!unproven.calls.some((c) => c.method === "PATCH"), "no proof, no close");
   assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
   assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no pull request merged into the default branch, or commit on it, made after the issue opened whose commit message closes this issue,/);
-  // Run 40844966342: a release commit on main closed an issue it never touched.
   const release = await stopRun({
     reason: "already-done: both items are on main at abb359be",
     routes: [
@@ -5046,10 +4756,7 @@ test("main closes a verified-done parent only when every sub-issue is closed as 
   assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
   const comment = done.calls.find((c) => c.method === "POST").body.body;
   assert.match(comment, /^<!-- work-resolve-issue outcome=closed run=123 -->/);
-  // The close posts each check the run cites (its summary).
   assert.match(comment, /The run's report:\n\n> The guide names each flag: ＃80\.\n> The tests cover each flag: ＃81\./);
-  // The stop line carries the code, so a verify run's close is told apart from
-  // an already-done one when close lag is measured again.
   assert.equal(closeStop(comment).stop, "verified-done");
   for (const [name, routes, extraEnv] of [
     ["no VERIFY_CLOSE", [subs(doneSub(80), doneSub(81))], {}],
@@ -5068,8 +4775,6 @@ test("main closes a verified-done parent only when every sub-issue is closed as 
   }
 });
 
-// A verify run that resumed an earlier unmerged branch and committed nothing
-// checked work that is still off the default branch, so it closes nothing.
 test("main retries a verified-done stop on a resumed branch with no commit of its own, keeping that branch", async () => {
   const run = await stopRun({
     reason: VERIFIED,
@@ -5132,9 +4837,6 @@ test("parentDone proves nothing for an issue with no sub-issue,so doneEvidence s
   assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, [doneSub(80)]]]), "/repos/o/r", 77, async () => true), true);
 });
 
-// doneEvidence against a fake client: each route answers its path, and a path
-// no route names fails the read, as a GitHub error would. An issue never
-// reopened answers its event list empty unless a route says otherwise.
 const NO_EVENTS = [/\/issues\/77\/events\?per_page=100&page=1$/, []];
 const evidenceClient = (routes) => async (method, path) => {
   const route = [...routes, NO_EVENTS].find(([pattern]) => pattern.test(path));
@@ -5148,8 +4850,6 @@ const ON_MAIN = [
   [/\/compare\/abb359be\.\.\.main$/, { status: "ahead" }],
 ];
 
-// The issue, opened before every change below; its body names a path, which
-// proves nothing.
 const EVIDENCE_ISSUE = [/\/issues\/77$/, { created_at: "2026-10-01T00:00:00Z", body: "The table in `docs/lanes.md:12` is stale." }];
 const MERGE_SHA = "cafe".repeat(10);
 // A merged pull request #5 whose merge commit says `message`; its title and
@@ -5279,13 +4979,9 @@ test("doneEvidence takes only work merged after the issue was last reopened", as
 
 test("doneEvidence proves nothing when a read fails", async () => {
   const commit = [/\/commits\/abb359be$/, { commit: { message: "Fixes #77", committer: { date: "2026-10-28T00:00:00Z" } }, files: [] }];
-  // The issue read fails, so its time cannot be read.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit]), "/repos/o/r", "already-done: abb359be", 77), false);
-  // The commit read fails, though the compare says it is on main.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, EVIDENCE_ISSUE]), "/repos/o/r", "already-done: abb359be", 77), false);
-  // The default branch read fails.
   assert.equal(await doneEvidence(evidenceClient([commit, EVIDENCE_ISSUE]), "/repos/o/r", "already-done: abb359be", 77), false);
-  // Each read answering, the same evidence holds.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit, EVIDENCE_ISSUE]), "/repos/o/r", "already-done: abb359be", 77), true);
 });
 
@@ -5297,9 +4993,6 @@ test("main posts a delivered report and closes the issue", async () => {
   assert.deepEqual(run.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
 });
 
-// A close writes no status label: the issue closes, then host-run comes off
-// (after the close, so a failed close never leaves an open issue without its
-// state); attended stays, and so does every status label.
 const withLabels = (...names) => ({ ...ISSUE[2], labels: names.map((name) => ({ name })) });
 const labelWrites = (calls) => calls.filter((c) => c.method === "DELETE" || c.method === "PATCH").map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
 test("main's close writes no status label and removes host-run after the close, keeping attended", async () => {
@@ -5312,7 +5005,6 @@ test("main's close writes no status label and removes host-run after the close, 
   assert.deepEqual(labelWrites(bare.calls), ["PATCH "]);
 });
 
-// A verified-done parent closes through the same route.
 test("main's verified-done close writes no status label", async () => {
   const run = await stopRun({ reason: VERIFIED, extraEnv: { VERIFY_CLOSE: "80,81" }, issue: withLabels("status: ready", "agent-ready"), routes: [subs(doneSub(80), doneSub(81))] });
   assert.equal(run.code, 0);
@@ -5399,14 +5091,11 @@ test("main fails a stop past the cap that is itself no fault, even after retries
   assert.equal(parseOutcomeMarker(comment).outcome, "failed");
 });
 
-// A hold posts no marker, so a branch this run made would read as unreported
-// work, and the next run would open a PR from it (findPrior's reuse).
 test("main fails a fault past the cap that left a branch of this run's own, and holds on one the run only resumed", async () => {
   const body = await crashRetryComment();
   const earlier = [earlierRetry(body, 1), earlierRetry(body, 2)];
   const own = await spentStop(earlier, { "lane.json": JSON.stringify({ branch: "work-resolve-issue/issue-77-123-1" }) });
   assert.equal(parseOutcomeMarker(own.comment).outcome, "failed");
-  // patch-apply-failed names the resumed branch on the stop, so this reaches the run-id check.
   const resumed = await spentStop(
     earlier,
     {
@@ -5418,8 +5107,6 @@ test("main fails a fault past the cap that left a branch of this run's own, and 
   assert.deepEqual(resumed.writes, []);
 });
 
-// limits.stop-retries 0 means no retries: nothing has been tried, so no retry
-// was a fault.
 test("main fails a fault at once under a cap of 0", async () => {
   const { comment } = await spentStop([], { "resolved.json": JSON.stringify({ limits: { "stop-retries": 0 } }) }, (dir) => ({ RESOLVED_CONFIG: join(dir, "resolved.json") }));
   assert.equal(parseOutcomeMarker(comment).outcome, "failed");
@@ -5470,8 +5157,6 @@ test("main on a rerun after its own retry marker posts nothing again", async () 
   });
 });
 
-// The owner's rule: a patch not proven clear of a credential holds, whatever
-// exit or forgeable record the run left beside it.
 test("a patch-credential escalation and a scan's output refusal hold past any exit or record", () => {
   const unread = () => readOutcome("/nonexistent/work-outcome.json");
   const refused = () => ({ ...unread(), stop: "scan-refused-output", reason: SCAN_REFUSALS.output });
@@ -5589,9 +5274,6 @@ test("a current attempt with a patch and an output scan marker reads as output, 
   }
 });
 
-// A reuse PR holds on exactly decide()'s conditions plus its own leak scan
-// (mustHold), and a clean one opens with no hold line. Each case pairs a clean
-// reuse, which carries none, with the same reuse and one condition changed.
 const CLEAN_CHECKS = { tip: TIP, results: [{ check: FRAGMENTS, exit: 0 }], scan: "clean" };
 const CLEAN_REUSE = {
   issueNumber: 77,
@@ -5649,8 +5331,6 @@ test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
 });
 
-// A failed runner check is not a reason for a person: the PR opens, its
-// Verification section names the failure, and its own CI stays red until fixed.
 test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
   const plan = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } });
   assert.equal(plan.hold, false);
@@ -5684,7 +5364,6 @@ test("mustHold: a reuse holds on any scan word but clean; a failed runner check 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
   const held = (body) => body.split("\n").includes(HOLD_LINE);
   for (const [name, overrides] of Object.entries({ "nothing": {}, ...HOLD_CASES })) {
-    // decide() stops a done run whose checks are missing or failed before it reaches the hold.
     if (overrides.checks !== undefined) continue;
     const facts = { ...CLEAN_REUSE, ...overrides };
     const plan = decide({ outcome: done, branch: BRANCH, ...facts });
@@ -5702,8 +5381,6 @@ test("readChecks carries a reused branch's scan word, reads an unknown one as fa
   assert.deepEqual(readChecks(record(undefined), { branch: BRANCH }), { tip: CHECKED_TIP, results: [] });
 });
 
-// main on a reuse with no outcome of its own: the runner's checks for the
-// reused branch at TIP, with `scan` (null: none), and the issue's labels and events.
 async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
   const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit }], ...(scan === null ? {} : { scan }) });
   return withAsyncDir({ "runner-checks": checks, "resolved.json": RESOLVED, "trusted.json": TRUSTED_LIST }, async (dir) => {
@@ -5750,8 +5427,6 @@ test("main reads merge: human on a reuse too, and opens no PR when its labeler c
   assert.deepEqual(unread.calls.filter((c) => c.method !== "GET"), [], "unreadable events");
 });
 
-// The run-checks step puts the reuse scan's word in the record only on a
-// reused branch, and only for the tip it checked; anything else is failed.
 test("the checks record carries the reuse scan's word for the checked tip, failed for another tip or no word, and none off a reuse", () => {
   const scanOf = (env) => runChecks({ goodFragment: true, env }).checks.scan;
   assert.equal(scanOf((tip) => ({ REUSE: "true", SCAN: "clean", SCAN_TIP: tip })), "clean");
@@ -5762,8 +5437,6 @@ test("the checks record carries the reuse scan's word for the checked tip, faile
   assert.equal(scanOf((tip) => ({ REUSE: "", SCAN: "found", SCAN_TIP: tip })), undefined, "not a reuse");
 });
 
-// The reuse-scan step against a throwaway base holding the gate and the scan
-// script, and a lane branch cloned from it.
 function runReuseScan(laneFiles) {
   const root = tempDir("reuse-scan-");
   try {
@@ -5881,7 +5554,6 @@ test("main on done opens no PR when a listed human's open PR already closes the 
   const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
   assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry run=123 -->"), comment);
   assert.match(comment, /`closed-by-open-pr`/);
-  // Quoted as the stop's words, so its `#` is neutralized like any run text.
   assert.match(comment, /PR .10686 already closes this issue/);
   assert.ok(comment.includes(BRANCH), comment);
 });
@@ -5895,8 +5567,6 @@ test("main on done still opens the PR when no open PR closes the issue, or only 
   }
 });
 
-// A rerun of the report finds the lanes App's own PR from this branch, which
-// closes the issue itself, so it is never read as a second PR.
 test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {
   const { code, calls } = await openWithClosers([closer("Bot", BOT)], { own: [{ number: 90, user: { login: BOT }, head: { sha: CHECKED_TIP } }] });
   assert.equal(code, 0);
@@ -5924,12 +5594,6 @@ test("main opens no PR when the closing PRs cannot be read", async () => {
   );
 });
 
-// A run that waited in its slot past a lane workflow change stopped before
-// any model turn (workflow-stale): report-outcome re-fires the issue at once
-// on main's files, with work-unblock's re-fire record, so the sweep's restart
-// accounting reads it as its own, and backs off to the sweep past
-// limits.limit-stops-per-issue re-fires since the issue's admission or a run
-// last reported.
 const STALE_BOT = "melodic-automation-lanes[bot]";
 const STALE_APP = 337595936;
 const MAIN_BLOBS = ["a".repeat(40), "b".repeat(40)];
@@ -5958,7 +5622,6 @@ const staleGitHub = (fetch) => async (method, path, body) => {
   if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
   return response.json();
 };
-// A listed human (id 1) set agent-ready at 10:00, the admission.
 const HUMAN_SET = fieldSet(1, "2026-11-01T10:00:00Z");
 const staleField = (calls, { state = "agent-ready", events = [HUMAN_SET], restarted = true } = {}) => fakeField({ state, events, calls, restarted });
 const refire = ({ fetch, calls }, limits = LIMIT_DEFAULTS, field = staleField(calls), statusOf) =>
@@ -6008,27 +5671,22 @@ test("refireStale reads holds through the real Work status reader: a field-only 
 
 test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since the admission or a report", async () => {
   const two = [record("2026-11-01T10:30:00Z"), record("2026-11-01T11:00:00Z")];
-  // The App's own restarts after each record.
   const events = [HUMAN_SET, fieldSet(STALE_APP, "2026-11-01T10:30:02Z"), fieldSet(STALE_APP, "2026-11-01T11:00:02Z")];
   const spent = staleFetch({ comments: two });
   assert.match(await refire(spent, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(spent.calls, { events })), /^skipped: 2 re-fires/);
   assert.deepEqual(writes(spent.calls), []);
   const left = staleFetch({ comments: two });
   assert.match(await refire(left, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 3 }, staleField(left.calls, { events })), /^re-fired/);
-  // A listed human's agent-ready set, or a run that reported, after them resets the count; the App's own set does not.
   const human = staleFetch({ comments: two });
   assert.match(await refire(human, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(human.calls, { events: [...events, fieldSet(1, "2026-11-01T12:00:00Z")] })), /^re-fired/);
   const app = staleFetch({ comments: two });
   assert.match(await refire(app, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(app.calls, { events: [...events, fieldSet(STALE_APP, "2026-11-01T12:00:00Z")] })), /^skipped: 2 re-fires/);
   const reported = staleFetch({ comments: [...two, record("2026-11-01T11:30:00Z", "<!-- work-resolve-issue outcome=retry run=5 -->\nretry")] });
   assert.match(await refire(reported, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(reported.calls, { events })), /^re-fired/);
-  // A breaker trip's record is the kill switch's, not a stale re-fire.
   const breaker = staleFetch({ comments: [record("2026-11-01T10:30:00Z", `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} breaker -->\ntrip`), two[1]] });
   assert.match(await refire(breaker, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(breaker.calls, { events })), /^re-fired/);
 });
 
-// The record and the App's set land in the same second: the set still
-// finishes that record, so it counts toward the bound.
 test("refireStale counts a record whose App set shares its second", async () => {
   const at = "2026-11-01T11:00:00Z";
   const run = staleFetch({ comments: [record(at)] });
@@ -6060,7 +5718,6 @@ test("refireStale does nothing when the files match main's, the issue is closed,
   assert.deepEqual(run.calls, []);
 });
 
-// The App's own admission record admits the issue as a listed human's set does.
 test("refireStale re-fires an issue the App's admission record admitted", async () => {
   const admitted = { id: 3, user: { id: STALE_APP, login: STALE_BOT }, body: recordBody({ actorId: STALE_APP, title: "t", body: "b" }), created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" };
   const run = staleFetch({ comments: [admitted] });
@@ -6079,8 +5736,6 @@ test("main on a workflow-stale stop re-fires through refireStale and reads no ou
   });
 });
 
-// One hold set for the lane, which work-unblock's sweep reads too: every hold
-// on it stops the immediate re-fire, the owner-only ones included.
 test("refireStale re-fires nothing on any of the lane's holds", async () => {
   assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("host-run") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("provenance: untrusted"));
   for (const hold of LANE_HOLDS) {
@@ -6090,16 +5745,12 @@ test("refireStale re-fires nothing on any of the lane's holds", async () => {
   }
 });
 
-// A person who changes the field between the read and the write wins.
 test("refireStale leaves a person's change standing when the restart finds the field moved", async () => {
   const run = staleFetch();
   assert.equal(await refire(run, LIMIT_DEFAULTS, staleField(run.calls, { restarted: false })), "skipped: the Work status changed before the re-fire");
   assert.deepEqual(writes(run.calls), ["POST /comments", "RESTART /issues/77"]);
 });
 
-// workStatusField's restart reads the state again right before the writer's
-// restart (write-status.mjs statusWriter `restart`, stubbed here), and a moved
-// state or the writer's `held` answer is a person's change that stands.
 test("workStatusField's restart calls the writer's restart only while the state still reads `from`", async () => {
   const run = async (fields, { from = "agent-ready", answer = { outcome: "written" } } = {}) => {
     const restarted = [];

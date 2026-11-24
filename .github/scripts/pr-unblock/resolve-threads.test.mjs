@@ -21,7 +21,6 @@ const VALID = reply("VALID");
 const ANSWERED = `${FINDING_ANSWERED}\n**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**`;
 
 let nextId = 1;
-// A listThreads node and its REST rows; each comment is [author, body, editor?].
 function make(comments, { id = "PRRT_a", outdated = false, resolved = false } = {}) {
   const rows = comments.map(([user, body]) => ({ id: nextId++, user: { id: user }, body, pull_request_review_id: 7 }));
   const thread = {
@@ -53,7 +52,6 @@ test("a bot finding the lane answered VALID or an adjudication answered resolves
 test("an outdated bot finding resolves; a current one with no answer stays", () => {
   assert.equal(judge(make([[CLAUDE, REVIEW]], { outdated: true })), "outdated");
   assert.equal(judge(make([[CLAUDE, REVIEW]])), "current");
-  // A reviewer re-raise after the answer: not answered, so only outdated resolves it.
   assert.equal(judge(make([[CLAUDE, REVIEW], [APP, VALID], [CLAUDE, "Still wrong."]])), "current");
   assert.equal(judge(make([[CLAUDE, REVIEW], [APP, VALID], [CLAUDE, "Still wrong."]], { outdated: true })), "outdated");
 });
@@ -62,7 +60,6 @@ test("a CRITICAL bot finding stays open, answered or outdated", () => {
   assert.equal(judge(make([[CLAUDE, CRITICAL_REVIEW], [APP, VALID]])), "person-decides");
   assert.equal(judge(make([[CLAUDE, CRITICAL_REVIEW]], { outdated: true })), "person-decides");
   assert.equal(judge(make([[MARKER_AUTHOR_ID, `${CRITICAL_REVIEW}${laneFooter("claude-review")}`], [APP, VALID]])), "person-decides");
-  // A reviewer comment after the root that rates it CRITICAL holds it too.
   assert.equal(judge(make([[CLAUDE, REVIEW], [CLAUDE, CRITICAL_REVIEW]], { outdated: true })), "person-decides");
 });
 
@@ -80,10 +77,8 @@ test("a human-authored or human-joined thread stays open", () => {
   assert.equal(judge(make([[OWNER, REVIEW]], { outdated: true })), "not-bot-only");
   assert.equal(judge(make([[CLAUDE, REVIEW], [APP, VALID], [OWNER, "Thanks"]], { outdated: true })), "not-bot-only");
   assert.equal(judge(make([[CLAUDE, REVIEW], [STRANGER, "+1"], [APP, VALID]])), "not-bot-only");
-  // A bot comment someone else edited is no longer the bot's alone.
   assert.equal(judge(make([[CLAUDE, REVIEW, OWNER], [APP, VALID]])), "not-bot-only");
   assert.equal(judge(make([[CLAUDE, REVIEW, CLAUDE], [APP, VALID]])), "answered");
-  // A thread the lanes App opened is no review finding.
   assert.equal(judge(make([[APP, "note"]], { outdated: true })), "not-bot-only");
 });
 
@@ -95,8 +90,6 @@ test("a thread the lane left open or a pr-verify note stays open even when outda
   assert.equal(judge(make([[CLAUDE, REVIEW]], { outdated: true, resolved: true })), "resolved");
 });
 
-// A fake API holding one PR's threads; resolveThread marks a thread resolved.
-// `edits` maps a thread id to the [body, editor] its comments hold at the re-read.
 function fakeApi({ author = { id: OWNER, type: "User" }, made = [], changed = new Set(), edits = {}, failing = new Set() } = {}) {
   const calls = [];
   const threads = made.map(({ thread }) => thread);
@@ -172,7 +165,6 @@ test("a comment edited between the reads is judged again: rated CRITICAL or edit
     assert.deepEqual(await run(api), { skipReason: "", resolved: ["PRRT_kept"] }, JSON.stringify(edit));
     assert.deepEqual(api.calls, ["PRRT_kept"]);
   }
-  // The bot's own edit that keeps the finding below CRITICAL still resolves.
   const own = fakeApi({ made: made(), edits: { PRRT_e: [["This drops the error, as noted.", CLAUDE]] } });
   assert.deepEqual((await run(own)).resolved, ["PRRT_e", "PRRT_kept"]);
 });

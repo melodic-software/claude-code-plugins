@@ -66,8 +66,6 @@ export async function prune(env, { call, log = console.log }) {
   for (const [i, branch] of names.entries()) {
     const ref = repository[`b${i}`];
     const oid = ref?.target?.oid;
-    // Kept when a pull request from it in any state, or an open one into it,
-    // exists, or a count does not read.
     if (ref?.associatedPullRequests?.totalCount !== 0 || repository[`p${i}`]?.totalCount !== 0 || !SHA.test(oid ?? "")) {
       log(`prune-branches: kept ${branch}: ${ref ? "a pull request uses it, or it reads oddly" : "it is gone"}`);
       continue;

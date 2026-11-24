@@ -13,15 +13,9 @@ import { MissingFact, appliesAll, factsFor, matchedPaths } from "./predicate.mjs
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
-// Runner job names: `<lane> / run` would collide with pr-run-activity's own checks.
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
-// Model routes that are no activity: pr-verify.yml's judgment, pr-rate-merge-risk.yml's rating, the code and
-// security review lanes, and intake triage.
 const RUN_ROUTES = new Set(["verify-pr", "merge-risk", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
-// What model-route accepts: the run routes, and resolve-issue for a model job that takes the issue
-// lane's code-change profile (the upkeep batch and the release intake lane).
 const MODEL_ROUTES = new Set([...RUN_ROUTES, "resolve-issue"]);
-// The profile every run takes in a config with no `models` block.
 const BUILTIN_MODELS = Object.freeze({
   profiles: { standard: { model: "opus", "max-turns": 75 } },
   "default-profile": "standard",
@@ -120,10 +114,6 @@ function checkVocabularyShape(vocabulary) {
 
 const isComposite = (activity) => Object.hasOwn(activity, "children");
 
-// What the schema cannot check about composites: each child is defined, a
-// child's needs name its siblings, no composite contains itself, and a
-// composite holds only leaves, so no leaf sits more than two layers below its
-// lane.
 function checkComposites(activities) {
   const composites = Object.entries(activities).filter(([, activity]) =>
     isComposite(activity),
@@ -177,9 +167,6 @@ function checkComposites(activities) {
   }
 }
 
-// activity-rules.json: per leaf, the effects it may never have and what it
-// never does. A leaf with no row is valid; a missing file is not, and every
-// forbidden effect must be one effect-grants.json knows.
 function checkActivityRules(activityRules, effectGrants) {
   const valid =
     isObject(activityRules) &&
@@ -211,16 +198,12 @@ function checkLeaves(activities, activityRules) {
     if (isComposite(activity)) {
       continue;
     }
-    // A skill runs only in the read runner, which holds no write credential;
-    // a script applies or publishes what it hands on.
     if (typeof activity.skill === "string" && activity.effect !== "read") {
       throw new Rejection(
         "skill-not-read",
         `activity \`${name}\` is a skill with effect ${activity.effect}; a skill has effect read and hands its change to a script activity`,
       );
     }
-    // ci-context is the read runner's one mode, apply-patch a branch-writing
-    // script's; every other mode needs a read skill whose patch a script applies.
     const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
     const handsOnPatch = isObject(activity["applied-by"]) && typeof activity["applied-by"].patch === "string";
     if (
@@ -244,12 +227,8 @@ function checkLeaves(activities, activityRules) {
   }
 }
 
-// The prepare mode an applied-by target must set, per key.
 const APPLIER_PREPARE = Object.freeze({ patch: "apply-patch" });
 
-// What the schema cannot check about `applied-by`: each target is a script
-// activity (a patch target one with prepare: apply-patch), and every lane that
-// holds the producer holds the target in a slot that needs the producer.
 function checkAppliedBy(doc) {
   const reject = (message) => {
     throw new Rejection("invalid-applied-by", message);
@@ -297,10 +276,6 @@ export function checkAppliedBySupported(selected, supported = "") {
   }
 }
 
-// What the schema cannot check about `models`: every profile a route,
-// default-profile, escalate-to or complexity profile names exists, a
-// complexity profile's key is a complexity, and every route names a skill
-// activity or a run route, so a mistyped route cannot silently take the default.
 function checkModels(models, activities) {
   if (models === undefined) {
     return;
@@ -346,7 +321,6 @@ function checkModels(models, activities) {
   }
 }
 
-// Whether a skill activity takes its budget from its issue's dimensions.
 const dimensionedBy = (activity, models) =>
   models?.["issue-dimensions"] !== undefined &&
   typeof activity.skill === "string" &&
@@ -434,7 +408,6 @@ export function loadConfig(files, { configPath }) {
     checkActivityGrants(laneName, rule["activity-grants"]);
     for (const name of leaves) {
       const activity = doc.activities[name];
-      // The lane rule compares strictly, so it must not depend on the schema enum.
       if (typeof activity.effect !== "string") {
         throw new Rejection(
           "invalid-config",
@@ -465,15 +438,11 @@ function laneSection(doc, lane) {
 
 const ROOT = Object.freeze({ enabled: true, predicates: [], needs: [] });
 
-// The leaf keys a needs entry waits on: a composite's leaves, or the leaf.
 const leafKeys = (doc, name) =>
   isComposite(doc.activities[name])
     ? doc.activities[name].children.map((child) => child.activity)
     : [name];
 
-// Each leaf under these slots, depth first in list order, with its own
-// effective predicate, every predicate it must also pass (ancestors first),
-// enabled as the AND down its path, and needs as its ancestors' then its own.
 function expand(doc, slots, parent) {
   return slots.flatMap((slot) => {
     const activity = doc.activities[slot.activity];
@@ -515,7 +484,6 @@ export function laneHasActivity(files, { lane, activity, configPath }) {
   return laneSlots(doc, lane).some((entry) => entry.name === activity);
 }
 
-// The index of the requested activity's slot, -1 when none was requested.
 function selectedIndex(entries, lane, activity) {
   if (activity === undefined || activity === "") {
     return -1;
@@ -532,8 +500,6 @@ function selectedIndex(entries, lane, activity) {
   return indexes[0];
 }
 
-// Whether a slot's predicate is decided: every slot without an activity, only
-// the selected one with it, so another slot's predicate cannot fail the run.
 const decides = (index, selected) => selected < 0 || index === selected;
 
 // The facts the decided enabled slots read. Rejects the same files and request
@@ -551,7 +517,6 @@ export function neededFacts(files, { lane, activity, configPath, pinnedDimension
       if ((definition.inputs ?? []).includes("changed-paths")) {
         needed.add("changedPaths");
       }
-      // The fields are read now, unless an earlier resolve pinned them.
       if (dimensionedBy(definition, doc.models) && !pinnedDimensions) {
         needed.add("fieldValues");
         needed.add("fieldSetters");
@@ -581,18 +546,11 @@ const INSTRUCTION_SURFACES = [
   "**/output-styles/**",
   "**/prompts/**",
 ];
-// A name that is safe as a prompt word: no space, quote, comma, glob or shell
-// character, no `.`/`..` segment, no segment that starts with `-`, so it
-// cannot read as an option, and no leading `@`, so it cannot read as a file
-// mention.
 const SAFE_PATH = /^(?![-@])[A-Za-z0-9_@+.-]+(?:\/(?!-)[A-Za-z0-9_@+.-]+)*$/;
 const isSafePath = (path) =>
   SAFE_PATH.test(path) &&
   !path.split("/").some((segment) => segment === "." || segment === "..");
 
-// Every path pattern in CODEOWNERS, owned or not, as globs: a leading `/`
-// anchors at the root, any other pattern matches at any depth, and a pattern
-// also covers everything under it.
 function codeownersGlobs(text) {
   return (text ?? "").split("\n").flatMap((line) => {
     const pattern = line.replace(/#.*/, "").trim().split(/\s+/)[0];
@@ -632,12 +590,6 @@ export function changedPathTargets({
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
 const GRANT_LEVELS = new Set(["read", "write"]);
 
-// A lane-rules.json row may add one scope beyond the effect row to named
-// activities of its lane through `activity-grants`, each at its one level:
-// `actions: read`, or `actions-variables: write`, which the token broker
-// grants only to work-unblock's publish-lane-level. The effect row stays the
-// base. The row serves every config that runs the lane, so a name the lane
-// does not hold adds nothing.
 const ACTIVITY_GRANTS = Object.freeze({ actions: "read", "actions-variables": "write" });
 
 function checkActivityGrants(laneName, activityGrants) {
@@ -686,19 +638,11 @@ function grantFor(effectGrants, effect, extra = {}) {
   return Object.freeze({ ...row, ...extra });
 }
 
-// The owner's model for any profile whose model resolves to no alias: CI has
-// no session, so `inherit`, a missing role map or role, and any value that is
-// not an alias (`default`, a model ID) all run on it. The frontier tier
-// (`fable`, and `best`, which may resolve to it) never routes automatically,
-// so it runs on it too. The schema refuses those values on a model profile;
-// this holds when a config reaches the resolver without that check.
 const FALLBACK_MODEL = "opus";
 const ROUTED_ALIASES = new Set(["haiku", "opus", "sonnet"]);
 const routedModel = (model) => (ROUTED_ALIASES.has(model) ? model : FALLBACK_MODEL);
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
-// The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
-// data, or null when its text is absent or does not parse (an alias included).
 function roleMapOf(text) {
   if (typeof text !== "string") {
     return null;
@@ -721,8 +665,6 @@ const roleOf = (roleMap, name) =>
     ? roleMap.roles[name]
     : {};
 
-// A role profile's model and effort from the role map: the workload's value
-// over the role's own, `effort-role` naming the role whose effort applies.
 function roleModels(values, roleMapText) {
   const roleMap = roleMapOf(roleMapText);
   const role = roleOf(roleMap, values.role);
@@ -740,18 +682,11 @@ function roleModels(values, roleMapText) {
   };
 }
 
-// The profile a route takes, with every default applied: its route's profile,
-// else default-profile; the built-in one when the config has no `models`.
 const routeProfile = (models, route) => {
   const routes = models.routes ?? {};
   return Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
 };
 
-// A profile's resolved values, at `rung` 1 its escalate-to profile's: one
-// rung at most, never the escalate-to's own, and a profile with no rung above
-// is refused, so a retry never reruns the same model. A role profile takes
-// its model and effort from the role map. Every model and subagent model but
-// `inherit` resolves to a routed alias, as a role profile's does.
 function profileModels(models, start, roleMapText, rung = 0) {
   const climbed = rung === 1 ? models.profiles[start]["escalate-to"] : undefined;
   if (rung === 1 && climbed === undefined) {
@@ -794,7 +729,6 @@ export function modelSettings(models) {
 const routeModels = (models = BUILTIN_MODELS, route, roleMapText, rung = 0) =>
   profileModels(models, routeProfile(models, route), roleMapText, rung);
 
-// The model rung a run asks for: 0 (or none) is its profile, 1 the rung above.
 function checkRung(rung) {
   if (rung !== undefined && rung !== 0 && rung !== 1) {
     throw new Rejection("invalid-rung", `model rung \`${rung}\` is neither 0 nor 1`);
@@ -818,7 +752,6 @@ export function resolveRoute(files, { route, configPath }) {
 // to work on: those its ancestors' and its own predicates let through, less
 // what changedPathTargets keeps from it. pr-refine's select-passes job reads it too.
 export function slotTargets({ activity, predicate, predicates }, changedTargets, codeowners) {
-  // A composite's paths predicate narrows its leaves' targets too.
   const ancestors = predicate === undefined ? predicates : predicates.slice(0, -1);
   return changedPathTargets({
     paths: ancestors.reduce((kept, outer) => matchedPaths(outer, kept), changedTargets),
@@ -828,7 +761,6 @@ export function slotTargets({ activity, predicate, predicates }, changedTargets,
   });
 }
 
-// The activity keys a resolved slot carries as set, in this order, only when set.
 const PASSED_THROUGH = [
   "args", "prepare", "checks", "self-checks", "verify-scripts", "web-access", "tidy", "permission-mode", "checkout", "applied-by",
 ];
@@ -867,8 +799,6 @@ function resolveSlot(
     const config = models["issue-dimensions"];
     let dims;
     if (pinnedDimensions) {
-      // What an earlier resolve read for this run, whose job timeout is
-      // already fixed: the fields are not read again.
       dims = parsePin(pinnedDimensions, config);
     } else if (decided) {
       for (const fact of ["fieldValues", "fieldSetters"]) {
@@ -885,7 +815,6 @@ function resolveSlot(
       outcome = { applies: false, skipReason: budget.skip };
     }
     if (budget.skip === null) {
-      // The issue's Complexity may pick the profile the run starts on.
       const start = config["complexity-profiles"]?.[dims.complexity];
       if (start !== undefined) {
         runModels = profileModels(models, start, roleMap, rung);
@@ -957,8 +886,6 @@ function resolveMerge(merge = {}) {
   };
 }
 
-// LANE_LEVEL_DEFAULTS in .github/scripts/lib/lane-level.mjs holds the same;
-// resolve.test.mjs holds the two, the schema and the yaml equal.
 const laneLevelOf = (limits = {}) => ({
   floor: 2,
   ceiling: 4,
@@ -971,8 +898,6 @@ const laneLevelOf = (limits = {}) => ({
   ...limits["lane-level"],
 });
 
-// What the schema cannot check about limits: the lane level's floor, as set
-// or defaulted, is at most its ceiling.
 function checkLimits(limits, configPath) {
   const { floor, ceiling } = laneLevelOf(limits);
   if (floor > ceiling) {
@@ -983,9 +908,6 @@ function checkLimits(limits, configPath) {
   }
 }
 
-// The `limits` leaf with every default applied, in hours and counts; the lane
-// scripts' copy of these defaults is
-// .github/scripts/work-resolve-issue/limits.mjs.
 const limitsOf = (limits = {}) => ({
   "fallback-reset": limits["fallback-reset"] ?? 5,
   "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
@@ -1015,7 +937,6 @@ const limitsOf = (limits = {}) => ({
     "kill-switch": 3,
     ...limits["stranded-backoff-hours"],
   },
-  // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
   "lane-level": laneLevelOf(limits),
 });
@@ -1058,7 +979,6 @@ export function resolve(
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    // Only the selected slot runs, so only it climbs.
     resolveSlot(
       entry,
       files,

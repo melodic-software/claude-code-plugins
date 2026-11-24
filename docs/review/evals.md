@@ -82,8 +82,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
 - Every run uses the maintenance API key and stops at its credit stop, except a compare run
   dispatched with `credential: subscription`: both its passes run on the maintenance subscription
-  token, and only for a PR whose author is on the trusted-actor list; `compare-prepare` refuses any
-  other. A suite run dispatched with `credential: subscription` also runs on that token, only on
+  token, and only for a PR whose author is a human on the trusted-actor list; `compare-prepare`
+  refuses any other, a listed bot included, since a bot's PR can start from public issue text. A
+  suite run dispatched with `credential: subscription` also runs on that token, only on
   the default branch and only with `case`, `cases` or `tag` set; `run-eval-subscription` refuses
   any other. Each keeps the affected cases, the per-run ceiling (a list-price estimate, not a
   plan-usage cap), `--no-publish`, the kill switch and the `CLAUDE_EVALS_DISABLED` switch. No
@@ -117,6 +118,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A suite case passes only when its unscored with-arm graders (`arm: with-only`, a Skill call)
   also pass at the threshold: the score leaves them out to keep `Δ` comparable, so a score alone
   can pass a run that skipped the skill's own action (`summarize.mjs`).
+- A dispatched suite run's `eval-browser-<run id>-<attempt>` artifact, kept 3 days, holds each
+  run's final reply in `<plugin>/last-messages.jsonl` beside `results.json`, left out when the
+  leak scan blocks it (`last-messages.mjs`).
 
 ## Graders
 

@@ -283,7 +283,7 @@ by the skill's own design.
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:96`: cleanup scan per repository | coding | route | brief carries the repository root and scanner command |
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:213`: classifying deletion candidates | coding | route | brief file carries the tests and candidates |
 | testing:cleanup | `plugins/testing/skills/cleanup/SKILL.md:319`: skeptic per test file | coding | route | brief file carries the test file and candidates |
-| testing:diagnose | `plugins/testing/skills/diagnose/context/fix-until-green.md:30`: fix-until-green workflow | coding | route | args carry the command, scope and rounds |
+| testing:fix-failing | `plugins/testing/skills/fix-failing/context/fix-until-green.md:30`: fix-until-green workflow | coding | route | args carry the command, scope and rounds |
 | testing:run-e2e | `plugins/testing/skills/run-e2e/SKILL.md:178`: launching and driving the app | web UI | keep | Claude must do it: the subagent drives through a skill on the Skill tool |
 | testing:run-e2e | `plugins/testing/skills/run-e2e/context/map.md:72`: driving each feature-map entry | web UI | keep | Claude must do it: each subagent drives through a skill on the Skill tool |
 | testing:write | `plugins/testing/skills/write/context/blind-author.md:21`: acceptance tests from the spec | coding | route | brief carries the criteria, interface and conventions |

@@ -25,6 +25,8 @@ export TMPDIR="$TMP"
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-silent-revert.sh"
+FENCE3=$'\x60\x60\x60'
+FENCE4=$'\x60\x60\x60\x60'
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -332,6 +334,698 @@ t_rename_is_not_a_removal() {
   fi
 }
 
+py_function() {
+  local name="$1" i
+  printf 'def %s():\n' "$name"
+  for i in $(seq 1 "$2"); do
+    printf '    the %s guard rejects a relocation outside the session root, case %s\n' "${3:-$name}" "$i"
+  done
+}
+
+move_py_function() {
+  local repo="$1" name="$2" dest="$3"
+  awk -v d="def $name():" '$0 == d { on = 1; print; next } on && /^    / { print; next } { on = 0 }' \
+    "$repo/feature.py" >>"$repo/$dest"
+}
+
+drop_py_functions() {
+  awk '/^def / { on = 1; next } on && /^    / { next } { on = 0; print }' "$1/feature.py" >"$1/feature.py.tmp"
+  mv "$1/feature.py.tmp" "$1/feature.py"
+}
+
+t_cross_file_move_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  { printf 'import os\n\n'; py_function alpha_guard 40; } >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  move_py_function "$repo" alpha_guard helpers.py
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: extract the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "moving a 41-line function into a new file in the same commit is not a removal (threshold 20)"
+  else
+    fail "a cross-file move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_top_level_lines_pasted_without_their_run_still_fire() {
+  local repo sink culprit
+  mk_repo repo
+  printf 'an existing helper line that stays where it is\n' >"$repo/helpers.txt"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" >>"$repo/helpers.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "40 top-level lines pasted into another existing file without the rest of their run still fire"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+MD_HEADING='## The alpha guard and its relocation rules'
+
+add_md_section() {
+  local repo="$1" i
+  {
+    printf '## Overview\n\nan overview line that stays where it is\n\n%s\n\n' "$MD_HEADING"
+    for i in $(seq 1 40); do
+      printf 'the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+  } >"$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: add the alpha guard section"
+}
+
+t_markdown_body_pasted_without_its_heading_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/doc.md" >"$repo/alpha.md"
+  grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a Markdown section body pasted into a new file without its heading still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_markdown_section_moved_with_its_heading_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  add_md_section "$repo"
+  sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md" >"$repo/alpha.md"
+  sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: move the alpha guard section (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "a Markdown section moved to a new file with its heading is not a removal (threshold 20)"
+  else
+    fail "a Markdown section move must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_markdown_body_pasted_under_a_copied_heading_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md" >"$repo/alpha.md"
+  grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a Markdown section body pasted under a copy of its heading, the original heading kept, still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_top_level_run_split_across_two_paths_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  printf '\n' >>"$repo/feature.txt"
+  add_block "$repo" feature.txt 40 alpha
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep -E 'case ([1-9]|1[0-9]|20)$' "$repo/feature.txt" >"$repo/helpers-a.txt"
+  grep -E 'case (2[1-9]|3[0-9]|40)$' "$repo/feature.txt" >"$repo/helpers-b.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: split the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a 40-line top-level run split across two new files still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+FIRST_HALF='case ([1-9]|1[0-9]|20)$'
+SECOND_HALF='case (2[1-9]|3[0-9]|40)$'
+
+guard_lines() {
+  local prefix="$1" i
+  for i in $(seq 1 40); do
+    printf '%sthe alpha guard rejects a relocation outside the session root, case %s\n' "$prefix" "$i"
+  done
+}
+
+expect_finding() {
+  local repo="$1" culprit="$2" count="$3" what="$4" sink
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit $count" ]]; then
+    ok "$what"
+  else
+    fail "$what: want one $count-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+commit_all() {
+  git_test_config "$1" add -A >/dev/null
+  git_test_config "$1" commit -qm "$2"
+}
+
+split_md_section() {
+  local repo heading_in_b="$1" culprit
+  mk_repo repo
+  add_md_section "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf '%s\n\n' "$MD_HEADING"
+    grep -E "$FIRST_HALF" "$repo/doc.md"
+  } >"$repo/alpha-a.md"
+  {
+    [[ "$heading_in_b" = yes ]] && printf '%s\n\n' "$MD_HEADING"
+    grep -E "$SECOND_HALF" "$repo/doc.md"
+  } >"$repo/alpha-b.md"
+  sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  commit_all "$repo" "docs: split the alpha guard section (#99)"
+  expect_finding "$repo" "$culprit" 42 "$2"
+}
+
+t_markdown_section_split_across_two_paths_still_fires() {
+  split_md_section no "a Markdown section split across two new files fires on the whole 42-line section"
+}
+
+t_markdown_section_split_with_a_copied_heading_still_fires() {
+  split_md_section yes "a Markdown section split across two new files, each with a copy of its heading, fires on the whole 42-line section"
+}
+
+t_indented_chain_split_with_a_copied_chain_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '\nparent:\n  child:\n'
+    guard_lines '    '
+  } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf 'parent:\n  child:\n'; grep -E "$FIRST_HALF" "$repo/feature.txt"; } >"$repo/a.txt"
+  { printf 'parent:\n  child:\n'; grep -E "$SECOND_HALF" "$repo/feature.txt"; } >"$repo/b.txt"
+  grep -vE '^(parent:|  child:|    the alpha guard)' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: split the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 \
+    "an indented block split across two new files, each with a copy of its header chain, fires on all 42 lines"
+}
+
+t_markdown_body_under_an_unrecognized_heading_still_fires() {
+  local repo culprit heading
+  for heading in $'Actual heading\n==============' '  ## retained heading'; do
+    mk_repo repo
+    { printf '%s\n\n' "$heading"; guard_lines ''; printf '\n# tail\n'; } >"$repo/doc.md"
+    commit_all "$repo" "docs: add the alpha guard"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    grep 'the alpha guard rejects' "$repo/doc.md" >"$repo/a.txt"
+    grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+    mv "$repo/doc.md.tmp" "$repo/doc.md"
+    commit_all "$repo" "docs: tidy the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 40 \
+      "a Markdown body moved out from under a retained '${heading%%$'\n'*}' heading still fires on all 40 lines"
+  done
+}
+
+t_top_level_run_reordered_in_its_destination_still_fires() {
+  local repo culprit
+  mk_repo repo
+  { printf '\n'; guard_lines ''; printf '\ntail\n'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    grep -E "$SECOND_HALF" "$repo/feature.txt"
+    printf '\n'
+    grep -E "$FIRST_HALF" "$repo/feature.txt"
+  } >"$repo/a.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 40 "a top-level run re-added out of order in one new file still fires on all 40 lines"
+}
+
+t_fenced_body_pasted_without_its_fences_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf 'old\n## h\n```text\n'
+    guard_lines ''
+    printf '```\n# tail\n'
+  } >"$repo/doc.md"
+  commit_all "$repo" "docs: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf '## h\n'; grep 'the alpha guard rejects' "$repo/doc.md"; } >"$repo/a.txt"
+  printf 'old\n# tail\n' >"$repo/doc.md"
+  commit_all "$repo" "docs: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 43 "a fenced Markdown body pasted with its heading but without its fences still fires on all 43 lines"
+}
+
+t_duplicate_lines_need_their_own_copies_to_move() {
+  local repo culprit
+  mk_repo repo
+  { printf '\nparent:\nparent:\n'; guard_lines ''; printf '\ntail\n'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf 'parent:\n'; grep 'the alpha guard rejects' "$repo/feature.txt"; } >"$repo/a.txt"
+  grep -vE '^(parent:|the alpha guard)' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 "a run with two identical lines re-added with one copy of them still fires on all 42 lines"
+}
+
+tag_lines() {
+  local tag="$1" i
+  for i in $(seq 1 "$2"); do
+    printf 'the %s guard rejects a relocation outside the session root, case %s\n' "$tag" "$i"
+  done
+}
+
+t_whole_block_moved_into_an_existing_file_still_fires() {
+  local repo culprit
+  mk_repo repo
+  printf 'existing_helper() { :; }\n' >"$repo/lib.sh"
+  add_function "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n '/^alpha_guard() {$/,/^}$/p' "$repo/feature.txt" >>"$repo/lib.sh"
+  sed '/^alpha_guard() {$/,/^}$/d' "$repo/feature.txt" >"$repo/feature.txt.tmp"
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 "a whole function moved into a file that already existed still fires on all 42 lines"
+}
+
+t_recent_move_reverted_to_its_old_home_still_fires() {
+  local repo culprit
+  mk_repo repo
+  guard_lines '' >"$repo/old-home.txt"
+  printf '\n' >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  cat "$repo/old-home.txt" >>"$repo/feature.txt"
+  rm "$repo/old-home.txt"
+  commit_all "$repo" "refactor: move the alpha guard into feature.txt (#98)"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" >"$repo/old-home.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "feat: unrelated work from a stale branch (#99)"
+  expect_finding "$repo" "$culprit" 40 \
+    "a stale squash restoring a block to the path a recent commit moved it from still fires on all 40 lines"
+}
+
+t_block_moved_into_a_changes_fragment_still_fires() {
+  local repo culprit
+  mk_repo repo
+  mkdir -p "$repo/plugins/foo" "$repo/.changes/foo"
+  printf '# Changelog\n' >"$repo/plugins/foo/CHANGELOG.md"
+  { printf '\n'; guard_lines ''; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  { printf -- '---\nbump: none\n---\n\n'; grep 'the alpha guard rejects' "$repo/feature.txt"; } \
+    >"$repo/.changes/foo/notes.md"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "chore: stage the notes (#99)"
+  expect_finding "$repo" "$culprit" 40 "a block moved into a new .changes fragment a release would delete still fires on all 40 lines"
+}
+
+t_markdown_body_under_no_atx_heading_still_fires() {
+  local repo culprit heading
+  for heading in '**The alpha guard**' '<h2>The alpha guard</h2>' $'Actual heading\r\n==============\r'; do
+    mk_repo repo
+    if [[ "$heading" == *$'\r' ]]; then
+      { printf '%s\n\r\n' "$heading"; guard_lines '' | sed 's/$/\r/'; printf '\r\n# tail\r\n'; } >"$repo/doc.md"
+    else
+      { printf '%s\n\n' "$heading"; guard_lines ''; printf '\n**Other**\n\nother text that stays where it is\n'; } >"$repo/doc.md"
+    fi
+    commit_all "$repo" "docs: add the alpha guard"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    grep 'the alpha guard rejects' "$repo/doc.md" >"$repo/alpha.md"
+    grep -v 'the alpha guard rejects' "$repo/doc.md" >"$repo/doc.md.tmp" || true
+    mv "$repo/doc.md.tmp" "$repo/doc.md"
+    commit_all "$repo" "docs: tidy the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 40 \
+      "a Markdown body under '${heading%%[$'\r\n']*}', with no ATX heading, moved to a new file still fires on all 40 lines"
+  done
+}
+
+t_markdown_after_a_nested_fence_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '# Guide\n\n## Usage\n\nan intro line under usage that stays where it is\n\n'
+    printf '%smarkdown\n%sbash\n\n# configure the alpha guard before the first run\n%s\n%s\n\n' "$FENCE4" "$FENCE3" "$FENCE3" "$FENCE4"
+    guard_lines ''
+    printf '\n## Next section\n\nnext section text that also moves along\n'
+  } >"$repo/doc.md"
+  commit_all "$repo" "docs: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n '/^# configure the alpha guard/,$p' "$repo/doc.md" >"$repo/moved.md"
+  sed '/^# configure the alpha guard/,$d' "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  commit_all "$repo" "docs: split the guide (#99)"
+  expect_finding "$repo" "$culprit" 48 \
+    "Markdown after a four-backtick fence, moved from a fake heading inside it to a new file, still fires on all 48 lines"
+}
+
+t_single_lines_scattered_to_new_files_still_fire() {
+  local repo culprit i=0 line
+  mk_repo repo
+  { printf '\n'; guard_lines '' | awk '{ print; print "" }'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  while IFS= read -r line; do
+    i=$((i + 1))
+    printf '%s\n' "$line" >"$repo/fragment-$i.txt"
+  done < <(grep 'the alpha guard rejects' "$repo/feature.txt")
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: scatter the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 40 "40 blank-separated lines moved one per new file still fire on all 40 lines"
+}
+
+t_string_body_moved_out_of_a_deleted_function_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '\nemit_alpha_template() {\n  cat <<'"'"'EOF'"'"'\nfirst template paragraph line long enough to count\n\n'
+    guard_lines ''
+    printf '\nEOF\n}\n'
+  } >>"$repo/feature.sh"
+  commit_all "$repo" "feat: add the alpha template"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  guard_lines '' >"$repo/template.txt"
+  printf 'base line\n' >"$repo/feature.sh"
+  commit_all "$repo" "refactor: tidy the alpha template (#99)"
+  expect_finding "$repo" "$culprit" 48 \
+    "a column-0 heredoc body moved to a new file while its function is deleted still fires on all 48 lines"
+}
+
+t_function_pasted_inside_another_function_still_fires() {
+  local repo culprit
+  mk_repo repo
+  py_function alpha_guard 40 >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf 'def beta():\n    beta_setup_step_one_that_stays = 1\n'
+    py_function alpha_guard 40
+    printf '    beta_setup_step_two_that_stays = 2\n'
+  } >"$repo/helpers.py"
+  printf 'import os\n' >"$repo/feature.py"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 41 "a function pasted into another function's body in a new file still fires on all 41 lines"
+}
+
+t_function_moved_into_a_disabled_heredoc_still_fires() {
+  local repo culprit
+  mk_repo repo
+  add_function "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  {
+    printf "existing() { :; }\n: <<'DISABLED'\n"
+    sed -n '/^alpha_guard() {$/,/^}$/p' "$repo/feature.txt"
+    printf 'DISABLED\n'
+  } >"$repo/lib.sh"
+  sed '/^alpha_guard() {$/,/^}$/d' "$repo/feature.txt" >"$repo/feature.txt.tmp"
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: move the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 42 "a function moved into a disabled heredoc in a new file still fires on all 42 lines"
+}
+
+t_markdown_section_moved_into_a_wrapper_still_fires() {
+  local repo culprit wrapper
+  for wrapper in '<!--|-->' "${FENCE3}markdown|${FENCE3}"; do
+    mk_repo repo
+    add_md_section "$repo"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    {
+      printf '# Archive\n\n%s\n' "${wrapper%|*}"
+      sed -n "/^$MD_HEADING\$/,\$p" "$repo/doc.md"
+      printf '%s\n' "${wrapper#*|}"
+    } >"$repo/archive.md"
+    sed "/^$MD_HEADING\$/,\$d" "$repo/doc.md" >"$repo/doc.md.tmp"
+    mv "$repo/doc.md.tmp" "$repo/doc.md"
+    commit_all "$repo" "docs: archive the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 42 \
+      "a Markdown section moved inside a '${wrapper%|*}' wrapper in a new file still fires on all 42 lines"
+  done
+}
+
+t_function_moved_into_a_changelog_shaped_path_still_fires() {
+  local repo culprit name
+  for name in docs/changelog.md HISTORY.md CHANGELOG.MD docs/.changes/foo/notes.md plugins/foo/CHANGES.md; do
+    mk_repo repo
+    py_function alpha_guard 40 >"$repo/feature.py"
+    commit_all "$repo" "feat: add the alpha guard"
+    culprit="$(git -C "$repo" rev-parse HEAD)"
+    mkdir -p "$repo/$(dirname "$name")"
+    move_py_function "$repo" alpha_guard "$name"
+    printf 'import os\n' >"$repo/feature.py"
+    commit_all "$repo" "chore: record the alpha guard (#99)"
+    expect_finding "$repo" "$culprit" 41 "a function moved into a new $name still fires on all 41 lines"
+  done
+}
+
+t_flat_paragraphs_moved_to_new_files_still_fire() {
+  local repo culprit
+  mk_repo repo
+  { printf '\n'; guard_lines '' | head -n 39 | awk '{ print } NR % 3 == 0 { print "" }'; } >>"$repo/feature.txt"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" | awk -v r="$repo" '{ print > (r "/part" int((NR - 1) / 3) ".txt") }'
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  commit_all "$repo" "refactor: scatter the alpha guard (#99)"
+  expect_finding "$repo" "$culprit" 39 "39 lines of three-line paragraphs moved whole into new files still fire, since flat blocks never move"
+}
+
+t_go_raw_string_body_moved_out_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf 'package main\n\nfunc render() string {\n\treturn `\nfirst template paragraph line long enough\n\n'
+    guard_lines ''
+    printf '\n`\n}\n'
+  } >"$repo/main.go"
+  commit_all "$repo" "feat: add the template"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  guard_lines '' >"$repo/template.txt"
+  printf 'package main\n' >"$repo/main.go"
+  commit_all "$repo" "refactor: tidy the template (#99)"
+  expect_finding "$repo" "$culprit" 48 "a Go raw-string body moved to a new file while its function is deleted still fires on all 48 lines"
+}
+
+t_markdown_tail_after_an_html_block_still_fires() {
+  local repo culprit
+  mk_repo repo
+  {
+    printf '## Usage\n\nan intro line under usage that stays where it is\n\n<!--\n\n# reviewer note: keep this example current\n-->\n\n'
+    guard_lines ''
+  } >"$repo/doc.md"
+  commit_all "$repo" "docs: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  sed -n '/^# reviewer note/,$p' "$repo/doc.md" >"$repo/moved.md"
+  sed '/^# reviewer note/,$d' "$repo/doc.md" >"$repo/doc.md.tmp"
+  mv "$repo/doc.md.tmp" "$repo/doc.md"
+  commit_all "$repo" "docs: split the usage (#99)"
+  expect_finding "$repo" "$culprit" 43 \
+    "Markdown moved from a heading inside an HTML comment to a new file still fires on all 43 lines"
+}
+
+t_heredoc_body_moved_out_of_a_kept_function_still_fires() {
+  local repo culprit
+  mk_repo repo
+  { printf '\nemit_alpha_template() {\n  cat <<'"'"'EOF'"'"'\n\n'; guard_lines ''; printf '\nEOF\n}\n'; } >>"$repo/feature.sh"
+  commit_all "$repo" "feat: add the alpha template"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  guard_lines '' >"$repo/template.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.sh" >"$repo/feature.sh.tmp" || true
+  mv "$repo/feature.sh.tmp" "$repo/feature.sh"
+  commit_all "$repo" "refactor: tidy the alpha template (#99)"
+  expect_finding "$repo" "$culprit" 40 "a column-0 heredoc body moved to a new file out of a function that stays still fires on all 40 lines"
+}
+
+t_unmoved_duplicate_cannot_borrow_a_moved_block() {
+  local repo culprit sink
+  mk_repo repo
+  py_function dup_guard 20 >"$repo/feature.py"
+  commit_all "$repo" "feat: add the old copy"
+  filler "$repo" 5
+  {
+    py_function dup_guard 20
+    py_function uniq_guard 20 | tail -n +2
+    printf '\n'
+    cat "$repo/feature.py"
+  } >"$repo/feature.py.tmp"
+  mv "$repo/feature.py.tmp" "$repo/feature.py"
+  commit_all "$repo" "feat: add the recent copy"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  py_function dup_guard 20 >"$repo/helpers.py"
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: tidy the guards (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=25 SILENT_REVERT_WINDOW=3 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 41" ]]; then
+    ok "the old copy's move does not discount the recent copy's identical lines (41 lines, threshold 25, window 3)"
+  else
+    fail "want one 41-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_partial_move_counts_only_the_lines_not_re_added() {
+  local repo sink culprit
+  mk_repo repo
+  { py_function alpha_one 9 alpha; printf '\n'; py_function alpha_two 31 alpha; } >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  move_py_function "$repo" alpha_one helpers.py
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: extract the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 33" ]]; then
+    ok "re-adding one of two deleted functions elsewhere still fires on the other 32 lines and the short header"
+  else
+    fail "want one 33-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_one_copy_discounts_one_deletion() {
+  local repo sink culprit
+  mk_repo repo
+  local i
+  mk_repo repo
+  for i in $(seq 1 10); do
+    py_function alpha_guard 2
+    printf '\n'
+  done >"$repo/feature.py"
+  commit_all "$repo" "feat: add the alpha guard"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  py_function alpha_guard 2 >"$repo/helpers.py"
+  drop_py_functions "$repo"
+  commit_all "$repo" "refactor: keep one copy of the guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 28" ]]; then
+    ok "one re-added copy of a function deleted 10 times discounts one function's body, not all 10"
+  else
+    fail "want one 28-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_moved_short_lines_still_count() {
+  local repo sink culprit i
+  mk_repo repo
+  for i in $(seq 1 30); do
+    printf 'x%s = %s\n' "$i" "$i" >>"$repo/feature.txt"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the short assignments"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep '^x' "$repo/feature.txt" >"$repo/helpers.txt" || true
+  grep -v '^x' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: move the assignments (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && [[ "$(cat "$sink")" == "$culprit 30" ]]; then
+    ok "lines shorter than the move minimum are not discounted when re-added elsewhere"
+  else
+    fail "want one 30-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+add_function() {
+  local repo="$1" i
+  {
+    printf '\nalpha_guard() {\n'
+    for i in $(seq 1 40); do
+      printf '  the alpha guard rejects a relocation outside the session root, case %s\n' "$i"
+    done
+    printf '}\n'
+  } >>"$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "feat: add the alpha guard"
+}
+
+t_function_moved_with_its_definition_is_not_a_removal() {
+  local repo sink
+  mk_repo repo
+  add_function "$repo"
+  sed -n '/^alpha_guard() {$/,/^}$/p' "$repo/feature.txt" >"$repo/helpers.txt"
+  sed '/^alpha_guard() {$/,/^}$/d' "$repo/feature.txt" >"$repo/feature.txt.tmp"
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: extract the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]] && grep -q '^ok ' <<<"$OUT"; then
+    ok "a function moved to a new file with its definition line is not a removal (threshold 20)"
+  else
+    fail "a function extraction must report ok, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_body_pasted_elsewhere_without_its_definition_still_fires() {
+  local repo sink culprit
+  mk_repo repo
+  add_function "$repo"
+  culprit="$(git -C "$repo" rev-parse HEAD)"
+  grep 'the alpha guard rejects' "$repo/feature.txt" >"$repo/helpers.txt"
+  grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/feature.txt.tmp" || true
+  mv "$repo/feature.txt.tmp" "$repo/feature.txt"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "refactor: tidy the alpha guard (#99)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$OUT" &&
+    [[ "$(cat "$sink")" == "$culprit 40" ]]; then
+    ok "a function body pasted into another file without its definition line still fires on all 40 lines"
+  else
+    fail "want one 40-line finding for $culprit, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
 # drop_fragments <repo> <consume> -- 31 existing plugin changelogs, a recent
 # commit adding ten-line .changes/ fragments for plugin1..30 (300 lines), then
 # a commit deleting every fragment. consume=yes also appends the fragments to
@@ -527,7 +1221,7 @@ t_counts_are_immune_to_ambient_git_config() {
   # Deliberately hostile but entirely legitimate developer settings.
   {
     printf '[blame]\n\tignoreRevsFile = %s\n' "$revs"
-    printf '[diff]\n\talgorithm = histogram\n\trenames = false\n'
+    printf '[diff]\n\talgorithm = histogram\n\trenames = false\n\tsuppressBlankEmpty = true\n'
     printf '\texternal = %s\n' "$repo/never-run-this-diff.sh"
   } >"$cfg"
 
@@ -549,6 +1243,25 @@ t_counts_are_immune_to_ambient_git_config() {
       printf 'clean=[%s] hostile=[%s]' "$(tr '\n' ';' <"$clean_sink")" \
         "$(tr '\n' ';' <"$hostile_sink")"
     )"
+  fi
+
+  local move
+  mk_repo move
+  { printf 'import os\n\n'; py_function alpha_guard 40; } >"$move/feature.py"
+  commit_all "$move" "feat: add the alpha guard"
+  move_py_function "$move" alpha_guard helpers.py
+  drop_py_functions "$move"
+  commit_all "$move" "refactor: extract the alpha guard (#99)"
+  : >"$clean_sink"
+  : >"$hostile_sink"
+  FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=20 run_canary "$move" --commit HEAD
+  clean_rc="$RC"
+  GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$hostile_sink" SILENT_REVERT_THRESHOLD=20 \
+    run_canary "$move" --commit HEAD
+  if [[ "$clean_rc" -eq 0 && "$RC" -eq 0 ]] && [[ ! -s "$clean_sink" && ! -s "$hostile_sink" ]]; then
+    ok "a whole-run move is discounted identically under hostile ambient git config"
+  else
+    fail "ambient git config changed the move discount (rc $clean_rc vs $RC): clean=[$(tr '\n' ';' <"$clean_sink")] hostile=[$(tr '\n' ';' <"$hostile_sink")]"
   fi
   rm -f "$clean_sink" "$hostile_sink"
 }
@@ -2553,6 +3266,40 @@ t_pure_pin_bump_is_not_a_removal
 t_real_removal_beside_a_pin_bump_still_fires
 t_sha_line_with_changed_free_comment_still_fires
 t_rename_is_not_a_removal
+t_cross_file_move_is_not_a_removal
+t_top_level_lines_pasted_without_their_run_still_fire
+t_markdown_body_pasted_without_its_heading_still_fires
+t_markdown_section_moved_with_its_heading_is_not_a_removal
+t_markdown_body_pasted_under_a_copied_heading_still_fires
+t_top_level_run_split_across_two_paths_still_fires
+t_markdown_section_split_across_two_paths_still_fires
+t_markdown_section_split_with_a_copied_heading_still_fires
+t_indented_chain_split_with_a_copied_chain_still_fires
+t_markdown_body_under_an_unrecognized_heading_still_fires
+t_top_level_run_reordered_in_its_destination_still_fires
+t_fenced_body_pasted_without_its_fences_still_fires
+t_duplicate_lines_need_their_own_copies_to_move
+t_whole_block_moved_into_an_existing_file_still_fires
+t_recent_move_reverted_to_its_old_home_still_fires
+t_block_moved_into_a_changes_fragment_still_fires
+t_markdown_body_under_no_atx_heading_still_fires
+t_markdown_after_a_nested_fence_still_fires
+t_single_lines_scattered_to_new_files_still_fire
+t_string_body_moved_out_of_a_deleted_function_still_fires
+t_unmoved_duplicate_cannot_borrow_a_moved_block
+t_function_pasted_inside_another_function_still_fires
+t_function_moved_into_a_disabled_heredoc_still_fires
+t_markdown_section_moved_into_a_wrapper_still_fires
+t_function_moved_into_a_changelog_shaped_path_still_fires
+t_flat_paragraphs_moved_to_new_files_still_fire
+t_go_raw_string_body_moved_out_still_fires
+t_markdown_tail_after_an_html_block_still_fires
+t_heredoc_body_moved_out_of_a_kept_function_still_fires
+t_partial_move_counts_only_the_lines_not_re_added
+t_one_copy_discounts_one_deletion
+t_moved_short_lines_still_count
+t_function_moved_with_its_definition_is_not_a_removal
+t_body_pasted_elsewhere_without_its_definition_still_fires
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
 t_fragments_dropped_beside_another_changelog_still_fire

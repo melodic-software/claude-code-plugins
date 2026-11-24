@@ -414,6 +414,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins/components#channels) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
 | [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. One plugin declares them, with no version constraint: `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
+| Optional dependencies, manifest `optionalDependencies` ([changelog 2.1.331](https://code.claude.com/docs/en/changelog#2-1-331)) | Adopt on need | A listed plugin installs with its lister but can be disabled or uninstalled on its own, so it is optional collaboration: every reference to it keeps the "if enabled" guard and its fallback ([Design boundary](#design-boundary)). Listing a collaborator only saves the user an install step. No plugin lists one. | 2026-11-23 |
 
 ### Windows exec-form probe
 

@@ -34,8 +34,6 @@ export async function main(env, { api, actions, adoption, log = (line) => consol
   if (!ACTIVITY.test(env.ACTIVITY)) {
     throw new Error("ACTIVITY is not an activity name");
   }
-  // The review lanes' hold comments count only when bound to their runs,
-  // read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
   const client = withLaneBinding(
     api ??
       createGitHubApi({
@@ -43,7 +41,6 @@ export async function main(env, { api, actions, adoption, log = (line) => consol
         repository: env.GITHUB_REPOSITORY,
         apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
         graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-        // Each answer's rate-limit reading, for the job-end api-budget notice.
         fetch: rateLimitLatch.guard(globalThis.fetch),
       }),
     actions ?? laneReader(env),

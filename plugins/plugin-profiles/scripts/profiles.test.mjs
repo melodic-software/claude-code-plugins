@@ -7,6 +7,7 @@ import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
+import { settingsPaths } from "../lib/settings-io.mjs";
 import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
 
@@ -279,6 +280,23 @@ const launchJson = (w, args, extra = {}) => {
   return JSON.parse(r.stdout);
 };
 
+test("in the home folder the project settings file is the user file, so settingsPaths gives no project level", () => {
+  const w = world();
+  assert.equal(settingsPaths({ configDir: join(w.home, ".claude"), projectDir: w.home, home: w.home }).project, null);
+  assert.equal(settingsPaths({ configDir: join(w.home, ".claude"), projectDir: w.project, home: w.home }).project, join(w.project, ".claude", "settings.json"));
+});
+
+test("a launch from the home folder switches the user file's plugins to the profile, not reading that file twice as user and project", () => {
+  const w = world();
+  writeTree(w.home, {
+    ".claude/settings.json": { enabledPlugins: { [`songwriting@${M}`]: false, [`review@${M}`]: true } },
+    ".claude/plugin-profiles/pick.yaml": `plugins: [songwriting@${M}]\n`,
+  });
+  const session = JSON.parse(readFileSync(launchJson(w, ["pick", "--folder", w.home]).file, "utf8"));
+  assert.equal(session.enabledPlugins[`songwriting@${M}`], true);
+  assert.equal(session.enabledPlugins[`review@${M}`], false);
+});
+
 test("launch writes one file per folder and profile, asks nothing, changes no settings file, and prints a command that clears an inherited marker", () => {
   const w = world();
   const before = snapshot(settingsFiles(w));
@@ -512,8 +530,8 @@ test("a session started from a one-session file is named by status, with the fla
   assert.doesNotMatch(message, /Surface:/);
 });
 
-function installedCopy(w, options) {
-  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", "0.0.0");
+function installedCopy(w, options, version = "0.0.0") {
+  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", version);
   cpSync(join(HERE, ".."), root, { recursive: true });
   const userFile = join(w.home, ".claude", "settings.json");
   const doc = JSON.parse(readFileSync(userFile, "utf8"));
@@ -2172,7 +2190,8 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   hookStart(w, { session_id: "abc-1", source: "startup" });
   assert.equal(existsSync(pointer), false, "a worktree or --plugin-dir copy writes no pointer");
   const cli = installedCopy(w, {});
-  const hook = () => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+  recordUserInstall(w, cli);
+  const hook = () => pointerHook(w, cli);
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
   const old = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -2183,6 +2202,34 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   writeFileSync(pointer, "/somewhere/else\n");
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
+});
+
+const pointerHook = (w, cli) => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+/** Claude Code's captured installed_plugins.json, its user-scope entry pointed at the copy holding cli; the local-scope entry stays. */
+const recordUserInstall = (w, cli) => {
+  const doc = JSON.parse(readFileSync(join(HERE, "fixtures", "installed_plugins.sample.json"), "utf8"));
+  const user = doc.plugins[`plugin-profiles@${M}`].find((e) => e.scope === "user");
+  Object.assign(user, { installPath: dirname(dirname(cli)), version: basename(dirname(dirname(cli))) });
+  writeTree(w.home, { ".claude/plugins/installed_plugins.json": doc });
+};
+
+test("the session-start hook of an older cached version leaves the root pointer alone; the recorded user-scope install writes it", () => {
+  const w = world();
+  const pointer = join(w.home, ".claude", "plugin-profiles-state", "root");
+  const older = installedCopy(w, {}, "0.12.0");
+  const current = installedCopy(w, {}, "0.13.2");
+  recordUserInstall(w, current);
+  mkdirSync(dirname(pointer), { recursive: true });
+  writeFileSync(pointer, "/kept\n");
+  assert.equal(pointerHook(w, older).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an older cached copy does not repoint the claude function");
+  assert.equal(pointerHook(w, current).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(current)))}\n`);
+  writeFileSync(join(w.home, ".claude", "plugins", "installed_plugins.json"), "not json");
+  writeFileSync(pointer, "/kept\n");
+  const unreadable = pointerHook(w, current);
+  assert.equal(unreadable.status, 0, unreadable.stderr);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an unreadable record writes nothing");
 });
 
 const pointersDir = (w) => join(w.home, ".claude", "plugin-profiles-state", "repositories");

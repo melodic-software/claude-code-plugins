@@ -106,7 +106,7 @@ jobs:
           npm ci
           # The yaml package scripts/check-read-caller-keys.test.sh and
           # scripts/check-artifact-retention.test.sh parse with.
-          npm ci --prefix .github/standards/runner-policy
+          npm ci --prefix scripts/ci-deps
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
             --requirement plugins/animation/requirements.txt

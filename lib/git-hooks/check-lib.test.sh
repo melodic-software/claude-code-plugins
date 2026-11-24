@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for lib/git-hooks/check-lib.sh against real git repositories:
-# the staged and worktree file sets, a merge's own file set with its fallback,
-# changed-line ranges with the binary test and its launch count, the partly staged test, the re-stage of a rewrite, the checks.skipmissing key reaching a hook through `git -c`, agent and
-# human missing-tool messages, the pre-push range with its fallbacks, set -e
-# tolerance, and a bash 3.2 syntax lint. Expected values come from the
-# check-placement contract's runtime table.
 # test-scope: lib/git-hooks/check-lib.sh
 # shellcheck disable=SC2016 # each snippet is single-quoted on purpose: in_repo evaluates it in an inner bash
 set -uo pipefail
@@ -28,7 +22,7 @@ fail() {
   echo "FAIL: $*" >&2
   FAIL=$((FAIL + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
@@ -42,7 +36,6 @@ new_repo() {
   REPO="$r"
 }
 
-# in_repo <repo> <event> <snippet> [args...]: source the lib in <repo> and run <snippet>.
 in_repo() {
   local repo="$1" event="$2" snippet="$3"
   shift 3
@@ -51,7 +44,6 @@ in_repo() {
 
 nul_list() { tr '\0' '\n'; }
 
-# --- file set and changed lines -------------------------------------------------
 new_repo; R="$REPO"
 printf 'one\ntwo\nthree\n' >"$R/a.txt"
 printf 'keep\n' >"$R/gone.txt"
@@ -106,7 +98,6 @@ expect "pre-commit ranges: a copy, a new or reworded line and a line from anothe
   $'f.sh\t4\t6\nf.sh\t8\t8' \
   "$(in_repo "$W" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 
-# --- partly-staged --------------------------------------------------------------
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \
   "$(in_repo "$R" pre-commit 'checks_partly_staged a.txt && echo yes || echo no')"
@@ -119,12 +110,10 @@ expect "partly-staged refusal: the contract line and a non-zero status" \
 git -C "$R" add a.txt
 expect "partly-staged refusal: fully staged files pass" "|0" \
   "$(in_repo "$R" pre-commit 'checks_refuse_partly_staged; echo "|$?"' 2>&1 | tr -d '\n')"
-# Back to the partly staged state the worktree cases below read.
 printf 'one\nTWO\nthree\nfour\n' >"$R/a.txt"
 git -C "$R" add a.txt
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 
-# --- worktree mode --------------------------------------------------------------
 printf 'loose\n' >"$R/untracked.txt"
 expect "worktree files: tracked changes against HEAD plus untracked" $'a.txt\nb c.md\nuntracked.txt' \
   "$(in_repo "$R" pre-commit 'checks_files' --worktree | nul_list | sort)"
@@ -187,22 +176,20 @@ expect "pre-commit ranges: each staged head is judged on its own first 8000 byte
   $'a.txt\t1\t1\nctl.txt\t1\t1\nexact.txt\t1\t1\nlate.txt\t1\t1\nlink\t1\t1\nutf8.txt\t1\t1\nz.txt\t1\t1' \
   "$(in_repo "$E" pre-commit 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"')"
 
-# The binary test reads every path with a fixed number of processes, so the
-# launches do not grow with the number of changed paths.
 LOGSHIMS="$WORK/logshims"
 mkdir "$LOGSHIMS"
 for t in awk cat git tr; do
   printf '#!/bin/sh\necho %s >>"$LAUNCH_LOG"\nexec %s "$@"\n' "$t" "$(command -v "$t")" >"$LOGSHIMS/$t"
   chmod +x "$LOGSHIMS/$t"
 done
-launches() { # <repo> <event> [args...] -> the awk, cat, git and tr launches of checks_changed_lines
+launches() {
   local repo="$1" event="$2" log="$WORK/launch.log"
   shift 2
   : >"$log"
   PATH="$LOGSHIMS:$PATH" LAUNCH_LOG="$log" in_repo "$repo" "$event" 'checks_changed_lines' "$@" >/dev/null 2>&1
   grep -c . "$log"
 }
-many_paths() { # <count>: a repo whose second commit adds <count> text files and a binary, also left staged
+many_paths() {
   new_repo
   local i
   printf 'seed\n' >"$REPO/seed.txt"
@@ -212,7 +199,7 @@ many_paths() { # <count>: a repo whose second commit adds <count> text files and
   printf 'b\0in\n' >"$REPO/bin.dat"
   git -C "$REPO" add .
 }
-push_head() { # <repo>: commit what is staged and print its pre-push record from the seed commit
+push_head() {
   git -C "$1" commit -q -m many
   printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$1" rev-parse HEAD)" "$(git -C "$1" rev-parse HEAD~1)"
 }
@@ -232,9 +219,6 @@ expect "pre-push: the binary test's launches do not grow with the path count" \
 expect "pre-push: with 40 text files, every text file keeps its line and the binary drops" "40|no" \
   "$(printf '%s\n' "$MANY_PUSH" | in_repo "$MANY" pre-push 'checks_changed_lines; printf "%s|" "$(grep -c . "$CHECKS_TMP/ranges")"; grep -q "^bin.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' origin url)"
 
-# --- a merge being committed ------------------------------------------------------
-# Pre-commit counts only the lines the merge adds against every parent: a line
-# or a file the merged branch holds is not a changed line, a resolved line is.
 new_repo; M="$REPO"
 printf 'one\ntwo\n' >"$M/a.txt"
 git -C "$M" add a.txt
@@ -255,11 +239,6 @@ expect "pre-commit ranges in a merge: only the lines no parent holds" $'a.txt\t2
 expect "worktree ranges in a merge: every line added against HEAD" $'a.txt\t2\t3\ns.txt\t1\t1' \
   "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' --worktree)"
 
-# --- the files a merge being committed changes --------------------------------------
-# Pre-commit lists only the paths whose staged entry differs from every parent:
-# a file the merged branch adds, edits, renames or re-modes, taken unchanged, is
-# not this commit's. A failure while listing them lists every staged path. Its
-# own repo, so $M stays mid-merge for the failing-awk case below.
 new_repo; G="$REPO"
 printf 'seed\n' >"$G/seed.txt"
 printf 'rename me\n' >"$G/r.txt"
@@ -289,7 +268,7 @@ expect "pre-commit files in a merge: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
 MERGE_ALL=$'i.txt\nm.sh\nrr.txt\ns.txt'
 MERGE_FALLBACK='failed while listing the paths this merge changes, so every staged path is checked'
-merge_fallback() { # <snippet that breaks a tool> -> "<list>|<stderr>"
+merge_fallback() {
   local list
   list="$(in_repo "$G" pre-commit "$1; checks_files" 2>"$WORK/merge.err" | nul_list)"
   printf '%s|%s' "$list" "$(cat "$WORK/merge.err")"
@@ -314,7 +293,6 @@ git -C "$G" commit -q --no-edit
 expect "pre-commit files after the merge commits: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
 
-# An octopus merge: a path equal to either head is not listed.
 git -C "$G" checkout -q -b o1
 printf 'o1\n' >"$G/o1.txt"
 git -C "$G" add o1.txt
@@ -334,11 +312,6 @@ expect "octopus fixture: MERGE_HEAD names both heads" 2 \
 expect "pre-commit files in an octopus merge: only the path that differs from both heads" 'o2.txt' \
   "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
 
-# --- a failing tool fails the hook ------------------------------------------------
-# A tool that crashes while the lib reads the changed lines or filters findings
-# leaves the ranges short, so findings would drop and the hook pass. The shims
-# fail only the calls whose arguments hold SHIM_FAIL, so each site is proved on
-# its own; the snippet's own `exit 0` must still end as 1.
 SHIMS="$WORK/shims"
 mkdir "$SHIMS"
 for t in awk git; do
@@ -347,7 +320,7 @@ for t in awk git; do
     "$t" "$(command -v "$t")" >"$SHIMS/$t"
   chmod +x "$SHIMS/$t"
 done
-in_repo_failing() { # <repo> <event> <marker> <snippet> [args...] -> "<rc>|<last stderr line>"
+in_repo_failing() {
   local repo="$1" event="$2" marker="$3" snippet="$4" err rc
   shift 4
   err="$(PATH="$SHIMS:$PATH" SHIM_FAIL="$marker" in_repo "$repo" "$event" "$snippet" "$@" 2>&1 >/dev/null)"
@@ -429,12 +402,10 @@ printf 'again\n' >"$S/r1.txt"
 expect "a failing git add in checks_restage fails the hook" \
   "1|checks: git exited 2 while staging the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$S" pre-commit 'pathspec-file-nul' 'checks_restage r1.txt; exit 0')"
-# --ignore-submodules=all is carried only by checks_restage's own git diff.
 expect "a failing git diff in checks_restage fails the hook" \
   "1|checks: git exited 2 while listing the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$S" pre-commit 'ignore-submodules=all' 'checks_restage r1.txt; exit 0')"
 
-# --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
 cat >"$H/.git/hooks/pre-commit" <<EOF
 #!/usr/bin/env bash
@@ -475,7 +446,6 @@ expect "set -e: an unset skip key does not abort a sourcing script" "not listed"
 expect "set -e: a present tool passes under errexit" "present" \
   "$(cd "$H" && bash -e -c ". '$LIB'; checks_init pre-commit; checks_require_tool git x; echo present")"
 
-# --- pre-push ranges -------------------------------------------------------------
 REMOTE="$WORK/remote.git"
 git init -q --bare -b main "$REMOTE"
 new_repo; P="$REPO"
@@ -502,12 +472,10 @@ expect "pre-push: a new branch starts at its merge-base with <remote>/HEAD" "$ba
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
 expect "pre-push: the range's changed lines" $'f.txt\t2\t2' \
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
-# A remote sha this clone never fetched ranges from the merge-base, with a notice.
 unfetched=1234567890abcdef1234567890abcdef12345678
 out="$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$unfetched" | in_repo "$P" pre-push 'checks_changed_lines; echo "rc=$?"; cat "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/ranges"' origin url 2>&1)"
 expect "pre-push: an unfetched remote sha ranges from the merge-base, with a notice" \
   "NOTICE: $unfetched is not in this clone, so refs/heads/topic is checked from its merge-base with the default branch; fetch to check against the remote."$'\n'"rc=0"$'\n'"$base_sha $topic_sha"$'\n'$'f.txt\t2\t2' "$out"
-# The pushed commit's blob decides, not the index or the work tree.
 printf 'pushed\0bin\n' >"$P/p.dat"
 git -C "$P" add p.dat
 git -C "$P" commit -q -m bin
@@ -517,8 +485,6 @@ expect "pre-push ranges: a binary file in the pushed commit is dropped" $'f.txt\
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$bin_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
 git -C "$P" reset -q --hard "$topic_sha"
 rm -f "$P/p.dat"
-# Each pushed tip is read: a path one ref makes text and another makes binary
-# drops, and a binary only the second ref adds drops beside its text file.
 git -C "$P" switch -q -c tip1 "$base_sha"
 printf 'one\n' >"$P/one.txt"
 printf 'text here\n' >"$P/shared.dat"
@@ -578,7 +544,6 @@ else
   echo "skip: this git cannot create a SHA-256 repository"
 fi
 
-# --- pre-push content reader -----------------------------------------------------
 new_repo; Q="$REPO"
 printf 'one\ntwo\n' >"$Q/f.txt"
 printf 'gone\n' >"$Q/del.txt"

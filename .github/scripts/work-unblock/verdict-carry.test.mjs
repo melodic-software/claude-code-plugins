@@ -1,7 +1,4 @@
-// Expected values come from verdict-carry.mjs's rules: `read` takes the file
-// only from a successful sweep (schedule, workflow_dispatch or workflow_run) of main's
-// work-unblock.yml in this repository, and any failure leaves no file; a
-// saved carry keeps at most JOBS_MAX and REFUSALS_MAX entries, newest used first.
+// test-scope: .github/scripts/work-unblock/*
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,7 +19,6 @@ const sweepRun = (id, extra = {}) => ({
   ...extra,
 });
 
-// A fake Actions API: the listed runs, and one artifact per run in `withFile`.
 function fakeActions(runs, withFile) {
   const calls = [];
   const actions = async (method, path) => {
@@ -56,7 +52,6 @@ test("read takes the file of the newest successful sweep of main's work-unblock.
   await read({ env: envFor(dir), actions, download: (id) => (asked.push(id), '{"jobs":{}}') });
   assert.deepEqual(asked, [8950]);
   assert.equal(readFileSync(join(dir, "in.json"), "utf8"), '{"jobs":{}}');
-  // Only the one trusted run before it was asked for its artifacts.
   assert.deepEqual(calls.filter((path) => path.includes("/artifacts")), [`/repos/${REPO}/actions/runs/895/artifacts?per_page=100`]);
 });
 
@@ -79,7 +74,6 @@ test("read leaves no file when no sweep kept one, the download is not a JSON obj
     [async () => { throw new Error("403"); }, () => "{}"],
   ];
   for (const [actions, download] of cases) {
-    // A file left there before is removed, never read.
     writeFileSync(env.VERDICTS_IN, '{"left":true}');
     await read({ env, actions, download });
     assert.equal(existsSync(env.VERDICTS_IN), false);
@@ -95,7 +89,6 @@ test("a saved carry keeps the newest used entries up to its caps", () => {
   }
   for (let id = 1; id <= REFUSALS_MAX + 5; id += 1) old.keepRefusal(id, "check", null);
   old.save(join(dir, "old.json"));
-  // The next sweep uses run 1's entry, which is then the newest.
   const next = loadCarry(join(dir, "old.json"), now);
   assert.ok(next.jobsOf({ id: 1, run_attempt: 1, status: "completed", updated_at: "2026-11-10T01:00:00Z" }));
   next.save(join(dir, "new.json"));
@@ -103,7 +96,6 @@ test("a saved carry keeps the newest used entries up to its caps", () => {
   assert.equal(Object.keys(saved.jobs).length, JOBS_MAX);
   assert.equal(Object.keys(saved.refusals).length, REFUSALS_MAX);
   assert.ok(saved.jobs["1|1"]);
-  // The kept job is the fields the sweep reads, no more.
   assert.deepEqual(saved.jobs["1|1"].jobs, [{ id: 10, name: "admit", conclusion: null, runner_id: null, started_at: null, steps: [] }]);
 });
 
@@ -122,7 +114,6 @@ test("a carry kept by the same code is used, and one kept by other code is read 
   const other = loadCarry(join(dir, "kept.json"), now, "b".repeat(64));
   assert.equal(other.jobsOf(run), undefined);
   assert.equal(other.refusal(70, "check"), undefined);
-  // The file it keeps holds only what this code reads, stamped with its code.
   other.save(join(dir, "next.json"));
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "next.json"), "utf8")), { code: "b".repeat(64), jobs: {}, refusals: {}, decided: {} });
 });
@@ -173,6 +164,5 @@ test("the code digest changes with a module beside verdict-carry.mjs, never with
   assert.equal(codeDigest(dir), first);
   writeFileSync(join(dir, "label-unblocked.mjs"), "export const A = 2;\n");
   assert.notEqual(codeDigest(dir), first);
-  // The sweep's own checkout gives a digest too.
   assert.match(codeDigest(), /^[0-9a-f]{64}$/);
 });

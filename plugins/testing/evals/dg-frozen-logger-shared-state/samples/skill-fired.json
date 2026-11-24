@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": [{ "tool": "Skill", "input": { "skill": "testing:diagnose" } }],
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:fix-failing" } }],
       "why": "the skill loaded"
     }
   ],

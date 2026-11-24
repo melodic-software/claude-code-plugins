@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.15.0] - 2026-11-24
+
+### Added
+
+- The GitHub adapter's `config.github.status_trust.trusted_actors` accepts `standards:<owner>/<repo>:<path>`: `get-statuses` then reads the trust list at `<path>` in that repository, at its `main` branch tip, read once per run by the full ref `refs/heads/main` so a tag named `main` cannot stand in, for every item repository. A repo-relative path reads each item repository's copy as before.
+
+## [15.14.9] - 2026-11-24
+
+### Changed
+
+- The bug root-cause gate names `/testing:fix-failing diagnose` for a failing test.
+
 ## [15.14.8] - 2026-11-24
 
 ### Changed

@@ -1,6 +1,3 @@
-// prune-branches.mjs: the prune job deletes only a named lane branch of the
-// issue that is not this run's, the reuse or the resume branch, and that a
-// fresh read shows with no pull request in any state, at the tip it read.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -11,8 +8,6 @@ const lane = (run, attempt = 1) => `work-resolve-issue/issue-77-${run}-${attempt
 const SHA = "a".repeat(40);
 const ENV = { ISSUE_NUMBER: "77", RUN_ID: "500", REPOSITORY: "o/r", REUSE_BRANCH: "", RESUME_BRANCH: "" };
 
-// A fake client: the read answers each aliased ref from `refs` (name -> ref
-// node or null); a delete is recorded and answered by `refuse`.
 function fake(refs, { readError = null, refuse = () => false, into = {} } = {}) {
   const calls = [];
   const call = async (method, path, body) => {
@@ -47,8 +42,6 @@ test("a named stopped-run branch with no pull request is deleted at the tip read
   assert.match(read.query, /associatedPullRequests\(states: \[OPEN, CLOSED, MERGED\]\)/);
 });
 
-// The run job's runner ran the model, so the list is a claim: the run's own
-// branches and the reuse and resume branches are spared even when named.
 test("the run's own branch and the reuse and resume branches are never deleted, even when named", async () => {
   const names = [lane(500, 1), lane(500, 2), lane(401), lane(402), lane(400)];
   const { call, calls } = fake(Object.fromEntries(names.map((name) => [name, ref()])));

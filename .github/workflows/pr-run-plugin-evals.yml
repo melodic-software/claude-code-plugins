@@ -272,6 +272,11 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -317,7 +322,7 @@ jobs:
       - name: Check the dispatcher is a trusted human
         if: github.event_name == 'workflow_dispatch'
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -346,7 +351,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
 
       # check-trusted-trigger accepts any listed actor; the label that spends
@@ -357,7 +362,7 @@ jobs:
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
@@ -502,15 +507,36 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      # The guardrails hooks read every Bash command through shfmt and refuse the
-      # call without it, so a guardrails eval needs it on PATH. The
-      # setup-pinned-shfmt action holds the pin; /opt/tools, since each eval run
-      # replaces HOME.
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      # Each plugin's prerequisites.json shfmt entry:
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/repo-hygiene/prerequisites.json
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
+
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
 
       # run-claude-cli's classifier, at the ref every lane runs it, for
       # eval-handoff.mjs: its published contract, contract-files.txt and the
@@ -802,13 +828,17 @@ jobs:
             # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
             # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
             # noise-report reads only results.json, which the upload already
-            # holds. A dispatched run always scaffolds.
+            # holds. A dispatched run always scaffolds. last-messages.mjs keeps
+            # each run's final reply beside results.json for the upload, only
+            # when the leak scan blocks nothing in it, and prints no reply.
             if [ "$DISPATCHED" = true ]; then
               validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
               bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
               verdict=$(printf '%s\n' "$validity" | tail -n 1)
               printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
               python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
+              node .base/.github/scripts/plugin-eval/last-messages.mjs "$results" "$OUT/$name/last-messages.jsonl" ||
+                echo "::warning::last-messages.mjs could not read the $name result, so the artifact carries no replies for it"
               printf '\nValidity: %s\n' "$verdict" >>"$summary"
               if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
             fi
@@ -1027,6 +1057,11 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1065,7 +1100,7 @@ jobs:
       - name: Check the dispatcher is a trusted human
         if: github.event_name == 'workflow_dispatch'
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -1094,7 +1129,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
 
       - name: Stop on an untrusted pull request trigger
@@ -1102,7 +1137,7 @@ jobs:
         env:
           PROCEED: ${{ steps.gate.outputs.proceed }}
           REASON: ${{ steps.gate.outputs.reason }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
@@ -1210,11 +1245,34 @@ jobs:
         timeout-minutes: 3
         run: bash .base/.github/scripts/lib/install-pinned-ffmpeg.sh /opt/tools/bin
 
-      - name: Install pinned shfmt for guardrails
-        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
+      - name: Install pinned shfmt for shell-reading plugins
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/guardrails') ||
+          contains(steps.plugins.outputs.list, 'plugins/repo-hygiene') ||
+          contains(steps.plugins.outputs.list, 'plugins/bash-format') ||
+          contains(steps.plugins.outputs.list, 'plugins/source-control'))
         uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           bin-dir: /opt/tools/bin
+
+      - name: Install pinned goimports for go-format
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/go-format')
+        timeout-minutes: 5
+        run: bash .base/.github/scripts/lib/install-pinned-goimports.sh /opt/tools/bin
+
+      - name: Install pinned typos for spelling
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        uses: melodic-software/ci-workflows/.github/actions/typos@main
+        with:
+          config: .base/_typos.toml
+          paths: .base/_typos.toml
+          annotations: 'false'
+      - name: Put typos where eval runs can read it
+        if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/spelling')
+        run: |
+          install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
+          echo /opt/tools/bin >>"$GITHUB_PATH"
 
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
@@ -1444,13 +1502,17 @@ jobs:
             # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
             # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
             # noise-report reads only results.json, which the upload already
-            # holds. A dispatched run always scaffolds.
+            # holds. A dispatched run always scaffolds. last-messages.mjs keeps
+            # each run's final reply beside results.json for the upload, only
+            # when the leak scan blocks nothing in it, and prints no reply.
             if [ "$DISPATCHED" = true ]; then
               validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$results" --runs "$RUNS" --scaffolded) || true
               bash_ran=$(printf '%s\n' "$validity" | tail -n 2 | head -n 1 | grep -xE 'bash ran: (n/a|[a-z-]+ (n/a|[0-9]+ of [0-9]+)(, [a-z-]+ (n/a|[0-9]+ of [0-9]+))*(, unknown [0-9]+)?)(, absent tool [0-9]+)?' || true)
               verdict=$(printf '%s\n' "$validity" | tail -n 1)
               printf '%s\n' ${bash_ran:+"$bash_ran"} "$verdict" >"$OUT/$name/validity.txt"
               python3 .base/plugins/evals/skills/plugin-eval/scripts/noise-report.py "$results" >"$OUT/$name/noise.txt" 2>&1 || true
+              node .base/.github/scripts/plugin-eval/last-messages.mjs "$results" "$OUT/$name/last-messages.jsonl" ||
+                echo "::warning::last-messages.mjs could not read the $name result, so the artifact carries no replies for it"
               printf '\nValidity: %s\n' "$verdict" >>"$summary"
               if [ -n "$bash_ran" ]; then printf '\n%s\n' "$bash_ran" >>"$summary"; fi
             fi
@@ -1576,9 +1638,10 @@ jobs:
   # patched onto this branch by compare-arms.sh from git objects; no script,
   # hook, workflow or manifest of either runs. Each arm runs on the credential
   # input's one secret: the API key, or the subscription token when
-  # compare-prepare found the pull request's author on the trusted-actor list
-  # (docs/review/evals.md). The record job is the only one that writes: it
-  # holds issues: write, checks out only this branch, and posts nothing unless
+  # compare-prepare found the pull request's author listed there as a human,
+  # never a bot (docs/review/evals.md). The record job is the only one that
+  # writes: it holds pull-requests: write, checks out only this branch, and
+  # posts nothing unless
   # every job before it passed and the head has not moved. A run whose jobs
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
@@ -1614,6 +1677,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1636,7 +1703,7 @@ jobs:
 
       - name: Check the dispatcher is a trusted human
         env:
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
@@ -1707,7 +1774,7 @@ jobs:
         if: inputs.credential == 'subscription'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           pr-number: ${{ inputs.pr }}
           triggering-actor: ${{ github.triggering_actor }}
 
@@ -1718,6 +1785,28 @@ jobs:
         run: |
           echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
           exit 1
+
+      - name: Stop on a pull request a bot wrote
+        if: inputs.credential == 'subscription'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          LIST: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+        run: |
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
+          author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .user.id) || author=
+          if ! [[ $author =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::read-fault: the pull request's author could not be read; no pass runs"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$author" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::bot-author: the subscription token runs only for a pull request a listed human wrote; no pass runs"
+            exit 1
+          fi
 
       - name: Fetch the pull request's commits as data
         uses: actions/checkout@v7
@@ -1924,8 +2013,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
-      issues: write
+      pull-requests: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:

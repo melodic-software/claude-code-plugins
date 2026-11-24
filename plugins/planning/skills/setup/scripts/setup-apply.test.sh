@@ -9,7 +9,7 @@
 # docs/conventions/planning.yaml at the repository root.
 # Labels and one fixture path hold a literal $HOME or $(...) on purpose.
 # shellcheck disable=SC2016
-# test-scope: plugins/planning/lib/resolve-convention-home.sh
+# test-scope: plugins/planning/lib/resolve-convention-home.sh plugins/planning/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1

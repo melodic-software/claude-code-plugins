@@ -1,4 +1,3 @@
-# Repository-wide text checks in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
 globs: ["**"]
 build-cmd: null
 test-cmd: null

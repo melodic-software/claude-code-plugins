@@ -216,7 +216,6 @@ test("--annotation writes one escaped ::error naming each case that is not PASS"
     assert.equal(scored.status, 0, scored.stderr);
     assert.equal(readFileSync(file, "utf8"), "");
     assert.equal(run(fixture("scored.json"), "--annotation").status, 2);
-    // An unreadable result writes no file, so the step reports the suite as not run.
     const missing = join(dir, "unread.txt");
     assert.equal(run(fixture("absent.json"), "--annotation", missing).status, 2);
     assert.equal(existsSync(missing), false);

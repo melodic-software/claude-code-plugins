@@ -92,6 +92,7 @@ jobs:
       # cannot apply; the refusal step below shows why.
       claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
       instructions: ${{ steps.rubric.outputs.instructions }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -124,6 +125,10 @@ jobs:
             /docs/conventions/work-items.yaml
           sparse-checkout-cone-mode: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -136,6 +141,7 @@ jobs:
           issue-number: ${{ github.event.issue.number || inputs.issue-number }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           born-triaged: ${{ github.event.action == 'opened' }}
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Read the triage rubric
         id: rubric
@@ -154,6 +160,7 @@ jobs:
         with:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/intake-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Refuse a subagent model
         env:
@@ -377,6 +384,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-born-triaged.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -407,7 +420,8 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
       # Its reads go through the job token, counted under github-token for
@@ -423,6 +437,7 @@ jobs:
           activity: apply-verdict
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
@@ -483,9 +498,10 @@ jobs:
           STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
           VERDICT: ${{ needs.intake-triage.outputs.verdict }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           BASE_PATH: .base
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
       # A held verdict, kept as the lane-hold-intake-triage artifact for
@@ -555,6 +571,7 @@ jobs:
       # apply-refinement posts the reason), else `refine`.
       mode: ${{ steps.select.outputs.mode }}
       context-sha256: ${{ steps.hash.outputs.sha256 }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -573,6 +590,12 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-born-triaged.outputs.standards-sha }}
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -600,7 +623,8 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
       - name: Install resolve-config's packages
@@ -617,9 +641,10 @@ jobs:
           STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
           VERDICT: ${{ needs.apply-verdict.outputs.verdict }}
           KILL_SWITCH: proceed
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           CONTEXT_PATH: ${{ runner.temp }}/refine-context/context.json
           BASE_PATH: .base
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$RUNNER_TEMP/refine-context"
           node .base/.github/scripts/intake-triage/refine.mjs --select
@@ -745,6 +770,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.refine-select.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -789,6 +820,7 @@ jobs:
           model-route: triage-issue
           base-path: .base
           output-path: ${{ runner.temp }}/refine-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
@@ -1092,6 +1124,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.refine-select.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1131,6 +1169,7 @@ jobs:
           model-route: triage-issue
           base-path: .base
           output-path: ${{ runner.temp }}/refine-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential
@@ -1381,6 +1420,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.refine-select.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1420,6 +1465,7 @@ jobs:
           model-route: triage-issue
           base-path: .base
           output-path: ${{ runner.temp }}/refine-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential
@@ -1633,6 +1679,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-born-triaged.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -1655,7 +1707,8 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
       - name: Download the context
@@ -1695,6 +1748,7 @@ jobs:
           activity: apply-refinement
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
@@ -1727,10 +1781,11 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           KILL_SWITCH: proceed
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           CONTEXT_PATH: ${{ runner.temp }}/refine-data/context.json
           BASE_PATH: .base
           REFINEMENT_PATH: ${{ runner.temp }}/refinement/refinement.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" --apply
 
       # The token is cancelled as soon as the job is done; it would otherwise
