@@ -23,7 +23,6 @@ mkdir -p "$PROJ/.claude/rules"
 DATA_DIR="$TEST_TMPDIR/data"
 mkdir -p "$DATA_DIR"
 
-
 # row <name> -> the payload members (without session_id) that make it emit,
 # hook_event_name included
 members() {

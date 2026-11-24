@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for project-relative userConfig path containment.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,7 +86,6 @@ EOF
   fi
 fi
 
-# --- Scope-selected skill-usage destination ---------------------------------
 FAKE_HOME="$TEST_TMPDIR/home"
 mkdir -p "$FAKE_HOME"
 assert_eq "repo scope resolves under project" "$PROJECT/.claude/observability" \
@@ -135,7 +133,6 @@ else
   ok "data-dir scope without CLAUDE_PLUGIN_DATA fails"
 fi
 
-# --- Machine-local git exclude hygiene --------------------------------------
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"
 if git -C "$REPO" init -q 2>/dev/null; then

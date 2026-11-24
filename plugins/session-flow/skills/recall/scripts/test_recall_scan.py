@@ -215,8 +215,6 @@ class RecallScanTest(unittest.TestCase):
         self.assertIn("capped", result.stderr)
 
     def test_run_stops_at_200_matches_and_skips_the_oldest_transcripts(self) -> None:
-        # 25 sessions of 10 matches each, s-00 oldest: the newest 20 fill the
-        # 200-match run cap, so s-00 to s-04 are never read.
         for n in range(25):
             session = f"s-{n:02d}"
             path = write_transcript(

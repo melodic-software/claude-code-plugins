@@ -83,7 +83,6 @@ def _ensure_bundled_tzdata() -> None:
                     try:
                         staging.rename(cache_root)
                     except OSError:
-                        # Another process likely finished extraction first.
                         if not (cache_root / "tzdata").is_dir():
                             raise
             finally:
@@ -97,8 +96,6 @@ def _ensure_bundled_tzdata() -> None:
         if cache_path not in sys.path:
             sys.path.insert(0, cache_path)
     except Exception:
-        # Corrupt or truncated zip, read-only TEMP, disk full, unreadable
-        # bundle, failed rename — all degrade to "no bundled tzdata".
         return
 
 
@@ -231,8 +228,6 @@ def parse_reset(
         return _first_at_or_after(received, zone, hour, minute)
     current = now.astimezone(zone) if now is not None else datetime.now(zone)
     reset_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    # After midnight, an evening reset already passed yesterday; an early-morning
-    # reset is still ahead on today's calendar.
     if reset_at > current and ampm == "pm" and current.hour < 12:
         reset_at -= timedelta(days=1)
     return reset_at

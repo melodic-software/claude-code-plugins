@@ -128,11 +128,6 @@ def main() -> int:
     work_dir = str(Path(args.work_dir).resolve())
     ledger_dir = str(Path(args.ledger_dir).resolve())
 
-    # Do NOT silently lose a manual arm's overrides to an already-live observer
-    # (same session-id lock). If one is live, report it VISIBLY and don't spawn a
-    # redundant observer that would just exit "already live" and drop the
-    # DECLARED_MEMORY_DIR / PREV_* / config overrides. Visible degrade beats
-    # silent loss.
     sid = args.session_id or transcript.stem
     existing = live_observer_pid(work_dir, sid)
     if existing is not None:

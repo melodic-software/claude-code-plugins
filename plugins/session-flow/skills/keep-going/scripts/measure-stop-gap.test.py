@@ -133,7 +133,6 @@ class MeasureStopGapTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
 
     def test_mixed_offsets_compare_as_instants(self) -> None:
-        # 12:00+05:00 is 07:00Z, earlier than 09:00Z despite the larger clock.
         result = self.run_on(
             [
                 _entry("assistant", "2026-10-18T12:00:00+05:00"),
@@ -145,7 +144,6 @@ class MeasureStopGapTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(result.stdout)
         self.assertEqual(data["last_assistant"], "2026-10-18T09:00:00+00:00")
-        # The error (08:30Z) precedes the last assistant entry, so it is not the stop.
         self.assertEqual(data["stop_at"], data["last_assistant"])
         self.assertEqual(data["gap_seconds"], 3600)
 

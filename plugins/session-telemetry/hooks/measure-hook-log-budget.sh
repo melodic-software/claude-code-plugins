@@ -225,11 +225,6 @@ wall_ms() {
 wall_off="$(wall_ms false)" || probe_failed "parallel wall (log off)"
 wall_on="$(wall_ms true)" || probe_failed "parallel wall (log on)"
 
-# The enabled row on a 60 KB tool_input payload that carries none of the
-# allowlisted metadata keys, minus the same row on a small payload, sample by
-# sample: the cost of reading the top-level members out of a payload at the
-# read cap. S (`bash -c :`, the hook-budget convention's unit) is timed in the
-# same loop so the two figures share the host's conditions.
 WIDE_PAYLOAD="$WORK/wide.json"
 SMALL_PAYLOAD="$WORK/small.json"
 printf '{"session_id":"budget","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"%s"}}' \
@@ -262,7 +257,6 @@ append_probe() {
   local pad i pids=()
   : >"$file"
   pad="$(head -c "$bytes" /dev/zero | tr '\0' 'a')"
-  # Each append goes through slog_append, the hook's own write path.
   for ((i = 1; i <= 33; i++)); do
     (
       # shellcheck source=session-log-lib.sh

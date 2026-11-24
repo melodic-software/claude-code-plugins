@@ -58,7 +58,6 @@ ESTIMATE_SCHEMA = "audit-friction.estimate/v1"
 DIFF_SCHEMA = "audit-friction.diff/v1"
 EVENT_LIMIT = 2000
 TOP = 25
-# Verification sizing: claims per blind verifier batch and recommendations per challenge agent.
 BATCH = 12
 CHALLENGE_BATCH = 3
 WAVE = 8
@@ -238,7 +237,6 @@ def aggregate(records: list[dict]) -> dict:
     shapes: Counter = Counter()
     flags: Counter = Counter()
     perf: Counter = Counter()
-    # (side, event key) -> next tool -> {count, ok, failed, unknown}, from the stored events (capped per session).
     next_tools: dict[tuple[str, str], dict[str, dict[str, int]]] = defaultdict(dict)
     events, dropped, duplicates, active_s, turns = [], 0, 0, 0, 0
     classes = Counter(census.session_class(r) for r in records)
@@ -375,7 +373,6 @@ def cmd_mine(args: argparse.Namespace) -> int:
             warnings.append(f"source {source}: {envelope.get('summary')}")
             continue
         stores.append(store)
-    # The store does not record which root filled it, so this row names the collector's default, not a root known read.
     roots = [{"root": str(collect.default_projects_root()), "via": MACHINE_VIA}]
     roots += [{"root": s["source"], "via": "--source"} for s in sources if s["status"] != "error"]
     siblings, stopped = sibling_roots([r["root"] for r in roots])
@@ -537,12 +534,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     def mode(verify: list, challenge: list, probes: int) -> dict:
         agents = math.ceil(len(verify) / BATCH) + math.ceil(len(challenge) / CHALLENGE_BATCH)
         waves = math.ceil(agents / WAVE) if agents else 0
-        steps = waves + 2 if agents else 0  # the pilot and the ledger run alone, before and after the waves
+        steps = waves + 2 if agents else 0
         fixed = FIXED_TOKENS if agents else 0
         return {
             "claims_checked": len(verify), "verifier_agents": agents, "waves": waves, "probe_cases": probes,
             "tokens": [agents * a + fixed + probes * p for a, p in zip(AGENT_TOKENS, PROBE_TOKENS)],
-            # Probes run beside the fact-check, so the longer of the two sets the wall-clock time.
             "minutes": [max(steps * s, probes * p) for s, p in zip(STEP_MINUTES, PROBE_MINUTES)],
         }
 
@@ -625,7 +621,6 @@ def main(argv: list[str] | None = None) -> int:
     mine.add_argument("--save-baseline", action="store_true")
     mine.add_argument("--out")
     mine.add_argument("--format", choices=("json", "md"), default="json")
-    # Passed to the collect --source runs, so a source store keeps the machine store's limits.
     for flag in ("--retention-days", "--excerpt-chars", "--excerpt-words"):
         mine.add_argument(flag, type=int)
     mine.set_defaults(func=cmd_mine)
