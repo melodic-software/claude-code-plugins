@@ -115,8 +115,8 @@ const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |n
 const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s.name);
 say(offenders.length === 0, `no run step after the head checkout runs head code (${offenders.join(", ") || "none"})`);
 const script = byId("act-script").run ?? "";
-say(/^\s*"\$STAGED_SCRIPT"$/m.test(script) && byId("act-script").env?.STAGED_SCRIPT === "${{ steps.stage.outputs.script-path }}"
-  && /^\.\/\.base\/\.github\/actions\/collect-base-activity\b/.test(byId("stage").uses ?? ""),
+say(/^ *"\$STAGED_SCRIPT"$/m.test(script) && byId("act-script").env?.STAGED_SCRIPT === "${{ steps.stage.outputs.script-path }}"
+  && byId("stage").uses === "./.base/.github/actions/collect-base-activity",
   "a script activity runs from its base copy");
 // No model runs beside the lane token: no step runs claude-code-action or
 // takes a Claude credential, and a skill fails red before the mint.
