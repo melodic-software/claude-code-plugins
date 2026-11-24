@@ -4,6 +4,7 @@
 // "prepare: merge-base"): a writing skill gets the signed-commit tool and the
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
 // test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
+// test-scope: .github/scripts/*.mjs docs/conventions/pr-pipeline.yaml .github/workflows/pr-run-activity-write.yml
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -85,10 +86,10 @@ const ownDenied = (denied, env) =>
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
 
 // The `run: |` block of the step with `id: skill`, dedented.
-function skillScript() {
+function skillScript(step = /^\s+id: skill$/) {
   const lines = readFileSync(ACTION, "utf8").split("\n");
-  const id = lines.findIndex((line) => /^\s+id: skill$/.test(line));
-  assert.notEqual(id, -1, "action.yml has the skill step");
+  const id = lines.findIndex((line) => step.test(line));
+  assert.notEqual(id, -1, `action.yml has the step ${step}`);
   const start = lines.findIndex((line, i) => i > id && /^\s+run: \|$/.test(line));
   const keyIndent = lines[start].search(/\S/);
   const body = [];
@@ -167,6 +168,50 @@ function stage(overrides) {
   const jobEnv = readFileSync(envFile, "utf8");
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
+
+const UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS = {
+  ".github/scripts/pr-unblock/declare-test-scope.mjs": ["../actions/log-api-budget/rate-guard.mjs", "maintenance-reconcile-lost-runs/infra-failure.mjs"],
+};
+test("each activity runner script's static relative imports resolve in the staged base-script layout, apply-patch.mjs with the write runner's apply-base copies", () => {
+  const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+  const config = parse(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
+  const runnerLanes = Object.entries(config.lanes).filter(([lane]) => {
+    const workflow = path.join(REPO_ROOT, ".github/workflows", `${lane}.yml`);
+    return existsSync(workflow) && /uses: \.\/\.github\/workflows\/pr-run-activity-(read|write)\.yml/.test(readFileSync(workflow, "utf8"));
+  });
+  const scripts = [
+    ...new Set(
+      runnerLanes
+        .flatMap(([, lane]) => lane.slots.map((slot) => config.activities[slot.activity].script))
+        .filter((script) => script?.endsWith(".mjs")),
+    ),
+  ];
+  assert.ok(scripts.includes(".github/scripts/pr-unblock/apply-dependency-verdict.mjs"), scripts.join(" | "));
+  const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
+  const write = readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
+  const applyBase = [...write.matchAll(/^\s+cp \.base\/\.github\/scripts\/(([^/\s]+)\/[^/\s]+) "\$RUNNER_TEMP\/\2\/"$/gm)].map((m) => m[1]);
+  assert.ok(applyBase.length > 0, "the write runner's apply-base step copies sibling modules");
+  const missing = {};
+  for (const script of scripts) {
+    const runTemp = mkdtempSync(path.join(root, "script-"));
+    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp };
+    const result = spawnSync("bash", ["-e", "-c", copy], { env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    if (path.basename(script) === "apply-patch.mjs") {
+      for (const file of applyBase) cpSync(path.join(REPO_ROOT, ".github/scripts", file), path.join(runTemp, file));
+    }
+    const seen = new Set();
+    const walk = (file) => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      if (!existsSync(file)) return (missing[script] ??= []).push(path.relative(runTemp, file));
+      if (!file.endsWith(".mjs")) return;
+      for (const [, spec] of readFileSync(file, "utf8").matchAll(/^(?:import|export)\b[^;]*?\bfrom ["'](\.\.?\/[^"']+)["']/gm)) walk(path.resolve(path.dirname(file), spec));
+    };
+    walk(path.join(runTemp, "base-script", path.basename(script)));
+  }
+  assert.deepEqual(missing, UNSTAGED_DECLARE_TEST_SCOPE_IMPORTS);
+});
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied
 // records the last swept version and points at the release procedure.
