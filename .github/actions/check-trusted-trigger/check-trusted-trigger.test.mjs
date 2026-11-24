@@ -2571,15 +2571,15 @@ const runRecord = (name = `pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_
   listing(record({ name }));
 
 const dispatcherJobsRoute = `${dispatcherRoute}/jobs?per_page=100`;
+const CAPTURED_JOBS = fixture("api-run-dispatcher-jobs.json");
+const capturedJob = (name) => CAPTURED_JOBS.jobs.find((job) => job.name === name);
 const dispatchJob = (overrides = {}) => ({
-  id: 113000000001,
+  ...capturedJob("Dispatch"),
   run_id: Number(DISPATCHER_RUN_ID),
-  run_attempt: 1,
-  name: "Dispatch",
-  status: "in_progress",
   started_at: "2026-10-11T12:00:10Z",
   ...overrides,
 });
+const otherJob = (overrides = {}) => ({ ...capturedJob("Post Verify Notes"), run_id: Number(DISPATCHER_RUN_ID), ...overrides });
 const jobsListing = (...jobs) => ({ total_count: jobs.length, jobs });
 
 function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), jobs = jobsListing(dispatchJob()), ...rest } = {}) {
@@ -2606,7 +2606,7 @@ test("workflow_run dispatcher: a review run at the PR head proceeds and reads th
 });
 
 const QUEUED_JOB = jobsListing(
-  dispatchJob({ name: "Post verify notes", started_at: "2026-10-11T12:00:06Z" }),
+  otherJob({ started_at: "2026-10-11T12:00:06Z" }),
   dispatchJob({ started_at: "2026-10-11T12:10:26Z" }),
 );
 const queuedRoutes = ({ created, updated = "2026-10-11T12:30:00Z", jobs = QUEUED_JOB }) =>
@@ -2618,12 +2618,24 @@ test("workflow_run dispatcher: the window runs from the Dispatch job's start, so
   assert.ok(github.calls.includes(dispatcherJobsRoute));
 });
 
+test("workflow_run dispatcher: the captured jobs listing of a run whose Dispatch job queued 10m22s proceeds", async () => {
+  const jobs = jobsListing(...CAPTURED_JOBS.jobs.map((job) => ({ ...job, run_id: Number(DISPATCHER_RUN_ID) })));
+  const github = fakeGitHub(
+    runDispatcherRoutes({
+      dispatcher: { status: "completed", created_at: "2026-11-24T00:32:20Z", run_started_at: "2026-11-24T00:32:20Z", updated_at: "2026-11-24T00:43:29Z" },
+      self: { created_at: "2026-11-24T00:43:24Z" },
+      jobs,
+    }),
+  );
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+});
+
 for (const [label, routes] of [
   ["the dispatch came 10m01s after the Dispatch job started", { created: "2026-10-11T12:20:27Z" }],
   ["the jobs read fails", { created: "2026-10-11T12:11:08Z", jobs: new GitHubError(500, "jobs") }],
   ["the dispatcher run lists no Dispatch job", {
     created: "2026-10-11T12:11:08Z",
-    jobs: jobsListing(dispatchJob({ name: "Post verify notes", started_at: "2026-10-11T12:00:06Z" })),
+    jobs: jobsListing(otherJob({ started_at: "2026-10-11T12:00:06Z" })),
   }],
   ["the Dispatch job is still queued", {
     created: "2026-10-11T12:11:08Z",
