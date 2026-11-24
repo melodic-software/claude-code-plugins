@@ -9,13 +9,9 @@ import { fileURLToPath } from "node:url";
 import { laneSlots } from "../../actions/resolve-config/resolve.mjs";
 import { planPasses } from "./plan-passes.mjs";
 
-// The slots resolve.mjs expands for a pr-refine lane holding these
-// activities, one slot each unless `slots` replaces them.
 const slotsOf = (activities, slots = Object.keys(activities).map((activity) => ({ activity })), lane = {}) =>
   laneSlots({ activities, lanes: { "pr-refine": { stage: "refine", ...lane, slots } } }, "pr-refine");
 
-// fix-docs as docs/conventions/pr-pipeline.yaml sets it, beside an activity of
-// another stage that a planner must never pick.
 const FIX_DOCS = {
   stage: "refine",
   order: 10,
@@ -63,8 +59,6 @@ test("a listing that may be cut off runs every pass", () => {
   assert.deepEqual(planPasses({ slots: slotsOf(LIVE), changedPaths: ["src/app.js"], truncated: true }).batches, [["fix-docs"]]);
 });
 
-// Two synthetic passes in one group: disjoint files run together, shared files
-// one after the other.
 const pass = (order, group, paths) => ({ stage: "refine", order, group, "applies-when": { paths } });
 
 test("two passes on disjoint globs land in one parallel batch", () => {
@@ -98,7 +92,6 @@ test("a pass that matches nothing leaves no batch between two that run together"
   assert.deepEqual(planPasses({ slots: slotsOf(activities), changedPaths: ["a.md", "b.js"] }).batches, [["fix-docs", "format-code"]]);
 });
 
-// The lane's slots decide, as the runner's resolve reads them.
 test("a disabled slot or lane plans no pass, and a slot's applies-when replaces its activity's", () => {
   const activities = { "fix-docs": FIX_DOCS };
   assert.deepEqual(planPasses({ slots: slotsOf(activities, [{ activity: "fix-docs", enabled: false }]), changedPaths: ["a.md"] }).passes, []);
@@ -115,8 +108,6 @@ test("a composite's predicate narrows its refine leaves' files", () => {
   assert.deepEqual(planPasses({ slots, changedPaths: ["README.md", "docs/a.md"] }).passes, [{ name: "fix-docs", order: 10, group: "docs", files: 1 }]);
 });
 
-// The select-passes job's step on this repository's own config, read as the job reads
-// the base's: the outputs each pass's first job and record-passes read.
 test("write-pass-plan.mjs writes the plan's outputs, and only planned passes get <pass>=true", () => {
   const dir = mkdtempSync(join(tmpdir(), "write-pass-plan-"));
   try {

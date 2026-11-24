@@ -1,4 +1,3 @@
-# .NET in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
 globs: ["*.cs"]
 build-cmd: null
 test-cmd: null

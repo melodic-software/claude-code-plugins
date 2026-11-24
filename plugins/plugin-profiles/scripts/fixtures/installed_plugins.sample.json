@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "plugins": {
+    "plugin-profiles@melodic-software": [
+      {
+        "scope": "user",
+        "installPath": "/placeholder-home/.claude/plugins/cache/melodic-software/plugin-profiles/0.13.2",
+        "version": "0.13.2",
+        "installedAt": "2026-11-16T04:58:16.748Z",
+        "lastUpdated": "2026-11-24T06:31:30.301Z",
+        "gitCommitSha": "3da911463865addfa1be2c7c9b6bbdb178c73da5"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/placeholder-home/repos/project",
+        "installPath": "/placeholder-home/.claude/plugins/cache/melodic-software/plugin-profiles/0.12.0",
+        "version": "0.12.0",
+        "installedAt": "2026-11-22T17:49:53.655Z",
+        "lastUpdated": "2026-11-23T16:43:00.743Z",
+        "gitCommitSha": "a5c1f110855a4ba95a925c00248ee5e3ec203f0b"
+      }
+    ]
+  }
+}

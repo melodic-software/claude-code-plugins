@@ -1,6 +1,4 @@
 # yaml-language-server: $schema=../../plugins/harness-config/schemas/harness-config.schema.json
-# Team layer for the harness-config plugin's settings.
-# Resolution: plugins/harness-config/skills/audit/scripts/audit-engine.sh (suppressions).
 suppressions:
   fce618a146f90b9c:
     check: harness-config/audit/B/baseline-ask-rules

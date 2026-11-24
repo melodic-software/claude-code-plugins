@@ -1,11 +1,3 @@
-// carry-run-cache.mjs: only reads that cannot change reach the next pr-merge
-// run, each under a carried-* name the verdict reader uses only to count a
-// FAIL, and carried-lane-run, which babysit_gh.collect_lane_runs uses while the
-// live listing still matches. The kept and dropped sections follow
-// babysit_run_cache.py's readers (babysit_verify_evidence.py: run-record,
-// fail-head-ref, on-branch; babysit_gh.py: lane-run; babysit_merge*.py: the
-// MAX_AGE-bounded and credential-keyed ones); record shapes follow
-// GET .../actions/runs/{id}.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -91,8 +83,6 @@ test("drops every section that can change between runs", () => {
     "trusted-humans",
   ];
   const restored = Object.fromEntries(sections.map((s) => [s, { [REPO]: entry("x") }]));
-  // A section the reader trusts is never restored under its name: the
-  // restored entry may come from any job in the default branch's scope.
   for (const s of ["on-branch", "run-record", "fail-head-ref"]) restored[s] = {};
   restored["on-branch"][`${REPO}|${MAIN_SHA}...main`] = entry(true);
   restored["run-record"][`${REPO}|7`] = entry(origin(7));
@@ -149,15 +139,12 @@ test("drops an entry dated in the future, with no zone, or past the 90-day reten
   for (const at of ["2026-10-19T13:00:00+00:00", "2026-10-19T11:00:00", "2026-07-20T11:59:00+00:00"]) {
     assert.deepEqual(carry({ "on-branch": { [key]: entry(true, at) } }, opts)["carried-on-branch"], {}, at);
   }
-  // 89 days old is still inside the retention.
   assert.deepEqual(
     Object.keys(carry({ "on-branch": { [key]: entry(true, "2026-07-22T12:00:00+00:00") } }, opts)["carried-on-branch"]),
     [key],
   );
 });
 
-// A completed review-lane run's saved attempts (babysit_gh.lane_run_value),
-// keyed as babysit_gh.lane_run_key keys them.
 const laneKey = (id, attempts = 1, suffix = "claude-review-status") => `${REPO}|${id}|${attempts}|${suffix}|v2`;
 const laneRun = (id, attempts = 1) => ({
   updated_at: "2026-10-19T10:30:00Z",
@@ -258,8 +245,6 @@ const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
   head_sha: headSha,
 });
 
-// `files` holds each run's pr-merge-run-cache file and `verify` each run's
-// pr-merge-verify-run-cache file.
 async function readRun(t, { pages = [[]], files = {}, verify = {}, offMain = [], fail, planted, mainTag = false } = {}) {
   forgetMainTip();
   const dir = tempDir("carry-run-cache-read-");
@@ -303,16 +288,11 @@ test("read takes the carried file from the newest trusted run on main only", asy
     "skip-unchanged": { 12: { at: AT, value: { reason: "risk:MED" } } },
   });
   const result = await readRun(t, {
-    // This run (999) and a pull_request_target run are never asked; run 9's
-    // head commit is not on main.
     pages: [[wf(999, "schedule"), wf(10, "pull_request_target"), wf(9, "workflow_dispatch"), wf(8, "schedule")]],
     files: { 10: "{}", 9: "{}", 8: kept },
     offMain: [wf(9).head_sha],
   });
   assert.deepEqual(result.downloads, [8]);
-  // Written as kept, skip-unchanged included: babysit_merge_skip.py filter
-  // reads that section from this file, and the run cache takes the carried-*
-  // sections through carry() in the next step.
   assert.equal(result.written, kept);
 });
 
@@ -347,10 +327,6 @@ test("read takes no file while a tag shares main's name", async (t) => {
   assert.equal(result.written, undefined);
 });
 
-// The merge gate reads no lane verdict, so only enable-auto-merge's reader
-// fills run-record; it uploads what it kept as pr-merge-verify-run-cache, and
-// `read` adds that file's carried-* sections, and nothing else, to the merge
-// job's file, whose other sections babysit_merge_skip.py reads.
 const skip = { 12: { at: AT, value: { reason: "risk:MED" } } };
 const mergeFile = JSON.stringify({
   "carried-run-record": { [`${REPO}|7`]: entry(origin(7)) },
@@ -362,7 +338,6 @@ const verifyFile = JSON.stringify({
   "carried-run-record": { [`${REPO}|9`]: entry(origin(9)) },
   "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
   "carried-on-branch": {},
-  // Never taken from this file: only the merge job's refusals are skipped.
   "skip-unchanged": { 13: { at: AT, value: { reason: "risk:HIGH" } } },
   "run-record": { [`${REPO}|11`]: entry(origin(11)) },
 });
@@ -373,7 +348,6 @@ test("read adds the verify file's carried sections to the merge file, every othe
     files: { 8: mergeFile },
     verify: { 9: verifyFile },
   });
-  // Each file from the newest trusted run holding it.
   assert.deepEqual(result.downloads, [8, "verify:9"]);
   const written = JSON.parse(result.written);
   assert.deepEqual(written, {
@@ -453,13 +427,9 @@ test("keep reports kept=true only when it kept a read", (t) => {
   t.mock.method(console, "log", () => {});
   writeFileSync(from, JSON.stringify({ "trusted-humans": { [REPO]: entry([1]) } }));
   main(env, NOW);
-  // carried=true still says the file was written, for the skip refusals.
   assert.equal(readFileSync(output, "utf8"), "carried=true\n");
 });
 
-// Two ticks: the first tick's merge gate reads no verdict and keeps an
-// empty carried file beside its refusals; its enable-auto-merge reader fills
-// run-record and keeps it. The second tick starts its run cache warm.
 test("a second tick starts its run cache from the first tick's verifier reads", async (t) => {
   const dir = tempDir("carry-run-cache-ticks-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));

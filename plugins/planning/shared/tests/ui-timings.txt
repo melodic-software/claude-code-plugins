@@ -15,7 +15,8 @@ ui_inputs.js 33
 ui_journey.js 20
 ui_kbreadout.js 15
 ui_keyboard.js 21
-ui_layout.js 136
+ui_layout.js 64
+ui_layout_keyboard.js 72
 ui_lists.js 30
 ui_merge.js 12
 ui_moderation.js 15

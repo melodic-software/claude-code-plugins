@@ -153,7 +153,8 @@ test("no event text reaches a shell: run lines carry no expression, the script r
   assert.equal(
     flag,
     "      - name: Flag an outside actor\n        env:\n          GITHUB_TOKEN: ${{ github.token }}\n" +
-      "          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json\n" +
+      "          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json\n" +
+      "          STANDARDS_DIR: ${{ steps.standards.outputs.path }}\n" +
       "        run: node .base/.github/scripts/security-outside-actor/flag.mjs\n",
   );
 });

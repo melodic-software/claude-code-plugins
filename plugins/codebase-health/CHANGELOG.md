@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4] - 2026-11-24
+
+### Fixed
+
+- `audit` runs the view resolver whether or not `visualization:visualize` is installed, and copies its report line and notices word for word.
+
 ## [0.17.3] - 2026-11-24
 
 ### Fixed

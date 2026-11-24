@@ -55,6 +55,7 @@ baseline.
 - **Every dependency is a coupling point.** Weigh, at adoption time, the
   cost this coupling can impose later: abandonment, a pricing pivot, a
   license change, security posture, and exit cost.
+  Name all five of these costs in the reply, in those words, including when the research is still to come.
 - **Building what already exists is a finding.** Re-implementing a solved,
   well-served problem (native or vetted) is a selection error in the other
   direction. Name it.

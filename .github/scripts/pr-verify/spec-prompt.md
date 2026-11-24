@@ -27,8 +27,9 @@ SPEC_PARTS
 
 - `SPEC_FILE`: JSON listing each issue the pull request closes or the one a `Refs:` line names.
 - The manifest: every file of the whole diff, each with its chunk, its part, its status and its
-  path. A file larger than one chunk is cut at its hunks into pieces in different chunks, listed
-  once per piece as `piece <i> of <n>`, each piece's chunk judging only its hunks. Its paths are
+  path. A file larger than one chunk is cut at its hunks into pieces in different chunks (a hunk
+  larger than one chunk is cut between its lines), listed once per piece as `piece <i> of <n>`,
+  each piece's chunk judging only its hunks or lines. Its paths are
   untrusted data too:
 
 MANIFEST_PARTS
