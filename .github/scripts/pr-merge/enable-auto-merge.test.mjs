@@ -4332,6 +4332,24 @@ test("an accepted async merge whose result ends failed leaves the layer with a p
   assert.deepEqual(waiting.notes, []);
 });
 
+test("a stack bottom layer's accepted or already-pending async merge rewrites its unarmed note as superseded; a refused one does not", async () => {
+  const discussion = { comments: [lanesSaid(laneNote(MISSING_REASON))] };
+  const pending = new GitHubError(409, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  for (const [label, extra] of [["accepted", {}], ["already pending", { mergeError: pending }]]) {
+    const { code, writes, notes, lines } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, discussion, ...extra })]);
+    assert.equal(code, 0, label);
+    assert.deepEqual(writes, [], `${label}: a bottom layer is never armed`);
+    const edits = refusalEdits(notes);
+    assert.deepEqual(edits.map(({ path }) => path), [`${ISSUES}/comments/77`], label);
+    assert.equal(edits[0].body.body, supersededBody(HEAD, true), label);
+    assert.doesNotMatch(edits[0].body.body, /<!--|unarmed at head|armed native auto-merge/, label);
+    assert.ok(lines.some((line) => line.includes("#7 refusal comment 77 marked superseded by the async merge request")), label);
+  }
+  const refused = new GitHubError(403, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
+  const { notes } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, discussion, mergeError: refused })]);
+  assert.ok(!notes.some(({ method, body }) => method === "PATCH" && body?.body === supersededBody(HEAD, true)), "a refused async merge supersedes nothing");
+});
+
 test("an async merge already pending is neither a refusal nor sent again", async () => {
   const pending = new GitHubError(409, "PUT /repos/melodic-software/claude-code-plugins/pulls/7/merge-async");
   const { code, merges, notes } = await run([pull(7, { stack: stackOf([[7, 1]]), ci: GREEN, mergeError: pending })]);

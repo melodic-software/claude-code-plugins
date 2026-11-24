@@ -2040,8 +2040,9 @@ the lanes App included, by an account off that list, or made through a GitHub Ap
 reasons escalate afresh, each as a new comment. The same holds for pr-merge's verifier, held-major
 and shared-copy escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes
 App pull request instead, and posts its escalation to a person as a new comment the same way. Once
-it arms a lanes App pull request, it rewrites each of its own refusal comments there to say the arm
-at that head superseded it, with no marker left, so none still reads as unarmed.
+it arms a lanes App pull request, or GitHub accepts (or already holds) the async merge of a stack's
+bottom layer, it rewrites each of its own refusal comments there to say the arm or merge request at
+that head superseded it, with no marker left, so none still reads as unarmed.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also

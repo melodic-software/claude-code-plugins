@@ -946,13 +946,13 @@ function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
   return newestAppComment(comments, bot, (c) => bodyLines(c.body).slice(0, 2).includes(marker));
 }
 
-export const supersededBody = (head) =>
-  `Unattended merge: superseded. The pr-merge lane armed native auto-merge at head \`${head}\`, so the unarmed note this comment held no longer stands; its edit history keeps the reasons.`;
+export const supersededBody = (head, asyncMerge = false) =>
+  `Unattended merge: superseded. The pr-merge lane ${asyncMerge ? "requested the async merge of this stack layer" : "armed native auto-merge"} at head \`${head}\`, so the unarmed note this comment held no longer stands; its edit history keeps the reasons.`;
 
-export const supersededRefusals = (comments, bot, head) =>
+export const supersededRefusals = (comments, bot, head, asyncMerge = false) =>
   (comments ?? [])
     .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && Number.isInteger(c.databaseId) && bodyLines(c.body).slice(0, 2).includes(REFUSAL_MARKER))
-    .map((c) => ({ commentId: c.databaseId, body: supersededBody(head) }));
+    .map((c) => ({ commentId: c.databaseId, body: supersededBody(head, asyncMerge) }));
 
 export function refusalWrites(pull, comments, { clears, reason, comment, partial = false, answered = false, record = null }, { bot, label, now = Date.now() }) {
   if (typeof comment === "string") {
@@ -1740,6 +1740,17 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       });
     const unlabeledTimeline = async (number) =>
       (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables: { owner: repo[1], name: repo[2], number } }))?.data?.repository?.pullRequest?.timelineItems;
+    const supersede =async (pull, detail, asyncMerge) => {
+      const by = asyncMerge ? "the async merge request" : "the arm";
+      for (const stale of supersededRefusals(detail?.comments?.nodes, slug, pull.headRefOid, asyncMerge)) {
+        try {
+          await github("PATCH", `/repos/${repo[0]}/issues/comments/${stale.commentId}`, { body: stale.body });
+          console.log(`enable-auto-merge: #${pull.number} refusal comment ${stale.commentId} marked superseded by ${by} at ${pull.headRefOid}`);
+        } catch (error) {
+          console.log(`::warning title=enable-auto-merge::#${pull.number} refusal comment ${stale.commentId} not marked superseded: ${describe(error)}`);
+        }
+      }
+    };
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -2267,10 +2278,12 @@ export async function main({ env = process.env, github, actions, laneReads, veri
           leave(pull, "merge requested");
           console.log(`enable-auto-merge: #${pull.number} stack bottom layer: async merge requested at ${pull.headRefOid} (${escapeCommand(result?.status ?? "no status")})`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "async merge requested for its stack's bottom layer" });
+          await supersede(pull, detail, true);
         } catch (error) {
           if (error instanceof GitHubError && error.status === 409) {
             leave(pull, "merge requested");
             console.log(`enable-auto-merge: #${pull.number} stack bottom layer: an async merge is already pending`);
+            await supersede(pull, detail, true);
           } else if (mergeRefused(error, answer?.limited)) {
             inFlight -= 1;
             const { said } = answer === null ? { said: "" } : await answerBody(answer.text);
@@ -2336,14 +2349,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         continue;
       }
       if (action === "arm") {
-        for (const stale of supersededRefusals(detail?.comments?.nodes, slug, pull.headRefOid)) {
-          try {
-            await github("PATCH", `/repos/${repo[0]}/issues/comments/${stale.commentId}`, { body: stale.body });
-            console.log(`enable-auto-merge: #${pull.number} refusal comment ${stale.commentId} marked superseded by the arm at ${pull.headRefOid}`);
-          } catch (error) {
-            console.log(`::warning title=enable-auto-merge::#${pull.number} refusal comment ${stale.commentId} not marked superseded: ${describe(error)}`);
-          }
-        }
+        await supersede(pull, detail, false);
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason, partial, answered });
