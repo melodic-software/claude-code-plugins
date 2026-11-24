@@ -248,6 +248,12 @@ assert_output_has "the fixture commit carries the test identity" "ok: committed 
 assert_output_lacks "the host signing program never ran" "failed to sign"
 assert_output_has "a global setting one suite writes does not reach the next" "ok: no leaked global setting"
 
+r="$(make_root multicorejit)"
+# shellcheck disable=SC2016
+write_suite "$r" plugins/a/env.test.sh 'echo "jit=${DOTNET_MultiCoreJitMinNumCpus-unset} xdg=${XDG_CACHE_HOME-unset}"'
+XDG_CACHE_HOME=/host/cache PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a suite reports its .NET and cache environment" --root "$r"
+assert_output_has "a suite runs with MultiCoreJit off and the host's XDG_CACHE_HOME" "jit=65535 xdg=/host/cache"
+
 # --- parallelism and the serial allowlist -------------------------------------
 #
 # Probe suites mark themselves running, pause, and record every OTHER marker
