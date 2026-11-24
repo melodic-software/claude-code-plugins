@@ -16,7 +16,6 @@ assert_usage_error "$S" "github:o/r#1" --lease-comment-id 1
 # rather than bumping renewed_at and reviving the dead handle. A live control
 # claim on a second item must still renew, and that renewal must reach the store.
 TRACKER="$(dirname "$S")/../../work-item-tracker.sh"
-# The store assertions read leases back through the adapter's own parser.
 # shellcheck source=common.sh
 source "$(dirname "$S")/common.sh"
 
@@ -54,26 +53,18 @@ assert_eq "renew-lease returns conflict (7) for a ttl-0 expired lease" "7" "$exp
 after_marker="$(grep -F 'work-item-lease' "$EXPIRED_FILE")"
 assert_eq "renew-lease does NOT revive the ttl-0 lease (marker unchanged)" "$before_marker" "$after_marker"
 
-# renewed_at is second-granular, so put a second between the claim and the
-# renewal: without the gap a renewal that never reached the store is byte-for-byte
-# the lease the claim wrote, and the store assertion below would pass on a lost write.
 sleep 1
 LIVE_OUT="$(bash "$TRACKER" renew-lease "$LIVE_ID" --lease-comment-id "$LIVE_CID")"
 live_rc=$?
 assert_eq "renew-lease succeeds (0) for a live lease" "0" "$live_rc"
 assert_eq "renew-lease emits the live item id" "$LIVE_ID" "$(jq -r '.id' <<<"$LIVE_OUT")"
 
-# The renewal must land in the STORE, not only on stdout: a lost write leaves the
-# next reader on the original renewed_at, expiring a lease its holder renewed.
 STORED_LEASE="$(wit_active_lease_json "$LIVE_FILE")"
 assert_eq "renew-lease persists the renewed_at it reported" \
   "$(jq -r '.renewed_at' <<<"$LIVE_OUT")" "$(jq -r '.renewed_at' <<<"$STORED_LEASE")"
 assert_eq "the renewal replaced the lease marker rather than appending one" "1" \
   "$(grep -cF 'work-item-lease' "$LIVE_FILE")"
 
-# A store write that cannot run must fail the verb rather than report a renewal
-# nothing can read back. A PATH shim denies the temp file the rewrite needs (the
-# dispatcher on this path calls no mktemp of its own, so only the write is hit).
 SHIM="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$SHIM/mktemp"
 chmod +x "$SHIM/mktemp"
@@ -84,7 +75,6 @@ assert_eq "the failed renewal left the stored lease untouched" \
   "$LEASE_BEFORE" "$(wit_active_lease_json "$LIVE_FILE")"
 rm -rf "$SHIM"
 
-# A claim's phase survives renewal: renew-lease edits the stored lease in place.
 PHASE_JSON="$(bash "$TRACKER" create-item --title "triage renew keeps phase")"
 PHASE_ID="$(jq -r '.id' <<<"$PHASE_JSON")"
 PHASE_FILE="$(jq -r '.url' <<<"$PHASE_JSON" | sed 's#^file://##')"

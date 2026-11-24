@@ -85,9 +85,6 @@ for blocker in "${blocker_ids[@]+"${blocker_ids[@]}"}"; do
   }
 done
 
-# Sibling dedupe (CONTRACT.md "Verbs"): a child of the parent with the same trimmed title,
-# open or closed within 24 hours by its `closed_at`, is returned instead of a new item. A
-# closed child with no `closed_at` counts as closed earlier. An open match wins over a closed one.
 if [[ -n "$parent" ]]; then
   sibling="" sibling_state=""
   for n in $(wit_item_numbers); do
@@ -113,8 +110,6 @@ if [[ -n "$parent" ]]; then
 fi
 
 ns="${repo_override:-$WIT_LOCAL_DEFAULT_NS}"
-# owner/repo must match the ID grammar's char class (lib/id.sh); an out-of-grammar
-# --repo would otherwise mint an ID that get-item and later verbs cannot parse.
 [[ "$ns" == */* && "${ns%%/*}" =~ ^[A-Za-z0-9_.-]+$ && "${ns##*/}" =~ ^[A-Za-z0-9_.-]+$ ]] ||
   wit_usage_error "--repo must be <owner>/<repo> matching [A-Za-z0-9_.-] (got: $ns)"
 
@@ -123,8 +118,6 @@ id="$(wit_make_id local-markdown "${ns%%/*}" "${ns##*/}" "$number")"
 file="$(wit_item_file "$number")"
 
 labels_json="$(jq -cn --arg s "$labels" '$s | split(",") | map(select(length > 0))')"
-# Type-axis parity with the GitHub adapter: an optional scalar (null when unset).
-# This adapter is offline, so there is no native type registry to validate against.
 type_json="$(jq -cn --arg s "$type" 'if $s == "" then null else $s end')"
 
 {

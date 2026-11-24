@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/binding.sh (CONTRACT.md "Setup (binding file)").
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,14 +22,11 @@ VALID_YAML='tracker:
 HOME_YAML="docs/conventions/work-items.yaml"
 HOME_RESOLVER="$WIT_HOME_RESOLVER"
 
-# home_binding <dir>: a git repository at <dir> bound by the default home's YAML.
 home_binding() {
   mkdir -p "$1/docs/conventions"
   git init -q "$1"
   write_binding "$1/$HOME_YAML" "$VALID_YAML"
 }
-
-# --- discovery: anchored at CLAUDE_PROJECT_DIR (never a CWD climb) ---
 
 ROOT="$TEST_TMPDIR/repo"
 mkdir -p "$ROOT/deep/nested"
@@ -38,22 +34,16 @@ home_binding "$ROOT"
 OUT="$(cd "$ROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING && export CLAUDE_PROJECT_DIR="$ROOT" && wit_find_binding)"
 assert_eq "CLAUDE_PROJECT_DIR anchor finds root binding from nested CWD" "$ROOT/$HOME_YAML" "$OUT"
 
-# --- discovery: git-toplevel fallback when CLAUDE_PROJECT_DIR is unset ---
-
 GITROOT="$TEST_TMPDIR/gitrepo"
 mkdir -p "$GITROOT/deep/nested"
 home_binding "$GITROOT"
 OUT="$(cd "$GITROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding)"
 assert_eq "git-toplevel fallback finds root binding from nested CWD" "$GITROOT/$HOME_YAML" "$OUT"
 
-# --- discovery: a nested per-subdirectory binding is not discovered ---
-
 mkdir -p "$GITROOT/deep/docs/conventions"
 write_binding "$GITROOT/deep/$HOME_YAML" "$VALID_YAML"
 OUT="$(cd "$GITROOT/deep/nested" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding)"
 assert_eq "nested binding is ignored; root binding wins" "$GITROOT/$HOME_YAML" "$OUT"
-
-# --- discovery: a stray ancestor binding ABOVE the repo root never captures it ---
 
 mkdir -p "$TEST_TMPDIR/docs/conventions"
 write_binding "$TEST_TMPDIR/$HOME_YAML" "$VALID_YAML"
@@ -66,8 +56,6 @@ else
   pass "ancestor binding above the repo root is not discovered"
 fi
 
-# --- discovery: no anchor at all (no CLAUDE_PROJECT_DIR, not a git repo) fails ---
-
 NOANCHOR="$TEST_TMPDIR/no-anchor"
 mkdir -p "$NOANCHOR/docs/conventions"
 write_binding "$NOANCHOR/$HOME_YAML" "$VALID_YAML"
@@ -79,14 +67,10 @@ fi
 ERR="$(cd "$NOANCHOR" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_no_binding_reason)"
 assert_contains "no anchor → the reason names /work-items:setup apply" "$ERR" "run /work-items:setup apply from the repository root"
 
-# --- discovery: env override wins ---
-
 OVERRIDE="$TEST_TMPDIR/custom-binding.json"
 write_binding "$OVERRIDE" "$VALID"
 OUT="$(cd "$ROOT/deep/nested" && WORK_ITEM_TRACKER_BINDING="$OVERRIDE" wit_find_binding)"
 assert_eq "env override wins" "$OVERRIDE" "$OUT"
-
-# --- discovery: env override pointing nowhere fails ---
 
 if (WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/missing.json" wit_find_binding >/dev/null); then
   fail "missing env-override binding fails" "failure" "success"
@@ -128,13 +112,8 @@ else
   fail "local-markdown with storage_dir accepted" "success" "failure"
 fi
 
-# --- validation: provider name is restricted to a bare directory segment ---
-
 assert_rejected "provider with path traversal rejected" '{"schema_version":"1.0","provider":"../../injected","config":{"lease_ttl_hours":24}}'
 assert_rejected "provider with slash rejected" '{"schema_version":"1.0","provider":"github/extra","config":{"lease_ttl_hours":24}}'
-
-# --- storage_dir: a relative value roots against the binding file's directory,
-# not the caller's CWD ---
 
 STORAGE_ROOT="$TEST_TMPDIR/storage-repo"
 mkdir -p "$STORAGE_ROOT/deep/nested"
@@ -143,8 +122,6 @@ write_binding "$STORAGE_ROOT/binding.json" \
 OUT="$(cd "$STORAGE_ROOT/deep/nested" && wit_read_binding "$STORAGE_ROOT/binding.json" && printf '%s\n' "$WIT_STORAGE_DIR")"
 assert_eq "relative storage_dir roots against binding dir, not CWD" \
   "$STORAGE_ROOT/.work-items" "$OUT"
-
-# --- role_labels: config.role_labels["human-gated"] remap and default fallback ---
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
@@ -164,8 +141,6 @@ wit_read_binding "$BINDING"
 assert_eq "autonomous-eligible label honors configured remap" "ready-bot" "$WIT_AUTONOMOUS_ELIGIBLE_LABEL"
 assert_eq "recurring-maintenance label honors configured remap" "maint" "$WIT_RECURRING_MAINTENANCE_LABEL"
 
-# --- container_label: config.container_label remap and default fallback ---
-
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
 assert_eq "container label defaults to spec-container when unset" "spec-container" "$WIT_CONTAINER_LABEL"
@@ -183,8 +158,6 @@ assert_eq "configured-empty container label falls back to the default" "spec-con
 assert_rejected "numeric container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":5}}'
 assert_rejected "boolean container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":true}}'
 assert_rejected "object container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":{"a":1}}}'
-
-# --- hold lists, wayfind prefix and the owner-decision role: defaults and remaps ---
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
@@ -221,16 +194,11 @@ assert_rejected "hold_states with an empty entry rejected" '{"schema_version":"1
 assert_rejected "hold_state_labels with a numeric entry rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_state_labels":[5]}}'
 assert_rejected "non-string wayfind_label_prefix rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"wayfind_label_prefix":["map:"]}}'
 
-# --- personal override: .work-item-tracker.local.json beside a JSON binding (one the
-# WORK_ITEM_TRACKER_BINDING override names), allowlist-only ---
-
 OROOT="$TEST_TMPDIR/override-repo"
 mkdir -p "$OROOT"
 OBINDING="$OROOT/binding.json"
 PERSONAL_OVERRIDE="$OROOT/.work-item-tracker.local.json"
 
-# Personal override cases write the personal override and re-read the team binding through it. A
-# rejection prints a diagnostic these cases do not assert, so stderr is muted.
 assert_override_accepted() {
   local label="$1" content="$2"
   write_binding "$PERSONAL_OVERRIDE" "$content"
@@ -258,7 +226,6 @@ else
   fail "override-merged binding accepted" "success" "failure"
 fi
 
-# Keys the personal override does not mention keep their team values (per-key, never wholesale).
 write_binding "$PERSONAL_OVERRIDE" '{"config":{"lease_ttl_minutes":45}}'
 wit_read_binding "$OBINDING"
 assert_eq "unmentioned team key keeps its value" "24" "$WIT_LEASE_TTL_HOURS"
@@ -272,15 +239,11 @@ assert_eq "personal override jira auth_email wins" "me@example.com" "$(jq -r '.c
 assert_eq "personal override jira auth_env wins" "MY_TOKEN" "$(jq -r '.config.jira.auth_env' <<<"$EJ")"
 assert_eq "team jira site survives the merge" "a.atlassian.net" "$(jq -r '.config.jira.site' <<<"$EJ")"
 
-# The optional self-describing docs pointer is allowed in either layer.
 assert_override_accepted "docs key allowed in the personal override" '{"docs":"see CONTRACT.md"}'
 
-# Empty scaffolding on an allowlisted prefix is inert, not an error.
 assert_override_accepted "empty personal override scaffolding is inert" '{"config":{}}'
 assert_override_accepted "empty jira scaffolding is inert" '{"config":{"jira":{}}}'
 
-# An explicitly null allowlisted value MERGES (presence, not non-null) and is
-# judged by normal binding validation — never a silent fallback to team values.
 write_binding "$PERSONAL_OVERRIDE" '{"config":{"jira":{"auth_email":null}}}'
 EJ="$(wit_effective_binding_json "$OBINDING")"
 assert_eq "explicit null personal override value merges as null" "null" "$(jq -c '.config.jira.auth_email' <<<"$EJ")"
@@ -335,9 +298,6 @@ assert_override_rejected "object-valued gitea auth_env rejected" '{"config":{"gi
 
 rm -f "$PERSONAL_OVERRIDE"
 
-# --- convention home: the `tracker` mapping of <home>/work-items.yaml ---
-
-# yaml_repo <name>: a git repository with the default home, echoed.
 yaml_repo() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir/docs/conventions" "$dir/deep"
@@ -409,7 +369,6 @@ write_binding "$TEST_TMPDIR/dup.yaml" 'tracker:
 ERR="$(wit_yaml_binding_json "$TEST_TMPDIR/dup.yaml" 2>&1 >/dev/null)"
 assert_contains "a parse error after an empty flow sequence names the file's own line" "$ERR" "$TEST_TMPDIR/dup.yaml: line 5"
 
-# The pointer region binds a home other than the default.
 PREPO="$(yaml_repo pointer-repo)"
 mkdir -p "$PREPO/team/conf"
 # shellcheck disable=SC2016 # the backticks are the pointer grammar, not a command substitution
@@ -418,7 +377,6 @@ write_binding "$PREPO/team/conf/work-items.yaml" "$YAML_BINDING"
 OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$PREPO" wit_find_binding)"
 assert_eq "YAML binding read from the home the pointer region binds" "$PREPO/team/conf/work-items.yaml" "$OUT"
 
-# A relative storage_dir in a YAML binding roots at the project root, not the home.
 write_binding "$PREPO/team/conf/work-items.yaml" 'tracker:
   schema_version: "1.0"
   provider: local-markdown
@@ -427,8 +385,6 @@ write_binding "$PREPO/team/conf/work-items.yaml" 'tracker:
     storage_dir: .work-items'
 OUT="$(CLAUDE_PROJECT_DIR="$PREPO" && export CLAUDE_PROJECT_DIR && wit_read_binding "$PREPO/team/conf/work-items.yaml" && printf '%s\n' "$WIT_STORAGE_DIR")"
 assert_eq "YAML relative storage_dir roots at the project root" "$PREPO/.work-items" "$OUT"
-
-# --- YAML plus the personal override work-items.local.yaml ---
 
 YOVERRIDE="$YREPO/docs/conventions/work-items.local.yaml"
 write_binding "$YOVERRIDE" 'tracker:
@@ -454,8 +410,6 @@ assert_succeeds "YAML personal override with no tracker key is inert" "success" 
   wit_read_binding "$YREPO/docs/conventions/work-items.yaml"
 rm -f "$YOVERRIDE"
 
-# --- the retired root .work-item-tracker.json never binds; the reason names the fix ---
-
 JREPO="$(yaml_repo json-only-repo)"
 write_binding "$JREPO/docs/conventions/work-items.yaml" 'ai_disclaimer: false'
 write_binding "$JREPO/.work-item-tracker.json" "$VALID"
@@ -471,8 +425,6 @@ ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$JREPO" bash "$SCR
 assert_eq "the dispatcher exits 3 on a root .work-item-tracker.json alone" "3" "$?"
 assert_contains "the dispatcher's message names /work-items:setup apply" "$ERR" "run /work-items:setup apply to copy it"
 
-# --- neither: no YAML binding and no root JSON → no binding (the caller stops) ---
-
 NREPO="$(yaml_repo neither-repo)"
 write_binding "$NREPO/docs/conventions/work-items.yaml" 'ai_disclaimer: false'
 if (unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$NREPO" wit_find_binding >/dev/null); then
@@ -483,8 +435,6 @@ fi
 ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$NREPO" wit_no_binding_reason)"
 assert_eq "neither → the reason names the home file and apply" \
   "no binding: $NREPO/docs/conventions/work-items.yaml sets no tracker: mapping; run /work-items:setup apply" "$ERR"
-
-# --- no home applies: a root outside a git work tree binds nothing ---
 
 LOOSE="$TEST_TMPDIR/loose-folder"
 mkdir -p "$LOOSE/docs/conventions"
@@ -504,16 +454,12 @@ ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_no_bin
 assert_contains "no home → the reason names the retired file" "$ERR" "$LOOSE/.work-item-tracker.json no longer binds the tracker"
 assert_contains "no home → the reason names apply from a git work tree" "$ERR" "run /work-items:setup apply from a git work tree that binds a home"
 
-# --- a declined home: no home applies ---
-
 DREPO="$(yaml_repo declined-repo)"
 write_binding "$DREPO/AGENTS.md" '<!-- BEGIN GENERATED: convention-home -->
 declined
 <!-- END GENERATED: convention-home -->'
 ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$DREPO" wit_no_binding_reason)"
 assert_contains "declined home → the reason says no home applies" "$ERR" "no convention home applies under $DREPO"
-
-# --- a broken pointer: the reason names setup check, not apply ---
 
 PREPO="$(yaml_repo broken-pointer-repo)"
 # shellcheck disable=SC2016 # the backticks are markdown, not an expansion
@@ -527,14 +473,10 @@ ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$PREPO" wit_no_bin
 assert_eq "broken pointer → the reason names setup check" \
   "no binding: the convention-home pointer under $PREPO is broken; run /work-items:setup check to see why" "$ERR"
 
-# --- missing shared copies: the reason names a reinstall ---
-
 ERR="$(unset WORK_ITEM_TRACKER_BINDING && WIT_HOME_RESOLVER="$TEST_TMPDIR/absent.sh" && CLAUDE_PROJECT_DIR="$NREPO" wit_no_binding_reason)"
 assert_contains "missing shared copies → the reason names the missing copy" "$ERR" "$TEST_TMPDIR/absent.sh"
 assert_contains "missing shared copies → the reason names a reinstall" "$ERR" "reinstall the work-items plugin"
 assert_contains "missing shared copies → the parser copy is plugin-relative" "$ERR" " or skills/triage/scripts/yaml-subset.awk;"
-
-# --- invalid YAML: the error names the file, the key and the value ---
 
 IREPO="$(yaml_repo invalid-repo)"
 IYAML="$IREPO/docs/conventions/work-items.yaml"
@@ -566,8 +508,6 @@ write_binding "$IYAML" 'tracker:
 ERR="$(wit_read_binding "$IYAML" 2>&1 >/dev/null)"
 assert_contains "a YAML parse error names the file and line" "$ERR" "$IYAML: line 3"
 
-# --- wayfind-labels: the prefix and human-gated label, failing closed on the home ---
-
 WAYFIND_YAML='tracker:
   schema_version: "1.0"
   provider: github
@@ -578,7 +518,6 @@ WAYFIND_YAML='tracker:
       human-gated: owner-call'
 DISPATCHER="$SCRIPT_DIR/../work-item-tracker.sh"
 
-# run_wayfind_labels <root>: the dispatcher verb at <root>; stdout to OUT, exit to RC.
 run_wayfind_labels() {
   OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$1" bash "$DISPATCHER" wayfind-labels 2>/dev/null)"
   RC=$?
@@ -628,7 +567,6 @@ run_wayfind_labels "$WREPO"
 assert_eq "wayfind-labels, a non-string human-gated label → exit 3" "3" "$RC"
 assert_eq "wayfind-labels, a non-string human-gated label → nothing on stdout" "" "$OUT"
 
-# The WORK_ITEM_TRACKER_BINDING paths: a named file supplies the labels, a missing one refuses.
 write_binding "$WREPO/elsewhere.yaml" "$WAYFIND_YAML"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$WREPO/elsewhere.yaml" CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels 2>/dev/null)"
 assert_eq "wayfind-labels, the variable names a binding → its labels" "decide: owner-call binding binding" \
@@ -640,8 +578,6 @@ assert_eq "wayfind-labels, the variable names a missing file → nothing on stdo
 ERR="$(WORK_ITEM_TRACKER_BINDING="$WREPO/nope.yaml" CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels 2>&1 >/dev/null)"
 assert_contains "wayfind-labels, the variable names a missing file → stderr names the variable" "$ERR" "WORK_ITEM_TRACKER_BINDING"
 
-# assert_wayfind_refuses <root> <resolver exit> <what>: the resolver exits as named at
-# <root>, and the verb refuses with nothing on stdout.
 assert_wayfind_refuses() {
   bash "$HOME_RESOLVER" --root "$1" >/dev/null 2>&1
   assert_eq "resolver exits $2 on $3" "$2" "$?"

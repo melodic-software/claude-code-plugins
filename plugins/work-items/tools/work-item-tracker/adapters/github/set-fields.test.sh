@@ -74,7 +74,6 @@ assert_eq "body pairs each field id with its option name in one object" \
   "$(jq -c . "$BODY" 2>/dev/null)"
 assert_contains "reads the item's own org" "$(head -n 1 "$LOG")" "orgs/o/issue-fields"
 
-# An option id the field does not hold is a stale map: refuse loudly, write nothing.
 run "github:o/r#9" --field 15462270=27053568 --field 48625720=27053568
 assert_eq "option of another field → exit 5" "5" "$RC"
 assert_contains "error names the field and option" "$ERR" "48625720"

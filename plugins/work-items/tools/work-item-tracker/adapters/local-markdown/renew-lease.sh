@@ -46,8 +46,6 @@ fi
 file="$(wit_item_file "$number")"
 lease_json="$(wit_lease_json "$old_line")"
 
-# The addressed lease must BE the active lease (newest non-superseded). A
-# superseded/older handle renewing would resurrect a lease its owner no longer holds.
 active_id="$(jq -r '.lease_comment_id // empty' <<<"$(wit_active_lease_json "$file")")"
 if [[ "$active_id" != "$lease_comment_id" ]]; then
   printf 'renew-lease: lease %s is not the active lease (active: %s)\n' \
@@ -55,9 +53,6 @@ if [[ "$active_id" != "$lease_comment_id" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# The active lease can still be expired, including a born-expired ttl-0 claim.
-# Reviving it would undo a handoff another worker made on expiry; recovery is a
-# fresh claim.
 if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
   printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
     "$lease_comment_id" >&2

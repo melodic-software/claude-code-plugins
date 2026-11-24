@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# End-to-end list-sub-items behavior through the core CLI against the offline
-# local-markdown store: direct-child enumeration with state
-# filtering and parent stamping, the container-scoped frontier (list-frontier
-# --parent), and container exclusion from every frontier. Runs in CI, offline.
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
@@ -11,8 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# The tracker reads a personal override beside the binding, so
-# the binding gets a private directory rather than the shared $TMPDIR.
 STORAGE="$(mktemp -d)"
 BINDING_DIR="$(mktemp -d)"
 BINDING="$BINDING_DIR/binding.json"
@@ -45,13 +39,10 @@ STORAGE_REAL="$(dirname "$C2_FILE")"
 LEAF="$(new --title unrelated)"
 GC="$(new --title grandchild --parent "$C1")"
 
-# Close C2 by editing its stored state (this offline adapter has no close verb;
-# resolution is a provider-native state change — see e2e-probe.sh).
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 wit_fm_set "$C2_FILE" state '"closed"'
 
-# --- enumeration: direct children only, both states, correctly parented ---
 ALL="$(bash "$TRACKER" list-sub-items "$MAP" | jq -c '[.items[].id]')"
 assert_contains "list-sub-items holds open child C1" "$ALL" "$C1"
 assert_contains "list-sub-items holds closed child C2" "$ALL" "$C2"
@@ -76,7 +67,6 @@ assert_not_contains "scoped frontier drops the closed child C2" "$PFRONT" "$C2"
 assert_not_contains "scoped frontier drops the grandchild (not a direct child)" "$PFRONT" "$GC"
 assert_not_contains "scoped frontier never holds the container" "$PFRONT" "$MAP"
 
-# --- container exclusion from the GLOBAL frontier (a container never surfaces itself) ---
 GFRONT="$(bash "$TRACKER" list-frontier | jq -c '[.items[].id]')"
 assert_not_contains "global frontier excludes the unassigned/unblocked container" "$GFRONT" "$MAP"
 assert_contains "global frontier still holds the workable leaf" "$GFRONT" "$LEAF"

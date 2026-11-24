@@ -57,7 +57,6 @@ run "$ITEM_ID" --source-link "$ODD" --note "again"
 assert_eq "a link holding --> is found again" "false" "$(jq -r '.recorded' <<<"$OUT")"
 assert_eq "a link holding --> is not written twice" "$BEFORE" "$(cat "$ITEM_FILE")"
 
-# The markers stay out of the item's normalized fields.
 GOT="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/get-item.sh" "$ITEM_ID")"
 assert_eq "markers do not count as blockers" "0" "$(jq -r '.blocked_by_count' <<<"$GOT")"
 
