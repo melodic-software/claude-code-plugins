@@ -124,7 +124,8 @@ and worktree for that user. Set it in `pluginConfigs` in your user
 
 The command reads it from your user and managed settings itself, since a command run through the
 Bash tool gets no `CLAUDE_PLUGIN_OPTION_*` variables. A repository's team or personal file still
-wins over it.
+wins over it. The option's `options` picker needs Claude Code v2.1.271 or later; an earlier release
+cannot load the plugin.
 
 ## Job files
 

@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 import { review, run, status } from "../scripts/lib/runner.mjs";
 import { operatorUserConfig } from "../scripts/lib/config.mjs";
+import { OptionsError } from "../lib/plugin-options.mjs";
 import { assertNoBypass, clean, cliArgs, fakeAgy, fixtures, gitRepo, scratch, tests, world } from "./support/world.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -204,10 +205,18 @@ describe("the antigravity_uses_task_mode userConfig option", () => {
     const settings = join(scratch, "user-settings.json");
     const install = { pluginId: "external-agents@melodic-software", name: "external-agents", userSettings: settings };
     writeFileSync(settings, JSON.stringify({ pluginConfigs: { "external-agents@melodic-software": { options: { antigravity_uses_task_mode: "write" } } } }));
-    assert.deepEqual(operatorUserConfig({ install, managed: [] }), { userConfig: { antigravity_uses_task_mode: "write" }, problem: null });
+    assert.deepEqual(operatorUserConfig({ install, managed: () => [] }), { userConfig: { antigravity_uses_task_mode: "write" }, problem: null });
     writeFileSync(settings, "{not json");
-    const broken = operatorUserConfig({ install, managed: [] });
+    const broken = operatorUserConfig({ install, managed: () => [] });
     assert.deepEqual(broken.userConfig, {});
     assert.match(broken.problem, /not valid JSON.*userConfig layer is not read/);
+  });
+
+  test("an unreadable managed-settings directory reads as unset instead of aborting the run", () => {
+    const install = { pluginId: "external-agents@melodic-software", name: "external-agents", userSettings: null };
+    const unreadable = () => { throw new OptionsError("managed settings directory /etc/claude-code/managed-settings.d cannot be read (EACCES)"); };
+    const got = operatorUserConfig({ install, managed: unreadable });
+    assert.deepEqual(got.userConfig, {});
+    assert.match(got.problem, /EACCES.*userConfig layer is not read/);
   });
 });

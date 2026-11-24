@@ -14,9 +14,9 @@ const USER_OPTIONS = ["antigravity_uses_task_mode"];
  * the cascade's userConfig layer. A Bash-run command gets no CLAUDE_PLUGIN_OPTION_* variables, so the
  * settings are read directly; an unreadable source leaves the layer empty and names the problem.
  */
-export function operatorUserConfig({ install = resolveInstall(pluginRoot), managed = managedSettingsFiles() } = {}) {
+export function operatorUserConfig({ install = resolveInstall(pluginRoot), managed = managedSettingsFiles } = {}) {
   try {
-    const found = readOperatorOptions(install, managed, USER_OPTIONS);
+    const found = readOperatorOptions(install, managed(), USER_OPTIONS);
     return { userConfig: Object.fromEntries(Object.entries(found).map(([key, { value }]) => [key, value])), problem: null };
   } catch (error) {
     if (!(error instanceof OptionsError)) throw error;
