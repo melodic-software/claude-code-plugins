@@ -92,7 +92,6 @@ REDACTED_SKILL_NAME = "custom_skill"
 
 
 def resolve_tier(sources: set[str]) -> str:
-    """Richest tier the present sources can support."""
     if "otel" in sources:
         return "T-full"
     if "jsonl" in sources:
@@ -222,11 +221,6 @@ def parse_native(
 
 
 def parse_jsonl(rows: list[str]) -> tuple[list[dict], datetime | None]:
-    """The plugin's own `skill-usage.jsonl` -> events.
-
-    A malformed row is skipped rather than fatal: this is an observability
-    store, and one bad line must not cost the whole report.
-    """
     events: list[dict] = []
     for raw in rows:
         try:
@@ -407,15 +401,6 @@ def parse_command_frontmatter(text: str) -> dict:
 
 
 def collect_fleet(plugins_root: str) -> list[dict]:
-    """Walk a plugins root into denominator entries with frontmatter attached.
-
-    `inventory.py` owns "what is installed" but emits bare leaf names with no
-    frontmatter and no paths, so reachability cannot be answered from it alone
-    (a gap the design recorded). This walk supplies the frontmatter for the
-    skills it finds. It does not assess enablement: a checkout is not an
-    install, so `enabledPlugins` has nothing to say about it, and every entry
-    is marked `not-assessed` rather than `unknown`.
-    """
     entries: list[dict] = []
     if not os.path.isdir(plugins_root):
         return entries
@@ -617,7 +602,6 @@ SYNCED_PREFIX = "anthropic-skills:"
 
 
 def synced_skills_folder(config_root: str, claude_json_path: str) -> str | None:
-    """The signed-in account's synced-skills folder, or None with no account."""
     try:
         with open(claude_json_path, encoding="utf-8") as handle:
             account = (json.load(handle) or {}).get("oauthAccount") or {}
@@ -947,7 +931,6 @@ def collect_installed(
 
 
 def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
-    """Read `~/.claude.json` -> events + horizon, or nothing if absent."""
     try:
         with open(claude_json_path, encoding="utf-8") as handle:
             blob = json.load(handle)
@@ -1046,7 +1029,6 @@ def read_listing_capture(path: str) -> dict:
 
 
 def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
-    """Read the skill-usage store, its rotated `.1` history first, if they exist."""
     rows: list[str] = []
     for path in (store_path + ".1", store_path):
         try:
@@ -1101,7 +1083,6 @@ def report_path(data_root: str, state_key: str, stamp: str) -> str:
 
 
 def append_history(path: str, entry: dict) -> None:
-    """Append one line to the run history. Never rewrites prior lines."""
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
 
@@ -1200,7 +1181,6 @@ def listing_budget_chars(cfg: ListingConfig) -> int:
 
 
 def budget_basis(cfg: ListingConfig) -> str:
-    """The `budget_basis` label one budget computation carries."""
     return "env-override" if cfg.env_char_budget is not None else cfg.fraction_basis
 
 
@@ -1290,7 +1270,6 @@ ENABLED_PLUGINS_KEY = "enabledPlugins"
 
 
 def _non_boolean_plugins(settings: dict) -> list[str]:
-    """Each non-Boolean `enabledPlugins` entry, as `'key' is value`."""
     block = settings.get(ENABLED_PLUGINS_KEY)
     if not isinstance(block, dict):
         return []
@@ -1450,7 +1429,6 @@ def enablement_for(merged: dict, key: str) -> dict:
 
 
 def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
-    """One settings file -> (status, parsed object or None, note)."""
     if not os.path.isfile(path):
         return "absent", None, None
     try:
@@ -1466,7 +1444,6 @@ def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
 
 
 def _stub_layer(scope: str, path: str | None, status: str, note: str | None) -> dict:
-    """A scope that carries no settings, only the reason it carries none."""
     return {
         "scope": scope,
         "path": path,
@@ -1728,7 +1705,6 @@ def _window_label(window: int) -> str:
 
 
 def band_label(window: int, bytes_per_token: int) -> str:
-    """The row label a band entry carries, e.g. `1M/4`."""
     return f"{_window_label(window)}/{bytes_per_token}"
 
 
@@ -1749,13 +1725,6 @@ class ListingAxes:
 def build_listing_inputs(
     pins: Mapping[str, object], env: Mapping[str, str], layers: list[dict]
 ) -> tuple[ListingConfig, ListingAxes]:
-    """Turn pins, environment, and settings layers into the budget inputs.
-
-    `pins` holds the four command-line values (`context_window`,
-    `bytes_per_token`, `budget_fraction`, `max_desc_chars`), each None when
-    not given. A pin outranks a settings value, which outranks the default;
-    every choice is recorded in `ListingAxes.inputs` with its provenance.
-    """
     merged = merge_listing_settings(layers)
 
     fraction_pin = pins.get("budget_fraction")
@@ -1865,12 +1834,6 @@ def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
 
 
 def _description_chars(entry: dict, cfg: ListingConfig) -> int:
-    """The uncapped length the listing would charge, joiner included.
-
-    Kept beside the capped charge because the two answer different questions:
-    the charge is what the budget counts, and the source length is what an
-    author has to trim, which only lowers the charge once it crosses the cap.
-    """
     frontmatter = entry.get("frontmatter") or {}
     description = frontmatter.get("description") or ""
     when_to_use = frontmatter.get("when_to_use") or ""
@@ -2188,11 +2151,6 @@ def starvation_withheld(listing: dict) -> bool:
 
 
 def listing_overflows(listing: dict) -> bool:
-    """Whether any budget row overflows: one row is enough for a band.
-
-    An `overflow-unconfirmed` row does not count: only a capture of another
-    fleet makes it overflow.
-    """
     return any(
         row.get("overflow_chars") and row.get("verdict") != "overflow-unconfirmed"
         for row in listing.get("band") or [listing]
@@ -2200,7 +2158,6 @@ def listing_overflows(listing: dict) -> bool:
 
 
 def listing_overflow_unconfirmed(listing: dict) -> bool:
-    """Whether any budget row overflows only on a mismatched capture's charges."""
     return any(
         row.get("verdict") == "overflow-unconfirmed"
         for row in listing.get("band") or [listing]
@@ -2269,12 +2226,6 @@ def _not_loaded(entry: dict, evidence: str) -> dict:
 
 
 def reachability(entry: dict) -> dict:
-    """Structural: can the model ever select this skill?
-
-    Independent of whether it has been *observed* -- see the module docstring.
-    Returns a value plus the causes and evidence behind it, never a bare label,
-    because the remedy differs per cause.
-    """
     frontmatter = entry.get("frontmatter") or {}
     enabled = entry.get("plugin_enabled")
     enabled_evidence = entry.get("plugin_enabled_evidence")
@@ -2443,16 +2394,6 @@ def _walkable_name(name: str, walked: Walked) -> bool:
 def _capture_gap(
     denominator: list[dict], capture: dict, cfg: ListingConfig, walked: Walked
 ) -> dict[str, list[str]]:
-    """Where a read capture fails to cover the counted fleet.
-
-    `not_in_capture`: listed entries the capture does not name, as when a
-    plugin was installed after the captured session started. `longer_in_capture`:
-    entries the capture rendered in full at more characters than they are
-    counted here, so the count is short. `not_in_fleet`: captured entries a
-    walk would have found but the fleet lacks, as when a plugin was uninstalled
-    after the captured session started; they are not charged. Any of the three
-    means the capture came from a different fleet and cannot confirm a fit.
-    """
     known = {entry["qualified_name"] for entry in denominator}
     stale = sorted(
         e["name"]
@@ -2543,17 +2484,6 @@ def classify(
     listing_capture: dict | None = None,
     walked: Walked | None = None,
 ) -> dict:
-    """Pure. Fleet + events + config + clock + horizons -> report model.
-
-    `listing_axes` names the window and bytes-per-token values to budget for
-    and carries the provenance of every budget input; without it the listing
-    is the single row `listing_config` describes, which is the replay path.
-    `listing_capture` is `read_listing_capture`'s result: its entries that the
-    denominator does not name are charged at their captured length, unless
-    `walked` says a disk walk would have found them. Without `walked`, as on
-    replay, every plugin counts as walked and synced skills count as walked
-    when the denominator holds one.
-    """
     tier = resolve_tier(set(horizons))
     events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
 
@@ -2736,7 +2666,6 @@ def _observation_value(
     observable_days: int,
     own_events: list[dict],
 ) -> tuple[str, str | None]:
-    """Resolve one observation value, refusing any verdict the span cannot back."""
     backed_by = own_events[0].get("source") if own_events else None
 
     if count == 0:
@@ -2755,11 +2684,6 @@ def _observation_value(
 
 
 def _plural(count: int, noun: str) -> str:
-    """Regular-plural helper for counted nouns in the rendered report.
-
-    A report that says "1 plugins" undercuts the care the rest of it claims,
-    and every counted noun here is regular, so the -s rule is sufficient.
-    """
     return noun if count == 1 else f"{noun}s"
 
 
@@ -2913,20 +2837,10 @@ def _render_markdown(model: dict) -> str:
 
 
 def _hidden_by_override(row: dict) -> bool:
-    """A non-plugin skill set off by `skillOverrides`, not a disabled plugin."""
     return "skill-override-off" in row["reachability"]["causes"]
 
 
 def _render_reachability(skills: list[dict]) -> list[str]:
-    """Per-value counts, the one checkout line, the hidden table, and the
-    not-enabled summary.
-
-    A checkout run declines enablement once, for the run, rather than once
-    per row. An installed run groups the hidden rows by owning plugin, since
-    the cause is per plugin and the evidence is the scope file that set it.
-    Never-enabled plugins get one summary line and no table: they are the
-    install-time default, not something to fix.
-    """
     counts: dict[str, int] = defaultdict(int)
     for row in skills:
         counts[row["reachability"]["value"]] += 1
@@ -2998,13 +2912,6 @@ def _render_reachability(skills: list[dict]) -> list[str]:
 
 
 def _render_misconfigured(skills: list[dict]) -> list[str]:
-    """The misconfigured table, with each cause's remedy stated once.
-
-    Every row here is a fix, never a removal candidate: the causes are silent,
-    so a misconfigured skill reads exactly like an unwanted one until it is
-    named. The remedy is keyed by cause rather than repeated per row, because
-    two rows with the same cause need the same fix.
-    """
     rows = sorted(
         (r for r in skills if r["reachability"]["value"] == "misconfigured"),
         key=lambda r: r["qualified_name"],
@@ -3124,12 +3031,6 @@ def _budget_control(listing: dict) -> str:
 
 
 def _render_next_actions(model: dict) -> list[str]:
-    """One line naming the actions this run's findings support, and no other.
-
-    Built only from conditions present in the model, so a clean run says there
-    is nothing to fix rather than listing generic advice. Usage and token cost
-    per skill belong to the bundled `/skill-doctor` and are not pointed at.
-    """
     counts: dict[str, int] = defaultdict(int)
     for row in model["skills"]:
         if not _hidden_by_override(row):
@@ -3163,7 +3064,6 @@ def _render_next_actions(model: dict) -> list[str]:
 
 
 def _render_single_budget(listing: dict) -> list[str]:
-    """The pinned single-row paragraph."""
     if listing["verdict"] == "overflow-unconfirmed":
         return [
             f"Overflow unconfirmed at {listing['label']}: "
@@ -3224,7 +3124,6 @@ def _render_single_budget(listing: dict) -> list[str]:
 
 
 def _render_coverage(listing: dict) -> list[str]:
-    """What the verdict counted, and what a captured listing says about it."""
     capture = listing.get("capture") or {}
     if capture.get("status") != "read":
         counted = listing.get("counted") or ["the entries in the collection"]
@@ -3309,7 +3208,6 @@ def _render_coverage(listing: dict) -> list[str]:
 
 
 def _name_preview(names: list[str]) -> str:
-    """The first ten names in backticks, with an ellipsis when more follow."""
     preview = ", ".join(f"`{name}`" for name in names[:10])
     return preview + ("…" if len(names) > 10 else "")
 
@@ -3322,7 +3220,6 @@ _SUBAGENT_NOTE = (
 
 
 def _render_band(listing: dict) -> list[str]:
-    """The unpinned band table. No row is named as this session's."""
     lines = [
         "The budget is `window x bytes-per-token x fraction`, and both the "
         "window and the bytes-per-token are per model. This run does not "
@@ -3354,8 +3251,6 @@ def _render_band(listing: dict) -> list[str]:
 
 
 def _render_inputs(inputs: dict) -> list[str]:
-    """What was consulted for the budget, with provenance, as one short list."""
-
     def _prov(row: dict) -> str:
         provenance = row.get("provenance", "")
         if provenance in ("default", "fraction"):

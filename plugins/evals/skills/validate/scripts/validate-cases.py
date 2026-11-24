@@ -416,7 +416,6 @@ class Unmirrored(Exception):
 
 
 def _prepare(text):
-    """Strip comments and blank lines, returning (indent, content) pairs."""
     prepared = []
     for raw in text.splitlines():
         stripped = raw.strip()
@@ -434,7 +433,6 @@ def _prepare(text):
 
 
 def _scalar(text):
-    """Convert a plain scalar to int, float, bool, None, or str."""
     if text in ("null", "~", ""):
         return None
     if text in ("true", "True"):
@@ -449,7 +447,6 @@ def _scalar(text):
 
 
 def _read_quoted(text, start):
-    """Read one quoted scalar, returning (value, index after the closing quote)."""
     quote = text[start]
     index = start + 1
     chars = []
@@ -487,7 +484,6 @@ def _is_key_separator(text, index):
 
 
 def _read_flow(text, start):
-    """Read one flow collection, returning (value, index after its closer)."""
     opener = text[start]
     closer = "]" if opener == "[" else "}"
     container = [] if opener == "[" else {}
@@ -564,7 +560,6 @@ def _construct_for(char):
 
 
 def _parse_value(text):
-    """Parse the value half of a `key: value` line."""
     text = text.strip()
     if text == "":
         return None
@@ -592,12 +587,6 @@ def _parse_value(text):
 
 
 def _parse_block(lines, index, indent, depth):
-    """Parse the block collection starting at lines[index].
-
-    `depth` counts MAPPING levels only. A sequence is not a level of its own:
-    the `graders:` list's items are mappings at the same depth the list sits at,
-    which is what lets a grader carry a block `target:` inside a case.yaml.
-    """
     if lines[index][1].startswith("-"):
         return _parse_sequence(lines, index, indent, depth)
     return _parse_mapping(lines, index, indent, depth)
@@ -691,7 +680,6 @@ class DelimiterInFrontmatter(ParseError):
 
 
 def split_markdown(text):
-    """Return (frontmatter block or None, body) of a markdown file."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return None, text
@@ -707,7 +695,6 @@ def split_markdown(text):
 
 
 def split_frontmatter(text):
-    """Return the frontmatter block of a markdown file, or None when it has none."""
     return split_markdown(text)[0]
 
 
@@ -757,7 +744,6 @@ def unparsed(case, path, error):
 
 
 def discover_cases(eval_dir):
-    """Every directory under eval_dir holding a prompt.md or a case.yaml."""
     cases = []
     for dirpath, dirnames, filenames in os.walk(eval_dir):
         dirnames[:] = sorted(
@@ -883,7 +869,6 @@ def check_identity(identity, prompt, prompt_file, case, findings):
 
 
 def check_tools(fields, case, findings):
-    """Report tools the operator must grant, and say whether the case can write."""
     if "allowed_tools" not in fields:
         return False
     value, path = fields["allowed_tools"]
@@ -917,7 +902,6 @@ def check_tools(fields, case, findings):
 
 
 def skills_named(prompt, tags):
-    """Skill names a case points at: its leading slash command, then its tags."""
     names = []
     match = SLASH_SKILL.match(prompt)
     if match:
@@ -928,8 +912,6 @@ def skills_named(prompt, tags):
 
 
 def containment_root(eval_dir):
-    """The nearest directory at or above the suite holding a plugin manifest,
-    else the suite's parent, which is the plugin directory in the usual layout."""
     here = eval_dir
     while True:
         if os.path.isfile(
@@ -999,7 +981,6 @@ def on_history_chain(record):
 
 
 def history_chain_records(records):
-    """The (1-based record number, record) pairs on the chain."""
     return [
         (number, record)
         for number, record in enumerate(records, start=1)
@@ -1106,8 +1087,6 @@ CONTEXT_PATHS = ("scaffold_script", "history_file", "add_dirs")
 
 
 def plugins_root(eval_dir):
-    """The nearest `plugins` directory above the suite, or None when the suite
-    is not under one, which leaves the name checks off."""
     here = eval_dir
     while True:
         parent = os.path.dirname(here)
@@ -1119,8 +1098,6 @@ def plugins_root(eval_dir):
 
 
 def missing_reference(root, kind, plugin, name, prefix=False):
-    """The `plugins/...` path a reference needs when it does not exist, else
-    None. With prefix, any name starting with `name` resolves it."""
     parts = REFERENCE_KINDS[kind](plugin, name)
     if os.path.isfile(os.path.join(root, *parts)):
         return None
@@ -1133,7 +1110,6 @@ def missing_reference(root, kind, plugin, name, prefix=False):
 
 
 def check_context_paths(case_dir, context, case, findings):
-    """FAIL a context path that names nothing in the case directory."""
     for field in CONTEXT_PATHS:
         value = context.get(field)
         for entry in value if isinstance(value, list) else [value]:
@@ -1153,12 +1129,6 @@ def check_context_paths(case_dir, context, case, findings):
 
 
 def check_references(root, prompt, prompt_file, tag_sources, graders, case, findings):
-    """FAIL a leading /plugin:skill, a plugin:skill tag, or a literal
-    plugin:skill or plugin:agent token in a Skill or Agent tool_used
-    input_match that names nothing under the plugins root. A `/` before a
-    token makes it a skill; a token the pattern leaves open on the right (at
-    the end, or before `|` or `)`) matches as a substring, so a prefix of a
-    real name resolves it."""
     for ref in case_skills.references(prompt, prompt_file, tag_sources, ()):
         if ref.form != "literal":
             continue
@@ -1198,7 +1168,6 @@ def check_references(root, prompt, prompt_file, tag_sources, graders, case, find
 
 
 def valid_look_at(value):
-    """True for a name in LOOK_AT_NAMES or a file source with a string path."""
     if isinstance(value, dict):
         path = value.get("path")
         return value.get("source") == "file" and isinstance(path, str) and path != ""
@@ -1206,7 +1175,6 @@ def valid_look_at(value):
 
 
 def check_grader(case, path, options, findings):
-    """One grader's type, option set, weight, arm, and documented mistakes."""
     kind = options.get("type")
     if kind not in GRADER_TYPES:
         findings.append(Finding("FAIL", case, path, TYPE_MESSAGE))
@@ -1318,7 +1286,6 @@ def check_grader_syntax(case, path, name, options, findings):
 
 
 def collect_graders(case_dir, case, yaml_data, findings):
-    """The union of the case.yaml grader list and graders/*.md, in that order."""
     graders = []
     listed = (yaml_data or {}).get("graders")
     if listed is not None:
@@ -1509,8 +1476,6 @@ def _whole(value):
 
 
 def js_jobs(case, graders, samples):
-    """One JavaScript job per regex grader and per tool_used grader with an
-    `input_match`: its pattern, flags, how to read a match, and its samples."""
     jobs = []
     for name, options, grader_path in graders:
         if not isinstance(options, dict):
@@ -1568,7 +1533,6 @@ def js_jobs(case, graders, samples):
 
 
 def run_js_jobs(jobs, engine="node"):
-    """Grade every job under `engine` in one process: (results, problem)."""
     if not jobs:
         return [], None
     return run_node_probe(
@@ -1596,8 +1560,6 @@ def js_passed(job, seen):
 
 
 def judge_js_jobs(jobs, results, findings):
-    """A FAIL for each pattern JavaScript cannot compile and each sample it sorts
-    the other way from its label."""
     for job, result in zip(jobs, results):
         case, name = job["case"], job["name"]
         if "error" in result:
@@ -1642,8 +1604,6 @@ def _counts(seen):
 
 
 def judge_js_engines(jobs, runs, findings):
-    """judge_js_jobs over the engines in `runs` ({engine: results}), naming the
-    engine in each finding, plus a FAIL for each sample the engines disagree on."""
     for index, job in enumerate(jobs):
         case, name = job["case"], job["name"]
         graded = {}
@@ -1716,7 +1676,6 @@ def check_js_engine(jobs, findings):
 
 
 def js_regex(pattern, flags=""):
-    """Compile a JavaScript regex with Python's re, or raise Unmirrored."""
     if not isinstance(pattern, str) or not isinstance(flags, str):
         raise Unmirrored("pattern and flags must be strings")
     compiled_flags = 0
@@ -1752,7 +1711,6 @@ def grade_regex(options, text):
 
 
 def call_matches(call, spec):
-    """One call against a tool name or a {tool, input_match} mapping."""
     if isinstance(spec, str):
         spec = {"tool": spec}
     if not isinstance(spec, dict):
@@ -1843,7 +1801,6 @@ GRADE = {
 
 
 def answer_error(kind, answer):
-    """What `answer` must be for this grader type, or None when it fits."""
     if kind == "regex":
         return None if isinstance(answer, str) else "a string"
     if kind == "file_exists":
@@ -1877,7 +1834,6 @@ def sample_shape_error(data):
 
 
 def load_samples(case_dir, case, findings):
-    """Every samples/<grader>.json in the case, as {name: (path, data)}."""
     directory = os.path.join(case_dir, SAMPLES_DIR)
     loaded = {}
     if not os.path.isdir(directory):
@@ -1901,7 +1857,6 @@ def load_samples(case_dir, case, findings):
 
 
 def run_samples(case, path, kind, options, data, findings):
-    """Grade every sample; a mismatch with its expected verdict is a FAIL."""
     for key in SAMPLE_KEYS:
         if not data.get(key):
             findings.append(
@@ -1950,7 +1905,6 @@ def run_samples(case, path, kind, options, data, findings):
 
 
 def check_samples(case, graders, samples, findings):
-    """Run deterministic graders over their samples; flag what goes unchecked."""
     names = set()
     for name, options, grader_path in graders:
         names.add(name)
@@ -1998,7 +1952,6 @@ def check_samples(case, graders, samples, findings):
 def analyze_case(
     case_dir, case, findings, plugin_root, containment, references, js_jobs_out
 ):
-    """Validate one case, appending its findings and its JavaScript jobs."""
     fields = {}
     tags = None
     tag_sources = []

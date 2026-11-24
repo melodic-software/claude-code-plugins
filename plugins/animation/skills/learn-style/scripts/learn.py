@@ -75,8 +75,6 @@ def duration(p):
 
 
 def value(parts, s, base_fps=inkstats.BASE_FPS):
-    """A statistic over some parts: drawings per second over their summed durations, offstep over their drawings,
-    else the median over their drawings."""
     rows = [r for p in parts for r in p]
     if s == 'per_second':
         return len(rows) / sum(map(duration, parts))
@@ -86,8 +84,6 @@ def value(parts, s, base_fps=inkstats.BASE_FPS):
 
 
 def pairs(parts):
-    """(excerpt, complement) index sets, each holding FLOOR to 1 - FLOOR of the duration; every such split when there
-    are at most MAX_SUBSETS, else a seeded sample of that many."""
     d, n = [duration(p) for p in parts], len(parts)
     rest = range(1, n)
     if 2 ** (n - 1) <= MAX_SUBSETS:
@@ -101,7 +97,6 @@ def pairs(parts):
 
 
 def outside(v, lo, hi):
-    """How far v lies outside [lo, hi], in the statistic's units; 0 inside."""
     return lo - v if v < lo else v - hi if v > hi else 0.0
 
 

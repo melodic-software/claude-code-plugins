@@ -90,8 +90,6 @@ _FENCE_RE = re.compile(r"^```[^\n]*\n.*?^```[ \t]*$", re.MULTILINE | re.DOTALL)
 
 
 def _unfenced(body: Any) -> str:
-    """`body` without its fenced blocks, where a reason quotes changed paths:
-    a record line counts only outside them."""
     return _FENCE_RE.sub("", str(body or "").replace("\r\n", "\n"))
 
 
@@ -116,11 +114,6 @@ def record_lines(body: Any) -> list[str]:
 
 
 def _new_run_clears(lanes: Sequence[diff_risk.LaneEvidence]) -> set[str]:
-    """The `evidence-unbound:` risk codes of the lanes whose one evidence entry
-    is unbound for a reason in `NEW_RUN_CLEARS`, the reasons a new run at the
-    same head removes: the re-run rule reads only a run's later attempts, and
-    a run created after the newest retarget reviews against the new base
-    (babysit_review_evidence `_bound_record`)."""
     names = [lane.lane for lane in lanes]
     return {
         f"evidence-unbound:{lane.lane}"
@@ -219,8 +212,6 @@ def _short_bucket(env: Mapping[str, str] | None) -> str | None:
 
 
 def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
-    """Unfinished jobs of the in-progress and queued runs, counted up to the
-    cap; a run holds at least one, so that many runs needs no job read."""
     runs = [
         item
         for status in ("in_progress", "queued")
@@ -240,9 +231,6 @@ def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
 
 
 def limits(repo: str) -> str | None:
-    """None when this sweep may request one whole review, else why not. Only
-    the call that passes every limit claims the sweep, so a refused candidate
-    leaves it to the next one."""
     spent = os.environ.get(SPENT_ENV)
     if not spent:
         return "not-pr-merge"
@@ -349,8 +337,6 @@ def _login(value: Any) -> str:
 
 
 def _conversions(node_id: str) -> list[dict[str, Any]] | None:
-    """The pull request's conversions to draft, oldest first, or None when
-    unread."""
     proc = _graphql_capture(CONVERSIONS, node_id)
     if proc.returncode != 0:
         return None
@@ -362,8 +348,6 @@ def _conversions(node_id: str) -> list[dict[str, Any]] | None:
 
 
 def lane_toggles(node_id: str, identity: str) -> int | None:
-    """How many conversions to draft `identity` made, or None when unread.
-    Any lane conversion counts, a toggle's or not."""
     nodes = _conversions(node_id)
     if nodes is None:
         return None

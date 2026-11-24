@@ -186,7 +186,6 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
 
 
 def ingest_png(image_path, palette_value, out_dir, width, height, scale, base_dir):
-    """Snap one generated PNG into the artifact contract. Used for MCP images."""
     palette = palette_mod.resolve_palette(palette_value, base_dir)
     _w, _h, rows = palette_mod.read_png(image_path)
     frame = image_pipeline.frame_from_rgba(rows, palette, width, height, dither=False)

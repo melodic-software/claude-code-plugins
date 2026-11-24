@@ -315,8 +315,6 @@ LIVE_BACKOFF_MAX = 32.0
 
 
 def control_listener(port):
-    """True when 127.0.0.1:<port> answers the session-bridge ping the way a session's control listener does, with its
-    pid and data folder (a dev server's own /api/ping does not)."""
     p = session_bridge.ping(port, timeout=1.0)
     return isinstance(p, dict) and "pid" in p and "dataDir" in p
 
@@ -529,7 +527,6 @@ def plugin_version():
 
 
 def build_hash():
-    """Changes whenever a served web file does, so an open page can tell it must reload."""
     h = hashlib.sha256()
     for path, name in [*sorted((p, n) for p, (n, _) in STATIC.items()), ("/proto/", "proto.html"), ("?pin=1", "proto-pin.js")]:
         f = WEB / name
@@ -553,7 +550,6 @@ def probe_target(url):
 
 
 def tunnel_kind(rec, up):
-    """What a status says of the tunnel: named or quick while it runs, down when it does not, off with no record."""
     if not rec:
         return "off"
     return ("named" if tunnel.config(rec)[0] else "quick") if up else "down"

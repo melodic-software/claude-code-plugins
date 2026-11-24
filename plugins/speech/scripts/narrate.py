@@ -92,8 +92,6 @@ def espeak_phonemizer(lang):
 
 
 def plan(text, phonemize, vocab):
-    """Each script token with the model ids it contributes: leading punctuation, its phonemes, trailing punctuation.
-    `core` is the slice of `ids` the word's timing covers: its phonemes, or its punctuation when it has none."""
     words = []
     for token in text.split():
         lead, body, trail = re.fullmatch(r'(\W*)(.*?)(\W*)', token).groups()
@@ -141,14 +139,12 @@ def chunks(words, limit=MAX_TOKENS):
 
 
 def token_edges(durations, samples):
-    """Sample offset of every token boundary, the leading pad included, scaled so the last edge is the audio's end."""
     import numpy as np
     frames = np.concatenate([[0.0], np.cumsum(np.asarray(durations, dtype=np.float64))])
     return np.round(frames * (samples / frames[-1])).astype(np.int64)
 
 
 def synthesize(batches, session, style_rows, speed, space_id):
-    """Run the model per batch. Returns the float32 audio and, per word, its (start, end) sample offsets."""
     import numpy as np
     audio, spans, offset = [], [], 0
     for batch in batches:
@@ -261,7 +257,6 @@ class Backend:
 
 
 def estimate_words(text, duration):
-    """Word times for a voice that reports none: the duration shared out by each token's length plus one."""
     tokens = text.split()
     total = sum(len(t) + 1 for t in tokens) or 1
     words, at = [], 0
@@ -273,8 +268,6 @@ def estimate_words(text, duration):
 
 
 def align_boundaries(text, marks):
-    """One {word, start, end} per whitespace token of `text` from (spoken text, start, end) marks in speaking order.
-    A token spans the marks found inside it; a token with none, such as a dash, sits at the previous token's end."""
     lower, placed, cursor = text.lower(), [], 0
     for said, start, end in marks:
         said = said.strip().lower()
@@ -294,7 +287,6 @@ def align_boundaries(text, marks):
 
 
 def bounded(fn, timeout):
-    """fn() on a daemon thread, abandoned after the timeout: an in-process call that hangs cannot hold the chain."""
     box = {}
 
     def run():
@@ -477,12 +469,10 @@ def scan_script(text, extra=()):
 
 
 def paragraphs(text):
-    """The script's blank-line separated paragraphs that hold a word."""
     return [p.strip() for p in re.split(r'\n\s*\n', text) if p.split()]
 
 
 def join_wavs(parts, path):
-    """One WAV at `path` from the parts' (wav, words) in order, each part's words moved past the audio before it."""
     fmt, frames, words, offset = None, [], [], 0.0
     for wav, part_words in parts:
         with wave.open(str(wav), 'rb') as w:
@@ -505,7 +495,6 @@ def join_wavs(parts, path):
 
 def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S, allow_paid=False, env=None,
               sleep=time.sleep, scan=None):
-    """Voice the whole script with the first backend in `chain` that can; returns the exit code."""
     env = os.environ if env is None else env
     voices, scan = voices or {}, scan or scan_script
     tokens = text.split()
@@ -521,7 +510,6 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                          **({'error': str(error)[:ERROR_CHARS]} if error else {})})
 
     def voice_part(b, v, part, paragraph):
-        """One request for `part`, retried; (wav, words, work dir), or None when this backend is done."""
         expected = part.split()
         for delay in (0, *b.retry_delays_s):
             if delay:

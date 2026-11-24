@@ -781,8 +781,6 @@ def new_args(
     now: str = "2026-09-01T10:00:00Z",
     shape: str | None = "2",
 ) -> list[str]:
-    """`new` arguments; the shape-2 writer by default, so the shape-2 contract
-    keeps its tests; `shape=None` passes no --shape (the default shape)."""
     return [
         "new",
         "--topic",
@@ -3229,8 +3227,6 @@ def retire_chain(repo: Path, tmp_path: Path, hop1_edit=None) -> tuple[Path, Path
 def retire_by_hand(
     hot: Path, archived: Path, heading: str, entry: str, reason: str = "superseded"
 ) -> None:
-    """Move `entry` out of the hot file into `archived` under `heading`, the way
-    the writer does it, with a Review pointer naming the hop file and heading."""
     edit(hot, entry + "\n", "")
     with archived.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(f"\n## {heading}\n\n{entry}\nRetired: {reason}\n".replace(" \n", "\n"))

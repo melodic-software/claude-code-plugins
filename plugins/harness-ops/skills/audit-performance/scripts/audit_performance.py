@@ -847,7 +847,6 @@ def _windows_process_table() -> list[dict]:
     epoch_offset_seconds = 11644473600  # 1601-01-01 to 1970-01-01
 
     def process_times(pid: int) -> tuple[float | None, float | None]:
-        """Return (creation epoch, kernel plus user CPU seconds); None where unreadable."""
         handle = kernel32.OpenProcess(query_limited_information, False, pid)
         if not handle:
             return None, None
@@ -962,7 +961,6 @@ def is_claude_process(name: str) -> bool:
 
 
 def _parent_state(record: dict, by_pid: dict[int, dict], started: float) -> str:
-    """Classify a record's parent as dead, recycled, unknown, or live."""
     parent = by_pid.get(record["ppid"])
     if parent is None:
         return "dead"
@@ -981,12 +979,6 @@ def rank_dead_parent_by_cpu(
     by_pid: dict[int, dict],
     size: int = DEAD_PARENT_BY_CPU_SIZE,
 ) -> list[dict]:
-    """Rank every dead-parent process, any name, by CPU seconds. A ranking, not a kill list.
-
-    Same parent rules as the census: a recorded parent pid, a readable start time, an age
-    above the teardown guard, and a parent that is gone or whose pid was recycled. A process
-    whose CPU time is unreadable ranks after every known figure rather than as zero.
-    """
     ranked: list[dict] = []
     for record in records:
         if record.get("ppid", 0) <= 0:
@@ -1335,15 +1327,6 @@ def exclude_kernel_threads(
     classify_cap: int = KTHREAD_CLASSIFY_CAP,
     keep: int = SHORTLIST_SIZE,
 ) -> dict:
-    """Walk ranked rows, dropping those whose every process is a kernel thread, until
-    `keep` rows survive.
-
-    Only the kept rows' processes are read, and only up to `classify_cap` of them, because
-    a per-pid read on a machine chosen for being contended must carry a stated bound. A row
-    is excluded only when every one of its processes was examined and every verdict is
-    True; a row the cap leaves partially or wholly unclassified is kept, so the ceiling never
-    silently hides a user process. Rows past the cap are kept unclassified in rank order.
-    """
     if (platform or sys.platform) != "linux":
         return {
             "rows": rows[:keep],
@@ -1458,11 +1441,6 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
 
 
 def command_key(entry: dict) -> str:
-    """What a firing row actually spawns: the command plus its args.
-
-    Counting the command alone would collapse two handlers that share a dispatcher and pass
-    different arguments into one, and those are two process creations, not one.
-    """
     args = entry.get("args") or []
     return " ".join([str(entry.get("command") or "")] + [str(a) for a in args])
 
@@ -1773,11 +1751,6 @@ def project_fan_out(entries: list[dict]) -> dict:
 
 
 def projected_file_kinds(gate_kinds: set[str]) -> tuple[str, ...]:
-    """The baseline kinds in their stated order, then gate-named extras sorted, then `other`.
-
-    Baseline order is kept so two captures stay comparable row for row; the extras follow it so
-    a discovered kind is visibly an addition rather than a reordering.
-    """
     baseline = tuple(k for k in PROJECTION_FILE_KINDS if k != PROJECTION_OTHER_KIND)
     extras = sorted(set(gate_kinds) - set(PROJECTION_FILE_KINDS))
     return baseline + tuple(extras) + (PROJECTION_OTHER_KIND,)
@@ -1822,7 +1795,6 @@ def tokenize_honouring_quotes(lowered: str) -> list[str]:  # identifier, not pro
 
 
 def restore_sentinels(token: str) -> str:
-    """One token with its protected characters put back, for reading rather than splitting."""
     for sentinel, raw in SENTINEL_CHARACTERS.items():
         token = token.replace(sentinel, raw)
     return token
@@ -2307,14 +2279,6 @@ def fan_out_layer(
 
 
 def operator_context(notes: list[str] | None, source: str = "unspecified") -> dict:
-    """Record what only a human at the machine can know, and record its absence as a fact.
-
-    The engine sees the machine, never the intent: which thing felt slow, how many terminals
-    were open, what the session was doing. A run with none of that is incomplete, and saying
-    so in the report is what keeps the gap visible instead of letting a silent absence read
-    as a clean bill of health. The declared source is taken at face value because nothing in
-    a process can verify who typed a flag.
-    """
     supplied = list(notes or [])
     return {
         "status": "present" if supplied else "absent",
@@ -2339,7 +2303,6 @@ def advisories(root: Path) -> list[str]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """The CLI surface, built apart from `main` so the flag contract is directly testable."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--root",

@@ -148,10 +148,6 @@ def first_line(text):
 
 
 def same_text(a, b):
-    """Equal once bold markers (** and __) are dropped, runs of whitespace are
-    collapsed and the ends trimmed: an agent that adds bold to a heading has
-    still reproduced the sample's words."""
-
     def plain(text):
         return " ".join(text.replace("**", "").replace("__", "").split())
 
@@ -176,7 +172,6 @@ def system_prompt(sample):
 
 
 def split_body(text):
-    """(frontmatter or None, body) of a markdown file."""
     lines = text.split("\n")
     if lines and lines[0].strip() == "---":
         for index in range(1, len(lines)):
@@ -186,7 +181,6 @@ def split_body(text):
 
 
 def source_prompt(case_dir, validator):
-    """The prompt the source case sends: prompt.md's body, else execution.prompt."""
     prompt_md = os.path.join(case_dir, "prompt.md")
     if os.path.isfile(prompt_md):
         return split_body(read_text(prompt_md))[1].strip("\n")
@@ -197,7 +191,6 @@ def source_prompt(case_dir, validator):
 
 
 def llm_graders(case_dir, validator, notes, case):
-    """(name, focus, grader file text) for every llm grader in the case."""
     found = []
     yaml_path = os.path.join(case_dir, "case.yaml")
     if os.path.isfile(yaml_path):
@@ -246,7 +239,6 @@ def discover(suite):
 
 
 def samples_for(case_dir, grader, notes, case):
-    """[(label key, 1-based index, answer, why)] from samples/<grader>.json."""
     path = os.path.join(case_dir, "samples", grader + ".json")
     if not os.path.isfile(path):
         return []
@@ -485,7 +477,6 @@ def load_json(path, what):
 
 
 def trace_reply(path):
-    """The final message of a kept trace, or None when the trace cannot be read."""
     try:
         with open(path, encoding="utf-8") as handle:
             lines = []
@@ -517,7 +508,6 @@ def trace_reply(path):
 
 
 def verdict(grader):
-    """('PASS' | 'FAIL', votes list or None) for one grader result."""
     votes = grader.get(GRADER_VOTES)
     if isinstance(votes, list) and votes:
         passes = sum(1 for v in votes if v is True)
