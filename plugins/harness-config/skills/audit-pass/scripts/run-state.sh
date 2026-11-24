@@ -219,8 +219,6 @@ record_is_json_object() {
     return 1
   fi
 
-  # After the opening brace, the first non-space character must open a quoted key
-  # or close an empty object. `{bad json}` fails here even though it balances.
   local rest="${s:1}"
   rest="${rest#"${rest%%[![:space:]]*}"}"
   case "$rest" in
@@ -473,9 +471,6 @@ cmd_lease_heartbeat() {
   previous="$LEASE_HEARTBEAT"
   now=$(now_epoch)
 
-  # max(now, previous): a clock adjustment that rewinds must not make a live run
-  # read stale. The runaway-forward case this admits is caught on the read side
-  # by the lower bound in classify, not by refusing to write here.
   next="$now"
   if [[ "$previous" =~ ^[0-9]+$ ]] && [[ "$previous" -gt "$now" ]]; then
     next="$previous"
@@ -495,10 +490,6 @@ cmd_lease_release() {
   read_lease "$run_dir"
   heartbeat_iso=$(lease_field "$run_dir/lease" heartbeat_at_iso)
 
-  # The tombstone, not a deletion. A run that finished normally while
-  # deliberately leaving a lane incomplete — the /doctor handoff is exactly this
-  # — would otherwise look live for the whole staleness window, and the operator
-  # who does the fastest correct thing is the one refused.
   write_lease "$run_dir" released "$(now_iso)" "$LEASE_HEARTBEAT" "$heartbeat_iso"
   printf '%s\n' "released"
 }

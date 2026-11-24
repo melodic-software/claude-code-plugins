@@ -100,10 +100,8 @@ fetch_pages() {
     echo "ERROR: shared fetcher not found: $FETCH_DOCS" >&2
     exit 2
   }
-  # The manifest's claude_version is unused here, so the fetcher runs no claude.
   local fetch_env=(-u FETCH_DOCS_FIXTURE_DIR FETCH_DOCS_CLAUDE_BIN='')
   [[ -z "$FIXTURE_DIR" ]] || fetch_env=(FETCH_DOCS_FIXTURE_DIR="$FIXTURE_DIR" FETCH_DOCS_CLAUDE_BIN='')
-  # --max-age 0: a citation check compares fresh bytes, never a cached copy.
   env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$FETCH_DIR" --manifest "$FETCH_DIR/manifest.json" --cache --max-age 0 --mode search "$@" >/dev/null || {
     echo "ERROR: the shared fetcher failed" >&2
     exit 2

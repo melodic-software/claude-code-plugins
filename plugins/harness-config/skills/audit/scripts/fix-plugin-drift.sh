@@ -366,8 +366,6 @@ lower_scope_files() {
       LOWER_CLOSED="cannot read $f"
       continue
     fi
-    # The type tests are phrased with `!=` so this call never carries the
-    # post-edit validation's text.
     if ! jq -s -e 'length == 1 and (.[0]
       | if type != "object" then false
         elif has("enabledPlugins") then (.enabledPlugins | type != "object" | not)
@@ -673,8 +671,6 @@ if ! mv "$TMP_EOL" "$SETTINGS"; then
   echo "ERROR: cannot replace $SETTINGS_SHOW; it is unchanged and backed up at $BACKUP_SHOW" >&2
   exit 2
 fi
-# The stage is now the settings file; the EXIT trap must not delete whatever
-# later takes that name.
 TMP_EOL=""
 
 if ! jq -e 'type == "object"' "$SETTINGS" >/dev/null 2>&1 || cmp -s "$BACKUP" "$SETTINGS"; then
