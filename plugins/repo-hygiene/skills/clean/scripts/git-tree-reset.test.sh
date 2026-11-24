@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for git-tree-reset.sh — default-preserve semantics, reparse-point
-# data-loss guard, opt-in flags, unpushed-commit + default-branch blocks.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

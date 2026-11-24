@@ -35,7 +35,7 @@ import os
 import re
 import sys
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
 )

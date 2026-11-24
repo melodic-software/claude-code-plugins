@@ -136,20 +136,20 @@ test("every ci-workflows action, and the classifier each pass leg checks out, tr
   assert.deepEqual(classifier, ["main", "main"]);
 });
 
-test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {
+test("the model step is read-only, on the evals key alone, and frames what it reads as data", () => {
   assert.equal(main.match(/run-claude-cli@/g).length, 1);
   assert.doesNotMatch(pass, /run-claude-cli@/);
   const propose = jobs(main)["generate-edit"];
   const key = step(propose, "Propose the edit on the API key");
-  assert.match(key, /api-key: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n/);
+  assert.match(key, /api-key: \$\{\{ secrets\.EVALS_CLAUDE_API_KEY \}\}\n/);
   assert.match(key, /if: steps\.prompt\.outcome == 'success' && steps\.key\.outputs\.present == 'true'\n/);
   assert.doesNotMatch(propose, /CLAUDE_CODE_OAUTH_TOKEN|subscription-token|fallback-token/);
   // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
   assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
-  assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
-  assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: maintenance\n {10}key-job: propose\n/);
+  assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: evals\n {10}key-job: propose\n/);
   for (const model of [key]) {
-    assert.match(model, /role: maintenance\n/);
+    assert.match(model, /role: evals\n/);
     assert.match(model, /permission-mode: dontAsk\n/);
     assert.match(model, /tools: \|\n {12}Read\n {12}Grep\n {12}Glob\n {10}allowed-tools:/);
     for (const tool of ["Bash", "Edit", "Write", "WebFetch", "Agent", "Skill", "mcp__\\*"]) {

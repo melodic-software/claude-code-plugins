@@ -69,7 +69,7 @@ def digest(prod):
     for panel in panels if isinstance(panels, list) else []:
         png, _ = rel(prod, panel.get('png') if isinstance(panel, dict) else None, 'png')
         if png:
-            paths.append(png)   # a panel image outside boards/ is still part of what was approved
+            paths.append(png)
     for path in sorted({p.resolve() for p in paths if p.is_file()}):
         h.update(str(path.relative_to(prod)).encode())
         h.update(b'\0')

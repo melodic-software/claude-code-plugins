@@ -238,7 +238,6 @@ rooted_only="$(bash "$SCRIPT" --repo "$dirty" --worktree-root "$wtroot")"
 expect "a worktree root alone does not enable a park" "$rooted_only" \
   has "$rooted_only" $'skip\t'"$dirty"$'\t\tworktree-create-missing'
 
-# The helper is named only by --worktree-create, and only a file called worktree-create.sh.
 mkdir "$TMP/fail" "$TMP/helper-dir" "$TMP/helper-dir/worktree-create.sh"
 printf 'exit 1\n' >"$TMP/fail/worktree-create.sh"
 printf 'exit 0\n' >"$TMP/fail-create.sh"
@@ -250,10 +249,8 @@ for bad in "$TMP/fail-create.sh" "$TMP/absent/worktree-create.sh" "$TMP/helper-d
     is "$(grep -c 'must name an existing file called worktree-create.sh' "$TMP/bad.err")|$(wc -c <"$TMP/bad.out" | tr -d ' ')" "1|0"
 done
 
-# The source-control plugin next door is never probed: a decoy in its place stays unread.
 layout="$TMP/layout"
 mkdir -p "$layout/source-control/scripts"
-# The copy holds only what sync-fleet.sh sources, under the plugin's own layout.
 mkdir -p "$layout/repo-fleet-hygiene/skills/sync/scripts" "$layout/repo-fleet-hygiene/scripts"
 cp "$SCRIPT" "$layout/repo-fleet-hygiene/skills/sync/scripts/"
 cp "$SCRIPT_DIR/../../../scripts/scope-resolve.sh" "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" "$layout/repo-fleet-hygiene/scripts/"
@@ -318,7 +315,6 @@ exit "${STUB_EXIT:-0}"
 EOF
 export REAL_HELPER="$HELPER"
 
-# dirty_clone <dir> [<branch>]: a clone with an untracked and a staged file, on <branch> when given.
 dirty_clone() {
   git clone -q "$bare" "$1"
   git_identity "$1"
@@ -348,7 +344,6 @@ stash_subjects() { git -C "$1" stash list --format=%gs; }
 # shellcheck disable=SC2329  # invoked by name, as expect's predicate
 restored_in_place() { [[ -f "$1/DIRTY.md" && ! -e "$1/FOREIGN.md" && "$(git -C "$1" diff --cached --name-only)" == "STAGED.md" ]]; }
 
-# Another session pushes a stash between the park and the apply.
 repo_a="$TMP/park-a"
 dirty_clone "$repo_a" feature-a
 STUB_REAL=1 STUB_FOREIGN=1 run_park "$repo_a" "$TMP/wt-a"
@@ -359,7 +354,6 @@ expect "a park drops only its own stash and the other session's survives" "$d $(
 expect "an applied park exits 0" "$d" is "$CODE" 0
 expect "--worktree-root reaches the helper as --root" "$d args=$ARGS" has "$ARGS" "--root $TMP/wt-a"
 
-# The same push, then a failed worktree create: unpark must restore its own entry.
 repo_b="$TMP/park-b"
 dirty_clone "$repo_b" feature-b
 STUB_FOREIGN=1 STUB_EXIT=1 run_park "$repo_b" "$TMP/wt-b"
@@ -386,7 +380,6 @@ expect "helper exit 3 leaves no stash" "$d" is "$(stash_subjects "$repo_c")" ""
 expect "helper exit 3 quotes the helper's first stderr line and names the root remedy" "$d" \
   has "$OUT" "(stub: warning, exiting 3); set worktreeroot.path"
 
-# Without --worktree-root the helper gets no --root and resolves the root from the repository.
 repo_h="$TMP/park-h"
 dirty_clone "$repo_h" feature-h
 git -C "$repo_h" config worktreeroot.path "$TMP/wt-h"
@@ -397,7 +390,6 @@ expect "an unset --worktree-root keeps --root out of the helper call" "$d" \
 expect "an unset --worktree-root parks under the repository's worktreeroot.path" "$d" has "$WT" "$TMP/wt-h/"
 expect "an unset --worktree-root still parks the work in the worktree" "$d" restored_in_place "$WT"
 
-# The real helper refuses when no root resolves anywhere: unparked, skipped, its message quoted.
 repo_i="$TMP/park-i"
 dirty_clone "$repo_i" feature-i
 OUT="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT" --repo "$repo_i" --apply --yes --worktree-create "$HELPER" 2>"$TMP/park.err")"
@@ -434,7 +426,6 @@ expect "helper exit 4 without a path is unparked and reported" "$d" \
 expect "helper exit 4 without a path restores the work and leaves no stash" "$d" \
   restored_in_place "$repo_d"
 
-# A dirty default branch parks on a sync-park branch and comes back clean.
 repo_e="$TMP/park-e"
 dirty_clone "$repo_e"
 STUB_REAL=1 run_park "$repo_e" "$TMP/wt-e"
@@ -454,7 +445,6 @@ expect "a failed default-branch park drops its sync-park branch and keeps the ot
   is "$(git -C "$repo_f" branch --show-current)|$(git -C "$repo_f" branch --list 'sync-park/*')|$(stash_subjects "$repo_f")" "main||On main: foreign-session"
 expect "a failed default-branch park exits 1" "$d" is "$CODE" 1
 
-# A stash entry that cannot be matched by its marker fails closed.
 mkdir "$TMP/shim"
 cat >"$TMP/shim/git" <<EOF
 #!/usr/bin/env bash
@@ -497,7 +487,6 @@ expect "a non-fast-forward skip exits 1" "code=$code" is "$code" 1
 expect "a non-fast-forward skip line carries git-exit and a remedy" "$skipped" \
   has "$skipped" $'skipped\t'"$diverge"$'\tnon-fast-forward\tgit-exit=128\tremedy='
 
-# The plan names the scope rung that produced each repository, on plan and skipped lines alike.
 rung_home="$TMP/rung-home"
 mkdir -p "$rung_home"
 rung_of() { printf '%s\n' "$1" | awk -F'\t' -v r="$2" '$2 == r { print $NF }'; }
@@ -518,7 +507,6 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$TMP/skipdrive" >"$TMP/ghq
 chmod +x "$TMP/ghq-stub"
 r_ghq="$(cd "$TMP/bare-cwd" && HOME="$rung_home" REPO_FLEET_GHQ_BIN="$TMP/ghq-stub" bash "$SCRIPT")"
 expect "ghq root --all plans rung=ghq" "$r_ghq" is "$(rung_of "$r_ghq" "$TMP/skipdrive/app")" "rung=ghq"
-# Four directories above solo hold no other repository, so the ancestor probe finds nothing.
 solo="$TMP/iso/a/b/c/solo"
 mkdir -p "$TMP/iso/a/b/c"
 git clone -q "$bare" "$solo"
@@ -526,7 +514,6 @@ r_cwd="$(cd "$solo" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$
 expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$solo")" "rung=cwd"
 expect "a lone checkout plans only itself" "$r_cwd" has "$r_cwd" $'repos: 1\n'
 
-# A bare run inside one checkout plans the checkout's sibling fleet, from the checkout root or below it.
 mkdir -p "$TMP/fleet"
 for name in one two three; do git clone -q "$bare" "$TMP/fleet/$name"; done
 mkdir -p "$TMP/fleet/one/sub/dir"
@@ -538,7 +525,6 @@ for from in "$TMP/fleet/one" "$TMP/fleet/one/sub/dir"; do
   expect "a bare run in ${from#"$TMP"/} reports 3 repos" "$r_sib" has "$r_sib" $'repos: 3\n'
 done
 
-# Discovery is the walker audit uses: it honors fleet.maxDepth and stops at a checkout.
 printf '[fleet]\n\tmaxDepth = 1\n' >"$TMP/depth1.conf"
 depth1="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth1.conf")"
 expect "fleet.maxDepth 1 finds a repository one level down" "$depth1" has "$depth1" "$TMP/skipdrive/app"

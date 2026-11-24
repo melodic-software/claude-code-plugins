@@ -37,7 +37,6 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
-const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 const STANDARDS_VOCABULARY_PATH = "components/github-actions-conventions/vocabulary.json";
 const STANDARDS_TRUSTED_ACTORS_PATH = "components/trusted-actors/trusted-actors.json";
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
@@ -96,10 +95,7 @@ const standardsFiles = (basePath, standardsPath) =>
         vocabulary: readJsonUnder(standardsPath, STANDARDS_VOCABULARY_PATH, "standards-path"),
         trustedActors: readJsonUnder(standardsPath, STANDARDS_TRUSTED_ACTORS_PATH, "standards-path"),
       }
-    : {
-        vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
-        trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
-      };
+    : { vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH), trustedActors: undefined };
 
 // The REST version that documents issue-field-values.
 const FIELD_API_VERSION = "2026-03-10";

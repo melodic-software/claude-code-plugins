@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// Exit 0 = report emitted; 1 = internal failure.
-
 import { spawnSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";

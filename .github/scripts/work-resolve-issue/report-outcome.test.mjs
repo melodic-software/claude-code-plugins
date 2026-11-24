@@ -75,6 +75,7 @@ const fieldReader = (fields) => {
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { ADMISSION_RECORD_MARKER, recordBody } from "../lib/admission-record.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 const ESC = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n";
@@ -1233,7 +1234,7 @@ test("main leaves a park alone when a person set needs-human after the run read 
       fieldPosts.push(`${method} ${path} ${body.issue_field_values[0].value}`);
       return [];
     }, fields);
-    const { set } = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }, github, repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" });
     const setStatus = (...args) => {
       fields[77] = { state: "needs-human", setter: 153232337 };
       return set(...args);

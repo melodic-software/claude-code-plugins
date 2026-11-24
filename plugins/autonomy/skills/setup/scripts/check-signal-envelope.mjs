@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
-
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";

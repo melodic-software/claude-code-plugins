@@ -5142,17 +5142,12 @@ jobs:
           pr_read_forget() {
             [ -z "${RUNNER_TEMP:-}" ] || rm -rf "$RUNNER_TEMP/pr-reads"
           }
-          # trusted_list prints the trusted-actor list's path: under the run's
-          # standards checkout ($STANDARDS_DIR) when the step has one, else the
-          # hold config's copy under $BASE_CONFIG; it fails with neither.
+          # trusted_list prints the trusted-actor list's path under the run's
+          # standards checkout ($STANDARDS_DIR), and fails without one: the hold
+          # config's synced copy can still name an actor standards removed.
           trusted_list() {
-            if [ -n "${STANDARDS_DIR:-}" ]; then
-              printf '%s\n' "$STANDARDS_DIR/components/trusted-actors/trusted-actors.json"
-            elif [ -d "${BASE_CONFIG:-}" ]; then
-              printf '%s\n' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"
-            else
-              return 1
-            fi
+            [ -n "${STANDARDS_DIR:-}" ] || return 1
+            printf '%s\n' "$STANDARDS_DIR/components/trusted-actors/trusted-actors.json"
           }
           # trusted_humans sets actors to the trusted-actor list (trusted_list)
           # and humans to its `human` entries' numeric ids, space-separated, or
@@ -5160,7 +5155,7 @@ jobs:
           trusted_humans() {
             local list
             if ! list=$(trusted_list) || ! actors=$(cat "$list"); then
-              echo "::error::could not read the trusted-actor list (standards, else the hold config at ${BASE_SHA:-}); re-run this run."
+              echo "::error::could not read the trusted-actor list from the standards checkout; re-run this run."
               return 1
             fi
             # shellcheck disable=SC2034 # read by the steps that source this
@@ -6540,7 +6535,7 @@ jobs:
             exit 0
           fi
           if ! list=$(trusted_list) || ! humans=$(jq -ec '[.actors[] | select(.kind == "human" and (.id | type) == "number") | .id]' "$list"); then
-            echo "::error::could not read trusted-actors.json (standards, else the hold config at $BASE_SHA); re-run this run."
+            echo "::error::could not read trusted-actors.json from the standards checkout; re-run this run."
             exit 1
           fi
           while read -r number names; do
@@ -6900,10 +6895,14 @@ jobs:
           # here and the trust hold's link rule. This step runs on every pull
           # request and in the queue, so a mismatch turns ci-status red.
           if [ ! -d "${BASE_CONFIG:-}" ] ||
-            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml"); then
+            echo "::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+            exit 1
+          fi
+          if ! list=$(trusted_list) ||
             ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
-              | if length == 1 then .[0] else error("not one entry") end' "$(trusted_list)"); then
-            echo "::error::cannot read merge.agent-identity's trusted-actor id from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              | if length == 1 then .[0] else error("not one entry") end' "$list"); then
+            echo "::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
             exit 1
           fi
           if [ "$want" != "$LANES_APP_ID" ]; then
@@ -6963,7 +6962,7 @@ jobs:
                     elif $authors == "lane-or-owner" then $lane or $owner
                     elif $authors == "lane" then $lane
                     else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
-                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors and the trusted-actor list in the hold config; re-run this run."
+                echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors in the hold config and the standards checkout's trusted-actor list; re-run this run."
                 exit 1
               fi
             fi
@@ -7020,7 +7019,7 @@ jobs:
             fi
           done
           if ! list=$(trusted_list) || [ ! -s "$list" ] || ! cp "$list" "$RUNNER_TEMP/trusted-actors.json"; then
-            echo "::error::could not read the trusted-actor list (standards, else the hold config); re-run this run."
+            echo "::error::could not read the trusted-actor list from the standards checkout; re-run this run."
             exit 1
           fi
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
