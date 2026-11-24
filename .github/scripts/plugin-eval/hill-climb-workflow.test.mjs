@@ -235,14 +235,12 @@ test("every eval entry job runs only while CLAUDE_EVALS_DISABLED is exactly fals
   const head = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`), text.indexOf(`\n  ${name}:\n`) + 600);
   const gated = [
     [evals, "check-key-credit"],
+    [evals, "compare-prepare"],
     [main, "check-inputs"],
     [pass, "check-key-credit"],
   ];
   for (const [text, name] of gated) {
     assert.match(head(text, name), /\n {4}if: (?:>-\n {6})?vars\.CLAUDE_EVALS_DISABLED == 'false'/, name);
-  }
-  for (const name of ["compare-before", "compare-after"]) {
-    assert.match(head(evals, name), /\n {4}if: >-\n {6}needs\.compare-prepare\.result == 'success'\n {6}&& needs\.compare-prepare\.outputs\.cannot-start == '' && vars\.CLAUDE_EVALS_DISABLED == 'false'\n/, name);
   }
 });
 

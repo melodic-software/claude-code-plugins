@@ -173,7 +173,7 @@ export function recordJobRan(answer) {
 }
 
 export const CANNOT_START_JOB = "Compare Cannot Start";
-export const CANNOT_START_CAUSES = Object.freeze(["evals-disabled", "compare-refused"]);
+export const CANNOT_START_CAUSES = Object.freeze(["compare-refused"]);
 
 /**
  * The cause a compare run recorded for not starting, from one complete page

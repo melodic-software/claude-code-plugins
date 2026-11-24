@@ -1715,16 +1715,12 @@ jobs:
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
   # reading this run back and finding its Compare Record job (that name,
-  # RECORD_JOB there) succeeded. Past its dispatcher, input and head checks,
-  # compare-prepare runs no arm when CLAUDE_EVALS_DISABLED is not false or
-  # compare-arms.sh refuses the pull request (exit 3); it writes that cause to
-  # its cannot-start output instead, and compare-cannot-start names itself
-  # after it, which release-eval-hold.mjs reads back (CANNOT_START_JOB there).
-  # compare-prepare holds no model credential.
+  # RECORD_JOB there) succeeded.
   compare-prepare:
     name: Compare Prepare
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+      vars.CLAUDE_EVALS_DISABLED == 'false'
+      && github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1740,7 +1736,7 @@ jobs:
       before-sha256: ${{ steps.arms.outputs.before-sha256 }}
       after-artifact-id: ${{ steps.after.outputs.artifact-id }}
       after-sha256: ${{ steps.arms.outputs.after-sha256 }}
-      cannot-start: ${{ steps.switch.outputs.cannot-start || steps.arms.outputs.cannot-start }}
+      cannot-start: ${{ steps.arms.outputs.cannot-start }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1882,18 +1878,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check the evals switch
-        id: switch
-        env:
-          DISABLED: ${{ vars.CLAUDE_EVALS_DISABLED }}
-        run: |
-          if [ "$DISABLED" != false ]; then
-            echo "::notice::cannot-start=evals-disabled: CLAUDE_EVALS_DISABLED is not false, so no arm runs"
-            echo "cannot-start=evals-disabled" >>"$GITHUB_OUTPUT"
-          fi
-
       - name: Fetch the pull request's commits as data
-        if: steps.switch.outputs.cannot-start == ''
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.head-sha }}
@@ -1903,7 +1888,6 @@ jobs:
 
       - name: Build the arm patches
         id: arms
-        if: steps.switch.outputs.cannot-start == ''
         env:
           REPO: .head
           MAIN_SHA: ${{ github.sha }}
@@ -1977,7 +1961,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
-      && needs.compare-prepare.outputs.cannot-start == '' && vars.CLAUDE_EVALS_DISABLED == 'false'
+      && needs.compare-prepare.outputs.cannot-start == ''
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -2006,7 +1990,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
-      && needs.compare-prepare.outputs.cannot-start == '' && vars.CLAUDE_EVALS_DISABLED == 'false'
+      && needs.compare-prepare.outputs.cannot-start == ''
       && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
@@ -2035,7 +2019,7 @@ jobs:
     needs: compare-prepare
     if: >-
       needs.compare-prepare.result == 'success'
-      && (needs.compare-prepare.outputs.cannot-start == 'evals-disabled' || needs.compare-prepare.outputs.cannot-start == 'compare-refused')
+      && needs.compare-prepare.outputs.cannot-start == 'compare-refused'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}

@@ -582,7 +582,7 @@ real-time deadline. A hold that lands after the merge is not a hold.
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
   record at the head, the same step also removes it when the newest compare run naming this PR and
   its head reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
-  instead, the run's own record that it could not start (`evals-disabled` or `compare-refused`);
+  instead, the run's own record that compare mode refused the PR (`compare-refused`);
   its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`,
   and the PR merges first and owes the default-branch run in
   [evals.md](../../review/evals.md#where-and-on-what). A missing record alone releases nothing.

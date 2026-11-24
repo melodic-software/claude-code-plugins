@@ -569,7 +569,7 @@ const cannotStartJob = (cause, overrides = {}) => {
   const prepare = CAPTURED_JOBS.jobs.find((job) => job.name === "Compare Prepare");
   return { ...prepare, id: prepare.id + 1, name: `${CANNOT_START_JOB}: ${cause}`, conclusion: "success", ...overrides };
 };
-const cannotStartJobs = (cause = "evals-disabled", overrides = {}) =>
+const cannotStartJobs = (cause = "compare-refused", overrides = {}) =>
   withJob(
     { ...CAPTURED_JOBS, jobs: CAPTURED_JOBS.jobs.map((job) => (job.name === "Compare Prepare" ? { ...job, conclusion: "success" } : job)) },
     cannotStartJob(cause, overrides),
@@ -577,7 +577,7 @@ const cannotStartJobs = (cause = "evals-disabled", overrides = {}) =>
 const recordedToo = (answer) => ({ ...answer, jobs: answer.jobs.map((job) => (job.name === "Compare Record" ? { ...job, conclusion: "success" } : job)) });
 const listedRun = (overrides = {}) =>
   compareRun({ id: Number(CANNOT_RUN_ID), html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}`, created_at: "2026-11-06T10:30:00Z", ...overrides });
-const cannotStart = (head = HEAD, cause = "evals-disabled") => ({ head, cause, run: { id: CANNOT_RUN_ID, html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}` } });
+const cannotStart = (head = HEAD, cause = "compare-refused") => ({ head, cause, run: { id: CANNOT_RUN_ID, html_url: `https://github.com/${REPO}/actions/runs/${CANNOT_RUN_ID}` } });
 
 test("cannotStartCause reads the one Compare Cannot Start job's cause, and only a listed cause that succeeded", () => {
   for (const cause of CANNOT_START_CAUSES) {
@@ -585,10 +585,11 @@ test("cannotStartCause reads the one Compare Cannot Start job's cause, and only 
   }
   const cases = {
     "a cause not on the list": cannotStartJobs("credit-stop"),
-    "a job that failed": cannotStartJobs("evals-disabled", { conclusion: "failure" }),
-    "a job that skipped": cannotStartJobs("evals-disabled", { conclusion: "skipped" }),
-    "a job still going": cannotStartJobs("evals-disabled", { status: "in_progress", conclusion: null }),
-    "a name with text after the cause": cannotStartJobs("evals-disabled x"),
+    "an evals-disabled job, a cause no run records any more": cannotStartJobs("evals-disabled"),
+    "a job that failed": cannotStartJobs("compare-refused", { conclusion: "failure" }),
+    "a job that skipped": cannotStartJobs("compare-refused", { conclusion: "skipped" }),
+    "a job still going": cannotStartJobs("compare-refused", { status: "in_progress", conclusion: null }),
+    "a name with text after the cause": cannotStartJobs("compare-refused x"),
     "two such jobs": withJob(cannotStartJobs(), cannotStartJob("compare-refused")),
     "a run whose record job succeeded too": recordedToo(cannotStartJobs()),
     "no such job, as in the captured run": CAPTURED_JOBS,
@@ -616,6 +617,7 @@ test("a missing record alone, or a cannot-start record for another head or with 
   assert.equal(run({ comments: [holdComment()], cannotStart: cannotStart(OLD) }).reason, "no-record");
   assert.equal(run({ comments: [holdComment(), recordComment(OLD)], cannotStart: cannotStart(OLD) }).reason, "record-head-mismatch");
   assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "credit-stop" } }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "evals-disabled" } }).reason, "no-record");
 });
 
 test("a cannot-start record lifts only an eval hold: another reason, a body hold or a veto still keeps it", () => {
@@ -690,6 +692,7 @@ test("main keeps the hold when the newest compare run at the head started, or th
     "another repository's run": { listed: [listedRun({ head_repository: { full_name: "someone/fork" } })] },
     "a run that recorded no cause": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: RAN } },
     "a cause off the list": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("credit-stop") } },
+    "an evals-disabled job": { listed: [listedRun()], jobs: { [CANNOT_RUN_ID]: cannotStartJobs("evals-disabled") } },
     "a commit off the default branch": { listed: [listedRun()], compareStatus: "diverged" },
     "a tip that does not read": { listed: [listedRun()], tip: null },
     "a run list that does not read": { listed: null },

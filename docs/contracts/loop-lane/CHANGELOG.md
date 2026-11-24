@@ -12,9 +12,8 @@ capability-tier or §4 invariant changed.
 
 - **Eval hold, compare run cannot start.** With no record at the head, pr-merge's release step also
   lifts an eval hold when the newest compare run naming the PR and its head reads back as trusted
-  and ran its `Compare Cannot Start: <cause>` job (`evals-disabled` or `compare-refused`) to
-  success. The PR merges first and owes the default-branch run in `docs/review/evals.md`. A
-  missing record alone still releases nothing.
+  and ran its `Compare Cannot Start: compare-refused` job to success. The PR merges first and owes
+  the default-branch run in `docs/review/evals.md`. A missing record alone still releases nothing.
 
 ## [20.3.0] - 2026-11-22
 
