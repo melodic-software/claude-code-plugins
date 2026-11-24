@@ -1,8 +1,3 @@
-// maintenance-delete-stale-branches.yml's hardening (README.md, "Branch
-// cleanup"): the kill switch stops each job before it reads, the select-stale-branches job's
-// token writes nothing, only the delete job's token writes contents and it
-// reads no issue text, a manual run is a dry-run by default and starts no
-// delete job, and the ledger is uploaded even after a failed step.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";

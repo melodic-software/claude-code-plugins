@@ -9,9 +9,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { buildTree, cdnPinsFrom, checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, MAX_TREE_ENTRIES_PER_REQUEST, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
+import { cdnRequest } from "../pr-unblock/cdn-pins-sync.mjs";
+import { cdnSyncMessageRefusal } from "../pr-unblock/dependency-classify.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { binary, lockOf, npmTarball, tarballUrl } from "../../../lib/cdn-pins/fixtures/npm-tarball.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
@@ -3981,6 +3984,92 @@ test("cdn-pins-sync checks the patched blobs and unchanged targets with the base
       assert.deepEqual(api.calls, [], why);
     }
   }
+});
+
+test("pr-unblock.yml's CDN route end to end: the real sync script, the patch CLI and the cdn-pins-sync row push a commit both merge gates admit", async (t) => {
+  const sri = (body) => `sha256-${createHash("sha256").update(body).digest("base64")}`;
+  const cdn = "https://cdn.jsdelivr.net/npm/";
+  const bodies = { [`${cdn}x@1.0.0/view.js`]: "x one", [`${cdn}x@2.0.0/view.js`]: "x two", [`${cdn}y@1.0.0/view.js`]: "y one" };
+  const [xTarball, yTarball] = [npmTarball("view.js", "x two"), npmTarball("view.js", "y one")];
+  bodies[tarballUrl("x", "2.0.0")] = binary(xTarball);
+  const lockText = `${JSON.stringify(lockOf({ x: ["2.0.0", xTarball], y: ["1.0.0", yTarball] }))}\n`;
+  const record = (version) => ({
+    cdn,
+    packages: { x: { version, file: "view.js", integrity: sri(bodies[`${cdn}x@${version}/view.js`]) }, y: { version: "1.0.0", file: "view.js", integrity: sri("y one") } },
+    targets: [
+      { path: CDN_TEST_TARGET, packages: ["x"], integrity: true },
+      { path: CDN_TEST_UNCHANGED, packages: ["y"], integrity: true },
+    ],
+  });
+  const viewOf = (name, version) => cdnTestView(version, record(version).packages[name].integrity, name);
+  const script = join(REPO_ROOT, "lib/cdn-pins/sync.mjs");
+  const baseDir = tempDir("cdn-pins-base-");
+  mkdirSync(join(baseDir, "lib/cdn-pins"), { recursive: true });
+  cpSync(script, join(baseDir, "lib/cdn-pins/sync.mjs"));
+  writeRecord(baseDir, record("1.0.0"));
+  const fix = repoWithPatch(t, () => {}, {
+    head: (repo) => {
+      for (const path of [CDN_TEST_PINS, CDN_TEST_TARGET, CDN_TEST_UNCHANGED]) mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, "lib/cdn-pins/package.json"), `${JSON.stringify({ dependencies: { x: "2.0.0", y: "1.0.0" } })}\n`);
+      writeFileSync(join(repo, "lib/cdn-pins/package-lock.json"), lockText);
+      writeRecord(repo, record("1.0.0"));
+      writeFileSync(join(repo, CDN_TEST_TARGET), viewOf("x", "1.0.0"));
+      writeFileSync(join(repo, CDN_TEST_UNCHANGED), viewOf("y", "1.0.0"));
+    },
+  });
+  const readText = async (path) => git(fix.repo, ["show", `${fix.head}:${path}`]) + "\n";
+  const request = await cdnRequest({ files: [{ filename: "lib/cdn-pins/package.json" }], changedFiles: 1, baseDir, readText });
+  assert.deepEqual(Object.keys(request.files), [CDN_TEST_PINS, CDN_TEST_TARGET, CDN_TEST_UNCHANGED]);
+  assert.equal(request.lock, lockText);
+
+  const work = scratch(t);
+  const result = join(scratch(t), "cdn-pins-result");
+  const inputs = { ...request.files, "lib/cdn-pins/package.json": request.manifest, "lib/cdn-pins/package-lock.json": request.lock, "lib/cdn-pins/sync.mjs": request.script };
+  for (const [path, text] of Object.entries(inputs)) {
+    mkdirSync(dirname(join(work, path)), { recursive: true });
+    writeFileSync(join(work, path), text);
+  }
+  const fetchEnv = { ...process.env, CDN_PINS_FAKE_FETCH: JSON.stringify(bodies) };
+  const fakeFetch = join(REPO_ROOT, "lib/cdn-pins/fixtures/fake-fetch.mjs");
+  execFileSync(process.execPath, ["--import", fakeFetch, join(work, "lib/cdn-pins/sync.mjs"), "sync", work], { env: fetchEnv, encoding: "utf8" });
+  for (const [path, before] of Object.entries(request.files)) {
+    const synced = readFileSync(join(work, path), "utf8");
+    if (synced === before) continue;
+    mkdirSync(dirname(join(result, path)), { recursive: true });
+    writeFileSync(join(result, path), synced);
+  }
+  assert.equal(readFileSync(join(result, CDN_TEST_TARGET), "utf8"), viewOf("x", "2.0.0"));
+
+  const io = scratch(t);
+  writeFileSync(join(io, "request.json"), JSON.stringify(request));
+  const patchFile = join(io, "patch.diff");
+  execFileSync(process.execPath, [join(REPO_ROOT, ".github/scripts/pr-unblock/cdn-pins-sync.mjs"), "patch", join(io, "request.json"), result, patchFile]);
+  const text = readFileSync(patchFile, "utf8");
+  assert.doesNotMatch(text, /unchanged\.md/);
+
+  const workflow = readFileSync(join(REPO_ROOT, ".github/workflows/pr-unblock.yml"), "utf8");
+  const syncJob = workflow.split("\n  review-cdn-pins-sync:\n")[1].split(/\n {2}\S/)[0];
+  for (const [path, key] of [["package.json", "manifest"], ["package-lock.json", "lock"], ["sync.mjs", "script"]]) {
+    assert.match(syncJob, new RegExp(`^ {12}"lib/cdn-pins/${path.replace(".", "\\.")}": request\\.${key},$`, "m"));
+  }
+  const job = workflow.split("\n  apply-cdn-pins-sync:\n")[1].split(/\n {2}\S/)[0];
+  const [lane, activity] = [/^ {6}lane: (\S+)$/m, /^ {6}patch-activity: (\S+)$/m].map((pattern) => job.match(pattern)[1]);
+  assert.match(job, /^ {6}patch-prepare: cdn-pins-sync$/m);
+  const headRef = "dependabot/npm_and_yarn/lib/cdn-pins/x-2.0.0";
+  const api = fakeApi(fix.repo, fix.head);
+  const pushed = await pushWith({ ...fix, patchFile, sum: sha256(text) }, api, {
+    row: row("cdn-pins-sync"),
+    context: { baseDir, cdnPins: cdnPinsFrom(baseDir) },
+    headRef,
+    lane,
+    activity,
+  });
+  assert.equal(pushed.outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(cdnSyncMessageRefusal(createCommit.message, headRef), null, createCommit.message);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:${CDN_TEST_TARGET}`]) + "\n", viewOf("x", "2.0.0"));
+  assert.equal(JSON.parse(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:${CDN_TEST_PINS}`])).packages.x.version, "2.0.0");
+  assert.deepEqual(treePaths(fix, api), [`M\t${CDN_TEST_PINS}`, `M\t${CDN_TEST_TARGET}`]);
 });
 
 const SUITE = "tests/a.test.sh";

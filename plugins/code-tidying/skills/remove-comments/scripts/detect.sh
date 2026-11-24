@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Comment-residue findings for /code-tidying:remove-comments audit. Read-only.
-#
-# Output: File, Finding tier/shape/line/excerpt; Summary lines.
 # Exit: always 0 on audit paths — a read-only audit must never fail the caller,
 # so -e is omitted; 2 on unknown arguments.
 set -u
@@ -10,12 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/comment-shapes.sh
 source "$SCRIPT_DIR/lib/comment-shapes.sh"
 
-# Where the caller invoked us. Explicit targets and --paths-file are relative to THIS, not to
-# the repo root we cd into below, so they must be anchored here before the cd.
 INVOCATION_CWD="$PWD"
 
-# Anchor a caller-supplied path to the invocation cwd unless it is already absolute (POSIX or
-# Windows drive-letter form), so relative targets survive the cd to the repo root.
 cr_anchor_path() {
   case "$1" in
   /* | ?:[\\/]*) printf '%s' "$1" ;;
@@ -108,8 +101,6 @@ if [[ -n "$repo_root" ]]; then
   cd "$repo_root" 2>/dev/null || true
 fi
 
-# --added-since: the added lines, keyed "<repo-relative path><TAB><line>", and the files
-# that gained any. added-lines.sh prints `<start><TAB><count><TAB><path>`, path last.
 declare -A ADDED_LINES=() ADDED_FILES=()
 if [[ -n "$ADDED_SINCE" ]]; then
   if [[ -z "$repo_root" ]]; then
@@ -119,7 +110,6 @@ if [[ -n "$ADDED_SINCE" ]]; then
   added_rows="$("$SCRIPT_DIR/added-lines.sh" "$ADDED_SINCE")" || exit 2
   while IFS=$'\t' read -r a_start a_count a_path; do
     [[ -z "$a_path" ]] && continue
-    # Digits only before arithmetic: (( )) evaluates array subscripts, which run commands.
     if [[ ! "$a_start" =~ ^[0-9]+$ || ! "$a_count" =~ ^[0-9]+$ ]]; then
       echo "detect.sh: added-lines.sh printed a row that is not digits, tab, digits, tab, path" >&2
       exit 2
@@ -134,10 +124,6 @@ if [[ -n "$ADDED_SINCE" ]]; then
   fi
 fi
 
-# A target's path relative to the repository root, so an anchored absolute path matches
-# added-lines.sh's repository-relative one. git computes the prefix from the directory itself,
-# which resolves symlinked directories and needs no string match against $repo_root: on Git
-# for Windows that is C:/... while the shell's own paths are /c/....
 cr_repo_rel() {
   local file="$1" prefix
   case "$file" in
@@ -160,12 +146,8 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" && -z "$ADDED_SINCE" ]]; then
-    # Read the -z form, which git documents as unquoted and unescaped; the default output
-    # C-escapes unusual paths beyond reliable splitting. Paths are already repo-relative.
     while IFS= read -r -d '' record; do
       [[ -z "$record" ]] && continue
-      # A rename/copy emits the NEW path here and the ORIGINAL as the next record, so consume
-      # and drop that second record rather than audit a path that no longer exists.
       case "${record:0:2}" in
       [RC]? | ?[RC]) IFS= read -r -d '' _ || true ;;
       *) ;;
@@ -203,8 +185,6 @@ cr_excluded_note() {
   return 0
 }
 
-# Keep a code file unless an --exclude-from glob matches it (markdown is /audit-noise's job,
-# so a .md target is silently skipped).
 cr_keep_target() {
   cr_is_code_file "$1" || return 0
   if cr_is_excluded "$1"; then excluded=$((excluded + 1)); else EXPANDED+=("$1"); fi
@@ -272,13 +252,9 @@ audit_file() {
   local prev_line="" line_num=0 shapes shape excerpt
   local prev_ct="" prev_shapes="" ct joined joined_shapes
 
-  # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
-  # even when the cue sits on another line of the same NOTICE block.
   local -A license_block=() justified_run=()
   local n
   while IFS= read -r n; do [[ -n "$n" ]] && license_block["$n"]=1; done < <(cr_license_block_lines "$file")
-  # Likewise a workaround comment run is justified whole by a link or removal condition on
-  # any of its lines.
   while IFS= read -r n; do [[ -n "$n" ]] && justified_run["$n"]=1; done < <(cr_justified_run_lines "$file")
 
   local rel=""
@@ -287,10 +263,6 @@ audit_file() {
   # shellcheck disable=SC2094 # emit_finding only prints the file name; it never writes the file
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
-    # Under --added-since a line is analyzed only when a finding it feeds can be in scope: its
-    # own, the pair it ends, or the pair the next line ends. So cost tracks the added lines.
-    # A comment-residue-ignore marker skips its own line and the next. prev_shapes is read only
-    # while prev_ct is set, so clearing prev_ct is enough.
     if ! in_scope $((line_num - 1)) "$line_num" $((line_num + 1)) || cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       prev_ct=""
@@ -299,9 +271,6 @@ audit_file() {
     cr_detect_shapes "$line" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}"
     shapes="$REPLY"
 
-    # A comment line that continues a comment on the line before it is also read joined to
-    # that line, so a phrase wrapped across the break is found. Only a shape neither line
-    # yields alone is new, and it is reported once, at the first line's number.
     ct=""
     if cr_is_comment_line "$line"; then
       cr_comment_text "$line"

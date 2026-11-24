@@ -29,7 +29,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
@@ -322,7 +322,7 @@ const basePath = (env) => env.BASE_PATH || ".base";
 // is written.
 async function fromBase(reader, env) {
   const resolveConfig = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return resolveConfig[reader]({ BASE_PATH: basePath(env) });
+  return resolveConfig[reader]({ BASE_PATH: basePath(env), STANDARDS_DIR: env.STANDARDS_DIR });
 }
 
 // merge.refire-skip-branches: OWNED_BRANCHES (a JSON list) when set, else the
@@ -352,7 +352,7 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await fromBase("loopFromBase", env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   const ownedBranches = await ownedBranchesOf(env);
   // The base checkout's list, the one address-feedback reads.
-  const trustedActors = env.TRUSTED_ACTORS || trustedActorsPath(basePath(env));
+  const trustedActors = trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(basePath(env)));
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const trustedHumans = trustedHumansFrom(trustedActors);

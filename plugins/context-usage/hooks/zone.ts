@@ -1,7 +1,3 @@
-// The zone resolver of scripts/context-zone.sh, in TypeScript: the same gates, bands, combination
-// rule and malformed-file notices over the same snapshot and zones.json text. The shared fixture
-// (scripts/context-zone.fixtures.mjs) holds the two equal; the reader contract is the authority.
-
 export type Word = 'light' | 'moderate' | 'heavy' | 'unknown'
 export type Zone = Exclude<Word, 'unknown'>
 export type Bands = { light: number; moderate: number; tokens: [number, number, number][] }
@@ -22,7 +18,6 @@ const ZONES: Zone[] = ['light', 'moderate', 'heavy']
 type Json = Record<string, unknown>
 const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v)
 const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
-// jq's `x // null`: false and null both fall through.
 const orNull = (v: unknown) => (v === undefined || v === null || v === false ? null : v)
 
 const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
@@ -33,18 +28,13 @@ const parse = (text: string): { ok: true; value: unknown } | { ok: false } => {
   }
 }
 
-// Keys an object with no edge keys may hold and still keep the default bands silently; the mod
-// reads all but token_bands.
 const KNOWN_KEYS = ['token_bands', 'actions', 'approach_margin', 'thresholds']
 
-// An old key name, read for one release as its new name; the new name wins when both are set,
-// and the old key is dropped either way.
 export const alias = (o: Json, next: string, old: string): Json => {
   const { [old]: was, ...rest } = o
   return orNull(rest[next]) === null && orNull(was) !== null ? { ...rest, [next]: was } : rest
 }
 
-// zones.json with the old band key names (smart_max_*, acceptable_max_*) read as the new ones.
 const normalize = (z: unknown): unknown => {
   if (!isObject(z)) return z
   const o = alias(alias(z, 'light_max_used_percentage', 'smart_max_used_percentage'), 'moderate_max_used_percentage', 'acceptable_max_used_percentage')
@@ -54,7 +44,6 @@ const normalize = (z: unknown): unknown => {
   return { ...o, token_bands: Object.fromEntries(rows) }
 }
 
-// zones.json: each shape validated on its own, a malformed one falls back with its notice.
 export const readBands = (zones: string | null): { bands: Bands; notices: string[] } => {
   if (zones === null) return { bands: DEFAULT_BANDS, notices: [] }
   const parsed = parse(zones)
@@ -108,8 +97,6 @@ const versionAtLeast = (candidate: string, min: string) => {
 const band = (value: number, light: number, moderate: number): Zone => (value <= light ? 'light' : value <= moderate ? 'moderate' : 'heavy')
 export const worse = (a: Zone, b: Zone): Zone => (RANK[a] >= RANK[b] ? a : b)
 
-// A strict YYYY-MM-DDTHH:MM:SSZ that names a real instant, refusing values a lenient parser
-// would normalize (February 30, second 60, hour 24).
 const epochOf = (capturedAt: string): number | undefined => {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/.exec(capturedAt)
   if (!m) return undefined
@@ -124,8 +111,6 @@ const epochOf = (capturedAt: string): number | undefined => {
 
 export type TokenShape = { used: number; size: number; light: number; moderate: number }
 
-// The token shape of one snapshot body: occupancy, window size and the band row's edges;
-// undefined when it is not computable.
 export const tokenShape = (w: Json, cliVersion: unknown, bands: Bands): TokenShape | undefined => {
   const input = orNull(w.total_input_tokens)
   const output = orNull(w.total_output_tokens)
@@ -139,7 +124,6 @@ export const tokenShape = (w: Json, cliVersion: unknown, bands: Bands): TokenSha
   return used <= size && row !== undefined ? { used, size, light: row[1], moderate: row[2] } : undefined
 }
 
-// The zone of one snapshot body, both shapes, worse wins; undefined when neither is computable.
 export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone | undefined => {
   const p = orNull(w.used_percentage)
   const pz = isNumber(p) && p >= 0 && p <= 100 ? band(p, bands.light, bands.moderate) : undefined
@@ -148,14 +132,9 @@ export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone |
   return pz && tz ? worse(pz, tz) : (pz ?? tz)
 }
 
-// A percentage of the auto-compact window as a percentage of the model's window, which
-// used_percentage counts against. Unchanged unless the compaction window is the smaller one.
 export const ofWindow = (percent: number, window: number, compactWindow: number | undefined) =>
   compactWindow !== undefined && window > 0 && compactWindow > 0 && compactWindow < window ? (percent * compactWindow) / window : percent
 
-// Percentage edges that follow a lowered auto-compact window. The mod passes the window it read
-// as `follow`; without one, resolveZone takes the snapshot's bands.auto_compact_window, as the
-// shell resolver does.
 export const followWindow = (bands: Bands, window: number, compactWindow: number | undefined): Bands => ({
   ...bands,
   light: ofWindow(bands.light, window, compactWindow),

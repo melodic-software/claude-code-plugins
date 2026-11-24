@@ -321,7 +321,10 @@ write a `values:` value to any file.
 
 - Evidence in hand, needs a judgment: /verification:confirm.
 - A trace, cpu or heap artifact to read: /debugging:analyze-profile.
-- The run's `lessons` lines: /app-control:map refresh "<lesson>".
+
+## Related
+
+- Run surfaced driving lessons for control skill: /app-control:map refresh "<lesson>".
 
 ## Gotchas
 

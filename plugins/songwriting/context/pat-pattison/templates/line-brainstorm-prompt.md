@@ -177,8 +177,8 @@ Identity-disguise flags caught (rejected):
 - <rejected candidate>: pre-vowel consonant identical
 
 Hand-off:
-- `/songwriting:diagnose variations <line>`: for 5-7 polished alternates
-- `/songwriting:diagnose audit <line>`: for pre-lock check on a chosen candidate
+- `/songwriting:revise variations <line>`: for 5-7 polished alternates
+- `/songwriting:revise audit <line>`: for pre-lock check on a chosen candidate
 - `/songwriting:rhyme`: for more rhyme tiers if Column 1 felt thin
 - `/songwriting:rhyme mosaic <word>`: for deeper mosaic search if Column 1 mosaic was rich
 ```

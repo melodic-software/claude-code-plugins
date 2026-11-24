@@ -23,12 +23,19 @@ import {
   isSecurityUpdate,
   parseConfig,
   pinSwapRefusal,
+  policyPath,
   provenanceReasons,
   pushRefusal,
   reviewOnly,
   usesOnly,
   withProvenance,
 } from "./dependency-classify.mjs";
+
+test("policyPath takes the standards checkout STANDARDS_DIR names, else the fallback", () => {
+  assert.equal(policyPath({ STANDARDS_DIR: "/s" }, "/fallback"), "/s/components/dependabot-policy/policy.json");
+  assert.equal(policyPath({}, "/fallback"), "/fallback");
+  assert.equal(policyPath({ STANDARDS_DIR: "" }, "/fallback"), "/fallback");
+});
 
 const NPM = "dependabot/npm_and_yarn/x-1.3.0";
 const ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0";

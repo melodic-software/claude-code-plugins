@@ -14,7 +14,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 fails=0
-check() { # check <label> <expected> <actual>
+check() {
   if [[ "$3" == "$2" ]]; then
     printf 'ok   - %s\n' "$1"
   else
@@ -23,7 +23,7 @@ check() { # check <label> <expected> <actual>
   fi
 }
 
-repo_with() { # repo_with <team content or -> <personal content or ->
+repo_with() {
   local d
   d="$(mktemp -d "$TMP/repo.XXXXXX")"
   git -C "$d" init -q
@@ -172,7 +172,7 @@ check 'a userConfig keep-list check outside a git working tree is invalid' \
 bash "$SUT" --keep-list >/dev/null 2>&1
 check '--keep-list without a value is a usage error' '2' "$?"
 
-bound_repo() { # bound_repo <pointer line>: a repository whose root file binds a convention home
+bound_repo() {
   local d
   d="$(mktemp -d "$TMP/bound.XXXXXX")"
   git -C "$d" init -q

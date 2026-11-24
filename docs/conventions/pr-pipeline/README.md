@@ -3422,7 +3422,10 @@ them on every `pull_request` run, contract-only runs included:
   each to a tagged commit, on trust-gate paths`, which review-dependency reviews instead of
   skipping, and the pr-unblock dispatcher re-runs ci-status after the verdict. A marker by any
   other account, for another head, a newer non-merge marker, or unreadable comments keep the
-  hold. The same holds a same-repository PR that changes a trust-gate
+  hold. A Dependabot PR whose one trust-gate path is `lib/cdn-pins/pins.json`, modified in place
+  as the lanes App's CDN pins sync commit leaves it, clears on that same marker (owner decision
+  Q154 A); until then ci-status fails with `#<n> by Dependabot changes only the CDN pins record on
+  trust-gate paths`, which review-dependency reviews too. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the

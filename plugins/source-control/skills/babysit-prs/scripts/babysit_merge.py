@@ -3709,6 +3709,7 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
+            baseline_file=config.baseline_file,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -4915,6 +4916,7 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
+                    baseline_file=config.baseline_file,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None

@@ -1,7 +1,8 @@
 export const CDN_RECORD = "lib/cdn-pins/pins.json";
 export const CDN_MANIFEST = "lib/cdn-pins/package.json";
 export const CDN_SCRIPT = "lib/cdn-pins/sync.mjs";
-export const CDN_BUMP_PATHS = new Set([CDN_MANIFEST, "lib/cdn-pins/package-lock.json"]);
+export const CDN_LOCK = "lib/cdn-pins/package-lock.json";
+export const CDN_BUMP_PATHS = new Set([CDN_MANIFEST, CDN_LOCK]);
 
 export function cdnPaths(record) {
   const targets = record.targets.map(({ path }) => path);

@@ -1,5 +1,3 @@
-// github-rest.mjs: a GitHub REST client within a call budget, and a
-// paginator, over a stubbed fetch.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -7,7 +5,6 @@ import { BudgetSpent, budgetedClient, pages } from "./github-rest.mjs";
 
 const ENV = { GITHUB_API_URL: "https://api.test", GITHUB_TOKEN: "t0ken" };
 
-// A fetch stub answering each request with `answer(url, init)`, recording them.
 function stubFetch(t, answer) {
   const requests = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
@@ -108,7 +105,6 @@ test("fetch is read at call time, so a stub set after the client is built answer
   assert.deepEqual(await call("GET", "/a"), { late: true });
 });
 
-// A call answering `total` numbered items 100 a page, recording each path.
 function lister(total, key) {
   const paths = [];
   const call = async (_method, path) => {

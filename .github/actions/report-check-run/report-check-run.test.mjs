@@ -114,8 +114,6 @@ test("a valid verdict POSTs one completed check run with the contract body", asy
   );
 });
 
-// A record shaped as docs/lane-outcome.md's rate-limit example, for the lane
-// this harness posts (pr-refine / simplify).
 const OUTCOME = {
   v: 1,
   lane: "pr-refine",
@@ -481,8 +479,6 @@ test("an API error exits non-zero", async () => {
   assert.equal(calls.length, 1);
 });
 
-// A bad token's 403, with every header the annotation reads. retry-after
-// latches the rate guard, so the test hands main a latch of its own.
 const REFUSED_BODY = JSON.stringify({ message: "Bad credentials", documentation_url: "https://docs.github.com/rest", pad: "x".repeat(300) });
 const REFUSED_HEADERS = {
   "x-ratelimit-remaining": "4321",

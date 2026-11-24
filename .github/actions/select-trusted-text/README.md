@@ -13,6 +13,7 @@ the App token is minted.
 | `pr-number` | required | The PR, normally `check-trusted-trigger`'s `pr-number` output |
 | `repository` | `${{ github.repository }}` | owner/name of the PR's repository |
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
+| `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran; when set, the list is read from its `components/trusted-actors/trusted-actors.json` and `trusted-actors-path` is ignored |
 | `output-path` | required | Where the `TrustedContext` JSON file is written |
 | `github-token` | required | The lane's App token, or the job's `GITHUB_TOKEN` for a `read` activity |
 

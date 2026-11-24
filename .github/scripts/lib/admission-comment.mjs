@@ -1,9 +1,3 @@
-// Intake admission's one comment per issue: the marker it opens with, the text
-// of a refusal, and the write. Intake's admission (intake-triage/admit.mjs)
-// and the issue lane's park route (work-resolve-issue/report-outcome.mjs,
-// which runs from a copy of its own directory beside this lib) share it, so
-// intake-reenter finds the comment whichever wrote it.
-
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 
 // The admission comment's text for a refusal, after ADMIT_MARKER: each reason

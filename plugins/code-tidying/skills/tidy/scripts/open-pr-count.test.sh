@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained contract tests for open-pr-count.sh (network-free: gh is
-# stubbed via a PATH shim so no real GitHub calls happen).
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -32,9 +30,6 @@ assert_contains() {
   esac
 }
 
-# PATH shim: a fake `gh` whose behavior is driven by GH_STUB_MODE. It prints
-# "<open PRs listed> <tidy PRs among them>", as the script's --jq filter does,
-# and fails a search read: the script must list, not search.
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -78,7 +73,6 @@ rc=$?
 assert_exit "gh failure exits 1" 1 "$rc"
 assert_contains "gh failure reports unknown" "$out" "Open tidy PR count: unknown"
 
-# A repository whose home is <dir>; a consumer's own root, never the plugin's.
 new_repo() {
   local repo="$TEST_TMPDIR/$1"
   mkdir -p "$repo/$2"

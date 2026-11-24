@@ -218,7 +218,7 @@ async function changeRefusal(api, files, pairs, before, after) {
   }
 }
 
-async function commitFixRefusal(api, item, pairs, appId, cdn) {
+async function commitFixRefusal(api, item, pairs, appId, cdn, headRef) {
   const sha = String(item?.sha ?? "");
   if (isDependabotSigned(item)) return null;
   let detail;
@@ -237,7 +237,7 @@ async function commitFixRefusal(api, item, pairs, appId, cdn) {
   if (!fix) return null;
   let sync;
   try {
-    sync = await cdnSyncRefusal(detail, appId, cdn, (side, path) => entryAt(api, side === "before" ? parent : sha, path));
+    sync = await cdnSyncRefusal(detail, appId, cdn, (side, path) => entryAt(api, side === "before" ? parent : sha, path), headRef);
   } catch (error) {
     sync = `cdn-sync-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
   }
@@ -448,7 +448,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     let cdnRead;
     const cdn = () => (cdnRead ??= baseCdnPaths(api, baseSha));
     for (const item of refusal ? [] : commits) {
-      refusal = await commitFixRefusal(api, item, pairs, appId, cdn);
+      refusal = await commitFixRefusal(api, item, pairs, appId, cdn, pull.head?.ref);
       if (refusal) break;
     }
     // A commit's author is text whoever creates it chooses; who pushed it is not.
