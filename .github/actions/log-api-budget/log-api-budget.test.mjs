@@ -24,7 +24,6 @@ const RUNNER = {
 };
 const WHERE = "workflow=.github/workflows/pr-require-checks.yml job=ci-status run=39931677333 attempt=2";
 const NOTICE = "::notice title=api-budget::";
-// api_budget_read takes a file, as the gh wrapper gives it one.
 const READ = 'f=$(mktemp -p "$RUNNER_TEMP"); cat >"$f"; api_budget_read';
 
 // A `gh api -i` header block, CRLF header lines as gh prints them.
@@ -42,7 +41,6 @@ function withDir(fn) {
   }
 }
 
-// Runs `script` in bash with the library sourced; returns stdout and status.
 function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {}) {
   const result = spawnSync("bash", ["-c", `. "${LIB}"\n${script}`], {
     input,
@@ -54,20 +52,16 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
 
 const state = (dir, token) => readFileSync(join(dir, "api-budget", token), "utf8");
 
-// One response per api_budget_read, as each gh api call makes.
 const readEach = (dir, token, ...blocks) => blocks.forEach((input) => bash(dir, `${READ} ${token} "$f" >/dev/null`, { input }));
 
 test("api_budget_read reads only the leading header block and passes the body through unchanged", () =>
   withDir((dir) => {
-    // A body line shaped like a status line is body, never a second block.
     const body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter\n";
     const out = bash(dir, `${READ} github-token "$f"`, { input: head({ used: 120 }) + body });
     assert.equal(out.stdout, body);
     assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core other\n");
-    // Output with no header block is passed on and read as nothing.
     assert.equal(bash(dir, `${READ} lanes-app "$f"`, { input: "[1]\n" }).stdout, "[1]\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
-    // A body with no final newline keeps none.
     assert.equal(bash(dir, `${READ} x "$f"`, { input: `${head({ used: 1 })}{"a":1}` }).stdout, '{"a":1}');
   }));
 
@@ -97,7 +91,6 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     assert.match(out.stderr, /^gh: rate limit \(HTTP 403\)\n::error::'gh api route --jq \.' hit GitHub's core API rate limit/);
     assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core {x}\n");
     rmSync(join(dir, "api-budget", "stop"), { force: true });
-    // A call that is not `gh api`, or already asks for headers, is passed on as it is.
     for (const args of ["pr view 1", "api route --paginate --jq .", "api --silent route"]) {
       const plain = bash(dir, `api_budget_wrap_gh github-token\ngh ${args}`, { path: `${dir}:${process.env.PATH}` });
       assert.equal(plain.stderr, `args: ${args}\n`);
@@ -206,10 +199,6 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-// [URL or gh api path, route, the names in the input no route may carry]:
-// rate-guard.vectors.json's routes, which babysit_gh.py's api_route reads
-// too, and the token-shaped ones, built here so no secret scanner reads a
-// committed file's segment as one.
 const PAT = ["ghp", "abcdefghijklmnopqrstuvwxyz0123456789"].join("_");
 const ROUTES = [
   ...JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8")).routes.map(({ url, route, absent }) => [url, route, absent]),
@@ -225,8 +214,6 @@ test("routeOf and the shell's api_route template each request path alike, leakin
     const fromNode = ROUTES.map(([url]) => routeOf(url));
     assert.deepEqual(fromShell, ROUTES.map(([, route]) => route), shell.stderr);
     assert.deepEqual(fromNode, ROUTES.map(([, route]) => route));
-    // Every name the input carried is absent from what each templater wrote,
-    // and every segment written is a REST path word or a placeholder.
     ROUTES.forEach(([url, , names], i) => {
       for (const out of [fromShell[i], fromNode[i]]) {
         for (const name of names) assert.ok(!out.includes(name), `${url} -> ${out} carries ${name}`);
@@ -263,8 +250,6 @@ test("gh guard: a refusal on a stop rate-guard.mjs guessed names it a fallback",
 
 test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () =>
   withDir((dir) => {
-    // Every key api_words loads, whatever line adds it, against the JS words
-    // and placeholders.
     const keys = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) print k }'`);
     assert.deepEqual(keys.stdout.split("\n").filter(Boolean).sort(), [...REST_PATH_WORDS, ...PLACEHOLDERS].sort(), keys.stderr);
     const placeholders = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) if (k ~ /^[{]/) print k }'`);
@@ -275,7 +260,6 @@ test("both writers append the route last, and every reader keeps its fields", ()
   withDir((dir) => {
     const headers = new Headers({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792748042", "x-ratelimit-resource": "core" });
     assert.equal(readingLine(200, headers, "repos/{repo}/pulls/{n}"), "200 5000 4990 10 1792748042 core repos/{repo}/pulls/{n}\n");
-    // A route not in the templater's shape is never written.
     assert.equal(readingLine(200, headers, "repos/o/r?token=x"), "200 5000 4990 10 1792748042 core other\n");
     recordReading({ token: "github-token", dir, status: 200, headers, route: routeOf("https://api.github.com/repos/o/r/pulls/9") });
     bash(dir, `${READ} github-token "$f" 'repos/{repo}/issues/{n}/comments' >/dev/null`, { input: head({ used: 11 }) });
@@ -286,11 +270,9 @@ test("both writers append the route last, and every reader keeps its fields", ()
         "200 5000 4989 11 1792748042 core repos/{repo}/issues/{n}/comments\n" +
         "200 5000 4988 12 1792748042 core other\n",
     );
-    // api_budget_emit still reads seven-field lines.
     assert.match(bash(dir, "api_budget_emit github-token").stdout, /used=12 reset=1792748042 resource=core cost=2\n$/);
   }));
 
-// [count, route] lines in a token's file, in the order given.
 const routeLines = (dir, rows) => {
   mkdirSync(join(dir, "api-budget"), { recursive: true });
   writeFileSync(join(dir, "api-budget", "github-token"), rows.flatMap(([n, line]) => Array(n).fill(`${line}\n`)).join(""));
@@ -311,12 +293,10 @@ test("api_budget_emit_routes counts N by route, most first, 304s left out, a lin
       bash(dir, "api_budget_emit_routes github-token").stdout,
       "::notice title=api-routes::github-token other=3 repos/{repo}/issues/{n}/comments=3 graphql=2 repos/{repo}/pulls/{n}=2 rest=0\n",
     );
-    // The routes sum to api-calls' N.
     assert.equal(bash(dir, "api_budget_emit_calls github-token").stdout, "::notice title=api-calls::github-token=10 not-modified=2 graphql=2 core-by-reset=3:5 core-unread=3\n");
     assert.equal(bash(dir, "api_budget_emit_routes lanes-app").stdout, "::notice title=api-routes::lanes-app rest=0\n");
   }));
 
-// The sum of the core-by-reset counts and core-unread, from an api-calls line.
 const splitSum = (line) => {
   const by = / core-by-reset=(\S+)/.exec(line)?.[1] ?? "";
   const unread = Number(/ core-unread=(\d+)/.exec(line)?.[1]);
@@ -343,8 +323,6 @@ test("api_budget_emit_calls splits the REST requests by core reset, ascending, a
     assert.equal(bash(dir, "api_budget_emit_calls lanes-app").stdout, "::notice title=api-calls::lanes-app=1 not-modified=0 graphql=1 core-unread=0\n", "no core reset, no core-by-reset");
   }));
 
-// The gh wrapper (api_budget_read) and the Node clients (recordReading) write
-// one file, so both feed the split.
 test("api_budget_emit_calls counts two core counters 3 minutes apart and header-less requests from both writers", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 10 }), head({ used: 11 }), head({ used: 1, reset: 1792748222 }), "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n{}");
@@ -364,7 +342,6 @@ test("api_budget_emit_routes names at most 15 routes in at most 1000 bytes and s
     const line = bash(dir, "api_budget_emit_routes github-token").stdout;
     const shown = words.slice(0, 15).map((w, i) => `repos/{repo}/${w}=${30 - i}`);
     assert.equal(line, `::notice title=api-routes::github-token ${shown.join(" ")} rest=${15 + 14 + 13 + 12 + 11}\n`);
-    // Long routes stop at the byte cap before 15, and the rest holds the others.
     const long = (w) => `repos/{repo}/pending_deployments/requested_reviewers/rerun-failed-jobs/${w}`;
     routeLines(dir, words.map((w, i) => [30 - i, `request ${long(w)}`]));
     const capped = bash(dir, "api_budget_emit_routes github-token").stdout;
@@ -378,7 +355,6 @@ test("api_budget_emit_routes names at most 15 routes in at most 1000 bytes and s
 
 test("the action emits each named token, the call count as an api-calls notice the hub reads (0 with no reading), the summary and the calls and costs outputs, and reads no /rate_limit", () =>
   withDir((dir) => {
-    // Two calls GitHub counted, then a conditional GET answered 304.
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
     const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
     writeFileSync(join(dir, "summary"), "");
@@ -410,9 +386,7 @@ test("the action emits each named token, the call count as an api-calls notice t
         "api-routes lanes-app rest=0\napi-routes github-token other=2 rest=0\n" +
         `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\ngithub-token-cost=28\n`,
     );
-    // calls: each token's own requests (2 counted plus a 304 is 2), not the counter's rise (28).
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=lanes-app-calls=0 github-token-calls=2\ncosts=github-token-cost=28\n");
-    // With no RUNNER_TEMP there is no api-calls line to read: unknown, never an empty count.
     writeFileSync(join(dir, "output"), "");
     execFileSync("bash", ["-c", run], {
       encoding: "utf8",
@@ -538,8 +512,6 @@ test("outside names the job-token steps no counted client sees in an api-uncount
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
-    // ci-status's notices come from its last step, which runs on failure too,
-    // so every earlier step's reads are in them. The job ends at the next job key.
     const start = CI.indexOf("\n  ci-status:\n");
     const next = CI.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:/);
     const job = CI.slice(start, next < 0 ? undefined : start + 1 + next);
@@ -558,7 +530,6 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
         "::notice title=api-calls::github-token=2 not-modified=1 graphql=0 core-by-reset=1792748042:2 core-unread=0\n" +
         "::notice title=api-routes::github-token other=2 rest=0\n",
     );
-    // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
     assert.equal(
       execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
@@ -566,8 +537,6 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     );
   }));
 
-// The shell port of the rate guard decides every shared vector as
-// rate-guard.mjs does.
 test("api_budget_classify decides every rate-guard vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
@@ -579,8 +548,6 @@ test("api_budget_classify decides every rate-guard vector", () => {
   }
 });
 
-// The shell port's server error predicate decides every shared vector's
-// server_error as rate-guard.mjs serverErrorHold does (unmarked: false).
 test("api_budget's server error predicate decides every rate-guard vector's server_error", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   assert.deepEqual(new Set(vectors.vectors.filter((v) => "server_error" in v).map((v) => v.server_error)), new Set([true, false]));
@@ -590,10 +557,6 @@ test("api_budget's server error predicate decides every rate-guard vector's serv
   }
 });
 
-// A gh that logs each call and answers from STUB_ANSWERS, one line per call:
-// `<status> <remaining> <retry-after or -> <body>` for `api -i`, printed as a
-// header block and body (exit 1 unless 200); `fail <text>` prints text on
-// stderr and exits 1; `ok <text>` prints text.
 function stubGh(dir) {
   writeFileSync(
     join(dir, "gh"),
@@ -640,9 +603,6 @@ test("gh guard: a limited response sends no second call to its pool, and the err
     assert.doesNotMatch(out.stderr, /::notice::/);
   }));
 
-// Outage posture element 2: a caller that holds (API_BUDGET_HOLD=1) gets each
-// rate limit as a notice, never an error; each call still returns 1, so a
-// caller that does not hold, such as ci-status, still fails on it.
 test("gh guard: when the caller holds, a rate limit is a notice, not an error, and each call still returns 1", () =>
   withDir((dir) => {
     const out = guarded(
@@ -730,7 +690,6 @@ test("gh guard: a 5xx without retry-after holds nothing", () =>
     assert.equal(existsSync(join(dir, "api-budget", "stop")), false);
   }));
 
-// The epoch second of the one stop a case wrote, less now.
 const stopFor = (dir) => {
   const [pool, until] = readFileSync(join(dir, "api-budget", "stop"), "utf8").trim().split(" ");
   return [pool, Number(until) - Math.floor(Date.now() / 1000)];
@@ -795,13 +754,11 @@ test("gh guard: a paginated primary limit holds to the reset of the one open win
       assert.ok(left >= seconds - 5 && left <= seconds, `${label}: stopped for ${left}s`);
       assert.ok(out.stderr.includes(seconds === 900 ? "(x-ratelimit-reset of an earlier reading)" : `(${FALLBACK_NOTE})`), label);
       assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), readFileSync(join(dir, "api-budget", "stop"), "utf8"), label);
-      // Only a fallback-sourced stop is named a fallback when a later call is refused.
       const at = new Date(Number(readFileSync(join(dir, "api-budget", "stop"), "utf8").split(" ")[1]) * 1000).toISOString().replace(".000Z", "Z");
       const refusal = `::error::'gh api repos/o/r/pulls/2' was not sent: GitHub's core API rate limit holds until ${at}`;
       assert.ok(out.stderr.includes(seconds === 900 ? `${refusal}\n` : `${refusal} (${FALLBACK_NOTE})\n`), `${label}: ${out.stderr}`);
       assert.equal(existsSync(join(dir, "api-budget", "fallback")), seconds !== 900, label);
     }
-    // A secondary limit keeps its minute whatever the readings show.
     rmSync(join(dir, "api-budget"), { recursive: true, force: true });
     mkdirSync(join(dir, "api-budget"), { recursive: true });
     writeFileSync(join(dir, "api-budget", "github-token"), `200 5000 12 4988 ${now + 900} core repos/o/r\n`);
@@ -810,9 +767,6 @@ test("gh guard: a paginated primary limit holds to the reset of the one open win
     assert.ok(left >= 55 && left <= 60, `secondary: stopped for ${left}s`);
   }));
 
-// The call got a good answer, so it keeps gh's status: a caller that read a
-// failure would retry a write GitHub already accepted. The next call is
-// refused.
 test("gh guard: a 200 that spends the last request keeps its body and status 0, and stops the pool", () =>
   withDir((dir) => {
     const out = guarded(
@@ -858,7 +812,6 @@ test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", (
       'gh api -i repos/o/r >/dev/null\ngh api -i -H "If-None-Match: x" repos/o/r >/dev/null || true\napi_budget_emit_calls github-token',
     );
     assert.equal(out.calls.length, 2);
-    // The stub's reset is an hour from now, so only its shape is fixed.
     assert.match(out.stdout, /^::notice title=api-calls::github-token=1 not-modified=1 graphql=0 core-by-reset=\d+:1 core-unread=0\n$/);
   }));
 
@@ -899,7 +852,6 @@ const request = (url) => [
 ];
 const LABELS = "https://api.github.com/repositories/1277265216/labels?per_page=20";
 
-// stdout, stderr and status from the same scripted gh, wrapped and bare.
 function wrappedAndBare(dir, lines, args) {
   scriptedGh(dir, lines);
   const path = `${dir}:${process.env.PATH}`;
@@ -919,7 +871,6 @@ test("gh guard: a paginated call of three pages counts three requests, with stdo
     assert.equal(wrapped.stdout, "20\n20\n9\nrc=0\n::notice title=api-calls::github-token=3 not-modified=0 graphql=0 core-unread=3\n");
     assert.equal(bare.stdout, "20\n20\n9\nrc=0\n");
     assert.equal(wrapped.stderr, "");
-    // A page line is a request, never a reading: no api-budget notice.
     assert.equal(bash(dir, "api_budget_emit github-token").stdout, "");
   }));
 
@@ -968,10 +919,8 @@ test("gh guard: a failing call keeps gh's stderr byte for byte and its status", 
 test("gh guard: a header-read call counts each request once, a 304 still as not-modified, and a download host not at all", () =>
   withDir((dir) => {
     const head304 = "o HTTP/2.0 304 Not Modified";
-    // One request, read from its header block: one call, not two.
     let out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/r"), head304, "o ", "x 1"], 'api -i -H "If-None-Match: x" repos/o/r').wrapped;
     assert.equal(out.stdout.split("\n").at(-2), "::notice title=api-calls::github-token=0 not-modified=1 graphql=0 core-unread=0");
-    // A redirect the header block does not show is a second request.
     out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/old"), ...request("https://api.github.com/repositories/1"), "o HTTP/2.0 200 OK", "o ", "o {}"], "api repos/o/old").wrapped;
     assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-unread=2\n");
     // A download redirect leaves GitHub's API, so it spends nothing there.
@@ -985,10 +934,8 @@ test("gh guard: a header-read call counts each request once, a 304 still as not-
 
 test("gh guard: a GraphQL request is counted among the requests and again as graphql, from a request line or a reading", () =>
   withDir((dir) => {
-    // gh pr view: one GraphQL request, one REST request.
     let out = wrappedAndBare(dir, [...request("https://api.github.com/graphql"), ...request("https://api.github.com/repos/o/r/pulls/7"), "o {}"], "pr view 7 --json number").wrapped;
     assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=1 core-unread=1\n");
-    // gh api graphql, read from its header block: one reading whose resource is graphql.
     out = wrappedAndBare(
       dir,
       [...request("https://api.github.com/graphql"), "o HTTP/2.0 200 OK", "o X-Ratelimit-Resource: graphql", "o ", "o {}"],
@@ -1019,8 +966,6 @@ test("gh guard: a stop it cannot record ends the step after one call, naming the
     const sub = "x=$(gh api repos/o/r) || true\ny=$(gh api repos/o/r/pulls) || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
     const retry = "sleep() { :; }\nx=$(for a in 1 2 3; do y=$(gh api repos/o/r) && break; sleep 5; done) || true\necho reached";
     const held = 'err=$(mktemp)\nx=$(gh api repos/o/r 2>"$err") || true\ncat "$err" >&2\ngh api repos/o/r/pulls >/dev/null || true\necho reached';
-    // Readable but not writable: a stop file that cannot be read stops every
-    // pool before any call (stop_file_errors).
     const unwritable = {
       "a read-only api-budget directory": () => {
         mkdirSync(join(dir, "api-budget"));
@@ -1049,7 +994,6 @@ test("gh guard: a stop it cannot record ends the step after one call, naming the
     unlock(dir);
   }));
 
-// Removes $RUNNER_TEMP/api-budget, read-only or not.
 function unlock(dir) {
   const budget = join(dir, "api-budget");
   if (existsSync(budget)) {
@@ -1058,9 +1002,6 @@ function unlock(dir) {
   rmSync(budget, { recursive: true, force: true });
 }
 
-// The stop file is read alike by every port: each stop_files vector, and the
-// stops each writer leaves, give the same stop per pool to the shell and the
-// Node reader.
 const POOL_URLS = {
   core: "https://api.github.com/repos/o/r",
   graphql: "https://api.github.com/graphql",
@@ -1096,8 +1037,6 @@ test("the stop file reads the same in the shell and in Node: every stop_files ve
   }
 });
 
-// stop_causes: the cause file beside the stop file reads alike in the shell
-// and in Node, and no cause reads as a rate limit.
 test("the cause file reads the same in the shell and in Node: every stop_causes vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   assert.ok(vectors.stop_causes.length > 0, "rate-guard.vectors.json holds stop_causes vectors");
@@ -1123,8 +1062,6 @@ test("the cause file reads the same in the shell and in Node: every stop_causes 
   }
 });
 
-// stop_file_errors: a stop file that exists but cannot be read holds every
-// pool in both readers, with an error naming it; a missing one holds nothing.
 test("the stop file reads the same in the shell and in Node: every stop_file_errors vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   for (const vector of vectors.stop_file_errors) {
@@ -1262,7 +1199,6 @@ test("the gh wrapper counts a content write, and the action emits the count and 
     assert.equal(readFileSync(join(dir, "api-budget", "content-creation"), "utf8").trim().split("\n").length, 2);
     writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n1792748010\n1792748100\n");
     assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
-    // Two writes a second apart across a clock-minute boundary, appended out of order, are in one 60 s window.
     writeFileSync(join(dir, "api-budget", "content-creation"), "1792748040\n1792747000\n1792748039\n");
     assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
     rmSync(join(dir, "api-budget", "content-creation"));
@@ -1298,7 +1234,6 @@ test("the action writes the content-creation notice after the counting lines", (
 
 test("with two tokens, many counters and a content write, every counting line is among the step's first 10 notices", () =>
   withDir((dir) => {
-    // Five counters (resource and reset) per token: ten api-budget lines.
     for (const token of ["lanes-app", "github-token"]) {
       readEach(dir, token, ...[1, 2, 3, 4, 5].map((i) => head({ used: i, reset: 1792748040 + i, resource: i % 2 ? "core" : "graphql" })));
     }
@@ -1320,17 +1255,11 @@ test("with two tokens, many counters and a content write, every counting line is
     assert.match(first, /content-creation/);
   }));
 
-// Every lane job that calls GitHub through the rate guard names its token and
-// ends by logging the budget, so the hub reads each job's spend and its
-// content-creating writes.
 test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-budget step", () => {
   const jobs = {
-    // apply-verdict's resolve-config reads with the job token, recorded under github-token.
     "intake-triage.yml": { "check-born-triaged": "github-token", "apply-verdict": ["lanes-app", "lanes-app github-token"], "refine-select": "github-token", "apply-refinement": "lanes-app" },
     "work-resolve-issue.yml": { "check-admission": "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
-    // label-unblocked's ACTIONS_TOKEN client records under github-token, so
-    // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "label-unblocked": ["lanes-app", "lanes-app github-token"], "sync-status": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "dispatch-post-merge-runs": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
@@ -1339,14 +1268,11 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "select-passes": "github-token" },
     "post-merge-file-demotion-issues.yml": { "file-demotion-issue": "github-token", "report-red-main": "github-token" },
-    // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
     "pr-unblock.yml": Object.fromEntries(
       ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
     ),
     "pr-review-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
     "pr-review-security-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
-    // Not run, which logs before its head checkout, or scan, which counts its
-    // own calls (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "check-broker": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
@@ -1374,11 +1300,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       const [token, logged = token] = [names].flat();
       const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
       assert.match(block, new RegExp(`\\n {6,10}API_BUDGET_TOKEN: ${token}\\n`), `${file} ${job} names ${token}`);
-      // pr-verify keeps "Fail without a verdict" as each job's last step.
       const steps = block.split(/\n {6}- name: /).filter((s) => !s.startsWith("Fail without a verdict\n"));
-      // Less the blank and comment lines that lead into the next step or job.
       const last = steps.at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
-      // check-issue-fields checks out .base, where the action lives, only for a branch claim.
       const gate = file === "pr-run-activity-read.yml" && job === "check-issue-fields" ? " && steps\\.base\\.outcome == 'success'" : "";
       assert.match(last, new RegExp(`^Log the API budget[^\\n]*\\n {8}if: always\\(\\)${gate}\\n`), `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
@@ -1387,9 +1310,6 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
   }
 });
 
-// A job's shell steps call gh through api-budget.bash's wrapper, so the
-// job-end step has their readings to count; a step that sends gh before it
-// wraps would leave those calls out.
 test("each shell step in the file-demotion-issue job that calls gh wraps it first", () => {
   const text = readFileSync(new URL("../../workflows/post-merge-file-demotion-issues.yml", import.meta.url), "utf8");
   const block = /\n  file-demotion-issue:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
@@ -1410,9 +1330,6 @@ test("each shell step in the file-demotion-issue job that calls gh wraps it firs
   assert.ok(at > 0 && at < script.search(/^[^#\n]*\bgh api\b/m), `${filer} wraps gh before its first call`);
 });
 
-// pr-review-main's report-review-counts job has no checkout of the action, and its only
-// calls are one check-run POST per verdict file, so it counts them itself and
-// ends with the notice in api_budget_emit_calls' shape.
 test("pr-review-main's report-review-counts job ends with its own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
@@ -1431,12 +1348,10 @@ test("pr-review-main's report-review-counts job ends with its own api-calls noti
     assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
     assert.equal(emitted(2), shape.replace("github-token=0", "github-token=2"));
     assert.equal(emitted("2; rm"), shape, "anything but a count is 0");
-    // The stop step's POSTs add to the count step's: 1 stop and 2 counts send 3.
     writeFileSync(join(dir, "pr-review-main-stop-calls"), "1\n");
     assert.equal(emitted("02"), shape.replace("github-token=0", "github-token=3"), "a count with a leading 0 is decimal");
   }));
 
-// Run a job's last step's run block as Actions runs `shell: bash`.
 const lastRun = (file, job, env, extra = {}) => {
   const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
   const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
@@ -1447,8 +1362,6 @@ const lastRun = (file, job, env, extra = {}) => {
   return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, ...env, ...extra } });
 };
 
-// intake-triage's dispatch jobs have no checkout and no contents: read, so each
-// counts its dispatch POSTs and ends with the notice in the emitter's shape.
 test("intake-triage's dispatch jobs end with their own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const shape = execFileSync("bash", ["-c", `. "${LIB}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
@@ -1461,7 +1374,6 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
       writeFileSync(join(dir, "intake-dispatch-calls"), "x\n");
       assert.equal(lastRun("intake-triage.yml", job, env), shape, `${job}: anything but a count is 0`);
     }
-    // Each dispatch step writes the count of POSTs it sent, a failed one included.
     const text = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
     const bin = join(dir, "bin");
     mkdirSync(bin);
@@ -1481,10 +1393,6 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
     }
   }));
 
-// The scan job holds the scan-carrier key and loads no other action from a
-// checkout, so it sums the counts its two github-script steps write
-// (callers.test.mjs runs those steps) and ends with the notice in the
-// emitter's shape.
 test("pr-run-activity-read's scan job ends with its own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const env = { RUNNER_TEMP: dir, TMPDIR: dir };
@@ -1503,13 +1411,9 @@ test("pr-run-activity-read's scan job ends with its own api-calls notice in the 
     assert.equal(emitted("3; rm", 2), shape.replace("github-token=0", "github-token=2"), "anything but a count is 0");
   }));
 
-// Head code runs in the activity run jobs after their head checkout, which
-// also replaces .base, so the log step comes right before it and no step after
-// it loads the log action.
 test("each activity run job logs its budget right before the head checkout and never after it", () => {
   for (const file of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-    // The run job, not the defaults block's run key above jobs:.
     const jobs = text.slice(text.indexOf("\njobs:\n"));
     const block = /\n  run:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(jobs)?.[1] ?? "";
     const steps = block.split(/\n {6}- name: /);
@@ -1525,8 +1429,6 @@ test("each activity run job logs its budget right before the head checkout and n
   }
 });
 
-// post-merge-test-mutation's check-range job reads the range artifact through
-// download-artifact's own client, named so its count reads as a floor.
 test("post-merge-test-mutation's check-range job ends with the log step, naming the range download", () => {
   const text = readFileSync(new URL("../../workflows/post-merge-test-mutation.yml", import.meta.url), "utf8");
   const block = /\n  check-range:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
@@ -1540,9 +1442,6 @@ test("post-merge-test-mutation's check-range job ends with the log step, naming 
   );
 });
 
-// Jobs that hold the job token but call GitHub only through actions the
-// counter cannot see still end by logging it, so each run carries its
-// api-calls line, 0 when no step of the job's own called GitHub.
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
@@ -1559,7 +1458,6 @@ test("each job that holds the job token and calls no guarded client ends with th
       const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
       assert.equal(
         last,
-        // check-lane-coverage reads a continue-on-error step in this workflow as a gate.
         `Log the API budget at the end\n        if: always()\n${file === "pr-require-checks.yml" ? "" : "        continue-on-error: true\n"}        timeout-minutes: 1\n` +
           `        uses: ${root}.github/actions/log-api-budget${root === "./" ? " # zizmor: ignore[self-repository]" : ""}\n        with:\n          tokens: github-token`,
         `${file} ${job}`,
@@ -1578,17 +1476,12 @@ test("gh guard: the floor is a share of the header limit: 4050 of 5000 reads on,
     assert.equal(over.stderr, "", "950 used of 5000 does not warn");
   }));
 
-// ci-status's shell wrapper reads no rate-limits.json, so its floor is set in the
-// job env, pinned here to the rate-limits.json default the Node guard reads.
 test("ci-status sets the shell read floor to the read-floor default", () => {
   const floor = /\n {6}API_BUDGET_READ_FLOOR: "?([0-9.]+)"?\n/.exec(CI);
   assert.ok(floor, "ci-status sets API_BUDGET_READ_FLOOR");
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);
 });
 
-// rate-guard.mjs reads its defaults from rate-limits.json beside it; a path list
-// (a sparse checkout) that ships the guard without them leaves the read floor
-// unchecked. A list is the run of lines at the guard line's indent.
 test("every path list naming rate-guard.mjs also names rate-limits.json", () => {
   const dir = new URL("../../workflows/", import.meta.url);
   let lists = 0;
@@ -1625,8 +1518,6 @@ test("ci-status and mark-lanes carry api-budget.bash less its full-line comments
   }
 });
 
-// The mark-lanes step as shipped, against a gh that answers `api -i`, failing
-// its first `fails` calls. RUNNER_TEMP holds the fake and the readings.
 function markLanes(dir, fails) {
   const job = CI.slice(CI.indexOf("\n  mark-lanes:\n"), CI.indexOf("\n  select-tests:\n"));
   const body = /\n {8}run: \|\n((?: {10}[^\n]*\n)+)/.exec(job)[1].replace(/^ {10}/gm, "").replace(/sleep \$\(\(attempt \* 5\)\)/, ":");
@@ -1670,10 +1561,6 @@ test("ci-status emits the api-calls notice beside its api-budget notice", () => 
   assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
 });
 
-// pr-dispatch-feedback.yml's post-verify-notes and rerun-ci-status jobs post
-// no other notice, so without these lines their calls go unattributed.
-// post-verify-notes' notice covers its artifact listing and verify-notes.mjs's
-// calls, which go through the rate guard, and its verdict download.
 const FEEDBACK = new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url);
 
 const jobText = (job) => workflowText(readFileSync(FEEDBACK, "utf8")).job(job);
@@ -1690,8 +1577,6 @@ test("pr-dispatch-feedback.yml: each job that calls the API ends by logging its 
   }
 });
 
-// The wrapper keeps a copy of the stderr it is set up under, so a setup line
-// that sends its own stderr to /dev/null would swallow the unrecorded-stop errors.
 test("pr-dispatch-feedback.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", { skip: ROOT && "root writes past any file mode" }, () =>
   withDir((dir) => {
     const setups = readFileSync(FEEDBACK, "utf8")
@@ -1751,9 +1636,6 @@ function storedZip(name, text, link = false) {
   return Buffer.concat([local, file, data, central, file, end]);
 }
 
-// Runs the download step against a gh that answers only the calls `answers`
-// names (`api -i <route>`, a header block then the body) and fails any other,
-// `gh run download` included.
 function downloadStep(dir, answers) {
   const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
   const body = /\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(`${step}\n`)[1].replace(/^ {10}/gm, "");

@@ -1,9 +1,3 @@
-// Runs the action's `run:` script with a curl stand-in that answers the OIDC
-// request and the broker, and records the broker request body. The expected
-// body is the broker contract: `{lane, activity, pr_number?, issue_number?, release?,
-// dispatcher_run_id?, expected_upstream_head?, pushed_commit?}`,
-// numbers as JSON integers (pr-run-activity.md, run job step 6; the broker's
-// parseBody).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,7 +8,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const ACTION = new URL("./action.yml", import.meta.url);
 const REPO_ID = "1277265216";
 
-// The step's `run: |` block, dedented.
 function runScript() {
   const lines = readFileSync(ACTION, "utf8").split("\n");
   const start = lines.findIndex((line) => /^\s+run: \|$/.test(line));
@@ -89,12 +82,6 @@ before(() => {
 
 after(() => rmSync(root, { recursive: true, force: true }));
 
-// Each answer makes the broker's next reply that HTTP status, with that JSON
-// body (the mint below when absent, with `mint`'s fields added) and that
-// header block; the last repeats.
-// No answer is one 200 mint.
-// A `compare` input is the GitHub compare response the action reads; absent,
-// the compare request fails.
 function request({ compare, ...inputs }, ...answers) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(["output", "summary"].map((name) => [name, path.join(dir, name)]));
@@ -105,7 +92,6 @@ function request({ compare, ...inputs }, ...answers) {
   const logs = Object.fromEntries(["auth", "oidc", "sleep", "compare"].map((name) => [name, path.join(dir, `${name}.log`)]));
   for (const log of Object.values(logs)) writeFileSync(log, "");
   const env = {
-    // The action's `mode` input defaults to token.
     MODE: "token",
     BROKER_URL: "https://broker.example.net/api/token",
     AUDIENCE: "melodic-lanes-token-broker",
@@ -187,15 +173,11 @@ function request({ compare, ...inputs }, ...answers) {
   };
 }
 
-// The 503 run 39092207020 logged when about 40 issue lanes asked at once.
 const GITHUB_UNAVAILABLE = {
   status: "503",
   body: { error: "unavailable", reason: "github-unavailable", detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403" },
 };
 const ISSUE_LANE = { LANE: "work-resolve-issue", ACTIVITY: "resolve-issue", PR_NUMBER: "", ISSUE_NUMBER: "77" };
-// The outage posture's element 1 (docs/conventions/pr-pipeline/README.md#outage-posture): at most 3
-// requests, capped backoff with full jitter (0-20 s, then 0-40 s), and at most
-// 60 s of waiting in all.
 const BACKOFF = [20, 40];
 const JITTER = 20;
 const BUDGET = 60;
@@ -249,9 +231,6 @@ test("a Retry-After past the 1-minute budget fails red at once", () => {
   assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable/m);
 });
 
-// The broker's github-rate-limited answer (deny.mjs, http.mjs in azure-iac
-// src/lanes-token-broker): a Retry-After header of GitHub's wait, clamped to
-// 1-3600 s, and the limit, resource and retry_after in the body.
 const rateLimited = (retryAfter) => ({
   status: "503",
   body: {
@@ -325,8 +304,6 @@ test("a github-rate-limited Retry-After past the 1-minute budget fails at once, 
   assert.ok(reset >= before + BUDGET + 1 && reset <= afterRun + BUDGET + 1, `reset ${match[1]}`);
 });
 
-// Outage posture element 1: a wait past the budget is an unknown that holds
-// under element 2, not a sleep and, for a caller that opts in, not a red.
 test("with rate-limit-hold-ok, a github-rate-limited Retry-After past the budget holds green with a notice and no token", () => {
   const run = request({ ...ISSUE_LANE, RATE_LIMIT_HOLD_OK: "true" }, rateLimited(BUDGET + 1), {});
   assert.equal(run.status, 0, run.stdout);
@@ -377,7 +354,6 @@ test("a rate-limit-hold-ok other than true or false fails before the broker requ
   assert.match(run.stdout, /::error::rate-limit-hold-ok must be true or false/);
 });
 
-// mint-unavailable comes after the broker reserved the job's one mint.
 test("a 503 mint-unavailable is not retried and fails red saying it is final", () => {
   const run = request(ISSUE_LANE, { status: "503", body: { error: "unavailable", reason: "mint-unavailable", detail: "d" } }, {});
   assert.equal(run.status, 1);
@@ -389,8 +365,6 @@ test("a 503 mint-unavailable is not retried and fails red saying it is final", (
   );
 });
 
-// The broker reserves the job's mint before it mints, so any retry after the
-// reservation is denied already-minted. The failure keeps the 503 that started it.
 test("an already-minted after a retried github-unavailable fails red naming both", () => {
   const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE, { status: "403", body: { error: "denied", reason: "already-minted", detail: "check run 1 already received its mint" } });
   assert.equal(run.status, 1);
@@ -430,8 +404,6 @@ test("check mode retries a 503 github-unavailable too", () => {
   assertBackoff(run.sleeps, 1);
 });
 
-// The 403 shape pr-merge run 39074050115 logged when pr-merge.yml changed on
-// main while it was queued.
 const SUPERSEDED = {
   status: "403",
   body: { reason: "workflow-modified", detail: ".github/workflows/pr-merge.yml differs from refs/heads/main" },
@@ -463,8 +435,6 @@ test("without superseded-ok, a 403 workflow-modified still fails red", () => {
   );
 });
 
-// The 403 pr-merge run 40747727299 logged when the breaker turned the
-// repository kill switch on after the run had read its variables.
 const KILLED = {
   status: "403",
   body: { reason: "kill-switch", detail: 'not-false: the repository CLAUDE_LANES_REPO_DISABLED is set and not exactly "false"' },
@@ -508,9 +478,6 @@ test("with kill-switch-ok, an allow still mints the token unchanged", () => {
   assert.doesNotMatch(run.output, /skip-reason/);
 });
 
-// The read file's check-broker: the broker's kill-switch refusal (run
-// 41576258964's 403) ends green as a stop with no allow, which the job reads
-// from `allowed`, never from the step's outcome.
 const CHECK = { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "" };
 const CHECK_ALLOW = { body: { decision: "allow", lane: "pr-unblock", activity: "resolve-conflicts" } };
 
@@ -754,8 +721,6 @@ test("check mode refuses a pushed commit before the broker request", () => {
   assert.equal(run.body, null);
 });
 
-// The run job maps this output, and report-check-run appends it to a failed
-// run job's check summary.
 test("a broker denial fails red and writes its reason as the failure-reason output", () => {
   const run = request(
     {},
@@ -857,7 +822,6 @@ test("check mode refuses a release before the broker request", () => {
   assert.equal(run.body, null);
 });
 
-// An activity grant of actions read (lane-rules.json activity-grants), as no live lane sets.
 const PR_MERGE = { LANE: "pr-merge", ACTIVITY: "merge-pr", EFFECT: "merge", CONTENTS: "write", PULL_REQUESTS: "write", ISSUES: "write", PR_NUMBER: "" };
 const grantedWith = (permissions) => ({
   token: "ghs_lane",
@@ -926,8 +890,6 @@ test("an actions-variables grant other than write or empty fails before the brok
   assert.equal(run.body, null);
 });
 
-// The lanes App quota the broker read at the mint: 494 of 5200 left, reset
-// 2026-10-19T17:00:00Z.
 const QUOTA = { rate_limit: { remaining: 494, limit: 5200, reset: 1792429200 } };
 const QUOTA_NOTICE = "::notice title=api-budget::mint lanes-app core remaining=494 used=4706 limit=5200 reset=2026-10-19T17:00:00Z";
 

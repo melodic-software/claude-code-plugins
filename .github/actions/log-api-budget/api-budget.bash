@@ -167,8 +167,6 @@ api_budget_wrap_gh() {
         # --paginate prints a header block per page, which could not be told
         # from body text that looks like one: no reading, only its requests.
         --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
-        # The caller reads the headers itself: the guard reads them too, and
-        # the output goes on unchanged.
         -i | --include)
           out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
           api_budget_traced "$out" "$@" || rc=$?
@@ -182,7 +180,6 @@ api_budget_wrap_gh() {
       esac
     done
     out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
-    # The wrapper under every call, gh_read included: the same call with -i.
     api_budget_traced "$out" api -i "${@:2}" || rc=$?
     api_budget_observe "$out" "$pool" "gh $*" || rc=1
     api_budget_read "$API_BUDGET_GH_TOKEN" "$out" "$route"
@@ -411,11 +408,7 @@ api_budget_fallback() {
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
 api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
-# How a stop no header timed is named, as rate-guard.mjs's FALLBACK_NOTE.
 API_BUDGET_FALLBACK_NOTE="fallback: GitHub's refusal carried no reset header, so this time is a guess that holds only this job; a re-run works once GitHub's real reset passes"
-# A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
-# outage posture element 2), else an error. The call returns 1 either way, so
-# a gate that does not hold still fails on it.
 api_budget_level() { [[ ${API_BUDGET_HOLD:-} == 1 ]] && echo notice || echo error; }
 
 # api_budget_server_status <pool> <epoch>: the 5xx when the stops of <pool>
@@ -652,8 +645,6 @@ api_budget_emit_routes() {
     file=${RUNNER_TEMP:-}/api-budget/$token
     [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
     [[ -s $file ]] || file=/dev/null
-    # The route is the last field of a `request` line and the seventh of a
-    # reading; a line without one, or with one not in the route's shape, is other.
     awk "$API_BUDGET_ROUTE"' $1 == 304 { next }
       { r = "other" }
       $1 == "request" && NF >= 2 { r = $NF }
