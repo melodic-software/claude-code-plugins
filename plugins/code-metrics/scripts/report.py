@@ -133,7 +133,6 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
 
 
 def _ancestors(path: str) -> list[str]:
-    """`.` and every directory above the file, root first."""
     parts = path.split("/")[:-1]
     return ["."] + ["/".join(parts[: index + 1]) for index in range(len(parts))]
 
@@ -161,13 +160,6 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     files: set[str] = set()
     by_lane: dict[str, dict[str, int]] = {}
     by_directory: dict[str, dict[str, int]] = {}
-    # (file, name) -> the distinct start lines reported for it. A name is not an
-    # identity: one file can hold two `render` methods. A start line is not one
-    # either, because a collector that reports Halstead for a function need not
-    # report where it begins, and splitting on a missing line would count that
-    # function twice. So the rows for a name are grouped and the group counts as
-    # many functions as it has distinct known start lines, and as one when it
-    # has none.
     functions: dict[tuple[str, str], set[int]] = {}
     over_counts: dict[str, int] = {}
     duplicated_lines = 0
@@ -245,7 +237,6 @@ def files_excluded_only(
 def _summary(
     measures: list[dict[str, Any]], excluded: list[dict[str, Any]], root: str = ""
 ) -> dict[str, Any]:
-    """`summarize`, plus `files_excluded_only` when that count is above zero."""
     summary = summarize(measures, root)
     count = files_excluded_only(measures, excluded)
     if count:
@@ -329,8 +320,6 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
             row["reason"] = reason
     doc["root"] = {"kind": kind, "path": root_text}
     doc["scan_root"] = root_relative(os.getcwd(), root_text)
-    # A total exclusion leaves the duplication keys at zero on the previous
-    # summary only: a recomputation from the surviving rows omits them.
     previous = doc.get("summary") or {}
     measures = doc.get("measures") or []
     summary = _summary(measures, doc.get("excluded") or [])
@@ -400,12 +389,6 @@ def assemble(
 def _primary_threshold(
     thresholds_: list[dict[str, Any]], keys: list[str]
 ) -> dict[str, Any] | None:
-    """The threshold whose value orders the rows that are not over any
-    reference: the first one whose `value_key` the rows carry, so a size
-    report lists the longest files first, and a document whose rows carry
-    none of them (clone groups) keeps its file order. A table carrying `crap`
-    is ordered by it (see `_coverage_rank`), whatever the thresholds' order,
-    so the crap threshold is the one the row cap names."""
     for entry in thresholds_:
         if entry.get("value_key") == "crap" and "crap" in keys:
             return entry
@@ -416,8 +399,6 @@ def _primary_threshold(
 
 
 def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
-    """Largest primary value first (smallest first under a `below`
-    reference), and a row with no numeric value after every row with one."""
     key = primary.get("value_key") if primary else None
     value = (row.get("values") or {}).get(key) if key else None
     if not _is_number(value):
@@ -426,15 +407,6 @@ def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
 
 
 def _coverage_rank(row: dict[str, Any]) -> tuple:
-    """Order within a coverage document, ahead of the primary rank.
-
-    Function rows carrying a CRAP number come first, highest first, so the row
-    cap never drops the most complex untested function in favor of an
-    alphabetically earlier file; function rows with a null CRAP follow them;
-    file rows come after, least covered first with a null percentage last. A
-    row that carries neither `crap` nor `coverage_pct` ranks as a constant, so
-    every other skill's table is ordered by its primary value alone.
-    """
     values = row.get("values") or {}
     if "crap" not in values and "coverage_pct" not in values:
         return (0, 0, False, 0)
@@ -489,7 +461,6 @@ def _is_number(value: Any) -> bool:
 
 
 def _is_line(value: Any) -> bool:
-    """A reported line number: an int, and not a bool arriving as one."""
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -502,14 +473,6 @@ def _union(first: Any, second: Any) -> list[Any]:
 
 
 def _merge_into(target: dict[str, Any], row: dict[str, Any]) -> bool:
-    """Fold `row` into `target` when their values do not disagree.
-
-    Two rows for one function carry complementary values (a cyclomatic row and
-    a Halstead row), so the join fills a null or absent key from the other row.
-    A key both rows carry with two different numbers is not the same function
-    measured twice; it is two functions the collectors could not tell apart, and
-    the join refuses rather than pick one, so the caller keeps the row separate.
-    """
     values = target.setdefault("values", {})
     incoming = row.get("values") or {}
     for key, value in incoming.items():
@@ -567,8 +530,6 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if function and not _is_line(start):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
-        # The lane is part of the identity: two lane rows (`file` null) from
-        # two lanes must never join into one line.
         key = (file, function, start, row.get("lane"))
         candidates = by_key.setdefault(key, [])
         for candidate in candidates:
@@ -587,12 +548,6 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _over_distance(row: dict[str, Any], references: dict[str, Any]) -> float:
-    """How far past its reference the row's worst value sits, for ordering.
-
-    Distance rather than the raw value, because coverage counts values BELOW
-    a reference and complexity values above one; the absolute gap orders both
-    with the same key, worst first.
-    """
     worst = 0.0
     values = row.get("values") or {}
     for measure in row.get("over_reference") or []:

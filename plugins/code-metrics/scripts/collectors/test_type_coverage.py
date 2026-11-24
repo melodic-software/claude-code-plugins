@@ -183,8 +183,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             stubs = Path(tmp) / "bin"
             argv_log = Path(tmp) / "argv"
             make_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
-            # The program holds the three files under src/, as the real
-            # listing over the scratch project's tsconfig did.
             make_node_stub(stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"])
             result = run(
                 "collect",
@@ -201,9 +199,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
                     (None, 9),
                     ("src/a.ts", 5),
                     ("src/sub/b.ts", 4),
-                    # in the program with no listed occurrence: a measured 0
                     ("src/clean.ts", 0),
-                    # other/outside.ts is outside the program: no row
                 ],
             )
             self.assertEqual(rows[0]["values"]["type_coverage_pct"], 57.14)

@@ -781,18 +781,6 @@ assert_eq "reference-verify.sh extensions equal the union of the verifiers' case
 assert_eq "no PostToolUse row is left for the verifiers" 0 \
   "$(jq '[.hooks.PostToolUse // [] | .[] | .hooks[]] | length' "$HOOKS_JSON")"
 
-# --- the dispatcher and the guards declare ONE contract ----------------------
-# hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload
-# fields it reads, and the libraries it calls into. Two things are compiled
-# from that declaration and nothing at run time re-derives either — the
-# dispatcher's PRIME_FILTERS, and the `--lib` arguments in hooks.json — so this
-# is where the three are held to each other, in both directions, against each
-# guard's own source rather than against a second hand-kept list.
-#
-# Both directions cost something real. The cached hook::jq_fields is
-# all-or-nothing per call, so a field a guard reads and the dispatcher does not
-# prime spends a jq process on EVERY payload of that lane; a field primed that
-# no guard reads is jq work nothing reads.
 # shellcheck source=guard-requires.sh
 source "$HOOK_DIR/guard-requires.sh"
 
