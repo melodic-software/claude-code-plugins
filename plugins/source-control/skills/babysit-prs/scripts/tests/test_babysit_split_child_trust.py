@@ -32,8 +32,6 @@ VECTORS = (
 REPO = "example-org/example-repo"
 LANES_LOGIN = "agent-lanes[bot]"
 CHILD = 9
-# Each branch's tip object, distinct per branch, so a read names the tip of
-# the branch it meant.
 TIPS = {
     branch: {"sha": digit * 40, "type": "commit"}
     for branch, digit in (("main", "a"), ("trunk", "b"), ("feature-x", "c"))
@@ -54,8 +52,6 @@ def actor(value: Any) -> Any:
 
 
 def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, Any]:
-    """The case's child, its parent and the parent's comments, renamed into
-    `SPLIT_CHILD_QUERY`'s answer."""
     child = case["child"]
     link = child["parent"]
     parent = None
@@ -92,7 +88,6 @@ def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, An
 
 
 def linked(child: dict[str, Any]) -> dict[str, Any]:
-    """The child as a verdict's `linked_issues` records it."""
     editor = child["editor"] or {}
     return {
         "number": CHILD,
@@ -369,7 +364,6 @@ class TheRulesComeFromTheDefaultBranch(unittest.TestCase):
                 reader._trusted_spec({"linked_issues": [linked(case["child"])]})
             )
         self.assertEqual(fake.rules_refs(), [TIPS["trunk"]["sha"]])
-        # The trusted list keeps the reader's branch, at its tip.
         self.assertEqual(fake.actors_refs(), [TIPS["feature-x"]["sha"]])
 
 
@@ -428,7 +422,6 @@ class TheReadsNameACommit(unittest.TestCase):
                         self.fake.tips[branch] = tip
                     with self.assertRaises(ve._Unreadable):
                         self.judge()
-                    # Nothing reads a trust file at the branch's name.
                     self.assertNotIn(branch, self.fake.actors_refs())
                     self.assertNotIn(branch, self.fake.rules_refs())
 

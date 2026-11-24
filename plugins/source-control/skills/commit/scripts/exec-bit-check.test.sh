@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for exec-bit-check.sh.
-#
-# Black-box: build throwaway git fixtures under a mktemp dir and exercise the
-# detection scope (newly-added only, shebang only, 100644 only, symlinks and
-# deletions skipped), the three output modes, the worktree-then-index fix
-# ordering, pathspec limiting, and the error exits. No network, no writes
-# outside the temp dir.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -99,8 +92,6 @@ probe="$(bash "$HELPER" --repo-dir "$repo" --probe 2>/dev/null)"
 assert_contains "probe names the offending path" "$probe" "new-script.sh"
 assert_contains "probe reports the count" "$probe" "1 staged shebang file(s)"
 
-# --list must stay report-only: a finding is not an error exit, so a
-# pre-computed context probe can never fail a skill invocation.
 bash "$HELPER" --repo-dir "$repo" --list >/dev/null 2>&1
 assert_exit "--list exits 0 even with findings" 0 "$?"
 
@@ -647,29 +638,20 @@ dis_on="$(bash "$HELPER" --repo-dir "$repo24" --list 2>/dev/null | sort | tr '\n
 
 if [[ "$dis_off_status" == *"A dis-lib-moved.sh;"* ]] && [[ "$dis_off_status" == *"D dis-lib.sh;"* ]] &&
   [[ "$dis_on_status" == *"R"*"dis-lib.sh dis-lib-moved.sh;"* ]]; then
-  # The premise first: nothing but the config key differs between the two runs.
   assert_eq "HEAD is identical across the two diff.renames runs" \
     "$dis_off_head" "$dis_on_head"
   assert_eq "the INDEX is identical across the two diff.renames runs" \
     "$dis_off_index" "$dis_on_index"
   assert_contains "the diff.renames=true run really pairs it as a rename off a 100644 source" \
     "$dis_on_raw" ":100644 100644"
-  # Both sides against the EXPECTED set, never merely against each other.
   assert_eq "diff.renames=false REPORTS the moved 100644 shebang file (as an add)" \
     "dis-lib-moved.sh zz-dis-extra.sh " "$dis_off"
   assert_eq "diff.renames=true does NOT report it (the kept #2141 gate)" \
     "zz-dis-extra.sh " "$dis_on"
-  # The shape itself, stated as a verdict so it reads as an intended property
-  # rather than as two assertions that happen to differ. (assert_eq over a
-  # derived verdict rather than a new assert_ne helper: one call site does not
-  # earn a second comparison primitive in the shared harness.)
   dis_verdict="$([[ "$dis_off" == "$dis_on" ]] && printf 'AGREE' || printf 'DISAGREE')"
   assert_eq "the two diff.renames configurations DISAGREE on identical staged content — deliberate, kept in #2141" \
     "DISAGREE" "$dis_verdict"
 else
-  # The skip reports WHAT IT SAW, not just that it gave up. A silent skip is
-  # indistinguishable from a fixture that never built, and this suite has been
-  # bitten by exactly that.
   fail_discriminating_skip "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
 fi
 
@@ -715,9 +697,6 @@ if [[ "$nonexec_copy_status" == "1" ]]; then
   bash "$HELPER" --repo-dir "$repo21" --fix --all >/dev/null 2>&1
   assert_eq "--fix corrects a copy destination off a non-executable source" \
     "100755" "$(staged_mode "$repo21" tpl-copy.sh)"
-  # Not a defect control -- it answers the same either way. It guards the
-  # OTHER way this arm can be got wrong: an arm that admits `_source` as well
-  # as `path` would flip the deliberately non-executable source too.
   assert_eq "the copy SOURCE is not itself admitted by the copy arm" \
     "100644" "$(staged_mode "$repo21" tpl.sh)"
 else
@@ -770,8 +749,6 @@ agree_on_status="$(copy_records "$repo22")"
 agree_on="$(bash "$HELPER" --repo-dir "$repo22" --list 2>/dev/null | sort | tr '\n' ' ')"
 
 if [[ "$agree_off_status" == "1" ]] && [[ "$agree_on_status" == "1" ]]; then
-  # Both sides are asserted against the EXPECTED set, never merely against each
-  # other: two wrong answers that happen to match must not read as agreement.
   assert_eq "diff.renames=false reports the destination (as an add)" \
     "copy.sh extra.sh " "$agree_off"
   assert_eq "diff.renames=copies reports the same destination (as a copy)" \
