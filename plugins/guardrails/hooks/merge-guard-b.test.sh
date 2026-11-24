@@ -6,8 +6,8 @@ set -uo pipefail
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# shellcheck source=block-unresolved-pr-merge-fixtures.sh
-source "$(dirname "${BASH_SOURCE[0]}")/block-unresolved-pr-merge-fixtures.sh"
+# shellcheck source=merge-guard-fixtures.sh
+source "$(dirname "${BASH_SOURCE[0]}")/merge-guard-fixtures.sh"
 
 PV_DIGEST=79b4cc554b80dca6
 pv_scenario() {
@@ -34,7 +34,7 @@ pv_scenario
 run "pr-verify: --auto before any verdict" 'gh pr merge 42 --auto --squash' 2
 assert_contains "no verdict -> names the head" "$ERR" "at its head abc123"
 assert_contains "no verdict -> says to wait, then retry" "$ERR" "Wait for pr-verify's verdict on abc123, then retry"
-assert_contains "no verdict -> names the user's escape" "$ERR" "block_unresolved_pr_merge_enabled"
+assert_contains "no verdict -> names the user's escape" "$ERR" "merge_guard_enabled"
 assert_eq "no verdict -> four artifact reads, one per pass name" 4 "$(grep -c actions/artifacts "$FIX/calls")"
 for c in 'gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"PR_x\"}){clientMutationId}}"' \
   'gh api -X PUT repos/acme/widgets/pulls/42/merge' \
@@ -231,8 +231,8 @@ scenario none none green green
 run "GraphQL label removal with label ids from a variable" 'gh api graphql -f query="mutation(\$l:[ID!]!){removeLabelsFromLabelable(input:{labelableId:\"PR_x\",labelIds:\$l}){clientMutationId}}" -f "l[]=$LID"' 2
 assert_contains "GraphQL label removal, non-literal ids -> refused" "$ERR" "names no literal LA_ label id"
 scenario none none green green
-run "label removal, switched off" 'gh pr edit 42 --remove-label pr-verify-failed' 0 CLAUDE_PLUGIN_OPTION_BLOCK_UNRESOLVED_PR_MERGE_ENABLED=false
+run "label removal, switched off" 'gh pr edit 42 --remove-label pr-verify-failed' 0 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED=false
 
 echo
-echo "block-unresolved-pr-merge-b: $PASS passed, $FAIL failed"
+echo "merge-guard-b: $PASS passed, $FAIL failed"
 ((FAIL == 0))

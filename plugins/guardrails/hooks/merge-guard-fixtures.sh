@@ -2,12 +2,12 @@
 # shellcheck disable=SC2016,SC2034,SC2329
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/block-unresolved-pr-merge.sh"
+HOOK="$HOOK_DIR/merge-guard.sh"
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free
-unset CLAUDE_CODE_REMOTE CLAUDE_PLUGIN_OPTION_BLOCK_UNRESOLVED_PR_MERGE_ENABLED
+unset CLAUDE_CODE_REMOTE CLAUDE_PLUGIN_OPTION_MERGE_GUARD_ENABLED
 
 FIX="$TEST_TMPDIR/fixtures"
 BIN="$TEST_TMPDIR/bin"
@@ -18,12 +18,13 @@ cat >"$BIN/gh" <<'FAKE'
 fix="$FAKE_GH_DIR"
 [[ "${1-}" == api ]] || exit 3
 shift
-endpoint="" filter="" query=""
+endpoint="" filter="" query="" cursor=""
 while (($#)); do
   case "$1" in
   --jq | -q) filter="$2"; shift 2 ;;
   -f | -F | --raw-field | --field)
     [[ "$2" == query=* ]] && query="${2#query=}"
+    [[ "$2" == c=* ]] && cursor="${2#c=}"
     [[ "$2" == id=* ]] && printf 'node %s\n' "${2#id=}" >>"$fix/calls"
     shift 2
     ;;
@@ -55,6 +56,7 @@ graphql)
   if [[ "$query" == *"node("* ]]; then f=graphql_node.json
   elif [[ "$query" == *"object("* ]]; then f=graphql_scope.json
   elif [[ "$query" == *"nodes("* ]]; then f=graphql_labels.json
+  elif [[ -n "$cursor" ]]; then f="graphql_threads_$cursor.json"
   else f=graphql_threads.json; fi
   ;;
 */actions/artifacts\?*)

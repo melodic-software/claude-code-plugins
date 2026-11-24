@@ -86,113 +86,38 @@ For another manager, use its own documented rebase trigger.
   section changing how it treats extra commits or renaming the rebase comment command, or a `gh`
   release changing how it prints a bot author.
 
-## Read the pr-verify verdict
+## Check merge readiness
 
-A base repository runs pr-verify when its base commit has `.github/workflows/pr-verify.yml`.
-pr-verify judges the PR's author by `merge.verify-authors` in that commit's
-`docs/conventions/pr-pipeline.yaml`: `lane` (the default) judges only the lanes App
-(`merge.agent-identity`), `lane-or-owner` also an author on the trusted list (the
-component `components/trusted-actors/trusted-actors.json` in the repository `standards_repository`
-names, when the base's `docs/conventions/source-control.yaml` sets
-`trusted_actors_source: standards`, else the
-repository's `.github/standards/trusted-actors/trusted-actors.json`, a `standards_repository`
-alone included: that key by itself moves only the Dependabot policy read,
-[config-resolution.md](../../../config-resolution.md#yaml-keys-docsconventionssource-controlyaml)), and `any` every author
-(`.github/scripts/pr-verify/resolve-pr.mjs`). Before that setting, the resolver skips a PR whose
-base is not the default branch, whose head is in a fork, or whose author is a dependency-manager
-Bot (`dependabot`, `dependabot-preview`, `renovate`, `renovate-bot`): pr-verify never judges one, so
-there is nothing to wait for. A pass is an unexpired artifact a run on the
-default branch uploaded under one of four exact names, the ones the merge queue's CI Status step
-reads: `pr-verify-<pr>-<head>-pass` or `-pass-notes`, each also with `-<digest>` appended, the
-first 16 hex digits of the SHA-256 of the head branch name. Like that step, it counts only when the
-run that uploaded it is a completed, successful `pr-verify.yml` `workflow_run` run of this
-repository on the default branch: the artifact is uploaded mid-run, before the run's outcome is
-known. A FAIL at the head puts the
-`pr-verify-failed` label on the PR, and a later pass at that head removes it, so the label is read
-first: it outranks an older pass at the same head. Exact-name reads cost four calls, plus one run
-read per matching artifact;
-`babysit_verify_evidence.py evidence`, the lanes' reader, lists every artifact in the repository,
-which a session's budget cannot carry.
-
-Whether to wait at all, read once:
-
-```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
-BASE_SHA=$(gh api "repos/$REPO/commits/<baseRefName>" --jq .sha) || exit 1
-if ! WF=$(gh api "repos/$REPO/contents/.github/workflows/pr-verify.yml?ref=$BASE_SHA" --jq .path 2>&1); then
-  case "$WF" in *'HTTP 404'*) echo 'no pr-verify on the base: nothing to wait for'; exit 0 ;; esac
-  echo "pr-verify lookup failed, hold: $WF" >&2; exit 1
-fi
-PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
-SKIP=$(jq -r 'if .base.ref != .base.repo.default_branch or .head.repo.full_name != .base.repo.full_name then "no-single-pr"
-  elif .user.type == "Bot" and ((.user.login | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")) as $l
-    | ["dependabot", "dependabot-preview", "renovate", "renovate-bot"] | index($l)) then "dependency-manager"
-  else "" end' <<<"$PULL") || exit 1
-[ -z "$SKIP" ] || { echo "pr-verify skips this PR ($SKIP): nothing to wait for"; exit 0; }
-AUTHOR=$(jq -r '"\(.user.id) \(.user.login)"' <<<"$PULL")
-CONF=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml?ref=$BASE_SHA") || exit 1
-MODE=$(sed -n 's/^  verify-authors: *\([a-z-]*\).*/\1/p' <<<"$CONF" | head -n 1)
-LANE=$(sed -n 's/^  agent-identity: *\([^ #]*\).*/\1/p' <<<"$CONF" | head -n 1)
-PARSE="<plugin-root>/lib/parse-concern-value.sh"
-SRC=
-if TEAM=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/source-control.yaml?ref=$BASE_SHA" 2>&1); then
-  SRC=$(bash "$PARSE" --strict - trusted_actors_source <<<"$TEAM") || exit 1
-  [ -n "$SRC" ] || ! grep -Eq '^trusted_actors_source[[:blank:]]*:' <<<"$TEAM" || exit 1
-else
-  case "$TEAM" in *'HTTP 404'*) ;; *) echo "source-control.yaml read failed, hold: $TEAM" >&2; exit 1 ;; esac
-fi
-case "$SRC" in
-  '' | repository) LIST="repos/$REPO/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA" ;;
-  standards)
-    SREPO=$(bash "$PARSE" --strict - standards_repository <<<"$TEAM") || exit 1
-    [[ "$SREPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
-    STD=$(gh api "repos/$SREPO/git/ref/heads/main" --jq .object.sha) || exit 1
-    LIST="repos/$SREPO/contents/components/trusted-actors/trusted-actors.json?ref=$STD" ;;
-  *) echo "trusted_actors_source $SRC reads neither list, hold" >&2; exit 1 ;;
-esac
-TRUSTED=$(gh api -H 'Accept: application/vnd.github.raw' "$LIST" | jq -r '.actors[].id') || exit 1
-JUDGED=no
-case "${MODE:-lane}" in
-  any) JUDGED=yes ;;
-  lane-or-owner) grep -qxF "${AUTHOR%% *}" <<<"$TRUSTED" && JUDGED=yes ;;
-esac
-[ "${AUTHOR#* }" = "$LANE" ] && JUDGED=yes
-[ "$JUDGED" = yes ] && echo 'pr-verify judges this author: read the verdict' \
-  || echo "pr-verify does not judge ${AUTHOR#* }: nothing to wait for"
-```
-
-The verdict, read again on each 90-second pass (five calls, plus one per matching artifact):
+The mechanical merge conditions are read by `merge-readiness.sh`, the script the guardrails merge
+guard also runs, so the two cannot judge a merge differently: hold labels in any case, unresolved
+review threads (every page, over GraphQL or, where GraphQL is refused, the Claude Code cloud
+route), a reviewer whose latest review requests changes, failed and pending checks, the
+workflow-file exemption, and the pr-verify verdict. Its header lists each condition and how it is
+read.
 
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
-PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
-[ "$(jq -r .head.sha <<<"$PULL")" = "$HEAD_SHA" ] || { echo 'head moved: hold'; exit 1; }
-jq -e 'any(.labels[]; .name == "pr-verify-failed")' <<<"$PULL" >/dev/null && { echo fail; exit 1; }
-DIGEST=$(jq -j .head.ref <<<"$PULL" | sha256sum | cut -c1-16)
-DEFAULT=$(jq -r .base.repo.default_branch <<<"$PULL")
-BASE_REPO=$(jq -r .base.repo.full_name <<<"$PULL")
-for SUFFIX in pass "pass-$DIGEST" pass-notes "pass-notes-$DIGEST"; do
-  RUNS=$(gh api "repos/$REPO/actions/artifacts?name=pr-verify-<pr_number>-$HEAD_SHA-$SUFFIX&per_page=100" \
-    --jq "[.artifacts[] | select(.expired == false and .workflow_run.head_branch == \"$DEFAULT\") | .workflow_run.id] | unique | .[]") || exit 1
-  for RUN in $RUNS; do
-    OK=$(gh api "repos/$REPO/actions/runs/$RUN" --jq ".status == \"completed\" and .conclusion == \"success\"
-      and .path == \".github/workflows/pr-verify.yml\" and .event == \"workflow_run\" and .head_branch == \"$DEFAULT\"
-      and .repository.full_name == \"$BASE_REPO\" and .head_repository.full_name == \"$BASE_REPO\"") || exit 1
-    [ "$OK" = true ] && { echo allow; exit 0; }
-  done
-done
-echo missing
+bash "<skill-dir>/scripts/merge-readiness.sh" "$REPO" <pr_number> --head "$HEAD_SHA"
 ```
 
-It prints `allow`, `fail` (a hold), or `missing` while pr-verify has not judged the head. A head
-pr-verify skips (a credit stop, an outage) never gets a pass, so after the 30-minute wait the merge
-goes ahead and reports that no verdict was read, except where the guardrails
-`block-unresolved-pr-merge` hook is enabled: it refuses the merge until a pass exists at the head.
-A lanes App PR's FAIL sets no label, so it too
-reads `missing`; the merge queue's own check still requires a pass for a lanes App PR, so the
-queue holds it. On a triangular
-flow, name the base repository in both scripts' first line, as the top of this file says.
+Add `--auto` when the merge will be an auto-merge or merge-queue request, which waits for pending
+checks. The first line of the output is the verdict:
+
+- `READY` (exit 0): every mechanical condition holds. Each `NOTICE:` line after it goes in the
+  merge report: a failed check the workflow-file exemption covers, or no pr-verify verdict at the
+  head 30 minutes after its last check finished.
+- `BLOCKED no-verify-pass` (exit 1): pr-verify judges this PR and has not passed this head yet.
+  Run the check again every 90 seconds; the script itself ends the wait 30 minutes after the
+  head's last check finished.
+- `BLOCKED <kind>` (exit 1), any other kind (`hold-label`, `not-ready`, `head-moved`, `closed`): a
+  hold, reported with the lines after it.
+- `UNCHECKED:` (exit 3): a read failed, a hold reported with its reason.
+
+A failed check clears only by passing or through the guardrails `merge_guard_ignored_checks`
+setting, read from `CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS` when it is set and otherwise
+its default (`github-actions:Merge,github-actions:merge`). On a triangular flow, name the base
+repository in place of `$REPO`, as the top of this file says.
 
 ## Wait for a known merge state
 

@@ -67,7 +67,7 @@ declare -A GUARD_FIELDS=(
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'
   ["block-root-delete-target.sh"]='.tool_input.command .tool_name .cwd'
-  ["block-unresolved-pr-merge.sh"]='.tool_input.command .tool_name .cwd'
+  ["merge-guard.sh"]='.tool_input.command .tool_name .cwd'
   ["block-windows-drive-tmp.sh"]='.tool_input.command .tool_name .tool_input.file_path .tool_input.notebook_path'
   ["flag-commit-pr-skill-bypass.sh"]='.tool_input.command .tool_name'
   ["cli-flag-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
@@ -97,7 +97,7 @@ declare -A GUARD_FIELDS_UNPRIMED=(
   ["block-fix-request-post.sh"]=$'.tool_input.body\n.tool_input.comments'
   ["block-foreground-wait.sh"]='.tool_input.run_in_background'
   ["block-root-delete-target.sh"]='.scratchpad_dir'
-  ["block-unresolved-pr-merge.sh"]=$'.tool_input.owner\n.tool_input.repo\n.tool_input.pullNumber'
+  ["merge-guard.sh"]=$'.tool_input.owner\n.tool_input.repo\n.tool_input.pullNumber'
   ["hardcoded-path-check.sh"]='.tool_input.files | length'
   ["secret-pattern-detection.sh"]='.tool_input.files | length'
   ["skill-reference-verify.sh"]='.tool_input.replace_all // false | tostring'
@@ -113,7 +113,7 @@ declare -A GUARD_LIBS=(
   ["block-dangerous-git.sh"]='lib/powershell/ps-command.sh'
   ["block-no-verify.sh"]='lib/powershell/ps-command.sh'
   ["block-noncanonical-commit.sh"]='lib/powershell/ps-command.sh'
-  ["block-unresolved-pr-merge.sh"]='lib/powershell/ps-command.sh'
+  ["merge-guard.sh"]='lib/powershell/ps-command.sh'
   ["flag-commit-pr-skill-bypass.sh"]='lib/powershell/ps-command.sh'
 )
 
