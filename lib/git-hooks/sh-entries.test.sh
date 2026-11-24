@@ -22,7 +22,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -40,8 +40,6 @@ expect() { # <label> <want> <got>
 CMD_BASH='(^|[;&|(){!`]|\$\()[[:space:]]*((then|do|else|if|elif|while|until|exec|env|time|xargs|nohup|command|feed|[[:alnum:]_]+=[^[:space:]]*)[[:space:]]+)*bash([[:space:]]|;|\)|$)'
 COMMENT='^[[:space:]]*#'
 
-# bash_commands <file>: "<line number>: <line>" for each line after the first
-# that names bash as a command.
 bash_commands() {
   local n=0 line
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -60,13 +58,11 @@ expect "the command pattern catches bash run by name, and only that" \
   $'2: x=$(bash y)\n3:   feed bash "$f"\n4: exec bash z\n5:   ROOT="$r" bash "$g" |\n6: *) bash w ;;\n7: if bash v; then :; fi' \
   "$(bash_commands "$WORK/sample")"
 
-# sh_only <label> <file>: line 1 is #!/bin/sh and no line runs bash by name.
 sh_only() {
   expect "$1: line 1 is #!/bin/sh" "#!/bin/sh" "$(head -n 1 "$2")"
   expect "$1: names bash as no command" "" "$(bash_commands "$2")"
 }
 
-# entry_scripts <entries.json>: the script each entry names, one per line.
 entry_scripts() {
   sed -n 's/.*"script"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1"
 }
@@ -164,8 +160,6 @@ for remote in "$TOP"/plugins/*/git-hooks/lefthook-remote.yml; do
 done
 expect "every plugin's lefthook remote was read" yes "$( ((remotes >= 2)) && echo yes)"
 
-# The path goes in the environment, not argv: install.mjs runs its CLI when
-# argv[1] names it.
 INSTALL_MJS="$HERE/install.mjs" node --input-type=module -e '
   import { pathToFileURL } from "node:url";
   const { DISPATCHER } = await import(pathToFileURL(process.env.INSTALL_MJS).href);
@@ -212,8 +206,6 @@ out="$(cd "$WORK/outside" && PATH="$SYS32:$WORK/tools" "$AS_SH" "$WORK/probe/pro
 expect "bash started as sh, no bash outside System32: it goes on with POSIX mode off" \
   "0:$AS_SH|a b|bash|" "$?:$out"
 
-# run_child <PATH>: checks_bash_run from a bash started as sh; the child's
-# "<mode>|<BASH>|<args>".
 run_child() {
   (cd "$WORK/outside" && PATH="$1" "$AS_SH" -c '. "$1" && checks_bash_run "$2" c d' x \
     "$WORK/probe/check-lib.sh" "$WORK/child.sh" 2>&1)
@@ -244,8 +236,6 @@ out="$(cd "$WORK/outside" && PATH="$SYS32:$WORK/good" "$DASH" "$WORK/probe/probe
 expect "under dash, the probe reruns under the first bash on PATH outside System32" \
   "0:$WORK/good/bash|a b|bash|$WORK/good/bash" "$?:$out"
 
-# probe_run <PATH> [VAR=value...]: the probe under dash; sets RUN_EXIT, RUN_OUT
-# and RUN_ERR.
 probe_run() {
   local path="$1"
   shift
@@ -253,7 +243,7 @@ probe_run() {
   RUN_EXIT=$?
   RUN_ERR="$(cat "$WORK/err")"
 }
-has_err() { grep -q -- "$1" <<<"$RUN_ERR" && echo yes || echo no; } # <text> -> yes|no
+has_err() { grep -q -- "$1" <<<"$RUN_ERR" && echo yes || echo no; }
 probe_run "$SYS32:$WORK/tools"
 expect "no bash outside System32, a person: a notice, exit 0, and System32's bash never runs" "0||yes" \
   "$RUN_EXIT|$RUN_OUT|$(has_err '^NOTICE: bash missing')"
