@@ -14,13 +14,18 @@ trap 'rm -rf "$TMP"' EXIT
 g() { git -C "$1" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "${@:2}"; }
 
 make_root() {
-  local r=$1
-  mkdir -p "$r/hooks" "$r/.lefthook/pre-commit" "$r/.lefthook/pre-push" "$r/rec"
-  printf '%s\n' 'skip_lfs: true' 'remotes:' '  - git_url: https://example.invalid/repo' '    configs:' '      - hooks/remote.yml' >"$r/lefthook.yml"
+  local r=$1 cfg=plugins/dummy/git-hooks
+  mkdir -p "$r/$cfg" "$r/plugins/absent/git-hooks" "$r/.lefthook/pre-commit" "$r/.lefthook/pre-push" "$r/rec"
+  printf '%s\n' 'skip_lfs: true' >"$r/lefthook.yml"
   printf '%s\n' 'pre-commit:' '  jobs:' '    - name: commit-entry' '      script: commit-entry.sh' '      runner: sh' \
-    'pre-push:' '  jobs:' '    - name: push-entry' '      script: push-entry.sh' '      runner: sh' '      use_stdin: true' >"$r/hooks/remote.yml"
+    'pre-push:' '  jobs:' '    - name: push-entry' '      script: push-entry.sh' '      runner: sh' '      use_stdin: true' >"$r/$cfg/lefthook-remote.yml"
+  printf '%s\n' 'pre-commit:' '  jobs:' '    - name: skip-entry' '      script: skip-entry.sh' '      runner: sh' >"$r/plugins/absent/git-hooks/lefthook-remote.yml"
+  printf '%s\n' '{"entries": [{"name": "skip", "event": "pre-commit", "tools": ["no-such-tool"]}]}' >"$r/plugins/absent/git-hooks/entries.json"
   printf '%s\n' "$2" >"$r/.lefthook/pre-commit/commit-entry.sh"
   printf '%s\n' "$3" >"$r/.lefthook/pre-push/push-entry.sh"
+  # shellcheck disable=SC2016
+  printf '%s\n' 'case ",$(git config --get checks.skipmissing)," in' \
+    '*,no-such-tool,*) echo "SKIPPED: no-such-tool (missing)" >&2 && exit 0 ;;' 'esac' 'sleep 0.6' >"$r/.lefthook/pre-commit/skip-entry.sh"
   echo rec >"$r/.gitignore"
   printf 'root\n' >"$r/README.md"
   g "$r" init -q -b main && g "$r" add -A && g "$r" commit -q -m base
@@ -31,8 +36,8 @@ RECORD_PUSH="printf '%s %s\n' \"\$1\" \"\$2\" >'$TMP/REC/args'; wc -l | tr -d ' 
 
 r="$TMP/fast"
 make_root "$r" "${RECORD_COMMIT//REC/fast/rec}" "${RECORD_PUSH//REC/fast/rec}"
-if out="$(bash "$SCRIPT" --root "$r" --force --runs 1 2>&1)"; then
-  ok "fast entries pass"
+if out="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 400 2>&1)"; then
+  ok "fast entries pass, with the entry whose tool is missing left out of the total"
 else
   fail "fast entries should pass: $out"
 fi
@@ -40,6 +45,11 @@ if [[ "$out" == *commit-entry*push-entry*"every hook is within its budget"* ]]; 
   ok "the report names each entry"
 else
   fail "the report should name each entry: $out"
+fi
+if [[ "$out" == *"skip-entry"*"skipped: no-such-tool is not installed"* ]]; then
+  ok "an entry whose tool is missing is reported as skipped with the tool"
+else
+  fail "the skipped entry should be named with its tool: $out"
 fi
 if [[ "$(cat "$r/rec/staged" 2>/dev/null)" == 10 ]]; then
   ok "the pre-commit entry sees a 10-file staged change"

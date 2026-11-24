@@ -8,28 +8,30 @@ base="" force=0 runs=3 budget_ms=3000
 
 usage() {
   cat >&2 <<'EOF'
-Time every pre-commit and pre-push entry the root lefthook.yml runs, on a throwaway
-fixture repository (a 10-file staged change, then a two-commit push), and fail a hook
-whose entries together take longer than its budget: ADR 0072, pre-commit 3 s on a
-10-file commit, pre-push 3 s.
+Time every pre-commit and pre-push entry that the root lefthook.yml and every shipped
+plugins/*/git-hooks/*.yml config hold, on a throwaway fixture repository (a 10-file staged change, then a two-commit push), and fail a hook
+whose entries that ran together take longer than its budget: ADR 0072, pre-commit 3 s
+on a 10-file commit, pre-push 3 s. The fixture sets checks.skipmissing (ADR 0072 item 4)
+to every tool the entries.json files name, so an entry whose tool is not installed
+reports SKIPPED and is listed as skipped with the tool, outside the total.
 
   scripts/check-git-hook-time-budget.sh [--base <ref> | --force] [--root <dir>]
                                         [--runs <n>] [--budget-ms <ms>]
 
   --base <ref>     run only when the diff from <ref> touches lefthook.yml, .lefthook/**,
-                   plugins/*/git-hooks/**, a configured plugin's lib/git-hooks/**, an
-                   asset its git-hooks/entries.json lists or this script; otherwise
+                   plugins/*/git-hooks/**, a hook plugin's lib/git-hooks/**, an asset
+                   its git-hooks/entries.json lists or this script; otherwise
                    report not applicable
   --force          run whatever the diff
-  --root <dir>     the repository whose lefthook.yml is timed (default: this one)
+  --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook (default 3000)
 
 Each entry runs the way lefthook runs a remote's job: the remote's root is linked under
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
 its runner and the fixture as the working directory. A pre-push entry gets the remote
-name and URL as arguments and one pushed ref on stdin. A remote config outside this
-checkout is named and not timed. Times print in seconds and in S, one no-op
+name and URL as arguments and one pushed ref on stdin, and every run starts from the
+same staged files, so a formatter's rewrite does not carry over. Times print in seconds and in S, one no-op
 `bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
 slow runner shows as a larger S; the pass/fail line is the budget in seconds.
 
@@ -59,13 +61,9 @@ config="$ROOT/lefthook.yml"
 }
 
 configs=("lefthook.yml")
-while IFS= read -r c; do
-  if [[ -f "$ROOT/$c" ]]; then
-    configs+=("$c")
-  else
-    echo "NOTICE: remote config $c is not in this checkout; its entries are not timed."
-  fi
-done < <(awk '/^remotes:/ { r = 1; next } /^[^ #]/ { r = 0 } r && /^[ \t]*-[ \t]+[^:# \t]+\.ya?ml[ \t]*$/ { print $NF }' "$config")
+for c in "$ROOT"/plugins/*/git-hooks/*.yml; do
+  [[ -f "$c" ]] && configs+=("${c#"$ROOT"/}")
+done
 
 jobs_of() {
   awk -v cfg="$1" '
@@ -86,7 +84,7 @@ jobs_of() {
 
 mapfile -t jobs < <(for c in "${configs[@]}"; do jobs_of "$c"; done)
 if ((${#jobs[@]} == 0)); then
-  echo "GIT HOOK TIME BUDGET: not applicable: lefthook.yml configures no pre-commit or pre-push entry."
+  echo "GIT HOOK TIME BUDGET: not applicable: no hook config holds a pre-commit or pre-push entry."
   exit 0
 fi
 
@@ -132,27 +130,41 @@ g() { git -C "$fx" -c user.name=fixture -c user.email=fixture@example.invalid -c
 g init -q -b main
 mkdir -p "$fx/.git/no-hooks" "$fx/.git/info/lefthook-remotes" "$fx/docs/conventions"
 g config core.hooksPath "$fx/.git/no-hooks"
+tools="$(cat "$ROOT"/plugins/*/git-hooks/entries.json 2>/dev/null | jq -rs '[.[].entries[].tools[]?] + ["pygments"] | unique | join(",")' 2>/dev/null)"
+g config checks.skipmissing "${tools:-pygments}"
 ln -s "$ROOT" "$fx/.git/info/lefthook-remotes/repo"
 find "$ROOT/docs/conventions" -maxdepth 1 -type f -exec cp {} "$fx/docs/conventions/" \; 2>/dev/null
+for f in .editorconfig .shellcheckrc _typos.toml ruff.toml biome.json .markdownlint-cli2.jsonc PSScriptAnalyzerSettings.psd1; do
+  [[ -f "$ROOT/$f" ]] && cp "$ROOT/$f" "$fx/$f"
+done
+[[ -f "$fx/ruff.toml" ]] || : >"$fx/ruff.toml"
+[[ -f "$fx/biome.json" ]] || echo '{}' >"$fx/biome.json"
+[[ -f "$fx/.markdownlint-cli2.jsonc" ]] || echo '{}' >"$fx/.markdownlint-cli2.jsonc"
+[[ -f "$fx/PSScriptAnalyzerSettings.psd1" ]] || echo '@{}' >"$fx/PSScriptAnalyzerSettings.psd1"
 printf 'fixture\n' >"$fx/README.md"
 g add -A && g commit -q -m base || exit 2
 base_sha="$(g rev-parse HEAD)"
 
 write_file() {
   mkdir -p "$fx/${1%/*}"
-  # shellcheck disable=SC2059
-  for i in $(seq 1 120); do printf -- "$2\n" "$i" "$i"; done >"$fx/$1"
+  {
+    [[ -z "$3" ]] || printf '%s\n' "$3"
+    # shellcheck disable=SC2059
+    for i in $(seq 1 120); do printf -- "$2\n" "$i" "$i"; done
+    [[ -z "${4:-}" ]] || printf '%s\n' "$4"
+  } >"$fx/$1"
 }
-write_file src/one.sh 'value_%d="item-%d"'
-write_file src/two.sh 'printf "%%s\\n" "line %d of %d"'
-write_file src/three.py 'value_%d = "item-%d"'
-write_file src/four.py 'print("line %d of %d")'
-write_file src/five.js 'export const value%d = "item-%d";'
-write_file src/six.ts 'export const total%d: number = %d;'
-write_file docs/seven.md 'Line %d of the fixture guide, item %d.'
-write_file docs/eight.md '- Item %d: the fixture lists entry %d.'
-write_file config/nine.yml 'key_%d: value-%d'
-write_file config/ten.json '"key_%d": %d,'
+write_file src/one.sh 'echo "value %d of %d"' '#!/usr/bin/env bash'
+write_file src/two.sh 'printf "%%s\\n" "line %d of %d"' '#!/usr/bin/env bash'
+write_file src/three.py 'print("line %d of %d")' ''
+write_file src/four.js 'export const value%d = "item-%d";' ''
+write_file src/five.ts 'export const total%d: number = %d;' ''
+write_file src/six.go 'var value%d = "item-%d"' 'package fixture'
+write_file src/seven.ps1 "Write-Output 'line %d of %d'" ''
+write_file docs/eight.md '- Item %d: the fixture lists entry %d.' $'# Fixture list\n'
+write_file docs/nine.md 'Line %d of the fixture guide, item %d.' $'# Fixture guide\n'
+write_file config/ten.json '  "key_%d": %d,' '{' '  "end": 0
+}'
 g add -A
 
 run_entry() {
@@ -175,8 +187,9 @@ run_entry() {
 
 over=0
 time_hook() {
-  local ev=$1 what=$2 line cfg e name runner kind val us total=0 slow="" slow_us=0 rc
+  local ev=$1 what=$2 line cfg e name runner kind val us total=0 slow="" slow_us=0 rc missing tree
   shift 2
+  tree="$(g write-tree)"
   local push_ref
   push_ref="refs/heads/main $(g rev-parse HEAD) refs/heads/main $base_sha"
   echo
@@ -186,11 +199,17 @@ time_hook() {
     [[ "$e" == "$ev" ]] || continue
     rc=0
     us="$(for _ in $(seq 1 "$runs"); do
+      g read-tree "$tree" && g checkout-index -a -f
       t0=$(now_us)
       (cd "$fx" && run_entry "$cfg" "$runner" "$kind" "$val" "$ev" "$@" <<<"$push_ref") >"$fx/.git/entry.log" 2>&1 || echo "rc $?" >&2
       echo $(($(now_us) - t0))
     done 2>"$fx/.git/entry.rc" | median)"
     [[ -s "$fx/.git/entry.rc" ]] && rc="$(awk '{ print $2; exit }' "$fx/.git/entry.rc")"
+    missing="$(sed -n 's/.*SKIPPED: \(.*\) (missing).*/\1/p; s/.*NOTICE: \([^ ]*\) missing.*/\1/p' "$fx/.git/entry.log" | head -n 1)"
+    if [[ -n "$missing" ]]; then
+      printf '  %-48s %9s  skipped: %s is not installed\n' "$name" - "$missing"
+      continue
+    fi
     printf '  %-48s %9s  %7s  exit %s\n' "$name" "$(secs "$us")" "$(in_s "$us")" "$rc"
     if ((rc != 0)); then
       echo "    WARNING: $name exited $rc on the fixture, so its time may not cover a full run:"
@@ -200,7 +219,7 @@ time_hook() {
     ((us > slow_us)) && slow_us=$us && slow=$name
   done
   if [[ -z "$slow" ]]; then
-    echo "  no configured entry"
+    echo "  no entry ran"
     return
   fi
   local budget_us=$((budget_ms * 1000))
@@ -214,8 +233,8 @@ time_hook() {
 echo "S, one no-op bash -c : spawn, median of 21: $(awk -v us="$S" 'BEGIN { printf "%.2f ms", us / 1e3 }')"
 time_hook pre-commit "10 staged files"
 g commit -q -m "fixture: ten files" || exit 2
-printf 'one more line\n' >>"$fx/src/one.sh"
-printf 'one more line\n' >>"$fx/docs/seven.md"
+printf 'echo "one more line"\n' >>"$fx/src/one.sh"
+printf 'One more line.\n' >>"$fx/docs/nine.md"
 g commit -q -am "fixture: two edits" || exit 2
 time_hook pre-push "2 pushed commits, 10 files" origin https://example.invalid/fixture.git
 
