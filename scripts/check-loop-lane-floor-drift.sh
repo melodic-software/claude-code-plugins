@@ -112,10 +112,6 @@ cd "$ROOT" || {
   exit 2
 }
 
-# Fail-closed, never a skip: the repo-wide scan is what makes the registry a
-# bound rather than a wish, and without git there is no tracked-file corpus to
-# scan. Reporting a clean run from a check that could not enumerate anything is
-# the exact failure this gate is arranged against.
 if ! command -v git >/dev/null 2>&1; then
   echo "check-loop-lane-floor-drift: git not found; the repo-wide scan for unregistered copies cannot run" >&2
   exit 2
@@ -125,10 +121,8 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 
-# The one file that OWNS the floor. Everything below is a copy of this.
 SOURCE="plugins/rate-limits/reference/reader-contract.md"
 
-# The explicit consumer registry: "<mode> <path>".
 CONSUMERS=(
   "exact plugins/work-items/skills/work-loop/SKILL.md"
   "exact plugins/work-items/skills/attend-queue/SKILL.md"
@@ -138,22 +132,10 @@ CONSUMERS=(
   "values prompts/loops/loop-lane-prompts.md"
 )
 
-# Tracked files that carry the floor's opening bullet as DATA rather than as a
-# consumer copy, each with the reason it is not compared. Listed here rather
-# than self-declared in the file: see "DATA CARRIERS ARE LISTED HERE" above.
-#
-# Adding a line is a claim that the file's block is not an operable copy of the
-# floor, and it is reviewed as one. A line matching no tracked file, or matching
-# a file that no longer carries the marker, fails as stale, so this list cannot
-# outlive what it excuses. Every entry is printed on every run, including
-# --check, so the exception set is visible to CI and not only to a human who
-# thinks to pass --list.
 DATA_CARRIERS=(
   "scripts/check-loop-lane-floor-drift.test.sh this gate's own fixtures: abridged stand-in floor text, deliberately not the real values"
 )
 
-# The bullet labels the floor is made of. Present in the source block or this
-# gate is reading the wrong thing and says so instead of passing.
 BULLETS=(
   "**Snapshot file (fixed path):**"
   "**Pause threshold (fixed):**"
@@ -163,7 +145,6 @@ BULLETS=(
   "**Account switch:**"
 )
 
-# The first line of the floor block, in both plain and blockquoted form.
 MARKER='- **Snapshot file (fixed path):**'
 
 MODE=check
@@ -176,9 +157,6 @@ case "${1-}" in
   ;;
 esac
 
-# Print the floor block of $1, blockquote markers removed. The block runs from
-# the marker line to the first blank line after it (the floor is one bullet
-# list with no internal blank line, in every copy and in the source).
 extract_block() {
   awk '
     index($0, marker) == 1 || index($0, "> " marker) == 1 { inblock = 1 }
@@ -202,13 +180,6 @@ count_markers() {
   ' marker="$MARKER" "$1"
 }
 
-# Every TRACKED file that opens a floor block, one path per line.
-#
-# git grep narrows to files containing the marker anywhere; count_markers then
-# applies the SAME anchored test the comparison uses, so discovery and
-# comparison cannot disagree about what "carries the floor" means. A file that
-# merely quotes the phrase mid-line (a changelog, a review comment) is not a
-# carrier and is not reported.
 discover_carriers() {
   local file
   while IFS= read -r -d '' file; do
@@ -232,8 +203,6 @@ carrier_exemption() {
   return 1
 }
 
-# Strip emphasis and backticks, flatten every whitespace run, trim the ends.
-# Same normalization idiom as plugins/plugin-quality/scripts/zones-inline-drift.test.sh.
 norm() {
   tr -d '`*' | tr '\n' ' ' | tr -s ' ' | sed 's/^ //; s/ $//'
 }
@@ -243,8 +212,6 @@ report() {
   echo "$1" >&2
   errors=$((errors + 1))
 }
-
-# --- The source ------------------------------------------------------------
 
 if [[ ! -r "$SOURCE" ]]; then
   echo "check-loop-lane-floor-drift: source not readable: $SOURCE" >&2
@@ -270,19 +237,12 @@ for bullet in "${BULLETS[@]}"; do
 done
 SRC_NORM="$(printf '%s\n' "$SRC_BLOCK" | norm)"
 
-# --- The corpus ------------------------------------------------------------
-# Run the scan before anything reads its result, so both modes share one
-# answer, and prove it ran: the source carries the marker by definition, so a
-# discovery pass that does not return the source found nothing because it was
-# broken, not because the corpus is clean.
-
 CARRIERS="$(discover_carriers)"
 if ! grep -Fxq "$SOURCE" <<<"$CARRIERS"; then
   echo "check-loop-lane-floor-drift: the repo-wide scan did not find $SOURCE, which carries the floor by definition; the scan is not working and its result cannot be believed" >&2
   exit 2
 fi
 
-# is_registered <path>
 is_registered() {
   local candidate="$1" entry
   for entry in "${CONSUMERS[@]}"; do
@@ -314,8 +274,6 @@ if [[ "$MODE" == list ]]; then
   exit 0
 fi
 
-# --- Any carrier the registry does not name --------------------------------
-
 while IFS= read -r carrier; do
   [[ -n "$carrier" ]] || continue
   [[ "$carrier" != "$SOURCE" ]] || continue
@@ -331,12 +289,6 @@ while IFS= read -r carrier; do
     report "UNREGISTERED COPY: $carrier inlines the operable floor but is not in this gate's registry. Add it to CONSUMERS in $(basename "$0") with its comparison mode (exact, or values for a re-wrapped blockquote); add it to DATA_CARRIERS there, with a reason, if it carries the marker as data; or remove the inlined block. A copy nothing watches is a copy the next contract change strands. Nothing written INSIDE the file exempts it: the exception list lives in the gate so a copy cannot quiet the gate itself."
 done <<<"$CARRIERS"
 
-# --- Stale data-carrier listings -------------------------------------------
-# The exception list is held to the same stale-guard as the consumer registry.
-# An entry naming a file that is gone, or that no longer carries the floor, is
-# an exemption outliving what it excused, and it would go on suppressing a path
-# that a later change could reintroduce as a real consumer.
-
 for entry in "${DATA_CARRIERS[@]}"; do
   dc_path="${entry%% *}"
   if [[ ! -r "$dc_path" ]]; then
@@ -345,8 +297,6 @@ for entry in "${DATA_CARRIERS[@]}"; do
     report "STALE DATA CARRIER: $dc_path is listed in DATA_CARRIERS but no longer carries the floor marker. Remove the entry."
   fi
 done
-
-# --- Every registered consumer ---------------------------------------------
 
 checked=0
 for entry in "${CONSUMERS[@]}"; do
@@ -415,10 +365,6 @@ fi
 
 carriers_found="$(printf '%s\n' "$CARRIERS" | grep -c . || true)"
 
-# The exception set is printed on the PASSING path too, not only under --list.
-# CI runs --check and nothing else, so an exemption that appeared only in a
-# listing flag would be invisible in the one place it most needs reading: the
-# log of the run that went green over it.
 for entry in "${DATA_CARRIERS[@]}"; do
   printf 'check-loop-lane-floor-drift: NOT COMPARED (data carrier): %s — %s\n' \
     "${entry%% *}" "${entry#* }"

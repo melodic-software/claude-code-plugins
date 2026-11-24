@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: scripts/lib/hook-configs.sh
-# Unit tests for check-hook-userconfig-argv.sh. Builds a tiny synthetic
-# plugins/ tree per scenario in a temp dir and invokes the script against it
-# directly -- the script's own `cd "$(dirname "$0")/.."` makes this work
-# unmodified: copy it to <fixture>/scripts/ and it scans <fixture>/plugins/.
 # shellcheck disable=SC2016  # fixture bodies are literal JSON with ${user_config.*} tokens; expansion is never wanted
 set -uo pipefail
 
@@ -19,14 +15,10 @@ SCRIPT="$SELF_DIR/check-hook-userconfig-argv.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
-# without those, the copied gate dies on a missing source at line 1 and every
-# assertion below turns into the same opaque failure.
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins
 }
 
-# plugin_file <fixture> <plugin> <relpath> <content>
 plugin_file() {
   local fixture="$1" plugin="$2" rel="$3" content="$4"
   mkdir -p "$fixture/plugins/$plugin/$(dirname "$rel")"
@@ -257,7 +249,6 @@ rm -rf "$f"
 
 BOOL_MANIFEST='{"name":"alpha","userConfig":{"FOO_ENABLED":{"type":"boolean"}}}'
 
-# --- only LEADING gate pairs count: a script's own later --require-true is not a gate
 LATER_HOOK='{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--require-true","FOO_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","--require-true","SCRIPT_OWN_FLAG"]}]}]}'
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$LATER_HOOK"

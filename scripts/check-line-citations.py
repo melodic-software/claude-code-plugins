@@ -54,10 +54,6 @@ MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# PATH:SPEC. The lookbehind keeps a token that continues a URL, an
-# `owner/repo:` prefix or a longer word from matching from its middle; the
-# lookahead stops `file.md:12.5`, `file.md:12:3` and `file.md:12abc` from
-# reading as line 12.
 CITATION = re.compile(
     r"(?<![\w./@:~-])"
     r"(?P<path>[\w.@-]+(?:/[\w.@-]+)*)"

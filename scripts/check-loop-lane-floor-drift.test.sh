@@ -62,12 +62,6 @@ VALUES_CONSUMERS=(
   "prompts/loops/loop-lane-prompts.md"
 )
 
-# The SUT stale-guards DATA_CARRIERS exactly as it stale-guards CONSUMERS, so
-# the fixture tree has to satisfy both registries. The paths are read back out
-# of the SUT rather than copied here: a second hand-maintained list would be
-# free to disagree with the one under test, which is the defect class this
-# whole gate is about. They come from the SUT's DATA_CARRIERS array, not from
-# its --list, which scans every file of the live tree to find the carriers.
 mapfile -t DATA_CARRIER_PATHS < <(awk '
   /^DATA_CARRIERS=\(/ { f = 1; next }
   f && /^\)/ { exit }
@@ -75,8 +69,6 @@ mapfile -t DATA_CARRIER_PATHS < <(awk '
 ' "$SUT")
 ((${#DATA_CARRIER_PATHS[@]})) || fail "no DATA_CARRIERS entry read from $SUT"
 
-# The floor block as the fixtures carry it. Short stand-ins for the real
-# bullets: this suite tests the gate's comparison, not the guard's values.
 floor_block() {
   cat <<'EOF'
 - **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
@@ -89,8 +81,6 @@ floor_block() {
 EOF
 }
 
-# Same values, re-wrapped inside a blockquote — what the launch-prompt
-# templates legitimately do, and what `values` mode exists to tolerate.
 floor_block_quoted() {
   cat <<'EOF'
 > - **Snapshot file (fixed path):**
@@ -108,24 +98,15 @@ floor_block_quoted() {
 EOF
 }
 
-# A consumer body that no longer carries the floor at all.
 no_floor() {
   printf 'This lane no longer inlines anything.\n'
 }
 
-# A listed data carrier's body: carries the marker, but with a value the source
-# does not have. If the exemption ever stopped applying, this would surface as
-# DRIFT rather than quietly agreeing.
 data_carrier_block() {
   printf 'Fixture data, not an operable copy of the floor.\n\n'
   floor_block | sed 's/>= 90/>= 42/'
 }
 
-# A genuine consumer copy that ALSO writes the old in-file exemption token into
-# itself, and applies the floor like any lane. Under the withdrawn annotation
-# idiom this silenced the gate; under DATA_CARRIERS it must not. The token is
-# printed in two halves so this fixture string cannot be mistaken for a live
-# annotation by anything grepping the suite.
 self_exempting_consumer() {
   printf 'loop-lane-floor-carrier%s illustrative example, not an operable copy\n\n' '-ok:'
   floor_block
@@ -133,7 +114,6 @@ self_exempting_consumer() {
 }
 
 write_file() {
-  # write_file <relative path> <body-producing function>
   local rel="$1" body="$2"
   mkdir -p "$TMP/$(dirname "$rel")"
   {
@@ -149,16 +129,9 @@ seed_tree() {
   local c
   for c in "${EXACT_CONSUMERS[@]}"; do write_file "$c" floor_block; done
   for c in "${VALUES_CONSUMERS[@]}"; do write_file "$c" floor_block_quoted; done
-  # Each listed data carrier gets a block that CARRIES the marker and whose
-  # value DIFFERS from the source, so a conforming tree proves the exemption is
-  # actually excusing the file rather than passing by accidental agreement.
   for c in "${DATA_CARRIER_PATHS[@]}"; do write_file "$c" data_carrier_block; done
 }
 
-# The SUT enumerates tracked files, so every case stages the fixture tree
-# before invoking it. Staging inside run() rather than at the end of seed_tree
-# is deliberate: a case that adds or deletes a file after seeding then needs no
-# second call, and no case can forget one.
 run() {
   git_test_config "$TMP" add -A || {
     fail "could not stage the fixture tree"
@@ -175,8 +148,6 @@ mutate() {
   sed "$prog" "$file" >"$file.mutated" && mv "$file.mutated" "$file"
 }
 
-# --- 1. A conforming tree passes -------------------------------------------
-
 seed_tree
 out="$(run --check)"
 rc=$?
@@ -186,8 +157,6 @@ else
   fail "conforming tree should pass (rc=$rc): $out"
 fi
 
-# --- 2. Bare invocation is --check -----------------------------------------
-
 out="$(run)"
 rc=$?
 if ((rc == 0)); then
@@ -195,8 +164,6 @@ if ((rc == 0)); then
 else
   fail "bare invocation should pass on a conforming tree (rc=$rc): $out"
 fi
-
-# --- 3. --list reports the registry without comparing ----------------------
 
 out="$(run --list)"
 rc=$?
@@ -207,8 +174,6 @@ else
   fail "--list should enumerate the registry (rc=$rc): $out"
 fi
 
-# --- 4. An unknown argument is usage, not a silent pass ---------------------
-
 out="$(run --whatever)"
 rc=$?
 if ((rc == 2)) && grep -q 'usage:' <<<"$out"; then
@@ -216,8 +181,6 @@ if ((rc == 2)) && grep -q 'usage:' <<<"$out"; then
 else
   fail "unknown argument should exit 2 (rc=$rc): $out"
 fi
-
-# --- 5. Exact drift in one lane body fails ---------------------------------
 
 seed_tree
 mutate "$TMP/plugins/work-items/skills/work-loop/SKILL.md" 's/is stale\. Treat the/is stale, treat the/'
@@ -229,17 +192,11 @@ else
   fail "exact drift should fail (rc=$rc): $out"
 fi
 
-# --- 6. The failure names the drifted line ---------------------------------
-
 if grep -q 'is stale, treat the' <<<"$out"; then
   ok "the exact-drift report shows the drifted line"
 else
   fail "exact-drift report should diff the block: $out"
 fi
-
-# --- 7. A source-side change fails every consumer ---------------------------
-# The direction that matters most: changing the OWNER without the copies is the
-# same defect seen from the other end.
 
 seed_tree
 mutate "$TMP/$SOURCE_REL" 's/\*\*10 minutes\*\*/**15 minutes**/'
@@ -251,8 +208,6 @@ else
   fail "source-side change should fail every consumer (rc=$rc): $out"
 fi
 
-# --- 8. Re-wrapping a `values` consumer is tolerated -----------------------
-
 seed_tree
 out="$(run --check)"
 rc=$?
@@ -262,10 +217,6 @@ else
   fail "re-wrapped values consumer should pass (rc=$rc): $out"
 fi
 
-# --- 9. A changed VALUE in a `values` consumer still fails ------------------
-# Values mode forgives wrapping, never a value. Without this the two prompt
-# templates would be registered and unchecked.
-
 mutate "$TMP/prompts/loops/loop-lane-prompts.md" 's/>= 90/>= 80/'
 out="$(run --check)"
 rc=$?
@@ -274,9 +225,6 @@ if ((rc == 1)) && grep -q 'DRIFT (values): prompts/loops/loop-lane-prompts.md' <
 else
   fail "values-mode value change should fail (rc=$rc): $out"
 fi
-
-# --- 10. A consumer that stopped inlining the floor fails ------------------
-# Deleting the block must not read as "nothing to compare, therefore clean".
 
 seed_tree
 write_file "plugins/source-control/skills/babysit-loop/SKILL.md" no_floor
@@ -288,8 +236,6 @@ else
   fail "dropped floor should fail (rc=$rc): $out"
 fi
 
-# --- 11. A registration pointing at no file fails --------------------------
-
 seed_tree
 rm "$TMP/prompts/loops/loop-lane-prompts.md"
 out="$(run --check)"
@@ -299,8 +245,6 @@ if ((rc == 1)) && grep -q 'STALE REGISTRATION: prompts/loops/loop-lane-prompts.m
 else
   fail "stale registration should fail (rc=$rc): $out"
 fi
-
-# --- 12. Two floor blocks in one consumer is ambiguous, not a first-hit win -
 
 seed_tree
 {
@@ -315,10 +259,6 @@ else
   fail "duplicate block should fail as ambiguous (rc=$rc): $out"
 fi
 
-# --- 13. A source whose marker no longer matches is inconclusive -----------
-# The blindness case. If the extractor stopped finding the block, every
-# comparison would be empty-against-empty and the gate would pass forever.
-
 seed_tree
 mutate "$TMP/$SOURCE_REL" 's/- \*\*Snapshot file (fixed path):\*\*/- **Snapshot file path:**/'
 out="$(run --check)"
@@ -328,10 +268,6 @@ if ((rc == 2)) && grep -q 'opens the floor block 0 time(s)' <<<"$out"; then
 else
   fail "unmatched source marker should exit 2 (rc=$rc): $out"
 fi
-
-# --- 14. A source block missing a floor bullet is inconclusive -------------
-# The other blindness case: the marker still matches but the block the gate
-# extracted is not the floor, so it refuses to certify anything against it.
 
 seed_tree
 mutate "$TMP/$SOURCE_REL" '/\*\*Drain-then-pause:\*\*/d'
@@ -343,8 +279,6 @@ else
   fail "incomplete source block should exit 2 (rc=$rc): $out"
 fi
 
-# --- 15. An unreadable source is exit 2, never a clean run -----------------
-
 seed_tree
 rm "$TMP/$SOURCE_REL"
 out="$(run --check)"
@@ -354,15 +288,6 @@ if ((rc == 2)) && grep -q 'source not readable' <<<"$out"; then
 else
   fail "missing source should exit 2 (rc=$rc): $out"
 fi
-
-# Cases 16, 26 and 28 checked the live registry for stale consumers and data
-# carriers and the live tree for an unregistered copy. `--check` fails on all
-# three, and lint-repo runs it on every pull request; run here, they read every
-# file of the live tree.
-
-# --- 17. An unregistered file carrying the floor fails ---------------------
-# The registry alone only ever looks where it is told, so a seventh consumer
-# would inline the floor, pass CI, and go stale at the next contract change.
 
 seed_tree
 write_file "plugins/some-new-plugin/skills/new-lane/SKILL.md" floor_block
@@ -374,20 +299,11 @@ else
   fail "unregistered copy should fail (rc=$rc): $out"
 fi
 
-# --- 18. It fails even when the unregistered copy matches perfectly --------
-# The failure is about being unwatched, not about being wrong today. A copy
-# that matches now is exactly the one that silently goes stale later, so a
-# byte-perfect unregistered copy must still be reported.
-
 if grep -q 'DRIFT' <<<"$out"; then
   fail "the unregistered copy matches the source, so no DRIFT should be reported: $out"
 else
   ok "an unregistered copy fails for being unregistered, not for drifting"
 fi
-
-# --- 19. A blockquoted unregistered copy is discovered too -----------------
-# Discovery uses the same anchored marker the comparison does, or the
-# launch-prompt shape would be a hole in the scan.
 
 seed_tree
 write_file "prompts/loops/some-new-template.md" floor_block_quoted
@@ -399,8 +315,6 @@ else
   fail "blockquoted unregistered copy should fail (rc=$rc): $out"
 fi
 
-# --- 20. The owning contract is never reported as an unregistered copy -----
-
 seed_tree
 out="$(run --check)"
 rc=$?
@@ -409,11 +323,6 @@ if ((rc == 0)) && ! grep -q 'UNREGISTERED' <<<"$out"; then
 else
   fail "clean tree should stay clean (rc=$rc): $out"
 fi
-
-# --- 21. An untracked copy is not a CI failure -----------------------------
-# Discovery enumerates TRACKED files, the corpus every sibling gate reads. A
-# scratch file in someone's working tree ships to nobody and must not turn the
-# gate red; the moment it is staged, case 17 applies.
 
 seed_tree
 git_test_config "$TMP" add -A >/dev/null
@@ -426,8 +335,6 @@ else
   fail "untracked copy should not fail (rc=$rc): $out"
 fi
 
-# --- 22. --list reports the discovered carriers ----------------------------
-
 seed_tree
 out="$(run --list)"
 rc=$?
@@ -437,10 +344,6 @@ else
   fail "--list should report discovered carriers (rc=$rc): $out"
 fi
 
-# --- 23. The listed data carrier is excused, and named on the passing run --
-# The exception set has to be readable in CI, which runs --check and never
-# --list, or a green run hides what it declined to compare.
-
 seed_tree
 out="$(run --check)"
 rc=$?
@@ -449,13 +352,6 @@ if ((rc == 0)) && grep -q 'NOT COMPARED (data carrier): scripts/check-loop-lane-
 else
   fail "--check should report the exception set (rc=$rc): $out"
 fi
-
-# --- 24. A file cannot exempt ITSELF -- the defect that withdrew the idiom --
-# A genuine lane body that inlines the floor, applies it, and writes the old
-# in-file exemption token into its own prose. Under the annotation idiom this
-# passed while drifting, because the token matched anywhere on any line. The
-# exception list lives in the gate now, so the file is UNREGISTERED regardless
-# of what it says about itself.
 
 seed_tree
 write_file "plugins/some-new-plugin/skills/new-lane/SKILL.md" self_exempting_consumer
@@ -467,10 +363,6 @@ else
   fail "self-exemption must be impossible (rc=$rc): $out"
 fi
 
-# --- 25. And it is still caught once it has drifted ------------------------
-# The consequence the withdrawn idiom allowed: an exempted copy silently going
-# stale. Same file, now with a changed value.
-
 mutate "$TMP/plugins/some-new-plugin/skills/new-lane/SKILL.md" 's/>= 90/>= 80/'
 out="$(run --check)"
 rc=$?
@@ -479,13 +371,6 @@ if ((rc == 1)) && grep -q 'UNREGISTERED COPY: plugins/some-new-plugin/skills/new
 else
   fail "drifted self-exempting copy must fail (rc=$rc): $out"
 fi
-
-# --- 27. The discovery self-proof is load-bearing --------------------------
-# If git cannot see the source, the scan found nothing because it was broken,
-# not because the corpus is clean. Staging everything EXCEPT the source makes
-# the file readable on disk (so the earlier source checks pass) and invisible
-# to the tracked-file scan, which is exactly the shape a stubbed-out search
-# produces. Without the self-proof this reports a clean run over -1 carriers.
 
 seed_tree
 git_test_config "$TMP" add -A >/dev/null
@@ -498,10 +383,6 @@ else
   fail "discovery self-proof should exit 2 (rc=$rc): $out"
 fi
 
-# --- 29. Weakening the Account switch bullet in one lane body fails --------
-# The newest bullet is the one a lane would silently soften first (MUST to may),
-# so it gets its own drift case rather than riding on the older bullets' cases.
-
 seed_tree
 mutate "$TMP/plugins/source-control/skills/babysit-loop/SKILL.md" 's/\*\*MUST\*\*/**may**/'
 out="$(run --check)"
@@ -513,8 +394,6 @@ else
   fail "Account switch drift should fail exactly one consumer (rc=$rc): $out"
 fi
 
-# --- 30. A changed Account switch value in a values consumer fails ---------
-
 seed_tree
 mutate "$TMP/prompts/loops/loop-lane-prompts.md" 's/below 90 drops/below 80 drops/'
 out="$(run --check)"
@@ -524,10 +403,6 @@ if ((rc == 1)) && grep -q 'DRIFT (values): prompts/loops/loop-lane-prompts.md' <
 else
   fail "Account switch values drift should fail (rc=$rc): $out"
 fi
-
-# --- 31. A source block missing the Account switch bullet is inconclusive --
-# Proves the bullet is in the gate's label list: a floor that lost it would
-# otherwise compare clean against copies that lost it too.
 
 seed_tree
 mutate "$TMP/$SOURCE_REL" '/\*\*Account switch:\*\*/d'

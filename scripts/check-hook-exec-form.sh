@@ -85,9 +85,6 @@ on_hook() {
   execform_errors=$((execform_errors + 1))
 }
 
-# on_unreadable <surface> <file> <where> <detail>. Fail closed on an unparsable
-# hook config or frontmatter: input this gate cannot read is input it cannot
-# clear. An unparsable manifest is skipped; manifest validity has its own gate.
 on_unreadable() {
   case "$1" in
   json)

@@ -29,16 +29,10 @@
 # Unrecognized git state is exit 2 (inconclusive), never a pass.
 set -uo pipefail
 
-# Operate on the caller's git work tree (CI checks out the PR and runs from its
-# root; the self-test cds into a scratch repo before invoking). Never force-cd
-# to the script's install location — that would always inspect this repository
-# instead of the tree under test.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "check-stale-base-overlap: not inside a git work tree" >&2
   exit 2
 fi
-# SCRIPT_DIR locates the shared library only. The cd below still goes to the
-# tree under test, never to the install location.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
@@ -97,12 +91,6 @@ if ! changed_files::into head_paths "$merge_base..HEAD" --include-deleted --no-r
   exit 2
 fi
 
-# Generated docs nearly every plugin PR regenerates are dropped from the
-# overlap: scripts/validate-plugins.sh runs each generator with --check in CI,
-# which fails unless the committed block matches what its sources produce, and
-# those sources stay in the comparison. Only the text between each file's
-# markers is generated; the short hand-written preamble is not re-checked.
-# Add a path here only when a --check in that script covers it.
 generated_paths=(docs/catalog.md docs/skill-cheat-sheet.md)
 kept=()
 for path in ${head_paths[@]+"${head_paths[@]}"}; do
@@ -121,7 +109,6 @@ overlap="$(
 
 behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '?')"
 
-# Prints the overlapping paths to stderr, one indented path per line.
 print_overlap() {
   local path
   while IFS= read -r path; do

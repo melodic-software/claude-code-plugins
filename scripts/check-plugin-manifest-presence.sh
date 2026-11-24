@@ -77,13 +77,9 @@ normalize_rel_path() {
     [[ -n "$seg" && "$seg" != "." ]] || continue
     out="${out:+$out/}$seg"
   done
-  # "." rather than "" when every segment was dropped, so a root-level plugin
-  # (source ".", "./") keeps resolving to the repository root.
   printf '%s' "${prefix}${out:-.}"
 }
 
-# Sources actually seen in the catalog, keyed by the canonical relative path
-# -- used by the inverse check below.
 declare -A catalog_sources=()
 
 while IFS=$'\t' read -r name source; do
@@ -138,14 +134,9 @@ while IFS=$'\t' read -r name source; do
   fi
 done <<<"$entries"
 
-# Inverse check: every plugins/*/ directory must be named by some catalog
-# entry's source.
 if [[ -d "$PLUGINS_ROOT" ]]; then
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue
-    # Same canonicalization as the catalog side, so the two key on one
-    # spelling even when PLUGINS_ROOT itself is given with a trailing or
-    # doubled slash.
     rel="$(normalize_rel_path "$plugin_dir")"
     if [[ -z "${catalog_sources[$rel]:-}" ]]; then
       printf "UNREGISTERED PLUGIN DIRECTORY: '%s' exists but no %s entry names it as its source.\n" "$rel" "$MARKETPLACE" >&2

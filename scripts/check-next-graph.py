@@ -58,8 +58,6 @@ TOKEN = re.compile(r"(?<![\w/.-])/([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)(?![\
 SKILL_NAME = re.compile(r"[a-z0-9-]+:[a-z0-9-]+")
 STAGE_HEADING = re.compile(r"^## (\d+)\. (\w+)(?: \((conditional|optional)\b)?")
 WORKFLOW_STAGE = re.compile(r"^\s+workflow-stage:\s*([a-z-]+)\s*$")
-# A frontmatter stage matches a ladder heading word exactly; this is the one
-# value whose heading word differs. A prefix match would put `pr` on `prd`.
 STAGE_ALIASES = {"retro": "retrospective"}
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 

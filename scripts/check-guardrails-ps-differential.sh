@@ -135,7 +135,6 @@ mkdir -p "$NEUTRAL" "$WORK/data" "$WORK/payload" "$WORK/res" || exit 2
 TIMEOUT=()
 command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 120)
 
-# --- --harvest ---------------------------------------------------------------
 if ((HARVEST)); then
   mkdir -p "$WORK/harvest/plugins" || exit 2
   cp -R "$BRANCH_ROOT" "$WORK/harvest/plugins/" || exit 2
@@ -166,7 +165,6 @@ if ((HARVEST)); then
   exit 0
 fi
 
-# --- the two trees -----------------------------------------------------------
 gate_entry::require_base "$BASE_REF" "$PROG: base ref not resolvable: $BASE_REF"
 mkdir -p "$WORK/base" || exit 2
 if ! git archive --format=tar "$BASE_REF" plugins/guardrails | tar -xf - -C "$WORK/base"; then
@@ -212,7 +210,6 @@ BRANCH_ROW=$(row_args_of "$BRANCH_ROOT") || {
   exit 2
 }
 
-# --- corpus ------------------------------------------------------------------
 if [[ ! -f "$CORPUS" ]]; then
   echo "$PROG: corpus not found: $CORPUS" >&2
   exit 2
@@ -236,10 +233,7 @@ if ((N == 0)); then
   exit 2
 fi
 
-# --- running cells -----------------------------------------------------------
-# A cell is <tree>|<target>|<command index>|<token mask>. Its exit status lands
-# in $WORK/res/<cell with | as _>.
-mask_tokens() { # <mask> -> comma list of allow tokens
+mask_tokens() {
   local m=$1 i out=""
   for i in "${!TOKENS[@]}"; do
     ((m & (1 << i))) && out+="${out:+,}ps-unparsable-${TOKENS[i]}"
@@ -247,7 +241,7 @@ mask_tokens() { # <mask> -> comma list of allow tokens
   printf '%s' "$out"
 }
 
-run_cell() { # <tree> <target> <index> <mask>
+run_cell() {
   local tree=$1 target=$2 idx=$3 mask=$4 root row rc=0 allow
   local -a argv env_add=()
   if [[ "$tree" == base ]]; then
@@ -272,7 +266,7 @@ run_cell() { # <tree> <target> <index> <mask>
   printf '%s' "$rc" >"$WORK/res/${tree}_${target}_${idx}_${mask}"
 }
 
-run_cells() { # <cell list file>, one `<tree> <target> <index> <mask>` per line
+run_cells() {
   local n=0 tree target idx mask
   while read -r tree target idx mask; do
     run_cell "$tree" "$target" "$idx" "$mask" &
@@ -285,7 +279,7 @@ run_cells() { # <cell list file>, one `<tree> <target> <index> <mask>` per line
   wait
 }
 
-result() { # <tree> <target> <index> <mask> -> rc, or `missing`
+result() {
   local f="$WORK/res/${1}_${2}_${3}_${4}"
   if [[ -f "$f" ]]; then cat "$f"; else printf 'missing'; fi
 }
@@ -299,7 +293,6 @@ done
 run_cells "$WORK/cells1"
 
 NMASK=$(((1 << ${#TOKENS[@]}) - 1))
-# Indices of the commands base block-dangerous-git refuses token-free.
 REFUSED=()
 for ((i = 0; i < N; i++)); do
   [[ "$(result base block-dangerous-git "$i" 0)" == 2 ]] && REFUSED+=("$i")
@@ -312,12 +305,11 @@ for i in ${REFUSED[@]+"${REFUSED[@]}"}; do
 done
 run_cells "$WORK/cells2"
 
-# --- report ------------------------------------------------------------------
 command_of() { jq -r '.tool_input.command' "$WORK/payload/$1.json"; }
 
 declare -A T_CELLS=() T_BASE2=() T_BRANCH2=() T_LOST=() T_GAINED=()
 LOST=0
-report_cell() { # <label> <target> <index> <mask>
+report_cell() {
   local label=$1 b r tokens
   b=$(result base "$2" "$3" "$4")
   r=$(result branch "$2" "$3" "$4")

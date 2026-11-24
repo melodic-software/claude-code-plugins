@@ -358,18 +358,9 @@ fi
 violations=()
 covered=()
 
-# The suite set spans both languages. Python test files are named `test_*.py`
-# or `*_test.py` in this corpus; both spellings are enumerated so a rename
-# between them cannot drop a suite out of scope.
 mapfile -t suites < <(git ls-files '*.test.sh' '*test_*.py' '*_test.py' 2>/dev/null | sort -u)
 for t in "${suites[@]}"; do
   [[ -n "${IS_FIXTURE[$t]:-}" ]] || continue
-  # Actually clearing outranks declaring. A file that clears is reported as
-  # `isolated` even if it also carries the token, which matters because a file
-  # holding the token as TEST DATA — this gate's own self-test writes fixture
-  # suites containing a declaration line — would otherwise be reported as
-  # merely declared and its real property hidden. Ordering this way keeps the
-  # accidental-token surface to files that genuinely do not clear.
   if [[ -n "${CLEARS_FILE[$t]:-}" ]] || sources_isolating_harness "$t"; then
     covered+=("$t")
     [[ "$mode" == "list" ]] && printf 'isolated    %s\n' "$t"
@@ -380,8 +371,6 @@ for t in "${suites[@]}"; do
     [[ "$mode" == "list" ]] && printf 'declared    %s\n' "$t"
     continue
   fi
-  # A baseline entry shadowing a live violation has not outlived its debt.
-  # scripts/lib/read-list.sh owns the consumed-set and the diagnostic.
   read_list::mark_used "$t"
   if [[ -n "${BASELINED[$t]:-}" ]]; then
     [[ "$mode" == "list" ]] && printf 'baselined   %s\n' "$t"
@@ -492,8 +481,6 @@ fi
 if ((${#stale[@]} > 0)); then
   rc=1
   printf '\n%d entry(ies) in %s no longer shadow a violation.\nDelete each line below — the debt it recorded is paid.\n\n' "${#stale[@]}" "$BASELINE" >&2
-  # scripts/lib/read-list.sh owns the one STALE BASELINE diagnostic every list
-  # gate here prints.
   while IFS= read -r s; do
     read_list::stale_line "$BASELINE" "$s" 'no longer shadows a violation'
   done < <(printf '%s\n' "${stale[@]}" | sort)

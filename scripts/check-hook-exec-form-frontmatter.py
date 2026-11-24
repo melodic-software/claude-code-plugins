@@ -64,11 +64,6 @@ def emit(kind: str, path: str, line: int, detail: str) -> None:
 
 
 def frontmatter_of(text: str) -> tuple[str, int] | None:
-    """Return (frontmatter body, 1-based line number of its first line).
-
-    None when the file does not open with a frontmatter delimiter, or opens one
-    it never closes -- an unterminated block is not frontmatter to any reader.
-    """
     lines = text.split("\n")
     if lines[0].rstrip("\r") != FRONTMATTER_OPEN:
         return None
@@ -146,12 +141,6 @@ def duplicate_keys(node):
 
 
 def merge_sources(node, seen):
-    """Yield every mapping node this mapping pulls in through `<<`, transitively.
-
-    A merged mapping contributes its keys to the hook object, so it is subject
-    to the same duplicate check — otherwise an anchored mapping with two
-    `command` keys would reach a hook object through `<<` unexamined.
-    """
     for key_node, value_node in node.value:
         if getattr(key_node, "value", None) != "<<":
             continue
@@ -164,7 +153,6 @@ def merge_sources(node, seen):
 
 
 def scan_node(node, path: str, offset: int, seen: set) -> None:
-    """Report every mapping in this subtree carrying `command` (V with `args`, S without)."""
     if node is None or id(node) in seen:
         return
     seen.add(id(node))
