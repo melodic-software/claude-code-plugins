@@ -3,9 +3,6 @@ import { desktopNotice, type DesktopCrossing } from './desktop-notice.tsx'
 import { alias, followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-usage'
-// Migration: a session compacted before the rename has its marker, and an operator's bands their
-// zones.json, under the earlier directory until the data move runs. Remove once every lane has
-// converged on context-usage and no lane holds that directory.
 const EARLIER_DIR = 'context-guard'
 const PREFIX = 'context-usage: '
 const NEXT_ZONE: Partial<Record<Zone, Zone>> = { light: 'moderate', moderate: 'heavy' }
@@ -13,7 +10,6 @@ const SESSION_ID = /^[A-Za-z0-9_-]+$/
 const PERSON_ORIGINS = ['composer', 'bridge']
 const REOFFER_MS = 5_000
 const FLOOR_MS = 60_000
-// A tick lands a write once the floor has passed, so a write is never later than the floor plus one tick.
 const WRITE_TIMER_MS = 15_000
 const HELPER = 'lib/write-snapshot.mjs'
 const DATA_ITEMS = ['zone', 'percent', 'tokens', 'window']
@@ -26,10 +22,7 @@ const ACTION_TEXT: Record<Action, string> = {
 
 type Action = (typeof ACTIONS)[number]
 type Rule = { action: Action; text?: string }
-// at: the edge in force, scaled to the auto-compact window; at_percent: the zones.json value, which
-// stays fixed when the window changes and so keys the once-per-cycle bookkeeping.
 type Threshold = Rule & { at: number; at_percent: number }
-// notices: the band shapes readBands found malformed, each falling back to the shipped bands.
 type Settings = { bands: Bands; notices: string[]; margin: number; actions: Partial<Record<Zone, Rule>>; thresholds: Threshold[] }
 type Config = {
   enabled: boolean
@@ -39,7 +32,6 @@ type Config = {
   band: boolean
   toast: boolean
 }
-// The snapshot body: reference/reader-contract.md "Snapshot file shape".
 type Snapshot = {
   captured_at: string
   session_id: string
@@ -52,7 +44,6 @@ type Snapshot = {
     remaining_percentage: number | null
     current_usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number } | null
   }
-  // The published zone: what this body resolves to and the edges in force, for readers such as a status line.
   zone?: Zone | 'unknown'
   evidence_degraded?: boolean
   bands?: {
@@ -64,15 +55,12 @@ type Snapshot = {
   }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
-// shown: the person's channel has handled it: the batch's last crossing got the transcript line
-// (and the toast, when on), or it came from 'unobserved' and was deliberately skipped.
 type Crossing = { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; shown?: boolean; armedBefore: number }
 type Event =
   | Crossing
   | { kind: 'restate'; zone: Zone; degraded: boolean; unavailable?: undefined }
   | { kind: 'restate'; zone: undefined; degraded: true; unavailable: true }
   | { kind: 'approach'; zone: Zone; toward: string }
-  // actionOnly: a restatement absorbed the verdict, so only the threshold's action sentence is sent.
   | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold; actionOnly?: boolean }
 type Session = {
   armed: number
@@ -82,15 +70,12 @@ type Session = {
   compacted: boolean
   pending: Event[]
   restate: boolean
-  // The unavailable line went out for a compaction and no figures have arrived since.
   awaiting: boolean
   reading: Reading | undefined
   written: { sig: string; at: number } | undefined
   body: Snapshot | undefined
   offered: Event[]
 }
-// A crossing's notice is drawn only where a toast may not show (any surface but the terminal);
-// operator mode's held line is drawn on every surface.
 type Notice = { text: string; kind: 'crossing' | 'operator'; crossing?: DesktopCrossing }
 type State = {
   origin: PromptOrigin | undefined
@@ -111,7 +96,6 @@ type State = {
   zonesKey: string | undefined
   zonesPath: string | undefined
   zonesToast: boolean
-  // Each malformed zones.json text already toasted this session.
   zonesToasted: Set<string>
 }
 
@@ -142,7 +126,6 @@ export const parseConfig = (options: Record<string, unknown>): Config & { bad: s
   }
 }
 
-// C0 and C1 controls, DEL and the Unicode line and paragraph separators each break a line
 const breaksLine = (c: number): boolean => c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029
 const oneLine = (s: string): string => {
   let out = ''
@@ -159,16 +142,12 @@ const oneLine = (s: string): string => {
 const asRule = (value: unknown): Rule | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
-  // `block` armed the removed gate; it reads as `none`, text dropped, so its threshold keeps its lines.
   if (v.action === 'block') return { action: 'none' }
   if (!ACTIONS.includes(v.action as Action)) return undefined
-  // one line: a newline in the operator's text must not start a line that reads as the guard's own
   const text = typeof v.text === 'string' ? oneLine(v.text) : ''
   return { action: v.action as Action, ...(text !== '' ? { text } : {}) }
 }
 
-// zones.json: the bands as the resolver reads them, plus the mod's keys; an absent or invalid key
-// means its default, so a file written for the resolver alone keeps working.
 export const parseSettings = (zones: string | null): Settings => {
   const { bands, notices } = readBands(zones)
   let z: Record<string, unknown> = {}
@@ -176,11 +155,9 @@ export const parseSettings = (zones: string | null): Settings => {
     const parsed: unknown = zones === null ? {} : JSON.parse(zones)
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) z = parsed as Record<string, unknown>
   } catch {
-    // malformed: every mod key takes its default
   }
   const margin = typeof z.approach_margin === 'number' ? z.approach_margin : NaN
   const actionsRaw = typeof z.actions === 'object' && z.actions !== null && !Array.isArray(z.actions) ? (z.actions as Record<string, unknown>) : {}
-  // The old zone names (actions.smart, .acceptable, .dumb) read for one release as the new ones.
   const actionsIn = alias(alias(alias(actionsRaw, 'light', 'smart'), 'moderate', 'acceptable'), 'heavy', 'dumb')
   const actions: Partial<Record<Zone, Rule>> = {}
   for (const zone of ['light', 'moderate', 'heavy'] as const) {
@@ -198,9 +175,6 @@ export const parseSettings = (zones: string | null): Settings => {
   return { bands, notices, margin: Number.isFinite(margin) && margin >= 0 && margin < 100 ? margin : 5, actions, thresholds }
 }
 
-// zones.json percentages are of the auto-compact window: under a lowered window the edges,
-// thresholds and approach margin all move toward it, in points of the model's window, which
-// used_percentage counts against. Token bands measure occupancy and stay as they are.
 export const followSettings = (s: Settings, window: number, compactWindow: number | undefined): Settings => ({
   ...s,
   bands: followWindow(s.bands, window, compactWindow),
@@ -223,14 +197,9 @@ const newSession = (restate: Session['restate']): Session => ({
   offered: [],
 })
 
-// Records what the reading crossed since the last one as pending events. Each zone is reported once
-// per cycle: a zone's line fires when the session first reaches it, a dip below a boundary changes
-// nothing, and only a return to light opens a new cycle.
 export const recordReading = (s: Session, reading: Reading, settings: Settings) => {
   s.reading = reading
   const { zone, percent } = reading
-  // A compacted session has no figures until the next API response: the line says the reading is
-  // unavailable, and the restatement waits for the figures.
   if (s.restate && reading.degraded && percent === undefined && reading.tokens === undefined) {
     if (!s.awaiting) s.pending.push({ kind: 'restate', zone: undefined, degraded: true, unavailable: true })
     s.awaiting = true
@@ -239,10 +208,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   if (zone === undefined) return
   if (s.restate) {
     s.awaiting = false
-    // A compacted session's verdict is restated at any zone, so Claude learns of the compaction.
     if (zone !== 'light' || reading.degraded) s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
     s.restate = false
-    // A compaction frees room, so its cycle restarts at the zone the figures give.
     if (reading.degraded) {
       s.armed = RANK[zone]
       s.fired.clear()
@@ -269,9 +236,6 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
       }
     }
   }
-  // One approach line per boundary per cycle, in the shape that decides the boundary: the token
-  // shape when its edge sits below the percentage edge, else the percentage shape. The margin is in
-  // percentage points, of the window in the token shape.
   if (settings.margin <= 0) return
   const { light, moderate } = settings.bands
   const tok = reading.token
@@ -298,7 +262,6 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   }
 }
 
-// The verdict as Claude and the person read it: moderate zone (2 of 3), light zone (1 of 3, compacted).
 const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded ? ', compacted' : ''})`
 
 const dataText = (r: Reading | undefined, cfg: Config) => {
@@ -316,14 +279,11 @@ const sentence = (source: string, rule: Rule) => {
 
 export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Settings) => {
   const data = dataText(s.reading, cfg)
-  // The sentence a zone's zones.json action adds, if any.
   const action = (zone: Zone) => {
     const rule = settings.actions[zone]
     return rule ? sentence(`operator setting for the ${zone} zone`, rule) : ''
   }
-  // A verdict line states facts only; the options line renderAll adds is the one that names choices.
   const line = (zone: Zone, degraded: boolean, hint: string) => `context-usage: ${verdictText(zone, degraded)}${data}${hint}.`
-  // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
   const near = (zone: Zone) => {
     const toward = NEXT_ZONE[zone]
     return toward !== undefined && s.approached.has(toward) ? `, nearing ${toward}` : ''
@@ -341,20 +301,15 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
   }
 }
 
-// Follows the verdict lines once per carrier past light. The verdict alone pushed Claude toward
-// handoffs and terse delegation, so the line names the durable-state step and leaves the rest a choice.
 const OPTIONS =
   'context-usage: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose; /context shows what fills the window. A zone never calls for terser output, fewer agents, or lower quality.'
 
-// The verdict lines due at one carrier: a line that another one already starts with (an approach
-// line its crossing repeats, with or without an action after it) is sent once.
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
   const verdicts = lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
   return events.some(e => e.zone !== 'light' && !(e.kind === 'restate' && e.unavailable)) ? [...verdicts, OPTIONS] : verdicts
 }
 
-// Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
   for (const line of lines) $.ui.log(line, { to: 'debug' })
   return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
@@ -365,13 +320,10 @@ const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (awai
 const zonesToastText = (path: string, notices: string[]) =>
   `${path}: shipped defaults replace malformed ${notices.join(' and ')} · /context-usage:setup check`
 
-// zones.json, re-read only when it appears, disappears or its mtime moves. A malformed text is
-// toasted to the person once per distinct content; Claude gets no line about it.
 async function loadSettings($: EngineInterface, st: State, home: string | undefined) {
   if (home === undefined) return st.settings
   let path = `${home}/.claude/${CONTRACT_DIR}/zones.json`
   let stat = await $.fs.stat(path).catch(() => undefined)
-  // Migration: the operator's bands stay under the earlier directory until the data move runs.
   if (stat === undefined) {
     const earlier = `${home}/.claude/${EARLIER_DIR}/zones.json`
     const found = await $.fs.stat(earlier).catch(() => undefined)
@@ -423,8 +375,6 @@ async function refresh($: EngineInterface, st: State) {
   ])
   const c = usage.context
   const api = c.breakdown?.apiUsage ?? null
-  // The breakdown's window is the auto-compact window the engine settled on (env, settings,
-  // per-model or the model's own); absent, the model's window stands.
   const compactWindow = c.breakdown?.rawMaxTokens
   const follows = ofWindow(100, c.window, compactWindow) < 100
   const settings = followSettings(loaded, c.window, compactWindow)
@@ -458,10 +408,8 @@ async function refresh($: EngineInterface, st: State) {
   if (!s.compacted && home !== undefined && SESSION_ID.test(sid)) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
       || await $.fs.exists(`${home}/.claude/${EARLIER_DIR}/context/${sid}.compacted`).catch(() => false)
-    // The settings hook's marker alone is reported once, as a compaction is.
     if (s.compacted) s.restate = true
   }
-  // The zone reports room only; the compaction is reported beside it.
   const zone = word === 'unknown' ? undefined : word
   const token = tokenShape(body.context_window, body.cli_version, settings.bands)
   body.zone = zone ?? 'unknown'
@@ -475,9 +423,7 @@ async function refresh($: EngineInterface, st: State) {
   }
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
-  // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
-  // The kept figures still publish a compaction seen since.
   else if (s.compacted) s.body = { ...s.body, evidence_degraded: true }
   st.reading = reading
   const band = bandText(reading)
@@ -490,29 +436,21 @@ async function refresh($: EngineInterface, st: State) {
 
 const isPersonTurn = (st: State) => st.origin !== undefined && PERSON_ORIGINS.includes(st.origin.kind)
 
-// Operator mode holds the lines in a turn a person typed, where a suggestion can show.
 async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
   if (!cfg.operator || st.forceAutomatic || !isPersonTurn(st)) return false
   return (await $.session.surfaces()).length > 0
 }
 
-// The continuation menu is the person's: a toast, and a transcript line Claude does not read. It
-// never goes into Claude's context. The engine titles the toast with the plugin's name.
 const toastText = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
 const menuLine = (from: string, to: string) =>
   `context-usage: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-usage`
 const menuZone = (zone: Zone, degraded: boolean) => (degraded ? `${zone} (compacted)` : zone)
 const noticeShows = (st: State, surface: string) => st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// One fire of a hook, for its telemetry envelope: the event, when it started, and the optional
-// correlation keys (docs/contracts/hook-telemetry, "Correlation keys").
 type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unknown }
 const PLAIN_ID = /^[A-Za-z0-9._-]+$/
 const RANK_WORD = ['light', 'moderate', 'heavy'] as const
 
-// The launcher session-telemetry keeps in its plugin data directory, <config dir>/plugins/data/<id>,
-// for the reserved sink values: of the session-telemetry-* directories that hold one, the launcher
-// refreshed most recently, since session-telemetry touches it at each SessionStart.
 // CLAUDE_CONFIG_DIR, default ~/.claude, holds the plugins (https://code.claude.com/docs/en/env-vars).
 async function sessionTelemetrySink($: EngineInterface) {
   const home = await homeDir($)
@@ -530,11 +468,6 @@ async function sessionTelemetrySink($: EngineInterface) {
   return best?.path
 }
 
-// Sends one envelope to HOOK_TELEMETRY_SINK, fire-and-forget; no sink set, nothing is sent.
-// `@session-telemetry` and `@harness-ops` name session-telemetry's launcher, skipped when none is
-// installed, and any other `@`
-// value is reserved and skipped; a relative sink path
-// is joined onto the session's project root, else skipped.
 async function emitTelemetry($: EngineInterface, hook: string, status: string, data: Record<string, unknown>, fire: Fire) {
   const sink = await $.env.get('HOOK_TELEMETRY_SINK')
   if (!sink) return
@@ -569,7 +502,6 @@ async function emitTelemetry($: EngineInterface, hook: string, status: string, d
   void $.process.run([path], { stdin: `${JSON.stringify(envelope)}\n`, timeoutMs: 10_000 }).catch(() => undefined)
 }
 
-// zone-crossing-inject's data for a fire that sent lines (data/zone-crossing-inject.schema.json).
 const crossingData = (s: Session, events: Event[], extra: Record<string, unknown>) => {
   const crossed = events.filter(e => e.kind === 'crossing').at(-1)
   const zone = s.reading?.zone ?? 'unknown'
@@ -578,10 +510,6 @@ const crossingData = (s: Session, events: Event[], extra: Record<string, unknown
     : { zone, previous: s.last ?? '', armed: RANK_WORD[s.armed], ...extra }
 }
 
-// A restatement says the verdict as of when it was recorded, so a crossing, an approach or an
-// earlier restatement before it merges into it rather than reaching Claude twice. A threshold
-// before it keeps only its action sentence, which the restatement does not carry. A crossing
-// recorded after it is the newer verdict and replaces it.
 const mergeRestated = (pending: Event[]): Event[] => {
   const lastRestate = pending.findLastIndex(e => e.kind === 'restate')
   if (lastRestate < 0) return pending
@@ -593,7 +521,6 @@ const mergeRestated = (pending: Event[]): Event[] => {
   })
 }
 
-// The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
 async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire): Promise<string[]> {
   const s = st.sessions.get(await $.session.id())
   if (s === undefined) return []
@@ -602,10 +529,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     return []
   }
   const holds = cfg.lines && (await operatorHolds($, st, cfg))
-  // No await from here until s.pending is replaced.
   const merged = mergeRestated(s.pending)
-  // A hold keeps lines for the suggestion, except a crossing the person was already shown (read in an
-  // unattended turn): offering it again would repeat it, so it goes to Claude as in automatic mode.
   const seen = (e: Event) => e.kind === 'crossing' && e.shown === true
   const events = holds ? merged.filter(seen) : merged
   s.pending = holds ? merged.filter(e => !seen(e)) : []
@@ -616,14 +540,10 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     await emitTelemetry($, 'zone-crossing-inject', 'ok', crossingData(s, events, { injected: true }), fire)
     lines = renderAll(events, s, cfg, st.settings)
   }
-  // The person's channel runs after Claude's lines are built, so a failing toast never drops one.
   showCrossing($, st, cfg, events)
   return lines
 }
 
-// Shows the person the last crossing among events not yet shown: a toast, a transcript line and the
-// crossing notice. Each crossing is shown once. A handed-off suggestion already reached the person,
-// and a crossing from 'unobserved' (a first reading already past light) is never shown.
 function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[]) {
   const due = events.filter((e): e is Crossing => e.kind === 'crossing' && !e.handedOff && !e.shown)
   const crossed = due.at(-1)
@@ -640,9 +560,6 @@ function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[
   $.ui.invalidate('ui.render')
 }
 
-// A crossing read with a turn's final answer has no carrier until the next prompt, so the person
-// sees it at the measurement; Claude's line still waits for that carrier. A turn operator mode
-// holds keeps it for the suggestion.
 async function showPending($: EngineInterface, st: State, cfg: Config) {
   const s = st.sessions.get(await $.session.id())
   if (s === undefined || !cfg.enabled) return
@@ -650,8 +567,6 @@ async function showPending($: EngineInterface, st: State, cfg: Config) {
   showCrossing($, st, cfg, s.pending)
 }
 
-// Offers the held lines as the prompt box's suggestion. With text in the box it waits (false);
-// where a suggestion cannot show, the lines go to Claude at the next carrier.
 async function offer($: EngineInterface, st: State, s: Session, fire: Fire) {
   if (st.notice?.kind !== 'operator') return true
   const box = await $.prompt.read()
@@ -659,7 +574,6 @@ async function offer($: EngineInterface, st: State, s: Session, fire: Fire) {
   const { isShown } = await $.prompt.suggest({ text: st.notice.text })
   if (isShown) {
     await emitTelemetry($, 'zone-crossing-inject', 'ok', crossingData(s, s.pending, { injected: false, suggested: true }), fire)
-    // Shown is not taken: kept until the next turn says whether a person saw it.
     s.offered.push(...s.pending.splice(0))
   } else {
     st.notice = undefined
@@ -674,7 +588,6 @@ function stopTimer(timer: Timer | undefined) {
   return undefined
 }
 
-// The band row: context-usage: <zone> <n>%. The zone comes before the figure, so a cut row still shows it.
 export const bandText = (r: Reading | undefined) => {
   if (r?.percent === undefined) return `${PREFIX}-`
   const zone = r.zone === undefined ? '' : `${r.zone}${r.degraded ? ', compacted' : ''} `
@@ -685,9 +598,6 @@ const USAGE = 'usage: /context-usage [band [on|off]]'
 const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-usage/README.md'
 const DOCS = 'https://code.claude.com/docs/en/context-window#when-your-context-fills-up'
 
-// /context-usage with no argument: the verdict with its figures and the settings in force. The reply
-// is stored as a transcript row Claude reads, so it carries no menu, router pointer or link; those
-// go to a transcript line Claude does not read.
 const POINTER = `context-usage: next step: route it with /session-flow:workflow (if installed), or see ${DOCS} · more: ${README}`
 async function statusText($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
@@ -729,7 +639,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     total_input_tokens: w.total_input_tokens ?? null,
     total_output_tokens: w.total_output_tokens ?? null,
     context_window_size: w.context_window_size,
-    // refresh publishes the edges in force on the body it returns.
     bands: body.bands,
     approach_margin: settings.margin,
   })
@@ -741,10 +650,6 @@ const logOnce = ($: EngineInterface, st: State, key: string, text: string) => {
   $.ui.log(`context-usage: ${text}`, { to: 'debug' })
 }
 
-// Writes the session's snapshot through the shared helper. Decided in memory: a body unchanged
-// since the last write is rewritten at most once per 60 s (floor-bound in the helper too), so a
-// call that writes nothing starts no process. Where $.process.run is unavailable nothing is
-// written; readers then read unknown, as they do with no file.
 async function writeSnapshot($: EngineInterface, st: State, read: boolean) {
   const sid = await $.session.id()
   if (read) await refresh($, st)
@@ -758,11 +663,8 @@ async function writeSnapshot($: EngineInterface, st: State, read: boolean) {
   const same = s.written?.sig === sig
   if (same && s.written !== undefined && now - s.written.at < FLOOR_MS) return
   const target = `${home}/.claude/${CONTRACT_DIR}/context/${sid}.json`
-  // A body with no figures (before a session's first response, or after session.end or a fresh
-  // load dropped the in-memory one) never goes over a file on disk that has them.
   if (body.context_window.used_percentage === null && (await diskHasFigures($, target))) return
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--prune', ...(same ? ['--floor', String(FLOOR_MS / 1000)] : [])]
-  // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
     if (run.exitCode === 0 || run.exitCode === 3) s.written = { sig, at: now }
@@ -787,8 +689,6 @@ function queueWrite($: EngineInterface, st: State, read = false) {
   return st.writing
 }
 
-// A refused tool registration (a policy can refuse a user mod's tools) is logged once; everything
-// else the module does carries on without the tool.
 async function registerSurfaces($: EngineInterface, st: State) {
   const [tool] = await Promise.allSettled([
     $.tool.register({
@@ -839,8 +739,6 @@ export const register: Register = (on, options) => {
       st.loggedOnce.add(line)
     }
     await registerSurfaces($, st)
-    // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
-    // earlier lines already reached Claude, so only a verdict past light is restated.
     if ((await $.session.turns()) > 0) {
       const s = await current($, st)
       s.pending = []
@@ -852,8 +750,6 @@ export const register: Register = (on, options) => {
   on('session.end', async ($, e, next) => {
     st.reofferTimer = stopTimer(st.reofferTimer)
     st.writeTimer = stopTimer(st.writeTimer)
-    // A -p exit does not drop the last reading the floor held back. The last refreshed body, not
-    // a fresh read: usage at exit can come back empty, and a session never refreshed writes nothing.
     await queueWrite($, st)
     st.sessions.delete(e.sessionId)
     st.carry = e.reason === 'resume'
@@ -875,12 +771,8 @@ export const register: Register = (on, options) => {
 
   on('prompt.submit', async ($, e, next) => {
     const startMs = await $.clock.now()
-    // Only a prompt that starts a turn sets its origin; one delivered into a running turn does not.
     if (e.turnId === undefined) {
       st.origin = e.origin
-      // A shown suggestion: a person's turn means they saw it and chose, so it goes unsent; a turn
-      // no person started (a --bg launch turn reads as typed, so its suggestion went unseen) gets
-      // it as the ordinary line.
       const s = await current($, st)
       const handOff = s.offered.splice(0)
       if (!isPersonTurn(st)) s.pending.unshift(...handOff.map(ev => (ev.kind === 'crossing' ? { ...ev, handedOff: true } : ev)))
@@ -902,8 +794,6 @@ export const register: Register = (on, options) => {
 
   on('session.measure', async ($, e, next) => {
     await refresh($, st)
-    // The person's toast first, so a slow snapshot helper (10 s per run) cannot delay it; the
-    // finally keeps a failing toast step from skipping the write.
     try {
       await showPending($, st, cfg)
     } finally {
@@ -914,7 +804,6 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     st.reofferTimer = stopTimer(st.reofferTimer)
-    // Keeps the snapshot fresh through one long tool call or subagent run.
     st.writeTimer ??= $.clock.every(WRITE_TIMER_MS, () => {
       void queueWrite($, st, true)
     })

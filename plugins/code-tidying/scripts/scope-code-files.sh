@@ -1,27 +1,8 @@
 #!/usr/bin/env bash
-# scope-code-files.sh — resolve remove-comments' empty-argument scope ladder.
-#
-# The ladder advances on ABSENCE of a rung, never on emptiness of one:
-#   uncommitted   the working tree has changes (any path); lists their code files
-#   branch        clean tree, and HEAD carries commits the base branch lacks;
-#                 lists the code files changed since the merge-base
-#   repository    clean tree on the base branch (or no base resolvable while
-#                 clean); lists every tracked code file
-# A rung that exists but yields zero code files is reported with zero files,
-# so a docs-only branch never silently widens to the whole repository.
-#
-# Base branch: --base <ref>, else refs/remotes/origin/HEAD, else origin/main,
-# origin/master, main, master, in that order.
-#
-# Usage: scope-code-files.sh [--base <ref>] [--max <n>]
-# Output: line 1 `rung=<name> base=<ref-or-none> files=<count>`, then one
-#         repo-relative path per line (capped at --max when given).
 # Exit: 0 resolved; 1 not a git repository; 2 usage; 4 the shared extension
 # list (code-extensions.txt beside this script) cannot be read, named on stderr.
 set -uo pipefail
 
-# The extension list is shared with changed-code-files.sh and comment-census.py,
-# and must cover every file the change-shape and commented-out-code grammars accept.
 EXT_LIST="$(dirname "${BASH_SOURCE[0]}")/code-extensions.txt"
 EXTS=""
 [[ -f "$EXT_LIST" && -r "$EXT_LIST" ]] && EXTS="$(tr -d '\r' <"$EXT_LIST" | grep . | paste -sd'|' -)"
@@ -112,9 +93,6 @@ if [[ -n "$BRANCH_ONLY" ]]; then
   exit 0
 fi
 
-# Rung 1: uncommitted; rename/copy entries emit the new path only. The -z stream is
-# piped straight into awk, since a command substitution drops NULs and folds every
-# record into one. -uall lists files inside a new directory, not `?? dir/`.
 if [[ -n "$(git status --porcelain -uall 2>/dev/null)" ]]; then
   list=$(git status --porcelain -uall -z 2>/dev/null |
     awk 'BEGIN { RS = "\0" } skip { skip = 0; next } { if (substr($0, 1, 2) ~ /[RC]/) skip = 1; print substr($0, 4) }' |

@@ -17,8 +17,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# An inherited GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) would point the fixtures' git
-# writes at the caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -105,20 +103,15 @@ def build(repo: Path) -> None:
     (repo / ".gitattributes").write_text("gen.sh linguist-generated\n")
     (repo / "hot.sh").write_text(
         commented(40, 12)
-    )  # commented and churned: should rank first
-    (repo / "cold.sh").write_text(commented(40, 12))  # commented, never touched again
+    )
+    (repo / "cold.sh").write_text(commented(40, 12))
     (repo / "plain.sh").write_text(
         commented(40, 0)
-    )  # churned, no comments: payload zero
-    (repo / "tiny.sh").write_text(commented(5, 3))  # below the size floor
-    (repo / "gen.sh").write_text(commented(40, 12))  # generated: gated
+    )
+    (repo / "tiny.sh").write_text(commented(5, 3))
+    (repo / "gen.sh").write_text(commented(40, 12))
     (repo / "CHANGELOG.md").write_text("# log\n")
-    # A code file on the administrative path list: gated by default, ranked
-    # under --override-exclusions. CHANGELOG.md cannot prove that branch,
-    # because the not-a-code-file gate drops it before ADMIN is consulted.
     (repo / ".claude" / "hooks").mkdir(parents=True)
-    # Content is deliberately unique: a byte-identical twin would collapse into
-    # another row's instance count and perturb the collapse assertions.
     (repo / ".claude" / "hooks" / "guard.sh").write_text(
         commented(40, 11) + "# guard\n"
     )
@@ -126,7 +119,7 @@ def build(repo: Path) -> None:
         commented(40, 10) + "# other\n"
     )
     (repo / "copy-a.sh").write_text(commented(40, 6))
-    (repo / "copy-b.sh").write_text(commented(40, 6))  # byte-identical to copy-a
+    (repo / "copy-b.sh").write_text(commented(40, 6))
     (repo / "user.sh").write_text(
         "#!/usr/bin/env bash\nsource hot.sh\nsource hot.sh\n" + "x=1\n" * 30
     )
@@ -148,9 +141,6 @@ class Ranking(unittest.TestCase):
         cls.repo = cls.tmp / "repo"
         cls.repo.mkdir()
         build(cls.repo)
-        # The expectations are pygments counts: an installed scc would supply the
-        # comment lines and count every shebang as one. A failing scc stub first on
-        # PATH makes the census fall back to pygments, as on CI.
         stub = cls.tmp / "no-scc"
         stub.mkdir()
         (stub / "scc").write_text("#!/bin/sh\nexit 1\n")
@@ -191,7 +181,6 @@ class Ranking(unittest.TestCase):
         rep = json.loads(self.run_rank("--override-exclusions").stdout)
         lifted_paths = [r["path"] for r in rep["rows"]]
         self.assertIn(admin, lifted_paths)
-        # The other gates are untouched by the flag.
         self.assertNotIn("gen.sh", lifted_paths)
         self.assertNotIn("tiny.sh", lifted_paths)
         self.assertNotIn("CHANGELOG.md", lifted_paths)
@@ -221,8 +210,6 @@ class Ranking(unittest.TestCase):
     def test_bot_commits_do_not_count_as_churn(self):
         rep = json.loads(self.run_rank().stdout)
         hot = next(r for r in rep["rows"] if r["path"] == "hot.sh")
-        # init added all 41 lines; 4 human commits changed 5 lines each (10 per
-        # commit): 41 + 40 = 81. The bot's 20-line sweep (40 more) must not count.
         self.assertEqual(hot["raw_churn"], 81, hot)
 
     def test_fan_in_counts_other_files_references(self):

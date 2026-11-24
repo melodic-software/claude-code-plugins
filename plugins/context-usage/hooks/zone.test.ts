@@ -28,8 +28,6 @@ for (const c of cases as Case[]) {
   })
 }
 
-// The mod resolves before it publishes bands, passing the window it read as `follow`. On every
-// case that publishes a numeric auto-compact window, that call reaches the word the readers do.
 type Snap = { context_window: { context_window_size?: number }; bands?: { auto_compact_window?: unknown } }
 const lowered = (cases as Case[]).filter(c => typeof (c.snapshot as Snap | null)?.bands?.auto_compact_window === 'number')
 test('fixture: the shared file holds a lowered-window case', () => {
@@ -44,9 +42,6 @@ for (const c of lowered) {
   })
 }
 
-// The bash clock is live, so a calendar-invalid captured_at inside the staleness window cannot be
-// a shared case. Here the clock is set two days after the value, where the normalized date
-// (February 30 is March 2) would read fresh without the round-trip check.
 const fresh = (capturedAt: string) =>
   JSON.stringify({ captured_at: capturedAt, session_id: 's1', context_window: { used_percentage: 20, current_usage: {} } })
 test('captured_at: a calendar-invalid value that would normalize into the window reads unknown', () => {

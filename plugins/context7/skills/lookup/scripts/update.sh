@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# context7 update — drift check for ctx7 CLI version and upstream skill content.
-#
-# Modes:
-#   (default)             report only — CLI version drift + upstream skill diff
-#   --fix                 install/upgrade CLI to latest; still advisory on skill content
-#   --refresh-baseline    overwrite upstream snapshot with current upstream and stamp synced
-#                         and upstream-version (the master commit both files came from)
-#                         (maintainer-only: run in a working clone, never the installed cache)
-#
 # Exit codes (the shared drift-check contract):
 #   0 — no drift, or the requested fix/refresh completed with nothing left to report
 #   1 — drift: the installed CLI is behind latest, or upstream skill content differs
@@ -17,8 +8,6 @@
 # Drift outranks unverifiable: a run that finds drift exits 1 even if another check
 # could not run. A ctx7 CLI that is not installed is reported but is not drift.
 
-# No -e: check_skill_drift captures non-zero return codes via $? as drift signals,
-# not failures.
 set -uo pipefail
 
 MODE="${1:-report}"
@@ -48,9 +37,6 @@ done
 
 mkdir -p "$SNAPSHOT_DIR/find-docs" "$SNAPSHOT_DIR/cli"
 
-# Verifies ctx7 is resolvable on PATH and prints a non-empty version.
-# On success: prints version to stdout, returns 0.
-# On failure: prints nothing to stdout, returns non-zero.
 verify_ctx7_callable() {
   command -v ctx7 >/dev/null 2>&1 || return 1
   local version
@@ -105,11 +91,6 @@ fi
 
 echo ""
 
-# --- upstream skill content check ---
-# Return codes:
-#   0 — upstream unchanged (or baseline seeded/refreshed successfully in --refresh-baseline mode)
-#   1 — drift detected (content differs, OR baseline missing in non-refresh mode)
-#   2 — fetch failed or baseline write failed; state unverifiable
 check_skill_drift() {
   local name="$1"
   local url="$2"
@@ -178,8 +159,6 @@ check_skill_drift() {
   return 1
 }
 
-# Resolve master once and fetch both files at that commit, so both baselines and the
-# stamped upstream-version name the same revision.
 UPSTREAM_SHA=$(git ls-remote "$UPSTREAM_REPO" refs/heads/master 2>/dev/null | cut -f1)
 if [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "=== Upstream commit: $UPSTREAM_SHA ==="
@@ -215,13 +194,13 @@ echo "↳ Drift or unverifiable state present. See sections above."
 case "$CLI_DRIFT" in
 1) echo "  - CLI version behind" ;;
 2) echo "  - CLI state unverifiable (npm registry unreachable)" ;;
-*) ;; # 0 = no CLI drift
+*) ;;
 esac
 for entry in "find-docs:$FIND_DOCS_RC" "context7-cli:$CLI_SKILL_RC"; do
   case "${entry#*:}" in
   1) echo "  - ${entry%%:*} SKILL.md changed upstream (or baseline missing)" ;;
   2) echo "  - ${entry%%:*} upstream unreachable or baseline write failed (state unverifiable)" ;;
-  *) ;; # 0 = unchanged
+  *) ;;
   esac
 done
 if [[ "$CLI_DRIFT" == 1 || $FIND_DOCS_RC == 1 || $CLI_SKILL_RC == 1 ]]; then
