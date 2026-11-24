@@ -508,11 +508,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Only the restated claim that a session cannot detect a non-interactive run was cut from the Unattended path (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the write-at-ask-time rule, both drift checks, every unattended ladder rung and the gate before locking are unchanged.
 # Merge of main: the section now holds both the branch row-shape guidance (#17279) and main cut of the undetectable-run claim (#16937); write-at-ask-time, the gate and the unattended ladder are unchanged
 # Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
+# The PR adds one Unattended-path paragraph making an open quality-bar row blocked and USER-RESERVED even when recommended, never auto-resolved; gaps and blockers still bind to the gate, and no pinned line or rung changed.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "f8873518e28409c2ec4a6c9c42bb3e3494b1f55b70daee2a23a971298b4135a3"
+  "0339f9431e948aef09aa956cef462001b6ba8463fb85af32f07fe2fd5421d28a"
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
