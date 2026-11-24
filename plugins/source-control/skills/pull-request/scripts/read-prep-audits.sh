@@ -33,7 +33,6 @@ set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 
 CLASSES=(markdown renames skills rules tests)
-# tests is off-only: its judge verdicts feed prep's step 1.3.
 REPLACEABLE=" markdown renames skills rules "
 SKILL_RE='^/[a-z0-9]+(-[a-z0-9]+)*(:[a-z0-9]+(-[a-z0-9]+)*)?$'
 # Fresh arrays, so nothing inherited from the environment reads as a setting.
@@ -119,7 +118,6 @@ base_file_list_check prep_audits || fail_closed "$BASE_FILE_REASON"
 
 ((max >= 0)) || emit default
 
-# The parser drops quoting, so a quoted enabled is found in the key's own lines.
 grep -qE "(^|[[:space:]{,-])${q}enabled${q}[[:space:]]*:[[:space:]]*[\"']" <<<"$BASE_FILE_BLOCK" &&
   fail_closed "an enabled value in prep_audits is quoted, not a boolean"
 
