@@ -144,8 +144,9 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
 ## Addendum (2026-11-24): CI times the git hooks
 
 Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
-durations": when a change touches a hook config or a script a hook entry calls, CI runs every
-shipped `pre-commit` and `pre-push` entry on a fixed fixture (a 10-file commit, a two-commit
-push), prints each entry's time in seconds and in S, lists an entry whose tool is missing as
-skipped (item 4's skip), and fails a hook whose total over the entries that ran is over its 3 s
-budget (`scripts/check-git-hook-time-budget.sh`). Nothing kills a hook at run time.
+durations": when a change touches a hook config or a script a hook entry calls, CI installs
+every hook tool, runs every shipped `pre-commit` and `pre-push` entry on a fixed fixture (a
+10-file commit, a two-commit push), prints each entry's time in seconds and in S, and fails a
+hook whose total is over its 3 s budget, or an entry whose tool is missing
+(`scripts/check-git-hook-time-budget.sh`). A local run skips such an entry (item 4's skip).
+Nothing kills a hook at run time.

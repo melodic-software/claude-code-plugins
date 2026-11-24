@@ -4,6 +4,8 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/gate-entry.sh" || exit 2
 base="" force=0 scope_only=0 runs=3 budget_ms=3000
 
 usage() {
@@ -28,7 +30,8 @@ the gate with the tool's name, since CI installs every hook tool first.
   --root <dir>     the repository whose hook entries are timed (default: this one)
   --runs <n>       runs per entry; an entry's time is the median (default 3)
   --budget-ms <ms> the budget of each hook (default 3000)
-  --scope-only     time nothing: exit 0 when the gate applies, 3 when it does not
+  --scope-only     time nothing: print applies=true or applies=false on stdout (the
+                   form GITHUB_OUTPUT takes), every other line on stderr
 
 Each entry runs the way lefthook runs a remote's job: the remote's root is linked under
 the fixture's .git/info/lefthook-remotes/, and the entry's script runs from there with
@@ -38,8 +41,8 @@ same staged files, so a formatter's rewrite does not carry over. Times print in 
 and in S, one no-op `bash -c :` spawn measured in the same run (docs/contracts/hook-budget/README.md), so a
 slow runner shows as a larger S; the pass/fail line is the budget in seconds.
 
-Exit 0 within budget or not applicable, 1 over budget or a tool missing in CI, 2 usage
-or setup error, 3 not applicable under --scope-only.
+Exit 0 within budget or not applicable, 1 over budget, a tool missing in CI or an entry
+that could not start (exit 126 or 127), 2 usage or setup error. Findings print on stderr.
 EOF
   exit 2
 }
@@ -58,9 +61,13 @@ while (($#)); do
 done
 [[ "$runs" =~ ^[1-9][0-9]*$ && "$budget_ms" =~ ^[1-9][0-9]*$ ]] || usage
 ((force)) || [[ -n "$base" ]] || usage
+if ((scope_only)); then
+  exec 3>&1 1>&2
+fi
 not_applicable() {
   echo "GIT HOOK TIME BUDGET: not applicable: $1"
-  exit $((scope_only ? 3 : 0))
+  ((scope_only)) && echo applies=false >&3
+  exit 0
 }
 
 config="$ROOT/lefthook.yml"
@@ -74,7 +81,7 @@ done
 jobs_of() {
   awk -v cfg="$1" '
     function flush() {
-      if (kind != "") printf "%s\t%s\t%s\t%s\t%s\t%s\n", cfg, ev, (name == "" ? val : name), runner, kind, val
+      if (kind != "") printf "%s\037%s\037%s\037%s\037%s\037%s\n", cfg, ev, (name == "" ? val : name), runner, kind, val
       name = ""; runner = ""; kind = ""; val = ""
     }
     function value(line) { sub(/^[^:]*:[ \t]*/, "", line); gsub(/^["\047]|["\047][ \t]*$/, "", line); return line }
@@ -94,10 +101,7 @@ if ((${#jobs[@]} == 0)); then
 fi
 
 if ((! force)); then
-  git -C "$ROOT" rev-parse --verify --quiet "$base^{commit}" >/dev/null || {
-    echo "GIT HOOK TIME BUDGET: base $base is not a commit in this clone." >&2
-    exit 2
-  }
+  (cd "$ROOT" && gate_entry::require_base "$base" "GIT HOOK TIME BUDGET: base $base is not a commit in this clone.")
   watched=(lefthook.yml '.lefthook/*' 'plugins/*/git-hooks/*' scripts/check-git-hook-time-budget.sh)
   for c in "${configs[@]:1}"; do
     plugin="${c%/git-hooks/*}"
@@ -119,7 +123,10 @@ if ((! force)); then
   fi
   echo "GIT HOOK TIME BUDGET: $hit changed; timing the git-hook entries."
 fi
-((scope_only)) && exit 0
+if ((scope_only)); then
+  echo applies=true >&3
+  exit 0
+fi
 
 now_us() { printf '%s' "${EPOCHREALTIME//[!0-9]/}"; }
 median() { sort -n | awk '{ v[NR] = $1 } END { print v[int((NR + 1) / 2)] }'; }
@@ -182,6 +189,10 @@ run_entry() {
   dir="$fx/.git/info/lefthook-remotes/repo"
   [[ "$cfg" == lefthook.yml ]] && dir="$ROOT"
   path="$dir/.lefthook/$ev/$val"
+  [[ -f "$path" ]] || {
+    echo "no such script: .lefthook/$ev/$val" >&2
+    return 127
+  }
   if [[ -n "$runner" ]]; then
     # shellcheck disable=SC2086
     $runner "$path" "$@"
@@ -200,7 +211,7 @@ time_hook() {
   echo
   echo "$ev ($what), median of $runs run(s) per entry:"
   for line in "${jobs[@]}"; do
-    IFS=$'\t' read -r cfg e name runner kind val <<<"$line"
+    IFS=$'\037' read -r cfg e name runner kind val <<<"$line"
     [[ "$e" == "$ev" ]] || continue
     rc=0
     us="$(for _ in $(seq 1 "$runs"); do
@@ -212,7 +223,7 @@ time_hook() {
     [[ -s "$fx/.git/entry.rc" ]] && rc="$(awk '{ print $2; exit }' "$fx/.git/entry.rc")"
     missing="$(sed -n 's/.*SKIPPED: \(.*\) (missing).*/\1/p; s/.*NOTICE: \([^ ]*\) missing.*/\1/p' "$fx/.git/entry.log" | head -n 1)"
     if [[ -n "$missing" && "${GITHUB_ACTIONS:-}" == true ]]; then
-      printf '  %-48s %9s  FAIL: %s is not installed on this runner\n' "$name" - "$missing"
+      printf '  %-48s %9s  FAIL: %s is not installed on this runner\n' "$name" - "$missing" >&2
       over=1
       continue
     elif [[ -n "$missing" ]]; then
@@ -220,7 +231,12 @@ time_hook() {
       continue
     fi
     printf '  %-48s %9s  %7s  exit %s\n' "$name" "$(secs "$us")" "$(in_s "$us")" "$rc"
-    if ((rc != 0)); then
+    if ((rc == 126 || rc == 127)); then
+      echo "FAIL: $name could not start (exit $rc), so its time was not measured:" >&2
+      sed -n '1,5s/^/    | /p' "$fx/.git/entry.log" >&2
+      over=1
+      continue
+    elif ((rc != 0)); then
       echo "    WARNING: $name exited $rc on the fixture, so its time may not cover a full run:"
       sed -n '1,5s/^/    | /p' "$fx/.git/entry.log"
     fi
@@ -235,7 +251,7 @@ time_hook() {
   printf '  %-48s %9s  %7s  budget %s (%s)\n' total "$(secs "$total")" "$(in_s "$total")" "$(secs "$budget_us")" "$(in_s "$budget_us")"
   if ((total > budget_us)); then
     over=1
-    echo "FAIL: $ev took $(secs "$total"), over its $(secs "$budget_us") budget (ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Move a check over budget to the pre-PR check or CI, or make it faster."
+    echo >&2 "FAIL: $ev took $(secs "$total"), over its $(secs "$budget_us") budget (ADR 0072); slowest entry: $slow at $(secs "$slow_us"). Move a check over budget to the pre-PR check or CI, or make it faster."
   fi
 }
 

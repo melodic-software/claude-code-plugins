@@ -97,6 +97,31 @@ else
   fail "expected exit 1 naming no-such-tool under GITHUB_ACTIONS=true (rc $rc): $out"
 fi
 
+r="$TMP/runnerless"
+make_root "$r" ':' ':'
+printf '%s\n' 'pre-commit:' '  jobs:' '    - name: runnerless-entry' '      run: sleep 1' >"$r/plugins/dummy/git-hooks/extra.yml"
+g "$r" add -A
+g "$r" commit -q -m runnerless
+out="$(bash "$SCRIPT" --root "$r" --force --runs 1 --budget-ms 500 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"FAIL: pre-commit took"*"slowest entry: runnerless-entry"* ]]; then
+  ok "a runner-less run: entry is timed, so a 1 s sleep fails a 0.5 s budget"
+else
+  fail "expected the runner-less sleep 1 to fail the 0.5 s budget (rc $rc): $out"
+fi
+
+r="$TMP/nostart"
+make_root "$r" ':' ':'
+rm "$r/.lefthook/pre-commit/commit-entry.sh"
+g "$r" commit -q -am "drop the entry script"
+out="$(bash "$SCRIPT" --root "$r" --force --runs 1 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"FAIL: commit-entry could not start"* ]]; then
+  ok "an entry whose script is missing fails the gate instead of passing silently"
+else
+  fail "expected exit 1 naming commit-entry as unable to start (rc $rc): $out"
+fi
+
 r="$TMP/scoped"
 make_root "$r" "touch '$TMP/scoped/rec/ran'" ':'
 printf 'more\n' >>"$r/README.md"
@@ -117,19 +142,17 @@ if [[ $rc -eq 0 && "$out" == *"lefthook.yml changed"* && -e "$r/rec/ran" ]]; the
 else
   fail "expected the entries to run after a lefthook.yml change (rc $rc): $out"
 fi
-bash "$SCRIPT" --root "$r" --base HEAD~1 --scope-only >/dev/null 2>&1
-rc=$?
-if ((rc == 0)); then
-  ok "--scope-only exits 0 when the change touches a hook config"
+out="$(bash "$SCRIPT" --root "$r" --base HEAD~1 --scope-only 2>/dev/null)"
+if [[ "$out" == applies=true ]]; then
+  ok "--scope-only prints only applies=true when the change touches a hook config"
 else
-  fail "--scope-only should exit 0 after a lefthook.yml change, got $rc"
+  fail "--scope-only should print applies=true after a lefthook.yml change, got: $out"
 fi
-bash "$SCRIPT" --root "$r" --base HEAD --scope-only >/dev/null 2>&1
-rc=$?
-if ((rc == 3)); then
-  ok "--scope-only exits 3 when the change touches no hook surface"
+out="$(bash "$SCRIPT" --root "$r" --base HEAD --scope-only 2>/dev/null)"
+if [[ "$out" == applies=false ]]; then
+  ok "--scope-only prints only applies=false when the change touches no hook surface"
 else
-  fail "--scope-only should exit 3 on an empty change, got $rc"
+  fail "--scope-only should print applies=false on an empty change, got: $out"
 fi
 
 test_harness::report
