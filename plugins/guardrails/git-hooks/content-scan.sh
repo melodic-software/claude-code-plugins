@@ -408,7 +408,7 @@ content_scan() {
   ((${#pool[@]} == 0)) || hpp_sweep 0 "${#pool[@]}"
 
   {
-    awk -F "$tab" '$2 == 0' "$out" | untag - | checks_filter_findings
+    awk -F "$tab" '$2 != 1' "$out" | untag - | checks_filter_findings
     awk -F "$tab" '$2 == 1' "$out" | untag - | checks_filter_findings "$CHECKS_TMP/path-ranges"
     untag "$whole"
   } | sort -u -t: -k1,1 -k2,2n >"$result"
