@@ -4017,6 +4017,13 @@ jobs:
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'plugins/miro/server/package-lock.json', 'plugins/ai-briefing/skills/generate/output/build/package-lock.json', 'plugins/knowledge/skills/video-digest/extraction/package-lock.json', 'plugins/knowledge/skills/course-digest/extraction/package-lock.json', '.github/actions/resolve-config/package-lock.json') }}
+      - name: Restore the ci-workflows pin cache
+        id: pin_cache
+        uses: actions/cache/restore@v6
+        with:
+          path: /tmp/ci-workflows-at-pin
+          key: ci-workflows-at-pin-${{ hashFiles('.github/workflows/*.yml') }}
+          restore-keys: ci-workflows-at-pin-
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -4158,6 +4165,21 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Keep the 20 newest ci-workflows pins
+        id: pins
+        if: github.ref == 'refs/heads/main' && steps.pin_cache.outputs.cache-hit != 'true'
+        run: |
+          dir=/tmp/ci-workflows-at-pin
+          [ -d "$dir" ] || exit 0
+          find "$dir" -mindepth 1 -maxdepth 1 -printf '%T@ %f\n' | sort -rn | tail -n +21 |
+            while read -r _ pin; do rm -rf "${dir:?}/$pin"; done
+          [ -z "$(find "$dir" -mindepth 1 -maxdepth 1)" ] || echo "any=true" >>"$GITHUB_OUTPUT"
+      - name: Save the ci-workflows pin cache
+        if: steps.pins.outputs.any == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: /tmp/ci-workflows-at-pin
+          key: ${{ steps.pin_cache.outputs.cache-primary-key }}
 
   # THE SUITES A CHANGE ADDS OR CHANGES, TRACED. Each runs under strace
   # (scripts/selection-audit.sh trace), and a tracked file it read whose

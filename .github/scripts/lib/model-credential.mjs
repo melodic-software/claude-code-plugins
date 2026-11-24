@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 
-import { loadContract } from "../plugin-eval/eval-handoff.mjs";
 import { contractAtPin } from "./ci-workflows-at-pin.mjs";
 import { evaluate, truthy } from "./gate-expression.mjs";
 
@@ -11,8 +10,8 @@ export function selectPin(...workflowTexts) {
   return [...pins][0];
 }
 
-export async function loadSelect(pin, root) {
-  const { HANDOFF_REASONS, handoffReason, leg, next, start } = root ? loadContract(root) : await contractAtPin(pin);
+export async function loadSelect(pin) {
+  const { HANDOFF_REASONS, handoffReason, leg, next, start } = await contractAtPin(pin);
   return { HANDOFF_REASONS, handoffReason, leg, next, start };
 }
 

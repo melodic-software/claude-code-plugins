@@ -1,8 +1,6 @@
-// test-scope: .github/scripts/pr-unblock/fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f/*
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { launcherOutcomes, loadSelect, runs, selectPin, value } from "../lib/model-credential.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
@@ -19,7 +17,7 @@ const memo = (read) => {
 };
 const parsed = workflowText(TEXT);
 const wf = { ...parsed, step: memo(parsed.step), outputs: memo(parsed.outputs), job: memo(parsed.job) };
-const S = await loadSelect(selectPin(TEXT), fileURLToPath(new URL("./fixtures/ci-workflows-394af27bda4bda2e02e0ef0691eacd120389108f/", import.meta.url)));
+const S = await loadSelect(selectPin(TEXT));
 
 const GATE = "check-adjudicator-key-credit";
 const JOB = "adjudicate-feedback";
