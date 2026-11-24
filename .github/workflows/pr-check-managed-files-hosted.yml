@@ -26,12 +26,6 @@ name: PR Check Managed Files Hosted
 # enrolled for local CI routing takes the fleet-routed sibling,
 # components/managed-files-guard/managed-files-guard-fleet.yml, instead.
 
-# The guard fails only on an exact managed destination path, so the workflow
-# runs only when the pull request touches one. `paths` is the sorted union of
-# the managed destinations (`sync-manifest.sh dest-paths`) of every sync target
-# that receives this file, this workflow included; the contract test fails
-# when the manifest moves that union and this list does not follow. `types`
-# restates the documented pull_request default.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -66,7 +60,6 @@ on:
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
-      - .github/zizmor.yml
       - .gitleaks.toml
       - .golangci.yml
       - .lefthook/base.yml
@@ -93,16 +86,12 @@ on:
       - docs/standards/source-authority-tiers.md
       - eng/dotnet-analysis/Directory.Build.props
       - eng/dotnet-analysis/dotnet.globalconfig
-      - lychee.toml
       - plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 
 permissions:
   contents: read
   pull-requests: read # check-managed-files lists the PR commits to skip all-Dependabot PRs
 
-# Canonical block from the standards `concurrency-policy` component: a newer
-# push to the same pull request cancels the in-flight guard run; the
-# `run_id` fallback keeps non-PR runs unique and never canceled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
@@ -118,7 +107,6 @@ jobs:
     # full history and no persisted credentials (ci-workflows#881).
     steps:
       - name: Guard managed files
-        # First-party actions float on main (owner decision).
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@main
         with:
           # `main` for the soak, per the action's own input contract ("Pin to

@@ -350,6 +350,31 @@ reads the file itself, through a script where the key names one below.
   repository's own caller workflows, as
   [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
   [safety.md](../skills/babysit-prs/reference/safety.md) say.
+- `trusted_actors_source` and `standards_repository`: where `/source-control:babysit-prs`, the pr-merge lane gate
+  (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) and the
+  `ready` hold check (`check-ready-holds.sh`) read the trusted-actors list and the Dependabot
+  policy. `trusted_actors_source: standards` reads
+  `components/trusted-actors/trusted-actors.json` from the `owner/repo` that
+  `standards_repository` names, through the contents API, at the one commit its `main` names when
+  the process first reads it; `repository`, or unset, reads the repository's own
+  `.github/standards/` copy. Setting `standards` widens which pull requests the babysit lane
+  adopts and merges unattended in that repository, so set it only where the repository's owner
+  has approved that through their own approval process. The
+  Dependabot policy, `components/dependabot-policy/policy.json`, is read the same way from
+  `standards_repository` whenever that key is set, whatever `trusted_actors_source` says, and
+  from the `.github/standards/` copy when it is unset; `standards_repository` alone leaves the
+  trusted list on the copy. Any other `trusted_actors_source` value, `standards` with
+  `standards_repository` absent or not an `owner/repo` pair, or a YAML the parser rejects, reads
+  neither file: the lane adopts nothing and the hold check leaves the label holding. A
+  `standards_repository` that is not an `owner/repo` pair, without `standards`, fails the policy
+  read alone: the lane merges no Dependabot update. The guardrails merge guard and the review
+  loosened-check reader read the same
+  two keys for the trusted-actors list alone; with `standards` and no valid
+  `standards_repository` they read no list. No `userConfig` option and no default for
+  `standards_repository`; both keys are read from the target repository's tracked
+  `docs/conventions/source-control.yaml` at the commit the list would be read at. Basis: the
+  standards repository is the consumer's to name
+  ([Hardcoded consumer specifics](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#hardcoded-consumer-specifics)).
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 

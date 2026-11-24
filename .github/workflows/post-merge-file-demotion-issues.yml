@@ -217,6 +217,7 @@ jobs:
       merged-prs: ${{ steps.file.outputs.merged-prs }}
       reverted-prs: ${{ steps.file.outputs.reverted-prs }}
       tip: ${{ steps.tip.outputs.sha }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading (the gh wrapper below and
     # babysit_gh.py under the judge), for the job-end api-budget notice
     # (.github/actions/log-api-budget).
@@ -238,6 +239,11 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Write the source-control trust settings
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
         with:
@@ -262,6 +268,7 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           RUN_WORKFLOW: ${{ github.event.workflow_run.name }}
           RUN_EVENT: ${{ github.event.workflow_run.event }}
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
@@ -295,15 +302,13 @@ jobs:
               echo "::error::untrusted-actor: the lanes App cannot send a run here"
               exit 1
             fi
-            if ! gh api -H 'Accept: application/vnd.github.raw' \
-              "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=main" |
-              jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
+            if ! jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
                 def human: .kind == "human" and .id != $app;
                 .version == 1
                 and ($id == 41898282 or any(.actors[]; .id == $id and human))
                 and ($login == "github-actions[bot]"
                   or any(.actors[]; (.login | ascii_downcase) == ($login | ascii_downcase) and human))
-              ' >/dev/null; then
+              ' "$TRUSTED_ACTORS_PATH" >/dev/null; then
               echo "::error::untrusted-actor: the sender or re-runner is neither github-actions[bot] nor a listed human"
               exit 1
             fi
@@ -429,6 +434,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.file-demotion-issue.outputs.standards-sha }}
+
       # merge-path.mjs reads post-merge.paths through the base's resolve-config.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
@@ -441,6 +452,7 @@ jobs:
           BASE_PATH: .base
           MERGED_PRS: ${{ needs.file-demotion-issue.outputs.merged-prs }}
           REVERTED_PRS: ${{ needs.file-demotion-issue.outputs.reverted-prs }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/post-merge-demotion-alert/merge-path.mjs label --merged "$MERGED_PRS" --reverted "$REVERTED_PRS"
 
       - name: Log the API budget at the end
@@ -604,6 +616,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.file-demotion-issue.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -643,6 +661,7 @@ jobs:
           RUN_URL: ${{ needs.file-demotion-issue.outputs.url }}
           RUN_WORKFLOW_ID: ${{ needs.file-demotion-issue.outputs.workflow-id }}
           RUN_CREATED: ${{ needs.file-demotion-issue.outputs.created }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
 
       - name: Log the API budget at the end

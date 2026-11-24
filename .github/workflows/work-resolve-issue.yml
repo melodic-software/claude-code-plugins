@@ -94,6 +94,7 @@ jobs:
       # A finished parent's sub-issues, each closed as completed by a trusted
       # close, for report-outcome's verified-done close.
       verify-close: ${{ steps.blockers.outputs.verify-close }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -131,6 +132,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -160,7 +165,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
@@ -175,8 +180,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
 
       # Skips the run while Actions or npm installs report a degraded
@@ -252,6 +258,14 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-admission.outputs.standards-sha }}
+
       # A switch that is on skips every API step below and leaves the job
       # green with no `capped`, so resolve-issue skips; work-unblock's sweep
       # reads that skip as a kill-switch trip (label-unblocked.mjs didNoWork).
@@ -293,6 +307,7 @@ jobs:
           # Only capped leaves this job, so the admission reads are skipped.
           reads: pause
           node-setup: ${{ steps.node.outcome }}
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # The check names its own hold; this names one it could not, when it
       # failed or never ran.
@@ -336,6 +351,7 @@ jobs:
           # What the read runner hands on for resolve-issue.
           applied-by-supported: patch work-outcome
           split-child: ${{ needs.check-admission.outputs.split-child }}
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # SLOTS is the effective lane level: the published level variable,
       # clamped to limits.lane-level's floor and ceiling, or its default when
@@ -869,6 +885,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -880,7 +900,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/check-human-pull.mjs
 
       - name: Log the API budget at the end
@@ -972,6 +993,10 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -987,6 +1012,7 @@ jobs:
           PRUNE_BRANCHES: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-prune-branches || '' }}
           REUSE_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
           RESUME_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/prune-branches.mjs
 
       - name: Log the API budget at the end
@@ -1034,6 +1060,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.run-checks.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -1058,6 +1090,7 @@ jobs:
           RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.result || needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.result || needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.outputs.skip-reason == 'kill-switch' && 'stopped' || needs.report-outcome.result }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
       - name: Log the API budget at the end
@@ -1095,6 +1128,7 @@ jobs:
       issues: read # resolve-config reads the issue's labels for labels-absent
     outputs:
       checks: ${{ steps.run-checks.outputs.checks }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -1113,6 +1147,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-admission.outputs.standards-sha }}
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -1128,6 +1168,7 @@ jobs:
           base-path: .base
           split-child: ${{ needs.check-admission.outputs.split-child }}
           output-path: ${{ runner.temp }}/resolved-config.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # For lane.json, which names the branch. A skill run reaches this job
       # only when the scan uploaded the outcome; a reuse may have none.

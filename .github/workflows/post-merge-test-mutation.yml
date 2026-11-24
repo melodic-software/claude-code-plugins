@@ -76,6 +76,7 @@ jobs:
       proceed: ${{ steps.range.outputs.proceed }}
       before: ${{ steps.range.outputs.before }}
       after: ${{ steps.range.outputs.after }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Check out main
         uses: actions/checkout@v7
@@ -88,6 +89,12 @@ jobs:
             /.github/actions/log-api-budget/
             /.node-version
           sparse-checkout-cone-mode: false
+
+      - name: Resolve the standards commit
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          checkout: 'false'
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -267,6 +274,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       # The head must be on main, and the diff target is the push's previous
       # head, or the head's first parent when the push had none (a first push
       # or a rewrite), said in the summary. The personal override is gitignored
@@ -291,6 +304,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set leaves this step, never its value.
       # `present` is whether this leg runs the model.
@@ -569,6 +583,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       - name: Set the diff target
         id: target
         env:
@@ -588,6 +608,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential
@@ -817,6 +838,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       - name: Set the diff target
         id: target
         env:
@@ -836,6 +863,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential
@@ -1215,6 +1243,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       # The head must be on main, and the diff target is the push's previous
       # head, or the head's first parent when the push had none (a first push
       # or a rewrite), said in the summary. The personal override is gitignored
@@ -1239,6 +1273,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # Only whether each secret is set leaves this step, never its value.
       # `present` is whether this leg runs the model.
@@ -1546,6 +1581,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       - name: Set the diff target
         id: target
         env:
@@ -1565,6 +1606,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential
@@ -1821,6 +1863,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-range.outputs.standards-sha }}
+
       - name: Set the diff target
         id: target
         env:
@@ -1840,6 +1888,7 @@ jobs:
           model-route: verify-pr
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Check the credential
         id: credential

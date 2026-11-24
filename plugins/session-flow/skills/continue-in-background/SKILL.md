@@ -72,6 +72,7 @@ from).
 When the request asks to carry what an earlier handoff in the handoffs directory says, read that
 section by name with `save_point.py read <file> --section "<name>"`, which follows a section moved
 to the hop file, and put what it holds into the save-point.
+When the request names a topic rather than a section, also read the Observations section that way, or open each `- Moved:` pointer's hop file with Read, before you report the handoff says nothing on that topic.
 
 The launched session has its own session id, so hand it this session's worktree claims exactly as
 the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full

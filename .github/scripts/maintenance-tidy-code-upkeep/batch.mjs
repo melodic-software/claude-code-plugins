@@ -130,7 +130,6 @@ export function prBody(body, specIssue) {
   return text;
 }
 
-// prBody for each of `sweeps`, an error naming the sweep's index in `plan`, never a value.
 function bodiesOf(sweeps, specIssue, plan = sweeps) {
   return sweeps.map((sweep) => {
     try {
@@ -245,8 +244,6 @@ function scan(env) {
     rawOf: (head) => netRawDiff(repo, baseSha, head),
     binary: (head) => git(repo, ["diff", "--numstat", "--no-renames", baseSha, head]).split("\n").some((line) => line.startsWith("-\t-\t")),
   });
-  // The bodies publish will post: a missing spec issue or a second link stops the batch here,
-  // before any branch is pushed.
   const bodies = bodiesOf(kept, env.SPEC_ISSUE, sweeps);
 
   mkdirSync(OUT, { recursive: true });
@@ -264,7 +261,6 @@ function scan(env) {
   console.log(`${kept.length} branches to publish, ${recorded.length} areas recorded as swept`);
 }
 
-// select-areas's areas, and the scanned plan's sweeps checked against them.
 function readPlan(env) {
   const areas = parseAreas(env.AREAS);
   return { areas, sweeps: validatePlan(readFileSync(env.PLAN_FILE, "utf8"), { areas, date: env.DATE, baseSha: env.BASE_SHA }) };
@@ -276,7 +272,6 @@ async function push(env) {
   const synthetic = readSynthetic(env.SYNTHETIC, sweeps.length);
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com", fetch: rateLimitLatch.guard(globalThis.fetch) });
   const heads = {};
-  // The job's own read-only token: the lanes App token holds no pull request permission here.
   let slots = slotsLeft(parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, GH_TOKEN: env.COUNT_TOKEN, CLAUDE_PROJECT_DIR: repo } })));
   for (const [i, sweep] of sweeps.entries()) {
     const local = `refs/upkeep/${sweep.slug}`;

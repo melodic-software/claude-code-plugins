@@ -78,6 +78,7 @@ jobs:
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -90,6 +91,10 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -118,11 +123,12 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ runner.temp }}/merge-risk-reads/spec.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           VERIFY_AUTHORS: lane
           RESOLVE_LANE: pr-merge-risk
           RATED_WORKFLOW_PATH: .github/workflows/pr-rate-merge-risk.yml
           RATED_ARTIFACT_PREFIX: pr-merge-risk
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -195,7 +201,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -217,7 +223,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ runner.temp }}/merge-risk-reads/context.json
           github-token: ${{ github.token }}
 
@@ -256,6 +262,7 @@ jobs:
         with:
           model-route: merge-risk
           output-path: ${{ runner.temp }}/merge-risk-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       # The profile's subagent-model, from resolve-config's settings JSON; an
       # alias or nothing (inherit), never free text.
@@ -464,6 +471,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials
@@ -547,6 +555,7 @@ jobs:
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -559,6 +568,12 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.rate-merge-risk.outputs.standards-sha }}
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -582,11 +597,12 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ runner.temp }}/merge-risk-reads/spec.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           VERIFY_AUTHORS: lane
           RESOLVE_LANE: pr-merge-risk
           RATED_WORKFLOW_PATH: .github/workflows/pr-rate-merge-risk.yml
           RATED_ARTIFACT_PREFIX: pr-merge-risk
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -601,7 +617,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -623,7 +639,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ runner.temp }}/merge-risk-reads/context.json
           github-token: ${{ github.token }}
 
@@ -659,6 +675,7 @@ jobs:
         with:
           model-route: merge-risk
           output-path: ${{ runner.temp }}/merge-risk-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Read the checker's model
         id: checker
@@ -819,6 +836,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials
@@ -896,6 +914,12 @@ jobs:
           path: .base
           persist-credentials: false
 
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.rate-merge-risk-subscription.outputs.standards-sha }}
+
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
@@ -918,11 +942,12 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ runner.temp }}/merge-risk-reads/spec.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           VERIFY_AUTHORS: lane
           RESOLVE_LANE: pr-merge-risk
           RATED_WORKFLOW_PATH: .github/workflows/pr-rate-merge-risk.yml
           RATED_ARTIFACT_PREFIX: pr-merge-risk
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -937,7 +962,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
           ci-status-rerun-workflow: .github/workflows/pr-dispatch-feedback.yml
@@ -959,7 +984,7 @@ jobs:
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ runner.temp }}/merge-risk-reads/context.json
           github-token: ${{ github.token }}
 
@@ -995,6 +1020,7 @@ jobs:
         with:
           model-route: merge-risk
           output-path: ${{ runner.temp }}/merge-risk-models.json
+          standards-path: ${{ steps.standards.outputs.path }}
 
       - name: Read the checker's model
         id: checker
@@ -1153,6 +1179,7 @@ jobs:
           CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
 
       - name: Scan the upload for credentials

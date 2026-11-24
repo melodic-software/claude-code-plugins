@@ -1,14 +1,16 @@
 // test-scope: .github/scripts/lib/* .github/scripts/apply-patch/*
+// test-scope: .github/scripts/pr-merge/* .github/scripts/pr-unblock/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { buildTree, cdnPinsFrom, checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, MAX_TREE_ENTRIES_PER_REQUEST, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
+import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { cdnRequest } from "../pr-unblock/cdn-pins-sync.mjs";
 import { cdnSyncMessageRefusal } from "../pr-unblock/dependency-classify.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -2223,23 +2225,11 @@ test("apply-patch's CREDENTIAL_SHAPES equals lib/publish-gate.mjs's, in order", 
   assert.deepEqual(shape(CREDENTIAL_SHAPES), shape(GATE_SHAPES));
 });
 
-// collect-base-activity runs apply-patch from $RUNNER_TEMP/base-script, a copy
-// of this directory, beside $RUNNER_TEMP/lib (.github/scripts/lib) and what the
-// write runner's apply-base step stages: pr-merge/merge-holds.mjs and four
-// pr-unblock files. Every import must resolve there.
 test("apply-patch loads from the staged layout its script activity runs in", async () => {
   const root = tempDir("base-activity-");
   try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    cpSync(here, join(root, "base-script"), { recursive: true });
-    cpSync(join(here, "..", "lib"), join(root, "lib"), { recursive: true });
-    mkdirSync(join(root, "pr-merge"));
-    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(root, "pr-merge", "merge-holds.mjs"));
-    mkdirSync(join(root, "pr-unblock"));
-    for (const file of ["thread-scope.mjs", "test-scope.mjs", "dependency-classify.mjs", "escalation-routes.mjs", "escalation-routes.json"]) {
-      cpSync(join(here, "..", "pr-unblock", file), join(root, "pr-unblock", file));
-    }
-    const staged = await import(pathToFileURL(join(root, "base-script", "apply-patch.mjs")).href);
+    stage(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs", root);
+    const staged = await import(pathToFileURL(join(root, ".github/scripts/apply-patch/apply-patch.mjs")).href);
     assert.equal(typeof staged.push, "function");
     assert.equal(staged.credentialIn(`t ${GITHUB_TOKENS[0]} t`), "GitHub token");
   } finally {

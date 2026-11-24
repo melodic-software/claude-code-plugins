@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/resumed/proj-o/* plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/resumed/proj-r/*
 """resumed_context.py: context at the 10th assistant message after a handoff resume, grouped by plugin version."""
 
 from __future__ import annotations

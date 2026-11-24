@@ -222,9 +222,9 @@ export async function locate({ call, repository, pr, headSha }) {
 
 const output = (env, values) => appendFileSync(env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(""));
 
-export async function testScopeFromBase(baseDir) {
+export async function testScopeFromBase(baseDir, standardsDir) {
   const resolver = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return resolver.testScopeFromBase({ BASE_PATH: baseDir });
+  return resolver.testScopeFromBase({ BASE_PATH: baseDir, STANDARDS_DIR: standardsDir });
 }
 
 export async function main(argv, env, { call, log = (line) => console.log(line), loadTestScope = testScopeFromBase } = {}) {
@@ -241,7 +241,7 @@ export async function main(argv, env, { call, log = (line) => console.log(line),
   need(["BASE_DIR"]);
   const client = call ?? budgetedClient(env, { budget: 20 });
   let applyOn;
-  const live = async () => (applyOn ??= (await loadTestScope(env.BASE_DIR)).apply === true);
+  const live = async () => (applyOn ??= (await loadTestScope(env.BASE_DIR, env.STANDARDS_DIR)).apply === true);
   const stop = async (reason, why) => {
     output(env, (await live()) ? { "escalation-reason": reason } : { "skip-reason": stopSkip(reason) });
     log(`declare-test-scope: ${reason}: ${why}`);

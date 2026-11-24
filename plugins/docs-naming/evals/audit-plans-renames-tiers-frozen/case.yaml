@@ -72,6 +72,6 @@ graders:
     arm: with-only
   - name: rows-and-tiers
     type: llm
-    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and grounds each cited site''s tier, action and excerpt in the sweep output. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
+    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and grounds each finding''s tier breakdown and each review site''s location and excerpt in the sweep output. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
     focus: trace
     arm: both

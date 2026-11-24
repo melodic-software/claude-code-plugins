@@ -83,5 +83,6 @@ test("every judge of a chunked head is told a file larger than one chunk comes i
   assert.doesNotMatch(note, /each file whole,/);
   for (const text of [note, spec]) assert.match(text, /cut at its hunks into pieces in different chunks/);
   for (const text of [note, spec]) assert.ok(text.includes("`piece <i> of <n>`"));
+  for (const text of [note, spec]) assert.match(text, /a hunk larger than one chunk is cut between its lines/);
   assert.match(note, /the file's other hunks are in the parts its other pieces name/);
 });

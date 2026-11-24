@@ -53,7 +53,6 @@ export function evalDirOf(pluginDir) {
       return named;
     }
   } catch {
-    // No readable manifest: the default eval dir.
   }
   return "evals";
 }
@@ -77,7 +76,6 @@ export function findCases(evalDir) {
   return cases;
 }
 
-// The documents validate-cases.py's parse_yaml reads from texts, or throws.
 function parseYaml(texts) {
   const run = spawnSync("python3", ["-I", "-c", PARSE, VALIDATOR], { input: JSON.stringify(texts), encoding: "utf8" });
   if (run.error || run.status !== 0) {
@@ -129,7 +127,6 @@ export function stripCaseYaml(text) {
     }
     return { text, names: [], left: shape?.items.length ?? null };
   }
-  // With every item paid, the cut takes the header and the whole list.
   const cuts = paid.includes(false) ? shape.items.filter((_, index) => paid[index]) : [[shape.header, shape.items.at(-1)[1]]];
   const stripped = lines.filter((_, index) => !cuts.some(([start, end]) => index >= start && index < end)).join("\n");
   if (PAID.test(stripped)) {

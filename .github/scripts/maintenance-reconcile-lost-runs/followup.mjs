@@ -12,11 +12,10 @@ import {
   isRedChecks,
   newestByWorkflow,
   onlyAggregateFailed,
+  onlyReviewStopsNoted,
   passRateLimit,
-  rateHeldNoted,
   reconciledPull,
   RECORDED_UPSTREAMS,
-  reviewStopNoted,
   stoppedReviews,
   upstreamGate,
   waitingReview,
@@ -90,7 +89,7 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
       }
       const status = onlyAggregateFailed(await readJobs(checks));
       const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
-      if (!reviewStopNoted(notes) && !rateHeldNoted(notes)) {
+      if (!onlyReviewStopsNoted(notes)) {
         toFullPass(pull, `checks run ${checks.id} failed on more than a review stop`);
         continue;
       }
