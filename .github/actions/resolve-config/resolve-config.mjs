@@ -38,6 +38,8 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+const STANDARDS_VOCABULARY_PATH = "components/github-actions-conventions/vocabulary.json";
+const STANDARDS_TRUSTED_ACTORS_PATH = "components/trusted-actors/trusted-actors.json";
 // The multi-agent role map a role profile resolves through.
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
@@ -53,28 +55,41 @@ const MERGEABLE_WAIT_MS = 5000;
 const readOwn = (name) =>
   JSON.parse(readFileSync(new URL(name, import.meta.url), "utf8"));
 
-// The text of <basePath>/<relative>, or undefined when it does not exist. A
-// path whose real location (after symlinks) leaves base-path is an error.
-function readUnderBase(basePath, relative) {
+function readUnder(root, relative, name = "base-path") {
   let real;
   try {
-    real = realpathSync(join(basePath, relative));
+    real = realpathSync(join(root, relative));
   } catch (error) {
     if (error.code === "ENOENT") {
       return undefined;
     }
     throw error;
   }
-  if (!real.startsWith(realpathSync(basePath) + sep)) {
-    throw new Error(`${relative} resolves outside base-path`);
+  if (!real.startsWith(realpathSync(root) + sep)) {
+    throw new Error(`${relative} resolves outside ${name}`);
   }
   return readFileSync(real, "utf8");
 }
 
-function readJsonUnderBase(basePath, relative) {
-  const text = readUnderBase(basePath, relative);
+const readUnderBase = (basePath, relative) => readUnder(basePath, relative);
+
+function readJsonUnder(root, relative, name) {
+  const text = readUnder(root, relative, name);
   return text === undefined ? undefined : JSON.parse(text);
 }
+
+const readJsonUnderBase = (basePath, relative) => readJsonUnder(basePath, relative);
+
+const standardsFiles = (basePath, standardsPath) =>
+  standardsPath
+    ? {
+        vocabulary: readJsonUnder(standardsPath, STANDARDS_VOCABULARY_PATH, "standards-path"),
+        trustedActors: readJsonUnder(standardsPath, STANDARDS_TRUSTED_ACTORS_PATH, "standards-path"),
+      }
+    : {
+        vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
+        trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
+      };
 
 // The REST version that documents issue-field-values.
 const FIELD_API_VERSION = "2026-03-10";
@@ -535,14 +550,14 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-// The base-path and config-path env names, with their defaults.
 const pathsOf = (env) => ({
   basePath: env.BASE_PATH || DEFAULT_BASE_PATH,
   configPath: env.CONFIG_PATH || DEFAULT_CONFIG_PATH,
+  standardsPath: env.STANDARDS_DIR || undefined,
 });
 
 // `readRules` reads a rule file beside this module; tests replace it.
-function filesUnderBase(basePath, configPath, readRules = readOwn) {
+function filesUnderBase({ basePath, configPath, standardsPath }, readRules = readOwn) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
   if (schema === undefined) {
@@ -551,9 +566,8 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
   return {
     config: readUnderBase(basePath, configPath),
     schema,
-    vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
+    ...standardsFiles(basePath, standardsPath),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
-    trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
     roleMap: readUnderBase(basePath, ROLE_MAP_PATH),
     laneRules: readRules("./lane-rules.json"),
     effectGrants: readRules("./effect-grants.json"),
@@ -572,8 +586,9 @@ const modelRung = (value) => (value === undefined || value === "" ? undefined : 
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
 // config whose lane holds no slot for the activity resolves to null.
 export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false, readRules }) {
-  const { basePath, configPath } = pathsOf(env);
-  const files = filesUnderBase(basePath, configPath, readRules);
+  const paths = pathsOf(env);
+  const { basePath, configPath } = paths;
+  const files = filesUnderBase(paths, readRules);
   const doc = loadConfig(files, { configPath });
   // A lane run checks the patch rules before anything else; the token
   // broker, which calls loadConfig and resolveGrant itself, never reads them.
@@ -618,22 +633,23 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
 // The base config's resolved `limits`, for a script that resolves no lane
 // slot; a config the resolver refuses throws.
 export function limitsFromBase(env) {
-  const { basePath, configPath } = pathsOf(env);
-  return resolveLimits(filesUnderBase(basePath, configPath), { configPath });
+  const paths = pathsOf(env);
+  return resolveLimits(filesUnderBase(paths), paths);
 }
 
 // The base config's resolved limits and its wip leaf as set, read once, for
 // the WIP cap check.
 export function wipFromBase(env) {
-  const { basePath, configPath } = pathsOf(env);
-  const files = filesUnderBase(basePath, configPath);
+  const paths = pathsOf(env);
+  const { configPath } = paths;
+  const files = filesUnderBase(paths);
   return { limits: resolveLimits(files, { configPath }), wip: resolveWipLeaf(files, { configPath }) };
 }
 
 // The base config's resolved `loop` caps, likewise.
 export function loopFromBase(env) {
-  const { basePath, configPath } = pathsOf(env);
-  return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
+  const paths = pathsOf(env);
+  return resolveLoop(filesUnderBase(paths), paths);
 }
 
 // The base config's `adoption` section as set, after the same file checks as
@@ -656,8 +672,8 @@ export function ownedBranchesFromBase(env) {
 // The base config as resolve() loads it, after the same file checks, for
 // pr-refine's select-passes job and the readers below.
 export function configFromBase(env) {
-  const { basePath, configPath } = pathsOf(env);
-  return loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  const paths = pathsOf(env);
+  return loadConfig(filesUnderBase(paths), paths);
 }
 
 // resolve-issue's `tidy.cutoffs` as set, or null when it does not tidy, for the
@@ -724,8 +740,9 @@ function resolveRouteFromBase(env) {
   if (env.LANE) {
     throw new Error("set lane or model-route, not both");
   }
-  const { basePath, configPath } = pathsOf(env);
-  const models = resolveRoute(filesUnderBase(basePath, configPath), {
+  const paths = pathsOf(env);
+  const { basePath, configPath } = paths;
+  const models = resolveRoute(filesUnderBase(paths), {
     route: env.MODEL_ROUTE,
     configPath,
   });

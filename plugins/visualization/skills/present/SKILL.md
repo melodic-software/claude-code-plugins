@@ -102,6 +102,10 @@ notice. Deliver by the output's `publishes`:
 
 It renders a single chart or diagram a slide needs.
 
+## Related
+
+- Write a pull-request explainer: /review:explain-change.
+
 ## Gotchas
 
 - The create call publishes the title, so the gate runs before it, never after, and the title comes

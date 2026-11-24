@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Reconciles a `/corrections:codify rules` ledger: every rule read from every input file is
-// accounted for, or the run fails.
-//   rules-ledger.mjs <ledger.json>
-//   rules-ledger.mjs --list-rungs
-// Run from the repository root: each row's `source` (<file>:<line>) is read from there, and the
-// row's `rule` text, whitespace collapsed, must start on that line (it may run on for up to ten
-// lines). Two rows that resolve to the same starting point are one rule listed twice.
-// Prints one tally line per file and `ledger complete: ...` on success.
 // Exit: 0 complete, 1 a rule unaccounted for (one stderr line each), 2 usage or unreadable input.
 import { readFileSync } from "node:fs";
 

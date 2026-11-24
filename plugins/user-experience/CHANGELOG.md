@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.25] - 2026-11-24
+
+### Changed
+
+- `/user-experience:evaluate` gains a `## Related` section for links that apply only in some runs.
+
 ## [0.4.24] - 2026-11-23
 
 ### Fixed

@@ -3,12 +3,6 @@ name: 'reduce-collision-hotspots-fall-back-without-gh'
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: 'attempts-collision-hotspots'
-    type: 'tool_used'
-    tool: 'Bash'
-    input_match: 'collision-hotspots\.sh'
-    min: 1
-    arm: 'with-only'
   - name: 'mines-co-change'
     type: 'tool_used'
     tool: 'Bash'

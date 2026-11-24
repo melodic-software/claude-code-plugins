@@ -47,11 +47,11 @@ import { appendFileSync } from "node:fs";
 import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
-import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
+import { loadTrustedList, trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
-import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
+import { DEPENDABOT_ID, POLICY_PATH, policyPath } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, sendDispatch, writeRecord } from "./dispatch-record.mjs";
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
@@ -782,7 +782,7 @@ const basePath = (env) => env.BASE_PATH || ".base";
 // the workflow installs its dependencies before this runs.
 async function fromBase(env, reader) {
   const resolver = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return resolver[reader]({ BASE_PATH: basePath(env) });
+  return resolver[reader]({ BASE_PATH: basePath(env), STANDARDS_DIR: env.STANDARDS_DIR });
 }
 
 // The base config's resolved limits. A config the resolver refuses throws, so
@@ -942,7 +942,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     listed,
     record,
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
-    policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
+    policy: readPolicy(policyPath(env, env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`), log),
     repository: env.GITHUB_REPOSITORY,
     laneAppId: appSenderId,
   });
@@ -958,7 +958,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   let ownersHeld = "";
   if (adoption["idle-hours"] !== undefined) {
     try {
-      ownerIds = adoptableOwnerIds(loadTrustedList(trustedActorsPath(basePath(env))).ids);
+      ownerIds = adoptableOwnerIds(loadTrustedList(trustedListPath(env, trustedActorsPath(basePath(env)))).ids);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
       log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);

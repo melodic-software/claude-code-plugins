@@ -1,8 +1,3 @@
-// Upstream-status gate for token-spending lanes: skip the run while GitHub
-// Actions or npm package installation lists an outage, so a lane does not
-// spend tokens on a run the incident will fail. Reads each service's own
-// component, never the page rollup (component-status.mjs). Fails open: a page
-// that cannot be read, or lists no such component, lets the lane proceed.
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 

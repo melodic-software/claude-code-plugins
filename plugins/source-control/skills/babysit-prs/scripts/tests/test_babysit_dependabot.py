@@ -1856,6 +1856,11 @@ _APP_ID = 7
 _PINS = "lib/cdn-pins/pins.json"
 _TARGET = "docs/cdn.md"
 _REGULAR = {"type": "blob", "mode": 0o100644}
+_REF = "dependabot/npm_and_yarn/lib/cdn-pins/marked-17.0.1"
+_SUBJECT = f"Sync the CDN pins to the bumped manifest on {_REF} [dependabot skip]"
+_TRAILER = "Lane-Activity: pr-unblock/review-dependency"
+_SYNC_MESSAGE = f"{_SUBJECT}\n\n{_TRAILER}\n"
+_VALID = {"verified": True, "reason": "valid"}
 
 
 def _sync_detail(**overrides: Any) -> dict[str, Any]:
@@ -1865,10 +1870,7 @@ def _sync_detail(**overrides: Any) -> dict[str, Any]:
         "author": {"id": _APP_ID, "login": IDENTITY},
         "committer": {"id": 19864447},
         "parents": [{"sha": OLD_HEAD}],
-        "commit": {
-            "message": "Sync the CDN pins on x [dependabot skip]",
-            "verification": {"verified": True, "reason": "valid"},
-        },
+        "commit": {"message": _SYNC_MESSAGE, "verification": _VALID},
         "files": [
             {"filename": _PINS, "status": "modified"},
             {"filename": _TARGET, "status": "modified"},
@@ -1889,9 +1891,31 @@ CDN_SYNC_VECTORS: dict[str, tuple[dict[str, Any], dict[str, Any], list[str] | No
     "a person's committer": (_sync_detail(committer={"id": 5}), {}, [_PINS, _TARGET]),
     "an unverified signature": (_sync_detail(commit=_UNSIGNED), {}, [_PINS, _TARGET]),
     "two parents": (_sync_detail(parents=[{"sha": OLD_HEAD}, {"sha": SHA}]), {}, [_PINS, _TARGET]),
-    "no skip marker": (_sync_detail(commit={"message": "sync", "verification": {"verified": True, "reason": "valid"}}), {}, [_PINS, _TARGET]),
+    "no skip marker": (_sync_detail(commit={"message": "sync", "verification": _VALID}), {}, [_PINS, _TARGET]),
+    "another row's subject": (_sync_detail(commit={"message": f"Fix the dependency update on {_REF} [dependabot skip]\n\n{_TRAILER}\n", "verification": _VALID}), {}, [_PINS, _TARGET]),
+    "another branch": (_sync_detail(commit={"message": _SYNC_MESSAGE.replace(_REF, "main"), "verification": _VALID}), {}, [_PINS, _TARGET]),
+    "no trailer": (_sync_detail(commit={"message": _SUBJECT, "verification": _VALID}), {}, [_PINS, _TARGET]),
+    "another trailer": (_sync_detail(commit={"message": f"{_SUBJECT}\n\nLane-Activity: pr-unblock/fix-ci-context\n", "verification": _VALID}), {}, [_PINS, _TARGET]),
     "no files": (_sync_detail(files=[]), {}, [_PINS, _TARGET]),
     "an unreadable base": (_sync_detail(), {}, None),
+}  # fmt: skip
+CDN_MESSAGE_VECTORS: dict[str, tuple[Any, Any]] = {
+    "the sync": (_SYNC_MESSAGE, _REF),
+    "no final newline": (_SYNC_MESSAGE.rstrip("\n"), _REF),
+    "trailing blank lines": (_SYNC_MESSAGE + "\n\n", _REF),
+    "a CRLF message": (_SYNC_MESSAGE.replace("\n", "\r\n"), _REF),
+    "a substring subject": (f"x {_SYNC_MESSAGE}", _REF),
+    "a second trailer": (f"{_SYNC_MESSAGE}Lane-Thread: 1\n", _REF),
+    "a body line": (f"{_SUBJECT}\n\nbody\n{_TRAILER}\n", _REF),
+    "no blank line": (f"{_SUBJECT}\n{_TRAILER}\n", _REF),
+    "the install-script pin row": (f"Approve the locked claude-code install script on {_REF} [dependabot skip]\n\n{_TRAILER}\n", _REF),
+    "the relock row": (f"Relock the dependency group's lagging directory on {_REF} [dependabot skip]\n\n{_TRAILER}\n", _REF),
+    "no head ref": (_SYNC_MESSAGE, None),
+    "an empty head ref": (_SYNC_MESSAGE.replace(_REF, ""), ""),
+    "a head ref with a space": (_SYNC_MESSAGE.replace(_REF, "a b"), "a b"),
+    "a head ref with a colon": (_SYNC_MESSAGE.replace(_REF, "a:b"), "a:b"),
+    "a non-ASCII head ref": (_SYNC_MESSAGE.replace(_REF, "déjà"), "déjà"),
+    "no message": (None, _REF),
 }  # fmt: skip
 CDN_RECORDS = {
     "two targets": json.dumps({"targets": [{"path": _TARGET}, {"path": "a/b.md"}]}),
@@ -1912,14 +1936,15 @@ CDN_RECORDS = {
 }
 
 _NODE_CDN = """
-const { cdnSyncRefusal } = await import(%s);
+const { cdnSyncMessageRefusal, cdnSyncRefusal } = await import(%s);
 const { cdnPaths } = await import(%s);
-const [vectors, records, appId] = JSON.parse(process.argv[1]);
+const [vectors, records, appId, ref, messages] = JSON.parse(process.argv[1]);
 const refusals = [];
 for (const [detail, entries, paths] of vectors) {
   const entry = async (side, path) => entries[`${side}:${path}`] ?? %s;
-  refusals.push(await cdnSyncRefusal(detail, appId, async () => paths && new Set(paths), entry));
+  refusals.push(await cdnSyncRefusal(detail, appId, async () => paths && new Set(paths), entry, ref));
 }
+const messageRefusals = messages.map(([message, headRef]) => cdnSyncMessageRefusal(message, headRef ?? undefined));
 const sets = records.map((text) => {
   try {
     return [...cdnPaths(JSON.parse(text))].sort();
@@ -1927,7 +1952,7 @@ const sets = records.map((text) => {
     return null;
   }
 });
-console.log(JSON.stringify([refusals, sets]));
+console.log(JSON.stringify([refusals, sets, messageRefusals]));
 """
 
 
@@ -1950,13 +1975,21 @@ class CdnSyncIsTheGates(unittest.TestCase):
                 "--input-type=module",
                 "-e",
                 script,
-                json.dumps([vectors, list(CDN_RECORDS.values()), _APP_ID]),
+                json.dumps(
+                    [
+                        vectors,
+                        list(CDN_RECORDS.values()),
+                        _APP_ID,
+                        _REF,
+                        list(CDN_MESSAGE_VECTORS.values()),
+                    ]
+                ),
             ],
             capture_output=True,
             text=True,
             check=True,
         )
-        refusals, sets = json.loads(proc.stdout)
+        refusals, sets, messages = json.loads(proc.stdout)
         for (name, (detail, entries, paths)), js in zip(
             CDN_SYNC_VECTORS.items(), refusals, strict=True
         ):
@@ -1965,11 +1998,28 @@ class CdnSyncIsTheGates(unittest.TestCase):
                 IDENTITY,
                 lambda p=paths: None if p is None else frozenset(p),
                 lambda side, path, e=entries: e.get(f"{side}:{path}", _REGULAR),
+                _REF,
             )
             with self.subTest(name):
                 self.assertEqual(py, js)
         self.assertIsNone(refusals[0])
         self.assertEqual(sum(r is None for r in refusals), 1)
+        wanted = {
+            "another row's subject": "cdn-sync-message",
+            "another branch": "cdn-sync-message",
+            "no trailer": "cdn-sync-trailer",
+            "another trailer": "cdn-sync-trailer",
+        }
+        for name, reason in wanted.items():
+            with self.subTest(name):
+                self.assertEqual(refusals[list(CDN_SYNC_VECTORS).index(name)], reason)
+        for (name, (message, ref)), js in zip(
+            CDN_MESSAGE_VECTORS.items(), messages, strict=True
+        ):
+            with self.subTest(name):
+                self.assertEqual(dependabot.cdn_sync_message_refusal(message, ref), js)
+        self.assertEqual(messages[:3], [None, None, None])
+        self.assertEqual(sum(m is None for m in messages), 3)
         for (name, text), js in zip(CDN_RECORDS.items(), sets, strict=True):
             py = dependabot.cdn_sync_paths(text)
             with self.subTest(name):

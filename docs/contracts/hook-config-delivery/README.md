@@ -155,6 +155,7 @@ Conformance is tracked as it exists on `main`, per the
 | autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the harness-ops lane launcher) | conforms (0.12.0, #1784) |
 | source-control babysit-loop promotion-evidence helper (`promotion_evidence_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `skills/babysit-loop/scripts/operator-options.mjs`, anchored on the script's own install path) | conforms (#7008) |
 | corrections findings-buffer user-scope adapter binding (`findings_buffer_adapter_*`), a skill-run script | F (shared Node reader `lib/plugin-options.mjs`, generated as `scripts/lib/plugin-options.mjs`, anchored on `findings-buffer.mjs`'s own install path) | conforms (#9059) |
+| external-agents Antigravity task mode (`antigravity_uses_task_mode`), a Bash-run command | F (shared Node reader `lib/plugin-options.mjs`, anchored on `scripts/lib/config.mjs`'s own install path; the value feeds the cascade's userConfig layer) | conforms |
 | harness-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the

@@ -442,6 +442,10 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 - A survivor is about to be called arid or equivalent: `/mutation-testing:principles`.
 - A clean exercised run: /testing:test-value.
 
+## Related
+
+- Testing suite against hand-seeded realistic bugs: /mutation-testing:seed-faults.
+
 ## Gotchas
 
 Failure modes documented from the literature and from measurement, not anticipated in the abstract.

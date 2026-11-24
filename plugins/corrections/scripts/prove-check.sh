@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
-# Prove a proposed check fails on the old code and passes on the current code.
-#
-# Runs <command> (through `bash -c`) in a temporary worktree at <old>, which
-# must exit non-zero, and in a temporary worktree at <new> (default HEAD),
-# which must exit 0. Run it from inside the repository the refs belong to.
-# Prints both exit codes on stdout; the check's own output goes to stderr.
-# Both worktrees are removed on every exit path.
-#
 # Exit: 0 the proof holds (fails at old, passes at new), 1 the proof fails,
 # 2 usage or environment error.
 set -uo pipefail
-# A caller's git environment (a hook sets these) would point every git call
-# below at the caller's repository instead of the one in the working directory.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
 
 usage() {
@@ -104,8 +94,6 @@ fi
 git -C "$repo" worktree add --detach "$work/new" "$new_sha" >/dev/null 2>&1 ||
   die "could not create a worktree at $new_sha"
 
-# run_check <dir>: run the command in <dir>. The git environment unset above
-# stays unset here, so a check that calls git sees the worktree.
 run_check() {
   (
     cd "$1" || exit 2

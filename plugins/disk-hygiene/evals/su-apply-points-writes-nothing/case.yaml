@@ -46,6 +46,6 @@ graders:
     arm: both
   - name: guidance-only
     type: llm
-    criteria: 'Pass only if all three legacy expectations hold. "Runs check before offering remediation": the trace shows the probes running and the reply shows the check table before any remediation. "Writes nothing, the plugin owns no consumer-project configuration": no file is written or changed and the reply claims no change. "Names the native userConfig toggle as the only tunable": the reply names disk_hygiene_enabled as the plugin''s only setting, changed through Claude Code''s own plugin configuration. Fail if the reply says it changed a setting or offers a plugin config file of its own.'
+    criteria: 'Pass only if the trace shows the check probes ran, the reply presents the status table before remediation and gives guidance for each FAIL, and the run changes no files or settings and claims no changes. The reply names disk_hygiene_enabled as a native Claude Code plugin option and directs any toggle change through native plugin configuration.'
     focus: trace
     arm: both
