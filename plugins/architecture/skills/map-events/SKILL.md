@@ -39,7 +39,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `
 It reads no dialect key and adds none: it always writes `events.md`, a mermaid flowchart (dotted
 broadcast, solid point-to-point). The authoring-formats convention keys a dialect only for data
 diagrams and C4 system views. A message-topology flowchart is neither, so it follows the unkeyed
-mermaid rule, as `/planning:design`'s sequence flows do.
+mermaid rule, as the sequence flows of `/planning:design` (if enabled) do.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`.
 Exit 0 means read `<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean

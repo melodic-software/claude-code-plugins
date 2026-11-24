@@ -34,8 +34,7 @@ point rather than a fixed depth.
 3. **Output**. Blindspot cards, then one improved implementation prompt assembled from their
    prompt-fix lines (Output format below).
 4. **Escalate when depth warranted**. A domain too deep for a lightweight ladder gets a
-   recommendation to learn it in a structured way: `/education:teach topic <domain>` when it is
-   among the available skills, otherwise proper external research, `/discovery:research` invoked
+   recommendation to learn it in a structured way: `/education:teach topic <domain>` (if enabled), otherwise proper external research, `/discovery:research` invoked
    via the Skill tool.
 
 ## Output format

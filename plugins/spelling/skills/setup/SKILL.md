@@ -41,9 +41,9 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Spelling is one concern, lint: it reports and never rewrites. The hooks
 run only the plugin's shipped typos adapter, with or without a repository typos config; they never
 run a command from the repository's spelling record
-(`docs/conventions/ecosystems/spelling.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+(`docs/conventions/ecosystems/spelling.yaml`), which `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
-(`apply install-git-hooks`); the record is written by `/toolchain:setup apply spelling`, never
+(`apply install-git-hooks`); the record is written by `/toolchain:setup apply spelling` (if enabled), never
 here. Rules come from the repository's own typos config, and the only tunables are the native
 `userConfig` options (the on/off toggle and the end-of-turn opt-in). Unlike sibling formatter plugins
 (Ruff, markdownlint-cli2), typos has no per-repo dependency-manager install path. It is a
@@ -110,14 +110,14 @@ way too.
      lines. Extra markers come from the `spelling.generatedHeader` git config key
      (`git config --get-all spelling.generatedHeader`).
    A detail saying a spelling record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 4. **Draft, never write, the record.** When the person names a spell-checker the plugin ships no
    adapter for, say that the hooks will not run it: they run only the shipped typos adapter. Find
    the repository's own spell-checker by the steps in
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `lint-cmd` value: it holds `<files>`, only reports, and prints findings as `<path>:<line>`
-   lines. Hand the draft to `/toolchain:setup apply spelling`, the one writer of that key, so
-   `/toolchain:lint` and `/toolchain:check` can run it on request.
+   lines. Hand the draft to `/toolchain:setup apply spelling` (if enabled), the one writer of that key, so
+   `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) can run it on request.
 5. **Options.** Report the effective `spelling_enabled` value
    (`${user_config.spelling_enabled}`; unexpanded or empty means `true`) and
    `spelling_end_of_turn` (`${user_config.spelling_end_of_turn}`; unexpanded or empty means
@@ -249,7 +249,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the spell-checker. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Write the spelling record (`docs/conventions/ecosystems/spelling.yaml`); `/toolchain:setup apply spelling` does.
+- Write the spelling record (`docs/conventions/ecosystems/spelling.yaml`); `/toolchain:setup apply spelling` (if enabled) does.
 - Install `typos`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
 - Download tools, or run any during `check` or `apply` beyond the read-only `typos --version` and

@@ -146,7 +146,7 @@ written or declined, and the start offer in phase 8 is answered.
    so, propose profiles from the interview and the shipped profiles' descriptions alone, and offer
    to turn on session recording for a later, sharper setup: session-telemetry's hooks record each skill a
    session uses, and recording starts once session-telemetry is enabled (installed first if it is
-   not). When `/harness-ops:audit-skill-visibility` is among the available skills, offer it for what
+   not). Offer `/harness-ops:audit-skill-visibility` (if enabled) for what
    that recording shows. Either way, say that setup can run again later.
 4. **The user's work.** Ask what they work on and in which phases (exploring, planning, building,
    reviewing, interface design, harness upkeep), a few questions at a time, multiple choice where

@@ -82,7 +82,7 @@ sweep. The bare word `unattended` is not this flag: stop and name `--unattended`
    sweep with no issue in its name, open the PR with the forge's own tooling,
    passing that no-linkage reason, the title, and the body non-interactively:
    the guaranteed non-interactive path. Route through
-   `/source-control:pull-request create` (if that plugin is enabled) or a
+   `/source-control:pull-request create` (if enabled) or a
    work-item capability only when it can run unattended with that decision
    passed in; if it would stop to ask, use `git` and the forge's own tooling
    carrying the same decision instead.

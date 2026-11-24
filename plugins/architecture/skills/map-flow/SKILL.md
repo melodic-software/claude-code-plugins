@@ -207,7 +207,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   and [C4 diagrams § Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live.
 - **The picture has no dialect key.** The authoring-formats convention keys only data diagrams and
   C4 system views, so a traced sequence stays an unkeyed mermaid `sequenceDiagram`, as
-  `/planning:design` draws its sequence flows. The decision is recorded in
+  `/planning:design` (if enabled) draws its sequence flows. The decision is recorded in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Participants are roles.** A controller directory is transport, `Application` is application,
   `Domain` is domain, and `Infrastructure` is infrastructure. Other directories keep their own

@@ -25,7 +25,7 @@ Answers four questions about a Claude Code installation, and refuses to answer a
   reading of almost everything.
 
 The fifth question, *so what should I delete?*, is deliberately not answered. This skill is
-report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean`, and
+report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean` (if enabled), and
 shedding project state belongs to `claude purge`.
 
 ## Scope boundary
@@ -33,10 +33,10 @@ shedding project state belongs to `claude purge`.
 | Question | Owner |
 |---|---|
 | Is this machine's Claude Code install directory healthy? | **this skill** |
-| Are a repo's project-scope config FILES correct? | `/harness-config:audit` |
-| Are permission grants portable and durable? | `/harness-config:audit-permission-grants` |
+| Are a repo's project-scope config FILES correct? | `/harness-config:audit` (if enabled) |
+| Are permission grants portable and durable? | `/harness-config:audit-permission-grants` (if enabled) |
 | Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
-| Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
+| Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` (if enabled) |
 
 Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
 
@@ -166,7 +166,7 @@ the list was cut; never report the list length as the total. `--versions-out` wr
 list as a JSON file, and `unreferenced_versions_file` then records its `path` and `count`. When the
 registry is missing, unparsable, or belongs to another root, the list is empty and
 `unreferenced_versions_note` says why; an empty list then means "not checked", not "none". The list
-is a report, not a deletion list, and removing anything stays with `/disk-hygiene:clean`. That
+is a report, not a deletion list, and removing anything stays with `/disk-hygiene:clean` (if enabled). That
 skill treats the cache as managed state and leaves version directories to the product's own sweep;
 do not remove them by hand.
 

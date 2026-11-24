@@ -36,7 +36,7 @@ Dispatch the stress-test to a fresh-context sub-agent in two cases:
   invoked on an artifact this context did not author (a file, a plan from another session, a
   diff), you are already the fresh pair of eyes. Proceed directly.
 - **`incumbent` mode**, always: any read of the incumbent you already hold is a digest. The
-  sub-agent invokes `/discovery:explore` via the Skill tool (if enabled, else explores directly)
+  sub-agent invokes `/discovery:explore` (if enabled) via the Skill tool (otherwise explores directly)
   on the incumbent itself (Alternatives Sweep, Step 1).
 
 The dispatch prompt carries only what to investigate (the plan artifact, or the incumbent's identity
@@ -96,8 +96,8 @@ call and the plan may not change it silently.
 ### Research depth
 
 Both modes default to **risk-scaled** research (Round 2's scale). A leading `deep` forces the
-heaviest tier: route load-bearing evaluations to `/discovery:research` with its `deep` token,
-invoked via the Skill tool, if enabled. `shallow` restricts to codebase read/grep with no external
+heaviest tier: route load-bearing evaluations to `/discovery:research` (if enabled) with its `deep` token,
+invoked via the Skill tool. `shallow` restricts to codebase read/grep with no external
 research. Depth is per invocation, not a stored setting.
 
 ## Analysis Process
@@ -129,7 +129,7 @@ Verify each assumption against evidence; mark one you could not confirm as uncon
 you looked. Match research depth to risk:
 
 - **High risk**: deep multi-source research: official docs, issue trackers, and web search, with
-  the strongest capability available (`/discovery:research` via the Skill tool if enabled, a
+  the strongest capability available (`/discovery:research` (if enabled) via the Skill tool, a
   research MCP server, or WebSearch/WebFetch)
 - **Medium risk**: a targeted search or single authoritative doc fetch
 - **Low risk**: codebase grep/read
@@ -208,7 +208,7 @@ Every finding is backed by a specific bug number, doc reference, code path, or c
 argument, never training-data recall.
 
 1. **Explore the incumbent first-hand.** The fresh sub-agent (see Fresh-context requirement)
-   invokes `/discovery:explore` via the Skill tool (if the `discovery` plugin is enabled; otherwise it explores
+   invokes `/discovery:explore` (if enabled) via the Skill tool (otherwise it explores
    directly and the report says once that `discovery` would add a persisted exploration) on the
    incumbent: what it is, where it is used,
    what it is coupled to, and any recorded reason it was chosen. It receives the incumbent's
@@ -221,13 +221,13 @@ argument, never training-data recall.
    **vetted third-party** (well-maintained, known, safe, secure); an earlier rung wins when it
    covers the requirements. Price each dependency's coupling: abandonment, a pricing pivot, a
    license change, security posture, exit cost. The full selection discipline lives in
-   `/discipline:pick-for-the-problem` (apply it if enabled); this baseline is enough to run the
+   `/discipline:pick-for-the-problem` (if enabled) (apply it); this baseline is enough to run the
    sweep without it. The seam between the two: that corrector is the light in-session nudge when
    selection drift surfaces mid-conversation; this sweep is the formal, dispatched,
    verdict-producing review to run before a plan commits to the incumbent.
 4. **"Is there a better way now?" Evidence, not memory.** Scale research to risk (Round 2) or the
-   depth token; route load-bearing evaluations to `/discovery:research` (with its `deep` token for
-   the heaviest tier), invoked via the Skill tool, if enabled. Look especially for what changed
+   depth token; route load-bearing evaluations to `/discovery:research` (if enabled) (with its `deep` token for
+   the heaviest tier), invoked via the Skill tool. Look especially for what changed
    since the incumbent was chosen: a new native capability, a shifted dependency, a since-published
    better-fit option.
 5. **Verdict per candidate.** One of:
@@ -289,14 +289,14 @@ a MIGRATE, the migration cost.
 
 Suggest the follow-ups the findings call for:
 
-- Verifying the changes end-to-end (`/verification:confirm` if enabled) if code changes were
+- Verifying the changes end-to-end (`/verification:confirm` (if enabled)) if code changes were
   involved
-- Targeted research (`/discovery:research` if enabled, or the strongest research capability
+- Targeted research (`/discovery:research` (if enabled), or the strongest research capability
   available) if critical assumptions remain unverified
 - The Alternatives Sweep on any incumbent a Round 2 finding flagged as supported only by
   incumbency (the finding's Mitigation names the invocation)
 - Filing deferred research or monitoring items in the project's work-item tracker
-  (`/work-items:track` if enabled)
+  (`/work-items:track` (if enabled))
 
 ## What This Skill Does Not Do
 

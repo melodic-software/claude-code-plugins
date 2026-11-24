@@ -170,7 +170,7 @@ in this skill changes. What differs here:
 - **`fix` per repository.** The fix flow runs once per repository, with its own run directory,
   as "Writes stay per repository" says; a scratch worktree is never edited.
 - **No cross-repository signal.** This skill does not look for markdown copied between
-  repositories; that measurement is `/coupling:reduce`'s.
+  repositories; that measurement belongs to `/coupling:reduce` (if enabled).
 
 ### User-scope target
 
@@ -284,7 +284,7 @@ beyond the scratch copy, amends a commit, or edits a pull request.
 
 `fix` on these kinds rewrites the scratch copy only, under the usual guard, and returns the
 rewritten text beside the original. It never amends a commit, edits a pull request, or edits a
-source string: carrying the text back is the user's step, through `/source-control:commit` or the
+source string: carrying the text back is the user's step, through `/source-control:commit` (if enabled) or the
 project's own copy workflow.
 
 ## Fix flow (explicit invocation only)
@@ -381,11 +381,11 @@ carries the reason.
   marketplace; mutation rides only the explicit `fix` argument.
 - **Does not put rubric findings in the findings file.** No crosswalk row, no relay: judgment
   verdicts reach the human report only (V1 boundary, revisit with field history).
-- **Does not scan code comments** (`/code-tidying:remove-comments audit` owns them), or text
+- **Does not scan code comments** (`/code-tidying:remove-comments audit` (if enabled) owns them), or text
   outside markdown files other than the three kinds above; structural markdown (heading
   hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping text so it
-  leads with the point and carries fewer words is `/writing:be-concise`, which owns that
-  doctrine when the `writing` plugin is enabled; AI-writing tells in a commit message, PR body
+  leads with the point and carries fewer words is `/writing:be-concise` (if enabled), which owns that
+  doctrine; AI-writing tells in a commit message, PR body
   or interface copy are this skill's.
 - **Does not weaken rules to pass its own corpus**: a deliberate house style is config in the
   consuming repo, never a shipped-default change.

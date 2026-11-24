@@ -16,7 +16,7 @@ Produce a pixel-art effect as a sprite sheet the target engine can play, and sho
 
 Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
 does, including the `brief.md` file, the one-line defaults, and the presence-gated
-`/planning:interview` offer. The palette is a short ramp from bright to dark: the effect fades by
+`/planning:interview` (if enabled) offer. The palette is a short ramp from bright to dark: the effect fades by
 stepping down that ramp, not by alpha. Then add:
 
 - **Effect**: spark, slash, explosion, spell, or a particle cycle, and whether it loops.
