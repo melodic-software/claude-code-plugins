@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [12.10.1] - 2026-11-24
+
+### Fixed
+
+- `enable-auto-merge` rewrites its own refusal comments on a lanes App pull request once it arms it, or once GitHub accepts (or already holds) the async merge of a stack's bottom layer, saying the arm or merge request at that head superseded them and leaving no marker, so a merged pull request no longer shows a stale "unarmed at head" note.
+
 ## [12.10.0] - 2026-11-24
 
 ### Changed

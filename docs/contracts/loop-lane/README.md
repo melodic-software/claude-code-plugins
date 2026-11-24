@@ -579,8 +579,15 @@ real-time deadline. A hold that lands after the merge is not a hold.
   success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
-  ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
-  merge" and `do-not-merge` out of the record comment: they read as a veto.
+  ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
+  record at the head, the same step also removes it when, for every plugin whose skill, agent or
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
+  its target reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
+  instead, the run's own record that compare mode refused the PR (`compare-refused`);
+  its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run ids> -->`,
+  and the PR merges first and owes the default-branch run in
+  [evals.md](../../review/evals.md#where-and-on-what). A missing record alone releases nothing.
+  Keep "do not merge" and `do-not-merge` out of the record comment: they read as a veto.
 
 ### Escalation record write
 
@@ -1593,7 +1600,8 @@ gh pr comment <n> -R "$R" --body "Held by operator: <reason>.
 
 `babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
 that lane's own invocation overrides it. Remove the label to release the PR; an eval hold is
-released by its record ([Cross-lane PR hold](#cross-lane-pr-hold)).
+released by its record or by a compare run that recorded it cannot start
+([Cross-lane PR hold](#cross-lane-pr-hold)).
 
 **Run a PR's plugin evals.** The `eval: run` label runs
 [`pr-run-plugin-evals.yml`](../../../.github/workflows/pr-run-plugin-evals.yml) on a
