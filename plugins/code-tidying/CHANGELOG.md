@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.3] - 2026-11-24
+
+### Fixed
+
+- `/code-tidying:tidy` names Beck tidyings without a bare `#` (`Beck 8, Explaining Variables`) in its taxonomy, lanes, lane templates and deferred-issue body, and its PR body and audit comment say to, pointing at GitHub's autolinked-references docs for the reason, so GitHub no longer links the tidying number to an unrelated issue or PR.
+
 ## [0.59.2] - 2026-11-24
 
 ### Fixed
