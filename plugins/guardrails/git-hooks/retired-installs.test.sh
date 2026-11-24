@@ -7,6 +7,9 @@
 # test-scope: plugins/guardrails/retirements.yaml plugins/guardrails/lib/check-retirements.sh plugins/guardrails/lib/git-hooks/install.mjs
 # test-scope: plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/hooks/*.sh plugins/guardrails/lib/verification/*.sh
 # test-scope: plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json
+# test-scope: plugins/guardrails/.claude-plugin/plugin.json
+# test-scope: plugins/guardrails/git-hooks/commit-msg-convention.sh
+# test-scope: plugins/guardrails/git-hooks/pre-commit-content.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PROJECT_DIR
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
