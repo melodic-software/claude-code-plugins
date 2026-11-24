@@ -313,7 +313,6 @@ def build(bound, recorder, capture, elevate):
             f'stage=$({elevate} mktemp -d) || {{ printf \'could not make a stage directory\\n\' >&2; exit 1; }}\n'
             + run
         )
-    # A bound child also checks its parent pid.
     checks = [
         f"  check {p['pid']} {p['uid']} {p['start']} {p['sha256']}"
         + (f" {p['ppid']}" if i else "")
@@ -335,7 +334,6 @@ def build(bound, recorder, capture, elevate):
         "RUN": run,
         "HANDBACK": hand_back,
     }
-    # One pass, so a placeholder inside a filled value is never filled again.
     return PLACEHOLDER.sub(lambda m: values[m[1]], TEMPLATE)
 
 

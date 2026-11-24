@@ -152,6 +152,7 @@ offenders="$(awk -F'\t' '$1=="OFFENDER" {print $2 "\t" $3}' "$INVENTORY")"
 finding_count="$(printf '%s' "$offenders" | grep -c . || true)"
 
 body=""
+summary=""
 ranked="$(
   while IFS="$(printf '\t')" read -r old new; do
     [[ -n "$old" ]] || continue
@@ -175,6 +176,8 @@ while IFS="$(printf '\t')" read -r nsites old new; do
   gen="$(printf '%s' "$refs" | awk -F'\t' '$7=="regenerate" {print $3}' | sort -u | tr '\n' ' ')"
   [[ -n "${gen// /}" ]] || gen="none"
   review="$(printf '%s' "$refs" | awk -F'\t' '$7=="review"' | grep -c . || true)"
+  summary="${summary}finding $id \`$old\` to \`$new\`: $nsites site(s) in $files file(s); by tier: $by_tier; review: $review; generated: ${gen% }
+"
 
   body="$body### $id \`$old\` to \`$new\`
 
@@ -231,4 +234,12 @@ fi
 rm -f "$tmp"
 
 printf 'wrote %s (%s finding(s), %s file(s) scanned)\n' "$OUT" "${finding_count:-0}" "${SCANNED:-0}"
+printf '%s' "$summary"
+sweep_sites="$(awk -F'\t' '$1=="SITES" {print $2; exit}' "$SWEEP")"
+[[ -n "$sweep_sites" ]] || sweep_sites="$(awk -F'\t' '$1=="REF"' "$SWEEP" | grep -c . || true)"
+by_action="$(awk -F'\t' '$1=="REF" {print $7}' "$SWEEP" |
+  sort | uniq -c | awk '{printf "%s %s, ", $1, $2}' | sed 's/, $//')"
+[[ -n "$by_action" ]] || by_action="no site found"
+report_sites="$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP" | grep -c . || true)"
+printf 'total: %s site(s); by action: %s; report sites: %s\n' "$sweep_sites" "$by_action" "${report_sites:-0}"
 exit 0

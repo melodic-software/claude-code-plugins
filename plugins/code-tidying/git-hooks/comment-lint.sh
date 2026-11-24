@@ -18,8 +18,10 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
   comment-lint.sh --worktree    the uncommitted changes against HEAD, untracked files included
 
 Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
-block), comment_lint_allow (extended regular expressions a comment may match) and
-comment_adr_dir (the decision-record folder, default docs/adr).
+block), comment_lint_allow (extended regular expressions a comment may match),
+comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
+* and ? stay within one path segment, ** spans segments) and comment_adr_dir (the
+decision-record folder, default docs/adr).
 comment_posture comes from the team file and the personal override; a userConfig
 posture never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
@@ -101,9 +103,50 @@ code_ext() {
   shopt -u nocasematch
   return "$rc"
 }
+glob_ere() {
+  local g="$1" out="" c i
+  for ((i = 0; i < ${#g}; i++)); do
+    c="${g:i:1}"
+    if [[ "${g:i:3}" == '**/' ]]; then
+      out+='(.*/)?'
+      i=$((i + 2))
+    elif [[ "${g:i:2}" == '**' ]]; then
+      out+='.*'
+      i=$((i + 1))
+    elif [[ "$c" == '*' ]]; then
+      out+='[^/]*'
+    elif [[ "$c" == '?' ]]; then
+      out+='[^/]'
+    elif [[ "$c" == [[:alnum:]/_-] ]]; then
+      out+="$c"
+    elif [[ "$c" == [\\^] ]]; then
+      out+="\\$c"
+    else
+      out+="[$c]"
+    fi
+  done
+  printf '^%s$' "$out"
+}
+excludes=()
+exclude_res=()
+while IFS= read -r g; do
+  excludes+=("$g")
+  exclude_res+=("$(glob_ere "$g")")
+done < <(checks_bash_run "$settings" --list comment_lint_exclude .)
+excluded_by() {
+  local i
+  for i in "${!exclude_res[@]}"; do
+    [[ "$1" =~ ${exclude_res[i]} ]] && printf '%s' "${excludes[i]}" && return 0
+  done
+  return 1
+}
 made=""
 while IFS= read -r -d '' f; do
   code_ext "${f##*/}" || continue
+  if glob="$(excluded_by "$f")"; then
+    printf 'code-tidying: comment lint skipped %s (comment_lint_exclude: %s)\n' "$f" "$glob" >&2
+    continue
+  fi
   dir="$texts/${f%/*}"
   [[ "$f" == */* ]] || dir="$texts"
   [[ "$dir" == "$made" ]] || mkdir -p "$dir"
@@ -137,7 +180,7 @@ while IFS= read -r -d '' f; do
   mkdir -p "$records/${f%/*}" && : >"$records/$f"
 done < <(adr_records)
 
-checks_changed_lines
+checks_changed_lines --skip-reindent
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
 python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"

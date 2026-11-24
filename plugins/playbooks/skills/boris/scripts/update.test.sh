@@ -8,8 +8,6 @@ TEST_TMPDIR="$(mktemp -d)"
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --- 1. --help contract --------------------------------------------------------
-
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
@@ -31,8 +29,6 @@ else
   fail "-h emits non-empty stdout" "non-empty" "empty"
 fi
 
-# --- 2. Unknown flag handling ----------------------------------------------------
-
 unknown_out=$(bash "$SCRIPT" --bogus-flag 2>&1)
 unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
@@ -51,8 +47,6 @@ if declare -F local_metadata_field >/dev/null; then
 else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
 fi
-
-# --- 4. Frontmatter parsing on fixture --------------------------------------------
 
 FIXTURE_SKILL="$TEST_TMPDIR/SKILL.md"
 cat >"$FIXTURE_SKILL" <<'EOF'
@@ -77,8 +71,6 @@ assert_eq "parses metadata.upstream-version (nested)" "7.5.0" "$parsed_ver"
 parsed_synced=$(local_metadata_field "synced")
 assert_eq "parses metadata.synced (nested)" "2026-01-15" "$parsed_synced"
 
-# --- 5. Negative parse: missing metadata block -------------------------------------
-
 FIXTURE_BARE="$TEST_TMPDIR/SKILL-bare.md"
 cat >"$FIXTURE_BARE" <<'EOF'
 ---
@@ -92,8 +84,6 @@ EOF
 FRONTMATTER_FILE="$FIXTURE_BARE"
 empty_ver=$(local_metadata_field "upstream-version")
 assert_eq "missing metadata block returns empty" "" "$empty_ver"
-
-# --- 6. replace_metadata_field mutates indented key ---------------------------------
 
 FIXTURE_MUT="$TEST_TMPDIR/SKILL-mut.md"
 cat >"$FIXTURE_MUT" <<'EOF'
@@ -116,8 +106,6 @@ assert_contains "synced bumped" "$mutated" "synced: 2030-12-31"
 assert_not_contains "old upstream-version removed" "$mutated" "1.0.0"
 assert_not_contains "old synced removed" "$mutated" "2025-01-01"
 
-# --- 7. Cross-platform SHA helper picks an available impl ---------------------------
-
 FIXTURE_SHA="$TEST_TMPDIR/sha-fixture.txt"
 echo "boris test" >"$FIXTURE_SHA"
 sha_via_helper=$(sha256 "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
@@ -128,16 +116,8 @@ else
 fi
 assert_eq "sha256 helper matches direct call" "$sha_direct" "$sha_via_helper"
 
-# --- 8. file_sha returns empty for missing file --------------------------------------
-
 missing_sha=$(file_sha "$TEST_TMPDIR/does-not-exist.txt")
 assert_eq "file_sha returns empty for missing path" "" "$missing_sha"
-
-# --- 9. Sync map covers every reference bucket ----------------------------------------
-
-# The manual-integration map routes upstream sections to reference files. A bucket
-# added without a map row silently routes its sections to the wrong file on the next
-# sync, so the map is asserted against the directory rather than trusted.
 
 map_text=$(sed -n '/Integrate new tips/,/Update SKILL.md/p' "$SCRIPT")
 for bucket in "$SCRIPT_DIR"/../reference/*.md; do
@@ -145,15 +125,11 @@ for bucket in "$SCRIPT_DIR"/../reference/*.md; do
   assert_contains "sync map routes $bucket_name" "$map_text" "reference/$bucket_name"
 done
 
-# Open-ended ranges re-introduce the same defect: "78+" swallows every later thread.
 if grep -qE 'sections [0-9]+\+' <<<"$map_text"; then
   fail "sync map has no open-ended section range" "closed ranges" "found 'sections N+'"
 else
   pass "sync map has no open-ended section range"
 fi
-
-# --- 10. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ---------
-# Both fetches are stubbed; the frontmatter is the section 4 fixture (7.5.0).
 
 FRONTMATTER_FILE="$FIXTURE_SKILL"
 VENDOR_FILE="$TEST_TMPDIR/vendor-skill.md"
@@ -188,8 +164,6 @@ stub_version="7.5.0"
 stub_install=fail
 out=$(run_check 2>&1)
 assert_exit "install endpoint unreachable: exit 2" 2 "$?"
-
-# --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

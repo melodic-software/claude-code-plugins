@@ -52,13 +52,12 @@ def mode(xs):
 
 
 def traces(work):
-    # the index's drawings, not a glob: an earlier extract into this dir can leave higher-numbered stale traces
     fs = [workdir.trace(work, k) for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']] \
         if workdir.index(work).exists() else []
     if not fs or not all(f.exists() for f in fs):
         sys.exit(f'learn: missing traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
     ds = [json.load(open(f, encoding='utf-8')) for f in fs]
-    tones, common = {}, mode(tuple(d['levels']) for d in ds)   # skip per-shot level overrides
+    tones, common = {}, mode(tuple(d['levels']) for d in ds)
     for d in (d for d in ds if tuple(d['levels']) == common):
         for t in d['tones']:
             if 'tint' not in t:
@@ -90,7 +89,7 @@ def pairs(parts):
     """(excerpt, complement) index sets, each holding FLOOR to 1 - FLOOR of the duration; every such split when there
     are at most MAX_SUBSETS, else a seeded sample of that many."""
     d, n = [duration(p) for p in parts], len(parts)
-    rest = range(1, n)   # part 0 always in the excerpt: each split once
+    rest = range(1, n)
     if 2 ** (n - 1) <= MAX_SUBSETS:
         combos = [(0, *c) for k in range(n) for c in itertools.combinations(rest, k)]
     else:
@@ -131,7 +130,7 @@ def main(argv=None):
     calib, evals = ps[0::2], ps[1::2]
     negs = {n.stem: json.load(open(n, encoding='utf-8')) for n in a.negative}
 
-    def vals(group, s):   # both directions: the excerpt and its complement
+    def vals(group, s):
         return [(i, v) for i, pair in enumerate(group) for side in pair
                 if (v := value([parts[j] for j in side], s, a.base_fps)) is not None]
     rule, bands, ref, raw = {}, {}, {}, {}
@@ -142,7 +141,7 @@ def main(argv=None):
             continue
         lo, hi = min(min(v for _, v in cv), ref[s]), max(max(v for _, v in cv), ref[s])
         need = 0.0
-        for i in {i for i, _ in cv}:   # each calibration pair against the band of the others
+        for i in {i for i, _ in cv}:
             others = [v for j, v in cv if j != i] or [ref[s]]
             need = max(need, *(outside(v, min(others), max(others)) for j, v in cv if j == i))
         raw[s] = lo, hi, need, {n: v for n, nm in negs.items() if (v := inkstats.film_value(nm, s)) is not None}
@@ -164,7 +163,7 @@ def main(argv=None):
                        calibration_pass=rate(calib), evaluation_pass=rate(evals))
         ref[s] = round(ref[s], 4)
 
-    def whole(group):   # excerpts passing every checked row
+    def whole(group):
         sides = [side for pair in group for side in pair]
         ok = sum(all(v is None or bands[s][0] <= v <= bands[s][1]
                      for s in check for v in [value([parts[j] for j in side], s, a.base_fps)]) for side in sides)

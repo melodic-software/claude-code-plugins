@@ -14,7 +14,8 @@ comment-dissolving edit has to make and a test suite can only sample:
                  Also CODE-CHANGED when the file holds `__doc__` or
                  `__dict__` in any token, or one of the identifiers `vars`,
                  `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc`
-                 or `doctest`; when the docstring holds `>>>`; when the
+                 or `doctest` other than as a keyword argument or parameter
+                 name (`help=`); when the docstring holds `>>>`; when the
                  function is decorated; when its name appears anywhere but
                  its own def line or directly before `(`; or when removal
                  leaves a body empty. It reads this one file only.
@@ -24,6 +25,10 @@ comment-dissolving edit has to make and a test suite can only sample:
                  string-keyed access, so it earns a lighter review, never an
                  unattended apply.
   CODE-CHANGED   some non-identifier token differs, or the token count moved.
+                 Also, in place of COMMENT-ONLY or DOCSTRING-ONLY, when a code
+                 line changed other than by losing whole comments (a trailing
+                 one with the whitespace before it): a reindent, `x = (` to
+                 `x =(`, or a line split or joined.
   UNPROVABLE     a side failed to parse cleanly (ERROR/MISSING nodes), so no
                  token-level claim can be made. Treated as CODE-CHANGED by any
                  gate.
@@ -175,6 +180,24 @@ def powershell_leaves(record: dict) -> list[tuple[str, str]]:
     return out
 
 
+def powershell_layout(record: dict) -> tuple[str, list[tuple[int, int]]]:
+    """The text pwsh parsed, with CRLF and CR as LF, and the comment spans in it.
+
+    pwsh offsets count UTF-16 code units; `at` maps each unit to its index in
+    the returned text, so a non-BMP character or a CRLF does not shift a span."""
+    raw = record["text"]
+    out: list[str] = []
+    at: list[int] = []
+    for i, ch in enumerate(raw):
+        if ch == "\n" and raw[i - 1 : i] == "\r":
+            at.append(len(out) - 1)
+            continue
+        at.extend([len(out)] * (2 if ord(ch) > 0xFFFF else 1))
+        out.append("\n" if ch == "\r" else ch)
+    at.append(len(out))
+    return "".join(out), [(at[s], at[e]) for s, e in record["spans"]]
+
+
 def powershell_rename_defect(mapping: dict[str, str], reserved: set[str]) -> str | None:
     """A rename may not change a variable's scope or touch a reserved name.
 
@@ -315,15 +338,18 @@ def owner_refusal(owner) -> str | None:
 
 def leaves(
     src: bytes, lang, docstrings: bool = False
-) -> tuple[list[tuple[str, str]], bool, list[Docstring]]:
-    """Terminal tokens minus comments, whether the parse had errors, and the
-    docstrings among them when `docstrings` is set."""
+) -> tuple[list[tuple[str, str]], bool, list[Docstring], list[tuple[int, int]], list[tuple[int, int]]]:
+    """Terminal tokens minus comments, whether the parse had errors, the
+    docstrings among them when `docstrings` is set, and the byte spans of the
+    comments and of those docstrings."""
     from tree_sitter import Parser
 
     tree = Parser(lang).parse(src)
     owners = python_docstrings(tree.root_node, src) if docstrings else {}
     out: list[tuple[str, str]] = []
     docs: list[Docstring] = []
+    comments: list[tuple[int, int]] = []
+    doc_spans: list[tuple[int, int]] = []
     broken = False
 
     def walk(top) -> None:
@@ -336,6 +362,7 @@ def leaves(
                 begin = len(out)
                 walk(node)
                 docs.append(Docstring(begin, len(out), *found))
+                doc_spans.append((node.start_byte, node.end_byte))
                 continue
             if node.type in ("ERROR", "MISSING") or node.is_missing:
                 broken = True
@@ -344,13 +371,14 @@ def leaves(
                 continue
             text = src[node.start_byte : node.end_byte].decode(errors="replace")
             if "comment" in node.type:
+                comments.append((node.start_byte, node.end_byte))
                 if node.start_point[0] == 0 and text.startswith("#!"):
                     out.append(("shebang", text))
             elif text.strip():
                 out.append((node.type, text))
 
     walk(tree.root_node)
-    return out, broken, docs
+    return out, broken, docs, comments, doc_spans
 
 
 def code_changed(**detail) -> tuple[str, int, dict]:
@@ -371,6 +399,26 @@ def without_docstrings(stream, docs: list[Docstring]):
     return kept, anchors
 
 
+def docstring_reader(stream) -> str | None:
+    """The first token through which the file can read docstrings at run time.
+
+    A DOC_READERS name directly after `(` or `,` and before `=` is a keyword
+    argument or parameter name, such as argparse's `help=`, not a reader."""
+    for i, (kind, text) in enumerate(stream):
+        if "__doc__" in text or "__dict__" in text:
+            return text
+        if kind != "identifier" or text not in DOC_READERS:
+            continue
+        keyword = (
+            0 < i < len(stream) - 1
+            and stream[i - 1][1] in ("(", ",")
+            and stream[i + 1] == ("=", "=")
+        )
+        if not keyword:
+            return text
+    return None
+
+
 def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     """DOCSTRING-ONLY, a refusal, or None when docstrings do not explain the diff."""
     a_kept, a_anchors = without_docstrings(a, a_docs)
@@ -380,16 +428,7 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     removed = [doc for key, doc in a_anchors.items() if key not in b_anchors]
     if not removed:
         return None
-    reader = next(
-        (
-            text
-            for kind, text in a + b
-            if "__doc__" in text
-            or "__dict__" in text
-            or (kind == "identifier" and text in DOC_READERS)
-        ),
-        None,
-    )
+    reader = docstring_reader(a) or docstring_reader(b)
     if reader is not None:
         return code_changed(
             reason="the file can read docstrings at run time", at=reader
@@ -411,12 +450,43 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
 def classify(
     before: bytes, after: bytes, lang, docstrings: bool = False
 ) -> tuple[str, int, dict]:
-    a, a_broken, a_docs = leaves(before, lang, docstrings)
-    b, b_broken, b_docs = leaves(after, lang, docstrings)
+    a, a_broken, a_docs, a_comments, a_doc_spans = leaves(before, lang, docstrings)
+    b, b_broken, b_docs, b_comments, b_doc_spans = leaves(after, lang, docstrings)
     verdict = classify_leaves(a, b, a_broken, b_broken)
     if verdict[0] == "CODE-CHANGED" and a_docs:
-        return classify_docstrings(a, b, a_docs, b_docs) or verdict
+        verdict = classify_docstrings(a, b, a_docs, b_docs) or verdict
+        if verdict[0] == "DOCSTRING-ONLY":
+            a_comments += a_doc_spans
+            b_comments += b_doc_spans
+    if verdict[0] in ("COMMENT-ONLY", "DOCSTRING-ONLY"):
+        return layout_change(before, a_comments, after, b_comments) or verdict
     return verdict
+
+
+def code_lines(text, spans) -> list[tuple[int, str]]:
+    """Each line holding code, by line number, with `spans` cut out and the
+    end of the line trimmed. A cut keeps its newlines so numbering holds."""
+    nl = "\n" if isinstance(text, str) else b"\n"
+    parts, cursor = [], 0
+    for start, end in sorted(spans):
+        parts += [text[cursor:start], nl * text.count(nl, start, end)]
+        cursor = end
+    parts.append(text[cursor:])
+    joined = text[:0].join(parts)
+    return [(n, s.rstrip()) for n, s in enumerate(joined.split(nl), 1) if s.strip()]
+
+
+def layout_change(before, a_spans, after, b_spans) -> tuple[str, int, dict] | None:
+    """CODE-CHANGED when a code line changed other than by losing a whole
+    trailing comment and the whitespace before it. The tokens cannot see this:
+    `x = (` and `x =(` are the same leaves."""
+    a, b = code_lines(before, a_spans), code_lines(after, b_spans)
+    if len(a) != len(b):
+        return code_changed(reason="code lines were split or joined")
+    for (_, x), (line, y) in zip(a, b):
+        if x != y:
+            return code_changed(reason="whitespace changed on a code line", line=line)
+    return None
 
 
 def classify_leaves(
@@ -520,6 +590,10 @@ def main(argv: list[str] | None = None) -> int:
             records[1]["errors"] > 0,
             fold=str.lower,
         )
+        if verdict == "COMMENT-ONLY":
+            verdict, code, detail = layout_change(
+                *powershell_layout(records[0]), *powershell_layout(records[1])
+            ) or (verdict, code, detail)
         if verdict == "RENAME-ONLY":
             reserved = {n.lower() for n in records[1]["reserved"]}
             defect = powershell_rename_defect(detail["mapping"], reserved)

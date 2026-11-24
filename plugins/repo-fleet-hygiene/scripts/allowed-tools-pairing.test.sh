@@ -58,8 +58,6 @@ fail() {
 # skip, and this path is a declared absence of an allowlist, not of a tool.
 note() { echo "NOTE: $1"; }
 
-# Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
-# to the next top-level key so a YAML list is captured whole.
 allowed_tools() {
   awk 'NR==1&&/^---$/{f=1;next} f&&/^---$/{exit} f' "$1" |
     awk '/^allowed-tools:/{f=1;print;next} f&&/^[A-Za-z_-]+:/{exit} f'
@@ -97,9 +95,6 @@ for skill in "${SKILLS[@]}"; do
     fi
   done
 
-  # Each granted script must exist, be executable, and be invoked by the body —
-  # a grant nothing runs is dead weight, and a non-executable target cannot be
-  # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
   if [[ ${#granted[@]} -eq 0 ]]; then
     fail "$skill: no \${CLAUDE_SKILL_DIR} bundled-script grant found"

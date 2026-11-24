@@ -1,14 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Assert-CatalogEntry.ps1 and the catalog itself.
-
-.DESCRIPTION
-Assert-CatalogEntry pins the contract between catalog/checks.jsonc and the
-orchestrator. The integration Describe block re-parses the real catalog file
-so any drift between the schema and the shipped catalog fails CI.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `

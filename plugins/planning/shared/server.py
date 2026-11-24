@@ -73,7 +73,7 @@ PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
 STATE = "state.json"
 DEFAULTS = "defaults.json"
-IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
+IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")
 MIN_OWNER_TOKEN = 16  # an owner token as short as the prototype's (token_urlsafe(12)) is kept: its owner link survives a restart
 WEB = HERE / "web"
 STATIC = {
@@ -81,7 +81,7 @@ STATIC = {
     "/core.js": ("core.js", "text/javascript"),
     "/app.js": ("app.js", "text/javascript"),
     "/connect.js": ("connect.js", "text/javascript"),
-    "/question-shape.js": ("question-shape.js", "text/javascript"),  # surface/interview_server.py serves it too
+    "/question-shape.js": ("question-shape.js", "text/javascript"),
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
     "/question-shape.css": ("question-shape.css", "text/css"),
@@ -140,7 +140,7 @@ def entry(what, /, **fields):
     return " ".join(out)
 
 
-TRACE_LIMIT = 8000  # judgment: a traceback's characters kept on its one log line, enough for a deep stack
+TRACE_LIMIT = 8000
 CLIENT_MESSAGE_MAX = 500
 FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
@@ -150,15 +150,15 @@ LOG_KEEP = 3
 # entry every SUMMARY_BATCH_SECONDS and at shutdown, never with a time or a request entry of their own: the page
 # sends its summary as it sends a heartbeat, whose request entry names the person.
 CLIENT_LOG = "/api/client-log"
-CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the other fields
+CLIENT_LOG_MAX = 4096
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
 CLIENT_KINDS = ("error", "rejection", "api", "layout", "summary")
-USAGE_KINDS = ("summary",)  # held for the next summary batch, on their own rate bucket
-IMAGE_PER_MINUTE = 120  # judgment: pictures one person's pages read back a minute; a page holds at most a few dozen tiles
-CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
-SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
-SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
-SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
+USAGE_KINDS = ("summary",)
+IMAGE_PER_MINUTE = 120
+CLIENT_PER_MINUTE = 20
+SUMMARY_PER_MINUTE = 6
+SUMMARY_BATCH_SECONDS = 600
+SUMMARY_BATCH_BYTES = 100_000
 SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
 # so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
 # except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
@@ -173,15 +173,15 @@ COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
 SPIKE_KINDS = ("error", "rejection", "api")
 SPIKE_REFUSALS = (501, 505)  # http.server's refusals of a malformed request, sent before any Host check: no fault
 SPIKE_THRESHOLD = 3
-SPIKE_WINDOW = 300  # judgment: the logs above stay under the threshold in every window from 60 to 600 s
-SPIKE_COOLDOWN = 600  # judgment, as SUMMARY_BATCH_SECONDS: those logs hold no spike to measure
-SPIKE_KEPT = 1000  # the most fault times kept per kind, so a flood of 503s costs bounded memory; a count stops there
+SPIKE_WINDOW = 300
+SPIKE_COOLDOWN = 600
+SPIKE_KEPT = 1000
 COUNT_TOKEN = re.compile(r"((?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
 DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
-TUNNEL_POLL = 1.0  # seconds between tunnel checks
+TUNNEL_POLL = 1.0
 TUNNEL_BACKOFF_MAX = 60.0
-PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
-ASSET_COOKIE_SECONDS = 900  # judgment: an asset cookie's life; every /api/state answer renews it, so an open page keeps it
+PRESENCE_TICK = 5
+ASSET_COOKIE_SECONDS = 900
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
@@ -267,17 +267,17 @@ ROUTES = {
     "/api/live/approve": ("owner", "approve_live"),
     "/api/live/stop": ("owner", "stop_live"),
 }
-LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that can end a live prototype
+LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
-HEALTH = "/api/owner/health"  # owner: share.sh logs --summary on the page (App.health)
+HEALTH = "/api/owner/health"
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
 
 
@@ -300,7 +300,7 @@ def client_fields(body):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
         if len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
-    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
+    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}
     if out["kind"] not in CLIENT_KINDS:
         raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
     if not out["message"]:
@@ -308,9 +308,9 @@ def client_fields(body):
     return out
 
 
-LIVE_COPIES = "live"  # <data_dir>/live/<id>/: the copy of a build folder a live prototype serves, made at its start
-LIVE_RESTARTS = 5  # judgment: restarts in a row that may fail before a live prototype ends
-LIVE_BACKOFF = 2.0  # seconds before the first restart after a failed one, doubling up to LIVE_BACKOFF_MAX
+LIVE_COPIES = "live"
+LIVE_RESTARTS = 5
+LIVE_BACKOFF = 2.0
 LIVE_BACKOFF_MAX = 32.0
 
 
@@ -332,7 +332,7 @@ class QuickTunnelStarter:
 
     def __init__(self, app):
         self.app, self.d = app, app.dir
-        self.retry = {}  # live id -> (monotonic time of the next try, failures in a row)
+        self.retry = {}
 
     def path(self, lid):
         return tunnel.live_path(self.d, lid)
@@ -357,7 +357,7 @@ class QuickTunnelStarter:
             raise DomainError(502, "live-failed", f"{LIVE_COPIES}/ in the data folder is a link, so no copy is made.")
         dest = detached.make_private_dir(self.d / LIVE_COPIES) / lid
         if fresh:
-            src = session._live_folder(str(self.d / target["folder"]), self.d)  # still a folder under staging/
+            src = session._live_folder(str(self.d / target["folder"]), self.d)
             try:
                 liveserve.copy_build(self.d / src, dest)
             except (liveserve.BuildRefused, OSError) as exc:
@@ -378,14 +378,14 @@ class QuickTunnelStarter:
         if not tunnel.binary():
             raise DomainError(503, "live-unavailable", f"A live prototype needs cloudflared: {tunnel.MISSING}")
         lid, path = entry["id"], self.path(entry["id"])
-        tunnel.end_live(path, "stopped")  # whatever an earlier start of this entry left
+        tunnel.end_live(path, "stopped")
         port, srv = self.serve(entry)
         try:
             tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
             rec = tunnel.start_live(path, port, fresh=True)
         except (tunnel.TunnelDown, TimeoutError, OSError) as exc:
             if srv:
-                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # the record may not have been written
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])
             self.end(entry, "failed")
             self.app.log.warning("live %s: the tunnel did not start: %s", lid, loggable(str(exc), 300))
             raise DomainError(502, "live-failed", "The live prototype's tunnel did not start; it waits for Approve again.") from None
@@ -428,7 +428,7 @@ class QuickTunnelStarter:
             try:
                 return tunnel.start_live(path, port, server=srv)["url"]
             except BaseException:
-                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # recorded nowhere yet
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])
                 raise
         return tunnel.start_live(path, port)["url"]
 
@@ -447,7 +447,7 @@ class QuickTunnelStarter:
             begun = dict(app._live_begun)
         for lid, entry in begun.items():
             rec = tunnel.read_live(self.path(lid)) or {}
-            if rec.get("reason") == "stopped":  # ended from outside (share.sh): end the entry, never restart it
+            if rec.get("reason") == "stopped":
                 self.forget(lid, entry, "stopped")
                 continue
             if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
@@ -470,7 +470,7 @@ class QuickTunnelStarter:
             except (DomainError, tunnel.TunnelDown, TimeoutError, OSError) as exc:
                 with app._live_lock:
                     gone = lid not in app._live_begun or app.session.live_status(lid) != "running"
-                if gone:  # stopped while it restarted: end what the restart began
+                if gone:
                     self.retry.pop(lid, None)
                     self.end(entry, "stopped")
                     continue
@@ -492,7 +492,7 @@ class QuickTunnelStarter:
             elif moved:
                 app.log.info("live %s: restarted at a new address", lid)
                 app.changed()
-            else:  # stopped while it restarted
+            else:
                 self.forget(lid, entry, "stopped", record=False)
 
     def resume(self):
@@ -501,20 +501,20 @@ class QuickTunnelStarter:
             lid, kind = e["id"], e["status"]["kind"]
             rec = tunnel.read_live(self.path(lid))
             if kind == "running" and rec and "endedAt" not in rec and (tunnel.tunnel_running(rec) or tunnel.server_running(rec)):
-                app._live_begun[lid] = e  # the watch brings back whichever part has exited
+                app._live_begun[lid] = e
                 continue
             if kind in ("starting", "running"):
                 self.end(e, "failed")
                 if kind == "starting":
-                    app.session.live_start_failed(lid)  # the server stopped while it started: it waits for Approve again
+                    app.session.live_start_failed(lid)
                 else:
                     app.session.live_ended(lid, "stopped" if (rec or {}).get("reason") == "stopped" else "failed")
-        for path, rec in tunnel.live_records(self.d):  # a record no running entry claims
+        for path, rec in tunnel.live_records(self.d):
             if "endedAt" not in rec and rec["id"] not in app._live_begun:
                 tunnel.end_live(path, "failed")
 
 
-LIVE_STARTER = None  # None: App starts live prototypes with QuickTunnelStarter; a test fixture sets its own
+LIVE_STARTER = None
 
 
 class StartRefused(Exception):
@@ -539,7 +539,7 @@ def build_hash():
 
 
 PROBE_PATH = re.compile(r"/api/tunnel-probe/([0-9a-f]{32})")
-PROBE_SECONDS = 30.0  # judgment: how long a new tunnel address may take to start reaching this server
+PROBE_SECONDS = 30.0
 
 
 def probe_target(url):
@@ -768,7 +768,7 @@ class ControlHandler(session_bridge.LoopbackHandler):
         if path == "/api/live/stop":
             return self.stop_lives(msg)
         if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
-            self.send(200, {"ok": True})  # answered before the shutdown starts, so share.py reads it
+            self.send(200, {"ok": True})
             return app.quit.set()
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
@@ -816,7 +816,6 @@ class GuestServer(ThreadingHTTPServer):
     allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
     BUSY_MESSAGE = "The session is busy; try again in a moment."
     BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": BUSY_MESSAGE})
-    # judgment: how long, how much and how many refused clients are read after their 503, so a flood costs little.
     DRAIN_SECONDS = 2.0
     DRAIN_BYTES = 64 * 1024
     DRAINS = 8
@@ -833,9 +832,8 @@ class GuestServer(ThreadingHTTPServer):
 
     def process_request(self, request, client_address):
         if not self.slots.acquire(blocking=False):
-            # No request was read, so the entry has no method, route or pid, and no traceback: nothing failed.
             self.app.log.error("%s", entry("request", method="-", route="-", status=503, ms="0.0", code="busy", message=self.BUSY_MESSAGE))
-            self.app.note_fault("request", background=True)  # this thread accepts every connection
+            self.app.note_fault("request", background=True)
             if self.drains.acquire(blocking=False):
                 threading.Thread(target=self.refuse, args=(request,), daemon=True).start()
             else:
@@ -873,7 +871,7 @@ class GuestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "shared-session"
     sys_version = ""
-    timeout = 30  # an idle or trickling connection is dropped
+    timeout = 30
     body_left = 0
 
     def version_string(self):
@@ -929,9 +927,9 @@ class GuestHandler(BaseHTTPRequestHandler):
         for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
-        self.log_request_entry(code)  # before the body goes out, so a client that has its answer finds the entry
+        self.log_request_entry(code)
         if code >= 500 and code not in SPIKE_REFUSALS:
-            self.app.note_fault("request")  # likewise its fault-spike event
+            self.app.note_fault("request")
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
@@ -1015,7 +1013,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("the body did not arrive in time")
-                self.connection.settimeout(min(remaining, self.timeout))  # a stalled sender is dropped after self.timeout
+                self.connection.settimeout(min(remaining, self.timeout))
                 chunk = self.rfile.read1(min(left, 65536))
                 if not chunk:
                     self.close_connection = True
@@ -1090,7 +1088,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True, **getattr(self.app.session, method)(pid, query)})
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: a read writes nothing
+        except Exception:
             return self.crash()
         return self.fail(DomainError(404, "not-found", "Nothing here."))
 
@@ -1136,7 +1134,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def state(self):
         app = self.app
-        if app.moved(self.headers.get("Host", "")):  # the old address after a switch: only where the session went
+        if app.moved(self.headers.get("Host", "")):
             return self.send(200, {"moved": app.public_url})
         pid = self.identity()
         if pid is None:
@@ -1145,7 +1143,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         extra = {"ETag": tag, "Set-Cookie": self.asset_cookie(pid)}
         if sent == tag:  # identity() already refused a removed or waiting person
             return self.send(304, b"", extra=extra)
-        if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:  # only presence or the clock moved: send just that part
+        if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:
             return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra=extra)
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
@@ -1179,7 +1177,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
-        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS  # up to four pictures take longer
+        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS
         try:
             raw = self.read_body(length, seconds)
         except TimeoutError:
@@ -1200,14 +1198,14 @@ class GuestHandler(BaseHTTPRequestHandler):
             out = fn(pid, body, address=self.address()) if method in ("join", "redeem_pairing") else fn(pid, body)
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: the transaction rolled back, so nothing was written
+        except Exception:
             return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
         if method in ("rotate_owner_link", "revoke_device", "end_session"):
             app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
         if method == "approve_live":
-            app.changed()  # the entry reads starting while it starts
+            app.changed()
             try:
                 out = app.start_live(out)
             except DomainError as exc:
@@ -1256,7 +1254,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 out = app.session.upload_chunk(pid, meta, raw)
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: the transaction rolled back, so nothing was written
+        except Exception:
             return self.crash()
         app.changed()
         return self.send(200, {"ok": True, **out})
@@ -1312,16 +1310,16 @@ class App:
         self.build = build_hash()
         self._asset_key = secrets.token_bytes(32)  # signs asset cookies; a restart ends them, and the next poll renews them
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
-        self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
-        self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
-        self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
+        self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)
+        self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)
+        self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)
         self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
-        self._spike_lock, self._faults, self._spike_quiet_until = threading.Lock(), {}, 0.0  # fault kind -> recent times
+        self._spike_lock, self._faults, self._spike_quiet_until = threading.Lock(), {}, 0.0
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
-        self.retired_host = ""  # the address before a switch, while its tunnel still runs
+        self.retired_host = ""
         self.tunnel_up = False
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
@@ -1330,15 +1328,15 @@ class App:
         self._stop = threading.Event()
         self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
-        self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
+        self._probe_lock, self._probes = threading.Lock(), {}
         self.live_starter = LIVE_STARTER
-        self._live_lock, self._live_begun = threading.Lock(), {}  # live id -> the entry its starter began, until stopped
+        self._live_lock, self._live_begun = threading.Lock(), {}
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
         self.local_hosts = {f"127.0.0.1:{self.guest_port}", f"localhost:{self.guest_port}"}
         self.asset_cookie = f"shared-assets-{self.guest_port}"  # cookies ignore the port: two local sessions keep their own
-        handler = type("SharedControlHandler", (ControlHandler,), {})  # its own class: start() sets hub on it
+        handler = type("SharedControlHandler", (ControlHandler,), {})
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
         detached.write_private(self.dir / PORTS, json.dumps({"guest": self.guest_port, "control": self.control_port}) + "\n")
@@ -1346,7 +1344,7 @@ class App:
             self.live_starter = QuickTunnelStarter(self)
             self.live_starter.resume()
         self.write_owner_link()
-        self.sync_tunnel(restart=False)  # a tunnel start can outlast share.py's wait for this one: share.py or the watch starts it
+        self.sync_tunnel(restart=False)
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
 
     def start_live(self, approved):
@@ -1364,7 +1362,7 @@ class App:
             self._stop_live(entry)
             self.session.live_start_failed(lid)
             raise DomainError(502, "live-failed", "The live prototype did not start; it waits for Approve again.") from None
-        with self._live_lock:  # held from running to recorded, so an end landing between them still finds it to stop
+        with self._live_lock:
             try:
                 running = self.session.live_started(lid, url)
             except DomainError:
@@ -1383,7 +1381,7 @@ class App:
     def _stop_live(self, entry):
         try:
             self.live_starter.stop(entry)
-        except Exception:  # a stop that fails is logged; the entry has ended either way
+        except Exception:
             self.log.exception("live %s: the stop failed", entry["id"])
 
     def stop_ended_lives(self):
@@ -1437,10 +1435,10 @@ class App:
     def _write_spike(self, kind, count):
         try:
             self.session.fault_spike(kind, count, SPIKE_WINDOW, SPIKE_THRESHOLD)
-        except Exception:  # a spike event that fails to write is logged; the request it rode on is still answered
+        except Exception:
             self.log.exception("fault-spike: the event was not written")
             with self._spike_lock:
-                self._spike_quiet_until = 0.0  # no event went out, so the next fault may try again
+                self._spike_quiet_until = 0.0
             return
         self.changed()
 
@@ -1518,7 +1516,7 @@ class App:
         public = self.public_hosts()
         if host not in self.local_hosts and host not in public:
             now = time.monotonic()
-            if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
+            if now - self._last_sync > 1.0:
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
             public = self.public_hosts()
@@ -1641,7 +1639,7 @@ class App:
             why, sure = share_cli.confirm(hostname, token_file, api_file, self.guest_port, live, rec)
             if why:
                 if not sure:
-                    detached.stop(live["pid"], live["marker"], live["processStart"])  # the record stays, so the watch retries
+                    detached.stop(live["pid"], live["marker"], live["processStart"])
                     raise tunnel.TunnelDown(f"named tunnel {hostname} stopped: {why}")
                 self.log.warning("named tunnel %s: %s; a quick tunnel serves this session instead", hostname, loggable(why))
                 return tunnel.fall_back(self.dir, self.guest_port)
@@ -1656,7 +1654,7 @@ class App:
                 continue
             try:
                 watch()
-            except Exception:  # the watch must outlive any one bad pass
+            except Exception:
                 self.log.error("%s", entry("live-watch", trace=trace()))
 
     def watch(self):
@@ -1664,12 +1662,12 @@ class App:
             try:
                 tunnel.sweep(self.dir)
                 self.sync_tunnel()
-            except Exception:  # the watch must outlive any one bad pass
+            except Exception:
                 self.log.error("%s", entry("tunnel-watch", trace=trace()))
             if time.monotonic() >= self._batch_at:
                 try:
                     self.flush_summaries()
-                except Exception:  # nor may a failed batch stop the tunnel watch
+                except Exception:
                     self.log.error("%s", entry("summary-batch-failed", trace=trace()))
 
     def serve(self):
@@ -1685,15 +1683,15 @@ class App:
         serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
         if serving:
             self.guest.shutdown()
-        self.flush_summaries(stopping=True)  # before the control listener goes, so `share.sh stop` returns after it
+        self.flush_summaries(stopping=True)
         if serving:
             self.control.shutdown()
         self.guest.server_close()
         self.control.server_close()
         live_thread = getattr(self, "_live_thread", None)
         if live_thread is not None:
-            live_thread.join(tunnel.START_SECONDS + 10)  # a restart under way ends before the sweep, never after it
-        try:  # a live prototype whose processes are gone ends; a running one outlives a restart, unless the session ended
+            live_thread.join(tunnel.START_SECONDS + 10)
+        try:
             over = self.session.state["session"]["phase"]["kind"] == "ended"
             for rec in tunnel.sweep_live(self.dir, every=over, reason="session-ended" if over else "failed"):
                 self.log.info("live %s: ended at shutdown", rec["id"])

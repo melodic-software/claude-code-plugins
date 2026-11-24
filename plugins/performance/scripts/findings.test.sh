@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Tests for findings.py, the go-faster record keeper.
-#
-# The behaviors under test are refusals and orderings: a finding that breaks
-# the accuracy rules is rejected, a measured finding never sorts below a
-# candidate, a run cannot start while another holds the lock, and a re-measure
-# under different conditions is reported as cannot-quantify rather than as a
-# win. Every case drives the CLI and reads its exit code, stdout, or the files
-# it wrote under a scratch data folder.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,19 +23,16 @@ AREAS=(session-work how-you-work skills orchestration instructions hooks plugins
 
 COND='{"repo":"r","machine":"m","harness_version":"2.1.0","model":"opus","workload":"w"}'
 
-# not_checked <area>: one not-checked finding for an area.
 not_checked() {
   printf '{"id":"%s-1","key":"%s/none","area":"%s","title":"%s not checked","status":"not-checked","reason_code":"no-data","reason":"no data source; run X to enable"}' \
     "$1" "$1" "$1" "$1"
 }
 
-# measured <id> <area> <unit> <value> [extra json fields]
 measured() {
   printf '{"id":"%s","key":"%s/%s","area":"%s","title":"t %s","status":"measured","tier":"E1","unit":"%s","value":%s,"command":"cmd","fix_owner":"/performance:goal","horizon":"later","route":"next-run","conditions":%s%s}' \
     "$1" "$2" "$1" "$2" "$1" "$3" "$4" "$COND" "${5:+,$5}"
 }
 
-# candidate <id> <area> <source_kind|null> <count>
 candidate() {
   local size="null"
   [[ "$3" != null ]] && size="{\"count\":$4,\"source_kind\":\"$3\",\"source\":\"s\"}"
@@ -51,8 +40,6 @@ candidate() {
     "$1" "$2" "$1" "$2" "$1" "$size"
 }
 
-# doc <file> <finding-json>...: a findings file whose areas not named by a
-# finding are filled with not-checked entries, so it covers all 16.
 doc() {
   local file="$1" area body="" f
   shift
@@ -63,18 +50,15 @@ doc() {
   printf '{"schema":1,"session_id":"s1","session_evidence":true,"findings":[%s]}\n' "$body" >"$file"
 }
 
-# --- 1. validate: a file covering all 16 areas passes ---
 doc "$WORK/ok.json"
 run validate "$WORK/ok.json"
 assert_eq "a complete file validates" "0" "$RUN_RC"
 
-# --- 2. validate: a missing area is named ---
 printf '{"schema":1,"session_id":"s1","session_evidence":true,"findings":[%s]}\n' "$(not_checked git)" >"$WORK/few.json"
 run validate "$WORK/few.json"
 assert_eq "a file missing areas fails" "1" "$RUN_RC"
 assert_contains "the missing area is named" "area not covered: session-work" "$RUN_OUT"
 
-# --- 3. validate: not-checked needs an R5 reason code and a reason ---
 doc "$WORK/nc.json" '{"id":"git-1","key":"git/none","area":"git","title":"t","status":"not-checked","reason_code":"bored","reason":"x"}'
 run validate "$WORK/nc.json"
 assert_eq "an unknown reason code fails" "1" "$RUN_RC"
@@ -83,12 +67,10 @@ doc "$WORK/nc2.json" '{"id":"git-1","key":"git/none","area":"git","title":"t","s
 run validate "$WORK/nc2.json"
 assert_contains "not-checked without a reason fails" "git-1: reason required" "$RUN_OUT"
 
-# --- 4. validate: flag-only needs a reason ---
 doc "$WORK/fo.json" '{"id":"permissions-1","key":"permissions/deny","area":"permissions","title":"t","status":"flag-only"}'
 run validate "$WORK/fo.json"
 assert_contains "flag-only without a reason fails" "permissions-1: reason required" "$RUN_OUT"
 
-# --- 5. validate: a fewer-checks finding needs a guard metric ---
 doc "$WORK/fc.json" "$(measured tests-1 tests elapsed-ms 900 '"effect":"fewer-checks"')"
 run validate "$WORK/fc.json"
 assert_eq "fewer-checks without guard_metric fails" "1" "$RUN_RC"
@@ -97,24 +79,20 @@ doc "$WORK/fc2.json" "$(measured tests-1 tests elapsed-ms 900 '"effect":"fewer-c
 run validate "$WORK/fc2.json"
 assert_eq "fewer-checks with guard_metric passes" "0" "$RUN_RC"
 
-# --- 6. validate: dropping a check routes to the overengineering audit ---
 doc "$WORK/dc.json" "$(measured gates-1 gates elapsed-ms 900 '"effect":"drops-check","guard_metric":"g"')"
 run validate "$WORK/dc.json"
 assert_contains "drops-check must route to overengineering" "gates-1: drops-check findings route to /overengineering:audit" "$RUN_OUT"
 
-# --- 7. validate: steps-for-you needs steps ---
 doc "$WORK/sfy.json" "$(measured git-1 git elapsed-ms 10 '"fix_owner":"steps-for-you"' | sed 's#"fix_owner":"/performance:goal",##')"
 run validate "$WORK/sfy.json"
 assert_contains "steps-for-you without fix_steps fails" "git-1: fix_steps required" "$RUN_OUT"
 
-# --- 8. validate: citations carry url, as_of date and recheck ---
 doc "$WORK/cit.json" "$(measured git-1 git elapsed-ms 10 '"citations":[{"url":"https://git-scm.com/docs","as_of":"soon"}]')"
 run validate "$WORK/cit.json"
 assert_contains "a citation without a dated as_of fails" "git-1: citation as_of" "$RUN_OUT"
 assert_contains "a citation without recheck fails" "git-1: citation recheck" "$RUN_OUT"
 
-# --- 8b. validate: a candidate's expected size is a count with a known source kind (Q26) ---
-size_case() { # <label> <expected message> <expected_size json>
+size_case() {
   doc "$WORK/size.json" "$(candidate skills-1 skills session-count 3 | sed "s/\"expected_size\":{[^}]*}/\"expected_size\":$3/")"
   run validate "$WORK/size.json"
   assert_contains "$1" "$2" "$RUN_OUT"
@@ -124,7 +102,6 @@ size_case "a vendor percentage is not a source kind" "skills-1: expected_size so
 size_case "a non-numeric count fails" "skills-1: expected_size count" '{"count":"3","source_kind":"cited","source":"s"}'
 size_case "an expected size without its source fails" "skills-1: expected_size source" '{"count":3,"source_kind":"cited"}'
 
-# --- 8c. validate: confidence is one of the catalog labels ---
 doc "$WORK/conf.json" "$(measured git-1 git elapsed-ms 10 '"confidence":"measured"')"
 run validate "$WORK/conf.json"
 assert_contains "an unknown confidence label fails" "git-1: confidence must be one of" "$RUN_OUT"
@@ -136,7 +113,7 @@ doc "$WORK/now-ok.json" "$(measured session-work-1 session-work elapsed-ms 5000 
 run validate "$WORK/now-ok.json"
 assert_eq "a measured E1 now finding with its guard passes" "0" "$RUN_RC"
 
-now_case() { # <label> <expected message> <finding-json>
+now_case() {
   doc "$WORK/now.json" "$3"
   run validate "$WORK/now.json"
   assert_contains "$1" "$2" "$RUN_OUT"
@@ -163,7 +140,6 @@ doc "$WORK/now-flag.json" "$(measured session-work-1 session-work elapsed-ms 5 "
 run validate "$WORK/now-flag.json"
 assert_eq "a lower-effort finding offered as flag-only passes" "0" "$RUN_RC"
 
-# --- 10. rank: elapsed first, then per-unit bands, then candidates by count, never mixed ---
 doc "$WORK/rank.json" \
   "$(measured a session-work elapsed-ms 100)" "$(measured b git elapsed-ms 900)" \
   "$(measured c permissions wait-ms 500)" "$(measured d model-cache tokens 10000)" \
@@ -177,7 +153,6 @@ want=$'elapsed\tb\nelapsed\tc\nelapsed\ta\nunit:turns\te\nunit:tokens\td\ncandid
 assert_eq "report order is elapsed, per-unit bands, candidates by count kind, then flag-only" "$want" "$(head -10 <<<"$RUN_OUT")"
 assert_eq "not-checked areas come last" $'not-checked\tmachine-1' "$(tail -1 <<<"$RUN_OUT")"
 
-# --- 11. render: the report shape the user reads ---
 run render "$WORK/rank.json"
 assert_eq "render exits 0" "0" "$RUN_RC"
 # shellcheck disable=SC2016  # the backticks are the literal markdown code span render prints
@@ -194,9 +169,8 @@ sed 's/"session_evidence":true/"session_evidence":false/' "$WORK/ok.json" >"$WOR
 run render "$WORK/fresh.json"
 assert_contains "a fresh session says it has no session evidence" "No session evidence yet: setup scan only." "$RUN_OUT"
 
-# --- 12. lock: one sweep per state key; a stale heartbeat is replaced ---
 T0=1790000000
-lock_at() { # <epoch> <args...>
+lock_at() {
   local at="$1"
   shift
   capture env GO_FASTER_NOW="$at" "$HARNESS_PYTHON" "$FINDINGS" lock "$@"
@@ -234,7 +208,6 @@ printf '{"session_id":"s9","heartbeat":"soon"}' >"$D1/run.lock"
 lock_at "$((T0 + 115 * 60))" acquire --data "$D1" --session s3
 assert_eq "a lock with an unreadable heartbeat is replaced" "0" "$RUN_RC"
 
-# --- 13. adopt: one record per agreed item, with the route taken and whether it was overridden ---
 DA="$WORK/data/adopt"
 run adopt --data "$DA" --session s1 --findings "$WORK/now-ok.json" --id session-work-1 --route-taken next-run
 assert_eq "adopting a now finding exits 0" "0" "$RUN_RC"
@@ -254,7 +227,6 @@ run adopt --data "$DA" --session s1 --findings "$WORK/rank.json" --id nope --rou
 assert_eq "an unknown id cannot be adopted" "1" "$RUN_RC"
 run adopt --data "$DA" --session s9 --findings "$WORK/rank.json" --id a --route-taken next-run
 
-# --- 14. adopted --session: the list a session re-reads after a compaction (R2) ---
 run adopted --data "$DA" --session s1
 assert_eq "adopted exits 0" "0" "$RUN_RC"
 assert_eq "only this session's adoptions are listed" "2" "$(grep -c '"session_id": "s1"' <<<"$RUN_OUT")"
@@ -262,7 +234,6 @@ assert_not_contains "another session's adoption is filtered out" '"s9"' "$RUN_OU
 run adopted --data "$WORK/data/none" --session s1
 assert_eq "no adoptions yet is empty, not an error" "0|" "$RUN_RC|$RUN_OUT"
 
-# --- 15. compare: a re-measure counts only under the recorded conditions (AC9) ---
 DC="$WORK/data/compare"
 doc "$WORK/m1.json" "$(measured git-status git elapsed-ms 900)"
 run compare --data "$DC" --findings "$WORK/m1.json" --id git-status
@@ -288,18 +259,17 @@ assert_eq "after a conditions change the new conditions become the baseline" \
 run compare --data "$DC" --findings "$WORK/rank.json" --id f
 assert_eq "a candidate has nothing to compare" "1" "$RUN_RC"
 
-# --- 16. lint-catalog: every row is a dated pointer record; non-HIGH rows are candidate-only ---
 CAT="$WORK/catalog"
 mkdir -p "$CAT"
 HDR='| class | area | cause | measure | remedy | accuracy_guard | fix_owner | confidence | candidate_only | pointer | as_of | recheck_trigger |
 |---|---|---|---|---|---|---|---|---|---|---|---|'
-row() { # <class> <confidence> <candidate_only> <pointer> <as_of> <recheck>
+row() {
   printf '| %s | git | c | m \\| n | r | g | steps-for-you | %s | %s | %s | %s | %s |\n' "$@"
 }
 printf '%s\n%s\n' "$HDR" "$(row fsmonitor HIGH no https://git-scm.com/docs 2026-09-01 'git 3.0 ships')" >"$CAT/git.md"
 run lint-catalog "$CAT"
 assert_eq "a well-formed catalog passes" "0" "$RUN_RC"
-lint_case() { # <label> <expected message> <row>
+lint_case() {
   printf '%s\n%s\n' "$HDR" "$3" >"$CAT/bad.md"
   run lint-catalog "$CAT/bad.md"
   assert_eq "$1 exits 1" "1" "$RUN_RC"
@@ -320,21 +290,20 @@ printf '# nothing here\n' >"$WORK/empty.md"
 run lint-catalog "$WORK/empty.md"
 assert_contains "input with no catalog rows fails" "no catalog rows" "$RUN_OUT"
 
-# --- 17. transcript-counts: per-tool calls, errors and wait, repeats, tokens once per message ---
 TR="$WORK/session.jsonl"
 ts() { printf '2026-10-03T10:00:%02d.000Z' "$1"; }
-use() { # <second> <msg-id> <tool-id> <name> <input-json> <output-tokens>
+use() {
   printf '{"type":"assistant","timestamp":"%s","message":{"id":"%s","content":[{"type":"tool_use","id":"%s","name":"%s","input":%s}],"usage":{"input_tokens":10,"output_tokens":%s}}}\n' \
     "$(ts "$1")" "$2" "$3" "$4" "$5" "$6"
 }
-result() { # <second> <tool-id> <is_error> [content-json, default "ok"]
+result() {
   printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"%s","is_error":%s,"content":%s}]}}\n' \
     "$(ts "$1")" "$2" "$3" "${4:-\"ok\"}"
 }
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
   use 1 m1 t1 Read '{"file_path":"a.py"}' 5
-  use 1 m1 t1 Read '{"file_path":"a.py"}' 7 # streaming repeat of m1: counted once
+  use 1 m1 t1 Read '{"file_path":"a.py"}' 7
   result 3 t1 false
   use 4 m2 t2 Read '{"file_path":"a.py"}' 5
   result 5 t2 true
@@ -373,7 +342,6 @@ assert_eq "the skill's own calls after a slash invocation are not prior work" "0
 run transcript-counts "$WORK/missing.jsonl"
 assert_eq "a missing transcript is an input error" "2" "$RUN_RC"
 
-# --- 17b. transcript-counts: Workflow tool agents, cut at the invocation ---
 WT="$WORK/wf.jsonl"
 WF="$WORK/wf/subagents/workflows"
 {
@@ -399,7 +367,7 @@ mkdir -p "$WF/wf_a" "$WF/wf_b"
 {
   use 4 b1 y1 Bash '{"command":"make test"}' 5
   result 8 y1 false
-  use 9 b2 y2 Bash '{"command":"TOKEN=xyz make deploy"}' 5 # no result: a run, not a sample
+  use 9 b2 y2 Bash '{"command":"TOKEN=xyz make deploy"}' 5
   use 10 b3 y3 Bash '{"command":"TOKEN=xyz make deploy"}' 5
   result 11 y3 false
   use 20 b4 y4 Bash '{"command":"git status"}' 5
@@ -411,7 +379,7 @@ mkdir -p "$WF/wf_a" "$WF/wf_b"
   use 22 c3 z3 Bash '{"command":"ls"}' 5
   result 25 z3 false
   use 26 c4 z4 Bash '{"command":"ls"}' 5
-  use 31 c2 z2 Bash '{"command":"make test"}' 5 # after the invocation: the sweep's, not counted
+  use 31 c2 z2 Bash '{"command":"make test"}' 5
   result 32 z2 false
 } >"$WF/wf_a/agent-3.jsonl"
 printf '{"type":"result"}\n{"type":"start"}\n{"type":"result"}\n' >"$WF/wf_a/journal.jsonl"
@@ -447,7 +415,6 @@ assert_eq "repeated workflow commands sort slowest first by p95, p50, then max" 
   "sleep 1|make test|sleep 2|TOKEN=*** make deploy|ls|git status" \
   "$(q '[.workflows.repeated_commands[].command | sub(" #[0-9a-f]{8}$"; "")] | join("|")')"
 
-# --- 18. run-start / add / finish: the sweeper builds its findings file without a Write tool (R4) ---
 DR="$WORK/data/runs-test"
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DR" --session s1 --mode unattended --session-evidence false
 assert_eq "run-start exits 0" "0" "$RUN_RC"
@@ -474,7 +441,6 @@ assert_eq "finish succeeds once every area is covered" "0" "$RUN_RC"
 assert_eq "finish prints the report path" "$RUN_DIR/report.md" "$RUN_OUT"
 assert_contains "the report reflects the header" "No session evidence yet: setup scan only." "$(cat "$RUN_DIR/report.md")"
 
-# --- 18b. add --json: findings as one plain argument, no heredoc, for worktree-isolated sweeps ---
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$WORK/data/runs-json" --session s1 --mode unattended --session-evidence false
 JSON_RUN="$RUN_OUT"
 # Single-quoted as the sweeper writes it: \u0027 is a JSON escape the shell passes through untouched.
@@ -496,10 +462,8 @@ assert_eq "malformed --json is an input error" "2" "$RUN_RC"
 assert_contains "the error names --json as the source" "--json is not JSON" "$RUN_OUT"
 assert_eq "refused --json findings are not written" "1" "$(jq '.findings | length' "$JSON_RUN/findings.json")"
 
-# --- 18c. the sweeper is told to pass findings as --json, never through stdin or a heredoc ---
 SWEEPER="$SCRIPT_DIR/../agents/go-faster-sweeper.md"
 assert_contains "the sweeper's add command passes --json" "add --run \"\$RUN\" --json '<findings>'" "$(cat "$SWEEPER")"
-# The sweeper may name stdin or a heredoc only right after "never".
 assert_eq "no sweeper line tells it to use stdin or a heredoc" "" \
   "$(sed -E 's/never (on stdin|through a heredoc)//g' "$SWEEPER" | grep -inE 'stdin|heredoc|[<]{2}')"
 assert_contains "the sweeper returns refused-by-guard on a refused write" "return \`refused-by-guard\`" "$(cat "$SWEEPER")"
@@ -508,7 +472,6 @@ SKILL="$SCRIPT_DIR/../skills/go-faster/SKILL.md"
 assert_contains "the skill keeps the parent in its checkout mid-sweep" "Do not enter or leave a worktree while the" "$(cat "$SKILL")"
 assert_contains "the skill handles a refused-by-guard return" "\`refused-by-guard\`, release the lock" "$(cat "$SKILL")"
 
-# --- 19. status-timing: git status under trace2, the trace kept in the data folder (R6) ---
 REPO="$WORK/repo"
 mkdir -p "$REPO"
 git -C "$REPO" init -q
@@ -521,13 +484,11 @@ assert_eq "the label says no index refresh" "status without index refresh" "$(jq
 assert_eq "the git version is recorded" "yes" "$([[ "$(jq -r .git_version <<<"$RUN_OUT")" =~ ^[0-9]+\.[0-9]+ ]] && echo yes || echo no)"
 capture bash -c "cd '$REPO' && GIT_TRACE2_PERF_BRIEF=1 '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 2"
 assert_eq "a caller's brief trace format does not empty the samples" "2" "$(jq '.samples_ms | length' <<<"$RUN_OUT")"
-# With an even count the median is the mean of the middle two, here both samples.
 assert_eq "the median of two samples is their mean" "true" "$(jq '(.samples_ms | add / 2) == .median_ms' <<<"$RUN_OUT")"
 assert_eq "the trace is kept in the data folder" "yes" "$([[ -s "$DT/trace2-status.txt" ]] && echo yes || echo no)"
 capture bash -c "cd '$WORK' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 1"
 assert_eq "outside a repository it is an input error" "2" "$RUN_RC"
 
-# --- 20. a permission rule that asks or denies is a guard: shown flag-only, never adoptable ---
 PERM='{"id":"permissions-1","key":"permissions/ask-rules","area":"permissions","title":"3 ask rules prompt before Bash","status":"flag-only","horizon":"now","reason":"a permission rule that asks or denies is a safety guard; loosening it is yours to decide"}'
 doc "$WORK/perm.json" "$PERM"
 run validate "$WORK/perm.json"
@@ -540,7 +501,6 @@ assert_eq "a permission-rule finding cannot be adopted" "1" "$RUN_RC"
 assert_contains "the refusal says why" "permissions-1 is flag-only" "$RUN_OUT"
 assert_eq "no adoption is recorded" "absent" "$([[ -e "$WORK/data/perm/adopted.jsonl" ]] && echo present || echo absent)"
 
-# --- 21. Machine is always not checked: this version reads no machine recording ---
 doc "$WORK/machine.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"machine not checked","status":"not-checked","reason_code":"no-data","reason":"this version reads no performance recording; machine remedies are flag-only"}'
 run validate "$WORK/machine.json"
 assert_eq "a not-checked Machine finding with no-data validates" "0" "$RUN_RC"
@@ -550,8 +510,7 @@ doc "$WORK/machine2.json" '{"id":"machine-1","key":"machine/none","area":"machin
 run validate "$WORK/machine2.json"
 assert_contains "a Machine reason code outside the R5 list fails" "machine-1: reason_code must be one of" "$RUN_OUT"
 
-# --- 22. lint-catalog: the area cell is `all` or ", "-separated area slugs ---
-area_row() { # <area cell>
+area_row() {
   printf '| x | %s | c | m | r | g | steps-for-you | HIGH | no | https://a.example | 2026-09-01 | t |\n' "$1"
 }
 # The slug on the next line is a deliberate unknown-slug fixture, not a misspelling.
@@ -597,22 +556,22 @@ GH
 chmod +x "$SHIM/gh"
 printf '@bash "%%~dp0gh" %%*\r\n' >"$SHIM/gh.cmd"
 
-gh_run() { # <findings args...>: run from an empty cwd with the fake gh first on PATH
+gh_run() {
   RUN_OUT="$(cd "$GHCWD" && env PATH="$SHIM:$PATH" GH_CONFIG_DIR=fake-gh-config FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" "$@" 2>&1)"
   RUN_RC=$?
 }
 
 T() { printf '"2026-10-01T%sZ"' "$1"; }
-step() { # <name> <conclusion> <start> <end>
+step() {
   printf '{"name":"%s","conclusion":"%s","started_at":%s,"completed_at":%s}' "$1" "$2" "$(T "$3")" "$(T "$4")"
 }
-job() { # <name> <conclusion> <created> <started> <completed> <step-json>...
+job() {
   local name="$1" concl="$2" created="$3" started="$4" completed="$5" IFS=,
   shift 5
   printf '{"name":"%s","conclusion":"%s","created_at":%s,"started_at":%s,"completed_at":%s,"steps":[%s]}' \
     "$name" "$concl" "$(T "$created")" "$(T "$started")" "$(T "$completed")" "$*"
 }
-listed_run() { # <id> <attempt> <created>
+listed_run() {
   printf '{"databaseId":%s,"attempt":%s,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"success","workflowName":"CI"}' \
     "$1" "$2" "$(T "$3")" "$(T "$3")" "$(T "$3")"
 }
@@ -621,9 +580,6 @@ listed_run() { # <id> <attempt> <created>
 printf '[%s,%s,%s,%s,%s,%s]\n' "$(listed_run 106 1 10:00:00)" "$(listed_run 105 2 09:00:00)" \
   "$(listed_run 104 1 08:00:00)" "$(listed_run 103 3 07:00:00)" "$(listed_run 102 1 06:00:00)" \
   "$(listed_run 101 2 05:00:00)" >"$FIX/runs.json"
-# Queue waits of the jobs that ran, in seconds: 10, 30, 20, 60, 40, 50. The skipped deploy job
-# would add 130. "Run tests" lasts 90, 150, 100, 80, 200; "Test e2e" 230; the skipped "Publish"
-# step 500. Run lengths: 120, 180, 280, 120, 240.
 printf '[%s,%s]\n' \
   "$(job build success 10:00:00 10:00:10 10:02:10 "$(step Checkout success 10:00:10 10:00:20)" \
     "$(step 'Run tests' success 10:00:20 10:01:50)" "$(step Lint success 10:01:50 10:02:10)")" \
@@ -669,16 +625,13 @@ assert_eq "one jobs fetch per timed run, newest first" \
 assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.workflows[0].queue_wait.command | split("; ") | length')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
-# --- 24. pr-timing: review and merge waits from merged pull requests ---
-pr() { # <additions> <deletions> <created> <merged> <review-submittedAt...>
+pr() {
   local add="$1" del="$2" created="$3" merged="$4" reviews="" r
   shift 4
   for r in "$@"; do reviews+="${reviews:+,}{\"state\":\"APPROVED\",\"submittedAt\":\"$r\"}"; done
   printf '{"number":1,"createdAt":"%s","mergedAt":"%s","reviews":[%s],"additions":%s,"deletions":%s,"changedFiles":1}' \
     "$created" "$merged" "$reviews" "$add" "$del"
 }
-# First review after open, in hours: 1 (the earlier of two, listed second), 3, 2; one PR has no
-# review. Open to merge: 4, 2, 24, 6. Size (additions plus deletions): 15, 100, 50, 2.
 {
   printf '['
   pr 10 5 2026-09-01T00:00:00Z 2026-09-01T04:00:00Z 2026-09-01T02:00:00Z 2026-09-01T01:00:00Z
@@ -706,9 +659,6 @@ gh_run pr-timing
 assert_eq "no merged PRs is exit 0 with zero samples and no value" "0|0|null" "$RUN_RC|$(q .prs)|$(q .open_to_merge.value)"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
-# --- 24b. a missing or unparsable timestamp is left out and counted, never a crash ---
-# PRs: one with no createdAt (no merge wait, no review wait), one never stamped merged with only
-# a pending review; its size still counts. Sizes 15, 4 -> median 9.5.
 printf '[%s,%s]\n' \
   '{"number":1,"createdAt":null,"mergedAt":"2026-09-01T04:00:00Z","reviews":[{"submittedAt":"2026-09-01T01:00:00Z"}],"additions":10,"deletions":5,"changedFiles":1}' \
   '{"number":2,"createdAt":"2026-09-02T00:00:00Z","mergedAt":"not a time","reviews":[{"state":"PENDING","submittedAt":null}],"additions":3,"deletions":1,"changedFiles":1}' \
@@ -720,8 +670,6 @@ assert_eq "no merge wait from either PR, both counted as excluded" "null 0 2" \
 assert_eq "no review wait; the PR without createdAt is excluded" "0 1" \
   "$(q '"\(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "size needs no timestamp" "9.5 2 0" "$(q '"\(.size.value) \(.size.samples) \(.size.excluded)"')"
-# Jobs: run 102 gains a job that never started and a test step that never completed; every
-# median from section 23 stands except run length, which now leaves run 102 out.
 printf '[%s,%s]\n' \
   "$(job build success 06:00:00 06:00:50 06:04:50 "$(step Checkout success 06:00:50 06:01:00)" \
     "$(step 'Run tests' success 06:01:00 06:04:20)" "$(step Lint success 06:04:20 06:04:40)")" \
@@ -735,7 +683,6 @@ assert_eq "the uncompleted test step is excluded and counted" "125000 6 1" \
   "$(q '"\(.workflows[0].test_steps.value) \(.workflows[0].test_steps.samples) \(.workflows[0].test_steps.excluded)"')"
 assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
 
-# --- 25. a gh failure exits 1 with one line naming it ---
 RUN_OUT="$(cd "$GHCWD" && env -u GH_CONFIG_DIR PATH="$SHIM:$PATH" FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" ci-timing --repo o/r 2>&1)"
 RUN_RC=$?
 assert_eq "a gh failure exits 1" "1" "$RUN_RC"
@@ -749,10 +696,6 @@ assert_contains "the error names the failed fetch and its reason" "runs/104/jobs
 assert_contains "the error carries the HTTP status" "HTTP 404" "$RUN_OUT"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
-# --- 26. a sample with one bad timestamp is left out whole and counted, never half-used ---
-# Run 201 (12:00): build 12:00:00-12:02:00 and lint started 12:01:00 with an unparsable end, so
-# its length is unknown. Run 203 (11:00): build 11:00:00-11:03:00 (3 minutes) and a skipped
-# deploy job with no timestamps, which does not make the run unknown.
 printf '[%s,%s]\n' "$(listed_run 201 1 12:00:00)" "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
 printf '[%s,%s]\n' "$(job build success 12:00:00 12:00:00 12:02:00)" \
   '{"name":"lint","conclusion":"success","created_at":"2026-10-01T12:01:00Z","started_at":"2026-10-01T12:01:00Z","completed_at":"garbage","steps":[]}' \
@@ -764,7 +707,6 @@ gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a job with an unparsable end" "0" "$RUN_RC"
 assert_eq "a run with a non-skipped job missing an end is left out of run length and counted" "3 1 1" \
   "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
-# Run 202 has an unparsable createdAt and no jobs fixture: fetching its jobs would fail the run.
 printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
   '{"databaseId":202,"attempt":2,"createdAt":"garbage","startedAt":null,"updatedAt":null,"conclusion":"success","workflowName":"CI"}' \
   "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
@@ -774,8 +716,6 @@ assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1
   "$(q '"\(.runs_listed) \(.workflows[0].runs_timed) \(.workflows[0].runs_excluded)"')"
 assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
 assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.samples)"')"
-# PRs: one with reviews at 1h and an unparsable one (its earliest review is unknown), one with
-# only an unparsable review, and one reviewed at 2h. Only the last yields a first-review wait.
 printf '[%s,%s,%s]\n' \
   '{"number":1,"createdAt":"2026-09-01T00:00:00Z","mergedAt":"2026-09-01T04:00:00Z","reviews":[{"submittedAt":"2026-09-01T01:00:00Z"},{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
   '{"number":2,"createdAt":"2026-09-02T00:00:00Z","mergedAt":"2026-09-02T04:00:00Z","reviews":[{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
@@ -787,8 +727,6 @@ assert_eq "a PR with an unparsable review time is excluded from first review and
   "$(q '"\(.first_review.value) \(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
-# --- 27. transcript-counts: with no go-faster invocation, every tool call is prior work ---
-# Section 17's calls without the go-faster one: t1 (streamed twice, one call), t2, t3, t4, t5.
 {
   use 1 m1 t1 Read '{"file_path":"a.py"}' 5
   use 1 m1 t1 Read '{"file_path":"a.py"}' 7
@@ -808,11 +746,6 @@ assert_eq "with no go-faster invocation, every call counts per tool" "2 2 1" "$(
 assert_eq "with no go-faster invocation, every wait counts" "3000 20000" "$(q '"\(.tools.Read.wait_ms) \(.tools.Bash.wait_ms)"')"
 assert_eq "with no go-faster invocation, every repeat counts" "2 2" "$(q '"\(.repeated_reads["a.py"]) \(.repeated_commands["make test"])"')"
 
-# --- 28. transcript-counts: the go-faster invocation's own setup calls are not session work ---
-# Slash form. Before the marker (second 20): Read u1 (1s), Bash "make test" u2 (5s) and u3 (3s,
-# error), Skill performance:goal u4 (1s); a subagent started at second 5. After it, the skill's
-# own setup: "make test" again, a.py read again, a lock call, the sweeper's Agent dispatch, and a
-# subagent started at second 40.
 SL="$WORK/slash.jsonl"
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
@@ -852,8 +785,6 @@ assert_eq "slash: elapsed spans the work before the invocation" "14000" "$(q .el
 assert_eq "slash: the invocation is not a typed turn of prior work" "1" "$(q .typed_turns)"
 assert_eq "slash: a subagent started after the invocation is not counted" "1" "$(q .subagents)"
 
-# Model-invoked form. b2 holds a Read and the go-faster Skill call in one message: the Read sits
-# before the Skill block, so it is prior work, and its result (second 7) lands after the cut.
 MI="$WORK/model.jsonl"
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"how can we go faster?"}}\n' "$(ts 0)"
@@ -881,8 +812,6 @@ assert_eq "model: the go-faster call is not a skill invocation of prior work" '{
 assert_eq "model: tokens stop before the invoking message" "5" "$(q .tokens.output)"
 assert_eq "model: elapsed spans the records before the invoking message" "4000" "$(q .elapsed_ms)"
 
-# Parallel calls: two Agent calls launched in one message at 10:00:01 both return at 10:05:01. The
-# wall clock waited 300 s once, not twice; a later Agent call (10:06:00 to 10:06:30) adds 30 s.
 PA="$WORK/parallel.jsonl"
 {
   printf '{"type":"assistant","timestamp":"2026-10-03T10:00:01.000Z","message":{"id":"p1","content":[{"type":"tool_use","id":"w1","name":"Agent","input":{"prompt":"a"}},{"type":"tool_use","id":"w2","name":"Agent","input":{"prompt":"b"}}],"usage":{"input_tokens":10,"output_tokens":5}}}\n'
@@ -913,7 +842,7 @@ assert_contains "run-start names the file it could not write" "findings.json" "$
 # The target is a directory where a file belongs, which refuses the write on Windows and on Linux
 # alike, as any user. Every path goes to Python in its native spelling, so nothing lands outside $WORK.
 native() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
-denied() { # <label> <file the message names>
+denied() {
   assert_eq "$1 exits 3" "3" "$RUN_RC"
   assert_eq "$1 says one line naming $2" "yes" \
     "$([[ "$RUN_OUT" == "cannot write "*"$2"* && "$RUN_OUT" != *$'\n'* ]] && echo yes || echo no)"
@@ -935,8 +864,6 @@ denied "a report that cannot be written" "report.md"
 capture bash -c "cd '$REPO' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$BLOCKED' --runs 1"
 denied "a trace folder that cannot be made" "trace2-status.txt"
 
-# --- 30b. a write that fails partway leaves the old file whole and no temp file behind ---
-# A value json cannot serialize stops the write mid-file; a reader must still see the old content.
 DW="$WORK/data/atomic"
 mkdir -p "$DW"
 printf '{"kept": true}\n' >"$DW/state.json"
@@ -956,23 +883,17 @@ assert_eq "the failed write raises" "raised" "$RUN_OUT"
 assert_eq "a failed write leaves the old content whole" '{"kept": true}' "$(cat "$DW/state.json")"
 assert_eq "a failed write leaves no temp file" "state.json" "$(ls -A "$DW")"
 
-# --- 31. a run that already exists is a denied write too: exit 3, one line ---
-# Two run-starts pinned to the same second name the same runs/<stamp>/findings.json.
 DX="$(native "$WORK/data/run-twice")"
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DX" --session s1 --mode attended --session-evidence true
 assert_eq "the first run-start in a second exits 0" "0" "$RUN_RC"
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DX" --session s1 --mode attended --session-evidence true
 denied "a run whose findings.json already exists" "findings.json: already exists"
 
-# --- 32. a citation is outside advice re-read in this run: its as_of is the run's start date (AC8) ---
-# The run starts at midday UTC on a fixed date; add runs on the real clock, so only the header's
-# date can make the matching citation pass.
 RUN_DAY=2026-05-01
 DC="$(native "$WORK/data/cite")"
-# 1777636800 is 2026-05-01T12:00:00Z (120 days of 2026 before May at 86400 s from 1767225600).
 capture env GO_FASTER_NOW=1777636800 "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DC" --session s1 --mode attended --session-evidence true
 CITE_RUN="$RUN_OUT"
-cite() { # <id> <as_of>
+cite() {
   measured "$1" git elapsed-ms 10 "\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"$2\",\"recheck\":\"next git release\"}]"
 }
 capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$CITE_RUN" <<<"$(cite git-1 "$RUN_DAY")"
@@ -983,7 +904,6 @@ assert_contains "the refusal names both dates" "git-2: citation as_of 2026-04-30
 assert_not_contains "a refused citation is not written" "git-2" "$(cat "$CITE_RUN/findings.json")"
 capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$CITE_RUN" <<<"$(cite git-3 soon)"
 assert_eq "a malformed as_of gets only the format error" "git-3: citation as_of must be YYYY-MM-DD" "$RUN_OUT"
-# A run file whose citation predates its header, written by hand since add refuses it.
 OLD_RUN="$WORK/old-cite-run"
 mkdir -p "$OLD_RUN"
 doc "$OLD_RUN/findings.json" "$(cite git-1 2026-04-30)"
@@ -1004,9 +924,6 @@ doc "$WORK/bare-cite.json" "$(cite git-1 2026-04-30)"
 run validate "$(native "$WORK/bare-cite.json")"
 assert_eq "a bare findings file with no run header checks only the citation's format" "0" "$RUN_RC"
 
-# --- 33. a run-start across UTC midnight dates its folder and started_at from one clock read ---
-# The clock reads 23:59:59.999Z on the run day, then 00:00:00.002Z the next day; the run folder
-# (where the sweeper takes as_of) and started_at (what add and finish check) must name one date.
 cat >"$WORK/midnight.py" <<'EOF'
 import argparse
 import sys
@@ -1021,8 +938,8 @@ findings.cmd_run_start(
 )
 EOF
 DM="$(native "$WORK/data/midnight")"
-LAST=1777679999.999  # 2026-05-01T23:59:59.999Z
-FIRST=1777680000.002 # 2026-05-02T00:00:00.002Z
+LAST=1777679999.999
+FIRST=1777680000.002
 capture "$HARNESS_PYTHON" -B "$(native "$WORK/midnight.py")" "$(native "$SCRIPT_DIR")" "$DM" "$LAST" "$FIRST"
 assert_eq "a run-start across midnight exits 0" "0" "$RUN_RC"
 MID_DIR="${RUN_OUT##*/}"
@@ -1031,7 +948,6 @@ assert_eq "the run folder and started_at name the same UTC date" \
   "${MID_DIR:0:4}-${MID_DIR:4:2}-${MID_DIR:6:2}" "$MID_STARTED"
 assert_eq "the date is the run day of the single clock read" "$RUN_DAY" "$MID_STARTED"
 
-# --- 34. adopt holds a citation to the run's date like add and finish do ---
 ADOPT_RUN="$WORK/adopt-cite-run"
 mkdir -p "$ADOPT_RUN"
 doc "$ADOPT_RUN/findings.json" "$(measured session-work-1 session-work elapsed-ms 5000 "$NOW,\"effect\":\"batching\",\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"2026-04-30\",\"recheck\":\"next git release\"}]" | sed 's/"horizon":"later",//')"
@@ -1059,13 +975,9 @@ assert_eq "a step name is one code span, backticks neutralized, newlines collaps
 assert_eq "a long job name is a code span truncated to 60 characters" \
   "\`$(printf 'j%.0s' {1..57})...\`" "$(q .workflows[0].slowest_step.job)"
 
-# --- 35b. ci-timing: each workflow apart, timed from its successful runs only ---
-# A mixed list, newest first: CI succeeds at 10:00 (4 minutes) and 09:00 (6 minutes), fails fast
-# at 09:50 and is cancelled at 09:30; a maintenance workflow succeeds at 09:40 (30 seconds); Docs
-# only fails. The failed and cancelled runs have no jobs fixture, so fetching one fails the call.
 FIX="$WORK/gh-fixtures-mixed"
 mkdir -p "$FIX"
-wf_run() { # <id> <created> <conclusion> <workflow>
+wf_run() {
   printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"%s","workflowName":"%s"}' \
     "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3" "$4"
 }
@@ -1096,7 +1008,7 @@ assert_eq "re-runs are counted per workflow over its listed runs" "0 4" \
 # --- 35c. ruleset workflows: no workflowName, so runs group on workflowDatabaseId ---
 # Two ruleset workflows (ids 7 and 8) and one run with no workflow id or name at all; none of
 # them may merge with another.
-rs_run() { # <id> <created> <workflow id or null>
+rs_run() {
   printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"failure","workflowDatabaseId":%s}' \
     "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3"
 }
@@ -1108,7 +1020,6 @@ assert_eq "unnamed workflows stay apart by workflow id, an id-less run stays alo
   "\`(unnamed workflow 7)\`:2 \`(unnamed run 504)\`:1 \`(unnamed workflow 8)\`:1" \
   "$(q '[.workflows[] | "\(.workflow):\(.runs_listed)"] | join(" ")')"
 
-# --- 36. render keeps each finding on one line, whatever its title or reason holds ---
 doc "$WORK/multiline.json" '{"id":"git-1","key":"git/x","area":"git","title":"slow\n## injected\nend","status":"flag-only","reason":"why\n# heading"}'
 run render "$WORK/multiline.json"
 # shellcheck disable=SC2016  # the backticks are the literal markdown code span render prints
@@ -1160,7 +1071,6 @@ for secret in abc123def456 ghp_AbCdEf hunter2 one111 two222; do
   assert_not_contains "no secret reaches the counts: $secret" "$secret" "$RUN_OUT"
 done
 
-# --- 38. permission-counts: ask and deny counts per settings file, and nothing else from it ---
 PC="$WORK/perm"
 mkdir -p "$PC/adir"
 printf '{"env":{"GITHUB_TOKEN":"ghp_SECRETVALUE"},"permissions":{"allow":["Bash(ls:*)"],"ask":["Bash(git push:*)","Bash(rm:*)"],"deny":["Read(.env)"]}}\n' >"$PC/settings.json"
@@ -1177,7 +1087,6 @@ for leak in ghp_SECRETVALUE ghp_BROKEN 'git push' 'Bash(ls' API_KEY env; do
   assert_not_contains "no other settings text is printed: $leak" "$leak" "$RUN_OUT"
 done
 
-# --- 39. a `now` finding states its confidence and effect; loosening a guard is flag-only ---
 NOW_BARE='"horizon":"now","guard_metric":"g","revert_if":"r"'
 now_case "now without confidence is rejected" "session-work-1: horizon now needs confidence HIGH" \
   "$(measured session-work-1 session-work elapsed-ms 5 "$NOW_BARE,\"effect\":\"batching\"" | sed 's/"horizon":"later",//')"
@@ -1256,11 +1165,6 @@ run render "$WORK/spaces.json"
 assert_eq "a title of 20k spaces renders in under 5 seconds" "yes" \
   "$([[ "$RUN_RC" == 0 && $((SECONDS - start)) -lt 5 ]] && echo yes || echo "no (rc $RUN_RC, $((SECONDS - start))s)")"
 
-# --- 41. transcript-counts: paged reads and re-reads of changing input are not repeats ---
-# Only a call whose arguments AND result match an earlier one is a repeat: reusing its output is
-# then safe. Paged reads of one file, a background task's growing output file, and a command whose
-# result changed between runs all fail that test. Identical calls the transcript holds no result
-# for cannot be checked, so they are reported apart as unverified.
 PG="$WORK/paged.jsonl"
 {
   use 1 p1 r1 Read '{"file_path":"big.md","offset":1,"limit":100}' 5
@@ -1287,7 +1191,6 @@ PG="$WORK/paged.jsonl"
   printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r11","is_error":false}]}}\n' "$(ts 22)"
   use 23 p12 r12 Bash '{"command":"make lint"}' 5
   printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r12","is_error":false}]}}\n' "$(ts 24)"
-  # A relative task-output path, run from the session's task directory's parent.
   use 25 p13 r13 Bash '{"command":"tail tasks/b9.output"}' 5
   result 26 r13 false '"step 3"'
   use 27 p14 r14 Bash '{"command":"tail tasks/b9.output"}' 5
@@ -1314,8 +1217,6 @@ UC="$WORK/unchanged.jsonl"
   done
   use 9 u4 s4 Grep '["not an object"]' 5
   result 10 s4 false
-  # A path that spells a window is not that window of another file.
-  # Each group repeats on its own; a shared label would add the two.
   use 11 u5 s5 Read '{"file_path":"foo (offset 1)"}' 5
   result 12 s5 false '"same"'
   use 13 u6 s6 Read '{"file_path":"foo","offset":1}' 5
@@ -1331,7 +1232,6 @@ assert_eq "file_unchanged re-reads count as repeats; a path that spells a window
   '{"foo (offset 1)":2,"foo (offset 1) #2":2,"x.py":3}' "$(q '.repeated_reads | tojson')"
 assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
 
-# --- 42. stop-hook-timing: per-hook Stop p50 and p95 from stop_hook_summary records only ---
 SH="$WORK/stop-hooks.jsonl"
 SECRET_HOOK="curl -H 'Authorization: Bearer s3cr3t""value' https://hooks.example/stop"
 {

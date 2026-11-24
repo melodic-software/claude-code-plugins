@@ -44,7 +44,6 @@ run() {
   rc=$?
 }
 flagged() { grep '^!' <<<"$out"; }
-# A cannot-evaluate exit names both routes: the telemetry switch and the Stop-hook transcript route.
 assert_routes() {
   assert_contains "$1 names the telemetry-enable step" "$out" "CLAUDE_CODE_ENABLE_TELEMETRY=1"
   assert_contains "$1 names the setup doc" "$out" "context/operator-setup.md"
@@ -92,7 +91,6 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$slow" --budget Bogus=5
   assert_contains "an unknown --budget event warns" "$out" "Bogus is not a known hook event"
 
-  # The gates: each fixture rises, but fails exactly one slope condition.
   run "$(store few-sessions '100 + 40 * p' 4 25)"
   assert_eq "rising over 4 sessions is below --min-sessions" 0 "$rc"
   run "$(store few-fires '100 + 40 * p' 6 19)"
@@ -127,8 +125,6 @@ else
 fi
 assert_routes "missing store"
 
-# --transcript fallback: the hand-built fixture's Stop p50/p95 are 500/860 (see
-# hook-transcript-timing.test.sh); its PreToolUse rows are sampled, so a budget never flags them.
 if command -v jq >/dev/null 2>&1; then
   run "$TMP/missing" --transcript "$SCRIPT_DIR/fixtures/hook-timing-transcript.jsonl" --budget Stop=800 --budget PreToolUse=1
   assert_eq "missing store with --transcript reads the transcript" 1 "$rc"
@@ -139,7 +135,6 @@ else
   skip_case "jq not found — skipping the --transcript fallback"
 fi
 
-# duckdb missing: PATH without every directory that holds a duckdb.
 nodb_path=""
 IFS=: read -ra path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do

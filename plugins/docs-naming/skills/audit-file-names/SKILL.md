@@ -120,6 +120,11 @@ literal `${user_config.…}` placeholder means unset.
 
    A zero-offender run over a non-empty root still runs the sweep with an empty
    pairs file and the emit, and leaves a `findings: 0` plan.
+   After the `wrote` line it prints one `finding` line per record, most-cited
+   first, with the site count, file count, tier breakdown, review count and
+   generated files, then one `total` line with the sweep's `SITES` count, the
+   sites by action and the report-site total. All of them are counted from the
+   sweep's `REF` rows.
    *Done when:* the script reports the path it wrote and a finding count equal
    to the inventory's offender count.
 
@@ -143,14 +148,21 @@ made being asked again.
 
 1. The form table for every tier the plan touched, from `context/tiers.md`.
 2. One line per finding, most-cited first: the old and new path, the site count,
-   the tier breakdown, and whether a generated file is involved.
+   the tier breakdown, and whether a generated file is involved. Quote each from
+   the emitter's `finding` line for that record.
 3. Every `review` site, individually, with its line and excerpt. These are the
    ambiguous bare stems, and no script can settle them.
 4. The artifact's path, and the next step: `/docs-naming:realign-file-names`
    with the ids to accept.
 
-Say the count of `report` sites plainly. A maintainer who expected a frozen tier
-to change needs to see that it did not.
+Say the count of `report` sites plainly, as the `total` line's `report sites`
+figure. A maintainer who expected a frozen tier to change needs to see that it
+did not.
+
+Quote every count from the emitter's `finding` and `total` lines as printed:
+each site count, tier breakdown and the report-site total. A count you tally
+yourself drifts between runs. When a figure you were about to state disagrees
+with those lines, state theirs.
 
 ## Completion criteria
 

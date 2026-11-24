@@ -155,10 +155,6 @@
 # in the issue this script closes.
 set -uo pipefail
 
-# The header comment block above IS the --help text. Print from line 2 to the
-# last consecutive `#` line rather than a hardcoded range (the same idiom as the
-# sibling checkers), so editing the header can never again silently clip or
-# overrun the help output.
 usage() {
   awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
@@ -179,10 +175,6 @@ while [[ "${1:-}" == -* ]]; do
   shift
 done
 
-# Git is optional. Explicit skill-root args (and CHECK_SKILL_SKILLS_ROOT /
-# CLAUDE_PROJECT_DIR) work against plain directory trees such as marketplace
-# plugin-cache installs. The git toplevel is only the last-resort default root
-# when no args and no override are supplied.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 HAVE_GIT=0
 if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
@@ -225,16 +217,12 @@ require_positive_number CHECK_SKILL_LISTING_MAX_DESC_CHARS "$MAX_DESC_CHARS" int
 MAX_DESC_CHARS="$(to_decimal "$MAX_DESC_CHARS")"
 JOINER_CHARS=3 # the literal " - " the harness inserts between description and when_to_use
 
-# Every budget the report compares against, one row each: a single row, or a
-# band of two when a fraction is known but the window is not. BUDGET_IS_DEFAULT
-# keeps the word "configured" out of the summary when nothing was configured.
 BUDGETS=()
 SOURCES=()
 BUDGET_IS_DEFAULT=0
 FRACTION=""
 FRACTION_SOURCE=""
 
-# Append TOKENS x CHARS_PER_TOKEN x FRACTION as one budget row.
 add_reconstructed_row() {
   local tokens="$1" chars
   require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
@@ -248,8 +236,6 @@ add_reconstructed_row() {
   SOURCES+=("reconstructed: $tokens tokens x $CHARS_PER_TOKEN chars/token x $FRACTION")
 }
 
-# The first settings file, in precedence order, that sets the fraction to a
-# number. One jq process over every existing file, not one per file.
 read_settings_fraction() {
   local project_dir="${CLAUDE_PROJECT_DIR:-}" config_dir="${CLAUDE_CONFIG_DIR:-}" f hit
   local candidates=() existing=()
@@ -279,10 +265,6 @@ read_settings_fraction() {
   require_positive_number "skillListingBudgetFraction in ${hit%$'\t'*}" "$FRACTION" num
 }
 
-# Precedence: a fixed aggregate budget SKIPS the token/fraction reconstruction,
-# so it is checked first. In --from-settings mode SLASH_COMMAND_TOOL_CHAR_BUDGET
-# is the next fixed budget. Otherwise the fraction (override, then settings in
-# --from-settings mode) is reconstructed at the pinned window, or as a band.
 if [[ -n "${CHECK_SKILL_LISTING_BUDGET_CHARS:-}" ]]; then
   require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$CHECK_SKILL_LISTING_BUDGET_CHARS" int
   BUDGETS+=("$(to_decimal "$CHECK_SKILL_LISTING_BUDGET_CHARS")")
@@ -320,8 +302,6 @@ else
   fi
 fi
 
-# --- Resolve the roots to scan ----------------------------------------------
-
 ROOTS=()
 EXPLICIT_ROOTS=0
 if (($# > 0)); then
@@ -351,22 +331,14 @@ else
   ROOTS=("$SINGLE_ROOT")
 fi
 
-# --- Collect every skill under every root -----------------------------------
-
 CONTRIB_FILE="$(mktemp)"
 FILE_LIST="$(mktemp)"
 trap 'rm -f "$CONTRIB_FILE" "$FILE_LIST"' EXIT
 
-# Enumerate first, measure once. The bash half below only globs and stats — no
-# subshell, no exec — and the whole measurement is ONE awk process.
 FOUND_ROOTS=0
 SKILL_ENTRIES=()
 for root in "${ROOTS[@]}"; do
   if [[ ! -d "$root" ]]; then
-    # An EXPLICIT root that does not exist is an environment error: silently
-    # skipping it omits a whole subtree and reports a falsely low aggregate
-    # under an "OK". The no-args resolved root falls through to the
-    # "no skills root found" check below instead.
     if ((EXPLICIT_ROOTS)); then
       printf 'Error: skills root does not exist: %s\n' "$root" >&2
       exit 2
@@ -376,10 +348,6 @@ for root in "${ROOTS[@]}"; do
   FOUND_ROOTS=$((FOUND_ROOTS + 1))
   for skill_md in "$root"/*/SKILL.md; do
     [[ -f "$skill_md" ]] || continue
-    # Root and path travel together rather than the root being re-derived from
-    # the path: the report prints the root STRING the caller passed, and a
-    # derivation would have to reproduce its exact spelling (trailing slash,
-    # relative vs absolute) to stay byte-identical.
     SKILL_ENTRIES+=("$root"$'\t'"$skill_md")
   done
 done
@@ -575,8 +543,6 @@ if ((ENTRY_COUNT == 0)); then
   exit 0
 fi
 
-# --- Report ------------------------------------------------------------------
-
 printf 'Shared listing-budget estimate over %d listing-eligible skill(s) across %d root(s):\n' "$ENTRY_COUNT" "$FOUND_ROOTS"
 printf '  aggregate: %d chars\n' "$TOTAL"
 BAND=0
@@ -587,7 +553,6 @@ fi
 if ((FROM_SETTINGS)); then
   printf '  note:      managed policy and settings env blocks are not read; /doctor shows the resolved budget\n'
 fi
-# Rows are ascending, so the first is the smallest budget.
 BUDGET_CHARS="${BUDGETS[0]}"
 OVER_ROWS=0
 for i in "${!BUDGETS[@]}"; do

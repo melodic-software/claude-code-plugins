@@ -264,7 +264,7 @@ guard::_abort_on_exit() {
 # it with. A PostToolUse or SessionStart hook gates no tool call, so a deny
 # there would claim a call was stopped when none was. abort-boundary.test.sh
 # fails when this list and those install lines disagree.
-readonly _GAB_GUARDS=" block-cd-prefix block-convention-violation block-credential-read block-cross-domain block-dangerous-git block-exported-msys-pathconv block-fix-request-post block-foreground-wait block-github-post-content block-lane-pr-disable-auto block-main-checkout-edit block-no-verify block-noncanonical-commit block-root-delete-target block-windows-drive-tmp flag-commit-pr-skill-bypass hardcoded-path-check merge-guard run-guards secret-pattern-detection workflow-resilience-check "
+readonly _GAB_GUARDS=" block-body-format-violation block-cd-prefix block-convention-violation block-credential-read block-cross-domain block-dangerous-git block-exported-msys-pathconv block-fix-request-post block-foreground-wait block-github-post-content block-lane-pr-disable-auto block-main-checkout-edit block-no-verify block-noncanonical-commit block-root-delete-target block-windows-drive-tmp flag-commit-pr-skill-bypass hardcoded-path-check merge-guard run-guards secret-pattern-detection workflow-resilience-check "
 _GAB_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_GAB_DIR" == "${BASH_SOURCE[0]}" ]] && _GAB_DIR=.
 _GAB_TEAM_REL="docs/conventions/guardrails.yaml"

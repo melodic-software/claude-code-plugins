@@ -132,8 +132,6 @@ function Get-WingetPackageUpdate {
             return (New-WingetUpgradeResult -Upgrades $mapped -ErrorMessage $null)
         } catch {
             Write-Verbose "Get-WingetPackageUpdate: Microsoft.WinGet.Client module path failed: $($_.Exception.Message)"
-            # Fall through to text-parse fallback; the error is only surfaced
-            # if the fallback also fails.
         }
     }
 

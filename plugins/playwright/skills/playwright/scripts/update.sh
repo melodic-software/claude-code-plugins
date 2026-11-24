@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 UPSTREAM_PACKAGE="@playwright/cli"

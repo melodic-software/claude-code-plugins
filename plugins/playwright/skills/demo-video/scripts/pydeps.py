@@ -27,7 +27,7 @@ PLUGIN = 'playwright'
 MIN_PYTHON = (3, 12)   # numpy 2.5 requires it
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = ('numpy', 'PIL')
-PIP_TIMEOUT_S = 240   # a hung index fails with a reason instead of hanging the run
+PIP_TIMEOUT_S = 240
 STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 
 
@@ -87,7 +87,7 @@ def _drop_stale_partials(target):
             if path.stat().st_mtime < cutoff:
                 shutil.rmtree(path, ignore_errors=True)
         except OSError:
-            pass   # a concurrent install renamed or removed it first
+            pass
 
 
 def install(data, requirements=REQUIREMENTS, probe=PROBE):
@@ -104,7 +104,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
     partial = target.with_name(f'{target.name}.partial-{os.getpid()}')
     try:
         if target.exists():
-            shutil.rmtree(target)   # present but not loading: rebuild it rather than trust it
+            shutil.rmtree(target)
         try:
             r = subprocess.run(
                 [sys.executable, '-P', '-m', 'pip', 'install', '--require-hashes', '--only-binary', ':all:', '--no-deps',
@@ -123,7 +123,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
         try:
             os.replace(partial, target)
         except OSError:
-            if not (target.is_dir() and loads(target, probe)):   # a concurrent install may have won the rename
+            if not (target.is_dir() and loads(target, probe)):
                 raise Broken(f'could not move the installed packages into {target}')
         return 'installed'
     finally:

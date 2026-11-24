@@ -130,10 +130,6 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 REPO_SLUG=""
 
-# Print the header block (everything after the shebang up to the first
-# non-comment line) with its comment markers stripped. Derived rather than a
-# hardcoded line range: such a range silently truncates or over-runs as the
-# header grows.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
@@ -288,10 +284,6 @@ SELF_LOGINS=()
 if [[ -n "$SELF_CSV" ]]; then
   IFS=',' read -r -a SELF_LOGINS <<<"$SELF_CSV"
 else
-  # --extra-self (csv) covers extra posting identities — e.g. a project bot
-  # account whose replies carry the classification tables — added on top of the
-  # personal login. The invoking skill wires the babysit_self_logins userConfig
-  # option here.
   if [[ -n "$EXTRA_SELF_CSV" ]]; then
     IFS=',' read -r -a SELF_LOGINS <<<"$EXTRA_SELF_CSV"
   fi
@@ -361,16 +353,8 @@ SEVERITY_PLAIN_RE='\[P[0-3]\]'
 # convergence fixtures at the bottom of babysit-readiness-gate.test.sh pin the
 # two to the same counts.
 CLASSIFY_CELL_RE='[|][^a-z0-9_|]*(valid|incorrect|uncertain)([ \t]*[^a-z0-9_ \t|][^|]*)?[ \t]*([|]|$)'
-# The same cell pattern with the `|`-prefixed row anchor prepended, so the rows
-# excluded from the finding corpus and the rows credited as classified cannot
-# drift apart.
 CLASSIFY_ROW_RE="^[[:space:]]*[|].*${CLASSIFY_CELL_RE}"
 
-# classify_rows <count|strip> — the ONE place a line is tested for being a
-# classification row, so the two callers cannot diverge. `count` prints how many
-# lines are classification rows; `strip` prints the lines that are NOT (the
-# finding corpus). The predicate runs on a lowercased copy while `strip` emits
-# the ORIGINAL line, so the corpus it filters is never itself rewritten.
 classify_rows() {
   awk -v pat="$CLASSIFY_ROW_RE" -v mode="$1" '
     {
@@ -398,8 +382,6 @@ bodies_unreadable() {
     "${COMMENTS_JSON:-live fetch}" >&2
   unproven comments-unreadable 4
 }
-# bodies_where <jq filter>: bodies of the comments whose "author is self" test,
-# piped through <filter>, is true ('' for self, '| not' for everyone else).
 bodies_where() {
   printf '%s' "$COMMENTS" | jq -r --argjson self "$SELF_JSON" \
     '.[] | select((.author as $a | $self | index($a)) '"$1"') | .body // ""'
@@ -489,8 +471,6 @@ if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.
     classified="${BASH_REMATCH[2]}"
   fi
 fi
-
-# --- R6: checklist completeness ----------------------------------------------
 
 unticked=0
 checklist_state="n/a"

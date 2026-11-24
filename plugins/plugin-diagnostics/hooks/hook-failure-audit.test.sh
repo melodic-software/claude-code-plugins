@@ -20,12 +20,12 @@ unset CLAUDE_PROJECT_DIR
 
 WSL_STDERR='Failed with non-blocking status code: <3>WSL (10 - Relay) ERROR: CreateProcessCommon:818: execvpe(/bin/bash) failed: No such file or directory'
 
-failure_record() { # <hookName> <command>
+failure_record() {
   printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"PreToolUse","stderr":"%s","stdout":"","exitCode":1,"command":"%s","durationMs":2080},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
     "$1" "${WSL_STDERR//\"/\\\"}" "$2"
 }
 
-make_transcript() { # <path> — base fixture: 1 real failure + both false-positive shapes
+make_transcript() {
   local t="$1"
   {
     printf 'garbage-not-json {"half": \n'
@@ -39,7 +39,7 @@ make_transcript() { # <path> — base fixture: 1 real failure + both false-posit
 # (no `bash` prefix) — so a non-executable committed mode fails here the same
 # way it would fail in production (exit 126) instead of being masked by an
 # explicit interpreter.
-run_hook() { # <transcript> <data_dir> [extra env pairs...]
+run_hook() {
   local transcript="$1" data_dir="$2"
   shift 2
   env CLAUDE_PLUGIN_DATA="$data_dir" "$@" "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$transcript\",\"hook_event_name\":\"Stop\"}" 2>&1
@@ -103,7 +103,7 @@ assert_contains "no marker home -> re-warns rather than suppresses" "$OUT5" "Pre
 # verbatim as though the hook had emitted it.
 HARNESS_NO_STDERR='Failed with non-blocking status code: No stderr output'
 
-custom_record() { # <hookName> <command> <stderr> <exitCode> <durationMs>
+custom_record() {
   printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"Stop","stderr":"%s","stdout":"","exitCode":%s,"command":"%s","durationMs":%s},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
     "$1" "${3//\"/\\\"}" "$4" "$2" "$5"
 }
@@ -206,12 +206,12 @@ assert_contains "bare exit 126 still offers the restart remedy" "$OUT_126" "rest
 STALE_LABEL="stale config: registered script missing from disk"
 STATUS_MSG="Checking the context-zone gate..."
 PFX="Failed with non-blocking status code: "
-stale_case() { # <name> <command> <stderr>
+stale_case() {
   local t="$TEST_TMPDIR/stale-$1.jsonl"
   custom_record "PreToolUse:Edit" "$2" "$3" 127 40 >"$t"
   run_hook "$t" "$TEST_TMPDIR/data-stale-$1"
 }
-assert_stale() { # <name> <output>
+assert_stale() {
   assert_contains "$1: classed stale config" "$2" "$STALE_LABEL"
   assert_contains "$1: names /reload-plugins before restart" "$2" \
     "Run /reload-plugins to load the current config, or restart the session."
@@ -348,18 +348,14 @@ assert_contains "in-window failure reported" "$OUT6" "PreToolUse:InWindow"
 assert_absent "out-of-window failure not read" "$OUT6" "PreToolUse:OutOfWindow"
 
 
-# A PATH shim that fails loudly instead of doing the work. `command -v jq` still
-# succeeds — that is what lets the library's builtin field parser proceed — so
-# any surviving spawn reaches a shim and breaks silence. `tail` is left real:
-# it is the warm read itself.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 for PROG in jq grep wc sed find cat mkdir; do
   printf '#!/bin/sh\necho "SPAWNED %s" >&2\nexit 99\n' "$PROG" >"$SHIM/$PROG"
   chmod +x "$SHIM/$PROG"
 done
-cursor_of() { head -1 "$1/hook-failure-audit/test-session.cursor"; } # <data_dir>
-size_of() { wc -c <"$1" | tr -d ' '; }                               # <file>
+cursor_of() { head -1 "$1/hook-failure-audit/test-session.cursor"; }
+size_of() { wc -c <"$1" | tr -d ' '; }
 benign_line() { printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine ✓"}]},"uuid":"c","session_id":"s"}\n'; }
 
 T_CUR="$TEST_TMPDIR/cursor.jsonl"
@@ -593,7 +589,7 @@ else
   TB="$TEST_TMPDIR/budget.jsonl"
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"all fine"}]},"uuid":"c","session_id":"s"}\n' >"$TB"
   TRACE_ALL=""
-  trace_hook() { # <trace-name>
+  trace_hook() {
     local prefix="$TEST_TMPDIR/$1"
     env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-budget" HOOK_TELEMETRY_SINK="" \
       strace -ff -qq -s 400 -e trace=clone,clone3,fork,vfork,execve -o "$prefix" \
@@ -614,7 +610,7 @@ else
       grep -oE '^execve\("[^"]+"' | sed 's|.*/||; s|"||' | sort | uniq -c | tr -s ' \n' ' '
   }
   prog_count() { grep -cE "^execve\\(\"[^\"]*/$1\"" "$TRACE_ALL"; }
-  ceiling() { # <label> <actual> <max>
+  ceiling() {
     if (($2 <= $3)); then ok "budget: $1 is $2 (ceiling $3)"; else bad "budget: $1 is $2, ceiling is $3 —$(progs)"; fi
   }
 
@@ -702,7 +698,6 @@ else
   bad "overlapping audits leave a valid cursor file: ${ov_cursor:-none found}"
 fi
 
-# --- the Stop row is shell form: a launcher through node could not report a missing node ---
 row="$(jq -c '[.hooks.Stop[].hooks[] | select((.command // "") | contains("hook-failure-audit.sh"))]' "$HOOK_DIR/hooks.json")"
 assert_eq "one hook-failure-audit Stop row" "1" "$(jq 'length' <<<"$row")"
 assert_eq "the row is shell-form bash with no args and no node" "true" \

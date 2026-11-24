@@ -104,7 +104,6 @@ function resourceFilename(resource) {
   return resource.label || basename(new URL(resource.href).pathname);
 }
 
-/** Deduplicate by href, keeping first-seen order. */
 function uniqueByHref(resources) {
   return [...new Map(resources.map((r) => [r.href, r])).values()];
 }

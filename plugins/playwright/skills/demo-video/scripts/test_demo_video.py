@@ -1,9 +1,3 @@
-"""Smoke test for the demo-video pipeline, network-free: a synthetic capture of a three-step flow
-(navigate, type with results, navigate) goes through build_edl.py, produce.py and quality_control.py, and quality control must
-pass, and so must a variant whose search click opens a modal a quarter second later. Then defects are planted in the rendered frames (a crossfade across the page cut, a white
-frame, a frozen stretch, a 1.0x render under a zoomed EDL, a zoom rect that cuts text, a zoomed
-URL-changing cut with clean edges) and quality control must fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
-"""
 import hashlib
 import io
 import json
@@ -38,8 +32,6 @@ def _font(size):
 
 
 def draw_page(name, typed='', results=False):
-    """One synthetic page state at CSS resolution: dark text on white with real glyphs, so the
-    gutter and ink analysis see what they see on a real page."""
     img = Image.new('RGB', (W, H), (255, 255, 255))
     d = ImageDraw.Draw(img)
     small, mid, big = _font(15), _font(20), _font(40)
@@ -77,7 +69,6 @@ SEARCH_BUTTON = [660, 120, 110, 32]
 
 
 def draw_docs_with_button():
-    """The docs page with a Search button that opens the modal."""
     img = draw_page('docs')
     d = ImageDraw.Draw(img)
     x, y, w, h = SEARCH_BUTTON
@@ -87,7 +78,6 @@ def draw_docs_with_button():
 
 
 def draw_modal(typed='', results=False):
-    """The docs page behind an opaque scrim with a search modal over it (DocSearch's shape)."""
     img = draw_docs_with_button()
     d = ImageDraw.Draw(img)
     small = _font(15)
@@ -104,15 +94,13 @@ def draw_modal(typed='', results=False):
 
 
 def state_at(t, modal=False):
-    """Page state shown at source time t (the flow below). With `modal`, the search click opens a
-    modal 0.25 s after it (DocSearch's timing), and typing and results happen inside it."""
     if modal and 1009.0 <= t < 1015.4:
         key = state_at(t)
         return ('modal', key[1], key[2])
     if t < 1004.4:
         return ('home', '', False)
     if t < 1005.0:
-        return ('loading', '', False)   # mid-navigation: must never reach the output
+        return ('loading', '', False)
     if t < 1009.3:
         return ('docs', '', False)
     if t < 1010.8:
@@ -124,7 +112,6 @@ def state_at(t, modal=False):
 
 
 def make_capture(out, modal=False):
-    """A timeline.json in record.mjs's shape: frames every 0.2 s plus the step events."""
     (out / 'frames').mkdir(parents=True)
     frames, cache = [], {}
     t = T0
@@ -164,7 +151,7 @@ def make_capture(out, modal=False):
         {'name': 'settled', 'step': 'open-result', 't': 1015.6, 'url': url_c},
         {'name': 'end', 't': 1017.2},
     ]
-    if modal:   # a Search button opens the modal; typing and the result click happen inside it
+    if modal:
         hx, hy = MODAL_HIT[0] + MODAL_HIT[2] / 2, MODAL_HIT[1] + MODAL_HIT[3] / 2
         bx, by = SEARCH_BUTTON[0] + SEARCH_BUTTON[2] / 2, SEARCH_BUTTON[1] + SEARCH_BUTTON[3] / 2
         for e in ev:
@@ -199,7 +186,6 @@ def run(*args):
 
 
 def rewrite(src, dst, fn):
-    """Re-encode src to dst, passing each RGB frame (with its neighbors) through fn(i, prev, cur, nxt)."""
     dec = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(src), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
     enc = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', '30',
                             '-i', '-', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', '-pix_fmt', 'yuv420p', str(dst)],
@@ -272,10 +258,10 @@ class DemoPipelineSmoke(unittest.TestCase):
         edl = json.loads(edl_path.read_text())
         self.assertTrue(edl['layers']['narration'])
         (entry,) = edl['audio']
-        self.assertAlmostEqual(entry['trim'], 0.30, places=3)       # first word 0.35 s minus the 0.05 s lead
-        self.assertAlmostEqual(entry['duration'], 1.05, places=3)   # last word end 1.30 + 0.15 tail, capped at 1.35, minus trim
+        self.assertAlmostEqual(entry['trim'], 0.30, places=3)
+        self.assertAlmostEqual(entry['duration'], 1.05, places=3)
         nav_cut = edl['nav_cuts'][0]
-        self.assertLessEqual(entry['end'], nav_cut - 0.3 + 1e-3)    # the step's line ends a pad before its page changes
+        self.assertLessEqual(entry['end'], nav_cut - 0.3 + 1e-3)
         out = self.tmp / 'narrated.mp4'
         r = run('produce.py', edl_path, out, '--preset', 'veryfast')
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -326,14 +312,14 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertTrue(next(s for s in edl['steps'] if s['id'] == 'search')['navigates'])
         self.assertEqual(len(edl['nav_cuts']), 3)
         self.assertNotIn(('search', 'results'), {(sg['step'], sg['kind']) for sg in edl['segments']})
-        self.assertIn([1010.551, 1011.2], edl['forbidden_source'])   # typed + 0.05 s press through the settled page
+        self.assertIn([1010.551, 1011.2], edl['forbidden_source'])
         for c in edl['nav_cuts']:
             before = [k for k in edl['camera'] if k['t'] <= c]
             self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
 
     def test_edl_plan_keeps_navigation_cuts_at_one_x(self):
         edl = json.loads(self.edl.read_text())
-        self.assertEqual(len(edl['nav_cuts']), 2)   # two navigating steps in the fixture flow
+        self.assertEqual(len(edl['nav_cuts']), 2)
         for c in edl['nav_cuts']:
             before = [k for k in edl['camera'] if k['t'] <= c]
             self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
@@ -364,7 +350,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         edl = json.loads(edl_path.read_text())
         click = next(s['click_out'] for s in edl['steps'] if s['id'] == 'search')
         rect = [k['rect'] for k in edl['camera'] if k['t'] <= click][-1]
-        self.assertLess(rect[2], W / 1.2, rect)   # zoomed in at the click
+        self.assertLess(rect[2], W / 1.2, rect)
 
     def test_refused_plan_removes_the_earlier_edl(self):
         cfg = self.tmp / 'refuse.json'
@@ -386,7 +372,7 @@ class DemoPipelineSmoke(unittest.TestCase):
     def test_an_outcome_hold_lasts_its_reading_time_and_passes_stillness_with_the_camera_off(self):
         per_word = json.loads((HERE / 'defaults.json').read_text())['captions']['seconds_per_word']
         script = json.loads(json.dumps(SCRIPT))
-        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'   # a step that stays on its page
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'
         script['steps']['open-result']['outcome'] = 'Trace viewer open, every panel in view now'
         path = self.tmp / 'script-read.json'
         path.write_text(json.dumps(script))
@@ -404,7 +390,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         r, report = self.quality_control(out, edl=edl_path, name='quality-control-read')
         self.assertEqual(self.failed(report), set(), r.stdout)
         details = {c['check']: c['detail'] for c in report['checks']}
-        self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
+        self.assertEqual(details['zoom-share'], 'camera layer off')
         self.assertIn('to read an outcome', details['stillness'])
 
     def own_lines_end_with_the_step_caption(self, name, capture, step, outcome, clips):
@@ -440,7 +426,7 @@ class DemoPipelineSmoke(unittest.TestCase):
                                                  {'search': 3.0, 'search.results': 2.0})
 
     def test_a_clicked_in_place_step_s_narration_ends_before_its_outcome_replaces_its_caption(self):
-        def edit(ev):   # open-result's click opens a panel on the same page instead of a new one
+        def edit(ev):
             for e in ev:
                 if e['name'] in ('click', 'settled') and e['step'] == 'open-result':
                     e['url'] = 'file:///docs.html'
@@ -511,7 +497,7 @@ class DemoPipelineSmoke(unittest.TestCase):
 
     def test_zoom_rect_cutting_text_fails_edge_clip(self):
         edl = json.loads(self.edl.read_text())
-        bad = [330.0, 100.0, 640.0, 360.0]   # 1.5x; its left edge runs through the docs paragraphs
+        bad = [330.0, 100.0, 640.0, 360.0]
         for k in edl['camera']:
             if k['rect'] != [0.0, 0.0, float(W), float(H)]:
                 k['rect'] = bad
@@ -525,9 +511,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertIn('edge-clip', self.failed(report))
 
     def test_zoomed_url_cut_fails_even_with_clean_edges(self):
-        # Hold a 1.22x rect anchored at the page corner across the first navigation cut. Its right edge
-        # (x 784) falls in the header gap between 'API' and 'Community' and its bottom edge (y 441) below
-        # all content on both pages, so the edges are clean: only the URL change makes the cut a defect.
         edl = json.loads(self.edl.read_text())
         cut = edl['nav_cuts'][0]
         zoomed = [0.0, 0.0, 784.0, 441.0]
@@ -555,7 +538,7 @@ class FrameSeek(unittest.TestCase):
 
     def test_seek_time_pins_the_first_and_last_frame(self):
         self.assertEqual(seek_time(0, 30), '0.0000')
-        self.assertEqual(seek_time(338, 30), '11.2500')   # the old fi / fps gave 11.2667, the next frame
+        self.assertEqual(seek_time(338, 30), '11.2500')
 
     def test_seek_time_lands_in_the_gap_before_every_frame(self):
         for fi in range(1000):
@@ -600,7 +583,7 @@ class FrameSeekVideo(unittest.TestCase):
 
     def test_grab_returns_the_exact_frame(self):
         from quality_control import grab_rgb
-        for fi in (0, 170, self.N - 1):   # 170 and 338 are 2 (mod 3): the old seek returned frame fi + 1, or nothing
+        for fi in (0, 170, self.N - 1):
             with self.subTest(frame=fi):
                 want = self.selected(fi)
                 self.assertEqual(len(want), self.FW * self.FH * 3)
@@ -611,7 +594,7 @@ class FrameSeekVideo(unittest.TestCase):
 
     def test_grab_past_the_end_names_the_frame(self):
         from quality_control import grab_rgb
-        with self.assertRaises(ValueError) as ctx:   # rgb()'s path: the short read must fail before Image.frombytes
+        with self.assertRaises(ValueError) as ctx:
             Image.frombytes('RGB', (self.FW, self.FH), grab_rgb(self.video, self.N, 30, self.FW, self.FH))
         self.assertIn(f'frame {self.N} at 11.3000s', str(ctx.exception))
         self.assertNotIn('not enough image data', str(ctx.exception))
@@ -621,7 +604,7 @@ class RippleGeometry(unittest.TestCase):
     """The click ring produce.py draws; standard library only, so it runs on CI. Today's ring, unscaled, has
     stroke 3z and gap (3 + 9 grow)z."""
     FW, FH = 1920, 1080
-    SMALL = (900, 500, 60, 30)   # the playwright.dev Search button's size, mid-frame
+    SMALL = (900, 500, 60, 30)
 
     def test_a_near_edge_limits_only_its_own_side(self):
         z, box = 1.6, (5, 400, 200, 60)
@@ -657,7 +640,7 @@ class RippleGeometry(unittest.TestCase):
                 for grow in (0.0, 0.1, 0.3, 0.6, 1.0):
                     g = ring(box, grow, 1.0, self.FW, self.FH)
                     self.assertIsNotNone(g)
-                    inset = (HALO - 0.5) * g.stroke   # the halo's inner edge, inside the accent line
+                    inset = (HALO - 0.5) * g.stroke
                     self.assertLessEqual(g.line[0] + inset, box[0] - 1 + 1e-9, (d, box, grow))
                     self.assertLessEqual(g.line[1] + inset, box[1] - 1 + 1e-9, (d, box, grow))
                     self.assertGreaterEqual(g.line[2] - inset, box[0] + w + 1 - 1e-9, (d, box, grow))

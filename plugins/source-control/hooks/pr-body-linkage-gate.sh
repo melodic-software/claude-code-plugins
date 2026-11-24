@@ -97,9 +97,6 @@ set -uo pipefail
 # character class, including the shared lib.
 export LC_ALL=C
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
-# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED:-true}" == "true" ]] || exit 0
 # Parameter expansion, not `dirname`: a command substitution forks, which is a
 # process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
@@ -114,9 +111,6 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# Both payload fields in ONE read, each value CR-stripped: fewer spawns than one
-# jq per field, fenced by pr-linkage-spawn-budget.test.sh. A failed read allows, and
-# HOOK_JQ_FIELDS_NUL is not consulted: this gate fails open on extraction.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
@@ -143,38 +137,19 @@ linkage::gate_file_to GATE_FILE "$REPO_ROOT" "pr-body-linkage-gate"
 [[ -n "$GATE_FILE" ]] || exit 0
 
 FORM=""
-# Set once a segment changes the working directory; every later segment is then
-# resolving against a directory this hook cannot see.
 DIR_CHANGED=0
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # Byte-identical to `jq -n --arg` for an all-string object, with no spawn.
   local data
   hook::json_str_object_to data outcome "$1" form "$FORM"
   hook::emit_telemetry "pr-body-linkage-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# --- Body validation ----------------------------------------------------------
-# The validator core (comment stripping, negated-closer judging) is shared
-# with the MCP-surface sibling pr-linkage-mcp-gate.sh; the annotated functions
-# live in pr-linkage-validator.sh, sourced so a drift fix against the upstream
-# ci-workflows validator lands on every surface at once.
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
 
-# Body of the SOLE heredoc in the given text, into <dest>. Covers both stdin
-# forms the authoring corpus uses: `--body-file -` fed by a heredoc, and a
-# `--body "$(cat <<'EOF' … EOF)"` command substitution, whose quoted value the
-# segment tokenizer hands back verbatim (it strips heredoc bodies only outside
-# quotes). Returns 1 with no heredoc, an unterminated one, or SEVERAL — with
-# more than one, which of them reaches `gh` is not statically knowable, and
-# judging the wrong text would block a compliant call.
-#
-# Writes <dest> rather than stdout, per PROCESS BUDGET and TRAILING-NEWLINE
-# CONTRACT in pr-linkage-validator.sh, and clears it first, so every `return 1`
-# path leaves it empty.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sole_heredoc_body_to() {
   local __pbl_dest="$1" text="$2" line delim="" in_hd=0 t out="" count=0 li=0
@@ -206,13 +181,10 @@ sole_heredoc_body_to() {
       in_hd=1
     fi
   done
-  # Still inside the body at end of text: the delimiter never appeared.
   ((count == 1 && in_hd == 0)) || return 1
   linkage::chomp_to "$__pbl_dest" "$out"
 }
 
-# A value the tokenizer could not fully resolve — an unexpanded expansion or a
-# command substitution — is not this hook's to judge on its face.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_dynamic() {
   [[ "$1" == *'$'* || "$1" == *'`'* ]]
@@ -227,9 +199,6 @@ validate_body() {
   exit 2
 }
 
-# gh long flags that consume the following argv word. Enumerated so a
-# body-shaped string sitting in ANOTHER flag's value (`-l --body`) is never read
-# as the body.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 takes_value() {
   case "$1" in
@@ -268,7 +237,6 @@ parse_short_cluster() {
         SHORT_VAL="$next"
         SHORT_ATE_NEXT=1
       else
-        # Nothing left to take: gh rejects this as flag-needs-argument.
         SHORT_KIND="unknown"
         return 0
       fi
@@ -280,10 +248,7 @@ parse_short_cluster() {
       esac
       return 0
       ;;
-    # Boolean shorthands: the cluster continues past them.
     d | e | f | w) ;;
-    # Not a shorthand this hook knows. Stop reading the word rather than guess
-    # which of its letters would have eaten the next one.
     *)
       SHORT_KIND="unknown"
       return 0
@@ -325,8 +290,6 @@ parse_wrapper_flag() {
       sudo:--role | sudo:--type)
       WRAP_KIND="value"
       ;;
-    # Options that print and EXIT without running the command: no PR can be
-    # created, so gating one would be a false block.
     env:--help | env:--version | sudo:--help | sudo:--version)
       WRAP_KIND="terminal"
       return 0
@@ -380,7 +343,6 @@ parse_wrapper_flag() {
     env:u | sudo:u | sudo:g | sudo:h | sudo:p | sudo:C | sudo:T | sudo:U | sudo:r | sudo:t)
       WRAP_KIND="value"
       ;;
-    # Prints and exits without running the command; see the long-form arm.
     sudo:V)
       WRAP_KIND="terminal"
       return 0
@@ -455,9 +417,6 @@ check_segment() {
   esac
   ((DIR_CHANGED)) && return 0
 
-  # `gh` is commonly wrapped in command-scoped environment settings
-  # (`GH_TOKEN=… gh …`, `env … gh …`, `command -p gh …`, `sudo gh …`); step past
-  # them before deciding this is not a gh call.
   while ((i < n)); do
     word="${w[i]}"
     if [[ "$word" == *=* && "$word" != -* ]]; then
@@ -485,7 +444,6 @@ check_segment() {
             split_from=$((i + 1))
             ((WRAP_ATE_NEXT)) && split_from=$((i + 2))
             reparse="$WRAP_VAL"
-            # `printf -v`: a `$(printf %q …)` would fork per operand.
             for ((k = split_from; k < n; k++)); do
               printf -v qword '%q' "${w[k]}"
               reparse+=" $qword"
@@ -494,10 +452,6 @@ check_segment() {
             return 0
             ;;
           value) ((WRAP_ATE_NEXT)) && ((i++)) ;;
-          # An option this hook does not positively recognize: whether it eats
-          # the next word is unknowable, and guessing "boolean" silently moves
-          # the command name. Bail instead — one documented fail-open rule in
-          # place of an open-ended option table to keep chasing.
           unknown) return 0 ;;
           *) ;;
           esac
@@ -513,8 +467,6 @@ check_segment() {
     esac
   done
 
-  # Match `gh` by its basename, so `gh.exe`, `/usr/bin/gh`, and `./gh` are the
-  # same call — the wrapper loop above already reads basenames.
   bin="${w[i]:-}"
   bin="${bin//\\//}"
   bin="${bin##*/}"
@@ -536,7 +488,6 @@ check_segment() {
     }
     case "$word" in
     --) break ;;
-    # The target repository may not be the one whose gate file was read.
     --repo | --repo=*) return 0 ;;
     # A body flag with no following word is a malformed command gh rejects on
     # its own; there is no body to judge. An explicitly EMPTY value is a
@@ -582,14 +533,10 @@ check_segment() {
     esac
   done
 
-  # No body flag: `--fill`, `--template`, `--editor`, `--web`, the interactive
-  # prompt, or a `gh pr edit` that changes something other than the body. The
-  # body is not this call's to determine.
   [[ -n "$body_flag" ]] || return 0
 
   if [[ "$body_flag" == "file" ]]; then
     if [[ "$body_val" == "-" ]]; then
-      # The heredoc feeding stdin lives outside the value, in the raw command.
       sole_heredoc_body_to body "$COMMAND" || return 0
       FORM="stdin-heredoc"
     else
@@ -603,8 +550,6 @@ check_segment() {
   else
     # shellcheck disable=SC2310  # is_dynamic is a pure predicate; both branches are handled
     if is_dynamic "$body_val"; then
-      # The `$(cat <<'EOF' … EOF)` substitution is inside the value itself, so
-      # judge only that — a heredoc elsewhere in the command is not this body.
       sole_heredoc_body_to body "$body_val" || return 0
       FORM="body-substitution"
     else

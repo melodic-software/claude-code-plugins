@@ -53,6 +53,7 @@ _GUARD_REQUIRES_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS=(
   ["run-guards.sh"]='.tool_name .hook_event_name .tool_input.command'
+  ["block-body-format-violation.sh"]='.tool_input.command .tool_name .cwd'
   ["block-cd-prefix.sh"]='.tool_input.command .tool_name .cwd'
   ["block-convention-violation.sh"]='.tool_input.command .tool_name .cwd'
   ["block-credential-read.sh"]='.tool_input.command'
@@ -94,6 +95,7 @@ declare -A GUARD_FIELDS=(
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS_UNPRIMED=(
+  ["block-body-format-violation.sh"]=$'.tool_input.body\n.tool_input.owner\n.tool_input.repo'
   ["block-fix-request-post.sh"]=$'.tool_input.body\n.tool_input.comments'
   ["block-foreground-wait.sh"]='.tool_input.run_in_background'
   ["block-root-delete-target.sh"]='.scratchpad_dir'

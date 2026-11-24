@@ -227,8 +227,6 @@ class RiskInput:
     max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
     high_paths: tuple[str, ...]  # configured denied paths, joined to Floor.high
     lanes: tuple[LaneEvidence, ...]
-    # The switches the pr-merge lane may turn off (merge.diff-check); the
-    # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
     # `merge.diff-check.path-holds`: False moves every path hold (the
     # `high-path:` floor and configured globs, `review-path:`) to
@@ -239,30 +237,17 @@ class RiskInput:
     # The repository is public, where standard hosted runners are free; any
     # other value reads every runs-on and macOS line as a charge.
     public: bool | None = None
-    # The owner decision the caller verified for a `cost-review-required`
-    # change (its comment URL); None keeps the hold.
     cost_decision: str | None = None
     # Directories holding a Pulumi project file (Pulumi.yaml, .yml or .json)
     # at the base ("" for the root): any change under one is infrastructure
     # as code.
     pulumi_dirs: tuple[str, ...] | None = ()
-    # Paths only a trusted author's own commits touched: the path floor and
-    # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
-    # `gate` paths a trusted person's own commits alone touched, on a head
-    # pr-verify passed, on that person's own pull request
-    # (babysit_merge_policy.author_reviewed_paths): they rate `review-path:`
-    # as an enforcement path does (owner direction 2026-10-27). Anything but
-    # a frozenset of strings lifts nothing.
     author_reviewed: frozenset[str] = frozenset()
     # The listing reached the files API's cap, so no read ever completes it
     # and its paths can never all be judged.
     files_capped: bool = False
-    # The pull request's base commit, `bind()`'s `base_sha`: with it a
-    # read-only workflow's head text (`ChangedFile.contents`) shows the
-    # main-run review does not bind it. None holds as if it did.
     base_sha: str | None = None
-    # `merge.diff-check.floor-paths`, joined to the built-in floor (`floor_for`).
     floor_rows: FloorRows = ()
 
 
@@ -283,9 +268,6 @@ class RiskResult:
 
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("**/CODEOWNERS", "trust"),
-    # The pipeline config every consumer's merge gate reads
-    # (`babysit_merge_policy.CONFIG_PATH`), so the row that holds it never sits
-    # inside it.
     ("docs/conventions/pr-pipeline.yaml", "trust"),
     ("**/.gitmodules", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "trust"),
@@ -310,10 +292,6 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
     ("**/.claude/**", "gate"),
-    # The team layer the babysit loop reads
-    # (`babysit_repo_config.fetch_repo_config`), trusted bot logins included,
-    # so it keeps the hold the `.claude/**` row gave the retired
-    # `.claude/source-control.md`.
     ("docs/conventions/source-control.yaml", "gate"),
     ("**/.claude-lane/**", "gate"),
     ("**/.mcp.json", "gate"),
@@ -352,8 +330,6 @@ _MINTED_CREDENTIAL = re.compile(
 _DISPATCH_SCOPE = re.compile(
     r"(?<![\w-])['\"]?actions['\"]?\s*:\s*['\"]?write\b", re.IGNORECASE
 )
-# The review workflows, and ci-status, which posts the required status and
-# holds the floor's hold step, named by file so no permission trim drops it.
 _NAMED_GATE_WORKFLOW = re.compile(r"pr-review-[a-z0-9-]+|pr-require-checks")
 
 
@@ -444,7 +420,6 @@ class Floor:
 
 
 def _unique(items: Iterable[Any]) -> tuple[Any, ...]:
-    """`items` in first-seen order, each once."""
     return tuple(dict.fromkeys(items))
 
 
@@ -479,10 +454,6 @@ REVIEW_PATH_PREFIX = "review-path:"
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 
-# Lane -> (code, severity) for an open finding on that lane. Only the
-# security lane's blocking findings hold (`LaneEvidence.blocking_findings`);
-# claude-review's code is reported and never holds (`MERGEABLE_MED`). Both
-# lanes are required: a lane absent from the input is unbound.
 LANES: dict[str, tuple[str, Risk]] = {
     "claude-review": ("findings:claude-review", Risk.MED),
     "claude-security-review": ("security-finding", Risk.HIGH),
@@ -495,7 +466,6 @@ RERUN_NOT_ALLOWED_FIX = (
     " two requests or once this head's request has run, a new head clears it: `gh pr update-branch <n>` when the branch is behind"
     " its base, else a new commit, never a hand re-run of the lane run"
 )
-# The security lane's open findings below the holding tier: reported only.
 REPORTED_SECURITY_CODE = "findings:claude-security-review"
 
 TRUST_GATE_PREFIX = "trust-gate:"
@@ -516,7 +486,6 @@ _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
 
 _ABSENT_MODE = "000000"
-# The statuses that need a previous mode.
 _TWO_SIDED = frozenset({"modified", "changed", "renamed", "copied"})
 # Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
@@ -567,10 +536,6 @@ def normalize_path(path: Any) -> tuple[str, bool]:
 
 
 def _safe_glob(pattern: str) -> bool:
-    """A configured glob must name a path in the same character set, exactly as
-    written: no `./` or `/` prefix, no `\\`, no segment ending in `.`, and `**`
-    only as a whole segment. A bare `**` names every path, which is no denied
-    path at all, so it is unreadable too."""
     if pattern.endswith("/"):
         pattern = pattern[:-1]
     return pattern != "**" and all(
@@ -582,8 +547,6 @@ def _safe_glob(pattern: str) -> bool:
 
 
 def _segment_match(pattern: str, name: str) -> bool:
-    """`*` within one segment. Greedy with one backtrack point, so the cost is
-    at most len(pattern) * len(name) however many stars there are."""
     p = n = 0
     star, mark = -1, 0
     while n < len(name):
@@ -615,8 +578,6 @@ def glob_match(pattern: str, path: str) -> bool:
         if not (segment == "**" and globs and globs[-1] == "**"):
             globs.append(segment)
     names = path.casefold().split("/")
-    # below[j]: globs[i + 1:] match a prefix of names[j:]. With no glob left,
-    # the rest of the path sits under what matched.
     below = [True] * (len(names) + 1)
     for glob in reversed(globs):
         row = [False] * (len(names) + 1)
@@ -640,7 +601,7 @@ class _File:
     unsafe: tuple[str, ...]
     status: Any
     lines: int
-    has_patch: bool | None  # None when malformed: reported once, as a problem
+    has_patch: bool | None
     problems: tuple[str, ...]
 
 
@@ -655,7 +616,6 @@ def _check_file(changed: Any) -> _File:
         if not safe:
             unsafe.append(_show(raw))
     raw_status = getattr(changed, "status", None)
-    # A non-string status (possibly unhashable) is unknown, never a raise.
     status = raw_status if isinstance(raw_status, str) else None
     if status in ("renamed", "copied") and previous is None:
         unsafe.append(f"{_show(raw_path)} {status} with no previous path")
@@ -688,7 +648,6 @@ def _check_file(changed: Any) -> _File:
 
 
 def _mode_problems(changed: Any, raw_path: Any, status: str | None) -> list[str]:
-    """Only a regular file that stays regular may rate below HIGH."""
     mode = getattr(changed, "mode", None)
     previous = getattr(changed, "previous_mode", None)
     kind = _MODE_TYPES.get(mode) if isinstance(mode, str) else None
@@ -717,7 +676,7 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     globs = _sequence(value)
     if globs is None or not all(isinstance(p, str) and _safe_glob(p) for p in globs):
         unsafe.append(f"configured HIGH set unreadable: {_show(value)}")
-        return ()  # match only the floor
+        return ()
     return globs
 
 
@@ -743,7 +702,6 @@ def _no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _manifest(text: Any) -> dict[str, Any] | None:
-    """The parsed object, None when unreadable, malformed or a key repeats."""
     if not isinstance(text, str):
         return None
     try:
@@ -754,27 +712,22 @@ def _manifest(text: Any) -> dict[str, Any] | None:
 
 
 def _pair(contents: Any) -> tuple[Any, Any] | None:
-    """`ChangedFile.contents` when it is a (base, head) pair, else None."""
     return contents if isinstance(contents, tuple) and len(contents) == 2 else None
 
 
 def _read_pair(raw: Any) -> tuple[Any, Any] | None:
-    """The (base, head) text the caller read, None when it could not."""
     if getattr(raw, "contents_error", None) is not None:
         return None
     return _pair(getattr(raw, "contents", None))
 
 
 def _canonical(data: Any, key: str) -> str | None:
-    """A key's value as sorted JSON, so `false` and `0` differ; None when
-    absent or `data` is no object."""
     if not isinstance(data, dict) or key not in data:
         return None
     return json.dumps(data[key], sort_keys=True)
 
 
 def _plugin_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
-    """The executable keys whose value differs."""
     found = [k for k in _EXECUTABLE_KEYS if _canonical(base, k) != _canonical(head, k)]
     before, after = base.get("experimental"), head.get("experimental")
     if _canonical(before, "monitors") != _canonical(after, "monitors"):
@@ -783,7 +736,6 @@ def _plugin_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
 
 
 def _entries(data: dict[str, Any]) -> dict[str, Any] | None:
-    """`plugins` by name, None unless a list of uniquely named objects."""
     plugins = data.get("plugins", [])
     if not isinstance(plugins, list):
         return None
@@ -796,8 +748,6 @@ def _entries(data: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
-    """A plugin added, removed or renamed (a rename reads as both), a changed
-    entry `source`, and a changed marketplace `name`."""
     found = ["name"] if _canonical(base, "name") != _canonical(head, "name") else []
     old, new = _entries(base), _entries(head)
     if old is None or new is None:
@@ -813,7 +763,6 @@ def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str
 
 
 def _manifest_changes(f: _File, raw: Any) -> list[str]:
-    """What in a manifest change needs review (`_MANIFEST_CODE`)."""
     if f.status not in ("modified", "added") or f.paths != (f.path,):
         return [f"{f.status} manifest"]
     contents = _read_pair(raw)
@@ -852,9 +801,6 @@ def _high_path_reasons(
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if not security_review_clean(inp.lanes):
-        # A pull request that also changes a lane source binds the security
-        # review only from main (babysit_review_evidence `_main_bound`), so
-        # a clean main-run review clears these too.
         for pattern in (*floor.review, *floor.author_review):
             candidates = paths if pattern in floor.review else reviewed
             hits = [path for path in candidates if glob_match(pattern, path)]
@@ -879,10 +825,6 @@ def _high_path_reasons(
 def _author_reviewed(
     raw: Any, paths: list[str], configured: Iterable[str], floor: Floor
 ) -> list[str]:
-    """The changed `paths` in `raw` (`RiskInput.author_reviewed`) that a
-    `gate` glob matches and no other floor or configured glob does: only
-    those leave `high-path:` for `review-path:`. Anything but a frozenset of
-    strings names none."""
     if not (isinstance(raw, frozenset) and all(isinstance(p, str) for p in raw)):
         return []
     held = [*(g for g in floor.high if g not in floor.author_review), *configured]
@@ -900,8 +842,6 @@ def is_trusted_actors_path(path: str) -> bool:
 
 
 def _actors_widened(f: _File, raw: Any) -> str | None:
-    """Why a trusted-actor list change widens trust, None when it only
-    removes entries."""
     if f.status != "modified" or len(f.paths) != 1:
         return f"{f.status} trusted-actor list"
     contents = _read_pair(raw)
@@ -937,11 +877,7 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 
 
 COST_CODE = "cost-review-required"
-# Spend on a subscription or prepaid credit: reported, never held.
 COST_FINDING_CODE = "cost-finding"
-# A workflow that gains a secrets reference, or a new model leg, widens what
-# a credential or an agent can reach: a person's hold, which no cost decision
-# clears.
 SECRET_EXPOSURE_CODE = "secret-exposure-review"
 AGENT_SURFACE_CODE = "agent-surface-review"
 # Infrastructure as code: any change can add or resize a billed resource.
@@ -990,8 +926,6 @@ _RUNS_ON = re.compile(r"^(\s*)-?\s*runs-on\s*:\s*(.*)$")
 
 
 def _decision_record_hint() -> str:
-    """Where a cost decision's row link points: the `owner_decisions_record`
-    setting, or a note that none is set, so no decision clears the hold."""
     record = merge_settings.load().owner_decisions_record
     if not record:
         return "no owner-decisions record is set, so no decision clears this hold"
@@ -1041,15 +975,10 @@ def _runner_values(text: str) -> list[str]:
 _ENTRY = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:(?:\s+(.*))?$""")
 _FLOW_PAIR = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:\s*([^,{}]*)""")
 _BLOCK_SCALAR = re.compile(r"[|>][0-9+-]*")
-# A line whose value (a list item's too) starts a flow list or mapping.
 _FLOW_START = re.compile(r"""(?:-\s+)*(?:(['"]?)[^\s'":#{}\[\],]+\1\s*:\s+)?[\[{]""")
 
 
 def _join_flow(content: str, lines: list[str], i: int) -> tuple[str, int]:
-    """`content`, a line that starts a flow list or mapping, with the lines
-    from `lines[i]` on joined to it while that collection stays open, so a
-    list wrapped onto continuation lines reads whole; and the index after the
-    lines it took."""
     if not _FLOW_START.match(content.lstrip()):
         return content, i
     depth = sum(map(content.count, "[{")) - sum(map(content.count, "]}"))
@@ -1062,16 +991,10 @@ def _join_flow(content: str, lines: list[str], i: int) -> tuple[str, int]:
 
 
 def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
-    """(key path, value) for each mapping entry and list scalar in YAML text,
-    read from indentation: a list item's segment is its index (`[0]`), a
-    block entry's value is empty, a block scalar's lines are skipped, a flow
-    list or mapping wrapped onto continuation lines reads as one line, and a
-    flow mapping adds its pairs. Enough to place a timeout or a runner label,
-    not a YAML parser."""
     entries: list[tuple[tuple[str, ...], str]] = []
     stack: list[tuple[int, str]] = []
     items: Counter[tuple[str, ...]] = Counter()
-    scalar_at = -1  # the indent of the key whose block scalar is open
+    scalar_at = -1
     lines = text.split("\n")
     i = 0
     while i < len(lines):
@@ -1123,11 +1046,9 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
 
 
 def _flow_pairs(path: tuple[str, ...], text: str) -> list[tuple[tuple[str, ...], str]]:
-    """Each `key: value` pair of a flow mapping, its key appended to `path`."""
     return [(path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(text)]
 
 
-# A runs-on value that is one matrix key or input, as is or through fromJSON.
 _RUNNER_REF = re.compile(
     r"\$\{\{\s*(?:fromJSON\(\s*)?(matrix|inputs)\.([\w-]+)\s*\)?\s*\}\}",
     re.IGNORECASE,
@@ -1177,10 +1098,6 @@ def _free(value: str) -> bool:
 
 
 def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
-    """Runner values the change adds that are not free: from the head text
-    against the base text when both were read, with the matrix values and
-    input defaults a runs-on expression names, and from added inline runs-on
-    lines. Unread text and an added block holds."""
     base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     gained: Counter[str] = Counter()
     if isinstance(head, str):
@@ -1197,10 +1114,6 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
     return sorted({v for v in found if not (public and _free(v))})
 
 
-# The pr-pipeline.yaml lines a change may touch without moving spend: blank and
-# comment lines and a `description:` or `title:` value. Any other added or
-# removed line holds, unless the change only edits trailing comments (the same
-# lines with the comments stripped).
 _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
@@ -1239,14 +1152,10 @@ _MODEL_ACTION = re.compile(
     re.IGNORECASE,
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
-# A call to a local reusable workflow or composite action, which may start a
-# model leg of its own.
 _LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?([.$]/[^\s'\"#]+)", re.IGNORECASE)
 # A composite action's metadata, which can start a model leg outside
 # `.github/workflows/`.
 _ACTIONS = (".github/actions/**/action.yml", ".github/actions/**/action.yaml")
-# A timeout key at a line's start (a list item's too) or in a flow mapping,
-# its value a number or an expression.
 _TIMEOUT_VALUE = re.compile(
     r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?(?:leg-)?timeout-minutes['\"]?\s*:\s*"
     r"((?:\$\{\{.*?\}\}|[^,{}\[\]#])*)",
@@ -1268,7 +1177,6 @@ def is_workflow_path(path: str) -> bool:
 
 
 def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
-    """(added, removed) line texts of a unified patch, None when unreadable."""
     if not isinstance(patch, str):
         return None
     added, removed = [], []
@@ -1281,9 +1189,6 @@ def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
 
 
 def _patch_hunks(patch: str) -> list[tuple[list[str], list[str]]]:
-    """(head, base) lines of each hunk of a unified patch: its context lines
-    with its added lines on the head side and with its removed lines on the
-    base side, so each side reads as the file's own adjacent lines."""
     hunks: list[tuple[list[str], list[str]]] = [([], [])]
     for line in patch.split("\n"):
         head, base = hunks[-1]
@@ -1300,10 +1205,6 @@ def _patch_hunks(patch: str) -> list[tuple[list[str], list[str]]]:
 
 
 def _unsafe_pipeline_lines(patch: str) -> list[str]:
-    """The changed pr-pipeline.yaml lines off `_SAFE_PIPELINE_LINE`. A run of
-    removed lines and the added lines that follow it pass together only when
-    they are the same lines, in order, once trailing comments are stripped, so
-    a value moved between two places in the file still holds."""
 
     def unsafe(lines: list[str]) -> list[str]:
         return [
@@ -1377,10 +1278,6 @@ def _expressions(
 
 
 def _logical_lines(lines: list[str]) -> list[str]:
-    """`lines` with each line that leaves a `${{` expression open joined to
-    the next until it closes, so a reference split across a folded scalar
-    reads whole however many lines pad it. One still open at the end joins
-    every line after it."""
     joined: list[str] = []
     held: list[str] = []
     inside = quoted = False
@@ -1421,8 +1318,6 @@ def _secret_refs(line: str) -> list[str]:
 
 
 def _if_blocks(lines: list[str]) -> list[str]:
-    """`lines` with each `if:` block scalar joined to its more-indented lines,
-    so `_secret_refs` reads its value whole."""
     joined: list[str] = []
     indent: int | None = None
     for line in lines:
@@ -1442,8 +1337,6 @@ def _if_blocks(lines: list[str]) -> list[str]:
 def _net_added(
     find: Callable[[str], list[str]], added: list[str], removed: list[str]
 ) -> list[str]:
-    """Each match `added` gains over `removed`, so a moved or repinned line
-    is not new."""
 
     return sorted(_matches(find, added) - _matches(find, removed))
 
@@ -1457,11 +1350,6 @@ def _matches(find: Callable[[str], list[str]], lines: list[str]) -> Counter[str]
 
 
 def _patch_secret_gains(patch: str) -> list[str]:
-    """Secrets references a workflow patch's head side gains over its base
-    side, each hunk read whole with its context lines, so an expression
-    split across a changed line and a context line reads as one, and one
-    left open at a hunk's end is not joined to a later hunk's lines, where a
-    comment's apostrophe would read as an unclosed literal."""
     gained: Counter[str] = Counter()
     lost: Counter[str] = Counter()
     for head, base in _patch_hunks(patch):
@@ -1488,9 +1376,6 @@ def _timeout_values(lines: list[str]) -> list[str]:
 def _raises(
     new: list[str], old: list[str], where: str = "", ceiling: float | None = None
 ) -> list[str]:
-    """The values in `new` that raise a timeout over `old` once equal values
-    cancel: an expression, or a number above every number left in `old`, or
-    above `ceiling` when none is left."""
     gained = Counter(new) - Counter(old)
     lost = Counter(old) - Counter(new)
     top = max((int(v) for v in lost if _NUMBER.fullmatch(v)), default=ceiling)
@@ -1515,8 +1400,6 @@ def _is_timeout(path: tuple[str, ...], value: str) -> bool:
 def _timeouts(
     entries: list[tuple[tuple[str, ...], str]],
 ) -> dict[tuple[str, ...], list[str]]:
-    """Each timeout value by key path, list indices dropped so a step added
-    before another does not move its timeout."""
     found: dict[tuple[str, ...], list[str]] = {}
     for path, value in entries:
         if _is_timeout(path, value):
@@ -1530,9 +1413,6 @@ _ITEM_KEYS = frozenset({"id", "name", "uses", "run"})
 def _items(
     entries: list[tuple[tuple[str, ...], str]],
 ) -> dict[tuple[str, ...], tuple[tuple[tuple[str, str], ...], set[tuple[str, ...]]]]:
-    """Each innermost list item by its indexed path: its identity (its own
-    `id`, `name`, `uses` with its ref dropped, and `run` values) and the
-    timeout keys below it, by unindexed path."""
     ids: dict[tuple[str, ...], dict[str, str]] = {}
     keys: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
     for path, value in entries:
@@ -1550,12 +1430,6 @@ def _items(
 
 
 def _item_drops(base: list, head: list) -> Counter[tuple[str, ...]]:
-    """Timeout keys the head drops from list items it keeps, by unindexed
-    path. Items match by identity count, not index, and one counts as deleted
-    only as far as its list shrinks and its identity is gone, taken first
-    from items without the key: a step renamed, edited or moved while it
-    loses its timeout still counts, and a step shifting into a deleted one's
-    index does not."""
     lists: dict[tuple[str, ...], tuple[list, list]] = {}
     for side, entries in ((0, base), (1, head)):
         for item, found in _items(entries).items():
@@ -1590,8 +1464,6 @@ def _path_timeouts(base: str, head: str) -> list[str]:
     old, new = _timeouts(base_entries), _timeouts(head_entries)
     keys = {p for p, _ in head_entries}
     parents = {p[:i] for p in keys for i in range(len(p))}
-    # A timeout key the head drops from a job it keeps, or from a list item
-    # it keeps.
     dropped = _item_drops(base_entries, head_entries) + Counter(
         p
         for p, v in base_entries
@@ -1610,8 +1482,6 @@ def _path_timeouts(base: str, head: str) -> list[str]:
         missing = min(dropped[path], len(before) - len(after))
         if missing > 0:
             after = after + [default] * missing
-        # With none lost, a number counts above the highest already there; a
-        # key with no default set where none was is a cap, not a raise.
         numbers = [int(v) for v in before if _NUMBER.fullmatch(v)]
         ceiling = max(numbers) if numbers else None if before else math.inf
         found += _raises(after, before, ".".join(path[:-1]), ceiling)
@@ -1619,20 +1489,11 @@ def _path_timeouts(base: str, head: str) -> list[str]:
 
 
 def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str]:
-    """Timeouts raised, off a public repository, on a workflow that starts a
-    model leg, or whose head text could not be read: a value the patch adds
-    above every one it removes once equal values cancel, so one job's value
-    moved does not hide another's raise, and an added expression. On a
-    workflow that starts a model leg or calls a local workflow or action that
-    may, the head text against the base text too: each timeout raised, set to
-    an expression or removed at its own key path."""
     base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return _raises(_timeout_values(added), _timeout_values(removed))
     found: list[str] = []
     if _MODEL_ACTION_NAME.search(head):
-        # With base text to compare, the path pass below judges each number at
-        # its key path, so the line pass keeps only added expressions.
         values = _timeout_values(added)
         if isinstance(base, str) and base:
             values = [v for v in values if not _NUMBER.fullmatch(v)]
@@ -1643,10 +1504,6 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
 
 
 def _composite_model_legs(f: _File, raw: Any) -> list[str]:
-    """New model legs in a composite action's metadata, outside
-    `.github/workflows/`; with no patch to read, one may hide there, unless
-    the file is deleted, re-moded with no line added, or renamed from another
-    composite action with no line added."""
     action = [any(glob_match(g, p) for g in _ACTIONS) for p in f.paths]
     if not any(action):
         return []
@@ -1750,10 +1607,6 @@ def _on_block_keys(lines: list[str]) -> list[str]:
 
 
 def _opens_block_scalar(line: str) -> bool:
-    """Whether `line`'s value opens a block scalar: `key: |`, `- >-`,
-    `key: &a |`. The indicator ends the line, after whitespace, anchors and
-    tags that follow the line's start, a `:` or a `-`. One right-to-left pass,
-    so its time is linear in `line`."""
     body = line.rstrip()
     pos = len(body)
     while pos and body[pos - 1] in "0123456789+-":
@@ -1778,10 +1631,6 @@ def _opens_block_scalar(line: str) -> bool:
 
 
 def _strip_node_properties(text: str) -> str:
-    """`text` without the anchors and tags (`&a`, `!t`) a value may carry
-    before its scalar: the whitespace-separated words at its end that start
-    with `&` or `!` after whitespace, with the whitespace after them. One
-    right-to-left pass, so its time is linear in `text`."""
     cut = pos = len(text)
     while True:
         while pos and text[pos - 1].isspace():
@@ -1837,8 +1686,6 @@ def _uncommented(line: str, quote: str) -> tuple[str, str]:
 
 
 def _scalar_parent(line: str) -> int:
-    """The indent a block scalar opened on `line` must exceed: its key's
-    column, or a bare list item's dash."""
     rest = line.lstrip()
     dash = len(line) - len(rest)
     while rest == "-" or rest.startswith("- "):
@@ -1848,9 +1695,6 @@ def _scalar_parent(line: str) -> int:
 
 
 def _code_lines(lines: list[str]) -> list[str]:
-    """Lines with YAML comments dropped: a whole-line comment, or the text
-    from a ` #` outside a quoted scalar. A block scalar's body, and a quoted
-    scalar's lines after its first, are text, kept whole."""
     code: list[str] = []
     scalar_at: int | None = None
     quote = ""
@@ -1872,7 +1716,6 @@ def _code_lines(lines: list[str]) -> list[str]:
 
 
 def _yaml() -> Any:
-    """PyYAML, or None where it is not installed."""
     try:
         import yaml
     except ImportError:
@@ -1884,8 +1727,6 @@ _PERMISSIONS_KEY = re.compile(r"^\s*['\"]?permissions['\"]?\s*:")
 
 
 def _text_privileges(text: str | None) -> tuple[Counter[str], int, set[str]]:
-    """Without PyYAML: (write grants, `permissions:` keys, triggers) read
-    from the comment-stripped lines of workflow text."""
     lines = _code_lines(text.split("\n")) if isinstance(text, str) else []
     grants = Counter(
         re.sub(r"\s+", "", m).casefold()
@@ -1958,7 +1799,6 @@ def _workflow_privileges(text: str | None) -> tuple[_Jobs, set[str]] | None:
     except Exception:  # noqa: BLE001 - unreadable holds
         return None
     if data is None:
-        # An empty document runs nothing.
         return {}, set()
     if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
         return None
@@ -2003,11 +1843,6 @@ def _workflow_privileges(text: str | None) -> tuple[_Jobs, set[str]] | None:
 
 
 def _job_widenings(base: _Jobs, head: _Jobs) -> list[str]:
-    """`job:scope` write grants the head jobs gain over the base jobs. A head
-    job under an id the base lacks pairs with one base job the head lacks
-    whose body is the same: a rename, which gains only a scope the old id did
-    not hold. Each base job pairs once, so a copy of a job is a new job, and
-    a new job gains every scope it holds."""
     gone = [old for old in base if old not in head]
     widened: list[str] = []
     for name, (scopes, body) in sorted(head.items()):
@@ -2024,10 +1859,6 @@ def _job_widenings(base: _Jobs, head: _Jobs) -> list[str]:
 def _workflow_privilege_gains(
     f: _File, raw: Any, patch: Any
 ) -> tuple[list[str], list[str]]:
-    """(permission widenings, privileged triggers gained) of one changed
-    workflow: its base text against its head text (an added file against
-    none), and its patch's net-added lines as a backstop. Unreadable text
-    holds as a widening."""
     base_text, head_text = _read_pair(raw) or (None, None)
     if not isinstance(head_text, str) or not (
         base_text is None or isinstance(base_text, str)
@@ -2055,10 +1886,6 @@ def _workflow_privilege_gains(
 
 
 def _text_secret_gains(raw: Any) -> list[str]:
-    """Secrets references a workflow's head text gains over its base text
-    (comment-stripped), so a change with no patch, or one a cost branch
-    skips, is still read. Unread text gains nothing here: the patch check
-    and `_workflow_privilege_gains` hold it."""
     base, head = _pair(getattr(raw, "contents", None)) or (None, None)
     if not isinstance(head, str):
         return []
@@ -2071,14 +1898,6 @@ def _text_secret_gains(raw: Any) -> list[str]:
 def _cost_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
-    """`cost-review-required` (HIGH) for a change that could start a real
-    charge, unless `inp.cost_decision` names the owner decision that clears
-    it; it holds in every lane, whatever the floor switch says. Spend that
-    draws only on a subscription or prepaid credit is `cost-finding` (MED),
-    reported and never held (cost is not a stop, only a real new charge is).
-    A net-new secrets reference (`secret-exposure-review`) or model leg
-    (`agent-surface-review`) is a security change, HIGH and a person's, which
-    the cost decision does not clear."""
     charges, spends, secrets, agents = [], [], [], []
     widenings: list[str] = []
     privileged: list[str] = []
@@ -2086,8 +1905,6 @@ def _cost_reasons(
     for f, raw in zip(files, raw_files):
         patch = getattr(raw, "patch", None)
         workflow = any(is_workflow_path(p) for p in f.paths)
-        # Before any branch below can skip the file: no cost decision clears
-        # a widening.
         if f.status != "removed" and workflow:
             widened, triggers = _workflow_privilege_gains(f, raw, patch)
             if widened:
@@ -2251,7 +2068,6 @@ def _size_reasons(
         )
     elif cap is not None and len(files) > cap:
         reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
-    # A path listed twice holds when either entry does.
     unread: dict[str, str | None] = {}
     for f, raw in zip(files, raw_files):
         if f.has_patch is False:
@@ -2334,8 +2150,6 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(
                 Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
             )
-            # A blocking finding the lane did report holds whether or not its
-            # evidence binds to the head.
             if name == _HOLDING_LANE and _is_count(count) and count > 0:
                 detail = f"{count} open, evidence unbound"
                 reasons.append(Reason(finding_code, finding_severity, detail))
@@ -2360,8 +2174,6 @@ def _score(inp: RiskInput) -> RiskResult:
     raw_files = _sequence(inp.files)
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
     checked, raws = files or [], list(raw_files or ())
-    # Each producer emits a code at most once, and the only code two of them
-    # could share (high-path:**) is refused as a configured glob.
     paths = _high_path_reasons(inp, checked, raws)
     skipped = (
         [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
@@ -2388,8 +2200,6 @@ def is_path_hold(reason: Reason) -> bool:
     )
 
 
-# MED reasons an unattended merge passes: the diff's size and the review and
-# cost findings that are reported only.
 MERGEABLE_MED = frozenset(
     {
         "lines-over",

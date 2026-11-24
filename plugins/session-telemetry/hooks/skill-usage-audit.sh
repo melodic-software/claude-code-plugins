@@ -16,9 +16,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
 # Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
 # subshell for every command substitution even when the body is a builtin

@@ -25,8 +25,8 @@ prereq.require(['numpy', 'opencv'])
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
-DUP_PX = 50                 # at CAL_SIZE; is_repeat scales it by each frame's area
-CAL_SIZE = (1762, 982)      # the shfred0 frame every pixel count here and in extract.py was tuned on
+DUP_PX = 50
+CAL_SIZE = (1762, 982)
 MID = 16
 TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']
 

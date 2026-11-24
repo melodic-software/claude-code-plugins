@@ -77,7 +77,6 @@ CREATE OR REPLACE MACRO cc_attr_entries(attrs) AS list_transform(attrs, lambda e
 CREATE OR REPLACE MACRO cc_attr_map(entries) AS map_from_entries(
   CASE WHEN len(list_distinct(list_transform(entries, lambda y: y.key))) = len(entries) THEN entries
        ELSE list_filter(entries, lambda x, i: list_position(list_transform(entries, lambda y: y.key), x.key) = i) END);
--- Scalar read: whichever value sub-key the attribute arrived in, as VARCHAR.
 CREATE OR REPLACE MACRO cc_attr(a, k) AS COALESCE(
   json_extract_string(a[k], '$.stringValue'), json_extract_string(a[k], '$.intValue'),
   json_extract_string(a[k], '$.doubleValue'), json_extract_string(a[k], '$.boolValue'));
@@ -506,7 +505,6 @@ SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS span_attributes_
 FROM cc_spans_from(
   COALESCE(NULLIF(getenv('CC_OTEL_STORE'), ''), '.claude/observability/otel') || '/cc-traces.json');
 
--- One row per trace_id — root interaction metadata + span counts for quick scans.
 CREATE OR REPLACE VIEW cc_traces AS
 SELECT
   trace_id,

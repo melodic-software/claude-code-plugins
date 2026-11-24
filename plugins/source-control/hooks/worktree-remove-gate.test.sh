@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-remove-gate.sh (WorktreeRemove hook).
-# Black-box: feed the hook a WorktreeRemove payload against throwaway git
-# fixtures, with a stubbed `claude` on PATH that keeps install records in a JSON
-# file, so the reap runs through reap-project-plugin-records.sh unchanged.
-# No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -116,14 +111,11 @@ OTHER="$TEST_TMPDIR/other"
 mkdir -p "$OTHER"
 OTHER_NATIVE="$(native_of "$OTHER")"
 
-# mkwt <name> — a linked worktree of REPO on a new branch <name>, outside the
-# repository; prints its native path.
 mkwt() {
   git -C "$REPO" worktree add -q -b "$1" "$TEST_TMPDIR/wt-$1" >/dev/null 2>&1
   native_of "$TEST_TMPDIR/wt-$1"
 }
 
-# seed <path> — a project and a local record for <path>, and one for OTHER.
 seed() {
   jq -n --arg p "$1" --arg o "$OTHER_NATIVE" '[
     {id: "alpha@m", scope: "project", projectPath: $p},
@@ -168,11 +160,6 @@ assert_contains "the reap ran the project-scope uninstall" "$(cat "$LOG")" "plug
 assert_contains "the reap ran the local-scope uninstall" "$(cat "$LOG")" "plugin uninstall beta@m -s local --keep-data"
 git -C "$REPO" rev-parse --verify -q refs/heads/clean >/dev/null 2>&1
 assert_exit "the branch is kept" 0 "$?"
-
-# --------------------------------------------------------------------------
-# The uninstall rewrites the tracked .claude/settings.json: the reap restores
-# it from git, so the plain removal after it still succeeds
-# --------------------------------------------------------------------------
 
 WT_SETTINGS="$(mkwt settings)"
 {
@@ -242,10 +229,6 @@ assert_eq "the foreign-locked worktree stays" "present" "$(on_disk "$WT_FOREIGN"
 assert_eq "nothing is reaped under a foreign lock" "2" "$(records_for "$WT_FOREIGN")"
 assert_contains "the lock stays armed" "$(git -C "$REPO" worktree list --porcelain)" "session s10 since"
 
-# --------------------------------------------------------------------------
-# A detached HEAD holding commits nothing else holds
-# --------------------------------------------------------------------------
-
 WT_DETACHED="$(mkwt detached)"
 {
   git -C "$WT_DETACHED" checkout -q --detach
@@ -264,10 +247,6 @@ seed "$WT_HELD"
 run_hook "$(payload "$WT_HELD")"
 assert_exit "a detached HEAD whose commits a branch holds is removed" 0 "$RC"
 assert_eq "the held detached worktree is gone" "absent" "$(on_disk "$WT_HELD")"
-
-# --------------------------------------------------------------------------
-# State git status cannot see: an operation in progress, submodules
-# --------------------------------------------------------------------------
 
 WT_REBASE="$(mkwt rebase)"
 mkdir -p "$(git -C "$WT_REBASE" rev-parse --absolute-git-dir)/rebase-merge"

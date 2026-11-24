@@ -6,7 +6,7 @@ graders:
   - name: ran-syllable-count
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:datamuse\.sh(?:\\")?\s+syllables\b|\b([A-Za-z_]\w*)=(?:\\"|'')?[^\s"'';\\]*datamuse\.sh(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\bdo|\bthen)\s*(?:(?:bash|sh|zsh)\s+)?(?:\\")?\$\{?\1\}?(?:\\")?\s+syllables\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:datamuse\.sh(?:\\")?\s+syllables\b|\b([A-Za-z_]\w*)=(?:\\"|'')?[^\s"'';\\]*datamuse\.sh(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\bdo|\bthen)\s*(?:(?:timeout\s+\S+|env|command|exec|time|nice)\s+)*(?:(?:bash|sh|zsh)\s+)?(?:\\")?\$\{?\1\}?(?:\\")?\s+syllables\b)'
     min: 1
   - name: identity-flagged
     type: llm
