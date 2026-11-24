@@ -1,5 +1,5 @@
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py
-# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py
 """The verdict reader's index mode (`babysit_verify_evidence.Reader._targeted`).
 
 Expected values come from the module docstring's FAIL rules and
