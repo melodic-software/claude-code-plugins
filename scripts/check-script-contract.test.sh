@@ -95,6 +95,7 @@ REGISTRY=(
   "check-fixture-git-isolation.sh|-|-|-"
   "check-fleet-audit-doc-grammar.sh|-|-|-"
   "check-fleet-finding-test-coverage.sh|-|-|-"
+  "check-git-hook-time-budget.sh|-|-|-"
   "check-guardrails-ps-differential.sh|jq|-|-"
   "check-hook-exec-form.sh|jq|-|hook_exec_form"
   "check-exec-form-windows-probe.sh|jq|-|exec_form_windows_probe"

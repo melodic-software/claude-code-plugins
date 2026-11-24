@@ -450,9 +450,13 @@ Caveats:
 
 ## Duration budgets
 
-Each row is measured on the host named in its row. Other hosts re-measure; CI does not enforce
-durations ([hook-budget](../hook-budget/README.md) enforces counts). Placement shipped by this
-marketplace comes from these rows.
+Each row is measured on the host named in its row. Other hosts re-measure. When a change touches
+a git-hook config or a script a hook entry calls, CI times every shipped `pre-commit` and
+`pre-push` entry on a fixed fixture and fails a hook over its budget
+(`scripts/check-git-hook-time-budget.sh`, ADR 0072 addendum 2026-11-24); Claude Code hooks keep
+count budgets ([hook-budget](../hook-budget/README.md)). Placement shipped by this marketplace
+comes from these rows. A hook over or near its budget follows the "Over or near budget" order in
+[ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md#addendum-2026-11-24-ci-times-the-git-hooks).
 
 | Budget | Value | Basis |
 |---|---|---|
