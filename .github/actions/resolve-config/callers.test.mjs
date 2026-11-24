@@ -9917,12 +9917,6 @@ test("no caller of a lane runner caps its cache below read", () => {
   }
 });
 
-// A resolve-issue call that waited in its slot past a lane workflow change
-// stops at `Stop on stale workflow files` before any model turn.
-// resolve-issue-stale reads that step from this run's jobs listing, never a
-// call output, and report-outcome then re-fires the issue at once
-// (report-outcome.mjs refireStale) instead of leaving it to work-unblock's
-// hourly sweep.
 const STALE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
 const staleContext = ({ started = "false", reuse = "", stale = "" } = {}) => {
   const context = {
