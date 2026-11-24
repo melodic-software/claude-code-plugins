@@ -50,23 +50,30 @@ class CompareRefusedTest(unittest.TestCase):
         text = path.read_text(encoding="utf-8").replace("carefully", "strictly")
         path.write_text(text, encoding="utf-8")
 
-    def test_readme_beside_skill_change_is_refused(self):
+    def test_hooks_file_beside_skill_change_is_refused(self):
         self._edit_skill_body()
-        _write(self.repo, "plugins/alpha/README.md", "# Alpha\n")
-        _commit_all(self.repo, "skill and readme")
+        _write(self.repo, "plugins/alpha/hooks/hooks.json", "{}\n")
+        _commit_all(self.repo, "skill and hooks")
 
+        refusal = "plugins/alpha/hooks/hooks.json: outside skills/, agents/, context/, evals/, reference/ and README.md"
         res = _run_select(self.repo)
         self.assertEqual(0, res.returncode, res.stderr)
         line = _parse_blocks(res.stdout)["plugins/alpha"]["compare-refused"]
-        self.assertIn("plugins/alpha/README.md: outside skills/, agents/, context/ and evals/", line)
+        self.assertIn(refusal, line)
         self.assertIn("suite run on the default branch after merge", line)
         self.assertNotIn("SKILL.md", line)
 
         data = json.loads(_run_select(self.repo, as_json=True).stdout)
-        self.assertEqual(
-            ["plugins/alpha/README.md: outside skills/, agents/, context/ and evals/"],
-            data["plugins/alpha"]["compare-refused"],
-        )
+        self.assertEqual([refusal], data["plugins/alpha"]["compare-refused"])
+
+    def test_readme_and_reference_beside_skill_change_are_not_refused(self):
+        self._edit_skill_body()
+        _write(self.repo, "plugins/alpha/README.md", "# Alpha\n")
+        _write(self.repo, "plugins/alpha/reference/notes.md", "Notes.\n")
+        _commit_all(self.repo, "skill, readme and reference")
+
+        data = json.loads(_run_select(self.repo, as_json=True).stdout)
+        self.assertEqual([], data["plugins/alpha"]["compare-refused"])
 
     def test_script_under_skills_is_refused(self):
         path = self.repo / "plugins/alpha/skills/one/scripts/tool.py"
