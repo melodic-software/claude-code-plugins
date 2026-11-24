@@ -8,4 +8,4 @@ bump: major
 
 ### Changed
 
-- `/multi-agent:route vendors` fetches, and dispatches a board reader for, only registry rows that can lead (`status` not `support-only`, `provider_own` false). Support-only and provider-own rows are still fetched while trials are active, because their records seed trial candidates. A skipped row is listed in the decision's sources as `not-read` with its link. Registry rechecks (`/multi-agent:audit-defaults registry`) are unchanged.
+- `/multi-agent:route vendors` fetches, and dispatches a board reader for, only registry rows that can lead (`status` not `support-only`, `provider_own` false). A skipped row is listed in the decision's sources as `not-read` with its link. Registry rechecks (`/multi-agent:audit-defaults registry`) are unchanged.
