@@ -122,10 +122,14 @@ export function selectProvenOutcome({
   gatedVendors = new Set(),
   effectiveVendorOrder,
   taskType,
+  taskClass = 'everyday',
+  heavyEffort = new Map(),
   notes,
 }) {
-  const eligibleProven = provenOutcomes.filter((o) =>
-    isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType, gatedVendors),
+  const eligibleProven = provenOutcomes.filter(
+    (o) =>
+      isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType, gatedVendors) &&
+      (taskClass !== 'heavy' || coversHeavy(o.key, modelsByVendor.get(o.key.vendor), heavyEffort.get(o.key.vendor))),
   )
   if (eligibleProven.length === 0) return null
 
@@ -198,6 +202,11 @@ export function selectActiveTrial({
     notes.push(`all candidate pairs failed trial for ${taskType}; keeping default claude`)
   }
   return null
+}
+
+function coversHeavy(key, vInfo, documented) {
+  const needed = trialEffort(vInfo, vInfo.idCanonical.get(key.model.toLowerCase()) || key.model, 'heavy', documented)
+  return EFFORT_LADDER.indexOf(key.effort) >= EFFORT_LADDER.indexOf(needed)
 }
 
 function trialEffort(vInfo, model, taskClass, documented) {

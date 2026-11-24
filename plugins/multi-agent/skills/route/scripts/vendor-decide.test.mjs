@@ -775,6 +775,31 @@ test('a heavy trial runs one step above the default, or the level --heavy-effort
   assert.equal(trial(['--heavy-effort', 'codex=xhigh']).effort, 'medium', 'an everyday trial ignores --heavy-effort')
 })
 
+test('a pair proven at the everyday effort routes everyday tasks but not heavy ones, which trial at the heavy effort', (t) => {
+  const stateDir = seedOutcome(t, [
+    {
+      key: { vendor: 'codex', model: 'sparrow-1', version: null, effort: 'medium', work_type: 'coding' },
+      result: 'proven',
+      at: '2026-11-22T00:00:00.000Z',
+    },
+  ])
+  const decide = (extraArgs) =>
+    makeFixture(t, {
+      registry: { version: 1, rows: [row('board-a')] },
+      manifest: { boards: [boardEntry('board-a')] },
+      records: [],
+      stateDir,
+      settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
+      extraArgs: ['--task-type', 'coding', ...extraArgs],
+    }).json
+  const everyday = decide([])
+  assert.equal(everyday.basis, 'proven')
+  assert.equal(everyday.effort, 'medium')
+  const heavy = decide(['--task-class', 'heavy'])
+  assert.equal(heavy.basis, 'trial')
+  assert.equal(heavy.effort, 'high')
+})
+
 test('security: board-reader findings text is never copied to stdout; fixed note emitted per source', (t) => {
   const res = makeFixture(t, {
     registry: { version: 1, rows: [row('board-a')] },
