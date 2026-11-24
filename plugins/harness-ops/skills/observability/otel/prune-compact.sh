@@ -36,7 +36,6 @@ cold_stub_macro() { case "$1" in cc-logs) printf cc_logs_cold_stub ;; cc-traces)
 cold_content_cols() { case "$1" in cc-logs) printf '%s' "$COLD_LOG_CONTENT_COLS" ;; cc-traces) printf '%s' "$COLD_SPAN_CONTENT_COLS" ;; *) printf '%s' "$COLD_METRIC_CONTENT_COLS" ;; esac }
 cold_content_keys() { case "$1" in cc-logs) printf '%s' "$COLD_LOG_CONTENT_KEYS" ;; cc-traces) printf '%s' "$COLD_SPAN_CONTENT_KEYS" ;; *) printf '%s' "$COLD_METRIC_CONTENT_KEYS" ;; esac }
 
-# Attribute keys the switches in effect scrub from the raw column (SQL list items, or empty).
 cold_scrub_keys() {
   local kind="$1" keys=""
   if ! keep_prompts; then
@@ -159,8 +158,6 @@ compact_dropped() {
     n=$((n + 1))
   done
   local cold_tmp="$cold_file.tmp"
-  # A keep-on compaction writes prompt content to cold, voiding the clean marker. Removed
-  # before the write so a crash after it never leaves a stale marker.
   if keep_prompts && [[ "$base" != cc-metrics ]]; then
     rm -f "$cold_dir/$COLD_CLEAN_MARKER"
   fi
@@ -205,7 +202,6 @@ compact_dropped() {
       return 1
     fi
   fi
-  # Whatever produced the cold temp (duckdb or seam), it must exist before the promote.
   if [[ ! -f "$cold_tmp" ]]; then
     return 1
   fi
@@ -239,9 +235,6 @@ cold_dirty_predicate() {
   printf '%s' "COALESCE(list_has_any(json_extract_string($raw, '\$[*].key'), [$keys]), false)${pred:+ OR $pred}"
 }
 
-# The compaction scrub under the switches in effect, re-applied to an existing cold file
-# (SQL-literal path). Every other column passes through unchanged. The file is read under the
-# current column contract, so a rewritten file gains any column promoted since it was written.
 cold_scrub_select() {
   local kind="$1" src_sql="$2" raw keys replace
   raw="$(cold_raw_col "$kind")"
@@ -280,7 +273,6 @@ cold_glob_counts() {
   duckdb_cold_read "$cold_dir/$kind-*.parquet" "$cold_dir" -list -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" "$scope")), parse_filename(filename) FROM $(cold_rows_sql "$kind" "$(sql_path "$cold_dir")/$kind-*.parquet" ", filename = true") GROUP BY filename ORDER BY filename;"
 }
 
-# Count cold files holding prompt content (one duckdb call per kind).
 cold_dirty_file_count() {
   local cold_dir="$1" kind counts rows dirty name n=0
   for kind in cc-logs cc-traces; do
@@ -292,7 +284,6 @@ cold_dirty_file_count() {
   printf '%s\n' "$n"
 }
 
-# Sorted cold file set; the clean marker is written only if it still matches the clean scan.
 cold_snapshot() {
   {
     compgen -G "$1/cc-logs-*.parquet" || true
@@ -306,9 +297,6 @@ cold_snapshot() {
 readonly COLD_CLEAN_MARKER=.prompt-scrub-clean
 COLD_CLEAN_SNAPSHOT=""
 
-# One-line notice when cold files still hold prompt content. Detection only, best-effort:
-# silent with the keep knob on, with the clean marker present, without duckdb, or when the
-# scan fails. A clean scan records the cold file set for mark_cold_clean.
 cold_prompt_notice() {
   local cold_dir="$1/cold" snapshot dirty_files
   COLD_CLEAN_SNAPSHOT=""
@@ -324,8 +312,6 @@ cold_prompt_notice() {
   fi
 }
 
-# Under the sentinel: write the clean marker when the earlier scan was clean and no cold file
-# has appeared or gone since (a prune that ran between the scan and the lock voids the scan).
 mark_cold_clean() {
   local cold_dir="$1/cold"
   [[ -n "$COLD_CLEAN_SNAPSHOT" ]] || return 0
@@ -334,9 +320,6 @@ mark_cold_clean() {
   : >"$cold_dir/$COLD_CLEAN_MARKER"
 }
 
-# mark_cold_clean outside the prune's own lock hold: take the sentinel just long enough to
-# write the marker. A held sentinel skips silently, as does an absent cold/ (nothing to scan,
-# and a run that trims nothing must not create the directory).
 mark_cold_clean_briefly() {
   local store_dir="$1"
   [[ -n "$COLD_CLEAN_SNAPSHOT" && -d "$store_dir/cold" ]] || return 0
@@ -394,7 +377,6 @@ scrub_cold() {
   if [[ "$dry_run" == true ]]; then
     printf 'action=dry-run-scrub-cold affected_files=%s\n' "$affected"
   else
-    # The marker asserts no prompt content; a run that kept prompts cannot write it.
     if ! keep_prompts; then
       mkdir -p "$cold_dir"
       : >"$cold_dir/$COLD_CLEAN_MARKER"
