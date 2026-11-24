@@ -756,6 +756,25 @@ test('a trial runs the first listed model at its default effort, not the model a
   assert.equal(res.json.effort, 'medium')
 })
 
+test('a heavy trial runs one step above the default, or the level --heavy-effort names when the CLI accepts it and it is not below the default', (t) => {
+  const trial = (extraArgs) =>
+    makeFixture(t, {
+      registry: { version: 1, rows: [row('board-a')] },
+      manifest: { boards: [boardEntry('board-a')] },
+      records: [],
+      settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
+      extraArgs: ['--task-type', 'coding', ...extraArgs],
+    }).json
+  const everyday = trial([])
+  assert.equal(everyday.basis, 'trial')
+  assert.equal(everyday.effort, 'medium')
+  assert.equal(trial(['--task-class', 'heavy']).effort, 'high')
+  assert.equal(trial(['--task-class', 'heavy', '--heavy-effort', 'codex=xhigh']).effort, 'xhigh')
+  assert.equal(trial(['--task-class', 'heavy', '--heavy-effort', 'codex=max']).effort, 'high', 'a level the CLI does not list falls back')
+  assert.equal(trial(['--task-class', 'heavy', '--heavy-effort', 'codex=low']).effort, 'high', 'a level below the default falls back')
+  assert.equal(trial(['--heavy-effort', 'codex=xhigh']).effort, 'medium', 'an everyday trial ignores --heavy-effort')
+})
+
 test('security: board-reader findings text is never copied to stdout; fixed note emitted per source', (t) => {
   const res = makeFixture(t, {
     registry: { version: 1, rows: [row('board-a')] },

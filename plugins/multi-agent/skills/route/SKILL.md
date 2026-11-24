@@ -104,6 +104,12 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>] --records <source_id>=<tmp-dir>/records-<source_id>.json
    ```
 
+   For a heavy task while trials are active, read each candidate vendor's own effort guidance
+   from the `docs_index` its `external-agents models` output names, through `/discovery:read-docs`
+   (if enabled; otherwise the shared docs cache). When it gives a level for this kind of task, add
+   `--heavy-effort <vendor>=<level>` to the command above and cite that page section in step 7's
+   reason. Without such guidance, the trial runs one step above the model's default effort.
+
 7. Print the recommendation and per-vendor lines grounded in `vendor-decide`'s Decision JSON,
    Claude first. When `Decision.basis` is `routing-off`, print the routing-off note and recommend
    nothing. When `Decision.basis` is `user-choice` (every capable vendor failed its trial) or
