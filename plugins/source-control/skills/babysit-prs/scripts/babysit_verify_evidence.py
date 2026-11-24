@@ -2008,6 +2008,7 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    baseline_file: str | None = None
     # The oldest listing a judgment uses; None (`evidence --shared-listing`)
     # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
@@ -5367,7 +5368,9 @@ class Reader:
             pr = merge_policy.pull_request(self.repo, number)
         except merge_policy.PolicyReadError:
             return UNREADABLE
-        if dependency_bot(pr.get("user")):
+        if dependency_bot(pr.get("user")) or _native_baseline(
+            self.repo, pr, self.agent_identity, self.baseline_file
+        ):
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         refusal = self.evidence(number, head, pr).refusal
