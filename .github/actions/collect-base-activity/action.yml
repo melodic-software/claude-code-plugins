@@ -160,6 +160,12 @@ runs:
           mkdir -p "$RUNNER_TEMP/pr-merge"
           cp "$BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs" "$RUNNER_TEMP/pr-merge/"
         fi
+        # The CDN path list apply-dependency-verdict.mjs and cdn-pins-sync.mjs
+        # import as ../apply-patch/cdn-paths.mjs.
+        if [[ -f $BASE_PATH/.github/scripts/apply-patch/cdn-paths.mjs ]]; then
+          mkdir -p "$RUNNER_TEMP/apply-patch"
+          cp "$BASE_PATH/.github/scripts/apply-patch/cdn-paths.mjs" "$RUNNER_TEMP/apply-patch/"
+        fi
 
     - name: Stage the base marketplace and the skill prompt
       id: skill
