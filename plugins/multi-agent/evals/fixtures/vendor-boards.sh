@@ -11,10 +11,10 @@ all-read | one-unread) ;;
 esac
 
 today="$(date -u +%Y-%m-%d)"
-mkdir -p eval-fixtures/boards/www-tbench-ai eval-fixtures/cache
+mkdir -p eval-fixtures/boards eval-fixtures/cache
 
 if [[ "$mode" == all-read ]]; then
-  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<EOF
+  cat >eval-fixtures/boards/www-tbench-ai.md <<EOF
 # Terminal-Bench Leaderboard
 
 Updated: ${today}
@@ -52,7 +52,7 @@ Last updated: ${today}
 | finch-1 | 1416 | +/- 12 |
 EOF
 else
-  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<EOF
+  cat >eval-fixtures/boards/www-tbench-ai.md <<EOF
 # Terminal-Bench Leaderboard
 
 Updated: ${today}
