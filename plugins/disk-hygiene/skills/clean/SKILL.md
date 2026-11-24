@@ -77,9 +77,9 @@ invalid; scan a non-OS target with or without the flag. `root-children-selection
 and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
 blocked target, 3 when elevation is needed or filesystem state could not be verified.
 
-- Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
+- Invoke `/repo-hygiene:clean` (if enabled) via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking
-  `/source-control:worktree status`/`cleanup` via the Skill tool (if enabled), run from the checkout's own main
+  `/source-control:worktree` (if enabled) `status` or `cleanup` via the Skill tool, run from the checkout's own main
   repository, those actions manage the current repository's worktrees and take no target path. The
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the
@@ -273,7 +273,7 @@ module name. The file's entry carries a `stdlib-module-shadow` advisory, and the
 advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
 renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
-For each hinted or suspicious entry, and each entry the catalog lists as `uncataloged`, first run the required local procedure in [ownership investigation](reference/ownership-investigation.md) (its sources, how evidence is recorded, and the `/discovery:research` escalation when no owner is found).
+For each hinted or suspicious entry, and each entry the catalog lists as `uncataloged`, first run the required local procedure in [ownership investigation](reference/ownership-investigation.md) (its sources, how evidence is recorded, and the `/discovery:research` (if enabled) escalation when no owner is found).
 Then inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning

@@ -3,6 +3,14 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.5] - 2026-11-24
+
+### Changed
+
+- The vendor-routing audit names the lyric revision skill `/songwriting:revise`.
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
 ## [3.6.4] - 2026-11-24
 
 ### Fixed

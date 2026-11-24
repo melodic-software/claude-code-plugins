@@ -60,8 +60,8 @@ Run them in order: steps 2 and 3 can end the run with no code, and that is a cor
 5. **Look up what you do not know** about animating in that stack, first rung that answers:
    1. a platform vendor's own skill for the detected stack, when one is enabled: invoke it with
       the Skill tool;
-   2. `/context7:lookup` when enabled, for the stack's or library's current docs;
-   3. `/discovery:research` when enabled, for a question across sources;
+   2. `/context7:lookup` (if enabled), for the stack's or library's current docs;
+   3. `/discovery:research` (if enabled), for a question across sources;
    4. the stack's official documentation with WebFetch;
    5. the patterns already in the repository.
 

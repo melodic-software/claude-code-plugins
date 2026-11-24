@@ -66,7 +66,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status: ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed and delegable. Eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `needs-reporter-info` (returns to raw when the reporter replies), `needs-owner-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+Side exits from any state: `needs-reporter-info` (returns to raw when the reporter replies), `needs-owner-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview` (if enabled), step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
 The `status:` axis holds one value at a time: the edit that applies a `status:`
 value removes every other `status:` label on the item. So `status: ready`, applied in the edit that
@@ -372,7 +372,7 @@ Read the item body, comments, and any linked PRs, plus the diff when the item is
 touches, and before any check below, read three things the repository may keep, so the evaluation
 uses its terms and respects its decisions:
 
-- its **glossary** or ubiquitous-language file: invoke `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when that skill is available, otherwise search for it (such as `docs/glossary.md`);
+- its **glossary** or ubiquitous-language file: invoke `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool, otherwise search for it (such as `docs/glossary.md`);
 - the **ADRs** covering the item's area (such as those under `docs/adr/` whose subject is the
   plugin, module or concept the item touches);
 - its **scope statement**: what the project is for and what it leaves out (a README section or a
@@ -396,15 +396,15 @@ something to build but states no problem it solves, no person or workflow it ser
 outcome that would show it worked. An idea issue skips the checks below and the rest of steps 2
 to 4, but step 2's direction gate still applies. Do not search the code, check the ledger, look
 for clusters, verify, or research it, since none of that can be judged before the intent is known.
-Instead, route it to `/planning:interview`. Once the direction gate is met, run the preflight on
+Instead, route it to `/planning:interview` (if enabled). Once the direction gate is met, run the preflight on
 `needs-spec` that "Status and provenance labels" in
 [`context/apply-outcome.md`](context/apply-outcome.md) defines. Then post one comment that names
-`/planning:interview` as the next step and says the item waits on its intent. If the comment
+`/planning:interview` (if enabled) as the next step and says the item waits on its intent. If the comment
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
 marker. Set no priority and apply no `status:` or role label, except that a signal-marked idea
 issue also gets `provenance: signal` and `provenance: untrusted` (`provenance: signal`
 alone in a lane that may not write `provenance: untrusted`), and never the human-gated role label. In an
-interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
+interactive session, offer to run `/planning:interview` (if enabled) on the item now. A lane does not run it.
 Once an interview records the item's intent, return it to raw in one label edit that removes
 `needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is
 stated, however briefly, is not an idea issue and takes the checks below.
@@ -461,7 +461,7 @@ as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the rec
 raw marker stays on the item until step 5 replaces it, so a pass that stops here leaves the item in
 the attention view with its evidence already posted.
 
-**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write` (if the `bugs` plugin is enabled; otherwise shape it inline into a title, steps to reproduce, expected vs actual, severity and suggested fix location, and say once that the `bugs` plugin would add its targeted questions and severity rubric); one missing facts only the reporter holds still takes `needs-reporter-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug` (if enabled), or `/testing:fix-failing diagnose` (if enabled) when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write` (if enabled) (otherwise shape it inline into a title, steps to reproduce, expected vs actual, severity and suggested fix location, and say once that the `bugs` plugin would add its targeted questions and severity rubric). One missing facts only the reporter holds still takes `needs-reporter-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
 
 ### 4. Interview (if needed)
 

@@ -60,7 +60,8 @@ beforeEach(() => {
   root = join(dir, "repo");
   stubs = join(dir, "stubs");
   log = join(dir, "calls.log");
-  mkdirSync(join(root, ".github/standards/runner-policy"), { recursive: true });
+  mkdirSync(join(root, "scripts/ci-deps"), { recursive: true });
+  mkdirSync(join(root, ".github"));
   mkdirSync(stubs);
   // A version no real interpreter has, so only the stub can match it.
   writeFileSync(join(root, ".python-version"), "3.99\n");
@@ -70,7 +71,7 @@ beforeEach(() => {
   );
   writeFileSync(join(root, "package-lock.json"), '{"v":1}\n');
   writeFileSync(
-    join(root, ".github/standards/runner-policy/package-lock.json"),
+    join(root, "scripts/ci-deps/package-lock.json"),
     '{"v":2}\n',
   );
   stub(
@@ -129,7 +130,7 @@ test("a first run installs the pinned wheels into a venv and runs npm ci in both
     `python3.99 -I -m venv --clear ${root}/.work/venv`,
     "venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
     "npm ci --no-audit --no-fund --prefix .",
-    "npm ci --no-audit --no-fund --prefix .github/standards/runner-policy",
+    "npm ci --no-audit --no-fund --prefix scripts/ci-deps",
   ]);
 });
 
@@ -138,7 +139,7 @@ test("--node runs only the Node step, and skips a current install", () => {
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.calls, [
     "npm ci --no-audit --no-fund --prefix .",
-    "npm ci --no-audit --no-fund --prefix .github/standards/runner-policy",
+    "npm ci --no-audit --no-fund --prefix scripts/ci-deps",
   ]);
   assert.match(
     r.stdout,

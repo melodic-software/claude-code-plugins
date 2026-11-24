@@ -60,7 +60,7 @@ sections:
 [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source)).
 Ladder:
 
-1. The skills index from `/harness-ops:inventory`, if that plugin is enabled: invoke it via the
+1. The skills index from `/harness-ops:inventory` (if enabled): invoke it via the
    Skill tool, asking for its Skills index (`--skills-index`) on stdout, with `--exclude` only
    when the exclude setting below names states. It
    prints one JSON record per skill from its frontmatter, `enabled`, `disabled` and
@@ -185,7 +185,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
   menu, or, in question mode, the skill for a task you state.
 - **`/session-flow:orient`** reports *where you stand* and deliberately prescribes nothing. This
   skill consumes that position rather than restating it.
-- **`/discipline:use-your-skills`** corrects the **model's** drift, a skill it should have fired and
+- **`/discipline:use-your-skills` (if enabled)** corrects the **model's** drift, a skill it should have fired and
   did not. This addresses the **human's** awareness. Different subject entirely.
 - **The handoff document's "Suggested skills" section** already recommends fully-qualified skills tied to
   remaining work. That is a durable artifact written for a cold reader resuming later; this is a live

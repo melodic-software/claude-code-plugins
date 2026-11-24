@@ -9,7 +9,8 @@ import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
 import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
-import { appCloseKind, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
+import { appCloseKind, isTrustedClose } from "./close-trust.mjs";
+import { loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2570,10 +2571,23 @@ const RUN_DISPATCHER = {
 const runRecord = (name = `pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}`) =>
   listing(record({ name }));
 
-function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), ...rest } = {}) {
+const dispatcherJobsRoute = `${dispatcherRoute}/jobs?per_page=100`;
+const CAPTURED_JOBS = fixture("api-run-dispatcher-jobs.json");
+const capturedJob = (name) => CAPTURED_JOBS.jobs.find((job) => job.name === name);
+const dispatchJob = (overrides = {}) => ({
+  ...capturedJob("Dispatch"),
+  run_id: Number(DISPATCHER_RUN_ID),
+  started_at: "2026-10-11T12:00:10Z",
+  ...overrides,
+});
+const otherJob = (overrides = {}) => ({ ...capturedJob("Post Verify Notes"), run_id: Number(DISPATCHER_RUN_ID), ...overrides });
+const jobsListing = (...jobs) => ({ total_count: jobs.length, jobs });
+
+function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), jobs = jobsListing(dispatchJob()), ...rest } = {}) {
   return {
     ...dispatcherRoutes({ dispatcher: { ...RUN_DISPATCHER, ...dispatcher }, artifacts, ...rest }),
     [upstreamRoute]: upstream instanceof GitHubError ? upstream : { ...UPSTREAM, ...upstream },
+    [dispatcherJobsRoute]: jobs,
   };
 }
 
@@ -2590,6 +2604,75 @@ test("workflow_run dispatcher: a review run at the PR head proceeds and reads th
   assert.deepEqual(await runDispatched({ github }), PROCEED);
   assert.ok(github.calls.includes(upstreamRoute));
   assert.ok(github.calls.includes(compareRoute));
+});
+
+const QUEUED_JOB = jobsListing(
+  otherJob({ started_at: "2026-10-11T12:00:06Z" }),
+  dispatchJob({ started_at: "2026-10-11T12:10:26Z" }),
+);
+const queuedRoutes = ({ created, updated = "2026-10-11T12:30:00Z", jobs = QUEUED_JOB }) =>
+  runDispatcherRoutes({ dispatcher: { status: "completed", updated_at: updated }, self: { created_at: created }, jobs });
+
+test("workflow_run dispatcher: the window runs from the Dispatch job's start, so a runner wait does not count", async () => {
+  const github = fakeGitHub(queuedRoutes({ created: "2026-10-11T12:11:08Z" }));
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(dispatcherJobsRoute));
+});
+
+test("workflow_run dispatcher: the captured jobs listing of a run whose Dispatch job queued 10m22s proceeds", async () => {
+  const jobs = jobsListing(...CAPTURED_JOBS.jobs.map((job) => ({ ...job, run_id: Number(DISPATCHER_RUN_ID) })));
+  const github = fakeGitHub(
+    runDispatcherRoutes({
+      dispatcher: { status: "completed", created_at: "2026-11-24T00:32:20Z", run_started_at: "2026-11-24T00:32:20Z", updated_at: "2026-11-24T00:43:29Z" },
+      self: { created_at: "2026-11-24T00:43:24Z" },
+      jobs,
+    }),
+  );
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+});
+
+for (const [label, routes] of [
+  ["the dispatch came 10m01s after the Dispatch job started", { created: "2026-10-11T12:20:27Z" }],
+  ["the jobs read fails", { created: "2026-10-11T12:11:08Z", jobs: new GitHubError(500, "jobs") }],
+  ["the dispatcher run lists no Dispatch job", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(otherJob({ started_at: "2026-10-11T12:00:06Z" })),
+  }],
+  ["the Dispatch job is still queued", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ status: "queued", started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job listed is of another attempt", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ run_attempt: 2, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the dispatcher run lists two started Dispatch jobs at its attempt", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ started_at: "2026-10-11T12:10:26Z" }), dispatchJob({ id: 2, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job listed is of another run", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ run_id: 1, started_at: "2026-10-11T12:10:26Z" })),
+  }],
+  ["the Dispatch job has no start time", {
+    created: "2026-10-11T12:11:08Z",
+    jobs: jobsListing(dispatchJob({ started_at: null })),
+  }],
+  ["the dispatch came after the dispatcher run's last update", { created: "2026-10-11T12:11:08Z", updated: "2026-10-11T12:11:07Z" }],
+]) {
+  test(`workflow_run dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(queuedRoutes(routes));
+    assert.deepEqual(await runDispatched({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("dispatcher: a push dispatcher's window still runs from its run's start and reads no jobs", async () => {
+  const github = fakeGitHub({
+    ...dispatcherRoutes({ dispatcher: { updated_at: "2026-10-11T12:30:00Z" }, self: { created_at: "2026-10-11T12:10:06Z" } }),
+    [dispatcherJobsRoute]: jobsListing(dispatchJob({ started_at: "2026-10-11T12:09:00Z" })),
+  });
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.includes(dispatcherJobsRoute));
 });
 
 test("workflow_run dispatcher: a security review run at the PR head proceeds", async () => {
@@ -2714,6 +2797,55 @@ test("workflow_run dispatcher: naming a relay leaves a review run's terms unchan
     await relayDispatched({ github: fakeGitHub(runDispatcherRoutes({ dispatcher: { status: "completed" }, upstream: unlisted })) }),
     STOPPED("untrusted-actor"),
   );
+});
+
+const upstreamAttemptRouteAt = (n) => `GET /repos/${REPOSITORY}/actions/runs/${UPSTREAM_RUN_ID}/attempts/${n}`;
+const upstreamRecordAt = (n) => `reconcile-rerun-${UPSTREAM_RUN_ID}-${n}-${HEAD_SHA}`;
+const upstreamRecordRouteAt = (n) =>
+  `GET /repos/${REPOSITORY}/actions/artifacts?name=${upstreamRecordAt(n)}&per_page=100&page=1`;
+
+function rerunUpstreamRoutes({ at = 2, upstream = {}, reconciler = {}, artifacts, recordAt = {} } = {}) {
+  const rerun = { run_attempt: at, ...upstream, triggering_actor: ACTIONS_BOT };
+  return {
+    ...runDispatcherRoutes({ dispatcher: { status: "completed" }, upstream: rerun }),
+    [upstreamAttemptRouteAt(at)]: { ...UPSTREAM, ...rerun, run_started_at: "2026-10-19T19:04:45Z" },
+    [upstreamRecordRouteAt(at)]: artifacts ?? listing(rerunRecord({ name: upstreamRecordAt(at), ...recordAt })),
+    [reconcilerRoute]: reconcilerRun(reconciler),
+    [reconcilerCompare]: { status: "ahead" },
+  };
+}
+
+const rerunDispatched = (options) => runDispatched({ reconcilerWorkflow: RECONCILER_WORKFLOW, ...options });
+
+test("workflow_run dispatcher: a review re-run the reconciler recorded proceeds", async () => {
+  const github = fakeGitHub(rerunUpstreamRoutes());
+  assert.deepEqual(await rerunDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(upstreamRecordRouteAt(2)));
+  assert.ok(github.calls.includes(reconcilerCompare));
+});
+
+for (const [label, routes, options = {}] of [
+  ["no record vouches for it", { artifacts: listing() }],
+  ["its record is from a run of another workflow", { reconciler: { path: ".github/workflows/copy.yml" } }],
+  ["its record is from a run off the default branch", { reconciler: { head_branch: "feat/forged" } }],
+  ["its record was created after the re-run started", { recordAt: { created_at: "2026-10-19T19:04:50Z" } }],
+  ["it is attempt 4, past the reconciler's cap", { at: 4 }],
+  ["its actor is unlisted", { upstream: { actor: STRANGER_USER } }],
+  ["the gate names no reconciler workflow", {}, { reconcilerWorkflow: "" }],
+]) {
+  test(`workflow_run dispatcher: a github-actions[bot] review re-run is refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(rerunUpstreamRoutes(routes));
+    assert.deepEqual(await rerunDispatched({ github, ...options }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("workflow_run dispatcher: a relay re-run by github-actions[bot] stays refused under a reconciler record", async () => {
+  const github = fakeGitHub(rerunUpstreamRoutes({ upstream: RELAY }));
+  assert.deepEqual(
+    await rerunDispatched({ github, runDispatcherRelay: RELAY_WORKFLOW }),
+    STOPPED("untrusted-actor"),
+  );
+  assert.ok(!github.calls.includes(upstreamRecordRouteAt(2)));
 });
 
 // A pull_request_target run of the push dispatcher's workflow (ADR 0090): its

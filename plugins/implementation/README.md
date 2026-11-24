@@ -29,7 +29,7 @@ gracefully when absent, no hard dependencies:
 
 - **`toolchain`**. `/toolchain:check` runs after each logical block and at completion;
   when the plugin is absent this skill runs the project's own build/test command.
-- **`testing`**. `/testing:plan`, `/testing:write`, `/testing:diagnose` for coverage,
+- **`testing`**. `/testing:plan`, `/testing:write`, `/testing:fix-failing` for coverage,
   authoring, and failure diagnosis.
 - **`verification`**. `/verification:confirm` for outcome verification at the pre-PR
   handoff; when absent, the run says outcome verification did not run.

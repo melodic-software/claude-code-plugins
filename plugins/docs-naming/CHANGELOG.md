@@ -3,6 +3,20 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-11-24
+
+### Changed
+
+- Skill bodies mark each mention of another plugin's skill "(if enabled)", so a profile that switches that plugin off leaves no dead reference.
+
+## [0.9.3] - 2026-11-24
+
+### Changed
+
+- `/docs-naming:generate-file-name-gate` and `/docs-naming:realign-file-names` now carry a
+  `## Related` section that lists the skills to reach for in nearby situations, one condition per
+  line.
+
 ## [0.9.2] - 2026-11-23
 
 ### Changed

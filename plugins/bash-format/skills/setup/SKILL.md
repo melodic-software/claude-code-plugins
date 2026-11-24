@@ -51,9 +51,9 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Shell formatting and linting are two concerns. The hooks run only the
 plugin's shipped adapter for each, where that tool's own config governs the file, and otherwise
 nothing; they never run a command from the repository's bash record (`docs/conventions/ecosystems/bash.yaml`),
-which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
+which `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
-`/toolchain:setup apply bash`, never here. The tunables are the native `userConfig` options (the
+`/toolchain:setup apply bash` (if enabled), never here. The tunables are the native `userConfig` options (the
 on/off toggle, the gitignored-file switch and the end-of-turn check).
 Every prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
 system packages, so the rest of `apply` is guidance-only. It never modifies user settings or the
@@ -112,14 +112,14 @@ Code and read no toggle.
      rather than rewritten to shfmt's built-in defaults; a bare `[*]` section or a path-only one
      such as `[scripts/**]` does not opt in (`apply` below lists the sections that do).
    A detail saying a bash record exists is INFO beside the row: the hooks never run it, and
-   `/toolchain:lint` or `/toolchain:check` runs it on request.
+   `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request.
 5. **Draft, never write, the record.** When a concern is unresolved, or the person names a tool the
    plugin ships no adapter for, say that the hooks will not run that tool: they run only the shipped
    adapters. Find the repository's own formatter and linter by the steps in
    [reference/ecosystem-resolution.md](../../reference/ecosystem-resolution.md), and draft the
    `fix-cmd` and `lint-cmd` values: each holds `<files>`, `fix-cmd` only formats and `lint-cmd` only
-   reports, with findings as `<path>:<line>` lines. Hand the draft to `/toolchain:setup apply bash`,
-   the one writer of those keys, so `/toolchain:lint` and `/toolchain:check` can run them on request.
+   reports, with findings as `<path>:<line>` lines. Hand the draft to `/toolchain:setup apply bash` (if enabled),
+   the one writer of those keys, so `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) can run them on request.
 6. **Hook options.** Report the effective values. `${user_config.bash_format_enabled}`
    (unexpanded or empty means the manifest default `true`; any value other than `true`
    disables the hook). `${user_config.bash_format_lint_gitignored}` (unexpanded or empty means
@@ -251,7 +251,7 @@ skill installs nothing:
   repository's `.shellcheckrc` when one exists and its own defaults otherwise. This skill writes
   neither file: both are the consumer's, and `.editorconfig` governs every editor and tool in the
   repo, so the choice and the edit belong to the consumer. For a tool the plugin ships no adapter for, `check` step 5's draft, for
-  `/toolchain:setup apply bash`.
+  `/toolchain:setup apply bash` (if enabled).
 - toggle off, gitignored files wanted, or the end-of-turn check wanted: set
   `bash_format_enabled`, `bash_format_lint_gitignored` or `bash_format_end_of_turn` to `true`
   through Claude Code's native flow, interactively with
@@ -289,7 +289,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter or formatter. Editing any `.sh` or `.bash` file exercises the batch row end to
   end; `git commit` exercises the installed pre-commit entries.
-- Write the bash record: `/toolchain:setup apply bash` does.
+- Write the bash record: `/toolchain:setup apply bash` (if enabled) does.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
   beyond the git-hook entry copies, including `.editorconfig` / `.shellcheckrc`. Every
   prerequisite is a `PATH` binary or the native toggle, so remediation is guidance only.

@@ -95,7 +95,7 @@ When the repo has its own task runner or wrapper scripts (a task file, a manifes
 a scripts directory its docs or CI call), draft each command key from the matching task or script
 first, in any ecosystem. Draft `test-changed-cmd` from the repo's own test
 runner's way of selecting tests for changed files, over `<files>`; when the repo has no such
-selection, look it up with `/discovery:research` for the runner the repo uses, and leave the key
+selection, look it up with `/discovery:research` (if enabled) for the runner the repo uses, and leave the key
 out when none exists.
 
 - **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else

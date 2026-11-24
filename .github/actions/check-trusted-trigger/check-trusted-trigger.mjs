@@ -3,7 +3,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault, paginate } from "../../scripts/lib/github-client.mjs";
+import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault } from "../../scripts/lib/github-client.mjs";
 import { loadTrustedList, trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 export { loadTrustedList };
@@ -19,6 +19,7 @@ const ACTIONS_BOT_ID = 41898282;
 const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 const RELAY_EVENT = "pull_request_review_comment";
 const WINDOW_MS = 10 * 60 * 1000;
+const DISPATCH_JOB = "Dispatch";
 const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
 const RECORD_PREFIX = "pr-unblock-dispatched-";
 const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{0,14})$/;
@@ -64,83 +65,6 @@ const ciStatusRerunRecorder = (workflow) => ({
 });
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Whether a close counts: (a) a listed human made it, matched by id; or (b) a
-// merge in this repository closed it: the `closer` GraphQL gives the issue's
-// last ClosedEvent is a merged pull request or a commit here, whoever merged
-// it. The REST close event carries no link to the pull request, so GraphQL
-// is the read; or (c) below. Any other close, such as a workflow's
-// GITHUB_TOKEN or an outside author closing their own issue, counts for
-// nothing.
-const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    issue(number: $number) {
-      timelineItems(itemTypes: CLOSED_EVENT, last: 1) {
-        nodes { ... on ClosedEvent { closer {
-          __typename
-          ... on PullRequest { merged repository { nameWithOwner } }
-          ... on Commit { repository { nameWithOwner } }
-        } } }
-      }
-    }
-  }
-}`;
-// (c) The lanes App's close, when the caller names the App with `isApp`,
-// counts only as appDoneClose allows.
-export async function isTrustedClose(github, repo, closedIssue, humans, isApp = () => false) {
-  const closer = closedIssue?.closed_by;
-  if (humans.has(closer?.id)) {
-    return true;
-  }
-  if (closedIssue?.state !== "closed" || !PR_NUMBER.test(String(closedIssue.number))) {
-    return false;
-  }
-  const [owner, name] = repo.split("/");
-  const answer = await github("POST", "/graphql", {
-    query: CLOSER_QUERY,
-    variables: { owner, name, number: Number(closedIssue.number) },
-  });
-  const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
-  const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
-  if (here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true))) {
-    return true;
-  }
-  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), humans, isApp);
-}
-
-async function appDoneClose(github, repo, number, humans, isApp) {
-  try {
-    const close = await appCloseKind(github, repo, number, isApp);
-    const { doneEvidence, parentDone } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
-    if (close?.stop === "verified-done") {
-      const trusted = async (child) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${child}`), humans, isApp);
-      return (await parentDone(github, `/repos/${repo}`, number, trusted)) === true;
-    }
-    return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The lanes App's last close comment on issue `number` (report-outcome's,
- * read back by closeStop): {stop, reason, url, at}, or null when none parses
- * or a read fails. It says what kind of close the App made, never that the
- * work is done.
- */
-export async function appCloseKind(github, repo, number, isApp) {
-  try {
-    const { closeStop } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
-    const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
-    const found = comments
-      .filter((comment) => isApp(comment?.user))
-      .map((comment) => ({ comment, close: closeStop(comment.body) }))
-      .findLast(({ close }) => Boolean(close));
-    return found ? { ...found.close, url: found.comment.html_url ?? null, at: found.comment.created_at ?? null } : null;
-  } catch {
-    return null;
-  }
-}
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -395,28 +319,6 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, kin
   }
 }
 
-// A dispatch sent by github-actions[bot] names no human, so it is trusted only
-// through the dispatcher run it names: that workflow, on the default branch,
-// started by a push, a schedule or a listed human, its head SHA an ancestor
-// of the branch tip, a re-run attempt started by a listed human, its record listing this
-// run, and this run, the dispatched workflow on the default branch, created
-// between the dispatcher run's start and the earlier of its last update and
-// WINDOW_MS after its start. A dispatcher started by workflow_run must be
-// runDispatcherWorkflow instead, and no actor of it is checked: the upstream
-// run its record names must be one of runDispatcherUpstreams, run on
-// pull_request in this repository, started (and any re-run) by the lanes App
-// or a listed human, at the PR's current head or at expectedUpstreamHead
-// with the PR at it or at pushedCommit (upstreamHeadHolds). An upstream of
-// runDispatcherRelay instead must have run on pull_request_review_comment,
-// name the PR among its pull_requests, and be started (and any re-run) by a
-// listed human, never the lanes App: a review comment relayed by path, event
-// and actor (ADR 0088). A dispatcher started by pull_request_target vouches
-// for a pr-refine.yml run only: its head repository is this one, one
-// pull_requests entry names this PR on the default branch with base and head
-// in this repository and the run's head_branch as head ref, its actor and
-// triggering actor are the lanes App or a listed human, and the ancestry
-// check reads the commit its record names in place of head_sha (ADR 0090).
-// Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -433,6 +335,7 @@ async function verifyDispatcher({
   pushedCommit,
   lanesAppId,
   dispatchedWorkflow,
+  reconcilerWorkflow = "",
   runId,
   sleep,
 }) {
@@ -457,6 +360,7 @@ async function verifyDispatcher({
   // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
   const viaTarget = dispatcher.event === TARGET_EVENT;
+  const windowStart = viaRun ? await dispatchJobStart(github, repository, dispatcherRunId, attempt) : started;
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
   const vouches = (user) =>
     Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
@@ -498,7 +402,7 @@ async function verifyDispatcher({
     attempt >= 1 &&
     (attempt === 1 || isListedHuman(dispatcher.triggering_actor)) &&
     started <= created &&
-    created <= Math.min(timeOf(dispatcher.updated_at), started + WINDOW_MS);
+    created <= Math.min(timeOf(dispatcher.updated_at), windowStart + WINDOW_MS);
   if (!trusted) {
     throw new Stop("untrusted-actor");
   }
@@ -522,6 +426,13 @@ async function verifyDispatcher({
   if (viaRun) {
     const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
     const relayed = runDispatcherRelay !== "" && upstream.path === runDispatcherRelay;
+    const reconciler = reconcilerRecorder(reconcilerWorkflow);
+    const recordedRerun =
+      !relayed &&
+      reconcilerWorkflow !== "" &&
+      upstream.triggering_actor?.id === ACTIONS_BOT_ID &&
+      Number.isInteger(upstream.run_attempt) &&
+      reconciler.attempts(upstream.run_attempt);
     const startedBy = relayed
       ? upstream.event === RELAY_EVENT &&
         Array.isArray(upstream.pull_requests) &&
@@ -531,7 +442,7 @@ async function verifyDispatcher({
       : runDispatcherUpstreams.includes(upstream.path) &&
         upstream.event === "pull_request" &&
         vouches(upstream.actor) &&
-        vouches(upstream.triggering_actor);
+        (recordedRerun || vouches(upstream.triggering_actor));
     const reviewed =
       String(upstream.id) === found &&
       startedBy &&
@@ -541,8 +452,40 @@ async function verifyDispatcher({
     if (!reviewed) {
       throw new Stop("untrusted-actor");
     }
+    if (recordedRerun) {
+      await verifyRecordedRerun({
+        github,
+        repository,
+        event,
+        list,
+        deniedIds,
+        recorders: [reconciler],
+        runId: found,
+        runAttempt: String(upstream.run_attempt),
+        sleep,
+        refuse: "untrusted-actor",
+      });
+    }
   }
   return own;
+}
+
+async function dispatchJobStart(github, repository, dispatcherRunId, attempt) {
+  const body = await readOrRefuse(github, `/repos/${repository}/actions/runs/${dispatcherRunId}/jobs?per_page=100`);
+  const jobs = Array.isArray(body.jobs)
+    ? body.jobs.filter(
+        (job) =>
+          job?.name === DISPATCH_JOB &&
+          String(job.run_id) === dispatcherRunId &&
+          job.run_attempt === attempt &&
+          job.status !== "queued" &&
+          !Number.isNaN(timeOf(job.started_at)),
+      )
+    : [];
+  if (jobs.length !== 1) {
+    throw new Stop("untrusted-actor");
+  }
+  return timeOf(jobs[0].started_at);
 }
 
 function upstreamHeadHolds({ upstreamSha, pullSha, expectedUpstreamHead, pushedCommit }) {
@@ -884,6 +827,7 @@ export async function evaluateTrigger({
       pushedCommit,
       lanesAppId,
       dispatchedWorkflow,
+      reconcilerWorkflow,
       runId,
       sleep,
     });

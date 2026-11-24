@@ -205,7 +205,7 @@ export const STAGE_COMMANDS = [
   {
     stage: "test",
     skill: "testing/write",
-    also: [{ when: "when a test fails,", skill: "testing/diagnose" }],
+    also: [{ when: "when a test fails,", skill: "testing/fix-failing" }],
   },
   { stage: "review", skill: "review/quality-gate" },
   {
@@ -214,7 +214,7 @@ export const STAGE_COMMANDS = [
     runs: [
       {
         claim: "runs the build, test and lint checks through `/toolchain:check` and `/toolchain:lint`",
-        basis: "invoke `/toolchain:check` and `/toolchain:lint` cross-cutting via the Skill tool",
+        basis: "invoke `/toolchain:check` (if enabled) and `/toolchain:lint` (if enabled) cross-cutting via the Skill tool",
       },
       {
         claim: "finds the touched features with `/app-control:drive affected`",
@@ -222,7 +222,7 @@ export const STAGE_COMMANDS = [
       },
       {
         claim: "drives the touched features with `/testing:run-e2e`",
-        basis: "invoke `/testing:run-e2e` via the Skill tool",
+        basis: "invoke `/testing:run-e2e` (if enabled) via the Skill tool",
       },
     ],
   },

@@ -96,7 +96,7 @@ What differs here:
   out, one subagent per repository as the contract's "Fan-out" says, each running the scanner
   with `CANT_FAIL_SCAN_ROOT=<root>` and returning its table; the main thread writes each
   repository's `findings.md`.
-- **Batches run in that repository's session.** `/mutation-testing:audit` and the `test-weaken`
+- **Batches run in that repository's session.** `/mutation-testing:audit` (if enabled) and the `test-weaken`
   hook read the session's own project, so steps 0 to 7 for a repository run in a session whose
   project is its `<root>`. This session's project is the checkout it started in, never a `<root>`
   created above, the invoking repository's own included, so under a target form this session runs
@@ -127,7 +127,7 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
 - The `mutation-testing` plugin is not enabled; the mutation gate needs it.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
   standalone, unquoted `{tests}` word: both mutation runs use it. Point to
-  `/mutation-testing:setup apply`.
+  `/mutation-testing:setup apply` (if enabled).
 - The folder does not exist, or `/testing:audit --file <path>` claims no file under it.
 - The folder holds test files of more than one language (the adapters' `language`), such as a
   `*.test.sh` harness beside Python tests. The one `test-command` cannot run them all, so the
@@ -193,7 +193,7 @@ Azure Pipelines pairs suppression with a bug and resets the flag when it resolve
 
 ### 3. Record the baseline
 
-Invoke `/mutation-testing:audit --exercised <folder> --max <n> --record-mutants <work>/before.tsv`
+Invoke `/mutation-testing:audit --exercised <folder> --max <n> --record-mutants <work>/before.tsv` (if enabled)
 through the Skill tool, with no `--paths`. Then read its report:
 
 - A red baseline stops the batch. List the failing tests so the user can name the flaky ones for
@@ -256,8 +256,9 @@ expectation): the batch stops and names it until the rewrite is repaired. The re
 the scanner's rules; the judgment-only shapes in `test-value` §5 stay with each rewrite's row
 review.
 
-Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
---record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line. The replay
+Then invoke
+`/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv --record-mutants <work>/after.tsv` (if enabled)
+through the Skill tool and read its `Gate:` line. The replay
 reapplies each `before.tsv` mutant and compares the records mutant by mutant: one detected before
 and not after is newly surviving.
 
@@ -276,7 +277,7 @@ and not after is newly surviving.
 Write the decision table and the gate result (K0 and K1, each newly surviving mutant with its
 triage) to `<work>/pr-body.md`, and the findings file to the branch's findings directory,
 `.work/reviews/<branch-slug>/<YYYYMMDDTHHMMSSZ>-testing-cleanup.md`, the slug and home as
-`/review:fanout` "Shared inputs" defines them. One row per candidate that a rule selected, in the
+`/review:fanout` (if enabled) "Shared inputs" defines them. One row per candidate that a rule selected, in the
 shape `plugins/review/reference/findings-file-shape.md` gives: `Tier` and `Confidence` copied from
 the source row, `Surface(s)` `testing:cleanup`, `Finding` the source row's `Finding` (rule id and
 threshold first) followed by `cleanup row <n>: <action>`, `Action` reading
@@ -290,7 +291,7 @@ batch-level approval: every yes-gated item in it already had the user's answer, 
 is local. Report the commit's SHA and how to undo it (while it is the branch's latest commit,
 `git reset --soft HEAD~1` drops it and keeps its changes staged; later, `git revert <sha>`),
 then delete `before.tsv` and `after.tsv`. Push and open the pull request only when the user
-asks, through `/source-control:pull-request` when that plugin is enabled. Unattended runs stop
+asks, through `/source-control:pull-request` (if enabled). Unattended runs stop
 before the commit.
 
 ## Cannot-fail-only mode
@@ -335,7 +336,7 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
 4. **Delete.** Apply each deletion only after the user's yes to that item; unattended, apply none.
    Remove the whole test (its attributes, decorators and doc comment) and an import only it used,
    and nothing else: a helper or field the test alone used stays, for
-   `/code-tidying:audit-dead-code`. Keep the file's line endings: a file whose every line ended in
+   `/code-tidying:audit-dead-code` (if enabled). Keep the file's line endings: a file whose every line ended in
    CRLF before the edit
    (`grep -c $'\r$' -- "<path>"` equals `wc -l < "<path>"`) still does after it. The
    `test-change: cleanup row 4: <reason>` comment rule of step 5 applies.

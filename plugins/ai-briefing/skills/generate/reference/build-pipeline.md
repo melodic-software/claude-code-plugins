@@ -41,7 +41,7 @@ This file documents the working pipeline schema + commands. For brand spec, slid
 | `build-client-js.js` | Client-side JavaScript for the deck (keyboard nav, scroll-spy, print mode) | consumed by `assemble-html.js` |
 | `assemble-html.js` | Assembles the single-file sectioned-scroll HTML deck from the build modules | consumed by `build-html.js` |
 | `build-pdf.js` | Playwright headless chromium prints `?print=1` HTML to Letter landscape, 0-margin, one slide per page | `../meetings/ai-meeting-{N}.pdf` |
-| `validate.js` | Multi-gate validator. The gate list and which gates block live in the script's own header comment; read it rather than restating it here. Screenshots every section | `shots/section-*.png` + `shots/responsive-*.png` + `shots/audit.json` |
+| `validate.js` | Multi-gate validator. Blocking (exit 1): the Zod schema of `slides-data.js`; the rendered HTML (every URL an anchor, headlines match, no console errors, no external render requests). Warnings only (exit 0): slide overflow; URL reachability through linkinator (X URLs excluded by collection policy); PDF text-layer URLs and page count; the PPTX slide count; a six-combination viewport and zoom matrix with screenshots and an overflow check. Screenshots every section | `shots/section-*.png` + `shots/responsive-*.png` + `shots/audit.json` |
 | `assets/` | Bundled org logos (PNG) + provider logos (SVG) | n/a |
 | `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `linkinator` + `unpdf` + `node-pptx-parser` | n/a |
 

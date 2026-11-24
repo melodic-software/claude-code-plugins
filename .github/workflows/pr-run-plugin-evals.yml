@@ -16,10 +16,12 @@ run-name: >-
 #   HOME and on PATH. The allow-real-servers input starts a case plugin's real
 #   MCP servers (plugins/testing/evals/browser-mcp-probe/README.md).
 # - When the `eval: run` label is added to a same-repository, non-draft pull
-#   request: the suite of each plugin whose skills/, agents/ or evals/ the pull
-#   request changes, deterministic graders only, with no tool beyond the
-#   read-only set, no scaffold, and env scrub on. Advisory: no ruleset or
-#   ci-status reads this job. Adding the label again runs the current head.
+#   request: the suite of each plugin whose skills/, agents/, context/ or
+#   evals/ the pull request changes, deterministic graders only, with no tool
+#   beyond the read-only set, no scaffold, and env scrub on. Advisory: no
+#   ruleset or ci-status reads this job. Adding the label again runs the
+#   current head. context/ is admitted by the owner decision at
+#   https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380.
 #
 # Before any model call the suite passes /evals:validate's validate-cases.py,
 # or the job fails. Each result goes through .github/scripts/plugin-eval/
@@ -40,10 +42,11 @@ run-name: >-
 # select-plugins.mjs lets a selected plugin through only when every change is
 # allowlisted: an eval case file (prompt.md, case.yaml, graders/*.md,
 # samples/**/*.json) that keeps allowed_tools, env, context and the other
-# run keys, or markdown under skills/ or agents/ that keeps its
+# run keys, or markdown under skills/, agents/ or context/ that keeps its
 # non-descriptive frontmatter and adds no shell preprocessing, in a plugin
 # whose tree holds no symlink or submodule and whose cases load only the
-# plugin itself or an unchanged directory inside it. Anything else is refused.
+# plugin itself or an unchanged directory inside it. Anything else is refused
+# (context/: https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380).
 #
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
@@ -1573,9 +1576,10 @@ jobs:
   # patched onto this branch by compare-arms.sh from git objects; no script,
   # hook, workflow or manifest of either runs. Each arm runs on the credential
   # input's one secret: the API key, or the subscription token when
-  # compare-prepare found the pull request's author on the trusted-actor list
-  # (docs/review/evals.md). The record job is the only one that writes: it
-  # holds issues: write, checks out only this branch, and posts nothing unless
+  # compare-prepare found the pull request's author listed there as a human,
+  # never a bot (docs/review/evals.md). The record job is the only one that
+  # writes: it holds pull-requests: write, checks out only this branch, and
+  # posts nothing unless
   # every job before it passed and the head has not moved. A run whose jobs
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
@@ -1715,6 +1719,28 @@ jobs:
         run: |
           echo "::error::${REASON:-unreadable}: the subscription token runs only for a pull request whose author is a trusted actor; no pass runs"
           exit 1
+
+      - name: Stop on a pull request a bot wrote
+        if: inputs.credential == 'subscription'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
+          author=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .user.id) || author=
+          if ! [[ $author =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::read-fault: the pull request's author could not be read; no pass runs"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$author" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::bot-author: the subscription token runs only for a pull request a listed human wrote; no pass runs"
+            exit 1
+          fi
 
       - name: Fetch the pull request's commits as data
         uses: actions/checkout@v7
@@ -1921,8 +1947,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
-      issues: write
+      pull-requests: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:

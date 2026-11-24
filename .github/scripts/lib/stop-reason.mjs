@@ -11,7 +11,6 @@
 
 // Every code a stop may carry.
 export const STOP_REASONS = Object.freeze(["intent", "design", "security", "cost", "none"]);
-// The codes that may hand work to a person.
 export const PERSON_REASONS = Object.freeze(STOP_REASONS.filter((code) => code !== "none"));
 
 const LANE = /^[a-z][a-z0-9-]{0,63}$/;

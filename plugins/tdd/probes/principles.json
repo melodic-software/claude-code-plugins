@@ -2,12 +2,12 @@
   "skill": "tdd:principles",
   "plugin": "tdd",
   "skill_dir": "plugins/tdd/skills/principles",
-  "ranking_note": "Authored from the before description at origin/main commit a82eec4ded3a5b3d32ce7e2da62206df08331f14, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. principles is the plugin's only skill, so every competitor lives in another plugin: testing:write writes tests, testing:test-value judges whether a test is worth keeping and whether to assert a mock call, testing:audit finds tests that cannot fail, testing:diagnose fixes failing tests, testing:plan finds coverage gaps in a diff, toolchain:check runs the build and tests, and mutation-testing:principles owns mutation-testing knowledge. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "ranking_note": "Authored from the before description at origin/main commit a82eec4ded3a5b3d32ce7e2da62206df08331f14, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. principles is the plugin's only skill, so every competitor lives in another plugin: testing:write writes tests, testing:test-value judges whether a test is worth keeping and whether to assert a mock call, testing:audit finds tests that cannot fail, testing:fix-failing fixes failing tests, testing:plan finds coverage gaps in a diff, toolchain:check runs the build and tests, and mutation-testing:principles owns mutation-testing knowledge. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
   "competitors": [
     "testing:write",
     "testing:test-value",
     "testing:audit",
-    "testing:diagnose",
+    "testing:fix-failing",
     "testing:plan",
     "toolchain:check",
     "mutation-testing:principles"

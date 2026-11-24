@@ -44,9 +44,9 @@ reports, `apply` resolves. The plugin only lints. Its hooks run only the shipped
 over the repository's workflow files, applying the repository's own actionlint config when there is
 one; they never run a
 command from the repository's github-actions record (`docs/conventions/ecosystems/github-actions.yaml`),
-which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
+which `/toolchain:lint` (if enabled) and `/toolchain:check` (if enabled) run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); it never writes the
-actionlint config or the record (`/toolchain:setup apply github-actions` writes the record). The
+actionlint config or the record (`/toolchain:setup apply github-actions` (if enabled) writes the record). The
 tunables are the native `userConfig` options (`actionlint_enabled` and `actionlint_end_of_turn`). Every prerequisite is a `PATH` binary the
 plugin never bundles, and the plugin never installs system packages, so `apply` is
 guidance-and-verify with that one write path. It never modifies user settings or the plugin
@@ -100,9 +100,9 @@ entry): the entry runs at commit outside Claude Code and reads no toggle.
    - `none`: INFO "unresolved": the repository has no workflow files, so the hooks have nothing
      to lint. This is not a fault. This skill never writes a workflow or an actionlint config.
    A detail saying a github-actions record exists is INFO beside the row: the hooks never run it,
-   and `/toolchain:lint` or `/toolchain:check` runs it on request. When the person wants a linter
+   and `/toolchain:lint` (if enabled) or `/toolchain:check` (if enabled) runs it on request. When the person wants a linter
    the plugin ships no adapter for, say the hooks will not run it, and hand it to
-   `/toolchain:setup apply github-actions`, the one writer of the record's `lint-cmd`.
+   `/toolchain:setup apply github-actions` (if enabled), the one writer of the record's `lint-cmd`.
 5. **Hook toggles.** Report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the Claude Code hooks). Also report `actionlint_end_of_turn`:

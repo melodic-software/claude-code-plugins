@@ -544,7 +544,7 @@ check "--tests skips npm-deps and still runs the suites when setup-env --node co
 # creates the node_modules its --prefix names, or exits STUB_NPM.
 cp "$repo/scripts/setup-env.sh" "$tmp/setup-env.stub"
 cp "$SELF_DIR/setup-env.sh" "$repo/scripts/setup-env.sh"
-mkdir -p "$tmp/npmbin" "$repo/.github/standards/runner-policy"
+mkdir -p "$tmp/npmbin" "$repo/scripts/ci-deps"
 cat >"$tmp/npmbin/npm" <<'NPM'
 #!/usr/bin/env bash
 echo "$*" >>"$NPM_LOG"
@@ -558,16 +558,16 @@ mkdir -p "$dir/node_modules"
 NPM
 chmod +x "$tmp/npmbin/npm"
 echo '{"v":1}' >"$repo/package-lock.json"
-echo '{"v":2}' >"$repo/.github/standards/runner-policy/package-lock.json"
+echo '{"v":2}' >"$repo/scripts/ci-deps/package-lock.json"
 npm_env=(PATH="$tmp/npmbin:$PATH" NPM_LOG="$tmp/npm.log")
 : >"$tmp/npm.log"
 # shellcheck disable=SC2034 # read by the eval in check
-npm_want="$(printf '%s\n' "ci --no-audit --no-fund --prefix ." "ci --no-audit --no-fund --prefix .github/standards/runner-policy")"
+npm_want="$(printf '%s\n' "ci --no-audit --no-fund --prefix ." "ci --no-audit --no-fund --prefix scripts/ci-deps")"
 run "${npm_env[@]}" -- --base base --tests
 check "--tests runs npm ci in each tree missing node_modules, then the suites" \
   '[[ $RC == 0 && $(cat "$tmp/npm.log") == "$npm_want" && $ERR != *"SKIP tests"* ]]'
 check "each install is named on stderr" \
-  '[[ $ERR == *"setup-env: installed ./package-lock.json into ./node_modules"* && $ERR == *"setup-env: installed .github/standards/runner-policy/package-lock.json into .github/standards/runner-policy/node_modules"* ]]'
+  '[[ $ERR == *"setup-env: installed ./package-lock.json into ./node_modules"* && $ERR == *"setup-env: installed scripts/ci-deps/package-lock.json into scripts/ci-deps/node_modules"* ]]'
 : >"$tmp/npm.log"
 run "${npm_env[@]}" -- --base base --tests
 check "--tests installs nothing where node_modules is current" '[[ $RC == 0 && ! -s "$tmp/npm.log" ]]'

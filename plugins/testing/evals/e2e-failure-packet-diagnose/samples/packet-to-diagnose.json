@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "Error context: <aria snapshot>. Trace: test-results/login/trace.zip. Handing the packet to /testing:diagnose.",
+      "answer": "Error context: <aria snapshot>. Trace: test-results/login/trace.zip. Handing the packet to /testing:fix-failing.",
       "why": "both"
     }
   ],
   "fail": [
     {
-      "answer": "The welcome heading timed out; run /testing:diagnose.",
+      "answer": "The welcome heading timed out; run /testing:fix-failing.",
       "why": "no packet"
     }
   ]

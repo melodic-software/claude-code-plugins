@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 
-// The `name: value` lines of a block indented `indent` spaces, as a map.
 const fields = (block, indent) => {
   const map = {};
   for (const [, name, value] of (block ?? "").matchAll(new RegExp(`^ {${indent}}([\\w-]+): (.*)$`, "gm"))) map[name] = value;

@@ -1,12 +1,3 @@
-// Expected values come from the reader's spec: each service's verdict is its
-// own component's status, operational or degraded, or unknown when the page or
-// component cannot be read; the page's rollup, status.indicator, is never
-// read. fixtures/components.json and fixtures/claude-components.json carry the
-// component names githubstatus.com and status.claude.com list, trimmed.
-// fixtures/npm-install-outage.json is built in the Statuspage summary shape,
-// rollup and components together: its page and rollup are the recorded
-// npm-status.json (indicator minor), its components the names
-// status.npmjs.org lists, with Package installation in major_outage.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -19,7 +10,6 @@ const CLAUDE = fixture("claude-components.json");
 const NPM_OUTAGE = fixture("npm-install-outage.json");
 const NPM_OK = { ...NPM_OUTAGE, components: NPM_OUTAGE.components.map((c) => ({ ...c, status: "operational" })) };
 
-// A page whose rollup throws when read, so a reader that reads it fails.
 const sealed = (page) =>
   Object.defineProperty({ ...page }, "status", {
     enumerable: true,
