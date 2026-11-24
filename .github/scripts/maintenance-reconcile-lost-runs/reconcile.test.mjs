@@ -2884,6 +2884,7 @@ test("the full pass queues each stopped review it leaves waiting on a running ch
   const waiting = await reconcile({ pulls: [pr(1)], runs: deferredWaiting(1), carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
   assert.deepEqual(waiting.reruns, []);
   assert.deepEqual(waiting.settled.waiting_reviews, queued(1));
+  assert.deepEqual(waiting.settled, fixture("settled-waiting.json"), "recent-pass.test.mjs reads this writer output as captured; regenerate the fixture from it when the writer changes");
   const done = await reconcile({ pulls: [pr(1)], runs: bothDeferred(1), carry: null, env: SWITCHES_OFF, now: AFTER_GRACE });
   assert.deepEqual(done.reruns, [201, 301], "a finished red checks run lets the pass re-run them");
   assert.deepEqual(done.settled.waiting_reviews, []);
@@ -2901,6 +2902,7 @@ test("a follow-up tick re-runs the queued reviews whole, recorded, once their ch
   const act = (id) => [`GET /repos/${REPO}/actions/runs/${id}`, `GET /repos/${REPO}/pulls/1`, `POST /repos/${REPO}/actions/runs/${id}/rerun`];
   assert.deepEqual(calls, [
     `GET /repos/${REPO}/actions/runs?head_sha=${sha(1)}&per_page=100`,
+    `GET /repos/${REPO}/pulls/1`,
     `GET /repos/${REPO}/actions/runs/101/jobs?filter=latest&per_page=100`,
     `GET /repos/${REPO}/check-runs/502/annotations?per_page=100`,
     ...reads(201),
@@ -2933,7 +2935,42 @@ test("a follow-up tick leaves a queued review alone while its checks run is stil
   log.mock.resetCalls();
   const stopped = await followUpTick(queued(1), { pulls: [pr(1)], runs: bothLanesStopped(1) });
   assert.deepEqual(stopped.reruns, []);
-  assert.ok(said().includes("reconcile: #1: its stopped reviews wait for the next full pass, which counts the re-run places"));
+  assert.ok(said().includes("reconcile: #1: its stopped reviews are not all queued deferrals, and a full pass counts the re-run places; the next full pass decides its reviews"));
+});
+
+test("a follow-up tick leaves the head to the full pass when its queued checks run is superseded, its PR left main, a CI run needs recovery first, or a stopped sibling is not a queued deferral", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const posts = (result) => result.calls.filter((c) => c.startsWith("POST "));
+  const newer = redChecks(150, sha(1), { created: "2026-10-19T19:10:00Z" });
+  const superseded = await followUpTick(queued(1), { pulls: [pr(1)], runs: [...deferredWaiting(1), newer] });
+  assert.deepEqual(posts(superseded), [], "a newer red checks run on the same head while the queued one still runs");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #1: checks run 101 is no longer the head's newest; the next full pass decides its reviews"));
+  const retargeted = { ...pr(1), base: { ref: "release" } };
+  const offMain = await followUpTick(queued(1), { pulls: [retargeted], runs: bothDeferred(1) });
+  assert.deepEqual(posts(offMain), [], "a pull request retargeted off main");
+  for (const live of [{ ...pr(1), draft: true }, { ...pr(1), state: "closed" }, { ...pr(1), head: { ...pr(1).head, sha: sha(9) } }]) {
+    assert.deepEqual(posts(await followUpTick(queued(1), { pulls: [live], runs: bothDeferred(1) })), [], JSON.stringify(live));
+  }
+  const recovery = await followUpTick(queued(1), { pulls: [pr(1)], runs: [...bothDeferred(1), windowsLost(1)] });
+  assert.deepEqual(posts(recovery), [], "a cancelled CI run on the head is the full pass's to re-run first");
+  const flaky = await followUpTick(queued(1), { pulls: [pr(1)], runs: [...bothDeferred(1), failed(401, sha(1), { path: WINDOWS, jobs: MIXED_JOBS })] });
+  assert.deepEqual(posts(flaky), [], "a failed first attempt of another CI run is the full pass's flake re-run first");
+  const ownJobs = stoppedJobs().map((job) => ({ ...job, id: job.id + 1000 }));
+  const mixed = [redChecks(101, sha(1)), deferredRun(201, sha(1)), stoppedRun(301, sha(1), { path: SECURITY_REVIEW }, ownJobs)];
+  assert.deepEqual(posts(await followUpTick(queued(1), { pulls: [pr(1)], runs: mixed })), [], "one deferred and one kill-switch sibling go together in a full pass");
+  const unqueued = await followUpTick(queued(1).slice(0, 1), { pulls: [pr(1)], runs: bothDeferred(1) });
+  assert.deepEqual(posts(unqueued), [], "a stopped sibling the queue does not name");
+  assert.deepEqual((await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) })).reruns, [201, 301], "the same head with none of these goes");
+});
+
+test("a follow-up tick names itself in a notice with its queued and planned counts", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const notices = () => log.mock.calls.map((c) => String(c.arguments[0])).filter((line) => line.startsWith("::notice title=reconcile::reconcile follow-up tick: "));
+  await followUpTick(queued(1), { pulls: [pr(1)], runs: bothDeferred(1) });
+  assert.deepEqual(notices(), ["::notice title=reconcile::reconcile follow-up tick: 2 queued, 2 re-run"]);
+  log.mock.resetCalls();
+  await followUpTick(queued(1), { pulls: [pr(1)], runs: deferredWaiting(1) });
+  assert.deepEqual(notices(), ["::notice title=reconcile::reconcile follow-up tick: 2 queued, 0 re-run"]);
 });
 
 test("a follow-up tick with no readable queue reads and re-runs nothing", async (t) => {

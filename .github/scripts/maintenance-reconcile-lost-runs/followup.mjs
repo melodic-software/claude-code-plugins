@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 
 import { annotationsPath } from "../lib/run-jobs.mjs";
 import { escapeCommand } from "../pr-merge/rotation.mjs";
+import { LOOKBACK_HOURS } from "./infra-failure.mjs";
 import {
-  classify,
+  ciRecoveryFirst,
   DEFER_MAX,
   DEFERRED,
   isRedChecks,
@@ -13,6 +14,7 @@ import {
   onlyAggregateFailed,
   passRateLimit,
   rateHeldNoted,
+  reconciledPull,
   RECORDED_UPSTREAMS,
   reviewStopNoted,
   stoppedReviews,
@@ -39,8 +41,10 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
     heads = readQueue(env.FOLLOWUP_PATH ?? "");
   } catch (error) {
     say(`no follow-up queue was read (${escapeCommand(error?.message ?? error)}); nothing re-run`);
+    console.log("::notice title=reconcile::reconcile follow-up tick: 0 queued, 0 re-run");
     return { items: [], failed: 0 };
   }
+  const since = now - LOOKBACK_HOURS * 3_600_000;
   const gateHold = upstreamGate(readStatus);
   const waitReset = (what, reset, how) => say(`${what} ${how}; waiting for the rate-limit reset at ${new Date(reset).toISOString()}`);
   const readJobs = async (r) => {
@@ -53,6 +57,7 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
   const items = [];
   let failed = 0;
   let room = DEFER_MAX;
+  const toFullPass = (pull, why) => say(`#${pull.number}: ${why}; the next full pass decides its reviews`);
   for (const [checksRunId, rows] of heads) {
     const pull = { number: rows[0].pr, head: { sha: rows[0].head } };
     try {
@@ -62,27 +67,40 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
       }
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
       const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
-      if (checks === undefined || checks.status !== "completed") {
-        say(`#${pull.number}: checks run ${checks?.id ?? checksRunId} has not finished; the next tick looks again`);
+      if (checks?.id !== checksRunId) {
+        toFullPass(pull, `checks run ${checksRunId} is no longer the head's newest`);
         continue;
       }
-      if (!isRedChecks(checks) || classify(own, 0).inFlight) {
+      if (checks.status !== "completed") {
+        say(`#${pull.number}: checks run ${checks.id} has not finished; the next tick looks again`);
+        continue;
+      }
+      if (!isRedChecks(checks)) {
         say(`#${pull.number}: checks run ${checks.id} ended ${checks.conclusion}; no queued review is re-run`);
+        continue;
+      }
+      if (ciRecoveryFirst(own, since)) {
+        toFullPass(pull, "a CI run on the head is the full pass's to recover first");
+        continue;
+      }
+      const live = await call("GET", `/repos/${repo}/pulls/${pull.number}`);
+      if (!reconciledPull(live, repo) || live.head.sha !== pull.head.sha) {
+        toFullPass(pull, "the pull request is no longer an open ready PR into main at the queued head");
         continue;
       }
       const status = onlyAggregateFailed(await readJobs(checks));
       const notes = status && (status.annotations ?? (await call("GET", annotationsPath(repo, status.id))));
       if (!reviewStopNoted(notes) && !rateHeldNoted(notes)) {
-        say(`#${pull.number}: checks run ${checks.id} failed on more than a review stop; the next full pass decides`);
+        toFullPass(pull, `checks run ${checks.id} failed on more than a review stop`);
         continue;
       }
       const queued = new Set(rows.map((row) => row.reviewRunId));
-      const found = (await stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold })).filter((item) => queued.has(item.id));
+      const found = await stoppedReviews({ call, repo, own, pull, env, now, readJobs, say, waitReset, gateHold });
       if (found.length === 0) {
         continue;
       }
-      if (!found.every((item) => item.conclusion === DEFERRED)) {
-        say(`#${pull.number}: its stopped reviews wait for the next full pass, which counts the re-run places`);
+      if (!found.every((item) => queued.has(item.id) && item.conclusion === DEFERRED)) {
+        toFullPass(pull, "its stopped reviews are not all queued deferrals, and a full pass counts the re-run places");
       } else if (found.length > room) {
         say(`#${pull.number}: its deferred reviews wait, only ${room} of ${DEFER_MAX} recovery places left this pass`);
       } else {
@@ -95,8 +113,6 @@ export async function followUp({ repo, call, say, now, env, readStatus }) {
       console.log(`::error title=reconcile::#${pull.number} follow-up: ${escapeCommand(error?.message ?? error)}`);
     }
   }
-  if (items.length === 0) {
-    say(`no queued review is re-run this tick (${[...heads.values()].flat().length} queued)`);
-  }
+  console.log(`::notice title=reconcile::reconcile follow-up tick: ${[...heads.values()].flat().length} queued, ${items.length} re-run`);
   return { items, failed };
 }

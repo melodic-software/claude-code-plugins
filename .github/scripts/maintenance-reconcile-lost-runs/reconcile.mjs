@@ -650,6 +650,19 @@ export function classify(runs, since) {
   };
 }
 
+export const reconciledPull = (p, repo) => p?.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? "");
+
+export const ciRecoveryFirst = (own, since) => {
+  const { rerun, inFlight } = classify(own, since);
+  return (
+    inFlight ||
+    rerun.length > 0 ||
+    newestByWorkflow(own).some(
+      (r) => CI_WORKFLOWS.has(r.path) && !GATED_REVIEWS.has(r.path) && !RECORDED_UPSTREAMS.has(r.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1,
+    )
+  );
+};
+
 const nextAttempt = (item) => (item.attempt ?? 1) + 1;
 const withRecord = (item) =>
   item.kind === "upstream" ||
@@ -1079,7 +1092,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
   };
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
-    .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
+    .filter((p) => reconciledPull(p, repo))
     .sort(byMergeCriticality);
   let failed = 0;
   let waits = 0;

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { main } from "./recent-pass.mjs";
-import { SETTLED_VERSION } from "./reconcile.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const NOW = Date.parse("2026-11-10T14:51:00Z");
@@ -169,8 +168,13 @@ test("the reconciler workflow gates its plan and act steps on the check, after t
   }
 });
 
-const WAITING = [{ checksRunId: 45318132512, reviewRunId: 45317976800, pr: 18671, head: "a".repeat(40), path: ".github/workflows/pr-review-hosted.yml" }];
-const carryWith = (waiting) => JSON.stringify({ version: SETTLED_VERSION, repository: "o/r", runs: [], jobs: [], ...(waiting === undefined ? {} : { waiting_reviews: waiting }) });
+const WRITTEN = JSON.parse(readFileSync(new URL("./fixtures/settled-waiting.json", import.meta.url), "utf8"));
+const WAITING = WRITTEN.waiting_reviews;
+const carryAs = (change) => {
+  const carry = structuredClone(WRITTEN);
+  change(carry);
+  return JSON.stringify(carry);
+};
 
 const followRun = async (carryText, { artifactId = 77, env = {} } = {}) => {
   const dir = tempDir("recent-pass-follow-");
@@ -191,7 +195,7 @@ const followRun = async (carryText, { artifactId = 77, env = {} } = {}) => {
   console.log = (line) => lines.push(line);
   try {
     await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: String(THIS_RUN), GITHUB_OUTPUT: output, EVENT_NAME: "schedule", MIN_GAP_MINUTES: "60", PASS_AFTER, FOLLOWUP_PATH: followPath, ...env },
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: WRITTEN.repository, GITHUB_RUN_ID: String(THIS_RUN), GITHUB_OUTPUT: output, EVENT_NAME: "schedule", MIN_GAP_MINUTES: "60", PASS_AFTER, FOLLOWUP_PATH: followPath, ...env },
       { github, now: () => NOW, download },
     );
   } finally {
@@ -205,19 +209,24 @@ const followRun = async (carryText, { artifactId = 77, env = {} } = {}) => {
 };
 
 test("a late tick whose window's full pass left reviews waiting downloads that pass's artifact by id and queues them for the follow-up", async () => {
-  const result = await followRun(carryWith(WAITING));
+  assert.equal(WAITING.length, 2, "the captured full pass left two reviews waiting");
+  const result = await followRun(JSON.stringify(WRITTEN));
   assert.equal(result.output, "skip=true\nfollowup=true\n");
   assert.deepEqual(result.downloads, [77], "the archive is fetched once, by the artifact id the listing gave");
   assert.deepEqual(result.queued, { run_id: 42837000020, waiting_reviews: WAITING });
-  assert.ok(result.lines.includes("::notice title=recent-pass::run 42837000020 left 1 reviews waiting on a checks run; this tick follows them up"));
+  assert.ok(result.lines.includes("::notice title=recent-pass::run 42837000020 left 2 reviews waiting on a checks run; this tick follows them up"));
 });
 
 test("an empty, missing or unreadable queue follows up nothing, and the tick still skips", async () => {
   for (const [label, text] of [
-    ["an empty queue", carryWith([])],
-    ["a carry from before the queue", carryWith(undefined)],
-    ["a row of the wrong shape", carryWith([{ ...WAITING[0], path: ".github/workflows/pr-verify.yml" }])],
-    ["another repository's carry", carryWith(WAITING).replace('"o/r"', '"x/y"')],
+    ["an empty queue", carryAs((c) => (c.waiting_reviews = []))],
+    ["a carry from before the queue", carryAs((c) => delete c.waiting_reviews)],
+    ["a row naming a lane that is not a hosted review", carryAs((c) => (c.waiting_reviews[1].path = ".github/workflows/pr-verify.yml"))],
+    ["a row with no checks run", carryAs((c) => delete c.waiting_reviews[0].checksRunId)],
+    ["a row with a short head", carryAs((c) => (c.waiting_reviews[0].head = c.waiting_reviews[0].head.slice(1)))],
+    ["queue rows that are not a list", carryAs((c) => (c.waiting_reviews = c.waiting_reviews[0]))],
+    ["another settled version", carryAs((c) => (c.version += 1))],
+    ["another repository's carry", carryAs((c) => (c.repository = "x/y"))],
     ["a failed download", new Error("HTTP 410")],
   ]) {
     const result = await followRun(text);
@@ -227,8 +236,8 @@ test("an empty, missing or unreadable queue follows up nothing, and the tick sti
 });
 
 test("only a scheduled tick matched by its window follows up: a gap hit, or no FOLLOWUP_PATH, downloads nothing", async () => {
-  const gapHit = await followRun(carryWith(WAITING), { env: { PASS_AFTER: "" } });
+  const gapHit = await followRun(JSON.stringify(WRITTEN), { env: { PASS_AFTER: "" } });
   assert.deepEqual([gapHit.output, gapHit.downloads], ["skip=true\n", []]);
-  const unset = await followRun(carryWith(WAITING), { env: { FOLLOWUP_PATH: "" } });
+  const unset = await followRun(JSON.stringify(WRITTEN), { env: { FOLLOWUP_PATH: "" } });
   assert.deepEqual([unset.output, unset.downloads], ["skip=true\n", []]);
 });
