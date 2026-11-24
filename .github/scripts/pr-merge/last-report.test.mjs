@@ -1,8 +1,3 @@
-// Expected values come from the trust rule last-report.mjs shares with the
-// lane records (lane-records.mjs): the report is read only from the newest
-// scheduled or hand-started pr-merge.yml run on main other than this one,
-// holding the artifact unexpired, whose head commit is on main; any failure
-// leaves no report.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,8 +16,6 @@ const sha = (id) => String(id).padStart(40, "a");
 const wf = (id, event, head_sha = sha(id)) => ({ id, event, head_branch: "main", path: ".github/workflows/pr-merge.yml", head_sha });
 
 let n = 0;
-// `runs` is the pr-merge.yml run listing, newest first; `held` lists the runs
-// holding the report artifact; `offMain` the head commits not on main.
 async function readLast({ runs = [], held = [], offMain = [], downloadFails = false, planted = false } = {}) {
   forgetMainTip();
   n += 1;
@@ -65,7 +58,6 @@ test("the newest trusted run's report on main is read, this run and other events
     held: [999, 8, 7, 6],
     offMain: [sha(7)],
   });
-  // Run 7's head commit is off main, so run 6 (hand-started) is read.
   assert.deepEqual(result.downloads, [6]);
   assert.equal(result.report, "report of 6");
 });
@@ -81,7 +73,6 @@ test("no earlier report, or one that fails to download, leaves none, even one pl
   assert.match(broken.lines.join("\n"), /^::warning title=last post-merge report::download 502; the post-merge check runs$/m);
 });
 
-// The routes are api-budget.bash's templating of the two API URLs gh logs.
 test("the report's gh run download counts each API request it sends under API_BUDGET_TOKEN", async () => {
   forgetMainTip();
   const run = mkdtempSync(join(dir, "counted-"));

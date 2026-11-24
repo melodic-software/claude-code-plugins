@@ -41,8 +41,6 @@ writeFileSync(
 const ENV = { GITHUB_REPOSITORY: REPO, PR_NUMBER: "7", HEAD_SHA: HEAD, CLEARED_SHA: HEAD, HUMAN_GATED: "needs-human", TRUSTED_ACTORS_PATH: TRUSTED };
 
 const commented = (user, body, at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: at });
-// The timeline ci-status sees on the unlabeled event: the lane's label and
-// hold at OLD, the security summary at HEAD, the App's marker and removal.
 const timeline = [
   { event: "labeled", actor: ACTIONS_BOT, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" },
   commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=critical-security -->\nHeld.\n\nclaude-lane: claude-security-review`, "2026-10-18T10:00:02Z"),
@@ -50,30 +48,25 @@ const timeline = [
   commented(APP, `<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=${HEAD} -->\nCleared.`, "2026-10-18T12:00:00Z"),
   { event: "unlabeled", actor: APP, label: { name: "needs-human" }, created_at: "2026-10-18T12:00:01Z" },
 ];
-// Before LEGACY_CUTOFF: a lane comment with no binding still counts.
 const POSTED_AT = "2026-10-01T00:00:00Z";
 const thread = (severity, lane = "claude-security-review", { isResolved = false, path = "plugins/x/z.py", commit = HEAD } = {}) => ({
   isResolved,
   path,
   comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, createdAt: POSTED_AT, lastEditedAt: null, originalCommit: { oid: commit }, originalLine: 12, originalStartLine: null }] },
 });
-// The held CRITICAL finding, inline at OLD on line 12 of the file the fix changed there, resolved.
 const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });
 const notice = (lane) => ({ annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=0 inline=0 scope=whole` });
 const LANES = {
   "pr-review-hosted.yml": { check: "PR Review / review-status", lane: "claude-review" },
   "pr-review-security-hosted.yml": { check: "PR Review Security / review-status", lane: "claude-security-review" },
 };
-// The status job names on a head tested before the caller jobs' rename.
 const PRE_RENAME_CHECKS = { "pr-review-hosted.yml": "pr-review / review-status", "pr-review-security-hosted.yml": "pr-review-security / review-status" };
-// The status job names pr-review-cli.yml gave before it named both review-status.
 const RETIRED_CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
 const pushes = [
   { activity_type: "push", actor: PERSON, after: HEAD, timestamp: "2026-10-18T11:00:00Z" },
   { activity_type: "push", actor: PERSON, after: OLD, timestamp: "2026-10-18T09:50:00Z" },
 ];
 
-// One token answers every read, as ci-status's job token does.
 function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [], checks = {} } = {}) {
   const calls = [];
   const github = async (method, path) => {
@@ -211,8 +204,6 @@ test("ci-status's recheck fails when the cleared head was not the head as the Ap
   assert.match(log, /no trusted push alone moved the head off the held head/);
 });
 
-// The rest of the App's predicate, at the removal (thread PRRT_kwDOTCGFQM6xqn0Y):
-// a marker comment the App wrote outside clear-escalations proves nothing.
 test("ci-status's recheck fails on a signed-commits hold, another App marker or a person speaking before the removal", async () => {
   for (const [extra, why] of [
     [[commented(ACTIONS_BOT, "<!-- check-signed-commits hold -->\nA lane commit is not verified.", "2026-10-18T11:30:00Z")], "check-signed-commits holds it"],
@@ -230,8 +221,6 @@ test("ci-status's recheck fails on a signed-commits hold, another App marker or 
   assert.match(log, /kyle-sexton commented or reviewed after needs-human went on/);
 });
 
-// A reply written before the removal and edited after it still counts
-// (thread PRRT_kwDOTCGFQM6xqzoY).
 test("ci-status's recheck fails on a person's thread reply written before the removal and edited after it", async () => {
   const reply = { user: PERSON, created_at: "2026-10-18T11:30:00Z", updated_at: "2026-10-18T12:30:00Z", body: "Keep this held." };
   const { code, log } = await run(world({ threadComments: [reply] }));

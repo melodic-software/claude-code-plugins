@@ -33,7 +33,6 @@ export async function main({ env = process.env, actions, download } = {}) {
   const dir = env.LAST_REPORT_DIR;
   try {
     if (!dir) throw new Error("LAST_REPORT_DIR is not set");
-    // A report left in its place before this step is never read as one.
     rmSync(dir, { recursive: true, force: true });
     if (!REPO.test(repo)) throw new Error("GITHUB_REPOSITORY is not owner/repo");
     actions = sharedReads(
@@ -47,8 +46,6 @@ export async function main({ env = process.env, actions, download } = {}) {
       console.log("no earlier post-merge report; the post-merge check runs");
       return 0;
     }
-    // Downloaded beside its place and moved in whole, so a failed download
-    // leaves no report.
     const part = `${dir}.part`;
     rmSync(part, { recursive: true, force: true });
     download(id, part);

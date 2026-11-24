@@ -1,7 +1,3 @@
-// retry-call.bash's contract, on a stub call, a real rate guard and a clock
-// the `sleep` stub moves: at most three runs, a recorded stop waited out, full
-// jitter otherwise, nothing slept past the budget, and a call without --read
-// never run twice.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,9 +10,6 @@ import { throttleFindings } from "../maintenance-monitor-signals/signals.mjs";
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const NOW = 2000000000;
 
-// Runs `retry_call <args> call`, where `call` fails `failures` times with
-// `failure` on stderr, then succeeds; `failures` -1 fails every time.
-// `jumpAt` n moves the clock 10 s forward from the nth `date +%s` on.
 const run = ({ args, failures, failure = "HTTP 502: Bad Gateway", stop, unreadableStop, jumpAt }) => {
   const dir = tempDir("retry-call-");
   try {
@@ -135,9 +128,6 @@ test("signal 3 reads retry_call's own rate-limit reason, and not its other reaso
   assert.deepEqual(keys(reasonOf(run({ args: "--read 60", failures: -1 }))), []);
 });
 
-// The stop is read as live, then the clock passes it before the wait is
-// worked out: date call 5 is retry_call's own, after rate_stop_label's three
-// reads (any, *, core) and retry_call's api_budget_stop_until.
 test("a stop that passes between the two clock reads is waited out as zero, then retried", () => {
   const out = run({ args: "--read 60", failures: 1, stop: `core ${NOW + 5}\n`, jumpAt: 5 });
   assert.match(out.stdout, /^rc=0$/m);
@@ -171,7 +161,6 @@ test("a header stop that has passed by the time it is read is retried, not guess
 });
 
 test("the budget counts every wait together, not each alone", () => {
-  // 20 s of the 30 s go on the stop, so a backoff over 10 s does not fit.
   for (let i = 0; i < 10; i += 1) {
     const { stdout, sleeps } = run({ args: "--read 30", failures: -1, stop: `core ${NOW + 20}\n` });
     assert.match(stdout, /^rc=2$/m);

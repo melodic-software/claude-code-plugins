@@ -1,6 +1,3 @@
-// Expected values come from the owner rule of 2026-10-26: a hold the lanes
-// clear ends in a visible failing status, never the human-gated label, and a
-// head that arms shows it passed.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -13,7 +10,6 @@ const B = "b".repeat(40);
 const ACTIONS = { id: 41898282, login: "github-actions[bot]" };
 const ENV = { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "9", GITHUB_SERVER_URL: "https://github.com" };
 
-// `shown`: each head's statuses, newest first, as GitHub lists them.
 async function run(statuses, shown = {}, { failRead = false } = {}) {
   const posts = [];
   const github = async (method, path, body) => {
@@ -71,8 +67,6 @@ test("an unchanged status writes nothing, and a success only replaces a status a
   );
 });
 
-// Any token with statuses: write can post the context (fix-ci-dispatch.mjs
-// reads the creator the same way).
 test("a status in the context another creator posted is not read as this job's", async () => {
   const forged = { context: UNARMED_CONTEXT, state: "failure", description: "x", creator: { id: 7, login: "someone" } };
   const { posts } = await run([{ sha: A, state: "failure", description: "x" }], { [A]: [forged] });
