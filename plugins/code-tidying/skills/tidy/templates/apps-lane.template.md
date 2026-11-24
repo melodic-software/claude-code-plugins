@@ -13,10 +13,10 @@ User-facing applications and their tests. Higher churn than library code, so dri
 
 ## Watch-for patterns
 
-- **Beck #1, Guard Clauses**: early returns in request handlers and command handlers
-- **Beck #2, Dead Code**: unused endpoints' helpers, orphaned DTO mappers, stale feature-flag branches
-- **Beck #5 / #6, Reading / Cohesion Order**: handler files where the entry point is buried below its helpers
-- **Beck #8 / #9, Explaining Variables / Constants**: request-validation expressions, magic status codes
+- **Beck 1, Guard Clauses**: early returns in request handlers and command handlers
+- **Beck 2, Dead Code**: unused endpoints' helpers, orphaned DTO mappers, stale feature-flag branches
+- **Beck 5 / 6, Reading / Cohesion Order**: handler files where the entry point is buried below its helpers
+- **Beck 8 / 9, Explaining Variables / Constants**: request-validation expressions, magic status codes
 - **Test-name drift**: test names that no longer describe what the test asserts (rename = F-3, safe for test-internal names)
 
 ## Lane-specific extra exclusions
