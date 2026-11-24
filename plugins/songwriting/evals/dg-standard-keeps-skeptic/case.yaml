@@ -1,11 +1,11 @@
 schema_version: "1.1"
 name: dg-standard-keeps-skeptic
-description: "diagnose variations with the stated reader line verification: standard: the co-write gate's skeptic row is planned as a fresh subagent, and no verification skip token is written."
-tags: [songwriting, diagnose, verification-level, read-only]
+description: "revise variations with the stated reader line verification: standard: the co-write gate's skeptic row is planned as a fresh subagent, and no verification skip token is written."
+tags: [songwriting, revise, verification-level, read-only]
 plugins: ["../.."]
 expected_outcome: "Before generating, says the rubric passes run on every candidate and a fresh skeptic subagent will build the case against the variations; writes no verification: skipped line."
 execution:
-  prompt: "/songwriting:diagnose variations Line 3 of this verse feels flat: 'I really miss you and I'm feeling kind of sad'. Before you generate anything, say which checks each variation will go through and which you will skip, then stop. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/songwriting.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  prompt: "/songwriting:revise variations Line 3 of this verse feels flat: 'I really miss you and I'm feeling kind of sad'. Before you generate anything, say which checks each variation will go through and which you will skip, then stop. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/songwriting.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
   allowed_tools: [Skill, Read, Glob, Grep]
   max_turns: 12
   timeout_seconds: 300

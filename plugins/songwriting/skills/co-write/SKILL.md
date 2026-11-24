@@ -136,7 +136,7 @@ per-candidate cycle in [line-edit-rubric](../../context/pat-pattison/research/li
 
 ## Next
 
-/songwriting:diagnose
+/songwriting:revise audit
 
 ## Related
 
