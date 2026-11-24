@@ -150,9 +150,10 @@ Trust-model rules enforced by `vendor-decide`:
 - **Error range**: a lead counts only outside the board's stated error range; a score with no
   error range is support-only.
 - **Current models**: a board that does not test a vendor's current model ids abstains for that
-  vendor. A board model named without the one-token suffix a vendor's ids carry (`<model>` for
-  `<model>-high`) matches them, and counts as `<model>-<record effort>` when that id exists, else
-  as the first such id in the vendor's listed order.
+  vendor. A board model named without the effort suffix a vendor's ids carry (`<model>` for
+  `<model>-high`, where the suffix is one of that id's effort levels) matches them, and counts as
+  `<model>-<record effort>` when that id exists, else as the first such id in the vendor's listed
+  order. Any other suffix, such as a version (`<model>-5`), does not match.
 - **Provider-own results**: a provider's own published results (`provider_own: true`) are
   support-only and support only that provider's own models.
 - **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column

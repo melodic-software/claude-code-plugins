@@ -1,4 +1,4 @@
-import { DATE_RE, applyCodingEffortFloor, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
+import { DATE_RE, EFFORT_LADDER, applyCodingEffortFloor, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
 import { isPairFailed } from './trials.mjs'
 
 export function publisherToVendor(publisher) {
@@ -31,8 +31,10 @@ export function matchCurrentModel(vInfo, model, effort) {
   if (vInfo.idSet.has(key)) return vInfo.idCanonical.get(key)
   const prefix = `${key}-`
   const variants = vInfo.ids.filter((id) => {
-    const suffix = id.toLowerCase().startsWith(prefix) ? id.slice(prefix.length) : ''
-    return suffix.length > 0 && !suffix.includes('-')
+    const lower = id.toLowerCase()
+    if (!lower.startsWith(prefix)) return false
+    const efforts = vInfo.effortsByModel.get(lower) || vInfo.topEfforts || EFFORT_LADDER
+    return efforts.some((e) => String(e).toLowerCase() === lower.slice(prefix.length))
   })
   if (variants.length === 0) return null
   const wanted = effort ? `${prefix}${String(effort).toLowerCase()}` : null
