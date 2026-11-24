@@ -105,12 +105,6 @@ for doc in 'worker_continuation:\n' \
   assert_true "the replaced file holds one valid line for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(settings "$repo/$REL")" = 'worker_continuation: respawn' ]
 done
 
-# Duplicate keys (also with a space before the colon), a block or one-line
-# flow map or list, an empty quoted string, and a key outside the schema set
-# twice or holding a map: --check flags each, and apply refuses with the file
-# unchanged. The existing file is validated before any line is replaced, so a
-# value apply could overwrite does not hide a shape the operator must fix by
-# hand.
 for doc in 'worker_continuation: resume\nworker_continuation: respawn\n' \
   'worker_continuation: resume\nworker_continuation : respawn\n' \
   'worker_continuation:\n  mode: resume\n' \
@@ -363,7 +357,6 @@ OUT="$(cd "$WORKROOT" && GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" worker_
 CODE=$?
 assert_true 'outside a git working tree without --root exits 2' code_is 2
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 repo="$(new_repo)"
 run "$repo" worker_continuation=respawn

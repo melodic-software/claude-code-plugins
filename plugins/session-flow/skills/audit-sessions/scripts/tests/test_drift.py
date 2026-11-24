@@ -105,7 +105,6 @@ def test_vanished_needs_absence_in_every_recent_qualifying_version():
 
 
 def test_vanish_window_skips_versions_below_min_count():
-    # 1.0.3 has too few records to count, so the last two versions are 1.0.2 and 1.0.4.
     records = [
         rec("a", {"1.0.1|*": {"record_type:user": 30, "key_path:user:k": 30}}),
         rec("b", {"1.0.2|*": {"record_type:user": 30}}),
@@ -134,8 +133,6 @@ def test_key_still_seen_in_a_thin_recent_version_has_not_vanished():
     ids=["one-m-version-without-k", "three-m-versions-without-k"],
 )
 def test_vanish_window_counts_only_versions_where_the_model_has_min_count_records(later_m_versions, vanished):
-    # Other models fill 1.0.2 and 1.0.3, but m has no records there, so with only 1.0.4 after it
-    # m's last three qualifying versions are 1.0.1 and 1.0.4, and k is present in 1.0.1.
     records = [
         rec("a", {"1.0.1|m": {"record_type:assistant": 30, "key_path:assistant:k": 30}}),
         rec("b", {"1.0.2|*": {"record_type:user": 30}}),
@@ -147,7 +144,6 @@ def test_vanish_window_counts_only_versions_where_the_model_has_min_count_record
 
 
 def test_unknown_version_bucket_is_outside_every_window():
-    # Were `unknown` a version, it would sort oldest and make `ghost` a vanished baseline key.
     records = [
         rec("u", {"unknown|*": {"record_type:user": 500, "key_path:user:ghost": 500}}),
         rec("a", {"1.0.1|*": {"record_type:user": 30}}),
@@ -282,8 +278,6 @@ def test_collector_counts_only_a_last_record_below_an_earlier_one(data_dir, copy
     assert collected.returncode == 0, collected.stderr
     (stored,) = (data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/usage-0001.json")
     record = json.loads(stored.read_text(encoding="utf-8"))
-    # msg_M's merged usage raises input and cache counts, and msg_D's last record recovers its
-    # dip: neither counts. Only msg_R does.
     assert record["census"]["2.0.9|model-s"]["invariant:usage_regress"] == 1
     tokens = record["tokens"]["main"]
     assert (tokens["input"], tokens["cache_read"], tokens["cache_creation"]) == (8 + 5 + 4, 1500 * 3, 350)
@@ -339,7 +333,6 @@ def test_collector_counts_a_returned_agent_call_without_a_subagent_file(tmp_path
     write_transcript(root / "proj-g" / "gap-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
     write_transcript(root / "proj-g" / "kept-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
     write_transcript(root / "proj-g" / "kept-0001" / "subagents" / "agent-a1.jsonl", "2.0.9", [denied(1, "rule")])
-    # A rejected or failed call and one with no result yet leave no subagent file by design.
     write_transcript(root / "proj-g" / "failed-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(True)])
     write_transcript(root / "proj-g" / "open-0001.jsonl", "2.0.9", [agent_call(tool)])
     write_transcript(root / "proj-g" / "solo-0001.jsonl", "2.0.9", [denied(1, "rule")])

@@ -258,8 +258,6 @@ def summarize_record(rec: dict) -> dict:
                 for c in content
                 if isinstance(c, dict) and c.get("type") == "tool_result"
             ]
-            # A bare string inside the content list is kept as human text here, as
-            # a `text` block is; the shared reader's `user_text` skips it.
             humans = [
                 c if isinstance(c, str) else c.get("text", "")
                 for c in content
@@ -270,13 +268,6 @@ def summarize_record(rec: dict) -> dict:
                 out["results"] = [_result_entry(c) for c in tool_results]
             if any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
-            # Anything in a user record that is not a tool_result is the human
-            # speaking: text, a bare string, an image, a document, or a block
-            # type that does not exist yet. Only some of those yield readable
-            # narration, so the boundary is marked structurally rather than
-            # inferred from whether text happened to be extractable -- an
-            # image-only prompt would otherwise carry neither `human` nor
-            # `turn_boundary` and let the dependency check span a new request.
             if len(tool_results) < len(content):
                 out["turn_boundary"] = True
     elif t == "system":
@@ -387,13 +378,7 @@ class Observer:
                     f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)"
                 )
                 return True
-            return False  # partial/mid-write lock -> treat as LIVE
-        # A LIVE pid is never reclaimed, regardless of age: an idle-ended observer
-        # can legitimately hold its lock for the whole analysis run (its own
-        # timeout), which may exceed the tailing cap. Age is a fallback ONLY when
-        # liveness cannot be determined (pid missing / unknowable); the observer
-        # bounds its own lifetime via --max-seconds and the analysis timeout, so a
-        # live holder always exits on its own.
+            return False
         if other_pid > 0:
             stale = not _pid_alive(other_pid)
         else:
@@ -442,11 +427,6 @@ class Observer:
     ) -> tuple[str, int]:
         if lifetime_deadline is None:
             lifetime_deadline = time.time() + self.max_secs
-        # Resume from where a prior observer for THIS session left off (e.g. a
-        # `source=resume` re-arm after the first observer idled), so the already-
-        # analyzed span is not re-read and re-analyzed into a duplicate ledger
-        # entry. A shrunk/rotated transcript is caught by the size<offset resync
-        # in the loop. First arm has no prior status -> offset 0.
         offset = self._resume_offset()
         partial = b""
         cycles = total_lines = sharing_violations = read_errors = 0
@@ -476,8 +456,6 @@ class Observer:
 
                 size, mtime = st.st_size, st.st_mtime
                 if size < offset:
-                    # File shrank -> truncated or replaced (rotation). Resync from
-                    # the start rather than seeking past the new end.
                     offset = 0
                     partial = b""
                 if size > offset:
@@ -506,7 +484,6 @@ class Observer:
                     lines = data.split(b"\n")
                     partial = lines.pop()
                     for raw in lines:
-                        # `lines` holds complete lines only: restore the newline.
                         rec = decode_line(raw.decode("utf-8", "replace") + "\n", line_stats)
                         if rec is None:
                             continue
@@ -660,9 +637,6 @@ class Observer:
             return True
         claude = _find_claude()
         if not claude:
-            # Analysis could not run -> RETAIN the observations as the collect-only
-            # fallback (return "not consumed"), so the user is left with the
-            # machine-local artifact rather than nothing.
             self.log(
                 "claude CLI not found on PATH; retaining observations, no analysis"
             )
@@ -782,8 +756,6 @@ class Observer:
         if not findings:
             self.log("analysis returned no result text")
             return False
-        # Consumed only if the ledger write actually happened; a refused write
-        # (unsafe memory root) retains the observations.
         return self._append_ledger(findings)
 
     def _append_ledger(self, findings: str) -> bool:
