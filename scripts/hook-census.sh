@@ -54,8 +54,6 @@ usage() {
   exit 2
 }
 
-# first_line <program> <args...>: the first line the program prints, or the
-# shell's error when it is missing.
 first_line() {
   local out
   out="$("$@" 2>&1)" || :
@@ -144,11 +142,8 @@ jq -e 'has("args")' <<<"$HOOK_JSON" >/dev/null && HOOK_EXEC=1
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/hook-census-XXXXXXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
-# One assistant record, repeated. Whole lines only, so a reader that parses
-# JSONL sees a valid transcript at any size.
 LINE='{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"The census transcript line is fixed text so every run reads the same bytes."}]},"uuid":"census","session_id":"census"}'
 
-# census_once <transcript-bytes> <spawns|transcript-bytes>: prints the count.
 census_once() {
   local bytes="$1" mode="$2" run
   run="$(mktemp -d "$WORK/run-XXXXXX")"
@@ -237,8 +232,6 @@ if [[ "$MEASURE" != growth ]]; then
 fi
 small="$(census_once 51200 transcript-bytes)"
 large="$(census_once 10485760 transcript-bytes)"
-# A hook that read nothing at either size never reached its reader: flat, and
-# proving nothing.
 ((small + large > 0)) || {
   echo "hook-census: no transcript byte was read at either size" >&2
   exit 3

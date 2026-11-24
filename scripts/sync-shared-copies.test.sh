@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for sync-shared-copies.sh, driven through its CLI against a
-# throwaway tree that carries its own scripts/shared-copies.txt.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +18,6 @@ cleanup_tmp() {
 trap cleanup_tmp EXIT
 HEADER_JS='// GENERATED from lib/esc.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:'
 
-# fixture: canonical lib/esc.mjs carried by plugins/alpha and plugins/beta.
 fixture() {
   fixture_tree::build root --sut sync-shared-copies.sh --label shared-copies || exit 2
   mkdir -p "$root/lib" "$root/plugins/alpha/.claude-plugin" "$root/plugins/beta/.claude-plugin"
@@ -33,7 +30,7 @@ fixture() {
 
 run() { (cd "$root" && bash scripts/sync-shared-copies.sh "$@" 2>&1); }
 
-expect() { # <name> <want-rc> <got-rc> <output>
+expect() {
   if [[ "$3" -eq "$2" ]]; then pass "$1"; else bad "$1" "want exit $2, got $3: $4"; fi
 }
 
@@ -97,7 +94,6 @@ expect "--check-bump passes when no canonical changed" 0 $? "$out"
 out="$(run --check-bump no-such-ref)"
 expect "--check-bump rejects a base that does not resolve" 2 $? "$out"
 
-# A plugin absent at the base is new; its first release carries the change.
 mkdir -p "$root/plugins/gamma/.claude-plugin"
 printf '{"name":"gamma","version":"0.1.0"}\n' >"$root/plugins/gamma/.claude-plugin/plugin.json"
 printf 'lib/esc.mjs plugins/gamma/lib/esc.mjs\n' >>"$root/scripts/shared-copies.txt"
@@ -113,7 +109,6 @@ else
   bad "regen creates a newly registered copy" "plugins/gamma/lib/esc.mjs missing"
 fi
 
-# A copy that changed while its canonical did not (a new header) still needs a bump.
 fixture
 run >/dev/null
 git_init_test_repo "$root" >/dev/null || exit 2
@@ -125,7 +120,6 @@ expect "--check-bump fails when only a copy changed" 1 $? "$out"
 LAST_OUTPUT="$out"
 assert_output_contains "--check-bump names the changed copy" "its copy plugins/alpha/lib/esc.mjs changed"
 
-# A fragment carries a carrier's bump only when that carrier is in fragment mode.
 mkdir -p "$root/.changes/alpha" "$root/.changes/beta"
 for name in alpha beta; do
   printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- Shared esc.mjs synced.\n' >"$root/.changes/$name/sync-esc-0123abcd.md"
@@ -149,7 +143,6 @@ else
   bad "--check-bump tells only a legacy carrier to bump its version" "$out"
 fi
 
-# A fragment-mode carrier with no fragment is told to add one, not to bump.
 git -C "$root" rm -q --cached .changes/alpha/sync-esc-0123abcd.md
 rm "$root/.changes/alpha/sync-esc-0123abcd.md"
 out="$(run --check-bump "$base")"
@@ -165,7 +158,6 @@ else
   bad "--check-bump does not tell a fragment-mode carrier to bump its manifest" "$out"
 fi
 
-# A fragment-mode carrier that already has its fragment is left out of the command.
 printf 'alpha\nbeta\n' >"$root/scripts/fragment-plugins.txt"
 out="$(run --check-bump "$base")"
 expect "--check-bump fails while one fragment-mode carrier lacks a fragment" 1 $? "$out"
@@ -177,8 +169,6 @@ else
   bad "--check-bump does not ask the carrier with a fragment for another" "$out"
 fi
 
-# Only one copy changed: --carriers-of would also write a fragment for the
-# untouched fragment-mode carrier, so the stale plugin is listed instead.
 git -C "$root" checkout -q -- lib/esc.mjs plugins
 git -C "$root" rm -q -r --cached .changes
 rm -rf "$root/.changes"
@@ -188,9 +178,6 @@ expect "--check-bump fails when only a fragment-mode carrier's copy changed" 1 $
 LAST_OUTPUT="$out"
 assert_output_contains "--check-bump lists the one carrier whose copy changed" "scripts/new-changelog-fragment.sh --stdin alpha patch <<'EOF'"
 
-# --- a branch behind its base is compared from the fork point ---------------------
-# The base later syncs a shared file and its copies; a branch that changed none of
-# them must not be charged for that sync.
 fixture
 run >/dev/null
 git_init_test_repo "$root" >/dev/null || exit 2
@@ -208,7 +195,6 @@ git -C "$root" checkout -q feature
 out="$(run --check-bump main-ahead)"
 expect "--check-bump passes a branch behind its base that changed no shared file" 0 $? "$out"
 
-# The same branch that changes the shared file itself still fails.
 printf 'export const esc = (s) => String(s) + "";\n' >"$root/lib/esc.mjs"
 run >/dev/null
 out="$(run --check-bump main-ahead)"
@@ -239,7 +225,6 @@ else
   bad "regen removes the executable bit the canonical dropped" "still executable"
 fi
 
-# --- a shebang stays on line one; the header follows it ------------------------
 fixture
 mkdir -p "$root/lib"
 printf '#!/usr/bin/env bash\necho hi\n' >"$root/lib/tool.sh"
@@ -327,7 +312,6 @@ fi
 out="$(run --check)"
 expect "--check passes on a generated CSS copy" 0 $? "$out"
 
-# --- --print-manifest publishes one block per canonical ------------------------
 fixture
 printf 'lib/b.sh plugins/beta/hooks/b.sh\n' >>"$root/scripts/shared-copies.txt"
 printf 'echo b\n' >"$root/lib/b.sh"
@@ -339,7 +323,7 @@ else
   bad "--print-manifest emits a src line then its copies, per canonical" "got: $out"
 fi
 
-reject() { # <name> <needle> <registry line> [file to create]
+reject() {
   fixture
   if [[ -n "${4:-}" ]]; then
     mkdir -p "$root/${4%/*}" && printf 'x\n' >"$root/$4"
@@ -405,8 +389,6 @@ else
 fi
 rm -rf "$outside"
 
-# --- a checkout's own script syncs its checkout, whatever the caller's cwd -------
-# A session standing in the main checkout runs a worktree's script by path.
 fixture
 git_init_test_repo "$root" >/dev/null || exit 2
 git -C "$root" add -A && git -C "$root" commit -qm base
@@ -443,9 +425,6 @@ LAST_OUTPUT="$out"
 assert_output_contains "--check-bump from another checkout's cwd names the own checkout's stale carrier" \
   "STALE VERSION: lib/esc.mjs or its copy plugins/alpha/lib/esc.mjs changed vs $base"
 
-# --- a copy of scripts/ run from outside the checkout syncs the checkout ---------
-# The issue lane runs a read-only copy of only scripts/, with the working
-# directory at the pull request's checkout.
 fixture
 git_init_test_repo "$root" >/dev/null || exit 2
 git -C "$root" add -A && git -C "$root" commit -qm base
@@ -477,10 +456,6 @@ assert_output_contains "an outside copy refuses --check-bump, with the reason" "
 chmod -R u+w "$tools"
 rm -rf "$tools"
 
-# --- a copy of scripts/ staged inside the checkout is still an outside copy ------
-# The issue lane stages its copy at .lane/verify/scripts inside the pull request's
-# checkout (collect-base-activity/action.yml), so the probe finds that checkout as
-# the copy's own top level; only the <top>/scripts comparison keeps it outside.
 fixture
 git_init_test_repo "$root" >/dev/null || exit 2
 git -C "$root" add -A && git -C "$root" commit -qm base

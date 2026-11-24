@@ -115,7 +115,6 @@ if [[ -n "$TABLE" ]]; then
 fi
 ((${#ROWS[@]} > 0)) || die "the table has no rows"
 
-# The whole table is checked before any row runs.
 for row in "${ROWS[@]}"; do
   IFS='|' read -r id path _ <<<"$row"
   [[ "$id" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "malformed row id: $row"

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/validate-plugins.sh's argument contract. The validation
-# passes themselves need node and the claude CLI and run in CI's manifest step;
-# what is pinned here is that a plugin list the script cannot honor is refused
-# before anything runs, rather than narrowing the per-plugin pass to nothing.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

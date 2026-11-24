@@ -1,8 +1,3 @@
-"""Tests for vendor_gitleaks_rules.py over the offline fixture gitleaks-sample.toml.
-
-Every expected regex below is the fixture pattern rewritten by hand to Python `re` syntax.
-"""
-
 from __future__ import annotations
 
 import json

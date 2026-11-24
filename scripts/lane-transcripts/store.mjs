@@ -148,9 +148,6 @@ export function telemetrySpans(text, traceId) {
   return { telemetry_spans: spans, telemetry_joined_spans: joined };
 }
 
-// The rows every complete line holds. An append cut short (a full disk, a
-// kill) leaves a last line with no newline: it is not a row, so its artifact
-// is pulled again and the next append replaces it.
 const completeText = (text) => text.slice(0, text.lastIndexOf("\n") + 1);
 
 function readJsonl(file) {
@@ -222,7 +219,6 @@ export function readState(sink) {
 
 export const writeState = (sink, state) => writeAtomic(paths(sink).state, `${JSON.stringify(state, null, 2)}\n`);
 
-// Every regular file under dir, with its size and modification time.
 function files(dir) {
   if (!existsSync(dir)) return [];
   const out = [];
@@ -271,7 +267,6 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
     else if (entry.field === "telemetry") entry.row.telemetry = null;
   };
   for (const entry of stored) if (now - entry.at > TRANSCRIPT_DAYS * DAY) drop(entry, "age");
-  // A row whose file is gone keeps its metrics but no path.
   for (const row of rows) {
     if (row.transcript && !existsSync(path.join(sink, row.transcript))) Object.assign(row, { transcript: null, pruned: row.pruned ?? "missing" });
     if (row.telemetry && !existsSync(path.join(sink, row.telemetry))) row.telemetry = null;
@@ -290,9 +285,6 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
   return { ...removed, bytes: sinkBytes(sink) };
 }
 
-// A row is `error` when is_error is true, whatever an older row stored as its
-// outcome. Its subtype still matches, except `success`, which an errored leg is
-// not. An older row has no subtype field: its outcome is the subtype.
 function hasOutcome(row, outcome) {
   if (row.is_error !== true) return row.outcome === outcome;
   return outcome === "error" || (outcome !== "success" && (row.subtype ?? row.outcome) === outcome);

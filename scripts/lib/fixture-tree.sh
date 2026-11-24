@@ -71,8 +71,6 @@ unset _fixture_tree_lib_dir
 # shellcheck source=../test-git-helpers.sh
 . "$FIXTURE_TREE_REPO_ROOT/scripts/test-git-helpers.sh"
 
-# A second source must not drop the roots already registered for cleanup: that
-# would strand a fixture tree in $TMPDIR on every run. The functions stay.
 if [[ -n "${FIXTURE_TREE_SOURCED:-}" ]]; then
   return 0
 fi
@@ -269,17 +267,11 @@ fixture_tree::build() {
       rm -rf "$_ft_root"
       return 1
     }
-    # A lib's own suite is not part of the world a copied gate runs in, and
-    # copying it would put a second *.test.sh under the fixture where a
-    # suite-counting gate would find it.
     local -a _ft_libnames=()
     local _ft_libfile
     for _ft_libfile in "$FIXTURE_TREE_REPO_ROOT"/scripts/lib/*; do
       [[ -f "$_ft_libfile" && "$_ft_libfile" != *.test.sh ]] && _ft_libnames+=("${_ft_libfile##*/}")
     done
-    # Behind a --sut, only the libs the scripts under test name, and the libs
-    # those name in turn: a copied lib is a file the suite reads, and one no
-    # copied script uses is a read the test selection cannot see.
     if [[ "$_ft_lib" == auto ]]; then
       mapfile -t _ft_libnames < <(fixture_tree::_lib_closure "${_ft_libnames[@]}" -- "${_ft_srcs[@]}")
     fi

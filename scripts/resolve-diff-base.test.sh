@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for resolve-diff-base.sh: the ref it writes to GITHUB_OUTPUT per
-# event, and the reason it logs. The merge-group cases run in a throwaway
-# repository with a side branch, so ancestry is real.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -30,8 +27,6 @@ git_test_config "$repo" commit -qm side
 SIDE="$(git -C "$repo" rev-parse HEAD)"
 git_test_config "$repo" checkout -q main
 
-# resolve <event> [merge-group base]: run the script in the repository; OUT is
-# what it printed, REF the ref it wrote (empty for the whole tree), RC its exit.
 resolve() {
   local gho="$TMP_ROOT/gho"
   : >"$gho"
@@ -41,7 +36,6 @@ resolve() {
   REF="$(sed -n 's/^ref=//p' "$gho")"
 }
 
-# expect <label> <ref or ""> <text the output must hold>
 expect() {
   if [[ "$RC" -eq 0 && "$REF" == "$2" && "$OUT" == *"$3"* ]]; then
     ok "$1"
@@ -66,9 +60,6 @@ expect "a schedule run tests the whole tree" "" "A schedule run has no diff base
 resolve workflow_dispatch
 expect "a dispatch run tests the whole tree" "" "this workflow_dispatch run tests the whole tree."
 
-# A release bumps plugin manifests; a group whose diff touches one is scoped to
-# the queue's base like any other group.
-# commit_on_main <path>: commit a change to <path> on main.
 commit_on_main() {
   mkdir -p "$repo/$(dirname "$1")"
   printf '{"version":"%s"}\n' "$RANDOM" >"$repo/$1"

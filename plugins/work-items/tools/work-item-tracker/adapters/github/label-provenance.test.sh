@@ -100,7 +100,6 @@ ev() {
 }
 
 OUT="" RC=0
-# run <timeline-json> <args...>
 run() {
   local timeline="$1"
   shift

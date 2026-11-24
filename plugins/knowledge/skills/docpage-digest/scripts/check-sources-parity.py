@@ -75,7 +75,6 @@ def source_lines(text):
 
 
 def source_headings(lines):
-    """(line, level, text) for every heading outside a fence."""
     found = []
     fence = None
     for number, line in enumerate(lines, 1):
@@ -99,7 +98,6 @@ def source_headings(lines):
 
 
 def section(text, title):
-    """Body lines under `## <title>`, or None when the section is absent."""
     body = None
     for line in text.split("\n"):
         m = re.match(r"^##[ \t]+(.*?)[ \t]*$", line)
@@ -115,7 +113,6 @@ def section(text, title):
 
 
 def table_rows(body):
-    """Cell lists of each data row; the first table row is the header."""
     rows = []
     header_seen = False
     for line in body:

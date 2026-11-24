@@ -72,8 +72,6 @@ class NextGraphTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = Fixture()
         self.addCleanup(self.fx.clean)
-        # A clean chain: interview -> design -> plan -> implement, with plan also
-        # skipping the conditional decompose stage to implement.
         self.fx.skill("p:interview", "interview", "/p:design")
         self.fx.skill("p:design", "design", "/p:plan reads the design.")
         self.fx.skill(
@@ -98,9 +96,6 @@ class NextGraphTest(unittest.TestCase):
         self.assertEqual(err, "")
 
     def test_skip_over_conditional_stage_passes(self) -> None:
-        # prd is conditional and interview optional: a brainstorm-like interview
-        # skill routing back to prd, and prd routing to design over the
-        # optional interview stage, are both legal.
         self.fx.skill("p:prd", "prd", "/p:design")
         self.fx.skill(
             "p:interview",
@@ -218,8 +213,6 @@ class NextGraphTest(unittest.TestCase):
         self.assertEqual(rc, 0, err)
 
     def test_pr_stage_is_off_ladder_not_prd(self) -> None:
-        # `pr` must not prefix-match `prd`: read as prd, this edge would skip
-        # the research stage and fail.
         self.fx.skill("p:pull-request", "pr", None)
         self.fx.skill("p:explore", "explore", "/p:pull-request")
         self.fx.roster(
@@ -238,8 +231,6 @@ class NextGraphTest(unittest.TestCase):
         self.assertEqual(gate.ladder_index("retro", ladder), 3)
 
     def test_roster_skill_off_the_ladder_fails(self) -> None:
-        # A typo or an off-ladder stage on a roster skill must not exempt its
-        # edges: here it would hide interview's skip over design.
         for stage in ("dsign", "anytime"):
             with self.subTest(stage=stage):
                 self.fx.skill("p:design", stage, "/p:plan")

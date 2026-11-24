@@ -36,8 +36,6 @@ $1
 EOF
 }
 
-# stub <offline-rc> <offline-out> <online-rc> <online-out>: a zizmor whose
-# offline run (--no-online-audits) and online run print and exit as given.
 stub() {
   printf '%s' "$2" >"$scratch/offline.out"
   printf '%s' "$4" >"$scratch/online.out"
@@ -57,13 +55,12 @@ run() {
   OUT=$(PATH="$scratch/bin:$PATH" STANDARDS_DIR="$standards" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
 }
 
-check() { # check <name> <condition-result>
+check() {
   if [[ "$2" == yes ]]; then ok "$1"; else bad "$1" "rc=$RC out=$OUT"; fi
 }
 
 finding='::error file=.github/workflows/a.yml,line=7,title=unpinned-uses::a.yml:7: unpinned action reference'
 
-# A 403 from the online audit warns, names the status, and passes.
 stub 0 '' 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories?ecosystem=actions)')"
 run
 check 'a 403 from the online audit is a warning naming the status, and passes' \
@@ -93,23 +90,19 @@ stub 0 '' 1 "$(online_error '    2: HTTP status client error (404 Not Found) for
 run
 check 'a 404 still fails' "$([[ $RC -ne 0 && "$OUT" != *'::warning title=zizmor online'* ]] && echo yes)"
 
-# An exit 1 that is not a GitHub API request error still fails.
 stub 0 '' 1 $'fatal: no audit was performed\nfailed to load input .github/workflows/a.yml'
 run
 check 'an online-run error that is not a network error still fails' "$([[ $RC -eq 1 ]] && echo yes)"
 
-# Findings from the online run fail with zizmor's own exit code.
 stub 0 '' 14 "$finding"
 run
 check 'an online finding fails' "$([[ $RC -eq 14 && "$OUT" == *"$finding"* ]] && echo yes)"
 
-# Findings from an offline audit fail, and the online run is not reached.
 stub 13 "$finding" 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories)')"
 run
 check 'an offline finding fails, whatever the online run would do' \
   "$([[ $RC -eq 13 && "$(wc -l <"$scratch/calls")" -eq 1 ]] && echo yes)"
 
-# An offline-run error fails too: only the online run can be downgraded.
 stub 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories)')" 0 ''
 run
 check 'an error in the offline run fails, even one that reads like a network error' "$([[ $RC -eq 1 ]] && echo yes)"

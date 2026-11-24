@@ -59,9 +59,6 @@ if ((${#fragments[@]} == 0)); then
   echo "No pending changelog fragments."
   exit 0
 fi
-# A plugin with an invalid fragment is skipped whole: releasing it without that
-# fragment would drop the change from its CHANGELOG. Its fragments stay for a
-# fix, and every other plugin still releases.
 declare -A skipped=()
 for path in "${fragments[@]}"; do
   rest="${path#.changes/}"
@@ -121,7 +118,6 @@ for path in "${fragments[@]}"; do
   plugin_fragments["$name"]+="$(printf '%08d' "${order[$path]:-99999999}") $bump $path"$'\n'
 done
 
-# Pass 1: compute every new version and check every file it will touch.
 declare -A old_version=() new_version=() manifest_of=() changelog_of=()
 for name in "${plugins[@]}"; do
   [[ "${plugin_bump[$name]}" != none ]] || continue
@@ -132,8 +128,6 @@ for name in "${plugins[@]}"; do
     manifest="$root/.claude-plugin/plugin.json"
     version="$(jq -r '.version // empty' "$manifest" 2>/dev/null)"
   else
-    # Read at HEAD, as a plugin's version stays unraised until the run ends:
-    # a run cut short then trips the existing-entry check below.
     version="$(git show "HEAD:$changelog" 2>/dev/null | changelog_fragments::newest_version -)"
   fi
   if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -164,8 +158,6 @@ for name in "${plugins[@]}"; do
   changelog_of["$name"]="$changelog"
 done
 
-# Pass 2: produce every new file under $stage. Nothing in the tree changes until
-# all of them exist, so a failure here leaves the tree as it was.
 stage="$(mktemp -d)" || exit 2
 trap 'rm -rf "$stage"' EXIT
 targets=()
@@ -257,8 +249,6 @@ for name in "${plugins[@]}"; do
   staged+=("$stage/$name.manifest")
 done
 
-# Pass 3: apply. Changelogs and manifests first and fragments last, so a run
-# cut short here is caught by the existing-entry check above on the next run.
 for i in "${!targets[@]}"; do
   if ! cat "${staged[i]}" >"${targets[i]}"; then
     echo "$self: could not write ${targets[i]}; restore the tree (git checkout -- .) before running again." >&2

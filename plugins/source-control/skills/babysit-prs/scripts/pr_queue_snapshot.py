@@ -150,7 +150,6 @@ def resolve_self_logins(self_csv: str | None, extra_self_csv: str | None) -> lis
 def resolve_scope_repos(
     args: argparse.Namespace, owners: frozenset[str]
 ) -> tuple[str, ...]:
-    """Validate --repo against the watched-owner set and the queue lease."""
     repo_arg = getattr(args, "repo", None)
     if not repo_arg:
         return ()
@@ -170,14 +169,6 @@ def resolve_scope_repos(
 
 
 def substantive_errors(errors: list[str]) -> list[str]:
-    """Errors that mark the sweep incomplete -- everything but advisory ones.
-
-    An advisory head-ref alias failure leaves every per-PR classification and
-    the persisted state intact, so it neither forces the tight cadence nor
-    holds back full-sweep advancement; only substantive errors (per-PR
-    hydration or discovery failures) do. The single source of truth for the
-    advisory predicate is ``babysit_delta.is_head_ref_alias_error``.
-    """
     return [message for message in errors if not delta.is_head_ref_alias_error(message)]
 
 

@@ -51,8 +51,6 @@ BLANK_RANGE = 8
 
 
 def overlaps(texts, margin=MARGIN):
-    """texts: [(label, (x0, y0, x1, y1), allowed)]. Every pair whose boxes intersect by more than margin on both
-    axes, unless either is allowed."""
     found = []
     for i, (la, a, oka) in enumerate(texts):
         for lb, b, okb in texts[i + 1:]:
@@ -66,8 +64,6 @@ def overlaps(texts, margin=MARGIN):
 
 
 def clipped(box, frame_w, frame_h, margin=MARGIN):
-    """True when the box is partly on screen and partly past a frame edge. Wholly off screen is not a defect: it
-    is how an element waits to slide in."""
     x0, y0, x1, y1 = box
     hw, hh = frame_w / 2, frame_h / 2
     on_screen = x1 > -hw and x0 < hw and y1 > -hh and y0 < hh
@@ -131,7 +127,6 @@ def narrated_defects(probe, fps, animations):
 
 
 def sample(checkpoints, limit=MAX_FRAMES):
-    """At most limit checkpoints, evenly spaced, the last one always included."""
     if len(checkpoints) <= limit:
         return list(checkpoints)
     step = (len(checkpoints) - 1) / (limit - 1)
@@ -175,7 +170,6 @@ def elements(mobjects, containers, allowed=False):
 
 
 def snapshot(scene, text_types, containers):
-    """What is on screen at the end of an animation: the elements and the text elements inside them."""
     tops, texts = [], []
     for top, allowed in elements(scene.mobjects, containers):
         tops.append((_label(top), _box(top)))
@@ -191,8 +185,6 @@ def snapshot(scene, text_types, containers):
 
 
 def clear_previous(out, scene_class):
-    """Drop the last run's report, video, captions and frames, so a rerender that fails part-way leaves no PASS
-    report."""
     for name in ('report.json', f'{scene_class}.mp4', f'{scene_class}.silent.mp4', 'captions.srt', 'timing.json',
                  'narration.normalized.wav'):
         (out / name).unlink(missing_ok=True)
@@ -200,7 +192,6 @@ def clear_previous(out, scene_class):
 
 
 def load_narration(folder, out):
-    """Read speech:narrate's output, write out/timing.json and point narration.beat at it."""
     record = json.loads((folder / 'words.json').read_text(encoding='utf-8'))
     wav = folder / record.get('audio', 'narration.wav')
     if not wav.is_file():
@@ -296,7 +287,6 @@ def parse_freezes(log, duration):
 
 
 def stills_report(spans, words=None):
-    """Each span with its length and, when narrated, how many words are spoken while the picture holds."""
     out = []
     for a, b in spans:
         item = {'start': round(a, 3), 'end': round(b, 3), 'seconds': round(b - a, 3)}

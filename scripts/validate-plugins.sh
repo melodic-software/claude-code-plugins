@@ -88,7 +88,6 @@ else
   fi
 fi
 bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
-# Before the catalog, which groups by the category this generates.
 node "$SCRIPT_DIR/generate-marketplace.mjs" --check || exit 1
 node "$SCRIPT_DIR/generate-catalog.mjs" --check || exit 1
 # The cheatsheet generator imports scripts/cheatsheet-config.mjs from the tree it
@@ -183,9 +182,6 @@ validate_one() {
   render_validate "$1"
 }
 
-# The per-plugin passes and the mod tests run as background jobs, one
-# per-plugin pass per CPU, with the mod tests beside them. Each job's output is
-# buffered and printed in start order, so the log reads as a serial run.
 failed=0
 buf="$(mktemp -d)" || exit 2
 trap 'rm -rf "$buf"' EXIT
@@ -195,7 +191,6 @@ spawn() {
   "$@" >"$buf/$n.out" 2>"$buf/$n.err" &
   pids[n]=$!
 }
-# collect <n>: wait for job n, print its output, and fold a failure into failed.
 collect() {
   wait "${pids[$1]}" || failed=1
   cat "$buf/$1.out"

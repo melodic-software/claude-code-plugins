@@ -17,7 +17,6 @@ WORKFLOW="$ROOT/.github/workflows/maintenance-file-dead-links.yml"
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
-# The sync-managed link-check caller: exactly one must exist.
 callers=("$ROOT"/.github/workflows/maintenance-check-links-online*.yml)
 CALLER="$ROOT/.github/workflows/maintenance-check-links-online.yml"
 if ((${#callers[@]} != 1)) || [[ ! -f "$CALLER" ]]; then
@@ -30,7 +29,6 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 export TMPDIR="$TMP_ROOT"
 
-# The `run: |` body of the step named $1, de-indented.
 step_body() {
   awk -v name="      - name: $1" '$0 == name { on = 1; next }
     on && /^      - / { exit }
@@ -49,7 +47,6 @@ for body in read file; do
     exit 1
   fi
 done
-# The rollup marker as the workflow sets it.
 MARKER="$(sed -n 's/^          MARKER: //p' "$WORKFLOW")"
 
 job() { awk -v j="  $1:" '$0 == j { on = 1; next } on && /^  [a-z-]+:$/ { exit } on' "$WORKFLOW"; }
@@ -88,7 +85,7 @@ else
   fail "the rollup marker is '$MARKER'"
 fi
 
-run_read() { # <download outcome> <conclusion> <fixture or ''> [MAX_LINKS]
+run_read() {
   local out="$TMP_ROOT/read-output" fixture="$TMP_ROOT/dead-links.json"
   : >"$out"
   rm -f "$fixture"
@@ -166,7 +163,6 @@ else
   fail "a non-array artifact did not fail: $READ_STATUS $READ_LOG"
 fi
 
-# --- Rewrite the rollup issue -------------------------------------------------
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'STUB'
 #!/usr/bin/env bash
@@ -204,7 +200,7 @@ STUB
 chmod +x "$TMP_ROOT/bin/gh"
 
 issues() { jq -n --arg m "$MARKER" "$1" >"$TMP_ROOT/issues.json"; }
-run_file() { # <links json> [VAR=value ...]
+run_file() {
   local links="$1"
   shift
   : >"$TMP_ROOT/gh.log"
@@ -278,7 +274,6 @@ else
   fail "the big body was not capped: status $FILE_STATUS, ${#BODY} characters, $shown shown, over '$over'"
 fi
 
-# An open rollup wins over an older closed one.
 issues '[{number: 9, state: "closed", state_reason: "completed", body: $m},
   {number: 8, state: "open", state_reason: null, body: ("\n" + $m + "\n\nold")}]'
 run_file "$two"

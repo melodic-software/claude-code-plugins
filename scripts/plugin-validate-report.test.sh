@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract for scripts/plugin-validate-report.mjs. No claude binary required.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

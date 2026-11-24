@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Prune clean ephemeral worktrees created by the babysit-prs skill."""
 
 from __future__ import annotations
 

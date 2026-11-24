@@ -86,12 +86,6 @@ def git(*args: str, input: str | None = None) -> str:
 
 
 def rank_norm(values: dict[str, float]) -> dict[str, float]:
-    """Rank each value into [0, 1]; equal values share the mean of their ranks.
-
-    Fractional ranking keeps a tie (common for fan-in and churn in a small or
-    shallow repository) from being broken by path order, which would let the
-    spelling of a filename move a score.
-    """
     if not values:
         return {}
     order = sorted(values, key=lambda k: (values[k], k))
@@ -135,7 +129,6 @@ def census_records() -> tuple[dict[str, dict], dict]:
 
 
 def churn_inputs(window_months: int, half_life_days: float, now: float):
-    """Recency-weighted line churn, raw line churn, and per-file author commit counts."""
     log = git(
         "log",
         f"--since={window_months} months ago",
@@ -170,7 +163,6 @@ def churn_inputs(window_months: int, half_life_days: float, now: float):
 
 
 def fan_in(paths: list[str]) -> dict[str, int]:
-    """Occurrences of each candidate's basename across tracked text files, minus its own."""
     names = sorted({os.path.basename(p) for p in paths})
     if not names:
         return {}
@@ -226,7 +218,6 @@ def comment_line_numbers(path: str) -> set[int]:
 
 
 def drift_days(path: str) -> float | None:
-    """Median code-line author-time minus median comment-line author-time, in days."""
     blame = git("blame", "--line-porcelain", "-w", "--", path)
     times: dict[int, int] = {}
     lineno = 0
@@ -245,7 +236,6 @@ def drift_days(path: str) -> float | None:
 
 
 def admin_gate_lifted(path: str, allow: list[str], lift_all: bool) -> bool:
-    """True when this administrative path may enter ranking."""
     if lift_all:
         return True
     posix = path.replace(os.sep, "/").lstrip("./")

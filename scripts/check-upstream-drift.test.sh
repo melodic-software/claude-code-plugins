@@ -36,8 +36,6 @@ PAGE=docs/upstream/widgets.md
 MARKER="**Last audited upstream state:** \`acme/widgets@$PIN\` under \`skills/\` (widgets 1.0)"
 PIN_TREE=("$B1 README.md" "$B2 skills/alpha/SKILL.md" "$B3 skills/beta/SKILL.md")
 
-# PATH mirrors with one tool removed, cleaned on exit. Installed before the first
-# fixture_tree::build so the builder chains this trap instead of replacing it.
 MIRRORS=()
 cleanup_mirrors() {
   local d
@@ -76,13 +74,12 @@ page_lines() { # [<marker>]
   printf -- '- [beta](https://github.com/acme/widgets/tree/%s/skills/beta)\n' "$PIN"
 }
 
-# new_root: a fresh fixture tree holding the script; the root lands in $f.
 new_root() {
   fixture_tree::build f --sut "$SUT_SRC" --label upstream-drift || return 2
   mkdir -p "$f/docs/upstream" "$f/fx/acme__widgets"
 }
 
-tree_file() { # <sha> <line>...
+tree_file() {
   local sha="$1"
   shift
   printf '%s\n' "$@" >"$f/fx/acme__widgets/$sha.tree"
@@ -90,8 +87,6 @@ tree_file() { # <sha> <line>...
 
 set_head() { printf '%s\n' "$1" >"$f/fx/acme__widgets/HEAD"; }
 
-# setup <head-tree-line>...: the default page, the pin tree, and HEAD at NEW
-# with the given tree. With no lines, HEAD stays at the pin.
 setup() {
   new_root || return 2
   page_lines >"$f/$PAGE"
@@ -108,7 +103,6 @@ RC=0
 OUT=""
 ERR=""
 
-# run <arg>...: the script in the fixture root with the fixture seam set.
 run() {
   local o e
   o="$(mktemp)" || return 2
@@ -120,8 +114,6 @@ run() {
   rm -f "$o" "$e"
 }
 
-# run_env <env-assignment>... -- <arg>...: the script with the given environment
-# only (no fixture seam unless named).
 run_env() {
   local o e
   local -a envs=()
@@ -150,7 +142,7 @@ want_out() {
 want_err() {
   if [[ "$ERR" == *"$2"* ]]; then ok "$1: stderr has '$2'"; else fail "$1: stderr lacks '$2' $(state)"; fi
 }
-want_out_line() { # exact whole line on stdout
+want_out_line() {
   if grep -qxF -- "$2" <<<"$OUT"; then ok "$1: stdout line '$2'"; else fail "$1: no stdout line '$2' $(state)"; fi
 }
 no_out() {
@@ -163,7 +155,6 @@ out_lacks() {
   if [[ "$OUT" != *"$2"* ]]; then ok "$1: stdout lacks '$2'"; else fail "$1: stdout carries '$2' $(state)"; fi
 }
 
-# Usage and help.
 setup
 run --help
 want_rc "help" 0
@@ -175,14 +166,12 @@ run --report --links
 want_rc "two modes" 2
 no_out "two modes"
 
-# Head equal to the pin: clean.
 setup
 run
 want_rc "clean" 0
 want_out_line "clean" "upstream records: 1 pages, no drift"
 no_err "clean"
 
-# A modified, added and deleted file under the row link each drift.
 setup "$B1 README.md" "$B4 skills/alpha/SKILL.md" "$B3 skills/beta/SKILL.md"
 run
 want_rc "modified row file" 1
@@ -200,13 +189,11 @@ run
 want_rc "deleted row file" 1
 want_err "deleted row file" "$PAGE:7: acme/widgets D skills/alpha/SKILL.md"
 
-# The same paths in another repository's tree change nothing for this page.
 setup
 mkdir -p "$f/fx/elsewhere__thing"
 run
 want_rc "other repository link ignored" 0
 
-# A Map unit that changes is not drift; one removed upstream is.
 setup "$B1 README.md" "$B2 skills/alpha/SKILL.md" "$B4 skills/beta/SKILL.md"
 run
 want_rc "modified map unit" 0
@@ -217,8 +204,6 @@ run
 want_rc "removed map unit" 1
 want_err "removed map unit" "$PAGE:12: acme/widgets removed unit skills/beta"
 
-# A file added under the scope that no link covers is a new unit; one added
-# outside the scope is nothing.
 setup "${PIN_TREE[@]}" "$B4 skills/gamma/SKILL.md"
 run
 want_rc "new unit" 1
@@ -229,7 +214,6 @@ run
 want_rc "added outside scope" 0
 no_err "added outside scope"
 
-# --report on drift: page, row, new-unit and removed-unit lines, path last.
 setup "$B1 README.md" "$B4 skills/alpha/SKILL.md" "$B5 skills/gamma/SKILL.md"
 run --report
 want_rc "report drift" 1
@@ -244,7 +228,6 @@ want_rc "report clean" 0
 want_out_line "report clean" "page repo=acme/widgets pin=aaaaaaaaaaaa head=aaaaaaaaaaaa status=clean path=$PAGE"
 want_out_line "report clean" "row line=7 status=unchanged path=skills/alpha"
 
-# Path injection: a space, = and | stay inside the last field.
 setup "${PIN_TREE[@]}" "$B4 skills/alpha/a b=c|d.md"
 run --report
 want_rc "path with space, = and |" 1
@@ -265,7 +248,6 @@ for ctl in tab cr newline; do
   no_out "path with $ctl"
 done
 
-# A blob link to a single file, on a page with no scope.
 new_root
 {
   printf '# Widgets\n\n'
@@ -281,7 +263,6 @@ want_rc "blob link drift, no scope" 1
 want_err "blob link drift, no scope" "$PAGE:5: acme/widgets M README.md"
 if [[ "$ERR" != *"new unit"* ]]; then ok "no scope: no new units"; else fail "no scope: reported a new unit $(state)"; fi
 
-# A page with neither a scope nor a link is untracked, never drift.
 new_root
 # shellcheck disable=SC2016  # literal marker backticks
 printf '# Widgets\n\n**Last audited upstream state:** `acme/widgets@%s`\n' "$PIN" >"$f/$PAGE"
@@ -292,7 +273,6 @@ run --report
 want_rc "untracked" 0
 want_out_line "untracked" "page repo=acme/widgets pin=aaaaaaaaaaaa head=bbbbbbbbbbbb status=untracked path=$PAGE"
 
-# Markers that are not the git form are skipped.
 new_root
 # shellcheck disable=SC2016  # literal marker backticks
 printf '**Last audited upstream state:** `main@3c26291` (upstream HEAD)\n' >"$f/docs/upstream/a.md"
@@ -305,7 +285,6 @@ run --page docs/upstream/a.md
 want_rc "--page without the git form" 2
 no_out "--page without the git form"
 
-# Near-miss markers exit 2.
 for bad in \
   "**Last audited upstream state:** \`acme/widgets@aaaaaaa\` (short sha)" \
   "**Last audited upstream state:** \`acme/widgets@$PIN\` under skills/" \
@@ -319,7 +298,6 @@ for bad in \
   no_out "near-miss marker: $bad"
 done
 
-# Indented and quoted markers that name a pin are near-misses too.
 for bad in "  $MARKER" "> $MARKER"; do
   new_root
   page_lines "$bad" >"$f/$PAGE"
@@ -330,7 +308,6 @@ for bad in "  $MARKER" "> $MARKER"; do
   no_out "near-miss marker: $bad"
 done
 
-# A scope absent at the pin is a malformed record: exit 2, naming page and scope.
 new_root
 page_lines "**Last audited upstream state:** \`acme/widgets@$PIN\` under \`skilz/\`" >"$f/$PAGE"
 tree_file "$PIN" "${PIN_TREE[@]}"
@@ -343,21 +320,17 @@ for mode in "" --report --links; do
   want_err "scope absent at pin ${mode:-default}" "$PAGE: scope skilz/"
 done
 
-# The scope present at the pin but deleted at HEAD stays a D finding on the
-# row under it and a removed Map unit, not an error.
 setup "$B1 README.md"
 run
 want_rc "scope deleted at head" 1
 want_err "scope deleted at head" "$PAGE:7: acme/widgets D skills/alpha/SKILL.md"
 want_err "scope deleted at head" "$PAGE:12: acme/widgets removed unit skills/beta"
 
-# --page on a git-form page checks that page.
 setup
 run --page "$PAGE"
 want_rc "--page" 0
 want_out_line "--page" "upstream records: 1 pages, no drift"
 
-# --links: the default page's two links resolve at the pin.
 setup
 run --links
 want_rc "links ok" 0
@@ -382,7 +355,6 @@ want_err "bad links" "$PAGE:15: bad-form"
 if [[ "$ERR" != *"$PAGE:16:"* ]]; then ok "bad links: blob link is ok"; else fail "bad links: blob link flagged $(state)"; fi
 out_lacks "bad links" "wrong-sha"
 
-# Errors: a truncated read, a missing fixture file and a missing HEAD.
 setup
 tree_file "$PIN" "${PIN_TREE[@]}" truncated
 run
@@ -600,7 +572,6 @@ else
   pass "other gh failure: no ls-remote or fetch"
 fi
 
-# Missing prerequisites: gh outside the fixture seam, and jq always.
 setup
 path_without gh
 run_env PATH="$NO_PATH" --

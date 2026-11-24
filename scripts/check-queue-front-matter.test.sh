@@ -13,7 +13,7 @@ SCRIPT="$SELF_DIR/check-queue-front-matter.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 q=""
 
-new_queue() { # <out-var>
+new_queue() {
   fixture_tree::build "$1" --label queue
 }
 

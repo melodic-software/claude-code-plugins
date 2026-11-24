@@ -133,9 +133,6 @@ _read_list::parse() {
     if [[ "$_rl_parse_mode" == inline ]]; then
       _rl_line="${_rl_line%%#*}"
     fi
-    # Trim both ends. Done after inline stripping so `entry   # note` loses the
-    # whitespace the comment left behind, and before the leading-# test so an
-    # indented comment is still recognized as one.
     _rl_line="${_rl_line#"${_rl_line%%[![:space:]]*}"}"
     _rl_line="${_rl_line%"${_rl_line##*[![:space:]]}"}"
     [[ -n "$_rl_line" ]] || continue
@@ -179,9 +176,6 @@ read_list::into_text() {
 
   _read_list::parse "$_rl_name" "$_rl_mode" <<<"$_rl_text"
 }
-
-# ---------------------------------------------------------------------------
-# Stale-entry guard. See the header for why it lives here.
 
 # `-g` so the set survives at the sourcing shell's top level regardless of which
 # function first touches it, and `=()` so `set -u` never sees it unbound: a

@@ -31,7 +31,6 @@ mkdir -p "$repo"
 git_test_config "$repo" init -q
 cp "$TMP_ROOT/patterns" "$repo/.gitignore"
 
-# matches <path>: the group matches a change to <path>.
 matches() { git_test_config "$repo" check-ignore --no-index -q -- "$1"; }
 
 for p in \

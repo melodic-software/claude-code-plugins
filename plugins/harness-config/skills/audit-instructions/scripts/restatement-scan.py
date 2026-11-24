@@ -97,7 +97,6 @@ def content_tokens(text: str) -> set[str]:
 
 
 def extract_frontmatter(lines: list[str]) -> tuple[int, list[str]]:
-    """Return (body_start_index, frontmatter_lines). body_start is 0-based."""
     if not lines or not re.match(r"^---\s*$", lines[0]):
         return 0, []
     fm: list[str] = []
@@ -136,7 +135,6 @@ def frontmatter_field(fm: list[str], key: str) -> str:
 
 
 def split_units(body_lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
-    """(line, unit-text) for bullets and sentences, skipping fences."""
     units: list[tuple[int, str]] = []
     fence: str | None = None
     buf: list[tuple[int, str]] = []
@@ -207,7 +205,6 @@ def parse_sections(lines: list[str], body_start: int) -> list[Section]:
 
 
 def recoverable(unit: str, source: str) -> bool:
-    """True iff `unit` adds no content token the source does not already carry."""
     nunit = normalize(unit)
     nsrc = normalize(source)
     if len(nunit) < 24:

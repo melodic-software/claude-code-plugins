@@ -27,18 +27,12 @@ ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 repo=""
 
-# mk_repo <out-var>. A fixture runs a COPY of the gate, so the builder stages
-# scripts/lib/ with it: without those, the copy dies on a missing source at
-# line 1 and every assertion below turns into the same opaque failure.
 mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
   dir="${!1}"
   cp "$ALLOWLIST" "$dir/scripts/docs-only-paths.txt"
-  # The shipped list holds no prefix, so the fixture adds one to exercise the
-  # matching logic; the false cases below still run against the shipped entries.
   printf 'docs/inert/\n' >>"$dir/scripts/docs-only-paths.txt"
-  # A committed base tree spanning every path class the assertions touch.
   mkdir -p "$dir/docs/inert/example" "$dir/docs" "$dir/plugins/p1/skills/alpha" \
     "$dir/plugins/miro" "$dir/.github/workflows"
   printf 'seed\n' >"$dir/docs/inert/example/PLAN.md"
@@ -54,9 +48,6 @@ mk_repo() {
   git_test_config "$dir" commit -qm base
 }
 
-# assert_flag <label> <expected true|false> <repo-relpath-to-touch...>
-# Commits an edit to each given path, runs the detector against the base sha,
-# and asserts the emitted docs_only value.
 assert_flag() {
   local label="$1" expected="$2"
   shift 2
@@ -81,14 +72,12 @@ assert_flag() {
 assert_flag "allowlisted-prefix-only" true "docs/inert/example/PLAN.md"
 assert_flag "allowlisted prefix, new nested file" true "docs/inert/new-precedent/NOTES.md"
 
-# --- the grep payoff: docs a code lane actually consumes are NOT docs-only --
 assert_flag "README.md (not on the allowlist; runs full)" false "README.md"
 assert_flag "docs/plugin-artifact-protocol.md (validator reads it)" false "docs/plugin-artifact-protocol.md"
 assert_flag "docs/catalog-taxonomy.md (catalog reads it)" false "docs/catalog-taxonomy.md"
 assert_flag "docs/skill-cheat-sheet.md (cheat-sheet --check reads it)" false "docs/skill-cheat-sheet.md"
 assert_flag "docs/catalog.md (catalog --check reads it)" false "docs/catalog.md"
 
-# --- conservative: any non-allowlisted doc, and every code class, run full ------
 assert_flag "non-allowlisted docs/ file" false "docs/migration-playbook.md"
 assert_flag "plugin SKILL.md is code" false "plugins/p1/skills/alpha/SKILL.md"
 assert_flag "plugin source" false "plugins/miro/index.ts"
@@ -98,10 +87,6 @@ assert_flag "toolchain lockfile" false "package-lock.json"
 assert_flag "sibling of an allowed prefix (docs/inert-archive/)" false "docs/inert-archive/old.md"
 assert_flag "mixed docs+code" false "docs/inert/example/PLAN.md" "plugins/p1/skills/alpha/SKILL.md"
 
-# --- hygiene job's docs-irrelevant step set: their inputs are NOT docs-only --
-# ShellCheck (scripts/, plugins/**), actionlint + workflow-schema (.github/
-# workflows/) are already pinned false above; these pin the remaining check-
-# jsonschema inputs so a widened allowlist that let one through fails the suite.
 assert_flag "marketplace manifest (marketplace-schema reads it)" false ".claude-plugin/marketplace.json"
 assert_flag "plugin manifest (plugin-schema reads it)" false "plugins/p1/.claude-plugin/plugin.json"
 assert_flag "dependabot.yml (dependabot-schema reads it)" false ".github/dependabot.yml"

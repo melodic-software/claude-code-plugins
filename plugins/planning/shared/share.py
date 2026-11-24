@@ -101,13 +101,11 @@ def read_json(path):
 
 
 def live(d):
-    """The running server's session record, or None."""
     s = bridge.read_session(d, NAME)
     return s if s and bridge.running(d, s) else None
 
 
 def call(s, method, path, body=None, timeout=30):
-    """One request to the control listener with the token; (status, parsed body)."""
     conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=timeout)
     try:
         headers = {bridge.token_header(NAME): s["token"]}
@@ -150,7 +148,6 @@ def watch_command(d):
 
 
 def start_server(d, guest, control, *, defaults_file=None):
-    """Start server.py detached on the given ports (0 picks one) and wait for its ping."""
     nonce = secrets.token_hex(8)
     cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
@@ -194,7 +191,6 @@ def stop_server(d, s):
 
 
 def wait_public(s, want, seconds=SYNC_SECONDS):
-    """Until the server allows the tunnel address `want`; the last ping."""
     deadline = time.monotonic() + seconds
     p = bridge.ping(s["port"]) or {}
     while p.get("publicUrl") != want and time.monotonic() < deadline:
@@ -231,7 +227,6 @@ def open_link(d, url):
 
 
 def report(d, s, rec, resumed, *, opened=None):
-    """The ensure-running and restart answer."""
     st = status_of(s)
     url = guest_url(rec["url"] if rec else "", st.get("guestKey"))
     before = (d / REPORTED).read_text(encoding="utf-8").strip() if (d / REPORTED).exists() else ""
@@ -253,7 +248,6 @@ def report(d, s, rec, resumed, *, opened=None):
 
 
 def tunnel_check(s, url):
-    """Why the server says `url` does not reach it (its probe), or None when it does."""
     code, body = call(s, "POST", "/api/tunnel-check", {"url": url}, timeout=float(os.environ.get("SHARED_PROBE_SECONDS") or 30) + 30)
     if code != 200:
         return f"the tunnel check was refused: HTTP {code} {body.get('error', '')}"
@@ -266,11 +260,6 @@ def kind(rec):
 
 
 def named_config(d, a):
-    """(hostname, token file, API token file, why a quick tunnel stands in or None) from the command line, ("", "", "",
-    None) for a quick tunnel. Without --tunnel-hostname the recorded tunnel's kind, token file and API token file stay:
-    only an explicit empty hostname switches back to quick. A file path may start with ~/ (the options are set
-    fleet-wide). A hostname that is no DNS name refuses; a token file that cannot be used falls back to a quick tunnel, so
-    the options may be set on machines that do not hold the files yet."""
     if a.tunnel_hostname is None:
         rec = tunnel.read(d) or {}
         hostname, token_file = tunnel.config(rec)
@@ -373,7 +362,6 @@ def routed(config, hostname, port):
 
 
 def tunnel_api(token_file, api_file):
-    """(API token, the tunnel's API path) for the route calls; raises cfdns.Refused."""
     account, tunnel_id = run_token_ids(token_file)
     return cfdns.api_token(api_file), f"/accounts/{account}/cfd_tunnel/{tunnel_id}"
 
@@ -488,20 +476,15 @@ def creation(d, a, resumed):
 
 
 def ended_session(d):
-    """True when the data folder's state.json says the session has ended."""
     return (((read_json(d / "state.json") or {}).get("session") or {}).get("phase") or {}).get("kind") == "ended"
 
 
 def kept_notice(ports):
-    """D11: a server the owner runs on a port is theirs; ending its live prototype never stops it."""
     for port in sorted(set(ports)):
         print(f"the server on port {port} that a live prototype showed keeps running: it is yours, so stop it yourself when you are done", file=sys.stderr)
 
 
 def end_lives(d, s, lid=None):
-    """End one live prototype (`lid`) or every one: through the running server, so the page says so at once, then
-    straight from the records (`.shared-live/`) for whatever the server did not end, as when it is down. The ids ended,
-    and the ports of the owner's servers that keep running."""
     ended, ports = [], []
     if s is not None:
         code, body = call(s, "POST", "/api/live/stop", {} if lid is None else {"id": lid})
@@ -522,7 +505,6 @@ def end_lives(d, s, lid=None):
 
 
 def bring_up(d, a):
-    """ensure-running: start or reuse the server and the tunnel."""
     problem = detached.data_dir_problem(d)
     if problem:
         raise Refused(1, f"refused: {problem}")
@@ -719,7 +701,6 @@ def cmd_status(d, a):
 
 
 def stopped_lives(d, doc):
-    """status with the server down: each live entry as state.json last had it, and whether anything of it still runs."""
     records = {rec["id"]: rec for _, rec in tunnel.live_records(d)}
     out = []
     for e in doc.get("lives") or []:
@@ -849,7 +830,6 @@ TOP = 10
 
 
 def entry_of(line):
-    """A log line's entry kind and its fields, unescaped; (None, {}) for a line that is not an entry."""
     parts = line.split(" ", 4)
     if len(parts) < 4:
         return None, {}
@@ -858,18 +838,15 @@ def entry_of(line):
 
 
 def tokens(message):
-    """A summary or layout message's `name=value` tokens."""
     return dict(t.split("=", 1) for t in message.split(" ") if "=" in t)
 
 
 def rank(values, q):
-    """The nearest-rank q-quantile of `values`."""
     s = sorted(values)
     return s[max(0, math.ceil(q * len(s)) - 1)] if s else None
 
 
 def bucket_rank(counts, q):
-    """The upper edge in ms of the latency bucket holding the q-quantile; None for the bucket above the last edge."""
     need, seen = math.ceil(q * sum(counts)), 0
     for edge, n in zip((*LAT_EDGES, None), counts):
         seen += n
@@ -884,7 +861,6 @@ def device(ua):
 
 
 def browser(ua):
-    """The browser class of a page's `ua`."""
     words = (ua or "").split(" ")
     return words[0] if len(words) > 1 and words[0] else "unknown"
 
@@ -900,7 +876,6 @@ def summarize(lines):
     pages, taps = set(), {k: collections.Counter() for k in ("use", "rage", "dead")}
 
     def count(key, n, at):
-        """A `rep:<fp>`, `use:`, `rage:` or `dead:<component>` count, from a batch's counts or an older summary."""
         kind, _, name = key.partition(":")
         if kind == "rep" and name:
             repeats[name] += n
@@ -909,7 +884,6 @@ def summarize(lines):
             taps[kind][name] += n
 
     def fold(message, ua, at):
-        """One summary from a batch written at `at`."""
         t = tokens(message)
         sm["count"] += 1
         pv = t.get("pv") or f"summary{sm['count']}"
@@ -1041,7 +1015,6 @@ def summary_sections(s):
 
 
 def summary_text(s):
-    """summarize's counts as plain text, for a person to read: summary_sections, a titled section's lines indented."""
     return "\n\n".join("\n".join([x["title"], *(f"  {line}" for line in x["lines"])] if x["title"] else x["lines"]) for x in summary_sections(s))
 
 

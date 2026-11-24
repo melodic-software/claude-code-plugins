@@ -60,9 +60,6 @@ if [[ "${1:-}" == -C ]]; then
     exit 2
   fi
 fi
-# The fragment goes into the work tree the caller stands in, so a copy of
-# scripts/ kept outside it (the issue lane's read-only copy) writes into the
-# checkout; outside any work tree there is nowhere to write.
 if ! root="$(git rev-parse --show-toplevel 2>/dev/null)" || ! cd "$root"; then
   echo "$self: run it inside a git work tree; the fragment goes under its .changes/." >&2
   exit 2
@@ -157,9 +154,6 @@ if ((stdin)); then
   fi
 fi
 
-# Until every fragment is written and valid, any exit, an interrupt included,
-# removes the ones already written: a partial set would record a shared change
-# for only some of its carriers.
 written=()
 trap 'rm -f "${written[@]}"' EXIT
 trap 'exit 2' INT TERM HUP

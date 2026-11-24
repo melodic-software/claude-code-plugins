@@ -325,7 +325,6 @@ def _most_recent_human_reply_body(
     extra_bot_logins: frozenset[str],
     self_logins: frozenset[str],
 ) -> str | None:
-    """Body of the latest non-bot, non-self comment, or None when none exists."""
     for comment in reversed(comments):
         author = _comment_author(comment)
         login = author.get("login")
@@ -743,12 +742,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
 
 
 def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
-    """True when the named tracker item exists and is OPEN.
-
-    An item that is already closed is not a deferral -- it is a claim that the
-    follow-up is filed pointing at work nobody will do, which is
-    indistinguishable from suppressing the finding.
-    """
     match = TRACKER_ITEM_RE.match(token.strip())
     if not match:
         return False, "refused-tracker-item-not-found"
@@ -790,13 +783,6 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
 
 
 def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool, str]:
-    """True when `text` appears in a reply already posted on the thread.
-
-    The evidence must be ON the thread, not merely asserted on the command line:
-    the point of the `incorrect` disposition is that the rebuttal is visible to
-    whoever reads the thread later. Case-insensitive substring, because the
-    caller is quoting a fragment of a reply it did not necessarily author.
-    """
     needle = text.strip().casefold()
     replies = thread.get("replyBodies")
     if (

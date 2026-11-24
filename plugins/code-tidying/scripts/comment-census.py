@@ -59,7 +59,6 @@ EXIT_NO_EXTENSION_LIST = 4
 
 
 def code_extensions() -> set[str]:
-    """The shared extension list, dotted and lowercased; OSError when unreadable or empty."""
     exts = {
         "." + line.strip().lower()
         for line in CODE_EXT_FILE.read_text(encoding="utf-8").splitlines()
@@ -71,7 +70,6 @@ def code_extensions() -> set[str]:
 
 
 def tracked_files(roots: list[Path], code_ext: set[str] | None = None) -> list[Path]:
-    """Code files under each root: git-tracked when inside a repo, else walked."""
     code_ext = code_ext or code_extensions()
     out: list[Path] = []
     for root in roots:
@@ -144,12 +142,6 @@ def scc_counts(files: list[Path]) -> dict[str, dict] | None:
 
 
 def pygments_available() -> bool:
-    """Whether the pygments layer can be used at all, independent of any file.
-
-    `pygments_counts` answers this only as a side effect of reading a file, so a
-    scope with no readable files cannot distinguish "nothing to read" from "no
-    analyzer installed" without asking separately.
-    """
     try:
         import pygments  # noqa: F401
     except ImportError:
@@ -158,13 +150,6 @@ def pygments_available() -> bool:
 
 
 def scc_available() -> bool:
-    """Whether the scc layer can be used at all, independent of any file.
-
-    The counterpart to `pygments_available`, and needed for the same reason:
-    `scc_counts` returns None both when the binary is missing AND when the file
-    list is empty, so its result cannot answer "is scc installed" on an empty
-    scope. Reusing it as that proxy reports an installed scc as unavailable.
-    """
     return shutil.which("scc") is not None
 
 

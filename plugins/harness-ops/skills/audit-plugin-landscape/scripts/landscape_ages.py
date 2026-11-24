@@ -55,7 +55,6 @@ def gh_api(endpoint: str) -> tuple[int, object]:
 
 
 def github_repo(source: object) -> str | None:
-    """owner/name from a marketplace or plugin source, or None when not GitHub."""
     if isinstance(source, str):
         match = re.search(r"github\.com[/:]([^/]+/[^/]+?)(?:\.git)?/?$", source)
         return match.group(1) if match else None
@@ -67,7 +66,6 @@ def github_repo(source: object) -> str | None:
 
 
 def build_rows(installed: dict, known: dict, manifests: dict[str, dict]) -> list[dict]:
-    """Rows to check. ``manifests`` maps a marketplace name to its marketplace.json."""
     rows = [
         {"kind": "marketplace", "id": name, "repo": github_repo(entry.get("source")),
          "path": MARKETPLACE_MANIFEST}
@@ -109,7 +107,6 @@ def endpoints_for(row: dict) -> dict[str, str]:
 
 
 def fetch_all(rows: list[dict], api: Api, workers: int = 8) -> dict[str, tuple[int, object]]:
-    """Fetch every distinct endpoint once, concurrently."""
     wanted = sorted({ep for r in rows if r["repo"] for ep in endpoints_for(r).values()})
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return dict(zip(wanted, pool.map(api, wanted)))

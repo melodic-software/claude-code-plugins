@@ -16,8 +16,6 @@ SUT_SRC="$SCRIPT_DIR/check-test-tmp-cleanup.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The fixture bodies name the command without spelling it in one piece, so this
-# suite is not itself a temp-creating suite the checker would flag.
 MK="mk"'temp'
 
 # shellcheck disable=SC2016  # the fixture body must reach the file unexpanded
@@ -27,7 +25,6 @@ write_offender() { printf 'd=$(%s -d)\nrm -rf "$d"\n' "$MK" >"$1"; }
 write_fixture_user() { printf 'fixture_tree::build f\nln -s /usr/bin/%s f/bin/\n' "$MK" >"$1"; }
 write_comment_only() { printf '# uses %s somewhere else\necho hi\n' "$MK" >"$1"; }
 
-# JS fixtures: a folder under os.tmpdir() with and without a removal hook.
 write_js_offender() { printf 'const d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_unbound() { printf 'after(() => {});\nconst f = join(mkdtempSync(join(tmpdir(), "x-")), "f");\n' >"$1"; }
 write_js_hooked() { printf 'after(() => rmSync(d));\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
@@ -46,9 +43,6 @@ mk_repo() {
   write_comment_only "$dir/plugins/p/comment.test.sh"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
-# <setup> runs inside the fixture root before everything is committed; each
-# <must-name> must appear in the output of a failing run.
 run_case() {
   local label="$1" expected="$2" setup="$3"
   shift 3

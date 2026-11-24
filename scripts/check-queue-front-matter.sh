@@ -49,7 +49,6 @@ extract_front_matter() {
   ' "$1"
 }
 
-# fm_value <front_matter> <key>
 fm_value() {
   awk -v key="$2" '
     $1 == key ":" {

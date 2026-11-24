@@ -160,7 +160,6 @@ parse_table() {
     }'
 }
 
-# build_registry <rows-tsv> <as-of> -> registry JSON on stdout
 build_registry() {
   local rows="$1" as_of="$2" name when cat prod
   while IFS=$'\t' read -r name when; do
@@ -209,8 +208,6 @@ mod_ts() {
     !skip { print }'
 }
 
-# require_markers: exit 1 unless register.ts carries both markers, so a lost
-# marker is a failure rather than a module that silently hooks nothing.
 require_markers() {
   if ! grep -q 'BEGIN GENERATED: observed events' "$MOD_TS" 2>/dev/null ||
     ! grep -q 'END GENERATED: observed events' "$MOD_TS"; then
@@ -219,7 +216,6 @@ require_markers() {
   fi
 }
 
-# drift <message> <expected> <actual>: report the drift and its diff, exit 1.
 drift() {
   echo "gen-hook-event-registry: $1" >&2
   diff <(printf '%s\n' "$2") <(printf '%s\n' "$3") >&2 || true

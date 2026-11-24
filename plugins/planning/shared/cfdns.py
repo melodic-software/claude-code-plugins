@@ -108,7 +108,6 @@ def request(token, method, path, query=None, body=None):
 
 
 def errors(doc):
-    """The API's error messages, as one line."""
     msgs = [f"{e.get('code', '')} {e.get('message', '')}".strip() for e in doc.get("errors") or [] if isinstance(e, dict)]
     return "; ".join(msgs) or "no error message"
 
@@ -151,7 +150,6 @@ def plan(token, zone, hostname, tunnel_id):
 
 
 def matching(pattern, value, message):
-    """Refuse with `message` unless `value` is all `pattern`."""
     if not pattern.fullmatch(value or ""):
         raise Refused(1, message)
 

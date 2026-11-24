@@ -102,8 +102,8 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | planning | `skills/draft-goal-condition/SKILL.md:118` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
 | planning | `offers/offer-source.mjs:28` | fetch of the GitHub REST API | kept | Forge API, not a page |
 | planning | `shared/cfdns.py:95` | Cloudflare DNS API | kept | Authenticated API call, not a page |
-| planning | `shared/server.py:552` | HTTPS probe through the user's tunnel address | kept | Probes the user's own tunnel, not a page |
-| planning | `shared/share.py:300` | HTTPS lease probe to the user's tunnel host | kept | Probes the user's own tunnel, not a page |
+| planning | `shared/server.py:549` | HTTPS probe through the user's tunnel address | kept | Probes the user's own tunnel, not a page |
+| planning | `shared/share.py:289` | HTTPS lease probe to the user's tunnel host | kept | Probes the user's own tunnel, not a page |
 | playbooks | `skills/fable-5/SKILL.md:142` | WebFetch when the manifest records the page unread | kept | Fallback; the primary read is already on the cache |
 | playbooks | `skills/boris/scripts/update.sh:75` | curl of the upstream version JSON | kept | API, not a page |
 | playbooks | `skills/boris/scripts/update.sh:84` | curl of the upstream skill file | kept | Drift check that vendors the bytes verbatim; a skill source file, not a docs page |
@@ -121,7 +121,7 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | speech | `reference/elevenlabs.md:58` | curl download of the ElevenLabs OpenAPI spec | kept | A JSON spec too large for a page read, not a page |
 | speech | `scripts/assets.py:76` | Model file download | kept | Binary download |
 | speech | `scripts/elevenlabs.py:183` | ElevenLabs API | kept | Authenticated API call, not a page |
-| speech | `scripts/narrate.py:428` | OpenAI speech API | kept | Authenticated API call, not a page |
+| speech | `scripts/narrate.py:420` | OpenAI speech API | kept | Authenticated API call, not a page |
 | user-interface | `skills/write-css/SKILL.md:60` | WebFetch on official docs when context7 and discovery are absent | kept | Fallback for when `/context7:lookup` and `/discovery:research` are not enabled; the plugin carries no cache copy |
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |

@@ -211,7 +211,6 @@ PLUGIN_COMPONENTS: dict[str, dict[str, str]] = {
 
 
 def candidate_binaries() -> list[Path]:
-    """Ordered candidates for the Claude Code executable."""
     out: list[Path] = []
 
     # Inside a session, the CLI that runs it: a lane can install it outside
@@ -357,7 +356,6 @@ def _graph_modules(data: bytes) -> tuple[range, dict[int, str]]:
 
 
 def _graph_sources(data: bytes) -> dict[int, str]:
-    """Each module's path by the file offset of its source (`_graph_modules`)."""
     return _graph_modules(data)[1]
 
 
@@ -439,7 +437,6 @@ def _select_region(
 def _select_longest_run(
     data: bytes, meta: dict[str, Any]
 ) -> tuple[str | None, dict[str, Any]]:
-    """Legacy region selection: the largest printable run around a known anchor."""
     meta["region_rule"] = (
         "no bundle marker found; largest printable run around an anchor"
     )
@@ -561,7 +558,6 @@ def build_brace_map(s: str) -> BraceMap:
 
 
 def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
-    """Add to `pairs` every matched {...} pair in `s[lo:n]`."""
     stack: list[int] = []
     # Brace depth at which each open template `${` substitution began. The
     # substitution is ordinary code (it can hold regex literals, nested
@@ -645,11 +641,6 @@ def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
 
 
 def _scan_template_text(s: str, i: int, n: int) -> tuple[int, bool]:
-    """Skip a template literal's text from `i`; True when it stopped at a `${`.
-
-    Returns the index just past the closing backtick, or just past the `${`
-    that opens a substitution the caller must tokenize as code.
-    """
     while i < n:
         if s[i] == "\\":
             i += 2
@@ -718,7 +709,6 @@ _FUNCTION_KEYWORD_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\Z")
 
 
 def _open_paren(src: str, close: int) -> int | None:
-    """The `(` matching the `)` at `close`, within 4 KiB, or None."""
     depth, k = 0, close
     while k >= 0 and close - k < 4096:
         depth += (src[k] == ")") - (src[k] == "(")
@@ -729,7 +719,6 @@ def _open_paren(src: str, close: int) -> int | None:
 
 
 def _close_paren_before(src: str, brace: int) -> int | None:
-    """The `)` just before the `{` at `brace`, past whitespace, or None."""
     j = brace - 1
     while j >= 0 and src[j] in " \t\r\n":
         j -= 1
@@ -737,10 +726,6 @@ def _close_paren_before(src: str, brace: int) -> int | None:
 
 
 def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
-    """Whether the `{` at `brace` opens a `function` body. The parameter
-    list is matched by depth with quoted text blanked, so a default holding
-    a call (`a=g()`) or a quoted paren (`s=")"`) counts. Raises ValueError
-    when the head cannot be read, so the caller's value stays unresolved."""
     j = _close_paren_before(src, brace)
     if j is None:
         return False
@@ -749,8 +734,6 @@ def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
 
 
 def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
-    """The parameters of the `catch (...)` whose block opens at `brace`, each
-    a runtime value; empty when the block is not a catch block."""
     j = _close_paren_before(src, brace)
     if j is None:
         return NO_SCOPE
@@ -765,19 +748,11 @@ _FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])([^;]*)")
 
 
 def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
-    """The `let`/`const` names of the `for (...)` head whose body opens at
-    `brace`, each a runtime value; empty for any other block."""
     j = _close_paren_before(src, brace)
     return NO_SCOPE if j is None else _for_head_names(src, braces, j)
 
 
 def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
-    """The `let`/`const` names of the `for (...)` head closing at `close`.
-
-    The whole head after the keyword is taken, iterable included: shadowing
-    extra names only leaves more unresolved, and a binding named `of` or `in`
-    is still caught.
-    """
     k = _head_open(src, braces, close)
     if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
         return NO_SCOPE
@@ -786,8 +761,6 @@ def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
 
 
 def _head_open(src: str, braces: BraceMap, close: int) -> int:
-    """The `(` matching the `)` at `close`, matched with quoted text blanked
-    from the enclosing block's start. Raises ValueError when unmatched."""
     outer = braces.enclosing(close)
     lo = outer[0] + 1 if outer else max(_chunk_span(src, close)[0], close - 4096)
     k = _open_paren(_mask_strings(src[lo : close + 1]), close - lo)
@@ -797,9 +770,6 @@ def _head_open(src: str, braces: BraceMap, close: int) -> int:
 
 
 def _mask_strings(text: str) -> str:
-    """`text` with the quoted text of each string and template literal
-    blanked to spaces, so a search for code (a parameter write) never matches
-    it; a template substitution's `${...}` is code and is kept."""
     out, i, n = [], 0, len(text)
     while i < n:
         q = text[i]
@@ -829,9 +799,6 @@ def _mask_strings(text: str) -> str:
 
 
 def _primitive_text(text: str, *, joined: bool) -> str | None:
-    """How a template (or, `joined`, `Array.join`) renders a known
-    primitive literal: `true`, `false`, `null`, `undefined`, or a plain
-    decimal integer. None for anything else, which stays a runtime value."""
     text = text.strip()
     if text in ("null", "undefined") or text.startswith("void "):
         return "" if joined else ("null" if text == "null" else "undefined")
@@ -844,7 +811,6 @@ def _primitive_text(text: str, *, joined: bool) -> str | None:
 
 
 def _unparen(text: str) -> str:
-    """`text` without whitespace and wrapping parentheses: `((1))` is `1`."""
     text = text.strip()
     while text.startswith("(") and text.endswith(")"):
         depth = 0
@@ -857,7 +823,6 @@ def _unparen(text: str) -> str:
 
 
 def _literal_truthy(text: str) -> bool | None:
-    """How `||` sees a non-string literal: truthy, falsy, or None (unknown)."""
     text = _unparen(text)
     if text.startswith("!"):
         inner = _literal_truthy(text[1:])
@@ -871,7 +836,6 @@ def _literal_truthy(text: str) -> bool | None:
 
 
 def _literal_nullish(text: str) -> bool | None:
-    """How `??` sees a non-string literal: nullish, not, or None (unknown)."""
     text = _unparen(text)
     if text.startswith(_NULLISH_WORDS):
         return True
@@ -885,8 +849,6 @@ def _literal_nullish(text: str) -> bool | None:
 
 
 def _number_value(text: str) -> int | float | None:
-    """The value of a JavaScript numeric literal, or None for anything else.
-    A radix literal stays an exact integer, however large."""
     if not _NUMBER_RE.fullmatch(text):
         return None
     text = text.replace("_", "").rstrip("n")
@@ -912,11 +874,6 @@ def _js_unescape(raw: str) -> str:
 
 
 def _read_literal(src: str, i: int, n: int) -> tuple[str, int, bool]:
-    """A string or template literal at `i`: (text, index past it, has substitution).
-
-    A template substitution renders as an ellipsis: its value exists only at
-    runtime. Raises ValueError on an unterminated literal.
-    """
     q = src[i]
     j = i + 1
     if q != "`":
@@ -982,7 +939,6 @@ def _ident_end(src: str, i: int) -> int:
 
 
 def _match_close(src: str, braces: BraceMap, i: int, n: int) -> int:
-    """Index past the `(` or `[` group opening at `i`."""
     depth = 0
     while i < n:
         ch = src[i]
@@ -1022,14 +978,6 @@ class _Values:
 def _object_fields(
     src: str, braces: BraceMap, open_i: int, *, methods: bool = False
 ) -> dict[str, tuple[str, int]]:
-    """Top-level fields of the object literal at `open_i`.
-
-    Maps each key to ("value", offset of its value) or ("getter", offset of
-    the getter body's `{`); with `methods`, a method or async method
-    (`description(){...}`) maps to ("method", offset of its body's `{`).
-    Nested objects, strings, and groups are skipped, so a nested object's
-    field never answers for the outer one.
-    """
     close = braces.pairs.get(open_i)
     if close is None:
         return {}
@@ -1088,17 +1036,6 @@ def _scan(
     shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> int:
-    """Collect the string values an expression (or a function body) yields.
-
-    Expression mode reads one expression from `i`, stopping at a top-level
-    `,`, `;`, or closing bracket. Block mode reads a function body and
-    collects what each `return` yields. Within a yielded expression, the
-    operands in value position (the start, after a ternary `?` or `:`, and
-    after a `||` or `??` fallback) are the candidates; an operand followed by
-    `?` is a condition, not a value. `shadow` names the enclosing function's
-    parameters: their values exist only at runtime, so they never resolve
-    to a same-named binding elsewhere in the bundle.
-    """
     active = at_value = not block
     depth = 0
     prev, prev_word = "", ""
@@ -1246,15 +1183,6 @@ def _table_arrow(
     anchor: int | None,
     shadow: Scope,
 ) -> int | None:
-    """An arrow body `<local>().<member>()` (or `.<member>`) read through a
-    mode table, as its index past the body; None for any other shape.
-
-    `<local>` is a binding of `()=><table>[<expr>??"<key>"]` and `<table>`
-    an object literal of object literals. Each row's `<member>` that reduces
-    to a string is a variant, the `<key>` row's last, so it is `value`. A
-    default row that does not reduce, or no row that does, leaves the field
-    unresolved.
-    """
     read = _TABLE_READ_RE.match(src, k, n)
     if read is None or hops <= 0 or read.group(1) in shadow:
         return None
@@ -1309,14 +1237,6 @@ def _operand(
     shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> int:
-    """Read one operand in value position; record it when it is a string value.
-
-    An operand is a `+` concatenation of string or template literals,
-    identifiers, member reads and calls, parenthesized expressions, and
-    `[...].join(sep)` arrays. A part whose value exists only at runtime (a
-    parameter, a call the reader cannot follow) renders as an ellipsis, and
-    a result with no static word left in it is unresolved, never recorded.
-    """
     kw = {"hops": hops, "anchor": anchor, "shadow": shadow, "deferred": deferred}
     if src[i] == "(":
         close = _match_close(src, braces, i, n)
@@ -1467,9 +1387,6 @@ def _operand(
 
 
 def _combine(choices: list[list[str]], sep: str = "") -> list[str]:
-    """Every way to pick one value per part, joined by `sep`, with the
-    fallthrough (each part's last value) last; past `_MAX_COMBINATIONS`, the
-    fallthrough alone."""
     if math.prod(len(c) for c in choices) > _MAX_COMBINATIONS:
         choices = [[c[-1]] for c in choices]
     return [sep.join(combo) for combo in itertools.product(*choices)]
@@ -1486,11 +1403,6 @@ _STATIC_WORD_RE = re.compile(r"[A-Za-z0-9]")
 
 
 def _add_static(acc: _Values, text: str) -> None:
-    """Record `text` unless its runtime substitutions left no static word in it.
-
-    `${a}\\n\\n${b}` with neither part resolved reads as an ellipsis pair; that
-    is not a description, so it counts as unresolved rather than as a value.
-    """
     if _ELLIPSIS in text and not _STATIC_WORD_RE.search(text.replace(_ELLIPSIS, "")):
         acc.unresolved += 1
     else:
@@ -1498,16 +1410,10 @@ def _add_static(acc: _Values, text: str) -> None:
 
 
 def _param_names(text: str) -> Scope:
-    """Every identifier in a parameter list: each is a runtime value.
-
-    Destructuring keys (`{tools:n}`) and default-value callees are included
-    too; shadowing an extra name only leaves more unresolved, never less.
-    """
     return {name: None for name in re.findall(_IDENT, text)}
 
 
 def _params_before(src: str, braces: BraceMap, body_open: int) -> Scope:
-    """The parameters of the method or function whose body opens at `body_open`."""
     j = _close_paren_before(src, body_open)
     if j is None:
         return NO_SCOPE
@@ -1522,12 +1428,6 @@ def _sub_value(
     acc: _Values,
     **kw: Any,
 ) -> _Alternatives | None:
-    """The values of the one expression spanning `[start, end)`, or None.
-
-    None when it yields nothing or does not span the range (a comma
-    expression, a trailing member read), so a partial read never stands in
-    for the whole.
-    """
     sub = _Values()
     stop = _scan(src, braces, start, end, sub, block=False, **kw)
     if not sub.variants or _skip_ws(src, stop, end) < end:
@@ -1549,13 +1449,6 @@ def _read_string(
     shadow: Scope,
     deferred: bool = False,
 ) -> tuple[list[str], int, set[str]]:
-    """A string or template literal: (its values, index past it, how it was read).
-
-    Each template substitution is resolved like any other expression and
-    contributes each of its values, the texts combined (see `_combine`); one
-    that does not resolve renders as an ellipsis and marks the text
-    `template`.
-    """
     if src[i] != "`":
         text, end, _ = _read_literal(src, i, n)
         return [text], end, {"literal"}
@@ -1612,10 +1505,6 @@ _JOIN_CALL_RE = re.compile(r"\s*\.join\(\s*")
 def _array_join(
     src: str, braces: BraceMap, i: int, n: int, acc: _Values, **kw: Any
 ) -> tuple[list[str] | None, int]:
-    """`[a, ...[b, c], d].join(sep)` as its joined values; None for any other array.
-
-    An element that does not resolve renders as an ellipsis.
-    """
     close = _match_close(src, braces, i, n)
     m = _JOIN_CALL_RE.match(src, close, n)
     if not m:
@@ -1688,7 +1577,6 @@ def _arrow_body(
 def _read_chain(
     src: str, braces: BraceMap, i: int, n: int
 ) -> tuple[list[tuple[str, str]], int]:
-    """An identifier with its member reads and calls: `a`, `f()`, `a.b`, `a.b()`."""
     j = _ident_end(src, i)
     chain = [("id", src[i:j])]
     i = j
@@ -1727,7 +1615,6 @@ def _chunk_starts(src: str) -> tuple[int, ...]:
 
 
 def _chunk_span(src: str, at: int) -> tuple[int, int]:
-    """The `[start, end)` of the module holding offset `at`."""
     starts = _chunk_starts(src)
     k = bisect.bisect_right(starts, at) - 1
     return starts[k], starts[k + 1] if k + 1 < len(starts) else len(src)
@@ -1779,8 +1666,6 @@ _KEYWORD_START_RE = re.compile(r"\s*(var|let|const)\s")
 
 
 def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
-    """The body of the function that holds `pos`, or None at module level:
-    a `var` belongs to it whatever blocks sit in between."""
     block = braces.enclosing(max(pos - 1, 0))
     while block is not None:
         j = block[0] - 1
@@ -1800,18 +1685,12 @@ def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | N
 
 
 def _statement_keyword(src: str, pos: int) -> str | None:
-    """`var`, `let`, or `const` when the statement holding `pos` starts with
-    it, else None. The walk back skips balanced brackets, so an earlier
-    declarator's initializer (`var a=f(1),x=`) does not hide the keyword."""
     start = _statement_start(src, pos)
     m = None if start is None else _KEYWORD_START_RE.match(src, start)
     return m.group(1) if m else None
 
 
 def _for_scope(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
-    """For a `let` or `const` declared in a `for (...)` head, the span it is
-    visible in, from the head's `(` to the end of a braced body. Raises
-    ValueError for an unbraced body, whose end is not read."""
     start = _statement_start(src, pos)
     if not start or src[start - 1] != "(":
         return None
@@ -1827,8 +1706,6 @@ def _for_scope(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
 
 
 def _statement_start(src: str, pos: int) -> int | None:
-    """Offset just past the `;` or unmatched opener starting the statement
-    that holds `pos`, or None when that is more than 4 KiB back."""
     lo = max(0, pos - 4096)
     text = _mask_strings(src[lo:pos])
     depth, k = 0, len(text) - 1
@@ -1849,13 +1726,10 @@ def _statement_start(src: str, pos: int) -> int | None:
 
 
 def _is_var(src: str, pos: int) -> bool:
-    """Whether the binding at `pos` is declared by a `var` statement."""
     return _statement_keyword(src, pos) == "var"
 
 
 def _declares(src: str, pos: int) -> bool:
-    """Whether the name at `pos` is a declarator: right after `var`, `let`,
-    or `const`, or after a `,` in such a statement."""
     head = src[max(0, pos - 8) : pos]
     if re.search(r"\b(?:var|let|const)\s+$", head):
         return True
@@ -1863,15 +1737,10 @@ def _declares(src: str, pos: int) -> bool:
 
 
 def _name_re(ident: str) -> re.Pattern[str]:
-    """`ident` as a whole name, not a property read (`.ident`) or part of a
-    longer identifier."""
     return re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
 
 
 def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
-    """Whether the function reading `ident` at `at` declares it again after
-    `at`: a `var` there hoists, and a `let` or `const` in a block holding the
-    read is not yet initialized, so an earlier binding is not what it reads."""
     reader = _function_block(src, braces, at)
     if reader is None:
         return False
@@ -1888,9 +1757,6 @@ def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
 
 
 def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> bool:
-    """Whether, after the binding at `lo`, the read at `at` sees a newer
-    declaration of `ident` with no initializer (`let x;`, `var a,x`) or a
-    `catch (x)` parameter: its value is not that binding's."""
     for m in _name_re(ident).finditer(_mask_strings(src[lo:at]), 1):
         pos = lo + m.start()
         if re.search(r"catch\s*\(\s*$", src[max(0, pos - 12) : pos]):
@@ -1906,11 +1772,6 @@ def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> 
 
 
 def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> bool:
-    """Whether a declaration at `pos` is visible from a reader at `at`: at
-    the top level, or in a block that also holds the reader; with `src`, a
-    `var` is visible throughout its function. A binding local to an
-    unrelated function is not the one `at` reads; with `src`, a `let` or
-    `const` in a `for` head is visible only in that loop."""
     if src is not None and (loop := _for_scope(src, braces, pos)) is not None:
         return loop[0] < at <= loop[1]
     block = braces.enclosing(pos)
@@ -1947,13 +1808,6 @@ def use_reader(reader: parser_reader.ParserReader | None) -> Iterator[None]:
 def _parsed_candidates(
     src: str, ident: str, at: int, pattern_for: Any
 ) -> tuple[list[tuple[re.Match[str], bool]], bool] | None:
-    """Where the variable `ident` read at `at` is set, as the parser resolves
-    it: each `pattern_for` match at one of its plain writes (for
-    `_function_pattern`, its function declarations), in source order, with
-    whether that site is at its module's top level; and whether the name was
-    reached through an import. A name the module imports is followed to the
-    top level of the one module exporting it. None when nothing declares it.
-    """
     assert _PARSER is not None
     found = _PARSER.binding(src, *_chunk_span(src, at), ident, at)
     imported = False
@@ -1984,11 +1838,6 @@ def _parsed_candidates(
 def _parsed_declaration(
     src: str, braces: BraceMap, ident: str, at: int, pattern_for: Any, later_ok: Any
 ) -> re.Match[str] | None:
-    """`_declaration` with the parser choosing the variable. Which of its
-    writes the read sees keeps the regex rule: the nearest visible one before
-    `at`, else the first after it when `later_ok` allows. An imported name
-    takes its exporter's one top-level write; a function name its last
-    declaration, which is the one a hoisted function binding holds."""
     resolved = _parsed_candidates(src, ident, at, pattern_for)
     if resolved is None:
         return None
@@ -2014,17 +1863,6 @@ def _declaration(
     pattern_for: Any,
     later_ok: Any = lambda _m: True,
 ) -> re.Match[str] | None:
-    """The declaration of `ident` that the code at `at` reads.
-
-    In a bundle of concatenated modules, where minified names repeat from
-    module to module: a name the module imports is declared at the top level
-    of the one module exporting it (anything else is unresolved); any other
-    name is declared in the module itself (nearest before `at`, else first
-    after when `later_ok` allows it), and a name neither imported nor
-    declared there is unresolved.
-    A single-module source keeps the plain rule: nearest before `at`.
-    Under the parser reader, `_parsed_declaration` answers instead.
-    """
     if _PARSER is not None:
         return _parsed_declaration(src, braces, ident, at, pattern_for, later_ok)
     if len(_chunk_starts(src)) == 1:
@@ -2112,10 +1950,6 @@ def _declaration(
 
 
 def _write_pattern(ident: str) -> re.Pattern[str]:
-    """Any write to `ident`: plain or compound assignment, `++` or `--`, a
-    destructuring target at any depth (`[x]=`, `{a:{b:x}}=`), or a
-    `for (x of|in ...)` head. A pattern is not parsed: `x` followed in its
-    statement by `]=` or `}=` counts, which can only over-report a write."""
     name = re.escape(ident)
     return re.compile(
         r"(?<![\w$.])(?:(?:\+\+|--)\s*"
@@ -2149,21 +1983,6 @@ def _binding_value(
     deferred: bool = False,
     window: int = SHORT_VALUE_LOCALITY_BYTES,
 ) -> int | None:
-    """Offset of the `ident=` value `at` reads.
-
-    A single-character name is function-local: the nearest binding before
-    `at` in `at`'s own module, within `window` bytes. A longer
-    one follows the module rule in `_declaration`. A binding after `at` is
-    taken only when the read is `deferred`, reached through a getter, a
-    method, an arrow, or a function-valued field, which run after the module
-    has loaded, and only when that binding is at the module's top level: an
-    eager read, such as a field's `f()` call at load time, sees no later
-    initializer.
-
-    Under the parser reader the parser picks the variable, so a nearer
-    declaration, a hoisted `var` or an uninitialized redeclaration is
-    already the variable read and needs no separate check.
-    """
     if len(ident) == 1:
         lo = max(_chunk_span(src, at)[0], at - window)
         found = None
@@ -2198,12 +2017,6 @@ def _binding_value(
 
 
 def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
-    """The `[` of the array literal `...ident` at `at` spreads, or None.
-
-    The binding is the one `at`'s module and scope see (`_binding_value`),
-    and another function must not write it: `var x=[a];function f(){x=[b]}`
-    reads b once f has run, so the list is not static.
-    """
     try:
         v = _binding_value(src, braces, ident, at, window=SHORT_IDENT_LOCALITY_BYTES)
     except (ValueError, IndexError, RecursionError):
@@ -2257,10 +2070,6 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
     home_block = braces.enclosing(pos)
 
     def separate(d: int) -> bool:
-        """Whether a declaration at `d` introduces its own binding: a `var`
-        in another function, or a `let`/`const` in another block. A `var`
-        in the same function is this binding again, and its initializer a
-        write."""
         if d == pos or not _declares(src, d):
             return False
         if _is_var(src, d) or re.search(r"\bvar\s+$", src[max(0, d - 8) : d]):
@@ -2455,8 +2264,6 @@ def _passes_fresh(
 
 
 def _module_spans(src: str) -> list[tuple[int, int]]:
-    """The bundle's modules, in order: the runs the parser parsed for
-    `src`, else every `_chunk_span`."""
     assert _PARSER is not None
     return _PARSER.module_spans(src) or [
         (lo, _chunk_span(src, lo)[1]) for lo in _chunk_starts(src)
@@ -2487,11 +2294,6 @@ def _exporter_of(
 
 
 def _imports_of(src: str, name: str) -> list[tuple[tuple[int, int], str]] | None:
-    """Every module whose import or re-export declaration takes `name` by
-    name (`import{name}from f`, `export{name}from f`), as the
-    `_chunk_span` the flow reads, with the path `f`. The declarations come
-    from the parser's AST, so a comment inside one hides none. None when a
-    module does not parse, since it may be one."""
     assert _PARSER is not None
     out: list[tuple[tuple[int, int], str]] = []
     for lo, hi in _module_spans(src):
@@ -2588,11 +2390,6 @@ def _named_loaders(src: str) -> tuple[str, ...]:
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:
-    """Whether the function body `body` (its braces) reassigns the
-    parameter `ident`. The regex reader searches the masked body text, so a
-    nested function's own `ident` counts too; the parser reader takes the
-    parameter's write references inside the body, and a name it cannot
-    answer for counts as reassigned."""
     if _PARSER is None:
         return _write_pattern(ident).search(masked) is not None
     found = _PARSER.writes(src, *_chunk_span(src, body[0]), ident, body[0])
@@ -2606,14 +2403,6 @@ def _function_pattern(ident: str) -> re.Pattern[str]:
 def _function_body(
     src: str, braces: BraceMap, ident: str, at: int
 ) -> tuple[int, Scope, str] | None:
-    """The `{` of `function ident(...){...}` and its parameter names.
-
-    A single-character name is usually function-local; it resolves only to
-    the one top-level declaration in `at`'s own module, and only when the
-    source is split into modules. A declaration of `ident` in `at`'s module
-    whose parameter list holds parentheses is not read, so any such
-    declaration leaves the name unresolved rather than skipped.
-    """
     lo, hi = _chunk_span(src, at)
     pattern = _function_pattern(ident)
     head = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(")
@@ -2650,8 +2439,6 @@ def _bound_arguments(
     shadow: Scope,
     deferred: bool = False,
 ) -> dict[str, list[str]]:
-    """Each plain parameter mapped to the values its call-site argument
-    resolves to; a destructured or defaulted list binds nothing."""
     names = [p.strip() for p in params.split(",")] if params.strip() else []
     if hops <= 0 or not all(re.fullmatch(_IDENT, p) for p in names):
         return {}
@@ -2692,13 +2479,6 @@ def _resolve_chain(
     shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> list[str] | None:
-    """The string values a constant, a call, or a member read yields.
-
-    A call is followed into its function declaration whatever its arguments.
-    A plain parameter takes the values its argument resolves to at the call
-    site; every other parameter is a runtime value, so what depends on it
-    stays unresolved while the rest of the body resolves.
-    """
     ident = chain[0][1]
     if ident in shadow:
         bound = shadow[ident]
@@ -2821,7 +2601,6 @@ def _eval_field(
     methods: bool = False,
     shadow: Scope = NO_SCOPE,
 ) -> str | None:
-    """Evaluate one top-level field into `acc`; returns its form, or None when absent."""
     entry = _object_fields(src, braces, open_i, methods=methods).get(key)
     if entry is None:
         return None
@@ -2909,7 +2688,6 @@ def resolve_field(
 def _apply_field(
     rec: dict[str, Any], key: str, resolved: dict[str, Any] | None
 ) -> None:
-    """Write a resolved field as `<key>`, `<key>_source`, and `<key>_variants`."""
     rec[key] = resolved["value"] if resolved else None
     rec[f"{key}_source"] = resolved["source"] if resolved else "absent"
     if resolved and "variants" in resolved:
@@ -3087,7 +2865,6 @@ def discover_registrar_route(
 
 
 def discover_registrar(src: str, export_name: str) -> str | None:
-    """The registrar identifier alone; see `discover_registrar_route`."""
     return discover_registrar_route(src, export_name)[0]
 
 
@@ -3186,14 +2963,6 @@ def _scoped_constant(
 
 
 def _nearest_binding(src: str, ident: str, at: int) -> int | None:
-    """Offset of the value in the nearest `ident=<value>` binding before `at`.
-
-    The same locality rule as `resolve_name_ident`: nearest preceding wins, and
-    a single-character identifier is only looked for within
-    `SHORT_IDENT_LOCALITY_BYTES`. Under the parser reader only the bindings
-    of the variable the parser resolves count, an imported one being its
-    exporter's single top-level binding.
-    """
     lo = max(0, at - SHORT_IDENT_LOCALITY_BYTES) if len(ident) == 1 else 0
     if _PARSER is not None:
         resolved = _parsed_candidates(src, ident, at, _binding_pattern)
@@ -3214,11 +2983,6 @@ def _nearest_binding(src: str, ident: str, at: int) -> int | None:
 def _resolve_object(
     src: str, braces: BraceMap, ident: str, at: int, hops: int = 4
 ) -> tuple[int, str] | None:
-    """The object literal an identifier is bound to, following `a=b` aliases.
-
-    Returns the literal's open-brace offset and its text, or None when the
-    nearest binding is anything else.
-    """
     for _ in range(hops):
         v = _nearest_binding(src, ident, at)
         if v is None:
@@ -3236,12 +3000,6 @@ def _resolve_object(
 def _argument_object(
     src: str, braces: BraceMap, ident: str, at: int
 ) -> tuple[int, str] | Literal[False] | None:
-    """The object literal parameter `ident` of the function holding `at`
-    receives: `function h(t,r){...}` whose module names `h` only in that
-    declaration and one call `h(c)`, with `c={...}` in scope there. None when
-    `ident` is not that function's parameter; False when it is but the call
-    is not that one plain shape (exported, passed around, called twice) or
-    the body assigns `ident` before `at`."""
     body = _function_block(src, braces, at)
     if body is None:
         return None
@@ -3286,14 +3044,6 @@ def _argument_object(
 def _resolve_descriptor_name(
     src: str, braces: BraceMap, ident: str, at: int
 ) -> tuple[str, int] | None:
-    """Resolve `name:x.name`: the registration reads its fields from a descriptor.
-
-    `let t=c;registrar({name:t.name,description:t.description,...})` where
-    `c={name:o,...}` and `o="slides"`, or `function h(t){registrar({...})}`
-    called once as `h(c)` (`_argument_object`). Returns the name and the
-    descriptor's offset, whose fields stand in for the registration's member
-    reads.
-    """
     obj = _argument_object(src, braces, ident, at)
     if obj is None:
         obj = _resolve_object(src, braces, ident, at)
@@ -3322,14 +3072,6 @@ _ROSTER_HEAD_RE = re.compile(
 def _resolve_roster(
     src: str, braces: BraceMap, call_start: int
 ) -> tuple[str, dict[str, str], list[str]] | None:
-    """A registration looping over a literal table: the table and its rows.
-
-    `for(let{kind:e,description:n}of Qi)registrar({name:\\`artifact-${e}\\`,...})`
-    where `Qi=[{kind:"table",description:"..."},...]` is enumerable without
-    running the binary. Returns the table identifier, the destructuring map
-    (local variable to row key), and each row's text. None when the loop, the
-    table binding, or any row is not a plain literal.
-    """
     pre = src[max(0, call_start - 300) : call_start]
     head = _ROSTER_HEAD_RE.search(pre)
     if not head:
@@ -3373,11 +3115,6 @@ _INVOCATION_FIELDS: tuple[tuple[str, str], ...] = (
 
 
 def _is_loop_registration(src: str, call_start: int, ident: str) -> bool:
-    """True when the registration sits inside a `for(... of ...)` whose head binds `ident`.
-
-    Such a registration is a dynamic roster (one call registering many
-    skills from a table), not one skill with a computed name.
-    """
     pre = src[max(0, call_start - 300) : call_start]
     m = _FOR_HEAD_RE.search(pre)
     if not m:
@@ -3550,13 +3287,6 @@ def _skill_record(
     descriptor: int | None = None,
     row: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
-    """One bundled-skill row from its registration literal at `open_i`.
-
-    `descriptor` is the offset of the object a `name:x.name` registration
-    reads its fields from; a field the literal does not resolve is read
-    there. `row` maps a looped registration's variables to one table row's
-    values, which answer for a field that reads a loop variable.
-    """
     close = braces.pairs[open_i]
     body = src[open_i : close + 1]
     rec: dict[str, Any] = {
@@ -3599,7 +3329,6 @@ def _roster_records(
     nm: re.Match[str],
     roster: tuple[str, dict[str, str], list[str]],
 ) -> list[dict[str, Any]] | None:
-    """Expand a looped registration over its table's rows; None if any row fails."""
     _, var_to_key, rows = roster
     template = nm.group(4)
     out: list[dict[str, Any]] = []
@@ -3662,7 +3391,6 @@ _FUNC_HEAD_RE = re.compile(r"function\s+(" + _IDENT + r")\s*\(([^()]*)\)\s*\{")
 
 
 def _split_args(src: str, braces: BraceMap, i: int) -> list[int]:
-    """Start offsets of each top-level argument of the call whose `(` ends at `i`."""
     n = len(src)
     starts = [_skip_ws(src, i, n)]
     depth = 0
@@ -3717,7 +3445,6 @@ def _workflow_registrars(src: str) -> dict[str, tuple[int | None, int | None]]:
 
 
 def _array_titles(src: str, braces: BraceMap, ident: str, at: int) -> list[str] | None:
-    """`title` of each row of the array literal an identifier is bound to."""
     v = _binding_value(src, braces, ident, at)
     if v is None or not src.startswith("[", v):
         return None
@@ -3879,8 +3606,6 @@ def resolve_tool_ident(
 def _name_expr(
     src: str, fields: dict[str, tuple[str, int]], key: str
 ) -> tuple[str, str | None]:
-    """How a name field is written: ("literal", text), ("ident", name),
-    ("member", name) for `e.name`, or ("expr", None) for anything else."""
     entry = fields.get(key)
     if entry is None or entry[0] != "value":
         return "expr", None
@@ -3895,8 +3620,6 @@ def _name_expr(
 def _literal_flag(
     src: str, fields: dict[str, tuple[str, int]], key: str, default: bool
 ) -> bool | None:
-    """A boolean field: `!0`/`!1` read as written, absent is `default`, and
-    anything else (a getter, a method, a call) is decided at runtime: None."""
     entry = fields.get(key)
     if entry is None:
         return default
@@ -3913,13 +3636,6 @@ def _array_names(
     at: int,
     hops: int = 2,
 ) -> tuple[list[str], bool]:
-    """Tool names in the array literal at `open_i`, and whether all resolved.
-
-    Elements are string literals, tool-name constants, or a `...spread` of
-    another array constant, which is followed `hops` deep. The spread reads
-    the binding its own module and scope see (`_binding_value`), not the
-    nearest same-name binding in the bundle.
-    """
     names: list[str] = []
     complete = True
     for start in _split_args(src, braces, open_i + 1):
@@ -3975,7 +3691,6 @@ def _tool_list(
 
 
 def _binding_ident(src: str, open_i: int) -> str | None:
-    """The identifier an object literal is assigned to (`var X={...}`)."""
     m = _BINDING_HEAD_RE.search(src, max(0, open_i - 80), open_i)
     return m.group(1) if m else None
 
@@ -4302,8 +4017,6 @@ _TENGU_RE = re.compile(r'"(tengu_[A-Za-z0-9_]+)"')
 
 
 def _skip_nested(src: str, braces: BraceMap, i: int, hi: int) -> int | None:
-    """Index past the string, `{...}` block or `(`/`[` group opening at `i`,
-    or None when `src[i]` opens none."""
     ch = src[i]
     if ch in _QUOTES:
         return _read_literal(src, i, hi)[1]
@@ -4318,7 +4031,6 @@ def _skip_nested(src: str, braces: BraceMap, i: int, hi: int) -> int | None:
 
 
 def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, int]]:
-    """The top-level comma-separated parts of `src[lo:hi]`."""
     parts, start, i = [], lo, lo
     while i < hi:
         if (nxt := _skip_nested(src, braces, i, hi)) is not None:
@@ -4333,7 +4045,6 @@ def _split_top(src: str, braces: BraceMap, lo: int, hi: int) -> list[tuple[int, 
 
 
 def _statement_end(src: str, braces: BraceMap, i: int, hi: int) -> int:
-    """The `;` that ends the statement at `i`, or `hi`."""
     while i < hi:
         if (nxt := _skip_nested(src, braces, i, hi)) is not None:
             i = nxt
@@ -4345,8 +4056,6 @@ def _statement_end(src: str, braces: BraceMap, i: int, hi: int) -> int:
 
 
 def _expr_end(src: str, braces: BraceMap, i: int) -> int:
-    """Where the expression at `i` ends: the first `,`, `;`, or closer at
-    its own depth."""
     n = len(src)
     while i < n:
         if (nxt := _skip_nested(src, braces, i, n)) is not None:
@@ -4369,19 +4078,6 @@ def _strip_span(src: str, a: int, b: int) -> tuple[int, int]:
 def _loader_guards(
     src: str, braces: BraceMap, lo: int, hi: int
 ) -> dict[int, list[str] | None]:
-    """Each loader call in the body `src[lo:hi]`, mapped to the conditions it
-    runs under (empty when it always runs), or None when its position is not
-    one this walk reads: only `if (...)` statements, declarations, and
-    expression statements that are a bare call or a comma list of them.
-
-    In `if(a(),b(),c){...}` every operand but the last runs before the test.
-    An `if(x)` whose body always exits (a lone `return`/`throw`, or a block
-    whose last statement is one and which holds no other exit or loader
-    call) adds `!(x)` to what follows; a test that is exactly the loader's
-    own once-only latch adds nothing. Any other exit, or a latch test inside
-    a compound condition, leaves every later call unresolved. An `else`
-    voids the whole walk.
-    """
     out: dict[int, list[str] | None] = {}
     aliases: dict[str, str] = {}
     state = {"poisoned": False}
@@ -4389,8 +4085,6 @@ def _loader_guards(
     latch_re = re.compile(r"[\w$.]+" + re.escape(_PLUGIN_LATCH))
 
     def always_exits(a: int, b: int) -> bool:
-        """The span's last statement is a return/throw, and nothing before
-        it can exit or require a plugin."""
         stmts, i = [], a
         while i < b:
             while i < b and src[i] in " \t\r\n;":
@@ -4483,8 +4177,6 @@ def _loader_guards(
 def _builtin_plugin_loader(
     src: str, braces: BraceMap
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    """The plugins the loader requires, each with its load condition, and the
-    loader callee names. A walk that fails leaves every load unresolved."""
     sites: dict[str, list[list[str] | None]] = {}
     callees: set[str] = set()
     for latch in re.finditer(re.escape(_PLUGIN_LATCH) + r"=!0", src):
@@ -4503,10 +4195,6 @@ def _builtin_plugin_loader(
 
 
 def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
-    """One plugin's load condition from every call site that requires it.
-    Any unguarded site loads it unconditionally. Otherwise every site must be
-    read and guarded alike: `load_guards` is one conjunction, so sites guarded
-    differently (a disjunction) leave the load unresolved."""
     if [] in sites:
         return {"load": "unconditional", "load_guards": []}
     if None in sites or any(g != sites[0] for g in sites):
@@ -4517,8 +4205,6 @@ def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
 def _local_binding(
     src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
 ) -> int | None:
-    """`_binding_value` under the wider locality the name rule uses; None
-    when the binding is not found or the read fails."""
     try:
         return _binding_value(
             src,
@@ -4535,8 +4221,6 @@ def _local_binding(
 def _object_value(
     src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool
 ) -> int | None:
-    """The `{` of the object literal `ident` reads at `at`, through
-    `Object.freeze(...)` and `a=b` aliases; None for anything else."""
     for _ in range(4):
         v = _local_binding(src, braces, ident, at, deferred=deferred)
         if v is None:
@@ -4557,8 +4241,6 @@ _PLAIN_PART_RE = re.compile(r"(?:(?:get|set|async)\s+)?" + _IDENT + r"\s*[:(]")
 
 
 def _object_keys(src: str, braces: BraceMap, open_i: int) -> tuple[list[str], bool]:
-    """An object literal's top-level keys, and whether every part was read: a
-    spread, or a quoted, computed or shorthand key, may hold any key."""
     keys = sorted(_object_fields(src, braces, open_i, methods=True))
     close = braces.pairs.get(open_i)
     if close is None:
@@ -4575,9 +4257,6 @@ def _object_keys(src: str, braces: BraceMap, open_i: int) -> tuple[list[str], bo
 
 
 def _conditional_spread(src: str, braces: BraceMap, a: int, b: int) -> int | None:
-    """The `{` of the object literal a part `...COND&&{...}` spreads, or None.
-    COND holds no `|`, `?`, `,` or brace, so `&&` binds the literal to it
-    and a false COND spreads nothing."""
     if not src.startswith("...", a) or src[b - 1] != "}":
         return None
     for m in re.finditer(r"&&\s*\{", src[a:b]):
@@ -4598,16 +4277,6 @@ def _merged_fields(
     depth: int = 3,
     conditional: bool = False,
 ) -> tuple[dict[str, tuple[int, str, int]], bool]:
-    """An object literal's fields with each `...spread` merged in source order.
-
-    Maps key -> (owning object's `{`, form, value offset). `bound` names
-    spreads whose object is already known (a factory's parameter). The flag
-    is False when a spread did not resolve: then an absent key may be in it.
-    A key written before an unresolved spread may be overridden by it, so it
-    is dropped and reads as unknown like any key the spread could hold.
-    With `conditional`, a fully read `...COND&&{...}` shadows only its own
-    keys, which map with form "conditional": present or absent at run time.
-    """
     close = braces.pairs.get(open_i)
     if close is None:
         return {}, False
@@ -4659,10 +4328,6 @@ def _merged_fields(
 def _merged_string(
     src: str, braces: BraceMap, fields: dict[str, tuple[int, str, int]], key: str
 ) -> dict[str, Any] | None:
-    """One string field of merged fields. A bare identifier `resolve_field`
-    leaves unresolved is retried as a module constant under the wider
-    locality the name rule uses (`_scoped_constant`): a plugin module's
-    top-level `var K="..."` sits kilobytes ahead of the registration."""
     entry = fields.get(key)
     if entry is None:
         return None
@@ -4683,7 +4348,6 @@ def _merged_string(
 def _merged_flag(
     src: str, fields: dict[str, tuple[int, str, int]], key: str
 ) -> bool | None:
-    """`!0`/`!1` as written; absent is None (the caller decides the default)."""
     entry = fields.get(key)
     if entry is None:
         return None
@@ -4693,7 +4357,6 @@ def _merged_flag(
 
 
 def _string_of(src: str, braces: BraceMap, ident: str, at: int) -> str | None:
-    """The string constant `ident` (or `ident()`, an arrow returning one) reads."""
     try:
         v = _binding_value(
             src, braces, ident, at, deferred=True, window=SHORT_IDENT_LOCALITY_BYTES
@@ -4791,8 +4454,6 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | 
 def _array_elements(
     src: str, braces: BraceMap, pos: int, *, deferred: bool
 ) -> list[tuple[int, int]] | None:
-    """The element spans of the array literal at `pos`, or the one an
-    identifier there is bound to; None when neither."""
     if not src.startswith("[", pos):
         m = re.match(_IDENT + r"(?=\s*[,}])", src[pos : pos + 64])
         if not m:
@@ -4808,10 +4469,6 @@ def _array_elements(
 def _factory_skill(
     src: str, braces: BraceMap, a: int, b: int, *, deferred: bool
 ) -> tuple[dict[str, tuple[int, str, int]], bool, str | None] | None:
-    """A skill built by a module function `f(key, {...})` returning an object
-    literal: its fields, with a spread of a parameter taken from that
-    argument, and its name when the literal reads `name:p` or `name:T[p]`
-    for a string-literal argument `p` and an object table `T`."""
     m = re.match(r"(" + _IDENT + r")\(", src[a:b])
     if not m:
         return None
@@ -4865,7 +4522,6 @@ def _factory_skill(
 def _plugin_skills(
     src: str, braces: BraceMap, pos: int, *, deferred: bool
 ) -> tuple[list[dict[str, Any]], bool]:
-    """The skills a plugin's `skills` field lists, and whether every one resolved."""
     elements = _array_elements(src, braces, pos, deferred=deferred)
     if elements is None:
         return [], False
@@ -4919,10 +4575,6 @@ def _plugin_skills(
 
 
 def _frontmatter(text: str) -> dict[str, str]:
-    """Top-level `key: value` pairs of a markdown file's YAML frontmatter,
-    including `|` and `>` block scalars (literal keeps line breaks, folded
-    joins lines with spaces). Anything else (a nested map, a flow
-    collection) is left out, so a caller treats the key as unresolved."""
     m = re.match(r"---\n(.*?)\n---", text, re.DOTALL)
     lines = (m.group(1) if m else "").splitlines()
     out: dict[str, str] = {}
@@ -4979,8 +4631,6 @@ def _plugin_manifest(
     decl = _object_fields(src, braces, decl_at)
 
     def has_spread(open_i: int) -> bool:
-        """A spread, or a quoted, computed or shorthand key: a part that may
-        hold or override any key."""
         close = braces.pairs.get(open_i)
         return close is None or any(
             not _PLAIN_PART_RE.match(src, *_strip_span(src, a, b))
@@ -4995,9 +4645,6 @@ def _plugin_manifest(
     )
 
     def strings(key: str) -> list[str] | None:
-        """[] when the manifest declares no such key; None when it does and
-        the value is not an array of string literals, or a spread could
-        hold or override it (unresolved)."""
         if manifest_spread or decl_spread:
             return None
         entry = decl.get(key)
@@ -5101,9 +4748,6 @@ def _plugin_commands(
 def _plugin_registrations(
     src: str,
 ) -> tuple[list[tuple[str, int]], list[re.Match[str]]]:
-    """The registrar functions and every call site that reaches one: the
-    registrar's own module calling it by name, or a module importing a name
-    the registrar's module exports for it."""
     registrars = [
         (m.group(1), _chunk_span(src, m.start())[0])
         for m in _PLUGIN_REGISTRAR_RE.finditer(src)
@@ -5681,7 +5325,6 @@ def _load_json(path: Path) -> Any | None:
 
 
 def scan_disk(root: Path) -> dict[str, Any]:
-    """Enumerate installed plugins, their components, and config-scope surfaces."""
     out: dict[str, Any] = {"config_dir": str(root), "exists": root.is_dir()}
 
     settings = _load_json(root / "settings.json") or {}
@@ -5745,7 +5388,6 @@ def scan_installed(root: Path) -> dict[str, Any]:
 
 
 def scan_marketplace(loc: Path) -> dict[str, Any]:
-    """Every plugin a marketplace checkout offers, with its component counts."""
     found: dict[str, Any] = {}
     if not loc.is_dir():
         return found
@@ -5760,7 +5402,6 @@ def scan_marketplace(loc: Path) -> dict[str, Any]:
 
 
 def scan_plugin(root: Path) -> dict[str, Any]:
-    """Component inventory for one plugin directory."""
     manifest = _load_json(root / ".claude-plugin" / "plugin.json") or {}
     info: dict[str, Any] = {
         "version": manifest.get("version"),
@@ -5829,7 +5470,6 @@ def _scan_component(
 
 
 def scan_config_scope(root: Path) -> dict[str, Any]:
-    """Components installed directly in the config dir, outside any plugin."""
     out: dict[str, Any] = {}
     skills = root / "skills"
     if skills.is_dir():
@@ -5876,7 +5516,6 @@ def managed_policy_dir() -> Path | None:
 
 
 def git_toplevel(path: Path) -> Path:
-    """The git toplevel containing `path`, or `path` itself outside a repo."""
     try:
         out = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
@@ -5937,7 +5576,6 @@ def _instruction_dir(rel: str) -> str:
 
 
 def _classify(rel: str, present: set[str]) -> tuple[str, str, str] | None:
-    """(scope, kind, loads) for a repo-relative path, or None if not one."""
     name = rel.rpartition("/")[2]
     if re.search(r"(^|/)\.claude/rules/.+\.md$", rel):
         if not rel.startswith(".claude/rules/"):
@@ -6055,7 +5693,6 @@ def _settings_scopes(root: Path, project_root: Path) -> dict[str, Path]:
 def _enabled_plugin_maps(
     scopes: dict[str, Path],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:
-    """Each scope's `enabledPlugins` map, and each scope's non-Boolean keys."""
     enabled: dict[str, dict[str, Any]] = {}
     rejected: dict[str, list[str]] = {}
     for scope, path in scopes.items():
@@ -6085,12 +5722,6 @@ def builtin_plugin_state(
     mods_flag_in_bundle: bool | None,
     custom_config_dir: bool,
 ) -> dict[str, Any]:
-    """What this account and these settings say about each built-in plugin.
-
-    The binary gives each gate flag's default and `default_enabled`; this adds
-    the flag values cached for the account and any `enabledPlugins` entry for
-    the plugin's id, so a reader can tell whether a gate's default applies here.
-    """
     gcfg_path = global_config_path(root, custom_config_dir)
     gcfg = _load_json(gcfg_path)
     cache = gcfg.get("cachedGrowthBookFeatures") if isinstance(gcfg, dict) else None
@@ -6191,8 +5822,6 @@ def _index_record(
     source: str,
     root_skill: str | None = None,
 ) -> dict[str, Any]:
-    """`root_skill` names a SKILL.md at the plugin root, whose parent directory
-    is the plugin root: for a cached plugin, its version directory."""
     try:
         text = skill_md.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -6234,8 +5863,6 @@ def _plugin_records(
     enabled: dict[str, dict[str, Any]] | None,
     entry: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """One record per skill of the plugin at `root`; `enabled` is None for a
-    plugin that is not installed."""
     manifest = _load_json(root / ".claude-plugin" / "plugin.json")
     manifest = manifest if isinstance(manifest, dict) else {}
     state = (
@@ -6354,11 +5981,6 @@ _BINARY_LANES = (
 
 
 def undetermined_fields(report: dict[str, Any]) -> dict[str, Any]:
-    """Names whose invocability or text the bundle does not settle statically.
-
-    Informational, not a lane problem: a runtime-decided field is a real
-    property of the build, not an extraction failure.
-    """
     out: dict[str, list[str]] = {
         "model_invocable_null": [],
         "user_invocable_null": [],
@@ -6382,7 +6004,6 @@ def undetermined_fields(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_binary(src: str, meta: dict[str, Any]) -> dict[str, Any]:
-    """Every report section read from the bundle, integrity verdict included."""
     braces = build_brace_map(src)
     meta["brace_pairs"] = len(braces.pairs)
     commands = extract_builtin_commands(src, braces)
@@ -6448,9 +6069,6 @@ def _read_with_parser(
     spans: list[tuple[int, int]],
     paths: dict[int, str] | None = None,
 ) -> None:
-    """The binary sections under --reader=parser or compare, plus a `reader`
-    block. A reader that cannot run leaves the binary source unavailable with
-    the repair command; it never falls back to the regex reader."""
     mode = args.reader
     block: dict[str, Any] = {"name": mode}
     report["reader"] = block
@@ -6705,7 +6323,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _emit(text: str, out: str | None) -> int:
-    """Write `text` to `out`, or to stdout without one."""
     if out:
         try:
             Path(out).write_text(text, encoding="utf-8")

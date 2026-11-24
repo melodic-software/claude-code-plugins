@@ -53,7 +53,6 @@ probe = killswitch_config.probe
 
 
 def report(settings_path: Path) -> dict[str, object]:
-    """The kill-switch report plus the guard's launch disclosure."""
     return {
         **probe(settings_path),
         **destructive_guard.launch_disclosure(str(_PLUGIN_ROOT)),

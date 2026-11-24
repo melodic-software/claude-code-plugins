@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for test-plugin-mods.sh. Each case builds a synthetic plugins/
-# tree, puts a stub `claude` (or none) first on a PATH that holds only the
-# tools the script uses, and runs a copy of the script against the tree.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +16,6 @@ NODE="$(command -v node)" || {
 }
 BASH_BIN="$(command -v bash)"
 
-# new_case: fresh fixture in $f with a bin/ dir holding node and the coreutils
-# the script uses only.
 new_case() {
   fixture_tree::build f --sut "$SCRIPT" --plugins
   mkdir -p "$f/bin"
@@ -42,14 +37,12 @@ claude_floor() {
 
 ENGINES='{"name": "p", "engines": {"claude-code": ">=2.1.287"}}'
 
-hooks_json() { # <plugin> <json>
+hooks_json() {
   mkdir -p "$f/plugins/$1/hooks"
   printf '%s\n' "$2" >"$f/plugins/$1/hooks/hooks.json"
   manifest "$1" "$ENGINES"
 }
 
-# stub_claude <version> <test-exit>: logs each `plugin test` dir to calls.log;
-# a plugin named failing always fails its test.
 stub_claude() {
   cat >"$f/bin/claude" <<EOF
 #!$BASH_BIN
@@ -65,7 +58,7 @@ EOF
   chmod +x "$f/bin/claude"
 }
 
-no_test_ran() { # <name>
+no_test_ran() {
   if [[ -e "$f/calls.log" ]]; then
     bad "$1" "calls: $(cat "$f/calls.log")"
   else
@@ -73,7 +66,7 @@ no_test_ran() { # <name>
   fi
 }
 
-run() { # <expected-exit> <name>
+run() {
   LAST_OUTPUT="$(PATH="$f/bin" "$BASH_BIN" "$f/scripts/test-plugin-mods.sh" 2>&1)"
   local status=$?
   if [[ $status -eq $1 ]]; then
@@ -189,7 +182,7 @@ else
   bad "MOD_TEST_JOBS=1 caps concurrency at 1" "max concurrent: $got"
 fi
 
-register_file() { # <plugin> <file>
+register_file() {
   mkdir -p "$f/plugins/$1/hooks"
   : >"$f/plugins/$1/hooks/$2"
 }

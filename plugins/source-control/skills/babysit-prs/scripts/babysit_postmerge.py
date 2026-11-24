@@ -581,7 +581,6 @@ def _paginated(
 
 
 def _listed(payload: Any, label: str, items_key: str | None) -> list[dict[str, Any]]:
-    """The items of a listing's pages, under `_paginated`'s checks."""
     try:
         items = flatten_paginated_items(payload, label, items_key=items_key)
     except RuntimeError as exc:
@@ -768,9 +767,6 @@ _default_branches: dict[tuple[str, str], str] = {}
 
 
 def _default_branch(owner: str, name: str) -> str:
-    """The repository's default branch, read once per process; an unreadable
-    one fails the read, so the check never judges a branch the repository
-    does not merge into."""
     if (owner, name) not in _default_branches:
         branch = json_object(
             _read(["api", f"repos/{owner}/{name}"], "repository")
@@ -1004,7 +1000,6 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Any:
 
 
 def _attempt_fields(payload: Any) -> dict[str, Any]:
-    """The fields of an attempt payload `Run.from_api` reads, and no others."""
     item = json_object(payload)
     return {
         **{
@@ -1028,8 +1023,6 @@ def _attempt_fields(payload: Any) -> dict[str, Any]:
 
 
 def load_attempts(path: str, repo: str) -> dict[str, dict[str, Any]]:
-    """The completed attempts in the file at `path`, by `<run id>:<attempt>`.
-    Raises `ValueError` for any file of another shape, so none of it is used."""
     data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
     attempts = data.get("attempts")
     if (
@@ -1081,8 +1074,6 @@ def _attempt_settled(
 
 
 def _attempt_answer_valid(value: Any, head_sha: str) -> bool:
-    """Whether a saved attempt answer has the exact shape `_keep_attempt`
-    writes, for this head SHA. Any other value is read from GitHub."""
     if not is_json_object(value) or value.get("head_sha") != head_sha:
         return False
     checks, passed, jobs = (value.get(k) for k in ("checks", "passed", "jobs"))
@@ -1110,9 +1101,6 @@ def _attempt_answer_valid(value: Any, head_sha: str) -> bool:
 
 
 def _attempt_jobs_entry_usable(key: str, entry: Any, now: datetime) -> bool:
-    """Whether a carried attempt answer can be used at `now`: its key and shape
-    are the ones `_keep_attempt` writes, it was kept under ATTEMPT_JOBS_VERSION,
-    and it is inside the age and size bounds."""
     if not _ATTEMPT_KEY.fullmatch(key) or not is_json_object(entry):
         return False
     head_sha = entry.get("head_sha")
@@ -1134,9 +1122,6 @@ def _attempt_jobs_entry_usable(key: str, entry: Any, now: datetime) -> bool:
 
 
 def load_attempt_jobs(path: str, repo: str, now: datetime) -> dict[str, dict[str, Any]]:
-    """The usable attempt answers in the attempts file at `path`, by
-    `<run id>:<attempt>`. An unusable entry is left out, so only its attempt
-    is read from GitHub."""
     data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
     entries = data.get("jobs")
     if (
@@ -1156,8 +1141,6 @@ _FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 def _full_history_clones() -> list[Path]:
-    """The distinct non-shallow clones among the merge gate's history
-    checkouts (`babysit_merge_policy._history_checkouts`)."""
     roots: list[Path] = []
     for checkout in policy._history_checkouts():
         top = policy._git(checkout, "rev-parse", "--show-toplevel")
@@ -1319,8 +1302,6 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
 
 
 def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
-    """The fields of an uploading run `_Context._lane_sender` reads, and its
-    status."""
     return {
         **{
             k: record.get(k)
@@ -1336,10 +1317,6 @@ def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
 def load_lane_records(
     path: str, repo: str
 ) -> tuple[dict[str, dict[str, Any]], datetime | None]:
-    """The records in the file at `path`, by artifact name, and the lowest
-    floor a check of this run saved them under (None in a file read from an
-    earlier run). Raises `ValueError` for any file of another shape, so none
-    of it is used."""
     data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
     records = data.get("records")
     if (
@@ -1376,9 +1353,6 @@ def load_lane_records(
 def _read_lane_file(
     path: str, repo: str
 ) -> tuple[dict[str, dict[str, Any]], datetime | None]:
-    """`load_lane_records`, with no records and a warning for a file it
-    cannot use: any failure, a parse too deep to finish included, is no
-    file."""
     if not Path(path).exists():
         return {}, None
     try:
@@ -2649,8 +2623,6 @@ class _Context:
 
 
 def _write_carried(path: str, payload: dict[str, Any], label: str) -> None:
-    """Replace the file at `path` with `payload` through a temporary file.
-    Best effort: a failure is logged, and the file is left as it was."""
     target = Path(path)
     tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
     try:
@@ -2672,7 +2644,6 @@ class _Tally:
 
 
 def _settled_state(merge: AutoMerge) -> MergeState:
-    """A merge the identity's settled marker verifies: no run is read."""
     return MergeState(merge, True, (), dispatch_covered=True, settled=True)
 
 
@@ -2696,8 +2667,6 @@ def _judge(
     tally: _Tally,
     pin_required: bool,
 ) -> MergeState:
-    """`merge`'s state from its runs. `canary_runs` None: the repository has
-    no canary, so no canary run is required to verify it."""
     pending: list[str] = []
     failures: list[Failure] = []
     if not merge.merge_commit or not merge.merged_at:
@@ -2892,14 +2861,6 @@ def _judge(
 def _lane_reruns(
     ctx: _Context, now: datetime, tally: _Tally, *, list_schedule: bool = False
 ) -> list[str]:
-    """Mark each red attempt 1 of a lane-dispatched full run created within
-    `_Context.lane_rerun_lookback`, with a newly failing check that demotes, for the
-    lane's one re-run, newest first after any a judged merge marked. A run
-    at attempt 2 is never marked again. The probe files no quarantine (the
-    alert's `--judge-run` does), and a failed read is a warning, not an
-    unreadable verdict. With `list_schedule` (no judged merge listed the
-    full runs), schedule runs in the lookback are listed first, so a later
-    green one still settles a red run (`_Context.superseded`)."""
     excused = dict(ctx.quarantines)
     try:
         start = now - ctx.lane_rerun_lookback()
@@ -2950,7 +2911,6 @@ def _lane_reruns(
 
 
 def _dispatch_runs(ctx: _Context, floor: datetime, now: datetime) -> list[Run]:
-    """The full workflow's dispatch runs on the branch since `floor`, as listed."""
     return _runs(
         ctx.owner, ctx.name, FULL_RUN_WORKFLOW, "workflow_dispatch", ctx.branch, floor, now
     )
@@ -2964,12 +2924,6 @@ def _listed_runs(
     record: bool = False,
     dispatched: list[Run] | None = None,
 ) -> tuple[list[tuple[str, Run]], list[Run] | None]:
-    """The full runs (by signal) and canary runs on the branch since `floor`,
-    oldest first, the canary runs None when the repository has no canary
-    (`_canary_absent`); the full runs are held for `_Context.superseded`. With
-    `record`, each listed run that had completed is kept in
-    `_Context.judged_runs` at the `updated_at` read. `dispatched` is
-    `_dispatch_runs` from `floor` when the caller already listed it."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
     schedule = _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
     if dispatched is None:
@@ -3033,11 +2987,6 @@ def _final_by_runs(
     pin_required: Collection[int],
     now: datetime,
 ) -> frozenset[int]:
-    """The settled `merges` (oldest first) whose runs judge them settleable,
-    as `_judge` would an unsettled one, up to the first that is not. It runs
-    after the verdict's own judging, under
-    the check's read caps, on its own listing and tally: a failed read, a hold
-    or a failure leaves a merge out, and the verdict is unchanged."""
     final: set[int] = set()
     saved = dict(ctx.quarantines), ctx.excuses_expire_at
     try:
@@ -3068,12 +3017,6 @@ def _final_by_runs(
 
 
 def _stop_uncovered(judged: list[AutoMerge], listed: list[Run]) -> None:
-    """Raise `UncoveredMergeStop` for the first judged merge no `listed`
-    dispatch run was created at or after. The full runs `_judge` reads are
-    these less the ones off the branch or replaced, so `_judge` finds no
-    `own` run for such a merge either, and it is neither verified nor
-    `dispatch_covered`. A merge with no commit or time is left to `_judge`,
-    which reads it unreadable."""
     dispatched = [r.created_at for r in listed]
     for merge in judged:
         if not merge.merge_commit or not merge.merged_at:
@@ -3646,7 +3589,6 @@ def _edited(comment: dict[str, Any]) -> bool:
 
 
 def _settled_shas(identity: str, comments: list[dict[str, Any]]) -> frozenset[str]:
-    """The merge commits the identity's unedited settled markers name."""
     return frozenset(
         SETTLED_RE.match(_first_line(comments[i].get("body")))[1]
         for i in _identity_marks(comments, identity, SETTLED_RE)
@@ -3684,8 +3626,6 @@ def read_pins(
 def _pin_threads(
     repo: str, numbers: Iterable[int]
 ) -> dict[int, tuple[list[dict[str, Any]], Any] | None]:
-    """`_pin_thread` for each of `numbers`, by number, batched as `read_pins`
-    reads them."""
     owner, name = _split_repo(repo)
     wanted = list(dict.fromkeys(numbers))
     threads: dict[int, tuple[list[dict[str, Any]], Any] | None] = {}
@@ -3710,8 +3650,6 @@ def _pin_threads(
 def _pin_thread(
     owner: str, name: str, number: int, first: dict[str, Any] | None = None
 ) -> tuple[list[dict[str, Any]], Any] | None:
-    """Every comment of `number` and its newest review, or None past
-    `PIN_PAGE_LIMIT` pages. `first` is a first page already read."""
     comments: list[dict[str, Any]] = []
     reviews: Any = None
     cursor: str | None = None
@@ -3754,7 +3692,6 @@ def _pin_sha(
     *,
     alone: bool = False,
 ) -> str | None:
-    """`read_pin`'s answer from the comments and reviews it read."""
     key = _login_key(identity)
     pins = _identity_marks(comments, identity, PIN_RE)
     if not pins or _edited(comments[pins[-1]]):
@@ -3825,12 +3762,6 @@ class PinReader:
 
 
 def settle(repo: str, merges: Any, identity: str) -> tuple[list[int], list[str]]:
-    """Post the identity's settled marker, under the acting login, on each
-    merge a report's `settle` lists whose thread holds no such marker yet:
-    a reused report, or two runs at once, posts no second one. A failed read
-    or post, or an entry of another shape, is a warning and posts nothing
-    for it: the next check lists the merge again. Returns the numbers
-    marked and the warnings."""
     owner, name = _split_repo(repo)
     posted: list[int] = []
     warnings: list[str] = []
@@ -3907,7 +3838,6 @@ _QUARANTINE_RE = re.compile(r"<!-- post-merge-quarantine suite=(\S+) -->")
 
 
 def _quarantined_suite(body: Any) -> str | None:
-    """The suite a quarantine issue's first line names, or None."""
     match = _QUARANTINE_RE.fullmatch(_first_line(body))
     return match[1] if match and _SUITE_RE.fullmatch(match[1]) else None
 
@@ -3978,7 +3908,6 @@ def _sighting(failure: Failure) -> str:
 
 
 def _body_line(failure: Failure) -> str:
-    """The record body line naming the sighting, as `_issue_body` writes it."""
     if failure.run_url:
         return f"- Failing run: {failure.run_url}"
     return f"- Detail: {_record_detail(failure)}"
@@ -3989,9 +3918,6 @@ def _lines(text: Any) -> set[str]:
 
 
 def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) -> bool:
-    """Whether the record already names this sighting: its body line, or a
-    filer's failure note, each matched as a whole line, so attempt 1 is not
-    attempt 10. A "re-run passed" note never counts."""
     if _body_line(failure) in _lines(record.get("body")):
         return True
     note = f"{FAILURE_NOTE}{_sighting(failure)}"
@@ -3999,19 +3925,12 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
 
 
 def _same_run(failure: Failure, body: Any) -> bool:
-    """Whether a demotion record names the same failing run, any attempt. The
-    alert workflow keys its marker on the run's head SHA and this check on the
-    merge commit, so one red run would otherwise get a record from each filer.
-    The alert's post-merge-failure record never holds the gate, so it is not
-    this failure's record."""
     if not failure.run_url or "/attempts/" not in failure.run_url:
         return False
     return _demotes_run(failure.run_url.rsplit("/attempts/", 1)[0], body)
 
 
 def _demotes_run(run_url: str, body: Any) -> bool:
-    """Whether a demotion record names run `run_url` (no attempt) as failing,
-    any attempt."""
     if not _first_line(body).startswith(policy.DEMOTION_MARKER):
         return False
     prefix = f"- Failing run: {run_url}/attempts/"
@@ -4063,8 +3982,6 @@ def _set_bug_type(owner: str, name: str, number: int) -> None:
 def _filer_notes(
     owner: str, name: str, number: Any, filers: Collection[str]
 ) -> list[Any]:
-    """The bodies of issue `number`'s comments whose author's login key is
-    one of `filers`."""
     return [
         c.get("body")
         for c in _paginated(
@@ -4157,9 +4074,6 @@ NEEDS_HUMAN_STATE = "needs-human"
 
 
 def _issue_status(owner: str, name: str) -> policy.IssueStatusConfig | None:
-    """The default branch's `models.issue-status`, or None when it sets none,
-    sets a malformed one, or cannot be read: the record then carries the
-    human-gated label, which holds it as the field would."""
     try:
         text = _default_branch_text(owner, name, policy.CONFIG_PATH)
         status = policy._issue_status_config(text) if text is not None else None
@@ -4213,10 +4127,6 @@ def _hold_record(
 def _status_unset(
     owner: str, name: str, number: int, status: policy.IssueStatusConfig
 ) -> bool:
-    """Whether record `number` holds no Work status value, whoever set one.
-    `policy.issue_status` is not used: it also reads None for a value an
-    uncounted account set, which a hold must not overwrite. Raises
-    `PolicyReadError` when the read fails or a full page may hide the value."""
     data = policy._graphql(
         policy.ISSUE_STATUS_QUERY, f"#{number} Work status", o=owner, r=name, n=number
     )
@@ -4528,7 +4438,6 @@ def _positive_id(value: Any) -> bool:
 
 
 def _anchor_from(raw: bytes, key: Mapping[str, Any]) -> Anchor | None:
-    """The anchor in an artifact's zip, or None for any other shape or key."""
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             data = json_object(json.loads(archive.read(ANCHOR_FILE).decode("utf-8")))
@@ -4691,11 +4600,6 @@ def advance_anchor(verdict: PostMergeVerdict, previous: Anchor | None) -> Anchor
 
 
 def anchor_needs(anchor: Anchor | None) -> Callable[[AutoMerge], bool]:
-    """`check`'s `rejudge` for the lane check from `anchor`: a settled merge
-    passes it only from its runs when merged after it and not carried; with
-    no anchor, every settled merge. A merge with an unreadable time is
-    judged, so it holds the anchor as `advance_anchor` would."""
-
     def needs(merge: AutoMerge) -> bool:
         if anchor is None:
             return True
@@ -4712,7 +4616,6 @@ def anchor_needs(anchor: Anchor | None) -> Callable[[AutoMerge], bool]:
 def write_anchor(
     path: str, anchor: Anchor, repo: str, branch: str, identity: str
 ) -> bool:
-    """Write `anchor` for dispatch-post-merge-runs to upload."""
     return _replace_json(
         path,
         {
@@ -4726,10 +4629,6 @@ def write_anchor(
 def default_floor(
     repo: str, identity: str, self_logins: Collection[str]
 ) -> tuple[datetime, dict[str, Any]]:
-    """The merge gate's floor at the default branch head
-    (`babysit_merge_policy.merged_since_floor`), and what it was read from:
-    the head, its newest pipeline-config commit and the demotion record
-    (`shared` in the report, `read_shared`). Raises `PolicyReadError`."""
     _, head = policy._default_branch_head(repo)
     config = policy.newest_config_commit(repo, head)
     demotion = policy.read_demotion(
@@ -4744,7 +4643,6 @@ def default_floor(
 
 
 def _demotion_report(demotion: policy.Demotion) -> dict[str, Any]:
-    """The demotion record as the report's `shared` binding states it."""
     newest, cleared = (
         t.isoformat() if t else None
         for t in (demotion.newest_created, demotion.cleared_at)
@@ -4959,9 +4857,6 @@ QUARANTINE_MARKER = "<!-- post-merge-quarantine "
 
 
 def _quarantine_touched(repo: str, since: datetime) -> bool:
-    """Whether any issue carrying a quarantine marker was opened, reopened,
-    closed or edited at or after `since`, in one listing; a full page counts
-    as touched. A read that fails raises `PostMergeReadError`."""
     owner, name = _split_repo(repo)
     issues = json_array(
         _read(
@@ -5216,8 +5111,6 @@ def _replace_json(path: str, payload: Mapping[str, Any]) -> bool:
 
 
 def _read_json_object(path: str) -> dict[str, Any]:
-    """The JSON object in the file at `path` (an empty one for any other
-    value); raises `OSError` or `ValueError`."""
     with open(path, encoding="utf-8") as handle:
         return json_object(json.load(handle))
 
@@ -5226,7 +5119,6 @@ UNREADABLE_KEY = "unreadableRecompute"
 
 
 def _report_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """A run report's verdict fields: all but its floor and shared bindings."""
     return {
         k: v for k, v in payload.items() if k not in ("since", "shared", UNREADABLE_KEY)
     }
@@ -5247,9 +5139,6 @@ def _unreadable_at(
     identity: str,
     lane_merges_only: bool,
 ) -> dict[str, Any] | None:
-    """The report of an unreadable check at `path` made at main's `head` from
-    `floor` for this identity and lane within `SHARED_MAX_AGE`, or None: the
-    gate's own (`UNREADABLE_KEY`), else the job's check the file holds."""
     try:
         payload = _read_json_object(path)
     except (OSError, ValueError):
@@ -5344,7 +5233,6 @@ def _print_json(payload: Any, indent: int | None = 2) -> None:
 
 
 def _acting_login() -> str | None:
-    """The session's acting login, or None when it cannot be read."""
     try:
         return policy.read_acting_login()
     except policy.PolicyReadError:
@@ -5390,7 +5278,6 @@ def _lane_alerted(repo: str, branch: str, run_id: int) -> int:
 
 
 def _check_lines(path: str) -> frozenset[str]:
-    """The non-blank lines of a checks file, stripped."""
     with open(path, encoding="utf-8") as handle:
         return frozenset(line.strip() for line in handle if line.strip())
 
@@ -5471,10 +5358,6 @@ def _judge_run(args: argparse.Namespace) -> int:
 def anchor_covered(
     repo: str, identity: str, report: Mapping[str, Any]
 ) -> list[Any]:
-    """The report's `settle` entries the current anchor already passed: merged
-    at or before it, or carried in its `passed`. A marker never moves the
-    anchor by itself (`advance_anchor`), so a merge is marked only once an
-    anchor has passed it from its runs. No anchor settles none."""
     anchor = read_anchor(repo, identity)
     if anchor is None:
         return []

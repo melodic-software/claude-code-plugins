@@ -31,8 +31,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   exit 2
 fi
 
-# A second source (direct or transitive) must not zero recorded results: that
-# is the same false-green this file exists to abolish. The functions stay.
 if [[ -n "${TEST_HARNESS_SOURCED:-}" ]]; then
   return 0
 fi

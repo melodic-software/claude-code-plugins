@@ -18,7 +18,7 @@ SCRIPT="$SELF_DIR/check-silent-skips.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   local -n _nf_out="$1"
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins
   : >"$_nf_out/scripts/silent-skip-exemptions.txt"
@@ -338,7 +338,6 @@ else
 fi
 rm -rf "$f"
 
-# --- scripts/*.test.sh: inline then ok "skip ..." also fails ----------------
 new_fixture f
 script_test_file "$f" demo.test.sh 'if anchor_missing; then ok "skip historical proof"; fi'
 if out="$(run_check "$f" 2>&1)"; then
@@ -399,7 +398,6 @@ else
 fi
 rm -rf "$f"
 
-# --- ok messages that merely mention skip are not flagged ------------------
 new_fixture f
 script_test_file "$f" demo.test.sh "$(printf '%s\n' \
   'ok "skip-named-helper guard (|| emit_skipped) fails"' \

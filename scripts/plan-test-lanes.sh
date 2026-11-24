@@ -161,7 +161,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
     whole_windows=1
     ;;
   .python-version)
-    # Every Windows job sets up its Python from this pin too.
     python_pin=1
     whole_windows=1
     ;;
@@ -175,8 +174,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
   esac
 done
 
-# select_into <out> <path>...: the selector's suites for <path>... into <out>; adds
-# its report's count to `unmapped`.
 select_into() {
   local out="$1" rc=0
   shift
@@ -245,10 +242,6 @@ declare -A OUTSIDE_TRIGGERS=(
   [scripts/lane-transcripts]=".github/workflows/"
 )
 
-# Every Node package as `<package> <owner> [<trigger>]`: the sub-project rows,
-# then each outside package as its own owner.
-# A row with no owner would match every suite, so an empty list or an
-# owner-less row stops the plan.
 ((${#subprojects[@]})) || die "$SUBPROJECTS_LIST has no rows"
 packages=""
 for row in "${subprojects[@]}"; do
@@ -258,7 +251,6 @@ for row in "${subprojects[@]}"; do
 done
 for p in "${outside[@]}"; do packages+=$'\n'"$p $p/${OUTSIDE_TRIGGERS[$p]:+ ${OUTSIDE_TRIGGERS[$p]}}"; done
 
-# owner_package <suite>: the package whose owner directory holds <suite>.
 owner_package() {
   local pkg owner rest
   while read -r pkg owner rest; do
@@ -270,7 +262,6 @@ owner_package() {
   return 1
 }
 
-# normpath <path>: fold `.` and `..` out of a relative path.
 normpath() {
   local -a out=() parts=()
   local part
@@ -356,12 +347,6 @@ while read -r pkg owner trigger; do
   ((run)) && node_packages+="${node_packages:+ }$pkg"
 done <<<"$packages"
 
-# pack <lane> <budget> <cap> <force> <workers> <list> [<serial-list>]: the
-# lane's legs, plan and needs. A leg runs <workers> suites at a time
-# (scripts/run-plugin-tests.sh), so a suite on <serial-list>, which runs alone,
-# weighs <workers> times its seconds. One suite cannot be split, so a leg is
-# estimated at its suite-seconds plus (<workers> - 1) / <workers> of <workers>
-# times its longest parallel suite, the list-scheduling bound.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
   local runner
