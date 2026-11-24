@@ -1,13 +1,6 @@
 # test-scope: plugins/planning/lib/resolve-convention-home.sh plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
-"""Tests for the interview surface server and its lifecycle commands.
-
-Every class starts its own server through `round.py ensure-running --port 0` in a
-temporary data dir and stops it through `round.py stop`, so no fixed port is used.
-`TestApi` walks the prototype API checks in order; the other classes cover the
-lifecycle and security acceptance criteria (AC2 to AC7).
-"""
 
 from __future__ import annotations
 
@@ -43,7 +36,6 @@ FIXTURES = HERE / "tests" / "fixtures"
 TIMEOUT = 10
 
 FAST_QUIET, FAST_BURST = 3.0, 12.0
-# a wake lands after one fast quiet window, plus slack
 WAKE_SECONDS = FAST_QUIET + 1.0
 
 
@@ -59,7 +51,6 @@ def run_round(d, *args, timeout=30, env=None):
 
 
 def ensure_running(d, *extra, env=None):
-    """Run ensure-running with captured pipes; the timeout turns an inherited-pipe hang into a failure."""
     return subprocess.run(
         [
             sys.executable,
@@ -83,7 +74,6 @@ def session(d):
 
 
 def request(port, method, path, body=None, headers=None, timeout=TIMEOUT):
-    """One HTTP request; returns (status, text, headers). A dict body is sent as JSON."""
     data = json.dumps(body).encode("utf-8") if isinstance(body, dict) else body
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
     try:
@@ -105,7 +95,7 @@ class ServerCase(unittest.TestCase):
 
     fixtures = False
     env = None
-    fast_settle = True  # a short settle window in the data dir; the defaults outlast TIMEOUT
+    fast_settle = True
 
     @classmethod
     def prepare(cls):
@@ -706,7 +696,6 @@ FINISH_Q = {
 
 
 def round_sh_python():
-    """The interpreter round.sh picks: python3, then python, from PATH."""
     return shutil.which("python3") or shutil.which("python") or sys.executable
 
 
@@ -1353,7 +1342,6 @@ class TestReplay(WaitCase):
         seed_questions(cls.dir, question("A"))
 
     def test_bounded_replay_chain(self):
-        # A blocking delivery carries no replay mark.
         r, posted = self.wait_during(
             "after=handled&replayed=0&timeout=20",
             lambda: self.post({"id": "A", "kind": "accept"}),
@@ -1365,21 +1353,18 @@ class TestReplay(WaitCase):
         self.assertEqual(seqs(body["events"]), [first])
         self.assertNotIn("replayed", body)
 
-        # AC8: a re-arm without a handle re-delivers at once.
         code, body, took = self.wait("after=handled&replayed=0&timeout=20")
         self.assertEqual(code, 200)
         self.assertLess(took, WAKE_SECONDS)
         self.assertEqual(seqs(body["events"]), [first])
         self.assertEqual(body.get("replayed"), first)
 
-        # A second re-arm without a new event blocks until its timeout.
         code, body, took = self.wait(f"after=handled&replayed={first}&timeout=3")
         self.assertEqual(code, 200)
         self.assertGreaterEqual(took, 2.5)
         self.assertTrue(body["timedOut"])
         self.assertEqual(body["events"], [])
 
-        # A new post returns the old unhandled event and the new one.
         r, posted = self.wait_during(
             f"after=handled&replayed={first}&timeout=20",
             lambda: self.post({"kind": "note", "text": "Second event."}),
@@ -1390,14 +1375,12 @@ class TestReplay(WaitCase):
         self.assertEqual(seqs(body["events"]), [first, second])
         self.assertNotIn("replayed", body)
 
-        # Nothing unhandled blocks.
         rc, out = self.rp("handle", "--seq", str(first), str(second))
         self.assertEqual(rc, 0, out)
         code, body, took = self.wait("after=handled&replayed=0&timeout=2")
         self.assertTrue(body["timedOut"])
         self.assertGreaterEqual(took, 1.5)
 
-        # A replayed value past the log counts as zero.
         _, posted = self.post({"kind": "note", "text": "Third event."})
         code, body, took = self.wait("after=handled&replayed=9999&timeout=5")
         self.assertLess(took, WAKE_SECONDS)
@@ -1534,8 +1517,6 @@ class TestEventStreamWaiter(WaitCase):
                 target=read, args=(conn.getresponse(),), daemon=True
             ).start()
             self.assertTrue(ready.wait(TIMEOUT), "no first state frame")
-            # The first wait claims the lease; once it ends the listener stays "listening" for
-            # LISTEN_GRACE (10 s) and the lease stays held, so neither moves for the next wait.
             code, body, _ = self.wait("after=handled&timeout=1&watcher=w1")
             self.assertEqual(code, 200, body)
             self.assertTrue(
@@ -1544,7 +1525,6 @@ class TestEventStreamWaiter(WaitCase):
             )
             seen = len(frames)
             box = {}
-            # The waiter outlasts until()'s 3 s window, so its frame is seen while it is still in.
             th = threading.Thread(
                 target=lambda: box.update(
                     r=self.wait("after=handled&timeout=8&watcher=w1")
@@ -1854,7 +1834,6 @@ class TestConfirmReading(WaitCase):
             {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: fee chart flag."}
         )
         self.assertEqual(rc, 0, out)
-        # The tab drew the first read-back; Claude replaced it before the click.
         code, data = self.post({**read, "readRev": 1})
         self.assertEqual((code, data.get("readRev")), (409, 2), data)
         code, data = self.post({**read, "answerSeq": seq - 1, "readRev": 2})
@@ -1980,7 +1959,7 @@ class TestTerminalStale(WaitCase):
     def test_terminal_dependent_goes_stale_when_its_prerequisite_changes(self):
         code, data = self.post({"id": "A", "kind": "accept"})
         self.assertEqual(code, 200, data)
-        time.sleep(1.1)  # timestamps have one-second resolution
+        time.sleep(1.1)
         rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states(), {"A": "open", "B": "open"})
@@ -2299,7 +2278,6 @@ class TestConfirmUnderstanding(WaitCase):
         self.assertEqual(code, 400, data)
 
     def test_5_a_repeated_confirm_of_the_same_rev_returns_the_existing_seq(self):
-        # test_2 flagged rev 2 after test_1 confirmed it, so the next Confirm is new.
         body = {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
         before = self.state()["responses"]
         self.assertEqual(before["events"][-1]["alt"], "off")
@@ -2391,7 +2369,6 @@ class TestAcceptAudit(WaitCase):
         self.assertEqual(responses["C"]["seq"], 3)
 
     def test_3_a_stale_or_ineligible_question_is_skipped_and_left_alone(self):
-        # Claude revised C after the user opened it.
         path = self.dir / "questions.json"
         doc = json.loads(path.read_text(encoding="utf-8"))
         next(q for q in doc["questions"] if q["id"] == "C")["contentRev"] = 5
@@ -2444,7 +2421,6 @@ class TestAcceptAudit(WaitCase):
         undo = self.events()[-1]["seq"]
         code, data = self.post({"kind": "undo", "id": "A", "undoSeq": undo})
         self.assertEqual(code, 200, data)
-        # The audit's own accept of A is live again, as it was before the plain accept.
         self.assertEqual(self.state()["responses"]["responses"]["A"]["seq"], 2)
 
     def test_7_the_log_rebuilds_and_validates(self):
@@ -2592,7 +2568,7 @@ class TestRecChangeMarksUpstream(OpsCase):
         )
 
     def test_5_a_session_terminal_record_clears_it_like_any_stale_question(self):
-        time.sleep(1.1)  # a terminal decision is placed by its one-second timestamp
+        time.sleep(1.1)
         rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.marks()["B"], ("open", None))
@@ -2697,7 +2673,7 @@ class TestUserHoldClearsOnTheNextAnswer(OpsCase):
         return out.read_text(encoding="utf-8")
 
     def test_1_an_accept_after_the_hold_ends_it_and_an_undo_restores_it(self):
-        self.decide("A")  # before the hold: set aside by it
+        self.decide("A")
         self.hold("A")
         self.assertTrue(self.held("A"))
         self.assertIn("awaiting user", self.rp("status")[1])
@@ -2989,7 +2965,7 @@ class TestFrontierLockHard(OpsCase):
         self.assertNotIn("outOfOrder", event)
 
     def test_4_accept_audit_leaves_out_a_question_whose_prerequisite_is_held(self):
-        self.decide("Q26")  # answered anyway while its research hold stands
+        self.decide("Q26")
         items = [{"id": "Q101", "contentRev": 0}]
         code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
         skipped = [{"id": "Q101", "reason": "ineligible"}]
@@ -3065,7 +3041,7 @@ class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
         self.assertEqual(self.changed_by(), {"C": ["A"], "D": ["B"]})
 
     def test_5_a_repeated_value_marks_nothing(self):
-        self.decide("F")  # stale, answered again as before
+        self.decide("F")
         self.decide("A", "alt", alt="a")
         states = self.states()
         self.assertEqual(
@@ -3148,7 +3124,7 @@ class TestUpstreamChangedUnderLockOff(OpsCase):
             }
         )
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.states()["B"], "open")  # a recommendation change marks no undecided question
+        self.assertEqual(self.states()["B"], "open")
         self.decide("A")
         self.assertEqual(self.states()["B"], "upstream-changed")
 
@@ -3225,7 +3201,6 @@ def settings_env(**extra):
 
 
 def git_repo(path):
-    """A real git work tree at path, so the convention-home resolver classifies it as a repository."""
     path.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q", str(path)], check=True, timeout=TIMEOUT)
     (path / "docs" / "conventions").mkdir(parents=True, exist_ok=True)
@@ -3949,7 +3924,7 @@ class TestLease(WaitCase):
             leases = []
             end = (
                 time.monotonic() + 8
-            )  # before the listener state itself goes idle (LISTEN_GRACE, 10 s)
+            )
             while time.monotonic() < end:
                 line = resp.fp.readline()
                 self.assertTrue(line, "the stream closed")
@@ -3964,7 +3939,6 @@ class TestLease(WaitCase):
 
     def test_3_expired_lease_is_reclaimed(self):
         time.sleep(5.5)
-        # Expired with no watcher having claimed since: no holder anywhere it is shown.
         self.assertIsNone(self.lease())
         rc, out = self.rp("lease")
         self.assertEqual((rc, out), (0, "no lease"))
@@ -4167,7 +4141,6 @@ class TestProposal(OpsCase):
         code, data = self.post({"id": "P1", "kind": "proposal", "alt": "accept"})
         self.assertEqual(code, 200, data)
         self.assertEqual(self.states()["P1"], "open")
-        # Claude has written no recommendation yet, so there is nothing to accept.
         code, data = self.post({"id": "P1", "kind": "accept"})
         self.assertEqual(code, 400, data)
         code, data = self.post({"id": "P1", "kind": "proposal", "alt": "decline"})

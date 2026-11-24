@@ -1,5 +1,3 @@
-// Runs workflows/plan-panel.js against stubbed workflow hooks (agent,
-// parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

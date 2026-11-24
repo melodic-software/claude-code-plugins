@@ -25,7 +25,6 @@ mkdir -p "$FAKE_HOME"
 # shellcheck source=../lib/test-ok-fail.sh
 source "$PLUGIN_DIR/lib/test-ok-fail.sh"
 
-# check_file <label> <expected exit> <yaml text>: setup-apply --check on a repository holding it.
 check_file() {
   local label="$1" expected="$2" text="$3" repo code
   repo="$(mktemp -d "$WORKROOT/repo.XXXXXX")"
@@ -51,7 +50,6 @@ check_file 'a flat value is refused' 1 'plan_size_bands: 5'
 check_file 'an inventory threshold passes' 0 'plan_inventory_min_files: 20'
 check_file 'an inventory threshold of 0 is refused' 1 'plan_inventory_min_files: 0'
 
-# Defaults are today's values.
 got="$(node -e 'const p = require(process.argv[1]).properties;
 const b = p.plan_size_bands.properties;
 console.log(Object.keys(b).map((k) => k + "=" + b[k].default).join(" ") + " inventory=" + p.plan_inventory_min_files.default)' \
