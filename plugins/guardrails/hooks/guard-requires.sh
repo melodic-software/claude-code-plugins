@@ -95,7 +95,7 @@ declare -A GUARD_FIELDS=(
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS_UNPRIMED=(
-  ["block-body-format-violation.sh"]=$'.tool_input.body\n.tool_input.owner\n.tool_input.repo'
+  ["block-body-format-violation.sh"]=$'.tool_input.body\n.tool_input.owner\n.tool_input.repo\n.tool_input.method'
   ["block-fix-request-post.sh"]=$'.tool_input.body\n.tool_input.comments'
   ["block-foreground-wait.sh"]='.tool_input.run_in_background'
   ["block-root-delete-target.sh"]='.scratchpad_dir'

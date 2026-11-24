@@ -133,7 +133,7 @@
     "block_body_format_violation_enabled": {
       "type": "boolean",
       "title": "Block-body-format-violation guard",
-      "description": "Blocks gh pr create, gh pr edit with a body, or a GitHub MCP pull request write whose body breaks the format the target repository declares in docs/conventions/source-control.yaml; a repository that declares none is not judged. pr_body_format_gate: false turns it off there. On by default.",
+      "description": "Blocks gh pr create, gh pr edit with a body, gh issue create, or a GitHub MCP pull request write or issue create whose body breaks the format the target repository declares in docs/conventions/source-control.yaml; a repository that declares none is not judged. On by default.",
       "default": true
     },
     "block_windows_drive_tmp_enabled": {

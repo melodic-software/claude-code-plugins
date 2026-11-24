@@ -229,6 +229,15 @@ reads the file itself, through a script where the key names one below.
   key, so one person can turn it off in one repository; another value is reported and leaves it
   on. A repository that declares neither key is never judged
   ([pr-body convention](../../../docs/contracts/pr-body-convention/README.md)).
+- `issue_body_required_sections` and `issue_body_format_gate`: the issue-body format and its
+  switch. `issue_body_required_sections` maps each issue kind the repository accepts, a lowercase
+  id such as `bug` or `task`, to the headings that kind requires, or is the keyword `none`. The
+  guardrails `block-body-format-violation` hook refuses a `gh issue create` or GitHub MCP issue
+  create whose body completes no declared kind: a required `##` or `###` heading missing, empty,
+  or answered `_No response_`. `issue_body_format_gate`, `true` or `false`, default `true`, turns
+  that refusal off. No skill here reads either. The hook reads both like `pr_body_format_gate`,
+  from the tracked team file and the git-ignored personal override, which wins per key; the
+  winning layer's mapping is taken whole. A repository that sets no mapping is never judged.
 - `evidence_inline_max_captures` and `evidence_record_fields`: how
   `/source-control:pull-request evidence` lays out its comment
   ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).

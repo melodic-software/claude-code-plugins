@@ -151,6 +151,51 @@ assert_eq "MCP create_pull_request to another repository" "0 0" "$RCS"
 mcp_verdict "$(mcp issue_write "$NOFIX" acme)"
 assert_eq "MCP issue_write" "0 0" "$RCS"
 
+IKEY=$'issue_body_required_sections:\n  bug:\n    - Steps to reproduce\n    - Expected behavior\n  feature:\n    - User story\n    - Acceptance criteria'
+ISSUE=$(mkrepo tracker "$IKEY"$'\npr_body_format_gate: false')
+INONE=$(mkrepo inone 'issue_body_required_sections: none')
+IOFF=$(mkrepo ioff "$IKEY"$'\nissue_body_format_gate: false')
+ILOCALOFF=$(mkrepo ilocaloff "$IKEY")
+printf 'issue_body_format_gate: false\n' >"$ILOCALOFF/docs/conventions/source-control.local.yaml"
+IGOOD=$'### User story\n\nAs a maintainer I want X.\n\n### Acceptance criteria\n\n- [ ] X works'
+IGOOD2=$'## Steps to reproduce\n1. run it\n\n## Expected behavior\nIt works.'
+INOAC=$'### User story\n\nAs a maintainer I want X.'
+INORESP=$'### User story\n\nAs a maintainer I want X.\n\n### Acceptance criteria\n\n_No response_'
+printf '%s\n' "$INOAC" >"$ISSUE/noac.md"
+
+pass "gh issue create --body, a declared kind complete" "gh issue create --title t --body $(q "$IGOOD")" "$ISSUE"
+pass "gh issue create, another kind complete with ## headings" "gh issue create --title t --body $(q "$IGOOD2")" "$ISSUE"
+deny "gh issue create --body, a heading missing" "gh issue create --title t --body $(q "$INOAC")" "$ISSUE" 'Missing a "### Acceptance criteria" heading'
+assert_contains "the issue refusal names the closest kind" "$OUT_D" "Closest kind, feature, requires: User story, Acceptance criteria."
+assert_contains "the issue refusal names the key and its layer" "$OUT_D" "issue_body_required_sections in docs/conventions/source-control.yaml: bug feature"
+assert_contains "the issue refusal names its off switch" "$OUT_D" "issue_body_format_gate: false"
+deny "gh issue create, an answer of _No response_" "gh issue create --title t --body $(q "$INORESP")" "$ISSUE" 'The "### Acceptance criteria" heading is empty or answered _No response_'
+deny "gh issue create --body-file, a heading missing" "gh issue create --title t --body-file noac.md" "$ISSUE" 'Missing a "### Acceptance criteria" heading'
+deny 'gh issue create --body "$(cat <<EOF)", a heading missing' "gh issue create --title t --body \"\$(cat <<'EOF'"$'\n'"$INOAC"$'\n'"EOF"$'\n'")\"" "$ISSUE" 'Missing a "### Acceptance criteria" heading'
+deny "gh issue create --body-file - with a heredoc, a heading missing" "gh issue create --title t --body-file - <<'EOF'"$'\n'"$INOAC"$'\n'"EOF" "$ISSUE" 'Missing a "### Acceptance criteria" heading'
+pass "gh issue create -R naming another repository" "gh issue create -R other/repo --title t --body $(q "$INOAC")" "$ISSUE"
+pass "gh issue create where no issue format is declared" "gh issue create --title t --body $(q "$INOAC")" "$FULL"
+pass "issue_body_required_sections: none" "gh issue create --title t --body x" "$INONE"
+pass "the team layer turns the issue gate off" "gh issue create --title t --body $(q "$INOAC")" "$IOFF"
+pass "the personal override turns the issue gate off" "gh issue create --title t --body $(q "$INOAC")" "$ILOCALOFF"
+pass "an issue format declares no PR format" "gh pr create --title t --body x" "$ISSUE"
+
+mcp_issue() {
+  jq -n --arg t "mcp__plugin_github_github__$1" --arg b "$2" --arg o "$3" --arg m "${4-}" --arg d "$ISSUE" \
+    '{tool_name:$t,cwd:$d,tool_input:({owner:$o,repo:"tracker",title:"t",body:$b} + (if $m == "" then {} else {method:$m} end))}'
+}
+mcp_verdict "$(mcp_issue issue_write "$INOAC" acme create)"
+assert_eq "MCP issue_write create, a heading missing" "2 2" "$RCS"
+assert_contains "MCP issue_write create names the heading" "$OUT_D" 'Missing a "### Acceptance criteria" heading'
+mcp_verdict "$(mcp_issue issue_write "$IGOOD" acme create)"
+assert_eq "MCP issue_write create, complete" "0 0" "$RCS"
+mcp_verdict "$(mcp_issue issue_write "$INOAC" acme update)"
+assert_eq "MCP issue_write update is not judged" "0 0" "$RCS"
+mcp_verdict "$(mcp_issue create_issue "$INOAC" acme)"
+assert_eq "MCP create_issue, a heading missing" "2 2" "$RCS"
+mcp_verdict "$(mcp_issue issue_write "$INOAC" someone-else create)"
+assert_eq "MCP issue_write create to another repository" "0 0" "$RCS"
+
 P=$(payload "gh pr create --title t --body-file good.md" "$FULL")
 t0=${EPOCHREALTIME/./}
 for _ in 1 2 3 4 5 6 7 8 9 10; do bash "$HOOK" <<<"$P" >/dev/null 2>&1; done
@@ -158,5 +203,12 @@ t1=${EPOCHREALTIME/./}
 ms=$(((t1 - t0) / 10000))
 printf 'block-body-format-violation: %s ms per judged call (mean of 10)\n' "$ms"
 if ((ms < 1000)); then ok "a judged call runs under 1 s ($ms ms)"; else bad "a judged call took $ms ms"; fi
+P=$(payload "gh issue create --title t --body-file noac.md" "$ISSUE")
+t0=${EPOCHREALTIME/./}
+for _ in 1 2 3 4 5 6 7 8 9 10; do bash "$HOOK" <<<"$P" >/dev/null 2>&1; done
+t1=${EPOCHREALTIME/./}
+ms=$(((t1 - t0) / 10000))
+printf 'block-body-format-violation: %s ms per judged issue call (mean of 10)\n' "$ms"
+if ((ms < 1000)); then ok "a judged issue call runs under 1 s ($ms ms)"; else bad "a judged issue call took $ms ms"; fi
 
 report

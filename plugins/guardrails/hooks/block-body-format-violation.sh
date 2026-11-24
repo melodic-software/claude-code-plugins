@@ -139,6 +139,7 @@ _bfv_bash() {
   case "$GHPOST_POST" in
   gh-pr-create) _BFV_FORM=pr-create ;;
   gh-pr-edit) _BFV_FORM=pr-edit ;;
+  gh-issue-create) _BFV_FORM=issue-create ;;
   *) exit 0 ;;
   esac
   local re_repo='(^|[[:space:]])(-R|--repo)(=|[[:space:]]+)?([^[:space:];&|)]+)'
@@ -166,11 +167,13 @@ _bfv_mcp() {
   case "$TOOL_NAME" in
   *__create_pull_request) _BFV_FORM=pr-create ;;
   *__update_pull_request) _BFV_FORM=pr-edit ;;
+  *__create_issue | *__issue_write) _BFV_FORM=issue-create ;;
   *) exit 0 ;;
   esac
   jq_rc=0
-  hook::jq_fields "$INPUT" '.tool_input.body' '.tool_input.owner' '.tool_input.repo' || jq_rc=$?
+  hook::jq_fields "$INPUT" '.tool_input.body' '.tool_input.owner' '.tool_input.repo' '.tool_input.method' || jq_rc=$?
   guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
+  [[ "$TOOL_NAME" != *__issue_write || "${HOOK_JQ_FIELDS[3]}" == create ]] || exit 0
   _BFV_BODY="${HOOK_JQ_FIELDS[0]}"
   [[ -n "$_BFV_BODY" ]] || exit 0
   _bfv_slug_to _BFV_TARGET "${HOOK_JQ_FIELDS[1]}/${HOOK_JQ_FIELDS[2]}" || exit 0
@@ -246,13 +249,163 @@ _bfv_key() {
   return 1
 }
 
-if _bfv_key pr_body_format_gate; then
+_bfv_trim_to() {
+  local -n __bfv_t="$1"
+  __bfv_t="${2#"${2%%[![:space:]]*}"}"
+  __bfv_t="${__bfv_t%"${__bfv_t##*[![:space:]]}"}"
+}
+
+_bfv_gate() {
+  _bfv_key "$1" || return 0
   case "${_BFV_VAL[0]}" in
   false) exit 0 ;;
   true) ;;
-  *) _bfv_note "$_BFV_LAYER sets pr_body_format_gate: '${_BFV_VAL[0]}', not true or false; the gate stays on." ;;
+  *) _bfv_note "$_BFV_LAYER sets $1: '${_BFV_VAL[0]}', not true or false; the gate stays on." ;;
   esac
+}
+
+_bfv_prepare_lines() {
+  local text="${_BFV_BODY//$'\r'/}" rest i l fence=""
+  local re_fence='^ {0,3}(`{3,}|~{3,})(.*)$'
+  while [[ "$text" == *'<!--'* ]]; do
+    rest="${text#*<!--}"
+    if [[ "$rest" == *'-->'* ]]; then
+      text="${text%%<!--*}${rest#*-->}"
+    else
+      text="${text%%<!--*}"
+    fi
+  done
+  mapfile -t _BFV_LINES <<<"$text"
+  for i in "${!_BFV_LINES[@]}"; do
+    l="${_BFV_LINES[i]}"
+    if [[ -z "$fence" ]]; then
+      [[ "$l" =~ $re_fence ]] || continue
+      [[ "${BASH_REMATCH[1]:0:1}" == '`' && "${BASH_REMATCH[2]}" == *'`'* ]] && continue
+      fence="${BASH_REMATCH[1]}"
+    elif [[ "$l" =~ $re_fence && "${BASH_REMATCH[1]:0:1}" == "${fence:0:1}" &&
+      ${#BASH_REMATCH[1]} -ge ${#fence} && "${BASH_REMATCH[2]}" =~ ^[[:space:]]*$ ]]; then
+      fence=""
+    fi
+    _BFV_LINES[i]=""
+  done
+}
+
+_bfv_check_heads() {
+  local mode="$1" maxlvl=2 h i t lvl hl start slvl has mark="##" re_head='^(#+)[[:space:]]+(.*)$' re_any='^(#+)[[:space:]]'
+  shift
+  if [[ "$mode" == issue ]]; then
+    maxlvl=3
+    mark="###"
+  fi
+  for h in "$@"; do
+    start=-1
+    for i in "${!_BFV_LINES[@]}"; do
+      _bfv_trim_to t "${_BFV_LINES[i]}"
+      [[ "$t" =~ $re_head ]] || continue
+      lvl=${#BASH_REMATCH[1]}
+      ((lvl >= 2 && lvl <= maxlvl)) || continue
+      hl="${BASH_REMATCH[2]}"
+      hl="${hl%"${hl##*[!#[:space:]]}"}"
+      if [[ "${hl,,}" == "${h,,}" ]]; then
+        start=$((i + 1))
+        slvl=$lvl
+        break
+      fi
+    done
+    if ((start < 0)); then
+      if [[ "$mode" == issue ]]; then
+        _BFV_PROBLEMS+=("Missing a \"$mark $h\" heading: add \"$mark $h\" (or \"## $h\") with its answer under it.")
+      else
+        _BFV_PROBLEMS+=("Missing a \"## $h\" section: add the heading \"## $h\" with its content under it.")
+      fi
+      continue
+    fi
+    has=0
+    for ((i = start; i < ${#_BFV_LINES[@]}; i++)); do
+      _bfv_trim_to t "${_BFV_LINES[i]}"
+      [[ "$t" =~ $re_any ]] && ((${#BASH_REMATCH[1]} <= slvl)) && break
+      [[ -z "$t" ]] && continue
+      [[ "$mode" == issue && "$t" == "_No response_" ]] && continue
+      has=1
+      break
+    done
+    if ((! has)); then
+      if [[ "$mode" == issue ]]; then
+        _BFV_PROBLEMS+=("The \"$mark $h\" heading is empty or answered _No response_: write its answer under the heading.")
+      else
+        _BFV_PROBLEMS+=("The \"## $h\" section is empty: write its content under the heading.")
+      fi
+    fi
+  done
+}
+
+_bfv_issue_kinds() {
+  local key=issue_body_required_sections layer rel line rest kind idx
+  _BFV_KINDS=()
+  declare -gA _BFV_KIND_HEADS=()
+  for layer in LOCAL TEAM; do
+    local -n __bfv_k="_BFV_$layer"
+    rel="$_BFV_TEAM_REL"
+    [[ "$layer" == LOCAL ]] && rel="$_BFV_LOCAL_REL"
+    if [[ "$__bfv_k" == *$'\n'"$key"$'\t'* ]]; then
+      rest="${__bfv_k#*$'\n'"$key"$'\t'}"
+      rest="${rest%%$'\n'*}"
+      [[ "$rest" == none ]] ||
+        _bfv_note "$rel sets $key: '$rest', not a mapping of issue kinds or none; no issue format is applied."
+      return 1
+    fi
+    if [[ "$__bfv_k" == *$'\n'"$key".* ]]; then
+      while IFS= read -r line; do
+        [[ "$line" == "$key".*$'\t'* ]] || continue
+        rest="${line%%$'\t'*}"
+        rest="${rest#"$key".}"
+        kind="${rest%.*}"
+        idx="${rest##*.}"
+        [[ "$kind" != *.* && "$idx" =~ ^[0-9]+$ ]] || continue
+        [[ -v "_BFV_KIND_HEADS[$kind]" ]] || _BFV_KINDS+=("$kind")
+        _BFV_KIND_HEADS[$kind]+="${line#*$'\t'}"$'\n'
+      done <<<"$__bfv_k"
+      _BFV_ISSUE_SRC="$key in $rel"
+      return $((${#_BFV_KINDS[@]} == 0))
+    fi
+    unset -n __bfv_k
+  done
+  return 1
+}
+
+_BFV_PROBLEMS=()
+
+if [[ "$_BFV_FORM" == issue-create ]]; then
+  _bfv_gate issue_body_format_gate
+  _bfv_issue_kinds || exit 0
+  _bfv_prepare_lines
+  _bfv_best=""
+  _bfv_best_p=()
+  for _bfv_kind in "${_BFV_KINDS[@]}"; do
+    _BFV_PROBLEMS=()
+    mapfile -t _bfv_heads <<<"${_BFV_KIND_HEADS[$_bfv_kind]%$'\n'}"
+    _bfv_check_heads issue "${_bfv_heads[@]}"
+    if ((${#_BFV_PROBLEMS[@]} == 0)); then
+      emit_tel ok
+      exit 0
+    fi
+    if [[ -z "$_bfv_best" ]] || ((${#_BFV_PROBLEMS[@]} < ${#_bfv_best_p[@]})); then
+      _bfv_best="$_bfv_kind"
+      _bfv_best_p=("${_BFV_PROBLEMS[@]}")
+    fi
+  done
+  {
+    printf 'BLOCKED: this issue body matches none of the issue kinds %s declares (%s: %s).\n' "$_BFV_SELF" "$_BFV_ISSUE_SRC" "${_BFV_KINDS[*]}"
+    _bfv_list="${_BFV_KIND_HEADS[$_bfv_best]%$'\n'}"
+    printf 'Closest kind, %s, requires: %s.\n' "$_bfv_best" "${_bfv_list//$'\n'/, }"
+    printf -- '- %s\n' "${_bfv_best_p[@]}"
+    printf 'Fix the body and run the command again. To turn this gate off for the repository, set issue_body_format_gate: false in %s (or, for yourself only, in %s).\n' "$_BFV_TEAM_REL" "$_BFV_LOCAL_REL"
+  } >&2
+  emit_tel blocked
+  exit 2
 fi
+
+_bfv_gate pr_body_format_gate
 
 _BFV_SECTIONS=()
 _BFV_SECTIONS_SRC=""
@@ -287,38 +440,7 @@ fi
 
 [[ -n "$_BFV_SECTIONS_SRC$_BFV_OPENER_SRC" ]] || exit 0
 
-_bfv_text="${_BFV_BODY//$'\r'/}"
-while [[ "$_bfv_text" == *'<!--'* ]]; do
-  _bfv_rest="${_bfv_text#*<!--}"
-  if [[ "$_bfv_rest" == *'-->'* ]]; then
-    _bfv_text="${_bfv_text%%<!--*}${_bfv_rest#*-->}"
-  else
-    _bfv_text="${_bfv_text%%<!--*}"
-  fi
-done
-mapfile -t _BFV_LINES <<<"$_bfv_text"
-_bfv_fence=""
-_bfv_re_fence='^ {0,3}(`{3,}|~{3,})(.*)$'
-for _bfv_i in "${!_BFV_LINES[@]}"; do
-  _bfv_l="${_BFV_LINES[_bfv_i]}"
-  if [[ -z "$_bfv_fence" ]]; then
-    [[ "$_bfv_l" =~ $_bfv_re_fence ]] || continue
-    [[ "${BASH_REMATCH[1]:0:1}" == '`' && "${BASH_REMATCH[2]}" == *'`'* ]] && continue
-    _bfv_fence="${BASH_REMATCH[1]}"
-  elif [[ "$_bfv_l" =~ $_bfv_re_fence && "${BASH_REMATCH[1]:0:1}" == "${_bfv_fence:0:1}" &&
-    ${#BASH_REMATCH[1]} -ge ${#_bfv_fence} && "${BASH_REMATCH[2]}" =~ ^[[:space:]]*$ ]]; then
-    _bfv_fence=""
-  fi
-  _BFV_LINES[_bfv_i]=""
-done
-
-_bfv_trim_to() {
-  local -n __bfv_t="$1"
-  __bfv_t="${2#"${2%%[![:space:]]*}"}"
-  __bfv_t="${__bfv_t%"${__bfv_t##*[![:space:]]}"}"
-}
-
-_BFV_PROBLEMS=()
+_bfv_prepare_lines
 
 if [[ -n "$_BFV_OPENER_SRC" ]]; then
   _bfv_first=""
@@ -333,36 +455,7 @@ if [[ -n "$_BFV_OPENER_SRC" ]]; then
   fi
 fi
 
-for _bfv_h in ${_BFV_SECTIONS[@]+"${_BFV_SECTIONS[@]}"}; do
-  _bfv_start=-1
-  for _bfv_i in "${!_BFV_LINES[@]}"; do
-    _bfv_trim_to _bfv_t "${_BFV_LINES[_bfv_i]}"
-    _bfv_t="${_bfv_t%"${_bfv_t##*[!#[:space:]]}"}"
-    if [[ "$_bfv_t" == "##"* ]]; then
-      _bfv_tl="${_bfv_t,,}"
-      _bfv_tl="${_bfv_tl#\#\#}"
-      _bfv_trim_to _bfv_tl "$_bfv_tl"
-      if [[ "${_bfv_t:2:1}" == [[:space:]] && "$_bfv_tl" == "${_bfv_h,,}" ]]; then
-        _bfv_start=$((_bfv_i + 1))
-        break
-      fi
-    fi
-  done
-  if ((_bfv_start < 0)); then
-    _BFV_PROBLEMS+=("Missing a \"## $_bfv_h\" section: add the heading \"## $_bfv_h\" with its content under it.")
-    continue
-  fi
-  _bfv_has=0
-  for ((_bfv_i = _bfv_start; _bfv_i < ${#_BFV_LINES[@]}; _bfv_i++)); do
-    _bfv_trim_to _bfv_t "${_BFV_LINES[_bfv_i]}"
-    [[ "$_bfv_t" =~ ^#{1,2}[[:space:]] ]] && break
-    [[ -n "$_bfv_t" ]] && {
-      _bfv_has=1
-      break
-    }
-  done
-  ((_bfv_has)) || _BFV_PROBLEMS+=("The \"## $_bfv_h\" section is empty: write its content under the heading.")
-done
+_bfv_check_heads pr ${_BFV_SECTIONS[@]+"${_BFV_SECTIONS[@]}"}
 
 if ((${#_BFV_PROBLEMS[@]} == 0)); then
   emit_tel ok
