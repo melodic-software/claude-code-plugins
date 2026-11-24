@@ -7,8 +7,8 @@ check-cmd: |
   # editorconfig-checker: binary name varies by install method (ec / editorconfig-checker / ec-windows-amd64)
   "$EC_BIN"
   # lychee-offline: on-disk link and anchor integrity, no network, with the standards
-  # lychee.toml CI falls back to: STANDARDS_DIR names a standards checkout, else the ghq clone
-  lychee --offline --no-progress --config "${STANDARDS_DIR:-$(git config --path --get ghq.root)/github.com/melodic-software/standards}/lychee.toml" './**/*.md'
+  # lychee.toml CI falls back to: STANDARDS_DIR names a standards checkout, else the ghq root (ghq.root, default ~/ghq)
+  lychee --offline --no-progress --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf '%s' "$HOME/ghq")/github.com/melodic-software/standards}/lychee.toml" './**/*.md'
 fix-cmd: null
 opt-in: "each tool's own config at the repository root (_typos.toml, .gitleaks.toml, .editorconfig)"
 install-hint: |
