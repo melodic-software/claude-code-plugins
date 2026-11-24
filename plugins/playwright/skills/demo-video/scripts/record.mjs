@@ -128,7 +128,6 @@ async function settle(step, extra = {}) {
     if (tail.length === STILL && tail.every((f) => f.digest === tail[0].digest)) {
       let j = frames.lastIndexOf(tail[0]);
       while (j > 0 && frames[j - 1].digest === tail[0].digest && frames[j - 1].t0 >= tStart) j--;
-      // the frame's own time: build_edl.py looks captures up by it, so it must select this frame
       events.push({ name: 'settled', step, t: frames[j].t, url: page.url(), ...extra });
       return;
     }

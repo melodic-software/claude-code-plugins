@@ -2,8 +2,8 @@
 
 Owner doc for the `pr_body_required_sections` key: a configurable scaffold of `## <heading>`
 sections a pull-request body must carry. This concern is designed for **more than one plugin**:
-`source-control` drafts and pre-checks against it today, and a future CI or `guardrails`-style
-enforcement consumer validates an already-created PR body against the same key later. Its
+`source-control` drafts and pre-checks against it, `guardrails` refuses an off-format body before it
+is posted, and a future CI consumer validates an already-created PR body against the same key. Its
 ownership lives here at marketplace level, not inside `source-control`, per
 [`docs/migration-playbook.md`](../../migration-playbook.md) "concern-named config consumed by >1
 plugin". An owner doc lands before the second consumer adopts the key, not after.
@@ -29,11 +29,22 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
   sections the key lists, else the template headings in the same order, and offers none when the
   owner's default template cannot be read
   ([`docs/conventions/pr-pipeline/README.md`](../../conventions/pr-pipeline/README.md)).
+- **`guardrails` enforcement (before posting).** The `block-body-format-violation` hook refuses a
+  `gh pr create`, a `gh pr edit` with a body, or a GitHub MCP pull request create or update whose
+  body breaks the target repository's declared format, before anything is posted, naming each
+  missing or empty section and the line to add. It reads this key from the session checkout when
+  that checkout is the target, judges presence and non-empty content as the pre-create gate does,
+  and adds the opener rule (`Closes #N`, `Refs: #N` or `No related issue: <reason>` first) only where
+  the repository's `linkage_gate_uses_pattern` matches a workflow. Unlike drafting, it never falls
+  back to a template or the `briefing` default: a repository that sets neither key is not judged,
+  and `none` requires no section. `pr_body_format_gate: false` turns it off
+  ([config-resolution](../../../plugins/source-control/reference/config-resolution.md)). The
+  plugin's README row lists the command shapes it reads and the ones it passes.
 - **CI / enforcement (deferred).** A gate validating an *already-opened* PR body against the same
   team-tracked value, the enforcement half of the two-reads pattern the
   [commit-convention seam](../commit-convention/README.md) already establishes for the
   commit-subject / PR-title convention. No such consumer exists yet in this fleet; this doc reserves
-  the concern so the second adopter reads the same key instead of inventing a parallel one.
+  the concern so a CI adopter reads the same key instead of inventing a parallel one.
 
 ## When no layer sets the key: the template, then `briefing`
 

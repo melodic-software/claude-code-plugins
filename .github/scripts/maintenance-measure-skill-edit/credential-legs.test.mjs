@@ -24,7 +24,7 @@ test("generate-edit runs on the API key alone, and a stopped key fails the job",
         for (const prompt of ["success", "failure"]) {
           const start = S.start({ skipKey });
           const ctx = { "needs.check-key-credit.outputs.next-leg": start["next-leg"], "steps.prompt.outcome": prompt };
-          const { outputs } = S.leg({ leg: "key", role: "maintenance", credentialSet: String(keySet), keyOff: String(keyOff), selected: value(call.inputs.selected, ctx) });
+          const { outputs } = S.leg({ leg: "key", role: "evals", credentialSet: String(keySet), keyOff: String(keyOff), selected: value(call.inputs.selected, ctx) });
           const present = outputs.present === "true";
           assert.equal(present, keySet && !keyOff && !skipKey);
           const stepCtx = { ...ctx, "steps.key.outputs.present": outputs.present };

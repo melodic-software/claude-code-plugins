@@ -67,8 +67,6 @@ if [[ -n "${RT_DRIFT_CONFIGS:-}" ]]; then
 fi
 ((RT_GN)) || exit 0
 
-# Every group's tool first: a missing one skips its own group only, and an
-# agent's missing tool fails the entry once the other groups have run.
 runs=()
 tool_failed=0
 for ((i = 0; i < RT_GN; i++)); do

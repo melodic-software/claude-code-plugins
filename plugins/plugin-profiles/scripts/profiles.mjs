@@ -154,8 +154,6 @@ import { knownFolders, readUsage, usageFile } from "../lib/usage.mjs";
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
-// The variable the prerequisite readers in plugin-diagnostics and harness-ops define (their
-// lib/enabled-plugin-roots.mjs), so they read this file as the session layer.
 const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 const sessionProfile = (env) => env[SESSION_VAR] || null;
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
@@ -262,7 +260,6 @@ function locate(env, cwd, folder = null) {
   };
 }
 
-/** Data folders of other copies of this plugin, such as a --plugin-dir copy's plugin-profiles-inline. */
 function otherDataDirs(where) {
   const root = join(where.configDir, "plugins", "data");
   try {
@@ -296,7 +293,6 @@ const recordOf = (where, file) => {
   return own.record ? own : { ...own, record: adoptedRecord(where, file) };
 };
 
-/** A worktree's own file copied from the main checkout after an apply carries the root file's entries but no record: it takes the root file's. */
 function adoptedRecord(where, file) {
   const { earlier, local } = where.paths;
   if (!earlier || realPath(file) !== realPath(earlier)) return null;
@@ -390,7 +386,6 @@ const shortHash = (text) => createHash("sha256").update(text).digest("hex").slic
 const sessionsDir = (where) => join(where.dataDir, "sessions");
 const sessionFile = (where, name, content = null) =>
   join(sessionsDir(where), `${shortHash(realPath(where.projectDir))}-${name}${content ? `-${shortHash(content)}` : ""}.json`);
-/** Beside a one-session file, the plugins it adds for one conversation; no variable carries them, so a launch from that session adds nothing. */
 const addedFile = (file) => file.replace(/\.json$/, ".added.json");
 const addedIn = (file) => {
   const ids = file ? readJson(addedFile(file))?.added : null;
@@ -405,10 +400,8 @@ function diff(now, final) {
   return out;
 }
 
-/** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
 const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) => [...p.hideSkills]));
 
-/** Every marketplace some profile names a plugin of; a one-session file freezes each one's plugins at launch, so no other profile's write or reset reaches that session. */
 const governedMarketplaces = (catalog) =>
   new Set(everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
 
@@ -694,7 +687,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
-/** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
 function profileGate(name, opts, where, env, verb) {
   const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => opts.records ?? recordsFromCli());
   const gate = missingRequired(
@@ -1095,7 +1087,6 @@ function statusLines(s) {
   return lines;
 }
 
-/** The session-start notice, one short line each: what is in force and what needs the person, without status's commands; the surface only off the CLI. */
 function noticeLines(s, sessionId) {
   if (doesNotApply(s.surface)) return [surfaceLine(s.surface)];
   const lines = [];
@@ -1124,7 +1115,6 @@ function noticeLines(s, sessionId) {
 
 const addedLine = (ids) => `Added for this conversation only: ${list(ids)}`;
 
-/** What the model is told in a one-session profile, at start and again after compaction: how to reopen this conversation with a plugin the profile switched off. */
 function reopenContext(where, env, sessionId) {
   const name = sessionProfile(env);
   if (!name || doesNotApply(where.surface)) return null;
@@ -1180,7 +1170,6 @@ function sessionStartRecord(where, env, input) {
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
-/** Points the dotfiles claude function at this copy when it is the user-scope install installed_plugins.json records and the pointer differs; never an older cached version, a worktree or a --plugin-dir copy, and never throws. */
 function writeRootPointer(where) {
   const { pluginId } = resolveInstall(OWN_ROOT);
   if (doesNotApply(where.surface) || !pluginId) return;
@@ -1230,7 +1219,6 @@ function status(opts, where, env, io) {
         }
       }
     } catch {
-      // A session start never fails on a profile problem; status run by hand reports it.
     }
     if (lines.length) reply.systemMessage = `plugin-profiles:\n${lines.join("\n")}`;
     if (Object.keys(reply).length) io.out(JSON.stringify(reply));

@@ -28,7 +28,7 @@ Beyond the global HARD/SOFT lists:
 - **Agent-hook directories (`.claude/hooks/**`) are HARD-EXCLUDED for mutation.** Read-only investigation OK (to understand patterns); editing is deferred
 - **Git-hook manager config and script dirs (`lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`) are HARD-EXCLUDED for mutation.** They control the entire local hook chain. Read-only investigation OK
 - **Bootstrap/install scripts**: SOFT-EXCLUDED for behavioral changes. Reading-order / comment cleanup OK; logic changes defer
-- **CI-invoked test runners**: SOFT-EXCLUDED. Behavioral changes to a script CI invokes need a CI run to validate. Beck #5 / #15 tidyings OK; argument-parsing changes defer
+- **CI-invoked test runners**: SOFT-EXCLUDED. Behavioral changes to a script CI invokes need a CI run to validate. Beck 5 / 15 tidyings OK; argument-parsing changes defer
 - **Test scripts**: SOFT-EXCLUDED. They pin the behavior a tidying must keep, so a tidying in the same PR weakens the check that proves it structure-only
 
 ## Verification commands

@@ -752,7 +752,6 @@ def _post(
         artifact_line = artifact_line_of(
             a.artifact_url, name, a.retention_days, hosting, media
         )
-        # Both variants are built and scanned now, so the head read just before the write picks one.
         sections = {
             stale: render(media, hosting, stale, artifact_line, nl)
             for stale in (False, True)
@@ -771,7 +770,6 @@ def _post(
                 or "the scan rules did not load"
             )
             raise Refusal(5, "scan", found)
-        # Every file is staged already, so from this read to gh's write only the gh call runs.
         seen = {e["id"] for e in forge.edits()[1]}
         now = forge.read()
         parts = split(now["body"])

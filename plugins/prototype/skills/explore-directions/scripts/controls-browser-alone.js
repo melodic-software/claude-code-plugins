@@ -1,6 +1,4 @@
 async page => {
-  // The same mockup opened alone from file://: no host page, so controls.js draws its own panel
-  // from the same manifest, top-right, and the person can still set, copy and reset the controls.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + JSON.stringify(detail) + "]" : ""));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });

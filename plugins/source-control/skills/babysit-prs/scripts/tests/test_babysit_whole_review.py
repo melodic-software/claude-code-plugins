@@ -41,12 +41,9 @@ class Wanted(unittest.TestCase):
         self.assertTrue(wr.wanted(None, result(HIGH), (CLEAN, CLEARS)))
 
     def test_a_reported_code_review_finding_alone_is_not_a_hold(self) -> None:
-        # Q25: a code-review finding does not hold, so nothing needs clearing.
         self.assertFalse(wr.wanted(None, result(MED), (REVIEW_STUCK, CLEAN)))
 
     def test_a_reported_code_review_finding_does_not_block_the_request(self) -> None:
-        # The code-review lane's findings a whole review cannot close do not
-        # keep a whole review from clearing the security finding that holds.
         self.assertTrue(wr.wanted(None, result(HIGH, MED), (REVIEW_STUCK, CLEARS)))
 
     def test_another_gate_refusing(self) -> None:
@@ -57,8 +54,6 @@ class Wanted(unittest.TestCase):
         self.assertFalse(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
     def test_a_reason_that_does_not_hold_leaves_the_findings_alone(self) -> None:
-        # lines-over does not hold, so the finding is the only hold and a
-        # whole review can clear it.
         other = risk.Reason("lines-over", risk.Risk.MED, "201 > 200")
         self.assertTrue(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
@@ -113,7 +108,6 @@ def unbound(
 
 
 def scored(*lanes: risk.LaneEvidence) -> risk.RiskResult:
-    """The merge gate's own reasons for `lanes` on a diff that holds nothing."""
     doc = risk.ChangedFile(
         "docs/a.md", None, "modified", 1, 0, True, "100644", "100644"
     )
@@ -525,8 +519,6 @@ class Toggle(unittest.TestCase):
         return out, [step for step in seen if step != "read"]
 
     def test_the_human_gated_label_set_since_the_listing_is_never_undone(self) -> None:
-        # The tracker's role label holds as the other hold labels do, in any
-        # case and under a mapped name.
         cases = {
             "needs-human": (("needs-human",), "needs-human"),
             "another case": (("Needs-Human",), "needs-human"),
@@ -550,8 +542,6 @@ class Toggle(unittest.TestCase):
         self.assertEqual(seen, ["read", "write", "write"])
 
     def test_a_draft_or_a_hold_set_since_the_listing_is_never_undone(self) -> None:
-        # A person who drafted the pull request, labeled it do-not-merge or
-        # wrote a hold after the run listed it keeps that hold: no write.
         cases = {
             "already a draft": (pr_state(draft=True), "already-draft"),
             "do-not-merge": (pr_state(labels=("ci", "do-not-merge")), "hold-label"),
@@ -676,7 +666,6 @@ class Recover(unittest.TestCase):
         self.assertEqual((out, writes), ([], []))
 
     def test_a_lane_draft_outside_the_window_stays_a_draft(self) -> None:
-        # The lane drafted it on purpose an hour after an old toggle.
         out, writes = self.recover(
             [self.draft()],
             [self.comment(self.reasons())],
