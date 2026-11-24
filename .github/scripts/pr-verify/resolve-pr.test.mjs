@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, specChanged, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -2416,6 +2416,54 @@ test("a pass judged before the spec last changed is judged again at the same hea
   failed.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail`, 79));
   failed.runs[79] = verifyRun(79);
   assert.equal(await reason(failed), "already-judged");
+});
+
+test("a pass judged before the standards trusted list last changed is judged again, and another standards change is not one", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const passed = { artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: "2026-10-20T00:00:00Z" }) } };
+  const reads = [];
+  const at = (time) => async () => {
+    reads.push(time);
+    return time;
+  };
+  assert.equal(await reason(passed, { trustedListChangedAt: at("2026-10-21T00:00:00Z") }), "spec-changed");
+  assert.equal(await reason(passed, { trustedListChangedAt: at("2026-10-19T00:00:00Z") }), "already-judged");
+  assert.equal(await reason(passed, { trustedListChangedAt: at("") }), "already-judged", "no commit touches the list");
+  assert.equal(await reason({}, { trustedListChangedAt: at("2026-10-21T00:00:00Z") }), "ok");
+  assert.deepEqual(reads, ["2026-10-21T00:00:00Z", "2026-10-19T00:00:00Z", ""]);
+  assert.equal(specChanged(["2026-10-20T00:00:00Z"], { linkedIssues: [], specKind: "closes", listChangedAt: "2026-10-21T00:00:00Z" }), true);
+  assert.equal(specChanged(["2026-10-20T00:00:00Z"], { linkedIssues: [], specKind: "closes", listChangedAt: "2026-10-19T00:00:00Z" }), false);
+});
+
+test("main reads the list's last change at STANDARDS_SHA from the standards commits", async () => {
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const standardsSha = "5".repeat(40);
+  const run = async (changed) => {
+    const out = path.join(dir, `out-${changed}`);
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: path.join(dir, "spec.json"), SPEC_TEXT_FILE: path.join(dir, "text.json"), TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: LANE, STANDARDS_SHA: standardsSha };
+    const reads = [];
+    const base = fake({ artifacts: [artifact(`pr-verify-41-${HEAD}-pass`, 77)], runs: { 77: verifyRun(77, { run_started_at: "2026-10-20T00:00:00Z" }) } });
+    const github = async (method, apiPath, body) => {
+      if (apiPath.startsWith("/repos/melodic-software/standards/")) {
+        reads.push(apiPath);
+        return [{ sha: "6".repeat(40), commit: { committer: { date: changed } } }];
+      }
+      return base(method, apiPath, body);
+    };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await main(env, { github });
+    } finally {
+      console.log = log;
+    }
+    assert.deepEqual(reads, [`/repos/melodic-software/standards/commits?path=components/trusted-actors/trusted-actors.json&sha=${standardsSha}&per_page=1`]);
+    return /^reason=(.*)$/m.exec(readFileSync(out, "utf8"))[1];
+  };
+  assert.equal(await run("2026-10-21T00:00:00Z"), "spec-changed");
+  assert.equal(await run("2026-10-19T00:00:00Z"), "already-judged");
 });
 
 test("a pull request that is its own spec is judged again after a body edit", async () => {

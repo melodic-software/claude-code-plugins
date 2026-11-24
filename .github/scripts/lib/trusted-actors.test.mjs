@@ -13,7 +13,7 @@ import { TRUSTED_ACTORS_PATH as HOLDS_PATH } from "../pr-merge/merge-holds.mjs";
 import { reviewerIdFrom, trustedHumansFrom } from "../pr-unblock/address-feedback.mjs";
 import { dependabotIdFrom } from "../pr-unblock/review-dependency.mjs";
 import { readHumans } from "../work-resolve-issue/report-outcome.mjs";
-import { loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, STANDARDS_LIST_PATH, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "./trusted-actors.mjs";
+import { listBlob, listChangedAt, loadTrustedList, readRawTrustedActors, SAME_TREE_LIST, STANDARDS_LIST_PATH, TRUSTED_ACTORS_PATH, trustedActorsPath, trustedListPath } from "./trusted-actors.mjs";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SCRIPTS = join(ROOT, ".github/scripts");
@@ -205,4 +205,27 @@ test("on the real list every reader agrees with the validated view", async () =>
     humans,
     humans,
   ]);
+});
+
+test("listBlob is git's blob id of the bytes", () => {
+  assert.equal(listBlob(Buffer.from("")), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+  assert.equal(listBlob(Buffer.from("hello\n")), "ce013625030ba8dba906f756967f9e9ca394464a");
+});
+
+test("listChangedAt reads the newest commit touching the list at the standards commit", async () => {
+  const sha = "5".repeat(40);
+  const reads = [];
+  const answering = (answer) => async (method, apiPath) => {
+    reads.push(`${method} ${apiPath}`);
+    return answer;
+  };
+  assert.equal(await listChangedAt(answering([{ commit: { committer: { date: "2026-10-21T00:00:00Z" } } }]), sha), "2026-10-21T00:00:00Z");
+  assert.deepEqual(reads, [`GET /repos/melodic-software/standards/commits?path=${STANDARDS_LIST_PATH}&sha=${sha}&per_page=1`]);
+  assert.equal(await listChangedAt(answering([]), sha), "", "no commit touches the list");
+  for (const answer of [null, {}, [{ commit: {} }], [{ commit: { committer: { date: "not a time" } } }]]) {
+    await assert.rejects(listChangedAt(answering(answer), sha), undefined, JSON.stringify(answer));
+  }
+  for (const bad of [undefined, "", "5".repeat(39), "main"]) {
+    await assert.rejects(listChangedAt(answering([]), bad), /full SHA/, String(bad));
+  }
 });

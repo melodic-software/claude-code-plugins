@@ -71,9 +71,11 @@
 //   nothing while the switch is on, so its first pass after the switch lifts
 //   re-runs it, once, at attempt 1 only.
 // - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
-//   pr-verify pass that the spec has since changed under (an issue edit or a
-//   new spec comment after the pass: resolve-pr's `spec-changed`, the same
-//   read pr-verify makes). The gate refuses that pass `verify:spec-changed`;
+//   pr-verify pass that the spec has since changed under (an issue edit, a
+//   new spec comment or a standards trusted-list commit after the pass:
+//   resolve-pr's `spec-changed`, the same read pr-verify makes, the list's
+//   time read once a run from STANDARDS_SHA, `listChangedAt`). The gate
+//   refuses that pass `verify:spec-changed`;
 //   the recorded re-run starts pr-verify, which judges the head against the
 //   spec as it is now. One batched GraphQL read of the linked issues' and
 //   their comments' times (`prefilterSpec`) keeps that full read off heads
@@ -250,6 +252,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { callers, jobNames, laneJob } from "../lib/lane-registry.mjs";
 import { annotationsPath, firstAttemptJobsPath, graphqlCall, isObject, jobsKey, serveFirstAttemptJobs, slimJob } from "../lib/run-jobs.mjs";
 import { loadTrustedList, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -1050,7 +1053,7 @@ const issueMoved = (issue, after) => {
   return after(issue.updatedAt) || (issue.lastEditedAt != null && after(issue.lastEditedAt)) || comments.nodes.some((c) => after(c?.updatedAt));
 };
 
-export async function prefilterSpec(call, repo, candidates) {
+export async function prefilterSpec(call, repo, candidates, listAt) {
   if (candidates.length === 0) {
     return [];
   }
@@ -1071,7 +1074,7 @@ export async function prefilterSpec(call, repo, candidates) {
     const pr = pulls?.[`p${i}`];
     const closing = pr?.closingIssuesReferences;
     const after = (time) => !(Date.parse(time ?? "") <= latest);
-    if (c.starts.some((s) => Number.isNaN(Date.parse(s ?? ""))) || !pr || !Array.isArray(closing?.nodes) || closing.totalCount !== closing.nodes.length) {
+    if (listAt === null || (listAt && after(listAt)) || c.starts.some((s) => Number.isNaN(Date.parse(s ?? ""))) || !pr || !Array.isArray(closing?.nodes) || closing.totalCount !== closing.nodes.length) {
       keep.add(i);
       return;
     }
@@ -1101,7 +1104,7 @@ export async function prefilterSpec(call, repo, candidates) {
   return candidates.filter((_, i) => keep.has(i));
 }
 
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), carriedPasses = new Map(), heldFrom, env = {} }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, listChanged, settled = new Map(), carriedJobs = new Map(), carriedPasses = new Map(), heldFrom, env = {} }) {
   const settle = [];
   const keepJobs = new Map();
   const keepPasses = [];
@@ -1345,7 +1348,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   };
   const toRead = [];
-  for (const candidate of await prefilterSpec(call, repo, passed)) {
+  let listAt;
+  if (passed.length > 0 && listChanged) {
+    listAt = await listChanged().catch((error) => {
+      passRateLimit(error);
+      say(`the standards trusted list's last change could not be read, so every passed head's spec is read: ${error?.message ?? error}`);
+      return null;
+    });
+  }
+  for (const candidate of await prefilterSpec(call, repo, passed, listAt)) {
     const carried = carriedPasses.get(passesKey(candidate.pull.number, candidate.pull.head.sha));
     if (carried && Date.parse(carried.expires_at) > now) {
       specCandidates.push({ ...candidate, starts: carried.runs.map((r) => r.started_at), carried });
@@ -1354,12 +1365,12 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
   await readPasses(toRead, specCandidates, knownStarts);
-  const moved = await prefilterSpec(call, repo, specCandidates);
+  const moved = await prefilterSpec(call, repo, specCandidates, listAt);
   const kept = new Set(moved);
   keepPasses.push(...specCandidates.filter((c) => c.carried && !kept.has(c)).map((c) => c.carried));
   const reread = [];
   await readPasses(moved.filter((c) => c.carried), reread, new Map());
-  for (const { pull, checks, starts } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread))]) {
+  for (const { pull, checks, starts } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread, listAt))]) {
     if (checks.run_attempt > 1 && !starts.some((s) => Date.parse(s) > Date.parse(checks.run_started_at))) {
       say(`#${pull.number}: run ${checks.id} (${checks.path}) attempt ${checks.run_attempt} has no pass since it started; waiting for pr-verify's verdict on it`);
       continue;
@@ -1891,6 +1902,8 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
     let judgeSpec;
     let laneApp;
+    let listTime;
+    const listChanged = env.STANDARDS_SHA ? () => (listTime ??= listChangedAt(call, env.STANDARDS_SHA)) : undefined;
     if (env.TRUSTED_ACTORS_PATH) {
       const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
       laneApp = env.LANE_IDENTITY ? trusted.logins.get(env.LANE_IDENTITY.toLowerCase()) : undefined;
@@ -1907,6 +1920,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           laneIdentity: env.LANE_IDENTITY,
           ownerIds: [...trusted.ids],
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
+          trustedListChangedAt: listChanged,
         });
     }
     let settled = { runs: new Map(), jobs: new Map(), passes: new Map() };
@@ -1928,6 +1942,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       readStatus,
       judgeSpec,
       laneApp,
+      listChanged,
       settled: settled.runs,
       carriedJobs: settled.jobs,
       carriedPasses: settled.passes,

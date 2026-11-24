@@ -2337,6 +2337,47 @@ test("the pre-filter reads every candidate in one GraphQL query and keeps only a
   assert.deepEqual(await prefilterSpec(call, REPO, []), []);
 });
 
+test("the pre-filter keeps every head whose passes started before the standards trusted list last changed", async () => {
+  const pass = "2026-10-19T19:30:00Z";
+  const call = async (_method, _apiPath, body) => {
+    const issue = prefilterIssue(body.query, { updatedAt: "2026-10-19T19:00:00Z", lastEditedAt: null, repository: { nameWithOwner: REPO } });
+    return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
+  };
+  const kept = async (listAt) => (await prefilterSpec(call, REPO, [{ pull: { number: 10 }, starts: [pass] }], listAt)).map((c) => c.pull.number);
+  assert.deepEqual(await kept("2026-10-19T19:45:00Z"), [10], "the list changed after the pass");
+  assert.deepEqual(await kept("2026-10-19T19:15:00Z"), [], "the list changed before the pass");
+  assert.deepEqual(await kept(""), [], "no commit touches the list");
+  assert.deepEqual(await kept(undefined), [], "no standards commit given");
+  assert.deepEqual(await kept(null), [10], "the list's change could not be read");
+});
+
+test("a pass the standards trusted list changed under re-runs the head's passed checks, read once at STANDARDS_SHA", async () => {
+  const standardsSha = "5".repeat(40);
+  const listPath = `/repos/melodic-software/standards/commits?path=components/trusted-actors/trusted-actors.json&sha=${standardsSha}&per_page=1`;
+  await withTrustedList(async (env) => {
+    for (const [changed, reruns] of [
+      ["2026-10-19T19:45:00Z", [601]],
+      ["2026-10-19T19:15:00Z", []],
+    ]) {
+      const { setup } = specChanged({ edited: null });
+      const reads = [];
+      const wrap = setup.github;
+      setup.github = (github) =>
+        wrap(async (method, apiPath, body) => {
+          if (apiPath.startsWith("/repos/melodic-software/standards/")) {
+            reads.push(apiPath);
+            return [{ commit: { committer: { date: changed } } }];
+          }
+          return github(method, apiPath, body);
+        });
+      const result = await reconcile({ ...setup, env: { ...env, STANDARDS_SHA: standardsSha } });
+      assert.equal(result.code, 0);
+      assert.deepEqual(result.reruns, reruns, changed);
+      assert.deepEqual(reads, [listPath], "one read a run, shared by the pre-filter and the resolver");
+    }
+  });
+});
+
 test("the pre-filter keeps a candidate whose issue has more comments than the page read", async () => {
   const before = "2026-10-19T19:00:00Z";
   // GitHub's totalCount counts every comment; the page holds the first 100.
