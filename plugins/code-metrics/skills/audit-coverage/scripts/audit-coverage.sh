@@ -154,10 +154,6 @@ for artifact in ${ARTIFACT_PATHS[@]+"${ARTIFACT_PATHS[@]}"}; do
     continue
   fi
   parsed="$WORK/parsed-$index.json"
-  # A parser that resolves a report path against the tree on disk (Cobertura
-  # chooses among several declared source roots that way) is told which tree
-  # that is. The session's working directory need not be the measured tree,
-  # and a probe run in the wrong place answers "absent" for every candidate.
   if ! CODE_METRICS_SCAN_ROOT="$ROOT" "${PY[@]}" "$PARSERS/$format.py" "$artifact" >"$parsed"; then
     echo "audit-coverage.sh: $format parser produced nothing for $artifact, skipped" >&2
     continue
@@ -177,11 +173,6 @@ if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"
 fi
 
-# The scope block travels with the report. The file list the join keys on is
-# the dispatcher's own resolved scope (same arguments, same exclusions), not
-# the files a complexity collector happened to emit rows for: a file with no
-# functions, or a lane whose collector is absent, still gets its file-level
-# coverage; complexity is needed only for CRAP.
 "${PY[@]}" -I -c '
 import json, sys
 document = json.load(open(sys.argv[1]))
@@ -200,9 +191,6 @@ bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --con
 "${PY[@]}" "$REPORT" assemble --skill audit-coverage --scope "$WORK/scope.json" \
   --run "$WORK/run.jsonl" --measures "$WORK/rows.jsonl" \
   --thresholds "$WORK/thresholds.json" >"$WORK/assembled.json" || exit 2
-# This document is assembled here rather than by the dispatcher, so the
-# sanctioned-replication collapse the dispatcher applies to every other audit
-# is applied here explicitly, from the same library.
 # shellcheck source=../../../scripts/replica-collapse.sh
 source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
 cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/report.json" || exit 2

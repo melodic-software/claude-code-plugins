@@ -81,9 +81,6 @@ case " $leaked " in
   ;;
 esac
 
-# 5. A python shim that prepends a directory containing mypy must not make
-#    mypy-report resolvable. pyenv shims do this; the filled PATH must point
-#    at a non-mutating interpreter instead.
 REAL_PY="$(command -v python3 || command -v python)"
 REAL_PY="$("$REAL_PY" -c 'import os, sys; print(os.path.realpath(sys.executable))')"
 mkdir -p "$WORK/shimdir" "$WORK/version-bin"
@@ -110,8 +107,6 @@ leftover_shim="$(cm_resolvable_ladder_collectors "$EMPTY_SHIM" | sort -u | tr '\
 leftover_shim="${leftover_shim% }"
 assert_eq "a PATH-mutating python3 shim does not restore mypy-report" "" "$leftover_shim"
 
-# The ladder reader's Python runs isolated: an ast.py in the working directory
-# is not imported in place of the standard library's.
 mkdir -p "$WORK/planted"
 printf 'open("%s", "w").close()\nraise SystemExit(0)\n' "$WORK/planted/PWNED" >"$WORK/planted/ast.py"
 planted_bins="$(cd "$WORK/planted" && cm_ladder_path_bins | tr '\n' ' ')"

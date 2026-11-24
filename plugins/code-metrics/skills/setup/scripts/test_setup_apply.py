@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/code-metrics/scripts/pathglob.py
-"""Output-based tests for setup-apply.py at its command line."""
 
 from __future__ import annotations
 
@@ -13,8 +12,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# One test builds a git fixture: clear the inherited git environment so an
-# absolute GIT_DIR can never redirect that fixture into the caller's clone.
 os.environ.pop("GIT_DIR", None)
 os.environ.pop("GIT_WORK_TREE", None)
 os.environ.pop("GIT_CONFIG", None)
@@ -495,7 +492,6 @@ class SetupApplyTests(unittest.TestCase):
             self.assertEqual(run("--preview", "--dir", str(root)).returncode, 2)
 
     def test_help_prints_usage_even_with_docstrings_stripped(self) -> None:
-        # python -OO drops __doc__, which --help printed.
         result = subprocess.run(
             [sys.executable, "-OO", str(SCRIPT), "--help"],
             capture_output=True,
@@ -521,8 +517,6 @@ class SetupApplyTests(unittest.TestCase):
                 "template keys under %s differ from the contract" % key,
             )
 
-        # The template's values are the bundled defaults, leaf for leaf, so
-        # the two surfaces cannot drift apart without this test saying so.
         def leaves(node, prefix=""):
             if isinstance(node, dict):
                 for k, v in node.items():

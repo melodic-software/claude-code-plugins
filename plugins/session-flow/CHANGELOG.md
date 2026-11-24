@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.22.6] - 2026-11-23
+
+### Changed
+
+- The pre-implementation order says wayfind charts a map of decision items, as wayfind's vocabulary rule says.
+
+- `/session-flow:retro`'s `## Next` names `/corrections:codify` for a finding to turn into a check or instruction line, and each bullet leads with its outcome.
+
 ## [9.22.5] - 2026-11-23
 
 ### Changed
