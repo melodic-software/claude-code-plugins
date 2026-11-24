@@ -24,8 +24,6 @@ WITH fires AS (
   FROM cc_logs_from(getvariable('src'))
   WHERE event_name = 'hook_execution_complete'
 ),
--- A session that began before `since` contributes only its in-window fires, so its positions
--- and slope cover that part of the session alone.
 valid AS (
   SELECT * FROM fires
   WHERE event_time >= getvariable('since')
