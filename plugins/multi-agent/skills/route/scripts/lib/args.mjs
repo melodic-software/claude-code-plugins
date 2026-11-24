@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { TASK_CLASSES, WORK_TYPES, die } from './common.mjs'
+import { EFFORT_LADDER, ID_RE, TASK_CLASSES, WORK_TYPES, die } from './common.mjs'
 
 export function usage() {
   process.stdout.write(
@@ -7,7 +7,7 @@ export function usage() {
       'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> [--settings <file>]',
       '                     --manifest <file> --records <[source_id=]file> [--records ...]',
       '                     --models <file> [--registry <file>] [--defaults <file>]',
-      '                     [--state-dir <dir>] [--task-class <everyday|heavy>]',
+      '                     [--state-dir <dir>] [--task-class <everyday|heavy>] [--heavy-effort <vendor>=<level> ...]',
       '                     [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>]',
       '                     [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
@@ -19,6 +19,7 @@ export function parseArgs(argv, pluginRoot) {
   const opts = {
     taskType: null,
     taskClass: 'everyday',
+    heavyEffort: new Map(),
     manifest: null,
     records: [],
     models: null,
@@ -51,6 +52,15 @@ export function parseArgs(argv, pluginRoot) {
       case '--task-class':
         opts.taskClass = needVal()
         break
+      case '--heavy-effort': {
+        const raw = needVal()
+        const [vendor, level] = raw.split('=')
+        if (!ID_RE.test(vendor || '') || !EFFORT_LADDER.includes(level)) {
+          die(`--heavy-effort must be <vendor>=<${EFFORT_LADDER.join('|')}>, got '${raw}'`)
+        }
+        opts.heavyEffort.set(vendor, level)
+        break
+      }
       case '--manifest':
         opts.manifest = needVal()
         break

@@ -264,6 +264,8 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     gatedVendors,
     effectiveVendorOrder,
     taskType: opts.taskType,
+    taskClass: opts.taskClass,
+    heavyEffort: opts.heavyEffort,
     notes,
   })
   if (provenPick) {
@@ -346,6 +348,8 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
       effectiveVendorOrder,
       failedOutcomes,
       taskType: opts.taskType,
+      taskClass: opts.taskClass,
+      heavyEffort: opts.heavyEffort,
       notes,
     })
     if (trialPick) {
