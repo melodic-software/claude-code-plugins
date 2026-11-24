@@ -9,7 +9,8 @@ import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
 import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
-import { appCloseKind, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
+import { appCloseKind, isTrustedClose } from "./close-trust.mjs";
+import { loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
