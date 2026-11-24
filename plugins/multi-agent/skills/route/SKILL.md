@@ -169,9 +169,9 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
     ```
 
     Pass `--tokens <n>` when the run's token count is known. With trials off or either count
-    unset, `vendor-state record` writes nothing. For a `proven` pair, do not call `record`
-    (outcomes stand until the user sends the pair back with `vendor-state send-back --key <pair_key>`);
-    if the review rejects a proven pair's routed result, report that rejection in that reply.
+    unset, `vendor-state record` writes nothing. For a `proven` pair, record the verdict the same
+    way: when its output reports `sent_back: true`, say in that reply that the pair went back to
+    trial.
 
 12. **Delegation for other work types** (`coding`, `web-ui`, `knowledge`): with
     `vendors.auto_delegation` off, print nothing beyond step 7. With it on and a vendor other than

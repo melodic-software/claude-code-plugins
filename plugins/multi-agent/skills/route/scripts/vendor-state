@@ -236,6 +236,7 @@ function statePaths(dataDir) {
   return {
     stateRoot,
     outcomesDir: path.join(stateRoot, 'outcomes'),
+    rechecksDir: path.join(stateRoot, 'rechecks'),
     trialsDir: path.join(stateRoot, 'trials'),
     seenDir: path.join(stateRoot, 'seen'),
   }
@@ -280,14 +281,16 @@ function cmdRecord(argv) {
   const paths = statePaths(dataDir)
   const outcomePath = path.join(paths.outcomesDir, `${encoded}.json`)
   const keyTrialDir = path.join(paths.trialsDir, encoded)
-
-  if (fs.existsSync(outcomePath)) {
-    die(`outcome already exists for ${opts.key}`, 3)
-  }
-
   const at = opts.now || new Date().toISOString()
   const trialDoc = { key, verdict: opts.verdict, at }
   if (tokens !== undefined) trialDoc.tokens = tokens
+
+  if (fs.existsSync(outcomePath)) {
+    const existing = readJsonRetry(outcomePath)
+    if (!existing || existing.result !== 'proven') die(`outcome already exists for ${opts.key}`, 3)
+    recheckProven(path.join(paths.rechecksDir, encoded), outcomePath, existing, trialDoc, settings)
+    return
+  }
 
   fs.mkdirSync(keyTrialDir, { recursive: true })
   const trialName = `${Date.now()}-${process.pid}-${crypto.randomBytes(6).toString('hex')}.json`
@@ -376,6 +379,34 @@ function cmdRecord(argv) {
   )
 }
 
+// A proven pair keeps its newest trials_prove reviewed results and goes back to trial when
+// trials_fail of them are rejected.
+function recheckProven(dir, outcomePath, outcome, doc, settings) {
+  fs.mkdirSync(dir, { recursive: true })
+  writeExclusiveJson(
+    path.join(dir, `${Date.now()}-${process.pid}-${crypto.randomBytes(6).toString('hex')}.json`),
+    doc,
+  )
+  const names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
+  const kept = names.slice(-settings.trials_prove)
+  for (const name of names.slice(0, -settings.trials_prove)) fs.rmSync(path.join(dir, name), { force: true })
+  let accepted = 0
+  let rejected = 0
+  for (const name of kept) {
+    const rec = readJsonRetry(path.join(dir, name))
+    if (rec && rec.verdict === 'accepted') accepted++
+    else if (rec && rec.verdict === 'rejected') rejected++
+  }
+  const sentBack = rejected >= settings.trials_fail
+  if (sentBack) {
+    fs.rmSync(outcomePath, { force: true })
+    removeTrialDir(dir)
+  }
+  process.stdout.write(
+    `${JSON.stringify({ recorded: true, recheck: { accepted, rejected }, sent_back: sentBack, outcome: sentBack ? null : outcome }, null, 2)}\n`,
+  )
+}
+
 function cmdOutcome(argv) {
   const opts = parseFlags(argv, new Set(['--key', '--data-dir']))
   const key = parsePairKey(opts.key)
@@ -405,6 +436,7 @@ function cmdSendBack(argv) {
     fs.rmSync(outcomePath, { force: true })
     deleted = true
   }
+  removeTrialDir(path.join(statePaths(dataDir).rechecksDir, encoded))
   process.stdout.write(`${JSON.stringify({ deleted, key }, null, 2)}\n`)
 }
 

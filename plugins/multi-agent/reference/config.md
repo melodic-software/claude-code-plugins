@@ -205,13 +205,15 @@ shipped row id is refused with a note.
 ## Trial state
 
 Trial notes, per-pair outcomes (`proven` or `failed`), and seen model ids live per machine under
-`<data>/vendor-state/` (`trials/`, `outcomes/`, `seen/`), where `<data>` resolves from the
+`<data>/vendor-state/` (`trials/`, `outcomes/`, `rechecks/`, `seen/`), where `<data>` resolves from the
 installed plugin path first (`<...>/plugins/data/multi-agent-<marketplace>` derived from
 `<...>/plugins/cache/<marketplace>/multi-agent/<version>/`), then `CLAUDE_PLUGIN_DATA` only when
 its basename starts with `multi-agent-`. Outcome files are machine-neutral, one file per
 `vendor:model:version:effort:work_type` key. Routine routing writes nothing.
 
-A proven pair stays proven until the user sends it back to trial:
+A proven pair keeps recording Claude's verdicts in `rechecks/`, holding only its newest
+`trials_prove` results, and goes back to trial when `trials_fail` of them are rejected. The user can
+also send a pair back by hand:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/route/scripts/vendor-state send-back --key <vendor>:<model>:<version>:<effort>:<work_type>

@@ -414,52 +414,52 @@ test('D16: a concurrent record writing into the key trial dir mid-removal does n
   assert.deepEqual(readdirSync(trialsDir), [keyDirName], 'no tombstone dir is left behind')
 
   const later = runState(['record', '--key', key, '--verdict', 'rejected', '--settings', settingsPath, '--data-dir', dataDir])
-  assert.equal(later.code, 3, 'a record after the Outcome reads it and is refused')
+  assert.equal(later.code, 0, later.stderr)
+  assert.deepEqual(later.json.recheck, { accepted: 0, rejected: 1 })
   const outcome = runState(['outcome', '--key', key, '--data-dir', dataDir])
   assert.equal(outcome.json.result, 'proven')
 })
 
-test('D16/AC19: record after an Outcome is refused (exit 3); proven key re-enters trial only through send-back', (t) => {
+test('AC19: a proven pair goes back to trial when trials_fail of its last trials_prove results are rejected; a failed pair refuses (exit 3)', (t) => {
   const dataDir = makeTempDir(t)
   const cfgDir = makeTempDir(t)
-  const settingsPath = writeSettings(cfgDir, {
-    routing: true,
-    trials: true,
-    trials_prove: 1,
-    trials_fail: 2,
-  })
+  const settingsPath = writeSettings(cfgDir, { routing: true, trials: true, trials_prove: 3, trials_fail: 2 })
   const key = 'codex:sparrow-1:1:high:coding'
+  const rechecks = join(dataDir, 'vendor-state', 'rechecks')
+  const record = (verdict) =>
+    runState(['record', '--key', key, '--verdict', verdict, '--settings', settingsPath, '--data-dir', dataDir])
+  const result = () => runState(['outcome', '--key', key, '--data-dir', dataDir]).json.result
 
-  const prove = runState(['record', '--key', key, '--verdict', 'accepted', '--settings', settingsPath, '--data-dir', dataDir])
-  assert.equal(prove.code, 0, prove.stderr)
-  assert.equal(prove.json.outcome.result, 'proven')
+  for (let i = 0; i < 3; i++) assert.equal(record('accepted').code, 0)
+  assert.equal(result(), 'proven')
 
-  const afterOutcome = runState(['record', '--key', key, '--verdict', 'rejected', '--settings', settingsPath, '--data-dir', dataDir])
-  assert.equal(afterOutcome.code, 3)
-  assert.match(afterOutcome.stderr, /outcome already exists/i)
-  assert.deepEqual(listFilesRecursive(join(dataDir, 'vendor-state', 'trials')), [])
+  const r1 = record('rejected')
+  assert.equal(r1.code, 0, r1.stderr)
+  assert.equal(r1.json.sent_back, false)
+  for (let i = 0; i < 3; i++) assert.equal(record('accepted').json.sent_back, false)
+  assert.equal(listFilesRecursive(rechecks).length, 3, 'only the newest trials_prove results are kept')
+  assert.equal(result(), 'proven', 'a rejection pushed out of the window no longer counts')
 
-  const stillProven = runState(['outcome', '--key', key, '--data-dir', dataDir])
-  assert.equal(stillProven.code, 0, stillProven.stderr)
-  assert.equal(stillProven.json.result, 'proven')
+  assert.equal(record('rejected').json.sent_back, false)
+  const r2 = record('rejected')
+  assert.equal(r2.code, 0, r2.stderr)
+  assert.equal(r2.json.sent_back, true)
+  assert.deepEqual(r2.json.recheck, { accepted: 1, rejected: 2 })
+  assert.equal(result(), 'none')
+  assert.deepEqual(listFilesRecursive(rechecks), [])
 
+  for (let i = 0; i < 3; i++) record('accepted')
+  record('rejected')
   const sentBack = runState(['send-back', '--key', key, '--data-dir', dataDir])
-  assert.equal(sentBack.code, 0, sentBack.stderr)
   assert.equal(sentBack.json.deleted, true)
+  assert.equal(result(), 'none')
+  assert.deepEqual(listFilesRecursive(rechecks), [], 'send-back clears the recheck results')
 
-  const afterSendBack = runState(['outcome', '--key', key, '--data-dir', dataDir])
-  assert.equal(afterSendBack.code, 0, afterSendBack.stderr)
-  assert.equal(afterSendBack.json.result, 'none')
-
-  const settings2 = writeSettings(cfgDir, { routing: true, trials: true, trials_prove: 2, trials_fail: 2 })
-  const reTrial = runState(['record', '--key', key, '--verdict', 'rejected', '--settings', settings2, '--data-dir', dataDir])
-  assert.equal(reTrial.code, 0, reTrial.stderr)
-  assert.equal(reTrial.json.recorded, true)
-  assert.equal(listFilesRecursive(join(dataDir, 'vendor-state', 'trials')).length, 1)
-
-  const fail2 = runState(['record', '--key', key, '--verdict', 'rejected', '--settings', settings2, '--data-dir', dataDir])
-  assert.equal(fail2.code, 0, fail2.stderr)
-  assert.equal(fail2.json.outcome.result, 'failed')
+  record('rejected')
+  assert.equal(record('rejected').json.outcome.result, 'failed')
+  const afterFailed = record('accepted')
+  assert.equal(afterFailed.code, 3)
+  assert.match(afterFailed.stderr, /outcome already exists/i)
   assert.deepEqual(listFilesRecursive(join(dataDir, 'vendor-state', 'trials')), [])
 })
 
