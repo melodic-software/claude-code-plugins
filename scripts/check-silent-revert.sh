@@ -799,13 +799,13 @@ attribute_file() {
         if (had_sha) re_added[key]++
       }
     }
-    /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; next } }
+    /^[0-9a-f]+ [0-9]+ [0-9]+/ { if (length($1) == 40) { sha = $1; ln = $3; next } }
     /^\t/ {
       if (sha == "") next
       text = substr($0, 2)
       key = sha_normalized(text)
       if (had_sha && re_added[key] > 0) { re_added[key]--; next }
-      printf "%s\t%s\n", sha, text
+      printf "%s\t%d\t%s\n", sha, ln, text
     }
   ' "$blame_out"
   rm -f "$blame_out" "$added_out"
@@ -831,17 +831,28 @@ run_attributing_git() {
 }
 
 discount_moved_lines() {
-  local parent="$1" sha="$2" attributed="$3" added kept headers blob file
+  local parent="$1" sha="$2" attributed="$3" added kept headers blob fresh file
   local -a files
   [[ -s "$attributed" ]] || return 0
   added="$(mktemp)" || die "mktemp failed"
   kept="$(mktemp)" || die "mktemp failed"
   headers="$(mktemp)" || die "mktemp failed"
   blob="$(mktemp)" || die "mktemp failed"
+  fresh="$(mktemp)" || die "mktemp failed"
   run_attributing_git "$added" \
     "git diff failed listing the lines $sha added" \
-    -c core.quotePath=false diff --no-ext-diff --no-textconv --unified=100000000 --no-color \
-    --no-prefix --diff-algorithm=myers -M -l0 "$parent" "$sha" -- .
+    -c core.quotePath=false -c diff.suppressBlankEmpty=false diff --no-ext-diff --no-textconv \
+    --no-relative --unified=100000000 --no-color --no-prefix --diff-algorithm=myers -M -l0 \
+    "$parent" "$sha" -- .
+  run_attributing_git "$blob" "git log failed listing the paths the window before $sha touched" \
+    -c core.quotePath=false log --first-parent --diff-merges=first-parent --no-show-signature \
+    --no-renames --format= --name-only -n "$WINDOW" "$parent"
+  run_attributing_git "$fresh" "git diff failed listing the paths $sha added" \
+    -c core.quotePath=false diff --no-relative --name-only --diff-filter=A -M -l0 "$parent" "$sha"
+  awk 'NR == FNR { touched[$0] = 1; next }
+    !($0 in touched) && $0 !~ /^\.changes\// && $0 !~ /(^|\/)CHANGELOG\.md$/' \
+    "$blob" "$fresh" >"$kept" || die "awk failed listing the new paths $sha added"
+  mv -f "$kept" "$fresh" || die "could not record the new paths $sha added"
   awk -F '\t' '!seen[$2]++ { print $2 }' "$attributed" >"$blob" ||
     die "awk failed listing the files $sha deleted lines from"
   mapfile -t files <"$blob"
@@ -858,21 +869,35 @@ discount_moved_lines() {
         lines[++n] = FNR
         match($0, /^[ \t]*/)
         ind = RLENGTH
+        flat_line[FNR] = ind == 0
         while (depth > 0 && indent[depth] >= ind) depth--
         h = depth > 0 ? line[depth] : 0
         lvl = 0
-        if (md && fence) {
-          h = fence
-          if (/^ ? ? ?(```|~~~)/) fence = 0
-        } else if (md && /^ ? ? ?(```|~~~)/) fence = FNR
-        else if (md && /^#+([ \t]|$)/) { match($0, /^#+/); lvl = RLENGTH > 6 ? 0 : RLENGTH }
-        else if (md && (/^[ \t]+#+([ \t]|$)/ || (start < FNR && /^ ? ? ?(=+|-+)[ \t]*$/))) odd = 1
-        if (md && h == 0)
-          for (k = (lvl ? lvl - 1 : 6); k > 0; k--) if (at[k] > h) h = at[k]
-        if (lvl) at[lvl] = FNR
+        if (md) {
+          match($0, /^ ? ? ?/)
+          rest = substr($0, RLENGTH + 1)
+          mark = ""
+          if (match(rest, /^(`+|~+)/)) mark = substr(rest, 1, RLENGTH)
+          if (fence) {
+            h = fence
+            if (mark == fence_mark && rest ~ /^(```|~~~)[ \t\r]*$/) fence = 0
+            else if (length(mark) >= 3) poison = 1
+          } else if (length(mark) >= 3) {
+            fence = FNR
+            fence_mark = mark
+            if (length(mark) > 3) poison = 1
+          } else if (/^#+([ \t\r]|$)/) { match($0, /^#+/); lvl = RLENGTH > 6 ? 0 : RLENGTH }
+          if (h == 0)
+            for (k = (lvl ? lvl - 1 : 6); k > 0; k--) if (at[k] > h) h = at[k]
+          if (lvl) at[lvl] = FNR
+        } else {
+          hdr_at[FNR] = hdr
+          if (/^[ \t]*(def|class|function|async def)[ \t]/ || /^[ \t]*[A-Za-z_][A-Za-z0-9_:.-]*[ \t]*\(\)[ \t]*\{/)
+            hdr = FNR
+        }
         up[FNR] = h
         atx[FNR] = lvl > 0 || (h && atx[h])
-        bad[FNR] = odd && !atx[FNR]
+        bad[FNR] = md && (poison || !atx[FNR])
         indent[++depth] = ind
         line[depth] = FNR
       }
@@ -881,11 +906,17 @@ discount_moved_lines() {
           for (a = lines[k]; a; a = up[a]) last[a] = lines[k]
         for (k = 1; k <= n; k++) {
           ln = lines[k]
-          if (ln > reach) unit = ln
+          if (ln > reach) { unit = ln; flat[unit] = 1 }
+          unit_of[ln] = unit
+          if (!flat_line[ln]) flat[unit] = 0
           hi = run_end[run_of[ln]]
           if (last[ln] > hi) hi = last[ln]
           if (hi > reach) reach = hi
-          printf "%s\t%d\t%d\t%d\n", f, ln, unit, bad[ln]
+        }
+        for (k = 1; k <= n; k++) {
+          ln = lines[k]
+          unit = unit_of[ln]
+          printf "%s\t%d\t%d\t%d\t%d\n", f, ln, unit, bad[ln], (flat[unit] ? hdr_at[unit] + 0 : 0)
         }
       }
     ' "$blob" >>"$headers" || die "awk failed reading the blocks of $file at $parent"
@@ -909,12 +940,13 @@ discount_moved_lines() {
     }
     function unit_moved(f, u,   k, first, q, p, j) {
       if ((f, u) in moved) return moved[f, u]
+      if (size[f, u] < 3 || (((f, u) in opener) && ((f, opener[f, u]) in deleted))) return moved[f, u] = 0
       for (k = 1; k <= size[f, u]; k++)
         if (!((f, member[f, u, k]) in deleted)) return moved[f, u] = 0
       first = deleted[f, member[f, u, 1]]
       for (q = 1; q <= path_count[first]; q++) {
         p = paths[first, q]
-        if (p == f) continue
+        if (p == f || !(p in fresh)) continue
         for (j = 1; j <= at_count[p, first]; j++)
           if (placed(p, at[p, first, j], f, u)) return moved[f, u] = 1
       }
@@ -946,10 +978,7 @@ discount_moved_lines() {
       mark = substr($0, 1, 1)
       text = substr($0, 2)
       if (mark == "-") {
-        if (old != "") {
-          deleted[old, old_ln] = text
-          lines_of[old, text, ++line_count[old, text]] = old_ln
-        }
+        if (old != "") deleted[old, old_ln] = text
         old_ln++
         next
       }
@@ -969,27 +998,26 @@ discount_moved_lines() {
     }
     FILENAME == ARGV[2] {
       split($0, h, "\t")
-      unit_of[h[1], h[2] + 0] = h[3] + 0
-      member[h[1], h[3] + 0, ++size[h[1], h[3] + 0]] = h[2] + 0
+      u = h[3] + 0
+      unit_of[h[1], h[2] + 0] = u
+      member[h[1], u, ++size[h[1], u]] = h[2] + 0
       if (h[4] + 0) bad[h[1], h[2] + 0] = 1
+      if (h[5] + 0) opener[h[1], u] = h[5] + 0
       next
     }
+    FILENAME == ARGV[3] { fresh[$0] = 1; next }
     {
-      rest = substr($0, index($0, "\t") + 1)
-      file = substr(rest, 1, index(rest, "\t") - 1)
-      text = substr(rest, index(rest, "\t") + 1)
-      if (long_enough(text))
-        for (j = 1; j <= line_count[file, text]; j++) {
-          ln = lines_of[file, text, j]
-          if (((file, ln) in used) || ((file, ln) in bad) || !unit_moved(file, unit_of[file, ln])) continue
-          used[file, ln] = 1
-          next
-        }
-      print
+      split($0, r, "\t")
+      file = r[2]
+      ln = r[3] + 0
+      text = substr($0, length(r[1]) + length(r[2]) + length(r[3]) + 4)
+      if (long_enough(text) && !((file, ln) in bad) && ((file, ln) in unit_of) &&
+        unit_moved(file, unit_of[file, ln])) next
+      printf "%s\t%s\t%s\n", r[1], file, text
     }
-  ' "$added" "$headers" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
+  ' "$added" "$headers" "$fresh" "$attributed" >"$kept" || die "awk failed discounting moved lines in $sha"
   mv -f "$kept" "$attributed" || die "could not replace the attribution of $sha"
-  rm -f "$added" "$headers" "$blob"
+  rm -f "$added" "$headers" "$blob" "$fresh"
 }
 
 # ---------------------------------------------------------------------------
