@@ -13,9 +13,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The seam's test helper lives with the engine, which for a consumer-local adapter is
-# the read-only plugin directory. Resolve it the same way common.sh resolves lib/,
-# and say so plainly rather than failing with a bare "file not found".
 TESTS_LIB=""
 for candidate in \
   "${WIT_SEAM_TESTS_DIR:-}/lib.sh" \

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Fixture tests for check-all-skills-verb-contract.sh, driven through the real
-# skill-quality checker and through stubs that stand in for a broken one.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +20,6 @@ write_skill() {
     "$leaf" "$description" "$leaf" >"$root/plugins/demo/skills/$leaf/SKILL.md"
 }
 
-# run <expected-exit> <name> [checker]: run the gate in the fixture.
 run() {
   local expected="$1" name="$2" checker="${3:-$CHECKER}" status
   LAST_OUTPUT="$(CHECK_SKILL_BIN="$checker" bash "$root/scripts/check-all-skills-verb-contract.sh" 2>&1)"

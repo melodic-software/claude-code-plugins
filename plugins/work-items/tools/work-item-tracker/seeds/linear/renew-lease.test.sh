@@ -42,10 +42,7 @@ assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
 assert_eq "id" "linear:acme/ENG#12" "$(jq -r '.id' <<<"$(lin_out)")"
 assert_eq "holder is unchanged" "kyle" "$(jq -r '.holder' <<<"$(lin_out)")"
 assert_eq "the handle is unchanged" "$HANDLE" "$(jq -r '.lease_comment_id' <<<"$(lin_out)")"
-# renewed_at moves forward; acquired_at does not — the claim is the same claim.
 assert_eq "acquired_at is preserved" "$NOW" "$(jq -r '.acquired_at' <<<"$(lin_out)")"
-# Renew EDITS the marker rather than posting a new comment, so a long claim leaves one
-# lease comment rather than a renewal per heartbeat.
 assert_contains "the existing comment is updated" "$(lin_requests)" "commentUpdate"
 if [[ "$(lin_requests)" == *"commentCreate"* ]]; then
   fail "renew posts no new comment" "no commentCreate" "commentCreate issued"
@@ -53,7 +50,6 @@ else
   pass "renew posts no new comment"
 fi
 
-# --- an EXPIRED lease is refused, never revived ---
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "expired lease → exit 7" "7" "$rc"
@@ -69,7 +65,6 @@ rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "superseded lease → exit 7" "7" "$rc"
 assert_contains "and says it was superseded" "$(lin_err)" "superseded"
 
-# --- a live lease an EARLIER live lease outranks is refused (claim step 4) ---
 EARLIER="$(jq -cn --arg b "$(lin_lease_body $((HANDLE - 1000)) kyle "$NOW" 24)" \
   '[{id: "uuid-comment-earlier", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]')"
 seed_lease "$(jq -cn --argjson a "$EARLIER" --argjson b "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)" '$a + $b')"
@@ -88,9 +83,6 @@ seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 0)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "ttl-0 lease cannot be renewed" "7" "$rc"
 
-# --- an unknown handle is a CONFLICT, not a missing item ---
-# A handle from another item means the caller mixed up two claims. Reporting exit 5
-# would say the item vanished, which is a different and misleading problem.
 seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "999999999999")"
 assert_eq "unknown handle → exit 7" "7" "$rc"

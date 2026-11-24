@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-changelog-fragments.sh. Each case builds a throwaway git
-# repo holding the gate, scripts/lib/ and a scripts/fragment-plugins.txt, and
-# runs the gate against it.
 set -uo pipefail
 
 # The gate reads its mode and inputs from the environment, and a CI run exports
@@ -21,8 +18,6 @@ SCRIPT="$SELF_DIR/check-changelog-fragments.sh"
 
 f=""
 
-# base_fixture <out-var> [listed...] — plugins alpha and beta at 1.0.0, the
-# named ones in fragment mode, committed on main.
 base_fixture() {
   local dir name
   fixture_tree::build "$1" --sut "$SCRIPT" --git --plugins --label fragments || return 1
@@ -40,7 +35,6 @@ base_fixture() {
   git_test_config "$dir" branch -q -M main
 }
 
-# fragment <fixture> <plugin> <name> <bump> [body]
 fragment() {
   local dir="$1" plugin="$2" name="$3" bump="$4" body="${5-### Fixed
 
@@ -51,13 +45,11 @@ fragment() {
 
 commit() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
 
-# HEAD_REF, when set, is the CHANGELOG_HEAD_REF the gate sees, as CI passes it.
 HEAD_REF=""
 run_gate() (
   cd "$1" && shift && CHANGELOG_HEAD_REF="$HEAD_REF" bash scripts/check-changelog-fragments.sh "$@"
 )
 
-# expect <label> <rc> <needle> <fixture> <args...>
 expect() {
   local label="$1" want="$2" needle="$3" fixture="$4" out rc
   shift 4
@@ -70,7 +62,6 @@ expect() {
   fi
 }
 
-# --- --check ------------------------------------------------------------------
 base_fixture f alpha
 expect "--check passes with no .changes/ directory" 0 "All 0 changelog fragment(s)" "$f" --check
 fragment "$f" alpha feat-x-0123abcd minor
@@ -167,7 +158,6 @@ fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"
 
-# --- em dash in a fragment for a plugin whose CHANGELOG.md is em-dash purged ---
 ed=$'\xe2\x80\x94'
 base_fixture f alpha beta
 printf '%s\n' '# purged' 'plugins/alpha/CHANGELOG.md' 'docs/*.md' >"$f/scripts/em-dash-purged-paths.txt"
@@ -199,7 +189,6 @@ printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
 expect "--check accepts an em dash in a bump: none reason, which no release copies" 0 "All 1 changelog fragment(s)" "$f" --check
 rm -rf "$f"
 
-# --- --check-required -----------------------------------------------------------
 base_fixture f alpha
 git_test_config "$f" checkout -qb feat/x
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
@@ -277,9 +266,6 @@ git_test_config "$f" checkout -q feat/x
 expect "--check-required rejects an added fragment whose path exists on the base" 1 "FRAGMENT PATH TAKEN: .changes/alpha/feat-x-0123abcd.md" "$f" --check-required main
 rm -rf "$f"
 
-# --- --check-release ------------------------------------------------------------
-# release_branch <fixture>: main holds alpha's fragment; release/plugins consumes
-# it and bumps alpha.
 release_branch() {
   fragment "$1" alpha feat-x-0123abcd minor
   commit "$1" pending
@@ -366,7 +352,6 @@ queue_on() {
   git_test_config "$1" checkout -qb "queue-$2" main
   git_test_config "$1" commit -q --allow-empty -m "queued squash"
 }
-# expect_queue <label> <rc> <needle> <release-head> <base>
 expect_queue() {
   local out rc
   out="$(cd "$f" && GITHUB_EVENT_NAME=merge_group CHANGELOG_HEAD_REF=release/plugins CHANGELOG_PR_HEAD="$4" \
@@ -433,9 +418,6 @@ queue_on "$f" version
 expect_queue "--check-release in the queue fails when the group's base changed a released plugin.json version" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
 rm -rf "$f"
 
-# --- a listed convention under docs/conventions/<name>/ or docs/contracts/<name>/ ---
-# convention_fixture <out-var>: alpha and the convention demo (2.0.0) listed,
-# under docs/$home/demo.
 convention_fixture() {
   base_fixture "$1" alpha demo || return 1
   mkdir -p "${!1}/docs/$home/demo"
@@ -487,7 +469,6 @@ for home in conventions contracts; do
   rm -rf "$f"
 done
 
-# --- usage ------------------------------------------------------------------------
 base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"
 rm -rf "$f"
@@ -502,7 +483,7 @@ bot_commit() (
   commit "$1" "$2"
 )
 dependabot_commit() { bot_commit "$1" "$2" 'dependabot[bot]' '49699333+dependabot[bot]@users.noreply.github.com'; }
-run_dependabot() { # <label> <want-rc> <needle> <author> <answer> <gh-rc>
+run_dependabot() {
   local out rc
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER="$5" GH_RC="$6" CHANGELOG_PR_AUTHOR="$4" \
     GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
@@ -528,7 +509,7 @@ git_test_config "$f" checkout -q main
 git_test_config "$f" checkout -qb queue-dependabot
 git_test_config "$f" merge -q --squash dependabot/npm
 commit "$f" "build(deps): bump zod (#1)"
-run_queue() { # <label> <want-rc> <needle> <pr-head>
+run_queue() {
   local out rc
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' CHANGELOG_PR_HEAD="$4" \
     GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required 'HEAD^1' 2>&1)"
@@ -574,8 +555,6 @@ commit "$f" "a commit pushed onto the standards-sync branch"
 run_dependabot "--check-required does not exempt a standards-sync pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'melodic-standards-sync[bot]' true 0
 rm -rf "$f"
 
-# A verified github-actions[bot] commit, even one touching only a plugin outside
-# fragment mode, makes the change set more than Dependabot's.
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -641,7 +620,7 @@ chmod +x "$f/.git/stub/gh"
 git_test_config "$f" checkout -qb dependabot/npm
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
-run_wrapped() { # <label> <want-rc> <needle> <status> <gh-rc> <want-reading>
+run_wrapped() {
   local out rc reading
   rm -rf "$f/.git/runner/api-budget"
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true GH_STATUS="$4" GH_RC="$5" RUNNER_TEMP="$f/.git/runner" \

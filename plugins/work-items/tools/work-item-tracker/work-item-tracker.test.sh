@@ -16,7 +16,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# Fake adapter: provider "fake" so the gh prerequisite gate stays out of the way.
 FAKE_DIR="$TEST_TMPDIR/adapters/fake"
 mkdir -p "$FAKE_DIR"
 cat >"$FAKE_DIR/capabilities.json" <<'EOF'
@@ -83,12 +82,6 @@ printf '%s\n' '{"schema_version":"1.0","provider":"ghost","config":{"lease_ttl_h
 WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" capabilities >/dev/null 2>&1
 assert_eq "missing adapter dir → exit 3" "3" "$?"
 
-# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
-# Major skew refuses (exit 3, direction-appropriate fix named); a newer minor
-# proceeds with a stderr notice.
-
-# make_skew_adapter <provider> <schema_version-json> — fake adapter + binding for
-# handshake cases; capabilities.sh present so a passing handshake can dispatch.
 make_skew_adapter() {
   local provider="$1" version_json="$2"
   local dir="$TEST_TMPDIR/adapters/$provider"
@@ -103,7 +96,6 @@ EOF
     >"$TEST_TMPDIR/$provider-binding.json"
 }
 
-# run_skew <provider> <args…> — dispatcher against the skew provider's binding.
 run_skew() {
   local provider="$1"
   shift
@@ -145,33 +137,26 @@ RC_CAPTURE=$?
 assert_eq "declared-false verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names verb + provider" "$ERR" "create-item"
 
-# A manifest written before `release` existed has no key for it: the gate reads the
-# absent key as unsupported, so an older adapter degrades instead of failing.
 ERR="$(run_dispatcher release "fake:o/r#1" --lease-comment-id 1 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared release verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the release verb" "$ERR" "release"
 
-# An adapter that cannot read label provenance declares no label-provenance key, and the
-# work-loop admission gate reads any non-zero exit as "not admitted".
 ERR="$(run_dispatcher label-provenance "fake:o/r#1" --label agent-ready 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared label-provenance verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the label-provenance verb" "$ERR" "label-provenance"
 
-# An adapter with no issue fields declares no set-fields key: the verb degrades, never writes.
 ERR="$(run_dispatcher set-fields "fake:o/r#1" --field 1=2 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared set-fields verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the set-fields verb" "$ERR" "set-fields"
 
-# An adapter with no issue fields declares no get-field-options key: the verb reports unsupported.
 ERR="$(run_dispatcher get-field-options --field Size 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared get-field-options verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the get-field-options verb" "$ERR" "get-field-options"
 
-# An adapter that declares no add-recurrence key exits 6 rather than recording anything.
 ERR="$(run_dispatcher add-recurrence "fake:o/r#1" --source-link https://example.com/1 --note seen 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
@@ -194,16 +179,11 @@ assert_eq "autonomous frontier drops needs-human" "fake:o/r#1" "$IDS"
 run_dispatcher list-frontier --bogus >/dev/null 2>&1
 assert_eq "list-frontier bad flag → exit 2" "2" "$?"
 
-# --parent + --repo is an invalid combination: --repo cannot re-target a
-# container-scoped frontier, so it must be rejected loudly, not silently dropped.
 ERR="$(run_dispatcher list-frontier --parent 'fake:o/r#9' --repo o/r 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "list-frontier --parent + --repo → exit 2" "2" "$RC_CAPTURE"
 assert_contains "--parent + --repo error names --repo/--parent" "$ERR" "--repo is not valid with --parent"
 
-# --- core list-items and --label (CONTRACT.md "Verbs", "Adapter contract") ---
-# The fake adapter logs its argv, and its listing holds "area: ci" on #1 and "Area: CI"
-# on #2, so an exact-match filter keeps #1 alone whatever the adapter was asked.
 export FAKE_ARGS_LOG="$TEST_TMPDIR/fake-args.log"
 
 : >"$FAKE_ARGS_LOG"
@@ -237,9 +217,6 @@ assert_eq "core still filters exactly after a provider label filter" "fake:o/r#1
 cp "$TEST_TMPDIR/fake-capabilities.json" "$FAKE_DIR/capabilities.json"
 unset FAKE_ARGS_LOG
 
-# --- get-item --history (CONTRACT.md "Verbs", state history) ---
-# An adapter that does not declare features.state_history never receives --history, and
-# core answers available: false, so a caller can tell "not available" from "never reopened".
 HIST_DIR="$TEST_TMPDIR/adapters/histfake"
 mkdir -p "$HIST_DIR"
 jq '.provider = "histfake"' "$FAKE_DIR/capabilities.json" >"$HIST_DIR/capabilities.json"
@@ -300,12 +277,6 @@ assert_eq "--label without a value → exit 2" "2" "$?"
 run_dispatcher list-items --label "" >/dev/null 2>&1
 assert_eq "--label with an empty value → exit 2" "2" "$?"
 
-# --- two-root adapter resolution (CONTRACT.md "Adapter resolution") ---
-# WIT_ADAPTERS_DIR is left UNSET here so the consumer-local-first / plugin-bundled
-# fallback search runs.
-
-# make_fake_adapter <dir> <provider-sentinel> — a capabilities-only adapter whose
-# manifest echoes <provider-sentinel>, so the resolved dir can be attributed.
 make_fake_adapter() {
   local dir="$1" sentinel="$2"
   mkdir -p "$dir"
@@ -347,12 +318,9 @@ mkdir -p "$PROJECT/deep"
 OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
 
-# --- change-link (CONTRACT.md "Change links") ---
-# The fake manifest predates the verb: it is gated off (exit 6), so callers keep their default.
 run_dispatcher change-link "fake:o/r#1" >/dev/null 2>&1
 assert_eq "change-link absent from verbs → exit 6" "6" "$?"
 
-# --branch is core-side: the manifest's pattern picks the ref, the adapter gets --branch-ref.
 make_skew_adapter "linkfake" "\"schema_version\":\"1.0\","
 jq '.verbs["change-link"] = true | .change_link = {branch_pattern: "^[a-z]+/(routine-issue-)?([0-9]+)-"}' \
   "$TEST_TMPDIR/adapters/linkfake/capabilities.json" >"$TEST_TMPDIR/linkfake.json"
@@ -403,8 +371,6 @@ assert_eq "empty --body-file → exit 2" "2" "$?"
 run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
 assert_eq "--body-file without a value → exit 2" "2" "$?"
 
-# Every bundled and seed branch grammar needs a delimiter after the ref, so `ENG-12oops`
-# never names ENG-12, and its last capture group is the ref.
 for m in "$SCRIPT_DIR"/adapters/*/capabilities.json "$SCRIPT_DIR"/seeds/*/capabilities.json; do
   p="$(jq -r '.change_link.branch_pattern' "$m")"
   a="$(basename "$(dirname "$m")")"
@@ -421,9 +387,6 @@ for m in "$SCRIPT_DIR"/adapters/*/capabilities.json "$SCRIPT_DIR"/seeds/*/capabi
   fi
 done
 
-# --- status-storage: the bundled adapters over fixtures (no network) ---
-# github reads the org issue-field listing through a gh stub; local-markdown declares no
-# get-field-options, so it reports labels without any read.
 STATUS_STUB="$TEST_TMPDIR/status-stub-bin"
 mkdir -p "$STATUS_STUB"
 cat >"$STATUS_STUB/gh" <<'EOF'
@@ -446,7 +409,6 @@ chmod +x "$STATUS_STUB/gh"
 STATUS_GH_BINDING="$TEST_TMPDIR/status-github.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$STATUS_GH_BINDING"
 
-# run_status_github <fixture>: status-storage on the bundled github adapter; stdout to OUT.
 run_status_github() {
   OUT="$(STATUS_FIELDS="$1" PATH="$STATUS_STUB:$PATH" WORK_ITEM_TRACKER_BINDING="$STATUS_GH_BINDING" \
     WIT_ADAPTERS_DIR="$SCRIPT_DIR/adapters" bash "$DISPATCHER" status-storage --repo o/r 2>/dev/null)"
@@ -482,9 +444,6 @@ run_status_github "dial tcp: connection refused"
 assert_eq "status-storage github, provider unreachable → adapter's exit 8" "8" "$RC"
 assert_eq "status-storage github, provider unreachable → no answer" "" "$OUT"
 
-# --- list-frontier --autonomous: the Work status field adds holds to the label floor ---
-# A fake adapter whose tracker stores status in the field (FIELD_STORAGE=field) or not
-# (labels), and whose get-statuses answers FIELD_STATUSES, or fails when it is `fail`.
 FIELD_DIR="$TEST_TMPDIR/adapters/fieldfake"
 mkdir -p "$FIELD_DIR"
 printf '%s\n' '{"schema_version":"1.0","provider":"fieldfake","verbs":{"list-items":true,"get-field-options":true,"get-statuses":true,"capabilities":true}}' \
@@ -514,7 +473,6 @@ printf '%s\n' '{"schema_version":"1.0","provider":"fieldfake","config":{"lease_t
 FIELD_LOG="$TEST_TMPDIR/fieldfake.log"
 FIELD_ALL='{"fieldfake:o/r#1":"agent-ready","fieldfake:o/r#2":"needs-human","fieldfake:o/r#3":null,"fieldfake:o/r#4":"agent-ready","fieldfake:o/r#5":"agent-ready"}'
 
-# run_field_frontier <storage> <statuses> [args…]: list-frontier on fieldfake; OUT, ERR.
 run_field_frontier() {
   : >"$FIELD_LOG"
   OUT="$(FIELD_STORAGE="$1" FIELD_STATUSES="$2" FIELD_LOG="$FIELD_LOG" WORK_ITEM_TRACKER_BINDING="$FIELD_BINDING" \
@@ -571,9 +529,6 @@ assert_eq "status-storage local-markdown schema_version" "1.0" "$(jq -r '.schema
 run_dispatcher status-storage --bogus >/dev/null 2>&1
 assert_eq "status-storage bad flag → exit 2" "2" "$?"
 
-# --- gh version gate is scoped to the native sub-issue/dependency surface ---
-# Provider "github" applies the gate while WIT_ADAPTERS_DIR points at stub verbs:
-# the gate keys on the bound provider, so this stays offline.
 GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
 mkdir -p "$GH_ADAPTERS/github"
 printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"release":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"change-link":true,"capabilities":true}}' \
@@ -611,7 +566,6 @@ assert_eq "old gh: create-item without gated flags dispatches" \
 assert_eq "old gh: create-item --type still dispatches (adapter degrades)" \
   "0" "$(run_gh_verb create-item --title t --type Task)"
 
-# Verbs / flags that DO touch the native surface still fail closed (exit 3).
 for v in list-sub-items link-blocks add-sub-item; do
   assert_eq "old gh: $v still gated → exit 3" "3" "$(run_gh_verb "$v" "github:o/r#1")"
 done
@@ -620,8 +574,6 @@ assert_eq "old gh: create-item --parent gated → exit 3" \
 assert_eq "old gh: create-item --blocked-by gated → exit 3" \
   "3" "$(run_gh_verb create-item --title t --blocked-by "github:o/r#1")"
 
-# list-frontier gates through whichever list verb it resolves to — including the
-# --parent form, which dispatches list-sub-items rather than carrying its own entry.
 assert_eq "old gh: list-frontier gated via list-items" "3" "$(run_gh_verb list-frontier)"
 assert_eq "old gh: list-frontier --parent gated via list-sub-items" \
   "3" "$(run_gh_verb list-frontier --parent "github:o/r#9")"

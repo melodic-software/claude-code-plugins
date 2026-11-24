@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Suite for scripts/check-cant-fail-scan.sh. Each case builds a throwaway git
-# repository, commits a base, changes files on top, and runs the gate from that
-# repository against the real scanner. Expected exits come from the check-script
-# contract (scripts/README.md) and the scanner's --check exit codes.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,10 +29,6 @@ class T(unittest.TestCase):
 '
 
 n=0
-# new_repo: set r to a fresh repository holding a committed README and a clean
-# test file, tagged base. It sets r rather than printing it, so git's output
-# never becomes the path, and a failure ends the suite before a case can run in
-# the caller's checkout.
 new_repo() {
   n=$((n + 1))
   r="$TMP_ROOT/r$n"
@@ -52,7 +44,6 @@ new_repo() {
   fi
 }
 
-# put <repo> <path> <content>: write and commit one file.
 put() {
   if ! { mkdir -p "$1/$(dirname "$2")" &&
     printf '%s' "$3" >"$1/$2" &&
@@ -63,7 +54,6 @@ put() {
   fi
 }
 
-# gate <expected-exit> <name> <repo> [base]: run the gate in <repo>; OUT and ERR hold its streams.
 gate() {
   local want="$1" name="$2" repo="$3" rc
   shift 3
@@ -78,11 +68,10 @@ gate() {
   if [[ $rc -eq $want ]]; then pass "$name"; else bad "$name" "exit $rc, want $want; out: $OUT; err: $ERR"; fi
 }
 
-has() { # <name> <haystack> <needle>
+has() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else bad "$1" "missing '$3' in: $2"; fi
 }
 
-# Not applicable: the diff holds no test file.
 new_repo
 put "$r" README.md 'changed
 '
@@ -90,12 +79,10 @@ gate 0 "a diff with no test file passes" "$r" base
 has "it reports the gate not applicable, counting the files it looked at" "$OUT" \
   "Not applicable: 1 file(s) changed since base, none a test file the scan covers"
 
-# HEAD at the base has no change to scan.
 new_repo
 gate 0 "HEAD at the base passes" "$r" base
 has "it says HEAD is the base" "$OUT" "Not applicable: HEAD is base"
 
-# Commits whose net diff is empty checked nothing, so they are never a pass.
 new_repo
 put "$r" README.md 'changed
 '
@@ -105,27 +92,22 @@ gate 2 "an empty diff with commits on top is an environment error, not a pass" "
 has "it says nothing changed" "$ERR" "no file changed since base, yet HEAD is not base"
 if [[ -z "$OUT" ]]; then pass "an empty diff prints no clean statement"; else bad "an empty diff prints no clean statement" "$OUT"; fi
 
-# A clean changed test file passes and is named.
 new_repo
 put "$r" pkg/tests/test_new.py "$CLEAN_TEST"
 gate 0 "a clean changed test file passes" "$r" base
 has "it names the scanned file" "$OUT" "clean: pkg/tests/test_new.py"
 
-# A test with no assertion fails, its finding on stderr only.
 new_repo
 put "$r" pkg/tests/test_hollow.py "$HOLLOW_TEST"
 gate 1 "a changed test with no assertion fails" "$r" base
 has "the finding is on stderr" "$ERR" "rule-zero-assertion"
 if [[ "$OUT" != *rule-zero-assertion* ]]; then pass "the finding is not on stdout"; else bad "the finding is not on stdout" "$OUT"; fi
 
-# A deleted test file is not scanned.
 new_repo
 git_test_config "$r" rm -q pkg/tests/test_base.py && git_test_config "$r" commit -qm rm >/dev/null
 gate 0 "a deleted test file is not scanned" "$r" base
 has "a deletion alone is not applicable" "$OUT" "Not applicable"
 
-# Hollow tests under directories the whole-tree walk prunes are skipped here
-# too, and the whole-tree scan of the same tree agrees.
 new_repo
 put "$r" build/tests/test_hollow.py "$HOLLOW_TEST"
 put "$r" plugins/p/evals/fixtures/test_hollow.py "$HOLLOW_TEST"
@@ -133,7 +115,6 @@ gate 0 "hollow tests under pruned directories are skipped" "$r" base
 has "pruned files leave the diff not applicable" "$OUT" "Not applicable"
 gate 0 "the whole-tree scan of the same tree passes too" "$r"
 
-# A claimed test file the scanner cannot read is a real exit 2, never a skip.
 new_repo
 put "$r" pkg/tests/test_locked.py "$CLEAN_TEST"
 chmod 000 "$r/pkg/tests/test_locked.py"
@@ -144,7 +125,6 @@ else
 fi
 chmod 644 "$r/pkg/tests/test_locked.py"
 
-# No base: the whole tree.
 new_repo
 gate 0 "the whole-tree scan of a clean tree passes" "$r"
 put "$r" pkg/tests/test_hollow.py "$HOLLOW_TEST"
@@ -159,8 +139,6 @@ awk '/^      - name: Check every test for tests that cannot fail$/ { on = 1; nex
   on && body { exit }' "$WORKFLOW" >"$TMP_ROOT/check-tests.sh"
 new_repo
 put "$r" pkg/tests/test_hollow.py "$HOLLOW_TEST"
-# The gate is copied; plugins/ is a symlink to this checkout's, which the
-# scan's walk does not follow, so the fixture's own tests are all it reads.
 mkdir -p "$r/scripts"
 cp "$GATE" "$r/scripts/"
 ln -s "$(cd "$SELF_DIR/../plugins" && pwd)" "$r/plugins"
@@ -179,9 +157,6 @@ else
   bad "check-tests has a run: | body" "none found in $WORKFLOW"
 fi
 
-# PRUNED must name exactly the directories the scanner's walk prunes.
-# The scanner prunes `fixtures` only at */evals/fixtures, which PRUNED's second
-# alternative carries.
 want="$(sed -n '/^collect_files() {/,/^}/p' "$SCAN" | grep -oE -- "-name [^ )]+" | awk '$2 != "fixtures" {print $2}' | sort)"
 got="$(sed -n "s/^PRUNED='(^|\/)(\(.*\))\/|.*/\1/p" "$GATE" | tr '|' '\n' | sed 's/\\//g' | sort)"
 if [[ -n "$want" && "$want" == "$got" ]] && grep -q "\-path '\*/evals/fixtures'" "$SCAN" && grep -qF '|(^|/)evals/fixtures/' "$GATE"; then

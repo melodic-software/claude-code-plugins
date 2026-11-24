@@ -28,10 +28,6 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 # declaring the out-vars here is what tells it (SC2154) the names are written.
 repo="" repo_renamed="" repo_multi="" repo2="" repo3="" repo_merge="" shimdir=""
 
-# write_print_manifest <dest> <src> <copies-glob>
-# A fixture sync script that publishes via --print-manifest. The glob is
-# expanded at invocation time so a newly carrying plugin is picked up with
-# no edit to this file — the same derivation the live scripts use.
 write_print_manifest() {
   local dest="$1" src_path="$2" copies_glob="$3"
   cat >"$dest" <<EOF
@@ -67,7 +63,7 @@ mk_widget_consumer() {
   printf 'source "$(dirname "${BASH_SOURCE[0]}")/widget.sh"\n' >"$1"
 }
 
-mk_repo() { # <out-var>
+mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SCRIPT" --git --label affected-tests-fixture || return 1
   dir="${!1}"
@@ -75,16 +71,9 @@ mk_repo() { # <out-var>
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
-  # --jobs N delegates to the SIBLING run-plugin-tests.sh rather than spawning
-  # anything itself, so the fixture carries that sibling too. Its serial
-  # allowlist is empty here: the shipped one names suites this fixture does not
-  # have, and the runner rejects a stale entry rather than ignoring it.
   cp "$REPO_ROOT/scripts/run-plugin-tests.sh" "$dir/scripts/run-plugin-tests.sh"
   : >"$dir/scripts/run-plugin-tests-serial.txt"
 
-  # A sync manifest that publishes via --print-manifest, with a GLOB copy
-  # pattern expanded at invocation time. The selector must read the copy set
-  # from that surface rather than knowing the plugin names.
   write_print_manifest "$dir/scripts/sync-widget.sh" "lib/widget.sh" \
     "plugins/*/hooks/widget.sh"
 
@@ -99,7 +88,6 @@ mk_repo() { # <out-var>
     printf '# %s plugin\n' "$p" >"$dir/plugins/$p/README.md"
   done
 
-  # A file no suite names and no no-suite pattern covers.
   printf 'echo orphan\n' >"$dir/scripts/zzorphan-tool.sh"
 
   git_test_config "$dir" add scripts lib plugins >/dev/null
@@ -125,7 +113,6 @@ run_sel() {
 # has_line <text> <line>: <line> is one whole line of <text>, matched literally.
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
-# contains <text> <needle>: <needle> occurs anywhere in <text>, matched literally.
 contains() { [[ $1 == *"$2"* ]]; }
 
 # --- the match helpers hold on an input far larger than a pipe buffer -------
@@ -163,7 +150,6 @@ case $? in
 *) fail "the piped grep -q guard could not read $SELF_DIR/affected-tests.test.sh" ;;
 esac
 
-# --- co-located mapping ----------------------------------------------------
 mk_repo repo
 run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
 out="$OUT"
@@ -175,7 +161,6 @@ else
   fail "co-located mapping (rc=$RC): $out"
 fi
 
-# --- a changed suite selects itself ----------------------------------------
 run_sel "$repo" plugins/beta/hooks/beta-hook.test.sh
 out="$OUT"
 if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
@@ -184,7 +169,6 @@ else
   fail "self-selection (rc=$RC): $out"
 fi
 
-# --- shared-lib fan-out, derived from the sync manifest --------------------
 run_sel "$repo" lib/widget.sh
 out="$OUT"
 if [[ "$RC" -eq 0 ]] &&
@@ -196,10 +180,6 @@ else
   fail "shared-lib fan-out (rc=$RC): $out"
 fi
 
-# --- the fan-out is DERIVED, not transcribed -------------------------------
-# A third carrying plugin appears with NO edit to the manifest and NO edit to
-# the selector. A hardcoded copy list would miss it silently; that silent miss
-# is the exact rot this test exists to catch.
 mkdir -p "$repo/plugins/gamma/hooks"
 printf 'widget_helper() { echo widget; }\n' >"$repo/plugins/gamma/hooks/widget.sh"
 mk_widget_consumer "$repo/plugins/gamma/hooks/gamma-hook.sh"
@@ -214,13 +194,6 @@ else
   fail "derived fan-out missed a new carrying plugin (rc=$RC): $out"
 fi
 
-# --- an empty derivation is a loud error, not an empty selection -----------
-# The publisher declares a copy KEY whose entries match nothing on disk — the
-# rot shape: listed copies that no longer exist. This is distinct from a
-# manifest that declares no copy key at all (a canonical-only cluster with no
-# carrier yet, accepted further down); the two differ at the published surface
-# by the copy key's presence, so the copy line here must be explicit — the
-# write_print_manifest fixture's nullglob expansion would drop it entirely.
 sedless="$repo/scripts/sync-widget.sh"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
@@ -240,7 +213,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- unmapped file: fail loud, and the documented escape hatch -------------
 mk_repo repo
 out="$(cd "$repo" && bash scripts/affected-tests.sh scripts/zzorphan-tool.sh 2>&1)"
 RC=$?
@@ -275,8 +247,6 @@ REAL_GIT="$(command -v git)"
 printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "grep" ]]; then\n  echo "fatal: simulated git grep failure" >&2\n  exit 128\nfi\nexec "%s" "$@"\n' "$REAL_GIT" >"$shimdir/git"
 chmod +x "$shimdir/git"
 
-# Vacuity check: the SAME invocation must succeed without the shim, or the
-# assertion below would pass for a reason that has nothing to do with git grep.
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
@@ -307,11 +277,6 @@ for flag in --base --print-fanout; do
   fi
 done
 
-# --- a sync-*.sh that is not a manifest is skipped, not fatal --------------
-# If build_sync_map exited 2 on ANY scripts/sync-*.sh without a published src,
-# the first helper that merely shares the prefix would turn this suite's
-# REQUIRED CI lane red repo-wide. Half a manifest (one published key, not the
-# other) must still be fatal.
 printf '#!/usr/bin/env bash\necho "a helper, not a copy manifest"\n' >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
@@ -388,11 +353,6 @@ else
 fi
 rm -f "$repo/scripts/sync-solo.sh" "$repo/lib/solo.sh"
 
-# --- a file an earlier seed already walked past is still MAPPED ------------
-# Regression: the shared lib's walk reaches alpha-hook.sh as a dependent. With
-# one visited set across seeds, alpha-hook.sh's own walk was short-circuited,
-# it contributed nothing, and it was reported unmapped — a false alarm that
-# trains people to reach for --allow-unmapped.
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh plugins/alpha/hooks/alpha-hook.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] && ! contains "$out" 'UNMAPPED'; then
@@ -401,10 +361,6 @@ else
   fail "shared-walk file falsely unmapped (rc=$RC): $out"
 fi
 
-# --- seeds sharing a basename reuse the lookup cache, not each other's hits --
-# Two unsynced util.sh copies give both seeds one pattern list, so the second
-# seed's git grep is a cache hit; the name is ambiguous, so each copy must still
-# resolve to its own plugin's consumer and never to the other's.
 for p in alpha beta; do
   printf 'u() { :; }\n' >"$repo/plugins/$p/hooks/util.sh"
   # shellcheck disable=SC2016 # deliberate: the emitted file must expand these
@@ -429,7 +385,6 @@ for p in alpha beta; do
   rm -f "$repo/plugins/$p/hooks/util.sh" "$repo/plugins/$p/hooks/$p-tool.sh" "$repo/plugins/$p/hooks/$p-tool.test.sh"
 done
 
-# --- a no-suite class is NOT an unmapped failure ---------------------------
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/README.md 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] && ! contains "$out" 'UNMAPPED'; then
@@ -438,9 +393,6 @@ else
   fail "no-suite class should exit 0 quietly (rc=$RC): $out"
 fi
 
-# --- a deleted file that maps to nothing is a visible note, not an error ---
-# A deletion has no content left to cover; the loud UNMAPPED failure exists for
-# paths that still EXIST with unknown coverage.
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/hooks/removed-helper.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] &&
@@ -451,10 +403,6 @@ else
   fail "deleted unmapped path should be a note, not an error (rc=$RC): $out"
 fi
 
-# --- a deletion whose co-located suite survives still selects that suite ----
-# The surviving suite is exactly what fails loudly if the deletion broke
-# something, so a deletion must keep selecting through every rule and only
-# fall to the deleted note when NOTHING claims it.
 mk_widget_consumer "$repo/plugins/alpha/hooks/gone.sh"
 suite_body gone >"$repo/plugins/alpha/hooks/gone.test.sh"
 rm "$repo/plugins/alpha/hooks/gone.sh"
@@ -467,7 +415,6 @@ else
 fi
 rm -f "$repo/plugins/alpha/hooks/gone.test.sh"
 
-# --- explicit paths vs the default diff ------------------------------------
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '# edited\n' >>"$repo/plugins/beta/hooks/beta-hook.sh"
 run_sel "$repo" --base "$base"
@@ -480,8 +427,6 @@ else
   fail "diff mode (rc=$RC): $out"
 fi
 
-# An UNCOMMITTED, UNTRACKED new file is part of the work in front of the
-# developer, so the diff mode must see it too.
 mk_widget_consumer "$repo/plugins/alpha/hooks/alpha-extra.sh"
 suite_body alpha-extra >"$repo/plugins/alpha/hooks/alpha-extra.test.sh"
 run_sel "$repo" --base "$base"
@@ -492,17 +437,12 @@ else
   fail "untracked file missed by diff mode (rc=$RC): $out"
 fi
 
-# --- the name lines answer a level as the tree grep does ---------------------
-# A run greps the tree for its first AFFECTED_TESTS_TREE_GREPS lookups and the
-# name lines after that. The orphan, which nothing names, spends the one tree
-# grep, so the name lines serve every level of the walks that select; a shim
-# counts the tree greps.
 shim="$repo.bin"
 mkdir -p "$shim"
 printf '#!/usr/bin/env bash\n[[ " $* " == *" -F -f "* ]] && echo grep >>"%s"\nexec %q "$@"\n' \
   "$shim/greps" "$(command -v git)" >"$shim/git"
 chmod +x "$shim/git"
-explain_with() { # <tree-greps> -> the tree greps it ran in GREPS, the output in OUT
+explain_with() {
   : >"$shim/greps"
   OUT="$(cd "$repo" && PATH="$shim:$PATH" AFFECTED_TESTS_TREE_GREPS="$1" bash scripts/affected-tests.sh \
     --explain --allow-unmapped scripts/zzorphan-tool.sh lib/widget.sh plugins/alpha/hooks/alpha-extra.sh 2>&1)"
@@ -519,11 +459,6 @@ else
 fi
 rm -rf "$shim"
 
-# --- a merge in progress diffs against the incoming side, not the fork -----
-# Merging the base branch in leaves HEAD at the pre-merge commit while the
-# working tree already carries the incoming side. A file changed only there is
-# not this change's work and must not be selected; the branch's own edit, left
-# conflicted, still is.
 mk_repo repo_merge
 fork="$(git -C "$repo_merge" rev-parse HEAD)"
 git_test_config "$repo_merge" checkout -q -b incoming
@@ -560,7 +495,6 @@ else
   fail "broken diff should be fatal (rc=$RC): $out"
 fi
 
-# --- an absolute path inside the repo is normalized, not silently missed ---
 abs="$repo/plugins/beta/hooks/beta-hook.sh"
 run_sel "$repo" "$abs"
 out="$OUT"
@@ -570,7 +504,6 @@ else
   fail "absolute path not normalized (rc=$RC): $out"
 fi
 
-# --- an absolute path from outside the repo is refused, not swallowed ------
 out="$(cd "$repo" && bash scripts/affected-tests.sh /elsewhere/lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && contains "$out" 'absolute'; then
@@ -579,7 +512,6 @@ else
   fail "foreign absolute path should exit 2 (rc=$RC): $out"
 fi
 
-# --- --run executes the selected suites, sequentially ----------------------
 marker="$(mktemp "$TMP_ROOT/affected-tests-marker.XXXXXX")"
 : >"$marker"
 (cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/widget.sh >/dev/null 2>&1)
@@ -590,9 +522,6 @@ else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
 
-# --- --run puts the CI venv's bin first on PATH, when there is one ----------
-# A suite records the PATH it sees. The fake venv's python imports pytest, which
-# is what the shared lookup (scripts/lib/pytest-python.sh) asks of a venv.
 cat >"$repo/lib/pathprobe.test.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$PATH" >"${MARKER_FILE:-/dev/null}"
@@ -625,12 +554,6 @@ else
 fi
 rm -f "$repo/lib/pathprobe.sh" "$repo/lib/pathprobe.test.sh"
 
-# --- --run --jobs N hands the same selection to run-plugin-tests.sh ---------
-#
-# The property is that the SET of suites executed does not change with the job
-# count; only how many run at once does. A second parallel runner living here
-# is what this option exists to avoid, so the delegation is what is checked:
-# run-plugin-tests.sh owns the worker, the print lock and the serial allowlist.
 : >"$marker"
 (cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --jobs 3 lib/widget.sh >/dev/null 2>&1)
 RC=$?
@@ -657,8 +580,6 @@ for bad in 0 x '' -1; do
   fi
 done
 
-# --budget hands the selection to run-plugin-tests.sh even at one job, since
-# that runner owns the per-suite share.
 out="$(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --budget 600 lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] && contains "$out" 'within a 600s budget' && contains "$out" 's of the 600s budget.'; then
@@ -680,13 +601,6 @@ for bad in 0 x -1 '' '='; do
   fi
 done
 
-# --- --shard is a partition, not a filter -----------------------------------
-# The claim CI makes when it fans one selection across four runners is that the
-# legs together ARE the selection and no suite ran twice. Proved on the fixture
-# repo rather than the live tree on purpose: each live derivation walks the
-# whole corpus, and this suite is itself one of the suites a leg runs, so a
-# handful of live derivations here would cost back part of what the shard
-# saves and would unbalance whichever leg drew this file.
 shard_paths=(lib/widget.sh plugins/alpha/hooks/alpha-hook.sh plugins/beta/hooks/beta-hook.sh)
 select_shard() {
   local spec="$1"
@@ -694,11 +608,6 @@ select_shard() {
   [[ -n "$spec" ]] && argv+=(--shard "$spec")
   (cd "$repo" && "${argv[@]}" -- "${shard_paths[@]}" 2>/dev/null)
 }
-# The equals form, spelled out separately because select_shard cannot express an
-# EMPTY spec: `--shard=` with nothing after it is what an environment variable
-# that expanded to nothing produces, and a presence test on the value alone
-# would read it as "no shard requested" and run the whole selection on every leg
-# while exiting 0.
 select_shard_eq() {
   (cd "$repo" && bash scripts/affected-tests.sh "--shard=$1" -- "${shard_paths[@]}" 2>/dev/null)
 }
@@ -729,9 +638,6 @@ else
   fail "--shard 0/1 changed the selection"
 fi
 
-# The empty leg. A leg that draws none of a non-empty selection checked
-# nothing, so it is a usage error (more legs than selected suites), never a
-# pass that reads as a tested leg.
 out="$(cd "$repo" && bash scripts/affected-tests.sh --shard 999/1000 -- "${shard_paths[@]}" 2>&1 >/dev/null)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && [[ "$out" == *"leg 999 of 1000 draws none of the"* ]]; then
@@ -745,9 +651,6 @@ else
   fail "an empty leg printed a selection"
 fi
 
-# A spec this script cannot read must never become leg 0 of 1, which runs
-# everything and would report a full pass from a typo'd fan-out. These exit
-# before any derivation, so they cost nothing.
 for badspec in 4/4 bogus 0/0 1/ /4 "1/4/4" "-1/4"; do
   select_shard "$badspec" >/dev/null
   RC=$?
@@ -774,9 +677,6 @@ else
   fail "the equals form of --shard does not match the space form"
 fi
 
-# --- --run --shard executes each suite on exactly one leg -------------------
-# The partition above is about selection; this is about execution. Two legs are
-# enough to prove each selected suite ran, on exactly one of them.
 : >"$marker"
 shard_rc=0
 for legix in 0 1; do
@@ -793,7 +693,6 @@ else
   fail "sharded --run did not cover the selection exactly once (rc=$shard_rc): $marker_text"
 fi
 
-# --- --run propagates a suite failure --------------------------------------
 suite_body alpha-hook 1 >"$repo/plugins/alpha/hooks/alpha-hook.test.sh"
 (cd "$repo" && bash scripts/affected-tests.sh --run plugins/alpha/hooks/alpha-hook.sh >/dev/null 2>&1)
 RC=$?
@@ -804,10 +703,6 @@ else
 fi
 rm -rf "$repo" "$marker"
 
-# --- renaming src/copies in the publisher does not change fan-out ----------
-# The old consumer scraped those spellings out of source text. A publisher
-# that never uses them, but still implements --print-manifest, must fan out
-# the same way — this is the assertion that the parsed contract is gone.
 mk_repo repo_renamed
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
@@ -834,9 +729,6 @@ else
 fi
 rm -rf "$repo_renamed"
 
-# --- a publisher with several src blocks fans each one out ------------------
-# scripts/sync-shared-copies.sh publishes one block per canonical. The widget
-# block comes first, so a reader that keeps only the last src misses it.
 mk_repo repo_multi
 printf 'other() { :; }\n' >"$repo_multi/lib/other.sh"
 printf 'other() { :; }\n' >"$repo_multi/plugins/alpha/hooks/other.sh"
@@ -853,8 +745,6 @@ else
 fi
 rm -rf "$repo_multi"
 
-# The consumer must not scrape src=/copies=( source text. The old helpers
-# (`manifest_src`, a `/^src=/` awk, a `/^copies=(/` grep) are the scrape.
 if grep -qE 'manifest_src|manifest_copy_patterns|manifest_declares_copies|/\^src=|/\^copies=\(' \
   "$REPO_ROOT/scripts/affected-tests.sh"; then
   fail "affected-tests.sh still scrapes src=/copies=( source text"
@@ -862,25 +752,6 @@ else
   ok "affected-tests.sh no longer scrapes src=/copies=( source text"
 fi
 
-# --- LIVE no-suite list: reference YAML with no lane is UNMAPPED -------------
-# The reference YAML under plugins/toolchain/ and docs/conventions/
-# ecosystem-commands/ is read by NO lane: no yamllint step exists, every
-# check-jsonschema step names its files and none names these,
-# validate-plugin-contracts.mjs never mentions yaml, and plugins/toolchain
-# ships no *.test.sh. A bare *.yaml/*.yml no-suite entry (true for workflow
-# YAML, false for these) would report a covering lane that does not exist, so
-# these must fail loud instead.
-#
-# This case pins that. If someone gives these files a real lane and records the
-# class again, this assertion is SUPPOSED to fail — update it together with the
-# no-suite entry, and make sure the entry names the lane that actually reads
-# them. Workflow YAML must stay covered via the .github/* entry throughout.
-#
-# The selector runs in a fixture that carries the live no-suite list, on probe
-# files in the two live directories whose names no live file has. A live file
-# would not do: a suite that names or globs one maps it, so this suite would map
-# the files it proves unmapped, and a live run would also fail on main as soon
-# as any other suite began naming one.
 eco_yaml=(plugins/toolchain/reference/ecosystems/zz-probe.yaml
   docs/contracts/ecosystem-commands/examples/zz-probe.yaml)
 mk_repo repo
@@ -901,38 +772,23 @@ for y in "${eco_yaml[@]}"; do
 done
 rm -rf "$repo"
 
-# --- per-ecosystem suite naming --------------------------------------------
-# The selector was shell-only: R2 looked for <stem>.test.sh and nothing else,
-# and the reverse lookup searched `-- '*.sh'`. Every one of the ~180 non-shell
-# suites in this repo was therefore invisible, so a .py sitting NEXT TO its own
-# test_<stem>.py was reported UNMAPPED — a false "nothing covers this" that
-# trains people to reach for --allow-unmapped and erodes the fail-loud contract.
-# Each ecosystem names its suites differently, so each needs its own case.
 mk_repo repo
 mkdir -p "$repo/eco"
 
-# Python: the suite PREFIXES the stem, and this repo folds `-` to `_` for the
-# suites covering its hyphenated scripts.
 printf 'def helper():\n    return 1\n' >"$repo/eco/widget_mod.py"
 printf 'import widget_mod\n' >"$repo/eco/test_widget_mod.py"
 printf 'def helper():\n    return 1\n' >"$repo/eco/check-thing.py"
 printf 'import importlib\n' >"$repo/eco/test_check_thing.py"
 
-# ... and the one convention that puts the suite in a SUBDIRECTORY. The suite
-# imports the MODULE, so it never spells the filename and the reference rule
-# has nothing to match: only a path rule can find it.
 mkdir -p "$repo/eco/pkg/tests"
 printf 'def helper():\n    return 1\n' >"$repo/eco/pkg/mod_thing.py"
 printf 'import mod_thing\n' >"$repo/eco/pkg/tests/test_mod_thing.py"
 
-# Node: co-located <stem>.test.js / .test.mjs.
 printf 'export const a = 1;\n' >"$repo/eco/gadget.js"
 printf 'import { a } from "./gadget.js";\n' >"$repo/eco/gadget.test.js"
 printf 'export const b = 2;\n' >"$repo/eco/probe.mjs"
 printf 'import { b } from "./probe.mjs";\n' >"$repo/eco/probe.test.mjs"
 
-# Pester: the suite SUFFIXES the stem and lives in a mirrored tree, so it is
-# found by the reference rule (it dot-sources the file) rather than by R2.
 mkdir -p "$repo/eco/ps" "$repo/eco/pstests"
 printf 'function Get-Thing { 1 }\n' >"$repo/eco/ps/Get-Thing.ps1"
 printf ". (Join-Path \$PSScriptRoot 'Get-Thing.ps1')\nDescribe 'Get-Thing' { }\n" >"$repo/eco/pstests/Get-Thing.Tests.ps1"
@@ -972,10 +828,6 @@ else
   fail "node .mjs co-located (rc=$RC): $OUT"
 fi
 
-# --- R9: a wrapped Node suite brings its <stem>.test.sh --------------------
-# CI runs a Node suite with a sibling <stem>.test.sh only through that wrapper.
-# The suite here is reached through a MENTION of the changed file, not through
-# its stem, so R2 cannot find the wrapper and the walk stops at the suite.
 printf 'export const w = 3;\n' >"$repo/eco/wrapped.mjs"
 printf 'import { w } from "./wrapped.mjs";\n' >"$repo/eco/wrapped-cases.test.mjs"
 # shellcheck disable=SC2016 # deliberate: the emitted file must expand these, not this shell
@@ -1002,7 +854,6 @@ else
   fail "pester reference (rc=$RC): $OUT"
 fi
 
-# --- a changed non-shell suite selects ITSELF (R1 is not shell-only) --------
 run_sel "$repo" eco/test_widget_mod.py
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/test_widget_mod.py; then
   ok "a changed non-shell suite selects itself"
@@ -1010,10 +861,6 @@ else
   fail "non-shell self-selection (rc=$RC): $OUT"
 fi
 
-# --- BOTH covering suites, not just the first ------------------------------
-# A .py can be covered twice over: by a co-located test_<stem>.py AND by a
-# <stem>.test.sh that drives it. Returning only the first is an under-selection,
-# the one direction this tool treats as unsafe, so both must come back.
 printf 'def helper():\n    return 1\n' >"$repo/eco/dual.py"
 printf 'import dual\n' >"$repo/eco/test_dual.py"
 suite_body dual >"$repo/eco/dual.test.sh"
@@ -1026,10 +873,6 @@ else
   fail "dual-ecosystem coverage (rc=$RC): $OUT"
 fi
 
-# --- R3: a Python import names the module's file ---------------------------
-# `import m` and `from pkg.m import x` never spell m.py, so only the import
-# rule carries a module change out to the code that imports it. A name that
-# merely contains the stem, or the stem outside an import line, names nothing.
 mkdir -p "$repo/eco/imp/harness"
 printf 'X = 1\n' >"$repo/eco/imp/lib_mod.py"
 printf 'from lib_mod import X\n' >"$repo/eco/imp/user_mod.py"
@@ -1053,7 +896,6 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT
 else
   fail "python dotted, from-import or wrapped import (rc=$RC): $OUT"
 fi
-# A wrapped import longer than the joining window would lose its later names.
 OUT="$(cd "$repo" && AFFECTED_TESTS_WRAP_LINES=2 bash scripts/affected-tests.sh eco/imp/harness/stub_h.py 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && contains "$OUT" "ran past 2 lines"; then
@@ -1062,7 +904,6 @@ else
   fail "python wrapped import past the window (rc=$RC): $OUT"
 fi
 
-# Importing a package, or a module inside it, runs its __init__.py.
 mkdir -p "$repo/eco/imp/pkgx" "$repo/eco/imp/other"
 printf 'VALUE = 1\n' >"$repo/eco/imp/pkgx/__init__.py"
 printf 'VALUE = 2\n' >"$repo/eco/imp/pkgx/mod.py"
@@ -1076,10 +917,6 @@ else
   fail "python package __init__.py (rc=$RC): $OUT"
 fi
 
-# An ambiguous module name resolves to the one module of that name in the
-# nearest directory holding any, from the importer up: its own directory, a
-# tests/ parent, a plugin lib/ beside the importer's skill. A directory above
-# two modules of that name resolves to neither.
 mkdir -p "$repo/eco/amb/a/skill/scripts" "$repo/eco/amb/b/tests"
 printf 'A = 1\n' >"$repo/eco/amb/a/util.py"
 printf 'B = 1\n' >"$repo/eco/amb/b/util.py"
@@ -1101,9 +938,6 @@ else
   fail "python ambiguous import, tests/ child (rc=$RC): $OUT"
 fi
 
-# An import never resolves across plugins: `from m import (serve,)` imports a
-# function, and `import serve` in another plugin names another module, so
-# neither reaches the only serve.py of the tree.
 mkdir -p "$repo/plugins/alpha/fixtures" "$repo/plugins/beta/surface"
 printf 'def main():\n    return 1\n' >"$repo/plugins/alpha/fixtures/serve.py"
 printf 'from bridge_x import (\n    serve,\n)\n' >"$repo/plugins/beta/surface/test_server.py"
@@ -1114,8 +948,6 @@ if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
 else
   fail "python import across plugins (rc=$RC): $OUT"
 fi
-# Inside its plugin, an imported name names a module only in the package it is
-# imported from.
 printf 'from helpers import serve\n' >"$repo/plugins/alpha/test_not_pkg.py"
 printf 'from fixtures import serve\n' >"$repo/plugins/alpha/test_pkg.py"
 run_sel "$repo" plugins/alpha/fixtures/serve.py
@@ -1126,7 +958,6 @@ else
   fail "python imported name outside its package (rc=$RC): $OUT"
 fi
 
-# --- R2: conftest.py and __init__.py reach the test modules below them -----
 mkdir -p "$repo/eco/cf/sub" "$repo/eco/pk/tests"
 printf 'import pytest\n' >"$repo/eco/cf/conftest.py"
 printf 'assert True\n' >"$repo/eco/cf/test_top.py"
@@ -1147,12 +978,6 @@ else
   fail "__init__.py (rc=$RC): $OUT"
 fi
 
-# --- R4: another language counts only where it runs or loads the file ------
-# A file in another language that merely contains the name (a string, a log
-# message) is not a dependent and its suite is not selected: across languages
-# the text says nothing about a dependency unless the line runs or loads the
-# file. An interpreter on the line or a path to the file does; a bare name from
-# the file's own directory, with no interpreter on the line, does not.
 mkdir -p "$repo/eco/hop" "$repo/eco/elsewhere"
 printf 'export const c = 3;\n' >"$repo/eco/hop/origin.js"
 printf 'echo "origin.js is the entry point"\n' >"$repo/eco/elsewhere/mention.test.sh"
@@ -1162,12 +987,8 @@ printf 'node "$ROOT/eco/hop/origin.js"\n' >"$repo/eco/elsewhere/node-runs.test.s
 printf 'cp "$SRC/eco/hop/origin.js" "$DEST"\n' >"$repo/eco/elsewhere/path-loads.test.sh"
 printf 'run_suite origin.js\n' >"$repo/eco/hop/wrapper.test.sh"
 printf 'node origin.js\n' >"$repo/eco/hop/node-wrapper.test.sh"
-# A .py naming a shell script by bare name, with no interpreter on the line,
-# is not a dependent of it either.
 printf 'echo hop\n' >"$repo/eco/hop/hop-tool.sh"
 printf 'TOOL = "hop-tool.sh"\n' >"$repo/eco/hop/test_hop_listing.py"
-# A .ps1 that runs the js, so the walk crosses into it once, and a shell file
-# that runs the .ps1: reaching ITS suite takes a second transition.
 printf "node origin.js\nfunction Get-Far { 2 }\n" >"$repo/eco/hop/Far.ps1"
 suite_body far >"$repo/eco/hop/Far.Tests.ps1"
 printf 'pwsh -File Far.ps1\n' >"$repo/eco/hop/far-runner.sh"
@@ -1274,13 +1095,6 @@ else
   fail "--write-not-run without --run should exit 2 (rc=$RC): $OUT"
 fi
 
-# --- crossing once does not stop the walk in the destination language ------
-# The cap is one language TRANSITION per path, not one hop. A weaker
-# "stop dead after crossing" rule looks equivalent and is not: helper.py ->
-# runner.sh -> command.sh -> command.test.sh is a real chain whose SECOND edge is
-# shell-to-shell, and stopping at runner.sh drops command.test.sh. That is an
-# under-selection, which this tool treats as the unsafe direction, so the
-# destination-language walk has to keep going.
 mk_repo repo
 mkdir -p "$repo/eco/chain"
 printf 'def helper():\n    return 1\n' >"$repo/eco/chain/helper.py"
@@ -1299,16 +1113,6 @@ else
   fail "py -> sh -> sh chain lost its suite (rc=$RC): $OUT"
 fi
 
-# --- the crossing budget is aggregated per path, never assigned ------------
-# One path can be hit several times in a single round by different patterns, and
-# those hits can disagree about whether the chain reaching it has already
-# crossed. Assigning rather than aggregating let whichever hit `git grep` emitted
-# LAST decide, so an incidental cross-family mention could spend a path's budget
-# and block its own genuine crossing later — order-dependent under-selection.
-#
-# Reaching two families in ONE round takes a cross-family sync manifest, since
-# R5 seeds every copy alongside the source. zed.sh names the shell source first
-# and the JS copy second, so a last-write-wins bug resolves to "already crossed".
 mk_repo repo2
 mkdir -p "$repo2/eco/agg" "$repo2/plugins/alpha/hooks"
 write_print_manifest "$repo2/scripts/sync-mixed.sh" "lib/mixed.sh" \
@@ -1316,12 +1120,7 @@ write_print_manifest "$repo2/scripts/sync-mixed.sh" "lib/mixed.sh" \
 printf 'mixed_helper() { echo mixed; }\n' >"$repo2/lib/mixed.sh"
 printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 
-# Names the shell source FIRST, the JS copy SECOND — so the cross-family hit is
-# the one a last-write-wins bug would keep. The second line runs the copy, so
-# R4 takes it as a crossing; a bare mention would make no dependent at all.
 printf 'source "lib/mixed.sh"\nnode mixed.js\n' >"$repo2/eco/agg/zed.sh"
-# A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
-# would block. Its suite is the assertion.
 printf 'import subprocess\nsubprocess.run(["bash", "zed.sh"])\n' >"$repo2/eco/agg/zed_user.py"
 printf 'import zed_user\n' >"$repo2/eco/agg/test_zed_user.py"
 
@@ -1332,20 +1131,10 @@ else
   fail "crossing budget was spent by an incidental hit (rc=$RC): $OUT"
 fi
 
-# --- R3/R4 NAME a file, they do not merely contain its name ----------------
-# The reverse lookup used to be an unanchored substring search, so any basename
-# that sat inside another path in the corpus inherited that path's suites. That
-# is not just noisy over-selection: it is FALSE COVERAGE at exit 0, which is the
-# one direction this tool is built to refuse. `get.sh` is a substring of
-# `widget.sh`, which this fixture references from every plugin, so a new
-# get.sh covered by nothing at all used to come back mapped.
 mk_repo repo3
 mkdir -p "$repo3/eco/name"
 printf 'echo get\n' >"$repo3/plugins/alpha/hooks/get.sh"
 
-# A file that is ONLY ever named path-qualified. `/` is not a path-token
-# character, so this must keep selecting: it is the shape of every real
-# `source "$dir/lib.sh"` and `import "./gadget.js"` in the corpus.
 printf 'echo target\n' >"$repo3/eco/name/deep-target.sh"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
@@ -1353,29 +1142,18 @@ printf 'echo target\n' >"$repo3/eco/name/deep-target.sh"
   printf 'bash "$REPO_ROOT/eco/name/deep-target.sh"\n'
 } >"$repo3/eco/name/driver.test.sh"
 
-# A file only ever named at the END OF A SENTENCE. The trailing `.` is
-# punctuation, not part of the name, and this is how half the comments in this
-# repo cite the suite that covers them.
 printf 'echo prose\n' >"$repo3/eco/name/prose-target.sh"
 {
   printf '#!/usr/bin/env bash\n'
   printf 'echo "Every rejected shape is covered by prose-target.sh."\n'
 } >"$repo3/eco/name/prose.test.sh"
 
-# A file named with an ELLIPSIS butted straight against it. The mirror of the
-# sentence-final case, and the narrower one: `./x` never needs the strip because
-# the `/` already delimits the token, so only a literal `...x` reaches it. It is
-# a real prose shape and it is in the over-selecting direction, so it is kept —
-# and kept means tested, or the branch is just an untested claim.
 printf 'echo ellipsis\n' >"$repo3/eco/name/ellipsis-target.sh"
 {
   printf '#!/usr/bin/env bash\n'
   printf 'echo "the rest of that argument lives in ...ellipsis-target.sh"\n'
 } >"$repo3/eco/name/ellipsis.test.sh"
 
-# A basename the token rule cannot spell, because `+` is not a path-token
-# character. Such a name must fall back to the old substring test rather than
-# to no coverage at all — a name the rule cannot express has to over-select.
 printf 'echo plus\n' >"$repo3/eco/name/plus+tool.sh"
 {
   printf '#!/usr/bin/env bash\n'
@@ -1417,9 +1195,6 @@ else
   fail "get.sh should be UNMAPPED, not covered by widget.sh's suites (rc=$RC): $out"
 fi
 
-# The exit code alone is not the assertion: what must be gone is the SELECTION
-# the substring match handed it. Under --allow-unmapped the run proceeds, so an
-# empty selection is direct evidence that no unrelated suite was borrowed.
 run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
   ok "the borrowed suites are gone, not merely re-labeled"
@@ -1464,9 +1239,6 @@ else
   fail "untokenizable basename lost its coverage (rc=$RC): $OUT"
 fi
 
-# R1/R2 are a path rule and never went through the reverse lookup, so the same
-# substring-shaped file must still find its own co-located suite — and still not
-# the ones it used to borrow.
 suite_body get >"$repo3/plugins/alpha/hooks/get.test.sh"
 run_sel "$repo3" plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 ]] &&
@@ -1478,20 +1250,11 @@ else
 fi
 rm -rf "$repo3"
 
-# --- a comment-only mention makes no dependent and selects no suite ----------
-# Hub files cite neighboring scripts in prose, and counting those as edges
-# fanned one plugin's change out to most of the corpus; a suite citing a file
-# in prose does not run it either. A trailing comment on a shell or Python
-# code line is prose too, and a `#` inside quotes is not a comment. Every code
-# line still names the file, as do a shellcheck source directive and a JSDoc
-# type import.
 mk_repo repo3
 mkdir -p "$repo3/eco/cmt"
 printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
 suite_body hub-target >"$repo3/eco/cmt/hub-target.test.sh"
-# Each dependent below has a suite of its own that does not name hub-target.sh,
-# so that suite comes back only through an R4 edge.
-mk_cmt_dependent() { # <stem> <ext> <body>
+mk_cmt_dependent() {
   printf '%b' "$3" >"$repo3/eco/cmt/$1.$2"
   suite_body "$1" >"$repo3/eco/cmt/$1.test.$2"
 }
@@ -1589,11 +1352,6 @@ else
   ok "pr-require-checks.yml asks for no more than the proven three concurrent suites (#3694)"
 fi
 
-# --- R7: the autonomy reference tree selects the plugin-contract suite -------
-# Those files are markdown no suite names, so without a path rule they fell to
-# the no-suite *.md class while the contract validator gates them. The scope is
-# pinned both ways: nested files are in, and neither another plugin's
-# reference/ nor an autonomy file outside reference/ is.
 contract_suite=scripts/validate-plugin-contracts.test.sh
 mk_repo repo
 mkdir -p "$repo/plugins/autonomy/reference/sub" "$repo/plugins/beta/reference"
@@ -1632,13 +1390,6 @@ for p in plugins/beta/reference/other-doc.md plugins/autonomy/README.md; do
 done
 rm -rf "$repo"
 
-# --- R8: a declared scope selects the suite that scans a directory -----------
-# A suite that greps or globs a directory never spells the files it reads, so
-# it declares them in `# test-scope:` lines of its leading comment block, and a
-# matching change selects it and counts as mapped. Pinned: the glob crosses
-# `/`, a suite may declare on several lines, an inline comment ends the globs,
-# a line below the first code line declares nothing, the plugin's other suites
-# stay out, and a plugin file nothing names or declares is still UNMAPPED.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/one" "$repo/plugins/alpha/tests"
 printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
@@ -1695,8 +1446,6 @@ else
   fail "R8: a plugin file nothing names or declares was mapped (rc=$RC): $OUT"
 fi
 
-# A glob matching no file fails the run that changes the suite declaring it,
-# and only that run.
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/beta/hooks/beta-hook.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
@@ -1754,8 +1503,6 @@ if contains "$out" 'UNMAPPED: 1 changed file(s)'; then
 else
   fail "--unmapped-corpus: the unmapped report went missing: $out"
 fi
-# Data no rule reaches is read by no suite, so it starts no corpus; the exit
-# still reports it. An extensionless file with a `#!` line is code.
 printf 'name: orphan\n' >"$repo/plugins/alpha/zz-orphan-data.cfg"
 run_sel "$repo" --unmapped-corpus plugins/alpha/zz-orphan-data.cfg
 if [[ "$RC" -eq 4 && -z "$OUT" ]]; then
@@ -1779,9 +1526,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- --with-always is accepted and widens nothing ----------------------------
-# A caller that still passes it must neither fail nor get a wider selection:
-# the live-tree suites it used to add declare their scopes in their headers now.
 mk_repo repo
 run_sel "$repo" --with-always plugins/alpha/hooks/alpha-hook.sh
 with_out="$OUT" with_rc="$RC"
@@ -1793,12 +1537,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- ambiguous names: a shared basename counts only where it resolves ------
-# Skills reuse reference names freely, so a bare `probe-doc.md` says nothing
-# about which one. A mention names a file only when it resolves to it: a path
-# suffix no other file of that name ends in, any mention from the file's own
-# directory, or a path relative to a directory below the root holding both
-# files. The structural docs (SKILL.md and the like) always resolve this way.
 mk_repo repo
 own_a=plugins/alpha/skills/sa
 own_b=plugins/alpha/skills/sb
@@ -1817,15 +1555,11 @@ done
     >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
   printf 'grep -q wording probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
   printf 'cat plugins/gamma/skills/sa/reference/probe-doc.md\n' >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
-  # A bare name from a directory above the file: one probe-doc.md below gamma's
-  # skill, two below alpha's skills/ directory.
   printf 'grep -c . probe-doc.md\n' >"$repo/plugins/gamma/skills/sa/above.test.sh"
   printf 'grep -c . probe-doc.md\n' >"$repo/plugins/alpha/skills/above-both.test.sh"
   printf '# reads plugins/alpha/skills/sa/reference/probe-doc.md\n' >"$repo/$own_a/scripts/sa-comment.test.sh"
-  # A bare mention from the file's own directory, in a script whose suite is its sibling.
   printf 'grep -c . probe-doc.md\n' >"$repo/$own_a/reference/count.sh"
   suite_body count >"$repo/$own_a/reference/count.test.sh"
-  # The SKILL.md shape: a plugin suite spelling the body relative to its plugin.
   printf -- '---\nname: one\n---\n' >"$repo/plugins/alpha/skills/one/SKILL.md"
   printf -- '---\nname: one\n---\n' >"$repo/plugins/beta/skills/one/SKILL.md"
   printf 'body="$PLUGIN_DIR/skills/one/SKILL.md"\n' >"$repo/plugins/alpha/tests/skill-body.test.sh"
@@ -1886,8 +1620,6 @@ else
   fail "ambiguous: SKILL.md resolution wrong (rc=$alpha_rc/$RC): [$alpha_out] [$OUT]"
 fi
 
-# MANIFESTS: a suite that spells its plugin's manifest exactly is still not
-# selected by it; the manifest gates own it.
 run_sel "$repo" plugins/alpha/.claude-plugin/plugin.json
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
   ok "manifests: a plugin.json selects no suite through a mention"
@@ -1895,15 +1627,11 @@ else
   fail "manifests: plugin.json selected a suite (rc=$RC): $OUT"
 fi
 
-# A path that spells only the name, or a path from the repository root alone,
-# could be a file the suite builds under a temporary directory, so neither
-# resolves; a mention from the file's own directory does.
 printf '# root\n' >"$repo/README.md"
 # shellcheck disable=SC2016 # deliberate: the emitted fixtures must expand these
 {
   printf 'grep -q x "$PLUGIN_DIR/README.md"\n' >"$repo/plugins/alpha/tests/readme.test.sh"
   printf 'grep -q x "$REPO_ROOT/README.md"\n' >"$repo/scripts/zz-root-readme.test.sh"
-  # docs/guide.md at the root and a fixture copy ending in the same path.
   printf 'grep -q x "$REPO_ROOT/docs/guide.md"\n' >"$repo/scripts/zz-root-path.test.sh"
   printf 'grep -q x README.md\n' >"$repo/zz-root-local.test.sh"
 }
@@ -1927,11 +1655,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- R5 copies inside skill directories still reach every copy's suite -------
-# A shared source outside any skill, copied into each skill's reference/, with
-# each skill's suite naming its own copy bare. The basename is carried three
-# times, but a shared library's copies keep the plain rule, so the source's
-# fan-out reaches every suite.
 mk_repo repo
 mkdir -p "$repo/plugins/alpha/skills/sa/reference" "$repo/plugins/beta/skills/sb/reference"
 write_print_manifest "$repo/scripts/sync-guard.sh" "lib/guard-util.sh" \
@@ -1954,8 +1677,6 @@ else
   fail "R5: in-skill copy fan-out lost a suite (rc=$RC): $OUT"
 fi
 
-# The out-of-skill shape (hook-utils.sh style): the fixture's widget.sh copies
-# live in plugins/*/hooks/, each consumer suite sourcing its own plugin's copy.
 run_sel "$repo" lib/widget.sh
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh &&
   has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
@@ -1965,12 +1686,7 @@ else
 fi
 rm -rf "$repo"
 
-# --- --replay: each commit selected against its parent, with this tree's rules --
-# A replay carries this tree's no-suite list and declared scopes to every
-# commit, since the commits may predate them; --against runs the selector at
-# <ref> with <ref>'s own and prints only the suites the two disagree on.
 mk_repo repo
-# scan_suite <old|new> [<glob>]: a scripts/ suite declaring <glob>, or nothing.
 scan_suite() {
   {
     printf '#!/usr/bin/env bash\n'
@@ -2009,8 +1725,6 @@ else
   fail "--replay --against output wrong (rc=$RC): $out"
 fi
 
-# A commit this selector maps to no suite still reports what <ref> ran as
-# dropped, not as added.
 scan_suite old 'plugins/beta/*'
 scan_suite new
 git_test_config "$repo" commit -qam 'scan beta' >/dev/null
@@ -2084,10 +1798,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- --help reaches the actual end of the header -----------------------------
-# usage() used to extract a hardcoded sed range that stopped mid-header as the
-# comment block grew. Pin a sentence that lives on the last header
-# lines so a drifted range cannot come back unnoticed.
 help_out="$(bash scripts/affected-tests.sh --help)"
 if contains "$help_out" 'Both stages fail loud'; then
   ok "--help reaches the end of the header (derived usage)"

@@ -78,10 +78,6 @@ ITEMS='[]'
 CURSOR=""
 COUNT=0
 TRUNCATED=false
-# The declared ceiling from capabilities.json bounds the walk: COUNT is every node fetched
-# (every node the filter matched), and each page asks for at most one node past the ceiling, so a node that arrives past it
-# proves more exist. Exceeding it is a DOCUMENTED truncation, not an error, but never a
-# silent one: stderr says so and the envelope carries `truncated: true`.
 while :; do
   FIRST=$((WIT_LINEAR_LIST_ITEMS_MAX + 1 - COUNT))
   ((FIRST > WIT_LINEAR_PAGE_SIZE)) && FIRST="$WIT_LINEAR_PAGE_SIZE"

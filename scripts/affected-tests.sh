@@ -271,8 +271,6 @@ NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
 DIFF_BASE=""
 
-# Basenames that name a repository-wide role, reached only through a resolved
-# mention (AMBIGUOUS NAMES in the header), however few files carry them today.
 STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
 MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
 MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
@@ -299,9 +297,6 @@ each_out=""
 jobs=1
 budget=""
 budget_given=0
-# Whether --shard was SUPPLIED, tracked apart from its value: `--shard=` with an
-# empty right-hand side is what an unset environment variable produces, and it
-# must not read as "no shard requested" and run everything on every leg.
 shard_given=0
 shard_index=0
 shard_total=1
@@ -425,7 +420,6 @@ if [[ -n "$not_run_file" && "$do_run" -eq 0 ]]; then
   echo "error: --write-not-run only applies to --run." >&2
   exit 2
 fi
-# Emptied first, so a run that selects nothing leaves no earlier run's list.
 if [[ -n "$not_run_file" ]] && ! : >"$not_run_file"; then
   echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
@@ -448,10 +442,6 @@ fi
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests.XXXXXX")" || exit 2
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# ---------------------------------------------------------------------------
-# Sync-manifest derivation (R5/R6)
-# ---------------------------------------------------------------------------
-
 # Published --print-manifest format (scripts/sync-shared-copies.sh), one
 # block per canonical source:
 #   src<TAB><path>     opens a block; empty path means the key was declared blank
@@ -461,12 +451,9 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # skipped. A block with copy lines (or an empty src key) but no non-empty src
 # is a half-manifest and is fatal.
 
-# SYNC_SRC_COPIES maps a sync source path to its newline-separated copy paths.
-# SYNC_SCRIPT_SRC maps a sync script to its newline-separated source paths.
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
-# register_sync_block <script> <src> <has-copy-key> [<copy pattern>...]
 register_sync_block() {
   local script="$1" src="$2" has_copy_key="$3" pattern match
   shift 3
@@ -477,8 +464,6 @@ register_sync_block() {
     exit 2
   fi
   SYNC_SCRIPT_SRC["$script"]+="$src"$'\n'
-  # A src with NO copy key at all is a canonical-only cluster: the lib has
-  # landed and no plugin carries it yet. It registers with an empty copy set.
   if ((has_copy_key == 0)); then
     SYNC_SRC_COPIES["$src"]=""
     return 0
@@ -513,8 +498,6 @@ build_sync_map() {
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
-    # Each src line opens a block; a copy line before any src opens one with an
-    # empty src, which register_sync_block rejects as half a manifest.
     block_src=()
     block_has_copy=()
     block_patterns=()
@@ -546,7 +529,6 @@ build_sync_map() {
     done <"$outfile"
 
     if ((rc != 0)); then
-      # usage / unknown-flag: a helper that does not implement the surface.
       if [[ ! -s "$outfile" ]] && grep -q '^usage:' "$errfile"; then
         continue
       fi
@@ -555,10 +537,6 @@ build_sync_map() {
       exit 2
     fi
 
-    # A script matching scripts/sync-*.sh that publishes NEITHER key is a
-    # helper that happens to share the prefix, and opens no block. Exiting on
-    # it would turn a required lane red for every pull request the day such a
-    # helper lands. Half a manifest is still fatal.
     for i in "${!block_src[@]}"; do
       patterns=()
       while IFS= read -r line; do
@@ -573,19 +551,11 @@ build_sync_map() {
   fi
 }
 
-# ---------------------------------------------------------------------------
-# Tree index: every file, the ambiguous basenames, the declared scopes
-# ---------------------------------------------------------------------------
-
-declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
-declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
+declare -A AMBIGUOUS=()
+declare -A SYNC_MEMBER=()
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
-# The extensions lang_family() names: the reverse lookup searches them all.
 CODE_SPECS=('*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1')
 UNTRACKED=()
-# build_tree_index: every tracked or untracked-unignored file, listed once for
-# the ambiguous-name set, the reverse lookup's resolution, the declared scopes
-# and the unmapped corpora. Fatal on a failed listing: a short list under-selects.
 build_tree_index() {
   local b src copy suite
   if ! git ls-files --cached --others --exclude-standard >"$WORK_DIR/all-files" ||
@@ -600,8 +570,6 @@ build_tree_index() {
     exit 2
   fi
   [[ -s "$WORK_DIR/untracked-code" ]] && UNTRACKED=(--untracked)
-  # token_hits reads the files of a name it resolves: an ambiguous or
-  # structural basename, or __init__.py.
   awk -v s="$STRUCTURAL_BASENAMES" '{ b = $0; sub(/.*\//, "", b) } NR == FNR { n[b]++; next }
     n[b] > 1 || b == "__init__.py" || index(s, " " b " ")' "$WORK_DIR/all-files" "$WORK_DIR/all-files" \
     >"$WORK_DIR/resolvable-files" || {
@@ -622,8 +590,6 @@ build_tree_index() {
     echo "error: 'git grep' failed (exit $grep_rc, $wrap_rc) listing the Python import lines." >&2
     exit 2
   fi
-  # A statement still open when the window runs out was cut short, and its
-  # later names would be lost: that fails loud, like an unreadable grep.
   if ! tr '\0' '\t' <"$WORK_DIR/py-wrapped" | awk -v max="$WRAP_LINES" '
     function close_open() { if (open && n >= max) cut = 1; open = 0 }
     { i = index($0, "\t") }
@@ -652,8 +618,6 @@ build_tree_index() {
     done <<<"${SYNC_SRC_COPIES[$src]}"
   done
 
-  # R8: the suites' `# test-scope:` headers, or the `<suite> <glob>...` lines
-  # a replay hands in, whose suites an older commit may lack.
   local -a entries=() words=()
   local entry i decls
   if [[ -n "$SCOPES_LIST" ]]; then
@@ -672,7 +636,7 @@ build_tree_index() {
   done
 }
 
-declare -A NAMED=() # basename -> 1 for each name the lines of build_name_lines cover
+declare -A NAMED=()
 TREE_GREPS=0
 # build_name_lines: every code line naming a basename a frontier can hold (a
 # file of the tree, a changed path, a shared library's copy), as `git grep`
@@ -725,22 +689,12 @@ scope_declarations() {
     }' "$1"
 }
 
-# ---------------------------------------------------------------------------
-# Selection
-# ---------------------------------------------------------------------------
-
-declare -A SUITES=()   # suite path -> reason
-declare -a UNMAPPED=() # changed paths that mapped to nothing
-declare -a DELETED=()  # changed paths that mapped to nothing AND no longer exist
-# The reverse lookup's results across seeds (MECHANICALLY in the header):
-# HITS_CACHE maps the exact pattern, plain and resolve lists of a level to its
-# hits file, GREP_CACHE the exact pattern list to its matched-lines file.
+declare -A SUITES=()
+declare -a UNMAPPED=()
+declare -a DELETED=()
 declare -A HITS_CACHE=() GREP_CACHE=()
 LOOKUPS=0
 
-# SEED_HITS counts the suites the CURRENT seed reached, whether or not an
-# earlier seed had already selected them: counting only new ones reported the
-# second of two files sharing a suite as unmapped.
 SEED_HITS=0
 add_suite() {
   local suite="$1" reason="$2"
@@ -752,9 +706,6 @@ add_suite() {
   return 0
 }
 
-# is_suite_path <path> -> 0 when the path IS a test suite, in any ecosystem
-# this repo carries. Python PREFIXES test_<stem>.py, so its arm tests the
-# basename rather than the whole path.
 is_suite_path() {
   case "$1" in
   *.test.sh | *.test.js | *.test.mjs | *.Tests.ps1) return 0 ;;
@@ -1110,9 +1061,6 @@ package_scope_importers() {
     }' "$WORK_DIR/scope-files"
 }
 
-# colocated_suites <path> -> every sibling suite covering it, one per line.
-# PLURAL on purpose: a .py can carry a co-located test_<stem>.py and a
-# wrapping <stem>.test.sh at once, and returning one under-selects.
 colocated_suites() {
   local p="$1" stem dir base candidate
   if is_suite_path "$p"; then
@@ -1162,17 +1110,10 @@ select_for() {
   local origin_family hit_family hop_state
   local pattern_key plain_key resolve_key hits_key matched hits covered
   local -a index_files=()
-  # PATTERN_ORIGIN maps a plain basename back to the ecosystem of the file that
-  # contributed it ('*' when two families contributed it, which over-selects),
-  # and PATTERN_CROSSED records whether that file had spent its transition.
   local -A PATTERN_ORIGIN=() PATTERN_CROSSED=() CROSSED=()
-  # PER SEED, not shared: a shared visited set made a changed file another
-  # seed had walked past look unmapped.
   local -A VISITED=()
   SEED_HITS=0
 
-  # R6: a sync script pulls in whatever its sources pull in. R5: a sync source
-  # seeds every copy the manifest declares.
   local -a sources=("$seed")
   while IFS= read -r line; do
     [[ -n "$line" ]] && sources+=("$line")
@@ -1212,8 +1153,6 @@ select_for() {
           add_suite "$sib" "co-located with $p" || true
         fi
       done <"$WORK_DIR/colocated"
-      # R7. The suite path is joined from two pieces so this file never carries
-      # its basename as one token, which would make this file name the suite.
       case "$p" in
       plugins/autonomy/reference/*)
         add_suite "scripts/validate-plugin-contracts"".test.sh" \
@@ -1222,7 +1161,6 @@ select_for() {
       *) ;;
       esac
       b="${p##*/}"
-      # MANIFESTS: no mention reaches a suite from a manifest or changelog.
       [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
       [[ -n "${NAMED[$b]:-}" ]] || covered=0
@@ -1240,7 +1178,6 @@ select_for() {
         PATTERN_CROSSED["$b"]="${CROSSED[$p]:-0}"
       else
         [[ "${PATTERN_ORIGIN[$b]}" == "$origin_family" ]] || PATTERN_ORIGIN["$b"]='*'
-        # Any contributor that has NOT yet crossed wins: over-select.
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
       printf '%s\n' "$p" >>"$WORK_DIR/plain"
@@ -1270,8 +1207,6 @@ select_for() {
         else
           git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -F -f "$WORK_DIR/patterns" -- "${CODE_SPECS[@]}" \
             >"$matched" || grep_rc=$?
-          # Reading the name lines costs about as much as 16 tree greps, so a
-          # run builds them once it has paid that many.
           TREE_GREPS=$((TREE_GREPS + 1))
           ((TREE_GREPS == ${AFFECTED_TESTS_TREE_GREPS:-16})) && build_name_lines
         fi
@@ -1285,8 +1220,6 @@ select_for() {
       fi
       LOOKUPS=$((LOOKUPS + 1))
       hits="$WORK_DIR/hits.$LOOKUPS"
-      # Fatal for the same reason: a filter that dies mid-stream hands the walk a
-      # TRUNCATED hit set.
       index_files=(/dev/null /dev/null)
       [[ -n "$resolve_key" || "$plain_key" == *.py$'\n'* ]] && index_files[0]="$WORK_DIR/resolvable-files"
       [[ "$plain_key$resolve_key" == *.py$'\n'* ]] && index_files[1]="$WORK_DIR/py-imports"
@@ -1301,8 +1234,6 @@ select_for() {
     while IFS=$'\t' read -r kind hit_path hit_name hit_x; do
       [[ -n "$hit_path" ]] || continue
       if [[ "$kind" == r ]]; then
-        # A mention that resolves to an ambiguous or structural file is a real
-        # reference to it, from any language, and spends no transition.
         if is_suite_path "$hit_path"; then
           add_suite "$hit_path" "references ${hit_name##*/} (resolves to $hit_name)" || true
         elif [[ -z "${VISITED[$hit_path]:-}" ]]; then
@@ -1315,17 +1246,12 @@ select_for() {
       hit_family="$LANG_FAMILY"
       origin_family="${PATTERN_ORIGIN[$hit_name]:-*}"
       if [[ "$origin_family" == '*' || "$hit_family" == "$origin_family" ]]; then
-        # R3: same language, spends no transition.
         hop_state="${PATTERN_CROSSED[$hit_name]:-0}"
       elif [[ "$origin_family" == ext:* ]]; then
-        # R4: data reaches code of any language, and spends no transition.
         hop_state=0
       elif [[ "$hit_x" != 1 ]]; then
-        # R4: another language that neither runs nor loads the file.
         continue
       elif ! is_suite_path "$hit_path" && [[ "${PATTERN_CROSSED[$hit_name]:-0}" == 1 ]]; then
-        # R4: a second transition. A suite that runs or loads the file is still
-        # taken: the budget bounds the walk, not the suites it ends in.
         continue
       else
         hop_state=1
@@ -1335,9 +1261,6 @@ select_for() {
         continue
       fi
       [[ -n "${VISITED[$hit_path]:-}" ]] && continue
-      # AGGREGATE, never assign: one path can be hit by several patterns in one
-      # round that disagree about whether its chain has crossed, and the most
-      # permissive state wins, whatever order git grep printed them in.
       if [[ "${CROSSED[$hit_path]:-1}" != "0" ]]; then
         CROSSED["$hit_path"]="$hop_state"
       fi
@@ -1377,8 +1300,6 @@ check_scope_globs() {
   exit 2
 }
 
-# select_scoped <changed-path> -> R8: add every suite whose declared test-scope
-# matches the path, counting each as a hit of the current seed.
 select_scoped() {
   local p="$1" i
   for i in "${!SCOPE_GLOBS[@]}"; do
@@ -1387,10 +1308,6 @@ select_scoped() {
     add_suite "${SCOPE_SUITES[i]}" "test-scope ${SCOPE_GLOBS[i]}" || true
   done
 }
-
-# ---------------------------------------------------------------------------
-# No-suite classification
-# ---------------------------------------------------------------------------
 
 declare -a NO_SUITE_PATTERNS=()
 load_no_suite_patterns() {
@@ -1418,15 +1335,8 @@ is_no_suite() {
   return 1
 }
 
-# ---------------------------------------------------------------------------
-# Changed-file resolution
-# ---------------------------------------------------------------------------
-
 changed_from_diff() {
   local base="" mb
-  # An explicit --base must resolve or be an error naming it, never a silent
-  # fall-through to origin/main that reports suites for a diff nobody asked
-  # for. The fallback ladder is shared with the checker gates.
   if [[ -n "$base_ref" ]]; then
     if ! changed_files::verify_base "$base_ref"; then
       echo "error: base ref '$base_ref' does not resolve to a commit." >&2
@@ -1463,13 +1373,9 @@ changed_from_diff() {
   fi
 }
 
-# --print-fanout exists so the DERIVATION itself is inspectable and testable:
-# the copy set for a shared source must equal what the sync manifest declares
-# right now, not what someone once transcribed into this file.
 if [[ -n "$print_fanout" ]]; then
   build_sync_map
   print_fanout="${print_fanout#./}"
-  # Presence, not non-emptiness: a canonical-only src has an empty copy set.
   if [[ -z "${SYNC_SRC_COPIES[$print_fanout]+set}" ]]; then
     echo "error: $print_fanout is not the src of any scripts/sync-*.sh manifest." >&2
     exit 2
@@ -1516,8 +1422,6 @@ run_replay() {
     echo "error: '$replay_range' holds no commits to replay." >&2
     exit 2
   fi
-  # This tree's rules travel with the replay: its no-suite list and its suites'
-  # declared scopes.
   cp "$NO_SUITE_LIST" "$WORK_DIR/replay-no-suite" || exit 2
   if [[ -n "$SCOPES_LIST" ]]; then
     cp "$SCOPES_LIST" "$WORK_DIR/replay-scopes" || exit 2
@@ -1531,9 +1435,6 @@ run_replay() {
     exit 2
   fi
   if [[ -n "$against_ref" ]]; then
-    # <ref>'s selector, its scripts/lib/ and its lists, pointed at the replay
-    # tree through AFFECTED_TESTS_ROOT. A selector without that override gets
-    # its one `cd` line rewritten; one with neither form cannot be pointed.
     mkdir -p "$against/scripts" || exit 2
     if ! git show "$against_ref:scripts/affected-tests.sh" >"$against/selector.orig" ||
       ! git archive "$against_ref" scripts/lib | tar -x -C "$against" ||
@@ -1550,7 +1451,6 @@ run_replay() {
     grep -q -- '--with-always)' "$against/scripts/affected-tests.sh" && against_flags+=(--with-always)
     git show "$against_ref:scripts/affected-tests-always.txt" >"$against/always.txt" 2>/dev/null ||
       rm -f "$against/always.txt"
-    # <ref>'s own declared scopes, read from its suites in the scratch clone.
     against_scopes="$against/scopes.txt"
     if ! changed_files::verify_base "$against_ref" || ! against_sha="$(git rev-parse "$against_ref")" ||
       ! git -C "$tree" -c advice.detachedHead=false checkout -q --detach "$against_sha" ||
@@ -1581,8 +1481,6 @@ run_replay() {
       printf '%s\t%s\t-\t%s\t-\n' "$c" "$n_new" "$u_new" >>"$WORK_DIR/replay-counts"
       continue
     fi
-    # The always list as <ref> has it, narrowed to the suites this commit has:
-    # its selector refuses an entry naming no suite.
     if [[ -f "$against/always.txt" ]]; then
       awk -v root="$tree" '/^#/ || NF == 0 { print; next } { if ((getline _ < (root "/" $1)) >= 0) print; close(root "/" $1) }' \
         "$against/always.txt" >"$WORK_DIR/always-now"
@@ -1635,10 +1533,6 @@ if [[ -n "$each_from" ]]; then
 elif [[ ${#explicit_paths[@]} -gt 0 ]]; then
   for p in "${explicit_paths[@]}"; do
     p="${p#./}"
-    # Every rule is repo-relative, and so is every sync-manifest key. An
-    # absolute path that stayed absolute would miss them and fall through to a
-    # broad no-suite pattern: success with no suites. Normalize what can be
-    # normalized and refuse the rest out loud.
     case "$p" in
     "$PWD"/*) p="${p#"$PWD"/}" ;;
     /* | [A-Za-z]:[/\\]*)
@@ -1740,7 +1634,6 @@ fi
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
-  # Only this tree's own headers: handed-in declarations may postdate the tree.
   [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && check_scope_globs "$f"
   select_for "$f"
   select_scoped "$f"
@@ -1748,9 +1641,6 @@ for f in "${changed[@]}"; do
     if is_no_suite "$f"; then
       NO_SUITE_FILES+=("$f")
     elif [[ ! -e "$f" ]]; then
-      # A deletion that maps to nothing needs no suite: it has no content left
-      # to cover, and anything that still referenced it selects through its own
-      # changed path or a suite naming the dead path.
       DELETED+=("$f")
     else
       UNMAPPED+=("$f")
@@ -1796,15 +1686,12 @@ fi
 # an indirect reference and rejects the expanded key list as a variable name.
 declare -a selected=()
 if [[ ${#SUITES[@]} -gt 0 ]]; then
-  # R9. The key list is expanded once, before the loop adds to it.
   for s in "${!SUITES[@]}"; do
     case "$s" in
     *.test.js | *.test.mjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
     *) ;;
     esac
   done
-  # Checked, and read from a file: a failing `sort` here would empty a
-  # NON-EMPTY selection and report "every changed file is a no-suite class".
   if ! printf '%s\n' "${!SUITES[@]}" | sort -u >"$WORK_DIR/selected"; then
     echo "error: sorting the selected-suite list failed; refusing to report an empty selection" >&2
     echo "       when ${#SUITES[@]} suite(s) were selected." >&2
@@ -1822,10 +1709,6 @@ if [[ ${#selected[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# The partition happens HERE, after the unmapped check and the sort, so every
-# leg derives the same full selection from the same diff and keeps its own
-# slice; partitioning the changed files would let the unmapped check fire on
-# only one leg.
 if [[ "$shard_total" -gt 1 ]]; then
   declare -a leg=()
   for ((si = shard_index; si < ${#selected[@]}; si += shard_total)); do
@@ -1880,8 +1763,6 @@ if [[ -n "$not_run_file" && ${#delegated[@]} -gt 0 ]] &&
   exit 2
 fi
 
-# The suites run under the CI venv's python when one exists (PyYAML and the
-# rest of .github/requirements-ci.txt), not whatever python3 the host has.
 if venv_bin=$(pytest_python::venv_bin); then
   PATH="$venv_bin:$PATH"
 fi

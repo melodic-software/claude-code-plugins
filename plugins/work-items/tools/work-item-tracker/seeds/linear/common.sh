@@ -473,8 +473,6 @@ wit_linear_gql() {
   }
 }
 
-# --- normalization -----------------------------------------------------------------
-
 # wit_linear_normalize_program — a jq program mapping ONE raw Linear `Issue` (selected
 # with WIT_LINEAR_ISSUE_FIELDS) into the seam's normalized item object (CONTRACT.md
 # "JSON output contract"). Expects jq args $sv (schema version), $ws (workspace slug),
@@ -588,8 +586,6 @@ wit_linear_require_scoped_id() {
     wit_usage_error "$WIT_ID_OWNER/$WIT_ID_REPO is not in config.linear.scopes (the declared scope)"
   wit_linear_scope_parts "$WIT_ID_OWNER/$WIT_ID_REPO"
 }
-
-# --- lease helpers (CONTRACT.md "Lease protocol") ------------------------------------
 
 # wit_linear_now_iso — current UTC time in the marker's ISO-8601 form.
 wit_linear_now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }

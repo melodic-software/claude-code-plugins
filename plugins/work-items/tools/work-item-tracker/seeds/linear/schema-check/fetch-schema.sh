@@ -21,7 +21,6 @@ if ! curl -fsSL --proto '=https' "$URL" -o "$DEST"; then
   exit 1
 fi
 
-# A truncated or error-page download would otherwise fail later as a confusing parse error.
 if ! grep -q '^type Issue ' "$DEST"; then
   # shellcheck disable=SC2016  # the backticks are literal message text, not a command substitution
   printf 'fetch-schema.sh: %s does not look like the Linear SDL (no `type Issue`) — refusing it\n' "$DEST" >&2

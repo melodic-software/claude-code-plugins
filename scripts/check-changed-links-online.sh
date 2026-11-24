@@ -35,8 +35,6 @@ if ! command -v "$lychee" >/dev/null 2>&1; then
   exit 2
 fi
 
-# The excludes are test data whose links are meant not to resolve, as the
-# offline lane excludes them. A diff git cannot read is exit 2, never "no links".
 paths=(-- '*.md'
   ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**'
   ':(exclude)scripts/fixtures/hooks-lifecycle-table.md')
@@ -60,9 +58,6 @@ if ((${#files[@]})); then
   done < <(LC_ALL=C sort -u <<<"$dump")
 fi
 
-# A link to this repository's base branch whose path exists at HEAD resolves
-# once the change merges, so it is not checked online: a pull request that adds
-# a file and links it would otherwise always fail.
 self=${SELF_REPO:-${GITHUB_REPOSITORY:-}}
 if [[ -n $self ]] && ((${#urls[@]})); then
   kept=()

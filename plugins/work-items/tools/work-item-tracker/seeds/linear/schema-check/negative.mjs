@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { buildSchema, parse, validate, getVariableValues } from 'graphql';
 const schema = buildSchema(fs.readFileSync('./schema.graphql', 'utf8'), { assumeValidSDL: true });
 
-// Deliberately-wrong variants of the adapter's real operations. Each must FAIL.
 const bad = [
   ['wrong field name on Issue',
    `query { issues(first:1) { nodes { id statusName } } }`, {}],
@@ -42,6 +41,4 @@ for (const [label, q, vars] of bad) {
   else console.log(`MISSED  ${label}  <-- harness is blind to this class`);
 }
 console.log(`\nnegative control: ${caught}/${bad.length} deliberate faults detected.`);
-// A MISSED fault means the validator has gone blind to a whole class, which makes every green
-// run of validate.mjs meaningless. That must fail the process, not merely print.
 if (caught !== bad.length) process.exit(1);

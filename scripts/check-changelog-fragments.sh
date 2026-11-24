@@ -161,8 +161,6 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
     ;;
   docs/contracts/*/* | docs/conventions/*/*)
-    # Only a convention no plugin of the same name owns; in_mode below drops
-    # an unlisted one.
     name="$(changelog_fragments::convention_of "$path")" || continue
     rest="${path#docs/*/}"
     if [[ "$rest" == "$name/CHANGELOG.md" ]]; then
@@ -233,11 +231,6 @@ if [[ "$mode" == --check-required ]]; then
   gate_entry::finish 0
 fi
 
-# --check-release
-# The release may merge past fragments the base added after it was cut: they
-# ride the next release. It may not merge over a file it changes (a consumed
-# fragment, a CHANGELOG.md, a plugin.json) that the base changed since the cut,
-# since the release never read that change.
 findings=0
 while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   if ! base_blob="$(git ls-tree "$base" -- "$path")" || ! cut_blob="$(git ls-tree "$merge_base" -- "$path")"; then
