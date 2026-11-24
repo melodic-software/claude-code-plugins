@@ -752,6 +752,13 @@ const connectionLost = (error) => error?.name === "TypeError" && error.message =
 // Rounds one tick sends (judgment: five bounds the extra dispatches and their
 // reads per tick well under the GITHUB_TOKEN's 1,000 requests an hour).
 export const SWEEP_TICK_CAP = 5;
+/**
+ * Time one tick spends deciding rounds. The trusted-trigger gate trusts a dispatched run only
+ * when it was created within its WINDOW_MS, 10 minutes (check-trusted-trigger.mjs), and the
+ * dispatch job in pr-dispatch-feedback.yml times out at 10 minutes too. Setup, this budget, one
+ * verifier read in flight and the sends leave about 2.5 minutes of margin, so a sweep's late
+ * sends stay inside the gate's window: keep this value well under both bounds.
+ */
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
@@ -930,6 +937,11 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   return rest.defer ? { number, send, upstreamRunId: upstream.id } : send();
 }
 
+/**
+ * Copies pr-dispatch-feedback.yml's dispatch job timeout-minutes (10): sweepUnsent leaves a head
+ * alone until its last review run, trigger run or thread comment is that old, so it waits out a
+ * dispatch job still in flight for it. Change both together.
+ */
 export const UNSENT_GRACE_MS = 10 * 60_000;
 
 async function sweepUnsent(context) {
