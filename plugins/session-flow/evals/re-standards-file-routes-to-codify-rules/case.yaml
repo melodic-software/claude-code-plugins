@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: re-standards-file-routes-to-codify-rules
+description: 'Stop-and-route: the user asks /session-flow:retro for a retro of one standards file (which of its rules hold, which have a check behind them). That names no retro mode, so the skill names /corrections:codify rules with the file and stops: it reads no mode context file. The corrections stand-in is loaded, so the route is enabled. Deterministic graders only; no scaffold.'
+tags: [retro, stop-and-route, codify-rules]
+plugins: ["../..", "corrections-stub"]
+expected_outcome: 'The reply names /corrections:codify rules docs/standards/testing.md (or /corrections:codify rules with that file) as the skill for this and stops without running a retro: it reads none of the retro context files (session.md, quick.md, ci-runs.md).'
+execution:
+  prompt: '/session-flow:retro docs/standards/testing.md. Do a retro of this standards file: which of its rules still hold, and which have a check behind them.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-codify-rules
+    type: regex
+    pattern: '/?corrections:codify\s+rules\b'
+    arm: with-only
+  - name: no-retro-mode-read
+    type: tool_used
+    tool: Read
+    input_match: '"file_path":"[^"]*skills/retro/context/(?:session|quick|ci-runs)\.md"'
+    min: 0
+    max: 0
+    arm: with-only
