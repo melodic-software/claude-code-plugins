@@ -9,6 +9,7 @@ scope:
     - "**/package-lock.json"
     - "**/CHANGELOG.md"
     - "plugins/themes/hooks/bedroom/lights.ts"
+    - "plugins/*/scripts/docs-cache.sh"
     - "scripts/shared-copies.txt"
     - "scripts/skill-links.json"
   registries: [scripts/cross-plugin-source-registry.txt]
