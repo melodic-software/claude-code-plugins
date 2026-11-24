@@ -36,6 +36,21 @@ case "\$1 \$2" in
     case "\$endpoint" in
       */events\?*) serve events.json ;;
       */comments\?*) serve comments.json ;;
+      */contents/docs/conventions/source-control.yaml)
+        [[ " \$* " == *" -i "* && ! -f "$TEST_TMPDIR/conventions-fail" ]] || exit 1
+        if [[ -f "$TEST_TMPDIR/conventions.yaml" ]]; then
+          printf 'HTTP/2.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'
+          cat "$TEST_TMPDIR/conventions.yaml"
+        else
+          printf 'HTTP/2.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"message":"Not Found"}'
+          exit 1
+        fi
+        ;;
+      repos/melodic-software/standards/commits/main)
+        [[ -f "$TEST_TMPDIR/standards-sha" ]] || exit 1
+        cat "$TEST_TMPDIR/standards-sha"
+        ;;
+      repos/melodic-software/standards/contents/*) serve standards-trusted.json ;;
       */contents/*) serve trusted.json ;;
       *)
         n="\${endpoint##*/}"
@@ -154,11 +169,77 @@ assert_exit "an eval line from a bot with no lanes App setting holds the flip" 3
 APP_PLUGIN="$TEST_TMPDIR/app-plugin"
 mkdir -p "$APP_PLUGIN/skills/pull-request/scripts" "$APP_PLUGIN/skills/babysit-prs/scripts"
 cp "$SCRIPT" "$APP_PLUGIN/skills/pull-request/scripts/"
+cp -R "$SCRIPT_DIR/../../../lib" "$APP_PLUGIN/lib"
 printf 'babysit_python() { printf %q; }\n' "{\"issue_status_app_login\":\"$LANES_APP\"}" >"$APP_PLUGIN/skills/babysit-prs/scripts/babysit-python.sh"
 PATH="$STUB_DIR:$PATH" bash "$APP_PLUGIN/skills/pull-request/scripts/check-ready-holds.sh" 7 >/dev/null 2>&1
 assert_exit "an eval line from the lanes App the settings name lets the flip go on" 0 "$?"
 
 comments "$(comment 2026-11-21T07:00:05Z User 101 owner "$EVAL_LINE")"
+run 7 >/dev/null 2>&1
+assert_exit "with no conventions file the repository list is read" 0 "$?"
+assert_contains "the opt-in is read from the default branch" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/contents/docs/conventions/source-control.yaml -H"
+assert_not_contains "the opt-in read names no ref" "$(cat "$TEST_TMPDIR/calls")" "source-control.yaml?ref"
+assert_contains "the repository copy is read" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/contents/.github/standards/trusted-actors/trusted-actors.json"
+assert_not_contains "standards is not read without the opt-in" "$(cat "$TEST_TMPDIR/calls")" "melodic-software/standards"
+
+printf 'pr_open_state: ready\n' >"$TEST_TMPDIR/conventions.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "an unset trusted_actors_source reads the repository list" 0 "$?"
+assert_not_contains "an unset key reads no standards list" "$(cat "$TEST_TMPDIR/calls")" "melodic-software/standards"
+
+printf 'trusted_actors_source: repository\n' >"$TEST_TMPDIR/conventions.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "trusted_actors_source repository reads the repository list" 0 "$?"
+assert_not_contains "repository reads no standards list" "$(cat "$TEST_TMPDIR/calls")" "melodic-software/standards"
+
+STANDARDS_SHA=0123456789abcdef0123456789abcdef01234567
+printf 'trusted_actors_source: standards\n' >"$TEST_TMPDIR/conventions.yaml"
+printf '%s\n' "$STANDARDS_SHA" >"$TEST_TMPDIR/standards-sha"
+cp "$TEST_TMPDIR/trusted.json" "$TEST_TMPDIR/standards-trusted.json"
+printf '{"version":1,"actors":[]}\n' >"$TEST_TMPDIR/trusted.json"
+run 7 >/dev/null 2>&1
+assert_exit "an opted-in repository reads the standards list" 0 "$?"
+assert_contains "the standards commit main names is resolved" "$(cat "$TEST_TMPDIR/calls")" "repos/melodic-software/standards/commits/main --jq .sha"
+assert_contains "the standards list is read at that commit" "$(cat "$TEST_TMPDIR/calls")" "repos/melodic-software/standards/contents/components/trusted-actors/trusted-actors.json?ref=$STANDARDS_SHA"
+assert_not_contains "an opted-in repository reads no repository copy" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/contents/.github/standards"
+
+cp "$TEST_TMPDIR/standards-trusted.json" "$TEST_TMPDIR/trusted.json"
+printf '{"version":1,"actors":[]}\n' >"$TEST_TMPDIR/standards-trusted.json"
+run 7 >/dev/null 2>&1
+assert_exit "an eval line from a human the standards list leaves out holds the flip" 3 "$?"
+
+printf '{"version":1,"actors":[{"id":101,"login":"owner","kind":"human"}]}\n' >"$TEST_TMPDIR/standards-trusted.json"
+rm -f "$TEST_TMPDIR/standards-sha"
+out=$(run 7 2>/dev/null)
+assert_exit "an unreadable standards commit leaves the label holding" 3 "$?"
+assert_contains "the refusal names the standards commit" "$out" "melodic-software/standards main"
+
+printf 'not-a-sha\n' >"$TEST_TMPDIR/standards-sha"
+run 7 >/dev/null 2>&1
+assert_exit "a malformed standards commit leaves the label holding" 3 "$?"
+
+printf '%s\n' "$STANDARDS_SHA" >"$TEST_TMPDIR/standards-sha"
+rm -f "$TEST_TMPDIR/standards-trusted.json"
+out=$(run 7 2>/dev/null)
+assert_exit "an unreadable standards list leaves the label holding" 3 "$?"
+assert_contains "the refusal names the standards commit it read at" "$out" "$STANDARDS_SHA"
+
+printf 'trusted_actors_source: elsewhere\n' >"$TEST_TMPDIR/conventions.yaml"
+out=$(run 7 2>/dev/null)
+assert_exit "an unknown trusted_actors_source leaves the label holding" 3 "$?"
+assert_contains "the refusal names the unknown value" "$out" "trusted_actors_source 'elsewhere'"
+assert_not_contains "an unknown value reads no list" "$(cat "$TEST_TMPDIR/calls")" "trusted-actors.json"
+
+printf 'trusted_actors_source:\n  - standards\n' >"$TEST_TMPDIR/conventions.yaml"
+run 7 >/dev/null 2>&1
+assert_exit "a non-scalar trusted_actors_source leaves the label holding" 3 "$?"
+
+touch "$TEST_TMPDIR/conventions-fail"
+out=$(run 7 2>/dev/null)
+assert_exit "an unreadable conventions file leaves the label holding" 3 "$?"
+assert_contains "the refusal says the opt-in was not read" "$out" "trusted_actors_source could not be read"
+rm -f "$TEST_TMPDIR/conventions-fail" "$TEST_TMPDIR/conventions.yaml" "$TEST_TMPDIR/standards-sha"
+
 rm -f "$TEST_TMPDIR/trusted.json"
 run 7 >/dev/null 2>&1
 assert_exit "an unreadable trusted-actors list leaves the label holding" 3 "$?"

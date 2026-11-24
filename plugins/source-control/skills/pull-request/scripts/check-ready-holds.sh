@@ -15,6 +15,12 @@
 # create's "Draft: requested early look" or "Draft: multi-session container",
 # also holds the flip: a person chose that draft, so only a person flips it.
 #
+# The eval hold's trusted-actors list is the repository's own copy, unless
+# trusted_actors_source in docs/conventions/source-control.yaml on the default
+# branch is standards: then it is melodic-software/standards' list at the commit
+# its main names. Any other value, or a source that cannot be read, keeps the
+# label holding.
+#
 # Usage:
 #   check-ready-holds.sh <pr> [--repo <owner/repo>] [--unattended]
 #
@@ -30,6 +36,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRUSTED_ACTORS_PATH=".github/standards/trusted-actors/trusted-actors.json"
+STANDARDS_HOST="github.com"
+STANDARDS_REPO="melodic-software/standards"
+STANDARDS_TRUSTED_ACTORS_PATH="components/trusted-actors/trusted-actors.json"
 
 usage() {
   sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -66,6 +75,8 @@ done
 
 command -v gh >/dev/null 2>&1 || die 5 "gh not found on PATH"
 command -v jq >/dev/null 2>&1 || die 5 "jq not found on PATH"
+# shellcheck source=../../../lib/base-file.sh
+source "$SCRIPT_DIR/../../../lib/base-file.sh" 2>/dev/null || die 5 "lib/base-file.sh could not be loaded"
 
 repo_args=()
 [[ -n "$REPO" ]] && repo_args=(--repo "$REPO")
@@ -81,6 +92,44 @@ lanes_app_login_from_settings() {
     babysit_python "$SCRIPT_DIR/../../babysit-prs/scripts/babysit_merge_settings.py" show 2>/dev/null
   ) || return 0
   jq -r '.issue_status_app_login // "" | strings' <<<"$shown" 2>/dev/null | tr -d '\r' || true
+}
+
+trusted_list() {
+  local host="$1" path="$2" setting sha list
+  base_file_read_key --http-response trusted_actors_source < <(gh api --hostname "$host" -i -X GET \
+    "repos/$path/contents/$CONVENTION_KEY_YAML_REL" -H "Accept: application/vnd.github.raw" 2>/dev/null)
+  if [[ "$BASE_FILE_STATE" == failed ]]; then
+    echo "trusted_actors_source could not be read: ${BASE_FILE_REASON//[[:cntrl:]]/ }"
+    return 1
+  fi
+  setting=repository
+  ((BASE_FILE_HAS)) && setting=$BASE_FILE_VALUE
+  case "$setting" in
+  repository)
+    list=$(gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TRUSTED_ACTORS_PATH") || {
+      echo "the trusted-actors list could not be read"
+      return 1
+    }
+    ;;
+  standards)
+    sha=$(gh api --hostname "$STANDARDS_HOST" "repos/$STANDARDS_REPO/commits/main" --jq .sha 2>/dev/null)
+    sha=${sha//$'\r'/}
+    [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || {
+      echo "the commit $STANDARDS_REPO main names could not be read"
+      return 1
+    }
+    list=$(gh api --hostname "$STANDARDS_HOST" -H "Accept: application/vnd.github.raw+json" \
+      "repos/$STANDARDS_REPO/contents/$STANDARDS_TRUSTED_ACTORS_PATH?ref=$sha") || {
+      echo "the trusted-actors list in $STANDARDS_REPO at $sha could not be read"
+      return 1
+    }
+    ;;
+  *)
+    echo "trusted_actors_source '${setting//[[:cntrl:]]/ }' is not standards or repository"
+    return 1
+    ;;
+  esac
+  printf '%s\n' "$list"
 }
 
 eval_only_hold() {
@@ -102,8 +151,8 @@ eval_only_hold() {
     echo "its comments could not be read"
     return 1
   }
-  trusted=$(gh api --hostname "$host" -H "Accept: application/vnd.github.raw+json" "repos/$path/contents/$TRUSTED_ACTORS_PATH") || {
-    echo "the trusted-actors list could not be read"
+  trusted=$(trusted_list "$host" "$path") || {
+    printf '%s\n' "$trusted"
     return 1
   }
   verdict=$(jq -rn --argjson events "$events" --argjson comments "$comments" --argjson trusted "$trusted" --arg app "$(lanes_app_login_from_settings)" '
