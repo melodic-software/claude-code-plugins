@@ -2792,6 +2792,55 @@ test("workflow_run dispatcher: naming a relay leaves a review run's terms unchan
   );
 });
 
+const upstreamAttemptRouteAt = (n) => `GET /repos/${REPOSITORY}/actions/runs/${UPSTREAM_RUN_ID}/attempts/${n}`;
+const upstreamRecordAt = (n) => `reconcile-rerun-${UPSTREAM_RUN_ID}-${n}-${HEAD_SHA}`;
+const upstreamRecordRouteAt = (n) =>
+  `GET /repos/${REPOSITORY}/actions/artifacts?name=${upstreamRecordAt(n)}&per_page=100&page=1`;
+
+function rerunUpstreamRoutes({ at = 2, upstream = {}, reconciler = {}, artifacts, recordAt = {} } = {}) {
+  const rerun = { run_attempt: at, ...upstream, triggering_actor: ACTIONS_BOT };
+  return {
+    ...runDispatcherRoutes({ dispatcher: { status: "completed" }, upstream: rerun }),
+    [upstreamAttemptRouteAt(at)]: { ...UPSTREAM, ...rerun, run_started_at: "2026-10-19T19:04:45Z" },
+    [upstreamRecordRouteAt(at)]: artifacts ?? listing(rerunRecord({ name: upstreamRecordAt(at), ...recordAt })),
+    [reconcilerRoute]: reconcilerRun(reconciler),
+    [reconcilerCompare]: { status: "ahead" },
+  };
+}
+
+const rerunDispatched = (options) => runDispatched({ reconcilerWorkflow: RECONCILER_WORKFLOW, ...options });
+
+test("workflow_run dispatcher: a review re-run the reconciler recorded proceeds", async () => {
+  const github = fakeGitHub(rerunUpstreamRoutes());
+  assert.deepEqual(await rerunDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(upstreamRecordRouteAt(2)));
+  assert.ok(github.calls.includes(reconcilerCompare));
+});
+
+for (const [label, routes, options = {}] of [
+  ["no record vouches for it", { artifacts: listing() }],
+  ["its record is from a run of another workflow", { reconciler: { path: ".github/workflows/copy.yml" } }],
+  ["its record is from a run off the default branch", { reconciler: { head_branch: "feat/forged" } }],
+  ["its record was created after the re-run started", { recordAt: { created_at: "2026-10-19T19:04:50Z" } }],
+  ["it is attempt 4, past the reconciler's cap", { at: 4 }],
+  ["its actor is unlisted", { upstream: { actor: STRANGER_USER } }],
+  ["the gate names no reconciler workflow", {}, { reconcilerWorkflow: "" }],
+]) {
+  test(`workflow_run dispatcher: a github-actions[bot] review re-run is refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(rerunUpstreamRoutes(routes));
+    assert.deepEqual(await rerunDispatched({ github, ...options }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("workflow_run dispatcher: a relay re-run by github-actions[bot] stays refused under a reconciler record", async () => {
+  const github = fakeGitHub(rerunUpstreamRoutes({ upstream: RELAY }));
+  assert.deepEqual(
+    await rerunDispatched({ github, runDispatcherRelay: RELAY_WORKFLOW }),
+    STOPPED("untrusted-actor"),
+  );
+  assert.ok(!github.calls.includes(upstreamRecordRouteAt(2)));
+});
+
 // A pull_request_target run of the push dispatcher's workflow (ADR 0090): its
 // head_branch and head_sha are the PR's (run 42286186105), so the PR entry and
 // the record's commit stand in for the default-branch checks.
