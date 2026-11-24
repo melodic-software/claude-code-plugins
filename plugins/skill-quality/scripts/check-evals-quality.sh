@@ -115,21 +115,9 @@ for f in "$@"; do
 done
 
 EXPECTED_OUTPUT_MIN=40
-# Q7: whole-item hedges only — a substring match would flag verifiable
-# criteria that merely contain a hedge word ("Touches no files" is fine).
 VAGUE_RE='^(the )?(output|response|result|it) (is|looks|seems) (good|correct|right|fine|reasonable|appropriate|as expected)[.]?$|^(works( as expected| correctly| well)?|correct( behavior)?|looks good|handles it( gracefully| well)?|good (output|behavior|response)|behaves (correctly|properly|well|as expected)|responds appropriately)[.]?$'
-# Q10: strongly evaluative words that leave a criterion's standard undefined.
-# Whole-word, case-insensitive. "well", "clear", "relevant", "quality" and
-# "effective" are left out: they are mostly technical terms in this corpus.
 EVALUATIVE_RE='(?<![A-Za-z0-9_])(good|appropriate|reasonable|properly|correctly|useful|helpful|adequate|sensible)(?![A-Za-z0-9_])'
-# Q9: lexical signal that a case pins behavior the skill must NOT exhibit.
-# Deliberately lenient (matches inside longer words/phrases): under-warning
-# beats noise for an advisory check.
 NEGATIVE_RE='refus|declin|must not|does not|doesn.t|never|reject|block|anti-pattern|antipattern|not |guardrail|instead of|rather than|without'
-# Q4 prose-path tokens: require at least one directory component and a
-# file extension so branch names (feat/foo) and slash-separated enums
-# (ours/theirs) stay silent. Bare filenames (CLAUDE.md) are also out of
-# scope — too common as narration without being a fixture claim.
 PROSE_PATH_RE='(?:\./)?(?:[A-Za-z0-9_.@+-]+/)+[A-Za-z0-9_.@+-]+\.(?:md|json|ts|tsx|js|jsx|mjs|cjs|py|sh|bash|zsh|yml|yaml|toml|txt|html|htm|css|scss|rs|go|java|rb|php|c|h|cpp|hpp|cc|cs|sql|xml|svg|png|jpg|jpeg|gif|webp|pdf|lock|env|cfg|ini|conf)'
 
 FAILED=0
@@ -275,11 +263,6 @@ while IFS="$US" read -r kind a b c; do
   FAIL) err "$a" ;;
   WARN) warn "$a" ;;
   FILE)
-    # a=file, b=caseref, c=fixture path. Resolve relative to the skill dir
-    # (parent of the evals dir), then the evals dir. An absolute path or a
-    # `..` component escapes the documented roots — reject it BEFORE the
-    # existence test, so a traversal entry can never pass by pointing at a
-    # host file that happens to exist.
     if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
       err "$a: $b: files entry \"$c\" escapes the documented fixture roots (absolute path or '..' component) — fixtures must live under the skill or evals directory (Q4)"
     else
@@ -290,28 +273,14 @@ while IFS="$US" read -r kind a b c; do
     fi
     ;;
   PROSE)
-    # a=file, b=caseref, c=path-shaped token from prompt/expected_output.
-    # Same roots as FILE; WARN (not FAIL) so narration-heavy corpora stay
-    # green while the silent files:[] dodge is still surfaced. Set
-    # narration: true to opt out, or declare the path in files.
     c="$(strip_trailing_punct "$c")"
     [[ -z "$c" ]] && continue
-    # Skip URL leftovers (https://example.com/docs/a.md → example.com/docs/a.md)
-    # and host-shaped first segments. A bare "has a dot" test is too wide —
-    # versioned dirs like v1.2/schema/config.json are fixture paths, not hosts.
-    # Require a DNS-like label ending in an alphabetic TLD-ish final segment.
-    # Dotfiles like .claude/... stay in scope (leading-dot first segment fails
-    # the hostname pattern).
     first="${c%%/*}"
     if [[ "$c" == *"://"* ]] ||
       [[ "$first" =~ ^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*[.][A-Za-z]{2,}$ ]]; then
       continue
     fi
     set_fixture_roots "$a"
-    # PROSE tokens come from PROSE_PATH_RE, which has no leading-/ or drive
-    # alternative — absolute-looking prose is scanned without the leading /
-    # and falls through to the existence check. Only `../` traversal is
-    # reachable as an escape here; keep that gate before the -e test.
     if [[ "/$c/" == *"/../"* ]] || fixture_missing "$c"; then
       warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
     fi

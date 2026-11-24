@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for pr-body-linkage-gate.sh.
-#
-# Asserts the hook's OWN behavior against expectations transcribed by hand from
-# a reading of the ci-workflows pr-issue-linkage validator, deliberately not a
-# claim that the two agree, because nothing here executes the validator. A real
-# mirroring proof needs the validator itself as an oracle, which would mean
-# vendoring a copy of upstream JavaScript into this repo. What these cases DO cover is
-# every shape a hand port gets wrong: comment stripping (terminated and
-# unterminated) and code masking ahead of the negated-closer scan, the
-# JavaScript word boundaries that make `#12abc` and `unclose #5` non-matches,
-# the locale-dependence of `[[:space:]]`, that a body missing a section or
-# closing line ALLOWS, and that every undeterminable body ALLOWS.
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures and
-# invokes the hook as a subprocess from an UNRELATED cwd, so any reliance on the
-# caller's working directory would surface (the hook is anchored on the payload's
-# own `cwd`).
 
 set -uo pipefail
 
@@ -51,10 +34,6 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# new_repo <dir> <yml|yaml|nostep|plain> — a throwaway repo. `yml`/`yaml`
-# carry a workflow wiring in the `pr-require-checks/check-contract` composite
-# step, under either extension the hook's glob accepts; `nostep` carries a
-# workflow with no such step; `plain` carries no workflows at all.
 FIXTURE_RE='\.github/actions/pr-require-checks/(check-contract|report-ci-status)([@[:space:]]|$)'
 new_repo() {
   local r="$1" gated="$2"
@@ -117,22 +96,16 @@ assert_block() {
   if ((RC == 2)); then ok "$1"; else fail "$1: expected block(2), got rc=$RC ($ERR)"; fi
 }
 
-# gh_body <body> -> a `gh pr create` command carrying <body> as a single-quoted
-# literal. Bodies in this suite never contain a single quote.
 gh_body() {
   printf "gh pr create --title 'T' --body '%s'" "$1"
 }
 
-# The four contract sections, appended to most fixtures so each one's verdict
-# turns on its linkage lines alone.
 SECTIONS=$'\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x'
 GOOD=$'Closes #5'"$SECTIONS"
 NO_RELATED=$'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx'
 NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- refs #9'
 # #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
-# A negated closer beside valid linkage and every section: the one body shape
-# the gate blocks on, and the failing body every extraction case below uses.
 BAD=$'Refs: #5\n\nThis does not close #5.'"$SECTIONS"
 
 assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$BAD")"
@@ -165,9 +138,6 @@ assert_allow "a team YAML that does not parse stops the lookup" "$PATTERN_REPO" 
 if [[ "$ERR" == *"does not parse"* ]]; then ok "an unparsable team YAML says so"; else fail "an unparsable team YAML gave no note: $ERR"; fi
 unset CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN
 
-# --- Advisory contract: a closing line and the four sections ------------------
-# CI reports these as advisory, so a body missing any of them is not blocked.
-
 assert_allow "compliant body allowed" "$GATED" "$(gh_body "$GOOD")"
 assert_allow "missing ## Related is not blocked" "$GATED" "$(gh_body "$NO_RELATED")"
 assert_allow "missing closing line is not blocked" "$GATED" "$(gh_body "$NO_KEYWORD")"
@@ -176,11 +146,6 @@ assert_allow "empty ## Related is not blocked" "$GATED" \
 assert_allow "#3205 body (no ## Fix) is not blocked" "$GATED" "$(gh_body "$ISSUE_3205")"
 assert_allow "an empty literal body is not blocked" "$GATED" "gh pr create -t T --body ''"
 
-# CI masks fenced / indented / inline code before the keyword scan, so a
-# negated closer quoted from a template does not block. These fixtures go
-# through --body-file: a `--body '...'` literal cannot carry backticks (fences,
-# inline spans) without breaking the static reader, which fail-opens and would
-# hide a mask regression.
 printf '%s\n' $'Refs: #5\n\n```\nThis does not close #5.\n```'"$SECTIONS" >"$GATED/fenced-negated.md"
 printf '%s\n' $'Refs: #5\n\n    This does not close #5.'"$SECTIONS" >"$GATED/indented-negated.md"
 printf '%s\n' $'Refs: #5\n\n\tThis does not close #5.'"$SECTIONS" >"$GATED/tab-indented-negated.md"
@@ -189,10 +154,6 @@ assert_allow "a negated closer in indented code is masked" "$GATED" "gh pr creat
 assert_allow "a negated closer in tab-indented code is masked" "$GATED" "gh pr create -t T --body-file tab-indented-negated.md"
 assert_block "a line starting with a lowercase t is not code" "$GATED" \
   "$(gh_body $'this PR does not close #5'"$SECTIONS")"
-# On a line of unmatched, strictly-increasing backtick-run lengths, the
-# pair-after-collect scan must not rescan the remainder from each opener
-# (superlinear): it must finish quickly and still reach the negated closer
-# after it.
 {
   printf 'Refs: #5\n\n'
   printf 'crafted '
@@ -212,20 +173,12 @@ if ((elapsed < 5)); then
 else
   fail "crafted unmatched-tick line took ${elapsed}s (must stay under 5s here)"
 fi
-# Nested differing-length runs: a double-tick span wrapping a single-tick
-# span is one CommonMark inline span. Pairing that records the inner
-# span first orphans the outer span and leaks its gap text into the
-# unanchored keyword scan.
 printf '%s\n' $'Refs: #5\n\nSee the format: `` does not close #5 `x` `` for reference.'"$SECTIONS" >"$GATED/nested-ticks.md"
 assert_allow "a negated closer inside nested backticks is masked" "$GATED" \
   "gh pr create -t T --body-file nested-ticks.md"
 printf '%s\n' $'This does not close #5.\n\nSee the format: `` closes #9 `x` `` for reference.'"$SECTIONS" >"$GATED/nested-ticks-plus-real.md"
 assert_block "a real negated closer is not hidden by nested backtick decoys" "$GATED" \
   "gh pr create -t T --body-file nested-ticks-plus-real.md"
-# Escaped-tick idiom (double ticks around a lone tick) plus a later
-# same-length pair on the same line. A stale pending entry for the
-# inner tick would steal the later opener and leave its partner
-# unmatched, leaking the later span's text into the keyword scan.
 printf '%s\n' $'Refs: #5\n\nUse `` ` `` because `does not close #5` is shown.'"$SECTIONS" >"$GATED/escaped-tick.md"
 assert_allow "a negated closer after an escaped-backtick idiom is masked" "$GATED" \
   "gh pr create -t T --body-file escaped-tick.md"
@@ -261,9 +214,6 @@ assert_allow "Refs: owner/repo#N accepted" "$GATED" \
 assert_allow "Refs: marker indented three spaces accepted" "$GATED" \
   "$(gh_body $'   REFS:  #5  '"$SECTIONS")"
 
-# Tracker link lines: `/work-items:track link` prints the bound adapter's link
-# text, which is not GitHub's `#N` grammar on every tracker (work-items
-# CONTRACT.md "Change links"). Each line below is one an adapter emits.
 assert_allow "Linear closing link line accepted" "$GATED" \
   "$(gh_body $'Closes ENG-123'"$SECTIONS")"
 assert_allow "Linear non-closing link line (no colon) accepted" "$GATED" \
@@ -323,9 +273,6 @@ assert_block "a negated closer beside a comment still blocks" "$GATED" \
 
 printf '%s\n' "$BAD" >"$GATED/body.md"
 assert_block "--body-file reads the file" "$GATED" "gh pr create -t T --body-file body.md"
-# hook::jq_fields keeps a trailing newline that `$(jq)` chomped. Unchomped, a
-# relative --body-file joins onto `$cwd\n/body.md`, the file is unreadable, and
-# the hook fail-opens. Chomp restores the per-field verdict.
 assert_block "cwd with a trailing newline still reads a relative --body-file" \
   "$GATED"$'\n' "gh pr create -t T --body-file body.md"
 printf '%s\n' "$GOOD" >"$GATED/good.md"
@@ -340,8 +287,6 @@ assert_block "--body \$(cat <<EOF) substitution is read" "$GATED" \
   "$(printf "gh pr create -t T --body \"\$(cat <<'EOF'\n%s\nEOF\n)\"\n" "$BAD")"
 assert_allow "two heredocs are undeterminable" "$GATED" \
   "$(printf "cat <<'A' >x\njunk\nA\ngh pr create -t T --body-file - <<'EOF'\n%s\nEOF\n" "$BAD")"
-# An unterminated here-doc is a syntax error to shfmt, so the command reader
-# refuses the call (exit 2) before the gate judges any body.
 assert_block "an unterminated heredoc is refused by the reader" "$GATED" \
   "$(printf "gh pr create -t T --body-file - <<'EOF'\n%s\n" "$GOOD")"
 if [[ "$ERR" == *'got no parse'*'unclosed here-document'* ]]; then
@@ -381,8 +326,6 @@ assert_allow "-R attached form is out of scope too" "$GATED" \
   "$(printf "gh pr create -Rother/repo -t T --body '%s'" "$BAD")"
 assert_block "sudo wrapper is unwrapped" "$GATED" \
   "$(printf "sudo gh pr create -t T --body '%s'" "$BAD")"
-# A wrapper option's SEPARATED value sits where the command name is expected;
-# skipping the flag alone leaves the gate looking at the value.
 assert_block "sudo -u root consumes its value" "$GATED" \
   "$(printf "sudo -u root gh pr create -t T --body '%s'" "$BAD")"
 assert_block "sudo -uroot attaches its value" "$GATED" \
@@ -398,8 +341,6 @@ assert_block "sudo -r role consumes its SELinux value" "$GATED" \
 assert_block "sudo -t type consumes its SELinux value" "$GATED" \
   "$(printf "sudo -t sysadm_t gh pr create -t T --body '%s'" "$BAD")"
 
-# A wrapper that moves the working directory or the root is the `cd` case
-# wearing a flag: the gate file and a relative body path resolve elsewhere.
 assert_allow "env -C moves the directory" "$GATED" \
   "$(printf "env -C %s gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 assert_allow "env --chdir= moves the directory" "$GATED" \
@@ -409,16 +350,12 @@ assert_allow "sudo -D moves the directory" "$GATED" \
 assert_allow "sudo -R moves the filesystem root" "$GATED" \
   "$(printf "sudo -R %s gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 
-# `env -S` carries an entire command line in one operand; it is a command to
-# re-parse, not a value to step over.
 assert_block "env -S operand is re-parsed" "$GATED" \
   "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$BAD")"
 assert_block "env --split-string= operand is re-parsed" "$GATED" \
   "$(printf "env --split-string=\"gh pr create -t T --body '%s'\"" "$BAD")"
 assert_allow "env -S carrying a compliant body allowed" "$GATED" \
   "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$GOOD")"
-# env appends its remaining operands to the split string, so a `-S` carrying
-# only the command prefix still reaches a body sitting after it.
 assert_block "env -S prefix splices the trailing argv" "$GATED" \
   "$(printf "env -S 'gh pr create' -t T --body '%s'" "$BAD")"
 assert_block "env --split-string= prefix splices the trailing argv" "$GATED" \
@@ -426,37 +363,26 @@ assert_block "env --split-string= prefix splices the trailing argv" "$GATED" \
 assert_allow "a spliced compliant body is allowed" "$GATED" \
   "$(printf "env -S 'gh pr create' -t T --body '%s'" "$GOOD")"
 
-# A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
-# reading it as a single unknown flag leaves `root` where the command belongs.
-# `command -p` still executes; `-v`/`-V` only print a pathname, so no PR exists
-# to gate and blocking one would be a false block.
 assert_block "command -p is an execution wrapper" "$GATED" \
   "$(printf "command -p gh pr create -t T --body '%s'" "$BAD")"
 assert_allow "command -v runs nothing" "$GATED" \
   "$(printf "command -v gh pr create -t T --body '%s'" "$BAD")"
 
-# Only the current shell's own builtin can relocate a later segment. `sudo cd`
-# and `env cd` FAIL (cd is a builtin, not an executable), so a wrapped cd must
-# not poison the segments after it.
 assert_block "a sudo-wrapped cd does not poison later segments" "$GATED" \
   "$(printf "sudo cd /tmp || gh pr create -t T --body '%s'" "$BAD")"
 assert_block "an env-wrapped cd does not poison later segments" "$GATED" \
   "$(printf "env cd /tmp && gh pr create -t T --body '%s'" "$BAD")"
-# `command`, `builtin`, and `eval` DO dispatch the builtin inside this shell.
 assert_allow "command cd relocates the current shell" "$GATED" \
   "$(printf "command cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 assert_allow "builtin cd relocates the current shell" "$GATED" \
   "$(printf "builtin cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 assert_allow "eval cd relocates the current shell" "$GATED" \
   "$(printf "eval cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
-# `-p` preserves execution, so the cd really happens and the call is out of
-# scope; `-v` only prints a description, so nothing moves and the gate applies.
 assert_allow "command -p cd executes the builtin" "$GATED" \
   "$(printf "command -p cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 assert_block "command -v cd only prints, so nothing moves" "$GATED" \
   "$(printf "command -v cd && gh pr create -t T --body '%s'" "$BAD")"
 
-# Options that print and exit run no command, so there is no PR to gate.
 assert_allow "env --help runs nothing" "$GATED" \
   "$(printf "env --help gh pr create -t T --body '%s'" "$BAD")"
 assert_allow "env --version runs nothing" "$GATED" \
@@ -464,8 +390,6 @@ assert_allow "env --version runs nothing" "$GATED" \
 assert_allow "sudo -V runs nothing" "$GATED" \
   "$(printf "sudo -V gh pr create -t T --body '%s'" "$BAD")"
 
-# An option the hook does not positively recognize could eat the next word, so
-# the call goes out of scope rather than being guessed at.
 assert_allow "an unrecognized sudo option bails" "$GATED" \
   "$(printf "sudo --future-option x gh pr create -t T --body '%s'" "$BAD")"
 assert_allow "an unrecognized sudo shorthand bails" "$GATED" \
@@ -492,7 +416,6 @@ assert_block "env -iu VAR is a cluster ending in a value" "$GATED" \
 assert_allow "a chdir letter inside a cluster still moves the directory" "$GATED" \
   "$(printf "env -iC %s gh pr create -t T --body '%s'" "$UNGATED" "$BAD")"
 
-# sudo login mode runs from the target user's home; shell mode does not move.
 assert_allow "sudo -i is login mode" "$GATED" \
   "$(printf "sudo -i gh pr create -t T --body '%s'" "$BAD")"
 assert_allow "sudo --login is login mode" "$GATED" \
@@ -500,20 +423,12 @@ assert_allow "sudo --login is login mode" "$GATED" \
 assert_block "sudo -s keeps the current directory" "$GATED" \
   "$(printf "sudo -s gh pr create -t T --body '%s'" "$BAD")"
 
-# --- How `gh` is spelled -----------------------------------------------------
-# The wrapper loop above already reads basenames; matching the binary any other
-# way lets a path-qualified or Windows-suffixed call walk straight past.
-
 for spelling in "gh.exe" "/usr/bin/gh" "./gh" "/c/Program Files/GitHub CLI/gh.exe"; do
   assert_block "'$spelling' is the same call" "$GATED" \
     "$(printf "'%s' pr create -t T --body '%s'" "$spelling" "$BAD")"
 done
 assert_allow "a command merely containing gh is not gh" "$GATED" \
   "npm run lighthouse-prod --body bad"
-
-# --- Directory changes -------------------------------------------------------
-# A cd/pushd earlier in the line moves the directory gh runs in, which is the
-# directory the gate file and any relative --body-file resolved against.
 
 printf '%s\n' "$GOOD" >"$OTHER/bad.md"
 assert_allow "cd retargets a relative --body-file" "$GATED" \
@@ -526,10 +441,6 @@ assert_allow "a cd inside sh -c still counts" "$GATED" \
   "bash -c \"cd $UNGATED && gh pr create -t T --body 'bad'\""
 assert_block "a cd AFTER the gh call does not excuse it" "$GATED" \
   "$(gh_body "$BAD") && cd $UNGATED"
-
-# --- pflag grouped shorthand -------------------------------------------------
-# `-db BODY`, `-dbBODY`, `-dF file`, `-dFfile` are all valid gh and all carry a
-# body a plain `-b`/`-F` match never sees.
 
 assert_block "-db takes the next word as the body" "$GATED" \
   "$(printf "gh pr create -db '%s'" "$BAD")"
@@ -556,11 +467,6 @@ assert_block "a .yaml gate workflow enforces too" "$GATED_YAML" "gh pr create -t
 printf '%s\n' "$BAD" >"$GATED_COMPOSITE/body.md"
 assert_block "the report-ci-status composite enforces too" "$GATED_COMPOSITE" "gh pr create -t T --body-file body.md"
 
-# --- Locale independence -----------------------------------------------------
-# `[[:space:]]` is locale-defined; JavaScript's `\s` is not. Each body below
-# uses a non-ASCII `\s` member (NBSP, em space) where the validator accepts
-# whitespace inside a negated closer, so both locales must BLOCK.
-
 locale_case() {
   local label="$1" body="$2" payload utf c
   printf '%s' "$body" >"$GATED/u.md"
@@ -583,7 +489,6 @@ printf 'Closes #5\r\n\r\n## Summary\r\n\r\nx\r\n\r\n## Fix\r\n\r\nx\r\n\r\n## Ve
 printf 'Refs: #5\r\n\r\nThis does not close #5.\r\n' >"$GATED/crlf-bad.md"
 assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crlf-good.md"
 assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
-
 # --- Large bodies stay inside the declared hook timeout ----------------------
 # A cancelled hook silently stops gating, so a large body must be judged inside
 # the 15 s hooks.json timeout; the bound is loose so a slow CI runner does not flake.
@@ -618,9 +523,6 @@ else
   fi
 fi
 
-# A section line ending in 20,000 blanks: the parameter-expansion trim re-scanned
-# the string at each candidate cut and took over 20 s on this body; the linear
-# trim takes well under 1 s. Same 8 s bound as the cases above.
 blank_run="$(printf '%20000s' '')"
 printf 'Closes #5\n\n## Summary\n\nx%s\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n' "$blank_run" >"$GATED/blanks.md"
 blanks_start=${EPOCHREALTIME:-}
@@ -639,8 +541,6 @@ else
   fi
 fi
 
-# The gate leaves nothing in TMPDIR: a compliant body, a blocked body, and the
-# 16000-line body that takes the scratch-file split.
 for tmp_case in "compliant:$GOOD:0" "blocked:$BAD:2" "dense:@dense.md:2"; do
   tmp_name="${tmp_case%%:*}"
   tmp_rest="${tmp_case#*:}"
@@ -665,8 +565,6 @@ for tmp_case in "compliant:$GOOD:0" "blocked:$BAD:2" "dense:@dense.md:2"; do
   fi
 done
 
-# linkage::split_lines matches the `printf '%s\n'` + read contract: one more
-# element than the number of newlines, empty text is one empty element.
 export LC_ALL=C
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
@@ -695,8 +593,6 @@ expect_split "only a newline is two empty elements" $'\n' "" ""
 split_pad="$(printf 'x%.0s' {1..16000})"
 expect_split "text past the here-string limit splits the same" "$split_pad"$'\nb\n' "$split_pad" b ""
 
-# linkage::problems stays the whole-contract verdict the standards lockstep
-# replays; only linkage::blocking_problems is advisory-blind.
 unlinked_body=$'Some prose.\n\n## Summary\ns\n\n## Fix\nf\n\n## Verification\nv\n\n## Related\nr\n'
 if linkage::problems "$unlinked_body"; then
   fail "linkage::problems passed a body with no closing line"
@@ -765,23 +661,18 @@ timed_run() {
   fi
 }
 
-# 30,000 words ahead of the keyword: the per-word suffix copy took over 15 s.
 {
   yes w | head -n 30000 | tr '\n' ' '
   printf 'closes #1\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
 } >"$GATED/long-words.md"
 timed_run "30000-word line ending in closes #1" long-words.md 0
 
-# 15,000 inline spans on one line: the code-span mask read the line one
-# character at a time, and each read measured the whole line.
 {
   yes "\`w\`" | head -n 15000 | tr '\n' ' '
   printf 'closes #1\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
 } >"$GATED/long-spans.md"
 timed_run "15000 inline spans on a line ending in closes #1" long-spans.md 0
 
-# An unterminated comment keeps the negated closer before it and drops the rest,
-# so the stripped body is ~65,400 blank lines whose trailing run chomp_to removes.
 {
   printf 'This does not close #5.\n<!--\n'
   printf '\n%.0s' {1..65400}
@@ -789,7 +680,6 @@ timed_run "15000 inline spans on a line ending in closes #1" long-spans.md 0
 } >"$GATED/long-newlines.md"
 timed_run "a negated closer, an unterminated comment, 65400 newlines and x" long-newlines.md 2
 
-# The same shape behind an unclosed code fence, which masks every later line.
 {
   printf 'This does not close #5.\n```\n'
   printf '\n%.0s' {1..65400}
@@ -797,7 +687,6 @@ timed_run "a negated closer, an unterminated comment, 65400 newlines and x" long
 } >"$GATED/long-fence.md"
 timed_run "a negated closer, an unclosed fence, 65400 newlines and x" long-fence.md 2
 
-# Differential: the functions this change replaced, kept verbatim as the oracle.
 old_chomp_to() {
   local __plv_dest="$1" __plv_s="$2"
   while [[ "$__plv_s" == *$'\n' ]]; do __plv_s="${__plv_s%$'\n'}"; done
@@ -829,8 +718,6 @@ old_negation_trigger_to() {
 }
 
 diff_chomp_inputs=("" $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
-# Bytes that are not valid UTF-8 just before the newline run: under the LC_ALL=C
-# every caller pins, `[^\n]` must still match them.
 diff_chomp_inputs+=($'\xff\n' $'a\xff\n\n' $'\xc3\n' $'\xe2\x80\n\n\n')
 # Built without a command substitution, which would itself strip the newlines.
 printf -v diff_nl_run '%300s' ''
@@ -879,10 +766,6 @@ else
   fail "negation_trigger_to differs from the old function on $diff_neg_bad of ${#diff_neg_inputs[@]} inputs"
 fi
 
-# --- Missing jq fails open ---------------------------------------------------
-# The hook cannot parse its payload without jq, and a policy gate that cannot
-# read its input must not refuse the command.
-
 STUB="$WORK/stub-bin"
 mkdir -p "$STUB"
 jq_stub_ok=1
@@ -903,10 +786,8 @@ if ((jq_stub_ok)) && [[ -x "$BASH_ABS" ]] && ! PATH="$STUB" command -v jq >/dev/
   else
     fail "a missing jq did not fail open"
   fi
-  # The plugin's hooks share one jq notice: after this gate tells the user, the
-  # MCP sibling stays quiet in the same session.
   JQ_DATA="$WORK/jq-data"
-  mkdir -p "$JQ_DATA/skip-notices" # the stub PATH has no mkdir
+  mkdir -p "$JQ_DATA/skip-notices"
   first=$(printf '%s' "$payload" | PATH="$STUB" CLAUDE_PLUGIN_DATA="$JQ_DATA" "$BASH_ABS" "$HOOK" 2>/dev/null)
   second=$(printf '%s' "$payload" | PATH="$STUB" CLAUDE_PLUGIN_DATA="$JQ_DATA" "$BASH_ABS" "$HOOK_DIR/pr-linkage-mcp-gate.sh" 2>/dev/null)
   if [[ "$first" == *systemMessage* && -z "$second" ]]; then

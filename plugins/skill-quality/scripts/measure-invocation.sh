@@ -414,7 +414,6 @@ cmd_score() {
           winner="$cname"
           predicted=false
         elif ((cscore == best)) && [[ "$winner" == "$skill" ]] && ((cscore > 0)); then
-          # Tie with a competitor: target did not uniquely win.
           predicted=false
           winner="$skill+$cname"
         fi
@@ -647,7 +646,6 @@ cmd_emit() {
     local -a rivals
     mapfile -t rivals < <(rival_plugins "$f")
     if ((${#rivals[@]})); then
-      # Every case sits one level below out_abs; paths are relative to the case directory.
       local -a paths
       paths=("$(rel_path "$out_abs/_" "$(cd "$root/plugins/$plugin" && pwd -P)")") || return 2
       for p in "${rivals[@]}"; do

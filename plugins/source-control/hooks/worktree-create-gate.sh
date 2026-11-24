@@ -156,8 +156,6 @@ json_field_to() {
     value=$(printf '%s' "$payload" | jq -r "(.${field} // empty)"' | gsub("\r";"")' 2>/dev/null)
   fi
   if [[ -z "$value" ]]; then
-    # No `2>/dev/null` on this rung: sed's stderr reaches this hook's stderr.
-    # The first-line cut and CR strip are parameter expansions, not processes.
     value=$(printf '%s' "$payload" | sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     value="${value%%$'\n'*}"
     value="${value//$'\r'/}"
@@ -206,13 +204,6 @@ if [[ ! -f "$helper" ]]; then
     "expected the helper at $helper"
 fi
 
-# The payload's session_id is what check-enter later proves ownership with.
-# Read it only after the empty-name refusal: that path never calls the helper,
-# and another field read would spend the spawn budget that path is measured
-# against. An empty id stays omitted: the helper then writes a host-and-time
-# reason that matches no session. An id outside the helper's grammar is refused
-# here, before the helper's exit 2, because that exit is reported as a bad
-# worktree name.
 json_field_to session_id session_id
 if [[ -n "$session_id" && ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; then
   gate::refuse \
@@ -227,13 +218,6 @@ fi
 if [[ -n "$root" ]]; then
   args+=(--fallback-root "$root")
 fi
-# The plugin data directory backs the helper's LAST rung — harness state rather
-# than a checkout, so it satisfies the outside-every-repository invariant on its
-# own. Passed through the helper's file channel because that is the interface
-# the helper documents for a value it must read verbatim. No pre-refusal here
-# when both the option and the data dir are absent: the worktreeroot.path git
-# config key may still supply the root, and only the helper (which has resolved
-# the repository) can know — its exit 3 is the honest refusal.
 data_root="${CLAUDE_PLUGIN_DATA:-}"
 if [[ -n "$data_root" ]]; then
   root_file="$(mktemp "${TMPDIR:-/tmp}/worktree-create-gate.XXXXXX")" || {
@@ -253,9 +237,6 @@ fi
 path="$(bash "$helper" "${args[@]}")"
 status=$?
 
-# The helper's stderr is not captured, so its own guidance has already reached the
-# user by the time this runs. What is added here is the translation of its
-# documented exit taxonomy (worktree-create.sh, "Exit codes") into a remedy.
 case "$status" in
 0) ;;
 2)

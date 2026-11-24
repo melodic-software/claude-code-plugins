@@ -51,6 +51,12 @@
       "default": [],
       "description": "Extra comments the comment lint passes: each item is an extended regular expression matched against a comment's text, for markers a repository's own tools read. Team file only."
     },
+    "comment_lint_exclude": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Repository-relative path globs of files the comment lint skips, each skip named on stderr; no other check reads it. * and ? match within one path segment, ** spans segments, every other character is literal. Keep each entry as narrow as the files need and state its justification beside it. Team file only."
+    },
     "comment_adr_dir": {
       "type": "string",
       "minLength": 1,

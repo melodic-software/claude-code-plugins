@@ -14,7 +14,8 @@ comment-dissolving edit has to make and a test suite can only sample:
                  Also CODE-CHANGED when the file holds `__doc__` or
                  `__dict__` in any token, or one of the identifiers `vars`,
                  `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc`
-                 or `doctest`; when the docstring holds `>>>`; when the
+                 or `doctest` other than as a keyword argument or parameter
+                 name (`help=`); when the docstring holds `>>>`; when the
                  function is decorated; when its name appears anywhere but
                  its own def line or directly before `(`; or when removal
                  leaves a body empty. It reads this one file only.
@@ -398,6 +399,26 @@ def without_docstrings(stream, docs: list[Docstring]):
     return kept, anchors
 
 
+def docstring_reader(stream) -> str | None:
+    """The first token through which the file can read docstrings at run time.
+
+    A DOC_READERS name directly after `(` or `,` and before `=` is a keyword
+    argument or parameter name, such as argparse's `help=`, not a reader."""
+    for i, (kind, text) in enumerate(stream):
+        if "__doc__" in text or "__dict__" in text:
+            return text
+        if kind != "identifier" or text not in DOC_READERS:
+            continue
+        keyword = (
+            0 < i < len(stream) - 1
+            and stream[i - 1][1] in ("(", ",")
+            and stream[i + 1] == ("=", "=")
+        )
+        if not keyword:
+            return text
+    return None
+
+
 def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     """DOCSTRING-ONLY, a refusal, or None when docstrings do not explain the diff."""
     a_kept, a_anchors = without_docstrings(a, a_docs)
@@ -407,16 +428,7 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     removed = [doc for key, doc in a_anchors.items() if key not in b_anchors]
     if not removed:
         return None
-    reader = next(
-        (
-            text
-            for kind, text in a + b
-            if "__doc__" in text
-            or "__dict__" in text
-            or (kind == "identifier" and text in DOC_READERS)
-        ),
-        None,
-    )
+    reader = docstring_reader(a) or docstring_reader(b)
     if reader is not None:
         return code_changed(
             reason="the file can read docstrings at run time", at=reader
