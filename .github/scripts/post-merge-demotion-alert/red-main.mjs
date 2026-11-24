@@ -1,7 +1,3 @@
-// The red-main rule as pure functions: when a red full run on main counts as
-// confirmed, which merge in the failing range is the culprit, whether the bot
-// may revert it, and the report. docs/conventions/pr-pipeline/README.md,
-// "Red main", states the rule; report.mjs reads GitHub and calls these.
 import { AGGREGATE_JOBS, GATE_ALIAS, GATE_CHECK } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 // The `red-main` leaf of pr-pipeline.yaml (pr-pipeline.schema.json); the one
@@ -29,7 +25,6 @@ export const resolveRedMain = (leaf) =>
   );
 
 const AGGREGATOR_STEP = "Aggregate hygiene results";
-// The all-branches secret scan fails on any branch, so it counts against no merge.
 const BRANCH_WIDE_GATES = new Set(["gitleaks failed"]);
 
 // pr-require-checks.yml's job ids, as a run on a commit tested before the
@@ -73,7 +68,6 @@ export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", 
 // unknown steps prove no failure to excuse.
 export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["failure"], baseline = false, noFailedJobs = false } = {}) {
   const listed = jobs.filter((job) => conclusions.includes(job.conclusion));
-  // The ci-status alias repeats CI Status's conclusion: the two are one check, CI Status.
   const failed = listed.some((job) => job.name === GATE_CHECK) ? listed.filter((job) => job.name !== GATE_ALIAS) : listed;
   const checks = noFailedJobs && failed.length === 0 ? ["pr-require-checks.yml: no failed jobs"] : [];
   for (const job of failed) {
@@ -215,8 +209,6 @@ export const renderUnreportedNote = ({ run, unreported }) =>
     `${run.url}/attempts/${run.attempt} posts no report, so this note names the red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. The next confirmed report names them again and decides over their merges.`,
   ].join("\n");
 
-// Text from commits and pull requests reaches the report only as inert lines
-// inside a text fence.
 const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
 
 const SUBJECT_PR = /\s*\(#(\d+)\)$/;

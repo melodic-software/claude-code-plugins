@@ -82,7 +82,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     text = readFileSync(process.env.PROBE ?? "", "utf8");
   } catch {
-    // An unreadable stream judges as an empty one: no result, so an error.
   }
   const { code, line } = judgeProbe(text, process.env.RUNNER_ROOT ?? "");
   process.stdout.write(`${line}\n`);

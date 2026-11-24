@@ -72,7 +72,6 @@ export function main(env = process.env, clock = Date.now) {
     console.log(`write-rating: pr=${pr} head=${rating.head} max=${rating.max} demote=${rating.demote} rater=${rating.rater} checker=${rating.checker}`);
     return 0;
   } catch (error) {
-    // The message names a field, never the result's text.
     console.log(`::warning title=merge-risk::no rating for this head: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return 1;
   }
