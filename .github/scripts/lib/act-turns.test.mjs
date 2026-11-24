@@ -1,7 +1,3 @@
-// Expected values come from the turn-evidence criterion: act-turns.json counts
-// the execution file's assistant messages with a null parent_tool_use_id
-// (main loop) and with one set (subagents), within the 32768-byte cap, and
-// says when the file holds main-loop messages only.
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,8 +12,6 @@ const tool = { type: "tool_use", name: "Bash" };
 const text = { type: "text", text: "x" };
 const result = (extra = {}) => ({ type: "result", subtype: "success", is_error: false, num_turns: 140, modelUsage: { m: {} }, ...extra });
 
-// Three main-loop messages over two model turns (m1 streamed as two
-// messages), three subagent messages over two turns, and a user message.
 const BOTH = [
   assistant("m1", null, text),
   assistant("m1", null, tool),
@@ -36,7 +30,6 @@ test("a fixture with main-loop and subagent messages counts each kind", () => {
 test("an execution file with no subagent message says it holds main-loop messages only", () => {
   const counts = turnCounts([assistant("m1", null, tool), assistant("m2", null, text), result()]);
   assert.deepEqual(counts, { main_loop: 2, subagent: 0, main_loop_turns: 2, subagent_turns: 0, note: MAIN_LOOP_ONLY });
-  // A missing parent_tool_use_id is the main loop, as null is.
   assert.equal(turnCounts([{ type: "assistant", message: { id: "a" } }]).main_loop, 1);
 });
 
