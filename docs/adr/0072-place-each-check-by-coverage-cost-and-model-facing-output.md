@@ -141,16 +141,6 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
   repository has them. Both left `pre-push` for it and also run in CI over the whole pull
   request. CI runs the test suites.
 
-## Addendum (2026-11-24): CI times the git hooks
-
-Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
-durations": when a change touches a hook config or a script a hook entry calls, CI installs
-every hook tool, runs every shipped `pre-commit` and `pre-push` entry on a fixed fixture (a
-10-file commit, a two-commit push), prints each entry's time in seconds and in S, and fails a
-hook whose total is over its 3 s budget, or an entry whose tool is missing
-(`scripts/check-git-hook-time-budget.sh`). A local run skips such an entry (item 4's skip).
-Nothing kills a hook at run time.
-
 ## Addendum (2026-11-24): a changelog-fragment entry in pre-push
 
 Owner decision
@@ -172,3 +162,13 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
   unusually large change is a signal to look at, not by itself a removal. The check that grows
   with the repository is `validate-plugin-contracts.mjs`.
+
+## Addendum (2026-11-24): CI times the git hooks
+
+Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
+durations": when a change touches a hook config or a script a hook entry calls, CI installs
+every hook tool, runs every shipped `pre-commit` and `pre-push` entry on a fixed fixture (a
+10-file commit, a two-commit push), prints each entry's time in seconds and in S, and fails a
+hook whose total is over its 3 s budget, or an entry whose tool is missing
+(`scripts/check-git-hook-time-budget.sh`). A local run skips such an entry (item 4's skip).
+Nothing kills a hook at run time.
