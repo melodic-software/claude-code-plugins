@@ -293,5 +293,16 @@ if [[ "$out" == applies=false ]]; then
 else
   fail "--scope-only should print applies=false after scripts/other.sh changed, got: $out"
 fi
+for mode in --scope-only --runs; do
+  args=("$mode")
+  [[ "$mode" == --runs ]] && args+=(1)
+  out="$(gate --root "$r" --base no-such-ref "${args[@]}" 2>/dev/null)"
+  rc=$?
+  if [[ $rc -eq 2 && "$out" != *applies=false* ]]; then
+    ok "a --base that is not a commit exits 2 ($mode), so the workflow's fallback times the hooks"
+  else
+    fail "--base no-such-ref ($mode) should exit 2 with no applies=false, got rc $rc: $out"
+  fi
+done
 
 test_harness::report

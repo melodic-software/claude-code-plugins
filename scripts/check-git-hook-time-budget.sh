@@ -61,8 +61,10 @@ its runner. A pre-push entry gets the remote name and URL as arguments and the p
 ref on stdin; a run: command gets lefthook's {1} and {2} filled and a relative command
 resolved against the repository. Every pre-commit run starts from the same staged files,
 so a formatter's rewrite does not carry over between runs; a group with piped: true runs
-its members in order on one staged state, as lefthook does, and is timed as one unit. S, one no-op `bash -c :` spawn measured in
-the same run (docs/contracts/hook-budget/README.md), also prints.
+its members in order on one staged state, as lefthook does, and is timed as one unit.
+
+S, one no-op `bash -c :` spawn measured in the same run
+(docs/contracts/hook-budget/README.md), also prints.
 
 Under GITHUB_ACTIONS=true, a pre-push entry that exits non-zero or prints "left to CI"
 or "was not checked" fails the gate: the pushed-and-passing run must execute every check.
