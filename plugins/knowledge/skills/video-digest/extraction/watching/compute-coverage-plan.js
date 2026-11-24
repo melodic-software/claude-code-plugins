@@ -1,7 +1,3 @@
-/**
- * Dynamic per-video frame coverage plan — no hard cap.
- */
-
 import { findDensificationWindows } from "./densification.js";
 
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */

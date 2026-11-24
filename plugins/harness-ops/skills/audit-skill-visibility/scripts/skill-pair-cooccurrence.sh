@@ -58,8 +58,6 @@ EX_NO_STORE=2
 EX_USAGE=3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The plugin is cache-isolated and the hooks ship inside it, so the resolver is
-# reachable by a path relative to this script: skills/<skill>/scripts -> hooks.
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 DEFAULT_SCOPE="repo"
@@ -101,9 +99,6 @@ die_usage() {
   exit "$EX_USAGE"
 }
 
-# need_value <flag> <remaining argument count>: every value-taking option is
-# checked the same way, so the message is derived from the flag rather than
-# restated per branch.
 need_value() { [[ "$2" -ge 2 ]] || die_usage "$1 needs a value"; }
 
 # An option the skill body passed through unrendered (`${user_config.x}`) or
@@ -177,8 +172,6 @@ done
 [[ "$FLOOR_DAYS" =~ ^[0-9]+$ ]] || die_usage "--floor-days must be a non-negative integer: $FLOOR_DAYS"
 [[ "$FLOOR_GROUPS" =~ ^[0-9]+$ ]] || die_usage "--floor-groups must be a non-negative integer: $FLOOR_GROUPS"
 
-# The pair is split on the FIRST comma only. Skill names are `plugin:skill` and
-# contain no comma, so a second one means the caller passed something else.
 [[ "$PAIR" == *,* ]] || die_usage "--pair must be CALLER,CALLEE: $PAIR"
 CALLER="${PAIR%%,*}"
 CALLEE="${PAIR#*,}"
@@ -206,8 +199,6 @@ resolve_store_from_scope() {
   case "$SCOPE" in
   repo | user | data-dir) ;;
   *)
-    # The same fallback the writers apply to an unknown scope, so the reader
-    # still lands on the file they wrote.
     printf 'skill-pair-cooccurrence.sh: unknown skill_usage_scope "%s" (valid: repo, user, data-dir); reading the default %s scope, as the hooks write to it\n' \
       "$SCOPE" "$DEFAULT_SCOPE" >&2
     SCOPE="$DEFAULT_SCOPE"
@@ -251,30 +242,18 @@ if ((PRINT_STORE)); then
   exit "$EX_OK"
 fi
 
-# Below the --print-store arm on purpose: printing the resolved path is pure
-# path arithmetic, and the Python auditor this mode bridges to is the one
-# consumer whose host is only promised Python. Everything past here reads the
-# JSONL store, which jq does.
 command -v jq >/dev/null 2>&1 || {
   printf 'skill-pair-cooccurrence.sh: jq is required to read the JSONL store\n' >&2
   exit "$EX_NO_STORE"
 }
 
 if [[ ! -r "$STORE" ]]; then
-  # Absent store is not a crash: it is the commonest state on a fresh install,
-  # and the honest answer is "nothing observed", said out loud, with the scope
-  # it was said about — a store written under another scope is the other
-  # common reason for this branch.
   printf 'skill-pair-cooccurrence.sh: no readable skill-usage store at %s (%s)\n' "$STORE" "$STORE_ORIGIN" >&2
   printf 'Nothing has been observed. This is the normal state before the harness-ops skill-usage hooks have run in this repo; it is not evidence about %s or %s.\n' \
     "$CALLER" "$CALLEE" >&2
   exit "$EX_NO_STORE"
 fi
 
-# One jq program does the whole reduction, so the grouping rule lives in exactly
-# one place. Malformed rows are dropped rather than fatal — this is an
-# observability store and one bad line must not cost the report (the same
-# posture parse_jsonl() takes in audit_skill_visibility.py).
 REPORT="$(
   jq -Rnc \
     --arg caller "$CALLER" \
@@ -353,8 +332,6 @@ if [[ -z "$REPORT" ]]; then
 fi
 
 if ((AS_JSON)); then
-  # The caveat rides in the JSON too. A consumer that machine-reads this must not
-  # get a number stripped of the thing that qualifies it.
   jq -c '. + {proxy_limit: "Co-occurrence within a (project_id, branch) group, NOT caller attribution: the SkillUse record has no field naming the invoking skill, and no session id. Consistent with causation; does not demonstrate it."}' <<<"$REPORT"
   exit "$EX_OK"
 fi

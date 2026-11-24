@@ -12,6 +12,7 @@
 // id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing on a
 // pass, and on a fail, which stands, withholds all of the model's text.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -236,6 +237,12 @@ test("linked issues outside their schema throw", () => {
     createHash("sha256").update("t\n\nb").digest("hex"),
   );
   assert.equal(buildVerdict({ ...ids, output: ok }).intent_sha256, undefined);
+  const blob = "e".repeat(40);
+  assert.equal(buildVerdict({ ...ids, output: ok, trustedActorsBlob: blob }).trusted_actors_blob, blob);
+  assert.equal("trusted_actors_blob" in buildVerdict({ ...ids, output: ok }), false);
+  for (const trustedActorsBlob of ["", "E".repeat(40), "e".repeat(39), null]) {
+    assert.throws(() => buildVerdict({ ...ids, output: ok, trustedActorsBlob }), /malformed/, String(trustedActorsBlob));
+  }
   assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: [], output: ok }).intent, "issues");
   assert.equal(buildVerdict({ ...ids, output: ok }).intent, "issues");
   const kind = (specText, linked = [ISSUE]) => buildVerdict({ ...ids, linkedIssues: linked, specText, output: ok }).spec_kind;
@@ -453,6 +460,48 @@ test("long model text is cut, not refused", () => {
   assert.equal(built.summary.length, 4000);
   assert.equal(built.notes.length, 30);
   assert.equal(built.notes[0].length, 1000);
+});
+
+test("main records the standards trusted list it judged with by git blob id, and nothing without STANDARDS_DIR", () => {
+  const dir = tempDir("pr-verify-");
+  const standards = path.join(dir, "standards");
+  const list = path.join(standards, "components", "trusted-actors", "trusted-actors.json");
+  mkdirSync(path.dirname(list), { recursive: true });
+  writeFileSync(list, '{"version":1,"actors":[]}\n');
+  const spec = path.join(dir, "spec.json");
+  writeFileSync(spec, JSON.stringify([ISSUE]));
+  const part = path.join(dir, "diff", "chunk-1", "part-001.patch");
+  mkdirSync(path.dirname(part), { recursive: true });
+  writeFileSync(part, "diff --git a/x b/x\n");
+  const execution = path.join(dir, "execution.json");
+  const read = { type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Read", input: { file_path: part } }] } };
+  writeFileSync(execution, JSON.stringify([{ type: "system" }, read, { type: "result", subtype: "success", structured_output: JSON.parse(ok) }]));
+  const logFile = path.join(dir, "log.jsonl");
+  writeFileSync(logFile, JSON.stringify({ leg: 1, denials: { count: 0 } }));
+  const env = (name, extra) => ({
+    EXECUTION_FILES: execution,
+    LOG_FILES: logFile,
+    JUDGE_OUTCOMES: slots("success"),
+    CHUNKS: "1",
+    DIFF_DIR: path.join(dir, "diff"),
+    PR_NUMBER: "41",
+    HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    HEAD_REF: "feat/x",
+    SPEC_FILE: spec,
+    GITHUB_RUN_ID: "9001",
+    VERDICT_DIR: path.join(dir, name),
+    GITHUB_OUTPUT: path.join(dir, `out-${name}`),
+    ...extra,
+  });
+  const written = (name) => JSON.parse(readFileSync(path.join(dir, name, "verdict.json"), "utf8"));
+  main(env("with", { STANDARDS_DIR: standards }));
+  const git = spawnSync("git", ["hash-object", list], { encoding: "utf8" });
+  assert.equal(git.status, 0, git.stderr);
+  assert.equal(written("with").trusted_actors_blob, git.stdout.trim());
+  main(env("without", {}));
+  assert.equal("trusted_actors_blob" in written("without"), false);
+  assert.throws(() => main(env("absent", { STANDARDS_DIR: path.join(dir, "nowhere") })), /ENOENT/);
 });
 
 test("main writes the verdict file and the artifact name, and nothing on bad output", () => {

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for ratchet.py, the counter-ceiling check /performance:protect wires
-# into CI.
-#
-# The behavior under test is the exit split: 0 at or below every ceiling, 1 a
-# counter above one, 2 a ratchet that could not measure. A ratchet that reads a
-# failed command or a missing field as a pass protects nothing, so every way the
-# measurement can fail is driven here and must exit 2, never 0.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +16,6 @@ WORK="$(mktemp -d)"
 readonly WORK
 trap 'rm -rf "$WORK"' EXIT
 
-# ceilings <file> <command> <ceiling>: one counter reading field `spawns`.
 ceilings() {
   "$HARNESS_PYTHON" -c 'import json, sys
 json.dump({"counters": [{"name": "hook", "command": sys.argv[2], "field": "spawns",
@@ -35,7 +27,6 @@ ratchet() { capture "$HARNESS_PYTHON" "$RATCHET" "$@"; }
 
 F="$WORK/r.json"
 
-# --- 1. below, at, and above the ceiling ---
 ceilings "$F" 'echo "hook spawns=3 rc=0"' 4
 ratchet check --file "$F"
 assert_eq "below the ceiling exits 0" "0" "$RUN_RC"
@@ -45,14 +36,12 @@ ceilings "$F" 'echo "hook spawns=4 rc=0"' 4
 ratchet check --file "$F"
 assert_eq "at the ceiling exits 0" "0" "$RUN_RC"
 
-# The negative control the whole ratchet exists for.
 ceilings "$F" 'echo "hook spawns=5 rc=0"' 4
 ratchet check --file "$F"
 assert_eq "above the ceiling exits 1" "1" "$RUN_RC"
 assert_contains "the regression names the counter and both numbers" \
   "ABOVE  hook: spawns=5 > ceiling 4" "$RUN_OUT"
 
-# --- 2. every failed measurement exits 2, never 0 ---
 printf '{"counters": [' >"$F"
 ratchet check --file "$F"
 assert_eq "malformed JSON is refused" "2" "$RUN_RC"
@@ -88,8 +77,6 @@ ceilings "$F" 'echo "hook spawns=many"' 4
 ratchet check --file "$F"
 assert_eq "a non-numeric field is refused" "2" "$RUN_RC"
 
-# A failing command that still printed a low count is the false green: the
-# subject never ran, and its number is below every ceiling.
 ceilings "$F" 'echo "hook spawns=0"; exit 3' 4
 ratchet check --file "$F"
 assert_eq "a failed command is refused even when it printed a count" "2" "$RUN_RC"
@@ -102,7 +89,6 @@ assert_eq "a check over no counters is refused, not passed" "2" "$RUN_RC"
 ratchet check --file "$WORK/absent.json"
 assert_eq "a missing ceilings file is refused" "2" "$RUN_RC"
 
-# --- 3. propose-tighten lowers only with --write, and never past a regression ---
 ceilings "$F" 'echo "hook spawns=2"' 4
 ratchet propose-tighten --file "$F"
 assert_eq "a dry run exits 0" "0" "$RUN_RC"
@@ -131,7 +117,6 @@ printf '{"counters": []}' >"$F"
 ratchet propose-tighten --file "$F"
 assert_eq "propose-tighten over no counters is refused" "2" "$RUN_RC"
 
-# --- 4. add measures twice and records the agreed value ---
 A="$WORK/new-dir/added.json"
 ratchet add --file "$A" --name hook --field spawns --goal "one spawn" --command 'echo "spawns=1"'
 assert_eq "add creates a missing file" "0" "$RUN_RC"
@@ -142,7 +127,6 @@ assert_eq "the added counter passes its own check" "0" "$RUN_RC"
 ratchet add --file "$A" --name hook --field spawns --goal "g" --command 'echo "spawns=1"'
 assert_eq "a duplicate name is refused" "2" "$RUN_RC"
 
-# A counter that moves between two runs of an unchanged subject.
 COUNT="$WORK/count"
 ratchet add --file "$A" --name drifts --field spawns --goal "g" \
   --command "n=\$(cat '$COUNT' 2>/dev/null || echo 0); n=\$((n + 1)); echo \$n >'$COUNT'; echo spawns=\$n"
@@ -150,8 +134,6 @@ assert_eq "a counter that disagrees with itself is refused" "2" "$RUN_RC"
 assert_contains "the refusal shows both runs" "measured 1 then 2" "$RUN_OUT"
 assert_not_contains "nothing is recorded for it" "drifts" "$(<"$A")"
 
-# --- 5. --runs sets how many agreeing runs add and propose-tighten need ---
-# tally <file>: a command that counts its own runs in <file> and prints spawns=1.
 tally() { printf "n=\$(cat '%s' 2>/dev/null || echo 0); echo \$((n + 1)) >'%s'; echo spawns=1" "$1" "$1"; }
 
 R="$WORK/runs.json"
@@ -163,7 +145,6 @@ ratchet add --file "$R" --name once --field spawns --goal "g" --runs 1 --command
 assert_eq "add --runs 1 exits 0" "0" "$RUN_RC"
 assert_eq "add --runs 1 measures once" "1" "$(<"$WORK/t1")"
 
-# Runs one and two agree on 1; run three reads 2.
 THIRD="$WORK/third"
 ratchet add --file "$R" --name late --field spawns --goal "g" --runs 3 \
   --command "n=\$(cat '$THIRD' 2>/dev/null || echo 0); n=\$((n + 1)); echo \$n >'$THIRD'; echo spawns=\$((n / 3 + 1))"
@@ -177,7 +158,6 @@ for bad in 0 -1; do
   assert_contains "the --runs $bad refusal states the minimum" "at least 1" "$RUN_OUT"
 done
 
-# One run accepts the dip that two runs refuse above.
 ceilings "$F" "n=\$(cat '$WORK/dip1' 2>/dev/null || echo 2); echo \$((n + 1)) >'$WORK/dip1'; echo spawns=\$n" 4
 ratchet propose-tighten --file "$F" --write --runs 1
 assert_eq "propose-tighten --runs 1 exits 0" "0" "$RUN_RC"
@@ -187,8 +167,6 @@ ratchet propose-tighten --file "$F" --runs 0
 assert_eq "propose-tighten --runs 0 is refused" "2" "$RUN_RC"
 assert_contains "the propose-tighten refusal states the minimum" "at least 1" "$RUN_OUT"
 
-# --- 6. per-file ceilings: a fix in one file never pays for a new violation in another ---
-# per_file <file> <command> <ceilings-json> [break_glass]: one per-file counter reading `violations`.
 per_file() {
   "$HARNESS_PYTHON" -c 'import json, sys
 data = {"counters": [{"name": "lint", "command": sys.argv[2], "field": "violations",
@@ -203,7 +181,6 @@ B_SRC="$WORK/b.ts"
 : >"$A_SRC"
 : >"$B_SRC"
 
-# File a falls from 3 to 1 while file b gains one: the total falls from 3 to 2.
 per_file "$P" "printf '%s violations=1\n%s violations=1\n' '$A_SRC' '$B_SRC'" "{\"$A_SRC\": 3}"
 ratchet check --file "$P"
 assert_eq "a new violation in file b fails though the total fell" "1" "$RUN_RC"
@@ -227,7 +204,6 @@ per_file "$P" "true" "{\"$A_SRC\": -1}"
 ratchet check --file "$P"
 assert_eq "a negative file ceiling is refused" "2" "$RUN_RC"
 
-# propose-tighten lowers file ceilings and drops a file that reached 0.
 per_file "$P" "printf '%s violations=1\n' '$A_SRC'" "{\"$A_SRC\": 3, \"$B_SRC\": 2}"
 ratchet propose-tighten --file "$P" --write
 assert_eq "per-file propose-tighten exits 0" "0" "$RUN_RC"
@@ -254,7 +230,6 @@ ratchet add --file "$PK" --per-file --break-glass off --name lint --field violat
 assert_eq "add with a break_glass key exits 0" "0" "$RUN_RC"
 assert_contains "the file's break_glass key wins over --break-glass" '"break_glass": true' "$(<"$PK")"
 
-# --- 7. break glass: an inline exception with a reason, an expiry and an approver ---
 OVER="printf '%s violations=1\n' '$B_SRC'"
 VALID="// ratchet-break-glass(lint): reason=vendor bug; expires=2999-01-01; approved-by=alice"
 
@@ -291,7 +266,6 @@ ratchet check --file "$P"
 assert_eq "an expired exception fails the check" "1" "$RUN_RC"
 assert_contains "the failure says it expired" "expired 2000-01-01" "$RUN_OUT"
 
-# A malformed exception fails even in a file at its ceiling.
 printf '%s\n' "/* ratchet-break-glass(lint): reason=x */" >"$B_SRC"
 per_file "$P" "printf '%s violations=0\n' '$B_SRC'" "{}" true
 ratchet check --file "$P"

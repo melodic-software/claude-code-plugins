@@ -55,7 +55,6 @@ case "$_WT_DIR" in
 *) HOOK_DIR="$(cd "$_WT_DIR" && pwd)" ;;
 esac
 
-# Remedy first, diagnosis after: a reader acts on the first line.
 gate::refuse() {
   local remedy="$1"
   shift
@@ -104,8 +103,6 @@ case "$path" in
   ;;
 esac
 
-# Already gone: no directory to remove and no record reachable from here; the
-# audit's Step 2b reports any records it left.
 [[ -e "$path" || -L "$path" ]] || exit 0
 
 [[ ! -L "$path" ]] ||

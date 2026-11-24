@@ -1,10 +1,3 @@
-/**
- * Transcript-driven densification windows for adaptive frame sampling.
- *
- * High-signal segments (code, slides, demos) get denser sampling; talking-head
- * segments stay sparse.
- */
-
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */
 /** @typedef {import('./models.js').DensificationWindow} DensificationWindow */
 

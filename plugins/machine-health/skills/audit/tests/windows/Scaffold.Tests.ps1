@@ -1,13 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Smoke tests for the Pester scaffold itself (runner, helpers, fixture paths).
-
-.DESCRIPTION
-These tests verify the test infrastructure works end-to-end before any
-check-specific tests exist. If these fail, nothing else can run.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Assert-CheckResult.ps1' -MockHelpers

@@ -65,7 +65,7 @@ RDT_SL_FORMS+=(
   "sh -s <<EOF${RDT_NL}rm -rf TGT${RDT_NL}EOF"
   "cat <<'EOF' | sh${RDT_NL}rm -rf TGT${RDT_NL}EOF"
 )
-rdt_sl() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_sl() {
   local label="$1" want="$2" t="$3" f
   shift 3
   for f in "${RDT_SL_FORMS[@]}"; do

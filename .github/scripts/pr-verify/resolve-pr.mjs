@@ -71,6 +71,7 @@ import {
   responseDetail,
 } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
@@ -648,10 +649,11 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
 // with no readable start time is stale. The gate also refuses a changed
 // closing set and a removed spec comment, which leave no time here; those
 // heads stay judged, as before.
-export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt }) {
+export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt, listChangedAt }) {
   const times = [
     ...issues.flatMap((issue) => [issue.last_edited_at, ...issue.spec_comments.map((comment) => comment.updated_at)]),
     ...(specKind === "pull-request" ? [bodyEditedAt] : []),
+    listChangedAt,
   ].map((time) => Date.parse(time ?? ""));
   const changed = Math.max(-Infinity, ...times.filter((time) => !Number.isNaN(time)));
   return !passStarts.some((start) => Date.parse(start ?? "") > changed);
@@ -1084,7 +1086,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -1215,7 +1217,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
-  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
+  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt, listChangedAt: await trustedListChangedAt?.() })) {
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
@@ -1422,8 +1424,9 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     return response.text();
   };
   let jobs;
+  const client = github ?? api(false);
   const result = await resolvePull({
-    github: github ?? api(false),
+    github: client,
     readRefs: github ?? api(true),
     readLog,
     repository: env.GITHUB_REPOSITORY,
@@ -1441,6 +1444,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       jobs = list;
     },
     rated: ratedBy(env),
+    trustedListChangedAt: env.STANDARDS_SHA ? () => listChangedAt(client, env.STANDARDS_SHA) : undefined,
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");

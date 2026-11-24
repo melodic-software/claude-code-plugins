@@ -1289,7 +1289,8 @@ async function postNotRunChecks(job, context) {
 test("work-unblock.yml: publish-lane-level runs on main's schedule only, mints only live, and only publish and revoke see the token", () => {
   const { jobs } = workflow("work-unblock.yml");
   const job = jobs["publish-lane-level"];
-  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}");
+  assert.equal(job.if, "${{ !cancelled() && github.event_name == 'schedule' && github.event.schedule == '28 * * * *' && github.ref == 'refs/heads/main' }}");
+  assert.ok(workflow("work-unblock.yml").on.schedule.some((entry) => entry.cron === "28 * * * *"));
   assert.deepEqual(job.needs, "label-unblocked");
   assert.deepEqual(job.permissions, { actions: "read", contents: "read", "id-token": "write" });
   const mint = job.steps.find((step) => step.id === "lane-token");
@@ -2707,12 +2708,16 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   for (const [name, [on, jobs, expected]] of Object.entries(cases)) assert.deepEqual(gates(on, jobs), expected, name);
 });
 
+const LANELESS_ROLES = ["evals"];
+
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
-  for (const role of fundingCatalog().roles) {
+  const roles = fundingCatalog().roles;
+  assert.deepEqual(roles.filter((role) => role.lanes.length === 0).map((role) => role.id), LANELESS_ROLES, "only a role held assignable before its lanes move to it holds none: evals (melodic-software/architecture#235)");
+  for (const role of roles) {
     assert.equal(role.secretPrefix, role.id.toUpperCase().replaceAll("-", "_"), role.id);
     assert.equal(role.keySecret, `${role.secretPrefix}_CLAUDE_API_KEY`, role.id);
     assert.equal(role.tokenSecret, `${role.secretPrefix}_CLAUDE_CODE_OAUTH_TOKEN`, role.id);
-    if (role.keyed) assert.ok(role.lanes.some((lane) => lane.launcher === "run-claude-cli"), role.id);
+    if (role.keyed && role.lanes.length > 0) assert.ok(role.lanes.some((lane) => lane.launcher === "run-claude-cli"), role.id);
   }
 });
 
@@ -11274,7 +11279,7 @@ test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
         encoding: "utf8",
-        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: script, STAGED_SCRIPT: join(root, "base-script", script), TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
       });
       return { status: result.status, output: readFileSync(output, "utf8") };
     };

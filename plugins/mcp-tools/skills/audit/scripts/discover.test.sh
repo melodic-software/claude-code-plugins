@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for discover.sh (no external test lib — ships with the plugin).
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

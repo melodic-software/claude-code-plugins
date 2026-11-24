@@ -52,8 +52,6 @@ function New-InvalidCatalogEntryResult {
         }
     }
     if ($null -eq $id) {
-        # Reserved synthetic namespace: not used by shipped checks. Still collide-
-        # check OccupiedIds so a custom overlay named the same stays unique.
         $id = "invalid-catalog-entry-$Index"
         $suffix = 2
         while ($occupied.Contains($id)) {

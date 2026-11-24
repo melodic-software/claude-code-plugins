@@ -74,7 +74,6 @@ worktree_path_normalize() {
   for seg in "${segs[@]}"; do
     [[ -z "$seg" || "$seg" == "." ]] && continue
     if [[ "$seg" == ".." ]]; then
-      # Pop the last kept segment; a `..` at the root is a no-op (clamped).
       ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
       continue
     fi
@@ -170,9 +169,6 @@ worktree_add_target_to() {
   esac
   ((WORKTREE_ADD_DIR_CHANGED)) && return 1
 
-  # One parsed invocation: the argv `env -S` splicing may have rewritten, git's
-  # index, the wrapper chdirs the [git, subcommand) walk below cannot see, and
-  # the subcommand with its index.
   hook::git_invocation "${__wt_w[@]}" || return 1
   local __wt_gi="$HOOK_GITINV_GI"
   local -a __wt_words=("${HOOK_GITINV_WORDS[@]}")

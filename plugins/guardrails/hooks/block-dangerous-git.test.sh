@@ -40,7 +40,6 @@ REPO_SHA1="$TEST_TMPDIR/repo-sha1"
 REPO_SHA256="$TEST_TMPDIR/repo-sha256"
 NOT_A_REPO="$TEMP_TMPDIR/not-a-repo"
 mkdir -p "$REPO_SHA1" "$REPO_SHA256" "$NOT_A_REPO"
-# The same temp roots hook::under_temp_root reads.
 for bdg_root in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
   bdg_root="${bdg_root%/}"
   if [[ -n "$bdg_root" && "$TEST_TMPDIR" == "$bdg_root"/* ]]; then
@@ -86,22 +85,18 @@ run_split() {
   expect "$label" "$expected" --command "$command" --cwd "$pcwd" --chdir "$proc" -- "$@"
 }
 
-# run_nocwd <process-cwd> <label> <command> <expected-exit> [env ...]
-# A payload carrying NO cwd field, for the lower rungs of the base chain.
 run_nocwd() {
   local proc="$1" label="$2" command="$3" expected="$4"
   shift 4
   expect "$label" "$expected" --command "$command" --chdir "$proc" -- "$@"
 }
 
-# run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
   run_in "$REPO_SHA1" "$label" "$command" "$expected" "$@"
 }
 
-# --- push-force ---------------------------------------------------------------
 run "git push --force (blocked)" "git push --force" 2
 run "git push -f (blocked)" "git push -f origin main" 2
 run "git push origin main --force (flag after operands, blocked)" "git push origin main --force" 2
@@ -179,9 +174,6 @@ run "env -C <sha256-parent> git -C <basename> push --force-with-lease=main:<40-h
 # NAME where the push actually runs. No wrapper and no `cd` were needed.
 run_split "$REPO_SHA256" "$REPO_SHA1" "payload cwd is the SHA-256 repo while the hook process stands in the SHA-1 one (40-hex is a name where the push runs, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
 run_split "$REPO_SHA256" "$REPO_SHA256" "control: both directories are the SHA-256 repo (blocked, and the fixture discriminates)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
-# The OPPOSITE direction, so the change is not merely "block more": where the
-# command really runs, a 40-hex word IS an object id, and blocking it would be a
-# false positive bought with the fix.
 run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo while the hook process stands in the SHA-256 one (40-hex is a real object id where the push runs, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
 run_split "$REPO_SHA1" "$REPO_SHA256" "payload cwd is the SHA-1 repo, 64-hex expectation (a name there, blocked)" "git push --force-with-lease=main:$SHA256_OID origin main" 2
 
@@ -198,53 +190,24 @@ run_split "$REPO_SHA256" "$REPO_SHA256" "git -C <sha1-repo> -c alias.y='!git pus
 # inherited repository.
 run_split "$REPO_SHA1" "$REPO_SHA1" "git --git-dir=<sha256>/.git --work-tree=<sha256> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (inherited GIT_DIR, blocked)" "git --git-dir=$REPO_SHA256/.git --work-tree=$REPO_SHA256 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 2
 run_split "$REPO_SHA256" "$REPO_SHA1" "git --git-dir=<sha1>/.git --work-tree=<sha1> -c alias.y='!git push --force-with-lease=main:<40-hex>' y (40-hex is object id in inherited repo, allowed)" "git --git-dir=$REPO_SHA1/.git --work-tree=$REPO_SHA1 -c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y" 0
-# The re-expansion MEMO must key on the effective base. A verdict is now a function
-# of the base, so one alias STRING reached under two bases is two analyses — and a
-# key blind to the base skips the second. Ordered sha1-then-sha256 deliberately:
-# the sha1 hop is legitimately allowed (a 40-hex word IS an object id there) and
-# memoizes, and a base-blind key then lets the identical text through where the
-# same word is a movable ref name. The two single-segment cases below are the
-# controls proving each half is decided correctly on its own, so the two-segment
-# verdict can only come from the cache.
 memo_alias="-c alias.y='!git push --force-with-lease=main:$SHA1_OID origin main' y"
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the alias under a SHA-1 -C alone (40-hex is an object id there, allowed)" "git -C $REPO_SHA1 $memo_alias" 0
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: the same alias under a SHA-256 -C alone (40-hex is a ref name there, blocked)" "git -C $REPO_SHA256 $memo_alias" 2
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "the same alias text under a SHA-1 then a SHA-256 -C: the memo must not reuse the first base's verdict (blocked)" "git -C $REPO_SHA1 $memo_alias; git -C $REPO_SHA256 $memo_alias" 2
-# `&&` as well as `;` — the collision is in the key, not in the operator, and the
-# reparse path is reached identically through both.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "the same alias text across && rather than ; (blocked)" "git -C $REPO_SHA1 $memo_alias && git -C $REPO_SHA256 $memo_alias" 2
-# The sharpest isolation of the KEY as the cause: this differs from the case above
-# only by a space inside the alias body — same repositories, same bases, same
-# danger, different key. It was already blocked before the base joined the key, so
-# it discriminates nothing on its own; it is here to pin that a base-blind key was
-# the whole difference, and to fail loudly if the key ever stops covering the body.
 memo_alias_sp="-c alias.y='!git  push --force-with-lease=main:$SHA1_OID origin main' y"
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "control: identical bases but one space added to the alias body (a different key, blocked)" "git -C $REPO_SHA1 $memo_alias; git -C $REPO_SHA256 $memo_alias_sp" 2
 
-# The cost of keying on the base: distinct bases mean distinct keys, so the memo
-# dedups less and a command alternating bases does strictly more re-expansions.
-# This is the case the base-keyed memo perturbs, and it must stay bounded and
-# correct rather than merely bounded. Sixteen distinct bases naming the SAME
-# SHA-1 repository: every one is a fresh key, so this is 16 analyses where the
-# old key spent 1 — well inside HOOK_ALIAS_WORK_MAX (128), which fails closed if
-# it is ever exceeded.
 memo_many=""
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
   mkdir -p "$REPO_SHA1/d$i"
   memo_many="$memo_many${memo_many:+; }git -C $REPO_SHA1/d$i $memo_alias"
 done
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "16 distinct bases in one command, all naming the SHA-1 repo (every hop re-analyzed, still allowed and bounded)" "$memo_many" 0
-# The same walk with a SHA-256 base appended: the weakened dedup must not let the
-# dangerous tail ride in on the sixteen safe keys ahead of it.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "16 SHA-1 bases then a SHA-256 one (the dangerous tail is still analyzed, blocked)" "$memo_many; git -C $REPO_SHA256 $memo_alias" 2
 
-# The relocation must not LEAK past the reparse: a second segment after the alias
-# one starts from the payload cwd again.
 run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias is measured from the payload cwd again (40-hex is a name there, blocked)" "git -C $REPO_SHA1 -c alias.y='!git status' y; git push --force-with-lease=main:$SHA1_OID origin main" 2
 
-# A RELATIVE locating option now resolves against the directory the tool call runs
-# in rather than the hook process's. That is the correct origin, and it is the one
-# behavior change a reviewer could mistake for a regression.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "relative git -C <basename> with both directories agreeing (unchanged, blocked)" "git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative git -C <basename> resolves against the payload cwd, not the hook process's (object id there, allowed)" "git -C repo-sha1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative --git-dir rebases onto the payload cwd the same way (object id there, allowed)" "git --git-dir=repo-sha1/.git push --force-with-lease=main:$SHA1_OID origin main" 0
@@ -384,8 +347,6 @@ run "unpinned_lease=block: lease negated (allowed)" "git push --force-with-lease
 run "unpinned_lease=block: unpinned lease under a dry run (allowed)" "git push --force-with-lease --force-if-includes --dry-run origin main" 0 "$UNPIN=block"
 run "unpinned_lease=block + allow-list push-lease-unsafe (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=block" CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-lease-unsafe
 
-# Every force-push block message names the pinned form and no other, under
-# either value: the pinned form is the one that passes under both.
 for unpin_value in allow block; do
   for strict_case in "--force-with-lease --force-if-includes" "--force-with-lease=main:" "--force-with-lease" "--force" "-f" "+HEAD:main"; do
     [[ "$unpin_value" == allow && ("$strict_case" == *force-if-includes || "$strict_case" == *main:) ]] && continue
@@ -398,9 +359,6 @@ done
 guard_invoke --command "git push --force-with-lease --force-if-includes origin main" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- "$UNPIN=block"
 assert_contains "unpinned_lease=block: message names the option that set it" "$GUARD_ERR" "block_dangerous_git_unpinned_lease"
 
-# The repository layer: read at origin/HEAD, never the working tree.
-# bdg_team_repo <dir> <yaml body>: a SHA-1 repository whose origin/HEAD commit
-# carries docs/conventions/guardrails.yaml with that body.
 bdg_team_repo() {
   git init -q --object-format=sha1 "$1" || bad "fixture: could not create $1"
   mkdir -p "$1/docs/conventions"
@@ -447,7 +405,6 @@ run "git push --m backup (shortest unique mirror abbrev, blocked)" "git push --m
 run "cd x && git push --force (compound, blocked)" "cd x && git push --force" 2
 run "quoted push --force prose (allowed)" 'echo "git push --force is banned"' 0
 
-# --- reset-hard ---------------------------------------------------------------
 run "git reset --hard (blocked)" "git reset --hard" 2
 run "git reset --h HEAD (abbreviated hard, blocked)" "git reset --h HEAD" 2
 run "git reset --ha HEAD (abbreviated hard, blocked)" "git reset --ha HEAD" 2
@@ -458,7 +415,6 @@ run "git reset --keep (allowed)" "git reset --keep HEAD~1" 0
 run "git reset --pathspec-from paths (abbreviated value skipped, allowed)" "git reset --pathspec-from paths" 0
 run "git commit -m 'reset --hard' (message literal, allowed)" "git commit -m 'reset --hard'" 0
 
-# --- clean-force --------------------------------------------------------------
 run "git clean -f (blocked)" "git clean -f" 2
 run "git clean -fd (blocked)" "git clean -fd" 2
 run "git clean -fdx (blocked)" "git clean -fdx" 2
@@ -495,8 +451,6 @@ run "git -C <temp scratch repo> reset --hard from a repository outside temp (all
 run "git -C <temp scratch repo> clean -fd from a repository outside temp (allowed)" "git -C $SCRATCH_REPO clean -fd" 0
 expect_both "temp scratch repo: reset --hard allowed under the dispatcher too" 0 \
   --command "git reset --hard" --cwd "$SCRATCH_REPO" --chdir "$SCRATCH_REPO"
-# The dangerous neighbors: the repository git touches is outside the temp tree,
-# or the probe cannot be sure which one it is.
 run "git reset --hard in a repository outside the temp directory (blocked)" "git reset --hard" 2
 run_in "$SCRATCH_REPO" "temp scratch repo: git -C <repo outside temp> reset --hard (blocked)" "git -C $REPO_SHA1 reset --hard" 2
 run_in "$SCRATCH_REPO" "temp scratch repo: --work-tree outside temp (blocked)" "git --work-tree=$REPO_SHA1 reset --hard" 2
@@ -540,7 +494,6 @@ else
   bad "fixture: could not create a linked worktree under the temp directory"
 fi
 
-# --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
 run "git checkout -- . (blocked)" "git checkout -- ." 2
 run "git checkout .github/workflows (path-scoped, allowed)" "git checkout .github/workflows" 0
@@ -616,13 +569,11 @@ run "git switch -cfix (attached branch name with f, allowed)" "git switch -cfix"
 run "git switch -Cfix (attached force-create name, allowed)" "git switch -Cfix" 0
 run "git switch -cfix -f (force after attached value, blocked)" "git switch -cfix -f" 2
 
-# --- not blocked by design ----------------------------------------------------
 run "git branch -D feat/x (reflog-recoverable, allowed)" "git branch -D feat/x" 0
 run "git branch -d feat/x (safe delete, allowed)" "git branch -d feat/x" 0
 run "git status (read-only, allowed)" "git status" 0
 run "empty command (allowed)" "" 0
 
-# --- argv-faithful regressions ------------------------------------------------
 run "git push \"--force\" (quoted flag, blocked)" 'git push "--force"' 2
 run "git push --for'ce' (partial-quote flag, blocked)" "git push --for'ce'" 2
 run "\"git\" push --force (quoted executable, blocked)" '"git" push --force' 2
@@ -736,7 +687,6 @@ run "\\;; before a nested case is a word and a ; (blocked)" \
   "echo \$(case x in x) \\;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard" 2
 run "cat <<A; echo \`:⏎git reset --hard\`⏎A (here-doc body comes after the backtick line, blocked)" \
   $'cat <<A; echo `:\ngit reset --hard`\nA' 2
-# A pattern word that starts with a substitution is the first pattern word.
 run "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard (pattern starting with \$(…), blocked)" \
   "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard" 2
 run "echo \$(case x in \`:\`|esac) :;; esac)#; git reset --hard (pattern starting with a backtick, blocked)" \
@@ -764,7 +714,6 @@ run "cat <<E; [[ \$s =~ k=(a>b) ]]⏎it's⏎E⏎git reset --hard (regex group wi
   run "cat <<E; a=(\${x/(/y})⏎it's⏎E⏎git reset --hard (( inside \${…} in an array, blocked)" \
     $'cat <<E; a=(${x/(/y})\nit\'s\nE\ngit reset --hard' 2
 }
-# Every quoted or delimited reader ends at the closing backtick.
 run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
   "echo \`\$'\`; git reset --hard #'\`" 2
 run "echo \`cat <<'\`; git reset --hard #'\` (quoted here-doc delimiter inside backticks, blocked)" \
@@ -810,12 +759,12 @@ run "unquoted heredoc body, apostrophes around \$( ) after a backslash-newline e
 run "unquoted heredoc body, a comment after a subshell ) in \$( ) (blocked)" $'cat <<EOF\n$( (:)# )\ngit reset --hard)\nEOF' 2
 run "unquoted heredoc body, a comment after a subshell ) in \$(( ) (blocked)" $'cat <<EOF\n$((:)# )\ngit reset --hard)\nEOF' 2
 run "unquoted heredoc body, a backslash-newline in prose with \$HOME (allowed)" $'cat <<EOF\nit\'s a long \\\nline in $HOME\nEOF' 0
-hd_lines() { # <line> <count>: that line repeated, each after a newline
+hd_lines() {
   local s='' i
   for ((i = 0; i < $2; i++)); do s+=$'\n'"$1"; done
   printf '%s' "$s"
 }
-hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodies
+hd_nest() {
   local s='git reset --hard' i
   for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i"$'\n$('"$s"$'\n)\nE'"$i"; done
   printf '%s' "$s"
@@ -830,7 +779,7 @@ bdg_t0=${EPOCHREALTIME/./}
 run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
-hd_nest_amb() { # <levels> <inner> [<after>]: hd_nest with <after> (default `; !(x)#`) after each opener
+hd_nest_amb() {
   local s=$2 i
   for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i${3-; !(x)#}"$'\n$('"$s"$'\n)\nE'"$i"; done
   printf '%s' "$s"
@@ -874,7 +823,6 @@ run "env-defined alias, case-folded key (blocked)" "git --config-env=alias.RH=AV
 run "env-defined alias, non-identifier env name (blocked)" "git --config-env=alias.rh=bad-rh rh" 2
 run "env-defined alias, leading-dash env name (blocked)" "env -- '-AV=x' git --config-env=alias.rh=-AV rh" 2
 run "env value last-wins over an inline decoy for the same key (blocked)" "git -c alias.rh=status --config-env=alias.rh=AV rh" 2
-# Inline (-c/--config) aliases still carry the expansion literally and are resolved.
 run "inline dangerous alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "inline alias, case-folded subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
 run "inline alias, case-folded key (blocked)" "git -c alias.RH='reset --hard' rh" 2
@@ -893,14 +841,9 @@ run "dangerous plain masked by a benign .command (blocked by union)" "git -c ali
 run "dangerous .command masked by a benign plain (blocked by union)" "git -c alias.rh=status -c alias.rh.command='reset --hard' rh" 2
 run "dangerous plain, benign .command decoy first (blocked by union)" "git -c alias.rh.command=status -c alias.rh='reset --hard' rh" 2
 run "both spellings benign (allowed)" "git -c alias.rh=status -c alias.rh.command=log rh" 0
-# Union on the --config-env shape path: an env spelling refuses even when the sibling
-# inline spelling is benign (both command-line orders).
 run "env plain spelling refuses despite a benign inline .command (blocked)" "git --config-env=alias.rh=AV -c alias.rh.command=status rh" 2
 run "env .command spelling refuses despite a benign inline plain (blocked)" "git --config-env=alias.rh.command=AV -c alias.rh=status rh" 2
 
-# The env-defined alias is refused wherever it APPEARS, through any wrapper — no env
-# propagation is tracked, so every prior env-carrying bypass (export / set -a / command
-# prefix / bash -c / snapshot-global collision) is closed by construction.
 run "env-defined alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.rh=AV rh\" sh" 2
 # An inline alias whose expansion is itself a `--config-env` alias for the invoked sub
 # runs at recursion depth 2, where the SHAPE refusal must still fire (real git runs it:
@@ -915,7 +858,6 @@ run "env-defined alias after an assignment-prefixed export (blocked)" "git -c 'a
 run "env-defined alias after 'set -a; NAME=val' allexport (blocked)" "set -a; AV='reset --hard'; git --config-env=alias.rh=AV rh" 2
 run "env-defined alias whose env name collides with an internal global (blocked)" "git --config-env=alias.rh=HOOK_ENV_SNAPSHOT_OK rh" 2 "HOOK_ENV_SNAPSHOT_OK=reset --hard"
 
-# ACCEPTANCE — decidable safe WITHOUT reading any value, so still allowed:
 run "--config-env setting a NON-alias key (allowed)" "git --config-env=core.pager=PAGERVAR status" 0
 run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
 run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.rh=AV -c alias.rh=status rh" 0
@@ -953,17 +895,12 @@ run "git restore --staged --no-staged . (staged cleared, worktree discard, block
 # Case C — plain two-hop inline chain (rh -> foo -> reset --hard).
 run "#964 case C: two-hop inline alias chain to reset --hard (blocked)" \
   "git -c alias.rh=foo -c alias.foo='reset --hard' rh" 2
-# H1 — second hop defined via --config-env (env-shaped, refused by shape); the
-# global is carried into the nested hop by the widened splice.
 run "#964 H1: inline first hop, --config-env second hop (blocked by shape)" \
   "git -c alias.rh=foo --config-env=alias.foo=AV rh" 2 "AV=reset --hard"
-# H2 — same defect with the --config-env global placed BEFORE the -c global.
 run "#964 H2: --config-env before -c, chained to the invoked sub (blocked)" \
   "git --config-env=alias.foo=AV -c alias.rh=foo rh" 2 "AV=reset --hard"
-# Three inline hops.
 run "#964 three-hop inline chain to reset --hard (blocked)" \
   "git -c alias.a=b -c alias.b=c -c alias.c='reset --hard' a" 2
-# Second hop spelled via the alias.<sub>.command subkey.
 run "#964 .command-spelled second hop to reset --hard (blocked)" \
   "git -c alias.rh=foo -c alias.foo.command='reset --hard' rh" 2
 # Benign controls — a chain to a safe terminal op still ALLOWS, and an alias
@@ -1001,13 +938,8 @@ run_bounded() {
   fi
 }
 
-# The SAFE terminal is the timing case: it exhausts the whole tree, so before the
-# bounds it ran past this ceiling (verified — 20 hops did not finish in 30s).
 run_bounded "traversal: 20-hop dual-spelling chain to a safe op (allowed, bounded)" \
   "$(alias_chain 20 status)" 0 30
-# Coverage is not what the collapse trades away: the same depth still reaches a
-# dangerous terminal op and blocks. (This one always returned fast — the walk exits
-# on the first path that finds the op — so it asserts reach, not runtime.)
 run_bounded "traversal: 20-hop dual-spelling chain to reset --hard (blocked, bounded)" \
   "$(alias_chain 20 'reset --hard')" 2 30
 # A long chain that does NOT branch (one spelling per hop) must stay allowed —
@@ -1022,15 +954,12 @@ run_bounded "traversal: $BDG_LONG_HOPS-hop single-spelling chain to a safe op (a
     for ((i = 1; i < BDG_LONG_HOPS; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
     printf '%s' "$cmd -c alias.a$BDG_LONG_HOPS=status a1"
   )" 0 30
-# Divergent spellings defeat state collapse, so the budget is what stops the walk:
-# fail CLOSED rather than stall the hook.
 run_bounded "traversal: divergent-spelling chain exhausts the budget (blocked, bounded)" \
   "$(alias_chain 12 status diverge)" 2 30
 budgetout=$(cd "$REPO_SHA1" && timeout 30 bash "$HOOK" <<<"$(command_json "$(alias_chain 12 status diverge)")" 2>&1)
 assert_contains "traversal: budget block names the re-expansion ceiling" \
   "$budgetout" "re-expansions"
 
-# --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 run "allow-list push-force,reset-hard → reset allowed" "git reset --hard" 0 \
@@ -1044,17 +973,14 @@ run "allow-list push-lease-unsafe → bare lease allowed" "git push --force-with
 run "allow-list push-force only → bare lease still blocked" "git push --force-with-lease" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 
-# --- kill switch ---------------------------------------------------------------
 run "kill switch off → no-op despite push --force" "git push --force" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false
 
-# --- over-length command fails CLOSED ------------------------------------------
 long_cmd="echo $(printf 'a%.0s' {1..20000})"
 run "command over the parse cap (fail-closed, blocked)" "$long_cmd" 2
 run "allow-list cannot bypass the parse cap (still blocked)" "$long_cmd" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=too-long
 
-# --- telemetry: block emits a `blocked` envelope --------------------------------
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
@@ -1112,9 +1038,6 @@ assert_contains "PS: function body refusal names {}/() grouping" "$GUARD_ERR" "{
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
 
-# This guard owns destructive non-commit forms (reset/clean/checkout/restore), so
-# unlike the commit/push guards it cannot defer an unparsable NON-commit/push git
-# command — it must fail closed on ANY git-shaped PowerShell it cannot parse.
 run_pwsh "PS: git --% reset --hard (stop-parsing token, fail-closed block)" \
   "git --% reset --hard" 2
 run_pwsh "PS: git --% clean -fd (stop-parsing token, fail-closed block)" \
@@ -1149,7 +1072,6 @@ run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
 # the title string is data, not a command word (#2592 comment).
 run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
   "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
-# Intermediate path directory named Git is not a git invocation.
 run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path strings in a test label and fixture, not a regex/sed construct
 # Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
 run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
@@ -1158,8 +1080,6 @@ run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
 # must still count as command-position git (Claude review on #2592).
 run_pwsh "PS: assignment without spaces \$x=git reset --hard (blocked)" "\$x=git reset --hard" 2
 
-# Positive controls: the same scriptblock shape WITH a real git command still
-# fails closed / blocks, so the narrowing did not open a bypass.
 run_pwsh "PS: git reset --hard inside scriptblock (still fail-closed, #2592)" \
   "1..1 | ForEach-Object { git reset --hard }" 2
 run_pwsh "PS: git clean -fd still blocked after command-position fix" \
@@ -1167,9 +1087,6 @@ run_pwsh "PS: git clean -fd still blocked after command-position fix" \
 run_pwsh "PS: git checkout . still blocked after command-position fix" \
   "git checkout ." 2
 
-# Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
-# covered launchers and the `start` alias of Start-Process are the same
-# see-through surface — a spelling gap, not a new launcher class.
 run_pwsh "PS: cmd.exe /c git reset --hard (fail-closed block)" \
   "cmd.exe /c git reset --hard" 2
 run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
@@ -1177,7 +1094,6 @@ run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
 run_pwsh "PS: start alias launches git (fail-closed block)" \
   "start git -ArgumentList 'reset --hard'" 2
 run_pwsh "PS: start alias, no git (allowed)" "start notepad" 0
-# A launcher whose program is a computed expression cannot be proven git-free.
 run_pwsh "PS: Start-Process computed target (fail-closed block)" \
   "Start-Process ('g'+'it') -ArgumentList 'reset --hard'" 2
 run_pwsh "PS: Start-Process -FilePath computed target (fail-closed block)" \
@@ -1433,8 +1349,6 @@ run_pwsh "PS: U+00A0 between --force and its remote (blocked — #2928)" \
   "git push --force${PS_NBSP}origin main" 2
 run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
   "git${PS_NBSP}reset --hard" 2
-# The normalization changes where token boundaries fall, not what counts as
-# destructive: read-only git stays allowed.
 run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
   "git log --oneline${PS_NBSP}-n 5" 0
 
@@ -1529,8 +1443,6 @@ run_pwsh "PS: non-launcher git -c config value (allowed — #2984 guard)" \
   "git -c core.pager=cat log --oneline -n 1" 0
 run_pwsh "PS: plain read-only git is untouched (allowed — #2984 guard)" \
   "git log --oneline -n 5" 0
-# A `=`-glued launcher TOKEN with no `$name=` LHS is not an assignment, so the
-# launcher sink is not entered. No git token either, so the parse path allows.
 run_pwsh "PS: =-glued launcher token with no assignment LHS (allowed — #2984 guard)" \
   "Write-Output x=cmd y" 0
 # Quoted text is a literal string (about_Quoting_Rules). An `=` inside quotes
@@ -1693,8 +1605,6 @@ assert_absent "PS msg: blocked grouping with no commit token omits the commit fo
   "$grp_out" "canonical PowerShell commit form"
 assert_contains "PS msg: unroll comes before the Bash tool option" \
   "${grp_out%%Bash tool*}" "unroll"
-# A trigger the printer has no line for falls back to a generic one, which also
-# leads with the PowerShell rewrite.
 fallback_out="$(PS_SINK_TRIGGER=unknown ps::print_sink_trigger_line 2>&1)"
 assert_contains "PS msg: the fallback trigger line names the PowerShell rewrite first" \
   "${fallback_out%%Bash tool*}" "Rewrite the command in PowerShell"
@@ -1777,8 +1687,6 @@ run_pwsh "PS #2664: sink-shape allow for special-construct opens --% path" \
 run_pwsh "PS #2664: wrong sink-shape token does not open --% path (still blocked)" \
   "git --% reset --hard" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-# Parsed dangerous forms still need their own tokens — sink-shape allow is not a
-# backdoor for reset --hard once the command IS tokenizable.
 run_pwsh "PS #2664: sink-shape allow does not waive a parsable reset --hard" \
   "git reset --hard" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
@@ -1793,16 +1701,10 @@ run_pwsh "PS #2667: allowlisted scriptblock does not waive visible reset --hard 
 run_pwsh "PS #2667: allowlisted launcher does not waive visible reset --hard sibling" \
   "Start-Process notepad; git reset --hard" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
-# Both tokens: sink shape for iex + reset-hard for the visible sibling.
 run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
   "Invoke-Expression 'Write-Host harmless'; git reset --hard" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
-# --- a quoted git literal in COMPARISON-OPERAND position is data --------------
-# ps::might_invoke_git exempts a quoted literal whose nearest preceding token is a
-# comparison operator, but only in a command that carries no way to execute a
-# computed value. Read-only pipelines that merely NAME git now pass the sink; a
-# command that could turn the compared string back into a command word does not.
 run_pwsh "PS cmp: -eq 'git' in a script block is data (allowed)" \
   "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
 run_pwsh "PS cmp: -in @('git.exe','bash.exe') is data (allowed)" \
@@ -1815,7 +1717,6 @@ run_pwsh "PS cmp: -like 'git*' is data (allowed)" \
   "Get-Process | ? { \$_.Name -like 'git*' }" 0
 run_pwsh "PS cmp: -match \"^git\\.exe\$\" is data (allowed)" \
   "Get-Process | ? { \$_.Name -match \"^git\\.exe\$\" } | Select-Object Id" 0
-# Rows the class already allowed — the exemption must not disturb them.
 run_pwsh "PS cmp: no git token at all (allowed)" \
   "Get-ChildItem | Where-Object { \$_.Length -gt 0 }" 0
 run_pwsh "PS cmp: Get-Process git as an argument (allowed)" \
@@ -1823,7 +1724,6 @@ run_pwsh "PS cmp: Get-Process git as an argument (allowed)" \
 run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
   "Get-ChildItem C:\\code\\proj | Where-Object { \$_.PSIsContainer }" 0
 
-# Counterexamples: every one keeps the quote-intact probe and stays blocked.
 run_pwsh "PS cmp: bare mutating git beside a comparison (blocked)" \
   "git reset --hard; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
 run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
@@ -1886,8 +1786,6 @@ run_pwsh "PS cmp: explorer of the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { explorer \$_.Name }" 2
 run_pwsh "PS cmp: ssh running the compared value on a remote host (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { ssh host \$_.Name push -f }" 2
-# The same refusal covers the cmdlets that run a program with no call operator,
-# no evaluator and no shell word.
 run_pwsh "PS cmp: Invoke-Item of the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 2
 run_pwsh "PS cmp: the ii alias of Invoke-Item (blocked)" \
@@ -1904,17 +1802,12 @@ run_pwsh "PS cmp: quoted subcommand after a bare git (blocked)" \
 # with a call target (`& 'git' -eq $x` invokes git), so it keeps the probe.
 run_pwsh "PS cmp: left-hand literal keeps the quote-intact probe (blocked)" \
   "'git' -in \$names | % { \$_ }" 2
-# The list walk is bounded; a list long enough to exhaust it fails closed.
 run_pwsh "PS cmp: over-long operand list fails closed (blocked)" \
   "Get-Process | ? { \$_.Name -in @('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','git') }" 2
-# The sink message is the unchanged one — the exemption narrows what reaches the
-# sink, it does not soften what the sink says.
 cmp_out="$(pwsh_stderr "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }")"
 assert_contains "PS cmp: blocked counterexample still names could-reach-git" \
   "$cmp_out" "could reach git"
 
-# Predicate pins — a hook rc of 0 can hide "entered the sink and was waved
-# through by something else", so the mechanism itself is asserted.
 pin_predicate "ps::might_invoke_git: -eq 'git' is data" \
   ps::might_invoke_git "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
 pin_predicate "ps::might_invoke_git: -in @('git.exe','bash.exe') is data" \
@@ -1983,8 +1876,6 @@ run_pwsh "PS cmp: expandable operand in a second Where-Object after an exempt on
   "Get-Process | Where-Object { \$_.Name -eq 'git' } | Where-Object { \$_.Path -eq \"\$(cmd /c git push -f)\" }" 2
 run_pwsh "PS cmp: expandable operand mixing a variable and a subexpression (blocked)" \
   "Get-Process | Where-Object { \$_.Name -eq \"\${env:ComSpec} \$(cmd /c git push -f)\" }" 2
-# Holes the executor-list gate left open too: the subexpression names git
-# directly, or names an executor no list carried.
 run_pwsh "PS cmp: expandable operand running git directly (blocked)" \
   "Get-Process | Where-Object { \$_.Name -eq \"\$(git push --force)\" }" 2
 run_pwsh "PS cmp: expandable operand scheduling a git task (blocked)" \
@@ -1998,9 +1889,6 @@ run_pwsh "PS cmp: expandable here-string operand (blocked)" \
 run_pwsh "PS cmp: verbatim here-string operand stays data (allowed)" \
   "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @'" "git" "'@ }")" 0
 
-# Predicate pins for the disqualifier itself. A hook rc of 2 can hide "blocked by
-# something else entirely", so the gate is asserted directly, including the two
-# cases a raw `"` scan and the opaque placeholder kind each get wrong.
 pin_predicate "ps::_is_readonly_cmdlet_pipeline: an expandable operand refuses" \
   ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq \"git\" }" 1
 pin_predicate "ps::_is_readonly_cmdlet_pipeline: a verbatim operand still accepts" \
@@ -2027,12 +1915,8 @@ ps_hs_body="$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git push --force)" "\"@
 run_pwsh "PS hs: expandable body invoking git push --force (blocked)" "$ps_hs_body" 2
 run_pwsh "PS hs: assignment form of the same body (blocked)" \
   "$(printf '%s\n%s\n%s' "\$x = @\"" "\$(git push --force)" "\"@")" 2
-# Body lines are dropped one at a time, so the gate is per-line presence of `$(`:
-# the subexpression opener and the git token may sit on different lines.
 run_pwsh "PS hs: subexpression opener and git token on separate body lines (blocked)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "Write-Output @\"" "\$(" "git push --force" ")" "\"@")" 2
-# Text after the column-zero closer is preserved, so the pipeline consumer stays
-# visible. The body behind it must still refuse.
 run_pwsh "PS hs: expandable body with a trailing pipeline after the closer (blocked)" \
   "$(printf '%s\n%s\n%s' "@\"" "\$(git push --force)" "\"@ | Out-File x.txt")" 2
 # `hook::jq_fields` strips CR, so a CRLF payload reaches the classifier as LF-only
@@ -2051,8 +1935,6 @@ run_pwsh "PS hs: the CRLF copy is refused as a here-string body, not as a stray 
 # expands `$( … )` inside them.
 run_pwsh "PS hs: subexpression inside inner single quotes (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "'\$(git push --force)'" "\"@")" 2
-# A read-only git subexpression is still text the Bash tokenizer never sees, so
-# the read-only narrowing has nothing to narrow on.
 run_pwsh "PS hs: read-only git subexpression in the body (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
 # ACCEPTED OVER-BLOCKS, pinned so a later narrowing flips a case instead of
@@ -2065,9 +1947,6 @@ run_pwsh "PS hs: body whose only subexpression is non-git (blocked, accepted ove
 run_pwsh "PS hs: backtick-escaped subexpression in the body (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\`\$(git push --force)" "\"@")" 2
 
-# The regression fence. An expandable body with no `$(` carries no command
-# position and a verbatim `@'` body carries none by construction, so none of
-# these may move.
 run_pwsh "PS hs: expandable body with variable interpolation only (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Hello \$name" "\"@")" 0
 run_pwsh "PS hs: expandable commit body with no command position (allowed)" \
@@ -2081,12 +1960,6 @@ run_pwsh "PS hs: verbatim body naming git stays inert (allowed)" \
 run_pwsh "PS hs: canonical verbatim commit form (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "fix: thing" "'@ | git commit -F -")" 0
 
-# An rc of 0 cannot tell "never entered the sink" from "entered it and was waved
-# through", so the trigger is pinned on both sides of the fence. The trigger is
-# its OWN name rather than a reuse of special-construct: the allow token is
-# derived from the trigger, and an operator who allowlisted `{}`/`--%` grouping
-# would otherwise have silently allowlisted this class too, which would make the
-# refusal a no-op for exactly the operators most likely to hit it.
 pin_sink_trigger "classify: an expandable body carrying \$( enters the herestring-subexpr sink" \
   "$ps_hs_body" "herestring-subexpr"
 pin_sink_trigger "classify: an expandable body with no command position enters no sink" \
@@ -2098,8 +1971,6 @@ pin_sink_trigger "classify: an expandable body with no command position enters n
 run_pwsh "PS hs: the special-construct token does not open the here-string body sink" \
   "$ps_hs_body" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-# Its own token is the operator's explicit opt-in, and nothing else in the
-# command is visible, so this one is allowed.
 run_pwsh "PS hs: the herestring-subexpr token opens the expandable body" "$ps_hs_body" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
 # An allow token must not fail-open a plainly visible sibling. The
@@ -2114,16 +1985,9 @@ run_pwsh "PS hs: an unrelated token does not open the sink at all (sibling never
 run_pwsh "PS hs: the matching token does not waive a visible reset --hard sibling either" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
-# ACCEPTED OVER-BLOCK: the operator opted out of launcher refusals, not out of
-# this one. Blanking the launcher statement leaves the here-string, and the
-# re-classification names it, so the command is refused under the trigger it now
-# reports rather than the one it started with.
 run_pwsh "PS hs: a launcher token does not carry over to the here-string body (blocked)" \
   "$(printf '%s\n%s\n%s' "pwsh -File build.ps1; Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
-# The realistic casualty of the acceptance above: a commit body built with a
-# subexpression. The remediation the guard already prints, a verbatim `@'` body
-# piped to `git commit -F -`, is the way out.
 run_pwsh "PS hs: commit body built with a subexpression (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "@\"" "fix: bump to \$(node -p 'x')" "\"@ | git commit -F -")" 2
 
@@ -2156,11 +2020,6 @@ run_pwsh "PS hs: CRLF-line-ended copy of the commented opener (blocked)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")" 2
 run_pwsh "PS hs: CRLF copy of the @' spelling over reset --hard (blocked)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @'" "git reset --hard" "'@ fine'")" 2
-# No literal `git` token anywhere in the command, so the visible-text probe
-# answers no and a fixture carrying a literal `git` would pass with the defect
-# present and pin nothing. The opener is VERBATIM, so the expandable-body
-# refusal and the herestring-subexpr trigger both stay out of it and the new
-# rule is the only thing that can block this.
 run_pwsh "PS hs: a no-literal-git body behind a verbatim commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @'" "\$(& \$g push --force)" "'@ fine'")" 2
 # The apostrophe-straddle spellings. Two independent per-style quote strips
@@ -2182,8 +2041,6 @@ run_pwsh "PS hs: a # inside a quoted string before a real opener (blocked, accep
 run_pwsh "PS hs: a # glued into a bareword before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "a#b @\"" "hello" "\"@")" 2
 
-# The regression fence. The `#` has to be on the OPENER line, before the suffix,
-# for anything to move.
 run_pwsh "PS hs: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "release # 1" "\"@")" 0
 run_pwsh "PS hs: the verbatim spelling of a body containing a # (allowed)" \
@@ -2193,11 +2050,6 @@ run_pwsh "PS hs: the canonical verbatim commit here-string (allowed)" \
 run_pwsh "PS hs: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 run_pwsh "PS hs: a trailing comment on a non-git command (allowed)" "Write-Output hi # done" 0
 
-# Trigger ATTRIBUTION. The new arm sits AFTER the whole trigger chain, so a
-# command that already routes to the sink keeps the trigger it had and no
-# existing telemetry, remediation line or allow-token attribution moves. The
-# subexpr pin is the measured one: with this arm at the FRONT of the chain, the
-# `$(` body below lost its herestring-subexpr refusal to this trigger's token.
 pin_sink_trigger "classify: a # on a confirmed opener line enters the herestring-comment-char sink" \
   "$ps_hs_comment" "herestring-comment-char"
 pin_sink_trigger "classify: a construct already in the command keeps its own trigger" \
@@ -2207,19 +2059,6 @@ pin_sink_trigger "classify: an expandable body carrying \$( keeps herestring-sub
 pin_sink_trigger "classify: an opener line with no # enters no sink" \
   "$(printf '%s\n%s\n%s' "Write-Output x @\"" "hello" "\"@")" ""
 
-# THIS REFUSAL HAS NO ALLOW TOKEN, and the guard refuses on the FLAG at the top
-# of its sink loop, ahead of the allow-list question, so no value of the allow
-# option can reach it. A token cannot be given: every token-granted round spends
-# the SHARED _ps_sink_attempts budget, and a sixth grantable trigger pushes a
-# command that settles in four rounds past the cap, where the loop refuses as
-# budget-exhausted without ever reading the destructive sibling.
-#
-# The gate payload that measured it: four sink constructs and a live
-# `git reset --hard` on line 1, a commented opener, and a closer line carrying a
-# second opener. Pinned under no token, under the four other sink tokens, and
-# under EVERY existing token at once (the destructive-form tokens included, which
-# is the stack that waives the visible `git reset --hard` once the sink is
-# through with it).
 PS_HS_BUDGET_CHAIN="$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
   "Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard" \
   "x # @\"" "\$(y)" "\"@ @\"" "z" "\"@")"
@@ -2233,8 +2072,6 @@ run_pwsh "PS hs: the budget-chain payload is blocked under the four other sink t
 run_pwsh "PS hs: the budget-chain payload is blocked under EVERY existing token at once" \
   "$PS_HS_BUDGET_CHAIN" 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS"
-# The removed token's literal string is just a string the guard never consults.
-# An operator who copied it from a stale note changes nothing.
 run_pwsh "PS hs: the removed token string does not open the comment-tail shape" \
   "$ps_hs_comment" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
@@ -2273,13 +2110,6 @@ run_pwsh "PS budget: five distinct sink triggers then reset --hard are blocked b
 assert_absent "PS budget: and that refusal is not the budget's" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
   "$(ps_budget_five 'reset --hard')" 2
-# A sixth round cannot follow those five: an opener stacked on the hanging one
-# puts a quote in its prefix and is refused as untrusted. The budget is reached
-# the other way. Three distinct triggers (herestring-unbalanced, special-construct,
-# dynamic-invocation) take three rounds and the launcher is the fourth. `$o=pwsh x`
-# is a launcher in assignment-glued form, which the statement blanker leaves
-# alone, so the launcher round and every later one read the same text: the fifth
-# round is spent and the sixth is refused.
 PS_BUDGET_EXHAUSTED="$(printf '%s\n%s' "Write-Host {a}; iex b; \$o=pwsh x; git reset --hard" "Write-Output @'")"
 run_pwsh "PS budget: four distinct triggers, the last one stuck, are blocked under all five sink tokens" \
   "$PS_BUDGET_EXHAUSTED" 2 \
@@ -2287,33 +2117,23 @@ run_pwsh "PS budget: four distinct triggers, the last one stuck, are blocked und
 assert_contains "PS budget: the refusal names the exhausted budget (four triggers)" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 assert_contains "PS budget: and says no allow token clears it (four triggers)" "$GUARD_ERR" "No allow token clears this"
 assert_absent "PS budget: it does not point at an allow token (four triggers)" "$GUARD_ERR" "False positive: the user adds"
-# Without the launcher token the same payload stops at the fourth round, on the
-# launcher. That the refusal names it, and not the budget, shows the three rounds
-# before it were spent on three different triggers.
 run_pwsh "PS budget: without the launcher token the same payload is refused at the launcher" \
   "$PS_BUDGET_EXHAUSTED" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced,ps-unparsable-special-construct,ps-unparsable-dynamic-invocation
 assert_contains "PS budget: the refusal names the launcher" "$GUARD_ERR" "process launcher or nested shell"
 assert_absent "PS budget: and not the budget" "$GUARD_ERR" "after five allowed sink shapes were set aside"
-# The same no-progress round from a call operator whose quoted target stays
-# opaque: the differential found it allowed under its one token.
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
 assert_contains "PS budget: the refusal names the exhausted budget (quoted call)" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 assert_contains "PS budget: and says no allow token clears it (quoted call)" "$GUARD_ERR" "No allow token clears this"
 assert_absent "PS budget: it does not point at an allow token (quoted call)" "$GUARD_ERR" "False positive: the user adds"
-# A command that settles inside the budget is still read, not refused.
 run_pwsh "PS budget: three granted triggers then git status are still allowed" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git status' 0 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
 run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-# Trailing-space opener is unconfirmed, so `"@` at column zero is an orphan
-# closer: refused by shape, with or without git beside it and with the
-# special-construct token granted, never read and never by the budget. The
-# git-free case is an over-block: a command with no git in it is refused too.
 run_pwsh "PS budget: a trailing-space opener beside reset --hard is refused as an orphan closer" \
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
@@ -2323,13 +2143,6 @@ run_pwsh "PS budget: a trailing-space opener beside a harmless line is refused a
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 
-# The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
-# before it. A closer line carrying a SECOND opener is joined onto the first
-# opener's prefix by a reduction that never rescans the joined line, so a command
-# whose RAW text has no `#` on any opener line can acquire one on a later round.
-# A check placed before the loop would already be behind that round, and the
-# allow-list question would be asked for a trigger with no arm, whose `*` default
-# empties the command and exits 0.
 run_pwsh "PS hs: a commented opener acquired on a LATER round is still refused" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
@@ -2342,10 +2155,6 @@ run_pwsh "PS hs: a git command on the commented opener line itself is blocked" \
   "$(printf '%s\n%s\n%s' "git push --force # @\"" "body" "\"@")" 2
 run_pwsh "PS hs: a visible destructive sibling beside a commented opener is blocked" \
   "$(printf '%s\n%s\n%s' "git reset --hard; Write-Output x # @'" "body" "'@")" 2
-# Refusing on the flag means the HOOK reports herestring-comment-char even when
-# the classifier named an earlier trigger, so the operator reads the advice for
-# the shape that is actually holding the command. The classifier's own
-# attribution is unchanged and is pinned above.
 PS_HS_COMMENT_PLUS_CONSTRUCT="$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")"
 assert_contains "PS hs: the hook names the comment-char trigger when the flag holds the command" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
@@ -2353,12 +2162,9 @@ assert_contains "PS hs: the hook names the comment-char trigger when the flag ho
 assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
   "No allow token exists for this shape"
-# The shared token-list line is SUPPRESSED for this trigger. Leaving it in would
-# send an operator to set a value the guard never consults on this path.
 assert_absent "PS hs: the shared allow-token line is suppressed for this trigger" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
   "False positive: the user adds"
-# And it is still printed for a trigger that does have a token.
 assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
   "$(pwsh_stderr "$ps_hs_body" || true)" \
   "False positive: the user adds"
@@ -2645,7 +2451,7 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 cont
 # shfmt and jq.
 PARSE_CREATIONS=7
 PARSE_EXECVE=2
-strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+strace_census() {
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
   (cd "$REPO_SHA1" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
@@ -2656,7 +2462,6 @@ strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXEC
   CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }
-# guard_share <command> → SHARE_RC SHARE_CREATIONS SHARE_EXECVE (guard minus no-op)
 guard_share() {
   local payload noop_cre noop_exe
   payload="$(command_json_cwd "$1" "$REPO_SHA1")"
@@ -2677,25 +2482,17 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_eq "strace: guard's own process creations on a benign Bash call are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
   assert_eq "strace: guard's own execve count on a benign Bash call is one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
-  # The verdict path costs nothing the benign path did not: the eager telemetry
-  # subject is gone from file scope, and emit_tel's own substitution stays
-  # behind the sink gate.
   guard_share 'git push --force origin main'
   assert_exit "strace: dispatched force-push still blocks under the tracer" 2 "$SHARE_RC"
   assert_eq "strace: a blocked force-push creates no more processes than a benign call" \
     "$benign_creations" "$SHARE_CREATIONS"
 
-  # A `!` alias reparse composes the relocated base without a fork
-  # (hook::git_effective_dir_to assigns; no command substitution), so it adds
-  # exactly the second parse over the benign share.
   guard_share "git -c alias.y='!git status' y"
   alias_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"
   assert_eq "strace: a ! alias reparse adds one parse's process creations over benign" \
     $((benign_creations + PARSE_CREATIONS)) "$SHARE_CREATIONS"
 
-  # Trailing arguments are shell-quoted with `printf -v`, so three of them add
-  # nothing to the reparse's count.
   guard_share "git -c alias.y='!git push' y --force origin main"
   assert_exit "strace: force-push through a ! alias's trailing args still blocks under the tracer" 2 "$SHARE_RC"
   assert_eq "strace: trailing ! alias arguments add no process creations" \
@@ -2759,9 +2556,6 @@ expect_both "dispatched parity: PowerShell git push --force blocks" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "git push --force" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
 
-# --- An attended session asks instead of denying (refuse.sh) ------------------
-# An ask is the verdict on the WHOLE command: a later segment past the alias
-# traversal budget denies the call, alone and through the row.
 BDG_HOPS=""
 for ((bdg_i = 1; bdg_i <= 141; bdg_i++)); do BDG_HOPS+=" -c alias.a$bdg_i=a$((bdg_i + 1))"; done
 expect_both "attended: reset --hard, then an alias chain past the budget, denies" 2 \
@@ -2787,8 +2581,6 @@ if (ulimit -s 512) 2>/dev/null; then
   assert_exit "512 KB stack: the 141-hop alias chain denies (dispatched)" 2 "$BDG_RC"
   assert_contains "512 KB stack: the alias-budget deny is on stderr (dispatched)" "$BDG_ERR" "re-expansions"
 fi
-# Stay loud: a walk nested past the depth cap denies with a message rather than
-# running on. The cap is lowered so a short, otherwise benign chain reaches it.
 expect "depth cap: a chain nested past the cap denies" 2 \
   --command "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3=status a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
   -- GUARDRAILS_ALIAS_DEPTH_MAX=2
@@ -2841,8 +2633,6 @@ expect "depth cap: an override above the computed cap still denies the 141-hop c
 expect "depth cap: a non-numeric override is ignored" 2 \
   --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
   -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits" GUARDRAILS_ALIAS_DEPTH_MAX=abc
-# A limits file claiming a huge stack cannot raise the cap past the real one: on
-# a 512 KB stack (real cap 25) the 141-hop chain still denies instead of crashing.
 if (ulimit -s 512) 2>/dev/null; then
   BDG_RC=0
   BDG_ERR=$(
@@ -2890,15 +2680,12 @@ assert_eq "attended: allow-listed form emits no document" "" "$GUARD_OUT"
 expect "attended: a benign command emits no document" 0 \
   --command "git status" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended: benign command stays silent" "" "$GUARD_OUT"
-# A command the guard cannot read names nothing a person could judge.
 expect "attended: a command over the length cap still denies" 2 \
   --command "git status $(printf 'x%.0s' {1..16400})" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 expect "attended, dispatched: git reset --hard asks too" 0 --via dispatched \
   --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended, dispatched: the merged decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
-# Attended but unwatched: the ask would wait on a prompt nobody answers, so the
-# guard denies and names the command for a person to run later (refuse.sh).
 expect "unwatched: git reset --hard denies instead of asking" 2 \
   --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
   CLAUDE_CODE_SESSION_ATTENDED=1 GUARDRAILS_SESSION_UNWATCHED=1
@@ -2921,7 +2708,6 @@ expect "unwatched, not attended: git reset --hard denies without the note" 2 \
   CLAUDE_CODE_SESSION_ATTENDED=0 GUARDRAILS_SESSION_UNWATCHED=1
 assert_absent "unwatched, not attended: no run-later note" "$GUARD_ERR" "Nobody is watching"
 
-# --- Guards stay on in auto mode -----------------------------------------------
 AUTO_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_SHA1" \
   '{tool_name:"Bash",tool_input:{command:"git reset --hard"},cwd:$d,permission_mode:"auto"}')
 expect_both "auto mode: git reset --hard still blocks" 2 --payload "$AUTO_PAYLOAD" --chdir "$REPO_SHA1"

@@ -618,7 +618,11 @@ class FakeGitHub:
             return ok(file_payload(json.dumps(self.standards_actors)))
         if path.startswith(f"repos/{REPO}/contents/"):
             # Read at main's tip only, never by the branch's name.
-            return ok(self.actors) if path.endswith(f"?ref={MAIN_SHA}") else missing()
+            if not path.endswith(f"?ref={MAIN_SHA}") or self.actors is None:
+                return missing()
+            if "Accept: application/vnd.github.raw" in args:
+                return ok(self.actors)
+            return ok(file_payload(json.dumps(self.actors)))
         issues = f"repos/{REPO}/issues/"
         if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
             n = int(path[len(issues) :].split("/")[0])
@@ -9248,6 +9252,142 @@ class FilesAtTheTipFromTheCheckout(unittest.TestCase):
             f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
             read.call_args.args[0],
         )
+
+
+RESOLVE_PR = (
+    pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/pr-verify/resolve-pr.mjs"
+)
+TRUSTED_LIB = (
+    pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/lib/trusted-actors.mjs"
+)
+LIST_V1 = {"version": 1, "actors": [MAINTAINER, LANES]}
+LIST_V2 = {"version": 1, "actors": [MAINTAINER]}
+
+
+class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
+    """For a repository that opts in to the standards list, a pass refuses
+    `verify:spec-changed` unless the trusted list's blob it records
+    (write-verdict.mjs `trusted_actors_blob`) is the live list's; one
+    recording none stands while the `.github/standards/` copy is at the tip."""
+
+    def refusal(self, live: Any, copy: Any = LIST_V1, team: str = OPTED_IN, **recorded: Any) -> Any:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(**recorded)
+        fake.team_yaml, fake.actors, fake.standards_actors = team, copy, live
+        with (
+            mock.patch.object(policy, "_STANDARDS_SHA", {}),
+            mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+        ):
+            return read(fake).refusal
+
+    def test_a_changed_list_is_stale_and_the_same_list_fresh(self) -> None:
+        judged = ve.git_blob(json.dumps(LIST_V1).encode())
+        self.assertEqual(self.refusal(LIST_V2, trusted_actors_blob=judged), ve.SPEC_CHANGED)
+        self.assertIsNone(self.refusal(LIST_V1, trusted_actors_blob=judged))
+        for malformed in (None, 7, judged.upper()):
+            with self.subTest(malformed=malformed):
+                self.assertEqual(
+                    self.refusal(LIST_V1, trusted_actors_blob=malformed), ve.SPEC_CHANGED
+                )
+
+    def test_no_recorded_blob_stands_only_while_the_copy_is_there(self) -> None:
+        self.assertIsNone(self.refusal(LIST_V2))
+        self.assertEqual(self.refusal(LIST_V1, copy=None), ve.SPEC_CHANGED)
+
+    def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
+        stale = ve.git_blob(json.dumps(LIST_V2).encode())
+        self.assertIsNone(self.refusal(LIST_V1, team="", trusted_actors_blob=stale))
+
+    def test_the_blob_is_git_s_object_id(self) -> None:
+        self.assertEqual(ve.git_blob(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
+        self.assertEqual(ve.git_blob(b"hello\n"), "ce013625030ba8dba906f756967f9e9ca394464a")
+
+
+class TheResolverAndTheGateAgreeOnTheList(unittest.TestCase):
+    """One standards history in a real git repository: the gate weighs the
+    blob the writer records (trusted-actors.mjs `listBlob`) against the live
+    list, the resolver the pass start against the committer time of the newest
+    commit touching the list (resolve-pr.mjs `specChanged`, as `listChangedAt`
+    reads it), and the two call the same pass stale."""
+
+    PASS_STARTED = "2026-10-10T00:00:00Z"
+
+    def setUp(self) -> None:
+        self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", {}))
+        self.enterContext(mock.patch.object(policy, "_STANDARDS_TEXT", {}))
+        self.root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        self.git("init", "-q")
+        self.commit("2026-10-01T00:00:00Z", list_text=json.dumps(LIST_V1), readme="one")
+
+    def git(self, *args: str, at: str | None = None) -> str:
+        env = {**self.env, **({"GIT_AUTHOR_DATE": at, "GIT_COMMITTER_DATE": at} if at else {})}
+        return subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", *args],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, at: str, list_text: str | None = None, readme: str | None = None) -> None:
+        listed = self.root / policy.STANDARDS_TRUSTED_ACTORS
+        if list_text is not None:
+            listed.parent.mkdir(parents=True, exist_ok=True)
+            listed.write_text(list_text)
+        if readme is not None:
+            (self.root / "README.md").write_text(readme)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "change", at=at)
+
+    def node(self, script: str) -> Any:
+        return json.loads(
+            subprocess.run(
+                ["node", "--input-type=module", "-e", script],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip().splitlines()[-1]
+        )  # fmt: skip
+
+    def judged_blob(self) -> str:
+        """The blob the writer records from the checkout, which is git's."""
+        listed = self.root / policy.STANDARDS_TRUSTED_ACTORS
+        blob = self.node(
+            f"import {{ readFileSync }} from 'node:fs';"
+            f"import {{ listBlob }} from {json.dumps(TRUSTED_LIB.as_uri())};"
+            f"console.log(JSON.stringify(listBlob(readFileSync({json.dumps(str(listed))}))));"
+        )
+        self.assertEqual(blob, self.git("rev-parse", f"HEAD:{policy.STANDARDS_TRUSTED_ACTORS}"))
+        return blob
+
+    def resolver_stale(self) -> bool:
+        changed = self.git("log", "-1", "--format=%cI", "--", policy.STANDARDS_TRUSTED_ACTORS)
+        return self.node(
+            f"import {{ specChanged }} from {json.dumps(RESOLVE_PR.as_uri())};"
+            f"console.log(JSON.stringify(specChanged([{json.dumps(self.PASS_STARTED)}],"
+            f" {{ linkedIssues: [], specKind: 'closes', listChangedAt: {json.dumps(changed)} }})));"
+        )
+
+    def gate_stale(self, blob: str | None) -> bool:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(
+            **({} if blob is None else {"trusted_actors_blob": blob})
+        )
+        live = (self.root / policy.STANDARDS_TRUSTED_ACTORS).read_text()
+        fake.team_yaml, fake.standards_actors = OPTED_IN, json.loads(live)
+        refusal = read(fake).refusal
+        self.assertIn(refusal, (None, ve.SPEC_CHANGED))
+        return refusal == ve.SPEC_CHANGED
+
+    def test_a_list_change_after_the_pass_is_stale_to_both(self) -> None:
+        blob = self.judged_blob()
+        self.commit("2026-10-15T00:00:00Z", list_text=json.dumps(LIST_V2))
+        self.assertEqual((self.gate_stale(blob), self.resolver_stale()), (True, True))
+
+    def test_another_standards_file_changed_after_the_pass_is_fresh_to_both(self) -> None:
+        blob = self.judged_blob()
+        self.commit("2026-10-15T00:00:00Z", readme="two")
+        self.assertEqual((self.gate_stale(blob), self.resolver_stale()), (False, False))
+
+    def test_no_recorded_blob_with_the_copy_there_is_fresh_to_both(self) -> None:
+        self.assertEqual((self.gate_stale(None), self.resolver_stale()), (False, False))
 
 
 if __name__ == "__main__":

@@ -140,8 +140,6 @@ export function run(argv, ctx = {}, io = {}) {
       stateRead = found.read;
       roots = found.roots;
     }
-    // The repository scan stands in only when no settings or install state exists;
-    // a read state with nothing enabled is an empty fleet, not a reason to scan.
     if (roots.length === 0 && !stateRead) {
       const repo = gitToplevel(cwd);
       const pluginsDir = path.join(repo, "plugins");

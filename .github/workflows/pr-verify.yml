@@ -182,6 +182,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: |
@@ -2025,6 +2026,7 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
@@ -2249,6 +2251,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -3892,6 +3895,7 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       - name: Upload the FAIL index
@@ -4049,6 +4053,7 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -5430,6 +5435,7 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
           # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
           FAIL_INDEX: "1"
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       - name: Upload the FAIL index

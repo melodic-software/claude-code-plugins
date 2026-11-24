@@ -1,7 +1,3 @@
-// The browser half of question-shape knowledge that both interview pages share, served by both servers (the shared
-// page's server.py and the 1:1 page's surface/interview_server.py): the id of a person's own option, the markdown both pages
-// render, the composer kit every text box people write in uses, and the fit to the visual viewport that keeps an
-// on-screen keyboard off the field being typed in. One classic script, one global: QuestionShape.
 (() => {
   /** The option id of a person's own "Something else…" option (shared/session.py OTHER_OPTION). */
   const OTHER = "other";
@@ -20,7 +16,6 @@
   //   text(p, s)     how it appends a plain run s to p (mentions, question ids), else as text;
   //   heading        the level of a "#" heading (## one lower, down to h6), else every heading is a bold line.
   const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
-  // *emphasis* opens only after a space, an opening bracket or a quote and hugs its text, so *.js and a URL's *x* stay text
   const SPAN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|(?<![^\s(\["'])\*[^*\s](?:[^*\n]*?[^*\s])?\*(?![*\w]))/;
   const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\bhttps?:\/\/[^\s<>"']+/g;
   /** owner/repo#N; `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2
@@ -79,7 +74,7 @@
         } else if (q) {
           p = list = null;
           if (!quote) { quote = el("blockquote"); f.append(quote); qp = null; }
-          if (!q[1].trim()) qp = null; // an empty quote line starts the quote's next paragraph
+          if (!q[1].trim()) qp = null;
           else { if (qp) qp.append(el("br")); else quote.append(qp = el("p")); inline(qp, q[1].trim(), o); }
         } else if (m) {
           p = quote = null;
@@ -111,8 +106,7 @@
    *  on(t, ev, fn, opt) how the page adds a listener it can take off again. */
   function kit({ pane, grew = () => {}, drafts = memory(), mentionOn = () => false, closeMention = () => {}, on = listen }) {
     const KIT = new WeakMap(), KITS = new Set();
-    let booted = false; // fields made after start-up (list rows) paint their counter on input only
-    // a field scrolls itself into view only while the person types in it, never on a render
+    let booted = false;
     const TYPED = { el: null, at: 0 };
     const typing = f => !!f && TYPED.el === f && performance.now() - TYPED.at < 1000;
 
@@ -124,7 +118,6 @@
       t.style.overflowY = h > max ? "auto" : "hidden";
       grew(t);
     }
-    // cut: false leaves the field without a maxLength (and so without a counter), for text whose send checks its length.
     function composer(f, { send, counterFrom, escape, mentions, draftKey, verb = "send", cut = true } = {}) {
       if (cut && !(f.maxLength > 0)) f.maxLength = 2000;
       const oneLine = f.tagName === "INPUT" || f.rows === 1;
@@ -143,7 +136,6 @@
     /** Each keyed field keeps what was typed under its last key and shows what its key holds now. */
     function swap() {
       for (const k of KITS) {
-        // a list row made before start-up leaves the set once its row is gone
         if (!k.draftKey) { if (k.f.isConnected) { k.seen = true; paint(k); } else if (k.seen) KITS.delete(k); continue; }
         const key = k.draftKey();
         if (key !== k.key) {
@@ -165,8 +157,6 @@
       TYPED.el = e.target; TYPED.at = performance.now();
       const k = KIT.get(e.target); if (k) paint(k);
     }, true);
-    // Runs first; an open @ list keeps its own keys (Enter and Tab pick, Escape closes it), and Ctrl or Cmd + Enter
-    // closes it and sends. A send or an escape it runs is the field's: the page's own key handlers see it prevented.
     on(document, "keydown", e => {
       const k = KIT.get(e.target);
       if (!k || e.isComposing || e.keyCode === 229) return;

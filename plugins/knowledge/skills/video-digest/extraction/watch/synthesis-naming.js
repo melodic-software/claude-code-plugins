@@ -1,7 +1,3 @@
-/**
- * Semantic naming for synthesis key-frame promotions.
- */
-
 import path from "node:path";
 
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;

@@ -166,8 +166,6 @@ class Surface:
             }
         )
         text = scored_text(registrations)
-        # A tool's user-facing name ("Claude Design", "Update") is scored but
-        # not fingerprinted: a dismissal resurfaces on the scored_text fields.
         shown = " ".join(
             r["user_facing_name"]
             for r in registrations

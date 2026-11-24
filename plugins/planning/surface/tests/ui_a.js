@@ -117,7 +117,7 @@ async page => {
   ok("a defined term used in a question title shows its definition on hover", await page.$$eval("#qhead abbr.term", els => els.map(e => e.textContent + "=" + e.title).join()) === "markdown=The small text markup the page renders in question text.");
   await page.evaluate(id => document.querySelector('.qbtn[data-q="' + id + '"]').click(), before); await page.waitForTimeout(200);
   await page.focus('#tabs [data-panel="terms"]');
-  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
+  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150);
   ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
   await page.click('button[data-rv-theme="dark"]'); await page.waitForTimeout(100);
   const dark = await page.evaluate(() => ({attr: document.documentElement.getAttribute("data-theme"), scheme: getComputedStyle(document.documentElement).colorScheme, pressed: [...document.querySelectorAll("button[data-rv-theme]")].map(b => b.getAttribute("aria-pressed")).join()}));
@@ -161,7 +161,7 @@ async page => {
     ok("clicking a folded note expands it (" + tag + ")", await page.evaluate(() => { const b = document.querySelector("[data-notetoggle]"); return b.getAttribute("aria-expanded") === "true" && !b.nextElementSibling.hidden; }));
     await page.click("[data-notetoggle]"); await page.waitForTimeout(100);
   }
-  await page.click("#pinBtn"); await page.waitForTimeout(150); // leave the panel unpinned, as the rest of the run expects
+  await page.click("#pinBtn"); await page.waitForTimeout(150);
   await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(200);
   ok("Esc then Esc closes the flyout", await page.evaluate(() => !document.getElementById("fly").classList.contains("open")));
 
@@ -236,7 +236,6 @@ async page => {
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
-  // a session with no answered question, on a second page whose state has its events, page responses and terminal decisions stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
   const stripped = await page.context().newPage();
   await stripped.route("**/events", r => r.abort());
   await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; body.responses.responses = {}; for (const q of body.questions.questions) delete q.terminal; await route.fulfill({response: res, json: body}); });
@@ -262,7 +261,6 @@ async page => {
   ok("after a failed connection attempt the pill reads Connection lost", /\boffline\b/.test(pd.cls) && /^Connection lost/.test(pd.text), JSON.stringify(pd));
   await refused.close();
 
-  // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
   await page.click("#note"); await page.keyboard.type("Keep this note"); await page.keyboard.press("Escape"); await page.keyboard.press("1");
   ok("N2 armed with a note before the external revise", !!(await page.$(".choice.armed")));
