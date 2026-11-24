@@ -54,13 +54,5 @@
 HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^\\$%<{~"[:space:]/]([^\\$%<{~"[:space:]/]|%[0-9])*(~[0-9]+)?'
 HPP_MACOS_USER_BODY='/Users/[^\\$%<{~"[:space:]/]([^\\$%<{~"[:space:]/]|%[0-9])*'
 HPP_LINUX_USER_BODY='/home/[^\\$%<{~"[:space:]/]([^\\$%<{~"[:space:]/]|%[0-9])*'
-# The checkout-parent segment is drive-letter-anchored, so broadening it beyond
-# `repos` to the other common checkout-root names stays false-positive-safe —
-# only a genuine `X:\<root>\<child>\` absolute path matches, never prose. Both
-# lowercase and Capitalized spellings are listed (a regex character class such
-# as `[Rr]` would leave a partial token the docs typos-gate flags). A consumer's
-# OWN checkout root is already caught by the driver's project-root literal scan;
-# this generic body catches references to OTHER machines' checkout paths in
-# written content.
 HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)(repos|Repos|projects|Projects|dev|Dev)(/|\\\\?)[^\\$%<{~"[:space:]/]([^\\$%<{~"[:space:]/]|%[0-9])*(~[0-9]+)?'
 HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\(repos|Repos|projects|Projects|dev|Dev)\\\\[^\\$%<{~"[:space:]/]([^\\$%<{~"[:space:]/]|%[0-9])*(~[0-9]+)?'
