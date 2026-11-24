@@ -569,11 +569,6 @@ export const onlyReviewStopsNoted = (annotations) => {
   const causes = failureCauses(annotations);
   return causes.length > 0 && causes.every(stopCause);
 };
-export const reviewStopsAmidGateNotes = (annotations) => {
-  const causes = failureCauses(annotations);
-  const rest = causes.filter((a) => !stopCause(a) && !killSwitchNoted([a]));
-  return causes.some(stopCause) && (rest.length === 0 || floorNoted(rest));
-};
 // The errors ci-status's review-lane step writes for a review still running,
 // or with no run yet, when it read the head (pr-require-checks.yml;
 // reconcile.test.mjs pins both there).
@@ -595,6 +590,18 @@ const FLOOR_COMPANION = /^could not /;
 export const floorNoted = (annotations) => {
   const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
   return failures.some((m) => FLOOR_NOTE.test(m)) && failures.every((m) => FLOOR_NOTE.test(m) || FLOOR_COMPANION.test(m) || EXIT_NOTE.test(m));
+};
+const namedTargets = (message) => [...message.matchAll(/#([1-9][0-9]*)\b|\b([0-9a-f]{40})\b/g)].map((m) => m[1] ?? m[2]);
+const floorCompanion = (message, floors) =>
+  FLOOR_COMPANION.test(message) && namedTargets(message).some((id) => floors.some((f) => new RegExp(`[/=]${id}(?![0-9a-f])`).test(f)));
+export const reviewStopsAmidGateNotes = (annotations) => {
+  const causes = failureCauses(annotations);
+  const floors = causes.map((a) => String(a.message ?? "")).filter((m) => FLOOR_NOTE.test(m));
+  const gateNote = (a) => {
+    const m = String(a.message ?? "");
+    return stopCause(a) || killSwitchNoted([a]) || PENDING_REVIEW_NOTE.test(m) || MISSING_REVIEW_NOTE.test(m) || FLOOR_NOTE.test(m) || floorCompanion(m, floors);
+  };
+  return causes.some(stopCause) && causes.every(gateNote);
 };
 const FLOOR_TIME = /(?:until|before) ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z)( \(fallback)?/g;
 const namedReset = (annotations, counts) => {
